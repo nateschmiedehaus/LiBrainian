@@ -72,7 +72,7 @@ Evidence links use the following format:
 
 | Component | Depth | Evidence | Notes |
 |-----------|-------|----------|-------|
-| Provider gate | partial | `packages/librarian/src/api/provider_gate.ts`, `packages/librarian/src/api/provider_check.ts` | `checkAllProviders()` available |
+| Provider gate | tested | `src/api/provider_gate.ts`, `src/api/provider_check.ts`, `src/__tests__/provider_gate.test.ts` | Tier-0 provider gate checks passing |
 | First-run gate | partial | `packages/librarian/src/integration/first_run_gate.ts` | Pre-bootstrap check |
 | Daily model selection | partial | `src/models/model_policy.ts:ensureDailyModelSelection` | Haiku-class default |
 | Model discovery | partial | `src/models/model_discovery.ts` | Live doc fetch required |
@@ -100,7 +100,7 @@ This requires live LLM providers and takes longer but produces comprehensive kno
 | Component | Depth | Evidence | Notes |
 |-----------|-------|----------|-------|
 | Query API | partial | `packages/librarian/src/api/query.ts` | Provider-gated |
-| Query evidence ledger events | partial | `src/api/query.ts:appendQueryEvidence`, `src/api/query.ts:appendStageEvidence`, `src/api/__tests__/query_trace_ledger.test.ts:records query lifecycle and stage evidence` | unverified_by_trace(vitest_missing): test runner not installed |
+| Query evidence ledger events | tested | `src/api/query.ts:appendQueryEvidence`, `src/api/query.ts:appendStageEvidence`, `src/api/__tests__/query_trace_ledger.test.ts:records query lifecycle and stage evidence` | Tier-0 evidence ledger wiring verified |
 | Context assembly | partial | `packages/librarian/src/api/context_assembly.ts` | Knowledge sources merged |
 | UC requirements | partial | `packages/librarian/src/api/query.ts:deriveUCRequirements` | Task-type mapping |
 | Method hints | partial | `packages/librarian/src/methods/method_guidance.ts` | Heuristic-only currently |

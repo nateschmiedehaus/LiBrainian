@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.1.0",
-  "lastUpdated": "2026-01-26T00:00:00Z",
+  "lastUpdated": "2026-01-26T20:20:00Z",
   "updatedBy": "codex",
   "description": "Machine-readable gate status with tiered testing architecture (see specs/core/testing-architecture.md)",
 
@@ -11,8 +11,8 @@
       "layer": 0,
       "command": "npx tsc --noEmit",
       "status": "pass",
-      "lastRun": "2026-01-22",
-      "evidence": "Typecheck passes",
+      "lastRun": "2026-01-26",
+      "evidence": "npx tsc --noEmit completed without errors",
       "dependsOn": []
     },
     "layer0.build": {
@@ -20,8 +20,8 @@
       "layer": 0,
       "command": "npm run build",
       "status": "pass",
-      "lastRun": "2026-01-22",
-      "evidence": "repo_loc_total=266251, complexity OK",
+      "lastRun": "2026-01-26",
+      "evidence": "npm run build succeeded; assets copied",
       "dependsOn": ["layer0.typecheck"]
     },
     "layer0.tier0": {
@@ -29,8 +29,8 @@
       "layer": 0,
       "command": "LIBRARIAN_TEST_MODE=unit npm test -- --run",
       "status": "pass",
-      "lastRun": "2026-01-25",
-      "evidence": "Unit run: 176 test files (172 passed, 4 skipped); 2420 tests (2320 passed, 100 skipped)",
+      "lastRun": "2026-01-26",
+      "evidence": "Unit run: 170 test files (166 passed, 4 skipped); 2314 tests (2243 passed, 71 skipped)",
       "spec": "specs/core/testing-architecture.md",
       "dependsOn": ["layer0.build"]
     },
@@ -101,8 +101,8 @@
       "layer": 1,
       "command": "LIBRARIAN_TEST_MODE=unit npm test -- --run",
       "status": "pass",
-      "lastRun": "2026-01-25",
-      "evidence": "Standalone package unit run passed (invoked via deterministic --run mode)",
+      "lastRun": "2026-01-26",
+      "evidence": "Standalone package unit run passed (170 files, 2314 tests total)",
       "dependsOn": ["layer1.noWave0Imports", "layer1.noDirectImports"]
     },
     "layer1.extractionPrereqs": {
@@ -127,10 +127,10 @@
     "layer2.evidenceLedger": {
       "name": "Evidence Ledger Unified",
       "layer": 2,
-      "command": "npx vitest run src/mcp/__tests__/audit.test.ts src/mcp/__tests__/tool_adapter_bridge.test.ts",
-      "status": "partial",
-      "lastRun": "2026-01-24",
-      "evidence": "MCP audit logger appends tool_call entries to SqliteEvidenceLedger; MCP server tool calls also emit tool_call evidence (provider/query pipeline wiring still incomplete)",
+      "command": "npx vitest run src/__tests__/provider_gate.test.ts src/api/__tests__/query_trace_ledger.test.ts src/api/__tests__/technique_execution_evidence_ledger.test.ts src/mcp/__tests__/audit.test.ts src/mcp/__tests__/tool_adapter_bridge.test.ts",
+      "status": "pass",
+      "lastRun": "2026-01-26",
+      "evidence": "Provider gate, query lifecycle, technique execution, and MCP tool calls all append evidence ledger entries (Tier-0 tests passing)",
       "dependsOn": ["layer1.standaloneTests"]
     },
     "layer2.capabilityNegotiation": {
@@ -389,7 +389,7 @@
   "summary": {
     "layer0": { "total": 7, "pass": 3, "skip_when_unavailable": 1, "requires_providers": 3 },
     "layer1": { "total": 5, "pass": 5, "unknown": 0, "not_started": 0 },
-    "layer2": { "total": 4, "pass": 3, "partial": 1, "not_implemented": 0 },
+    "layer2": { "total": 4, "pass": 4, "partial": 0, "not_implemented": 0 },
     "layer3": { "total": 34, "implemented_unverified": 25, "not_implemented": 8, "partial": 1 },
     "layer4": { "total": 1, "pending": 1 },
     "layer5": { "total": 11, "not_started": 5, "not_measured": 6 },
