@@ -29,8 +29,15 @@ type UcRow = {
 type DomainTemplateMap = Map<string, string[]>;
 
 function repoRoot(): string {
-  // packages/librarian/src/__tests__ -> repo root
-  return path.resolve(__dirname, '../../../../');
+  let current = path.resolve(__dirname);
+  for (let i = 0; i < 6; i += 1) {
+    const candidate = path.join(current, 'package.json');
+    if (fs.existsSync(candidate)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return path.resolve(__dirname, '..', '..', '..');
 }
 
 function loadUseCaseMatrix(): string {
