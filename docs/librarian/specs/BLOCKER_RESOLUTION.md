@@ -56,6 +56,15 @@ export NODE_OPTIONS="--max-old-space-size=4096"
 # Then retry
 ```
 
+### External real repos unavailable
+**Scenario**: GitHub/network access fails when trying to clone external repos.
+
+**Resolution**:
+1. Retry with different repos from `gh search repos`
+2. If network is down, wait and retry later
+3. Document which repos were successfully cloned in `eval-corpus/external-repos/manifest.json`
+4. This is a required gate - do not skip with `unverified_by_trace`
+
 ---
 
 ## TypeScript Blockers

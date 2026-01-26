@@ -1,6 +1,6 @@
 # WU-801-REAL — Clone Real External Repos
 
-**This is the next work unit in the sequence.**
+**Queued after WU-1001-1003.** Continue current Phase 10 work first.
 
 ## Context
 

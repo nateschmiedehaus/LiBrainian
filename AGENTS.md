@@ -5,13 +5,11 @@
 
 ---
 
-## NEXT WORK UNIT: WU-801-REAL
+## Queued: WU-801-REAL (after Phase 10 core)
 
-The `eval-corpus/repos/*` directories have no git remotes (verify: `cd eval-corpus/repos/small-typescript && git remote -v` returns empty). These need to be supplemented with real external repos for valid evaluation.
+The `eval-corpus/repos/*` directories have no git remotes. WU-801-REAL will clone real external repos.
 
-**Execute WU-801-REAL now** — this is the next unit in the sequence before WU-1001.
-
-See the WU-801-REAL prompt in CODEX_ORCHESTRATOR.md for full instructions.
+**WU-801-REAL is queued after WU-1001-1003.** Continue current Phase 10 work first.
 
 ---
 

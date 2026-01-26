@@ -143,23 +143,21 @@ WHILE Full Build Charter NOT satisfied:
 ## MASTER STATE (Track This)
 
 ```
-CURRENT_PHASE: 8
+CURRENT_PHASE: 10
 COMPLETED_UNITS: [WU-001...WU-703, WU-906, WU-907, WU-908]
 IN_PROGRESS_UNITS: []
-BLOCKED_UNITS: [WU-1001, WU-1002, WU-1003] (blocked on WU-801-REAL)
+BLOCKED_UNITS: []
 INVALID_UNITS: [WU-801-OLD...WU-806-OLD]
 FAILING_TESTS: []
-NEXT_UNITS: [WU-801-REAL]
+NEXT_UNITS: [WU-1001, WU-1002, WU-1003, WU-801-REAL]
 NOTES: |
-  The eval-corpus/repos/* directories have no git remotes - they are not real cloned repos.
-  WU-801-REAL must clone REAL external repos before Phase 10 can use valid evaluation data.
+  Continue Phase 10 scientific loop implementation.
+  WU-801-REAL (clone real external repos) is queued after Phase 10 core work.
 ```
-
-**NEXT WORK UNIT: WU-801-REAL** (see prompt below)
 
 ### Immediate Action
 
-Execute WU-801-REAL now. This clones real external repos which Phase 10 needs for valid evaluation.
+Continue with current Phase 10 work. WU-801-REAL is queued to run after WU-1001-1003.
 
 Update this state after each work unit completes.
 
