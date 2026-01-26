@@ -113,6 +113,30 @@ If you encounter a blocker:
 - Continue to the next task
 - Only stop when Full Build Charter is satisfied
 
+### CRITICAL: Test-First Development
+
+**Write tests BEFORE implementation code. This order is mandatory:**
+
+1. **FIRST**: Create test file with all test cases
+2. **SECOND**: Run tests — they should FAIL (no implementation yet)
+3. **THIRD**: Write implementation to make tests pass
+4. **FOURTH**: Run tests — they should PASS
+
+```bash
+# Example workflow:
+# 1. Write test
+echo "test('should do X', () => { ... })" > src/__tests__/feature.test.ts
+
+# 2. Run test (expect failure)
+npm test -- --run src/__tests__/feature.test.ts  # FAILS - good
+
+# 3. Write implementation
+echo "export function doX() { ... }" > src/feature.ts
+
+# 4. Run test (expect pass)
+npm test -- --run src/__tests__/feature.test.ts  # PASSES - done
+```
+
 ### CRITICAL: Test Failures Are Priority Zero
 
 **Before doing ANY new work, all tests must pass.**

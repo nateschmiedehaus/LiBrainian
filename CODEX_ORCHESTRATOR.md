@@ -53,9 +53,21 @@ CONTEXT:
 - Other workers are implementing: [list if parallel]
 - Do NOT modify files outside your scope
 
+## CRITICAL: TEST-FIRST DEVELOPMENT
+
+You MUST write tests BEFORE implementation code:
+
+1. FIRST: Write the test file with all test cases
+2. SECOND: Run the tests (they should FAIL - no implementation yet)
+3. THIRD: Write the implementation to make tests pass
+4. FOURTH: Run tests again to verify they pass
+
+This order is MANDATORY. Do not write implementation before tests exist.
+
 EXPECTED OUTPUT:
-- Modified files: [list]
-- Test passes: npm test -- --run [test_file]
+- Test file created FIRST: [test_file]
+- Implementation file created SECOND: [impl_file]
+- Tests pass: npm test -- --run [test_file]
 - TypeScript compiles: npx tsc --noEmit
 
 CONSTRAINTS:
@@ -395,6 +407,16 @@ When spawning a sub-agent (or starting a work unit), use this template:
 Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
 You have FULL AUTONOMY. See AGENTS.md for permissions.
 If you encounter ANY blocker, see docs/librarian/specs/BLOCKER_RESOLUTION.md
+
+## MANDATORY: Test-First Development
+
+You MUST write tests BEFORE implementation:
+1. Create test file FIRST with all test cases
+2. Run tests — they should FAIL
+3. Write implementation SECOND
+4. Run tests — they should PASS
+
+DO NOT write implementation code until the test file exists and fails.
 
 ## Task
 {Detailed task description from CODEX_FULL_IMPLEMENTATION.md}
