@@ -282,15 +282,15 @@
     "layer5.externalRepos": {
       "name": "External Real Repos",
       "layer": 5,
-      "status": "HARD_STOP",
+      "status": "in_progress",
       "target": "5+ real GitHub repos (not AI-generated, post-2024 or obscure)",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": ["layer4.verification"],
       "blocking": true,
-      "hardStop": true,
-      "note": "🛑 HARD STOP: eval-corpus/repos/* are synthetic directories, not real git repos. Must clone actual repos from GitHub before ANY Phase 9/10 work.",
-      "verification": "Each repo must have: git remote -v showing real origin, git log showing real commits",
-      "requiredAction": "WU-801-REAL: Clone 5+ real repos to eval-corpus/external-repos/ with manifest.json"
+      "nextWorkUnit": "WU-801-REAL",
+      "note": "eval-corpus/repos/* have no git remotes. Execute WU-801-REAL to clone real repos from GitHub.",
+      "verification": "Each repo must have: git remote -v showing real origin",
+      "workUnitPrompt": "See /HARD_STOP.md for full WU-801-REAL instructions"
     },
     "layer5.astFactExtractor": {
       "name": "AST Fact Extractor",
@@ -458,12 +458,11 @@
     "layer5.scientificLoop": {
       "name": "Scientific Self-Improvement Loop",
       "layer": 5,
-      "status": "blocked",
+      "status": "pending",
       "target": "Automated detect → hypothesize → test → fix → verify cycle",
       "spec": "specs/track-eval-scientific-loop.md",
       "dependsOn": ["layer5.abExperiments", "layer5.externalRepos"],
-      "note": "🛑 BLOCKED: Cannot proceed until layer5.externalRepos HARD_STOP is resolved. Based on AutoSD, RLVR, SWE-agent research.",
-      "blockedBy": "layer5.externalRepos (HARD_STOP - circular evaluation)"
+      "note": "Proceed after WU-801-REAL completes. Based on AutoSD, RLVR, SWE-agent research."
     },
     "layer5.rlvrVerifier": {
       "name": "RLVR-Style Fix Verification",

@@ -423,20 +423,13 @@ Leave subjective claims unverified but disclosed.
 
 ---
 
-## 🛑 ACTIVE HARD STOP: Circular Evaluation (2026-01-26)
+## Current Priority: WU-801-REAL (2026-01-26)
 
-**The evaluation corpus is INVALID.** `eval-corpus/repos/*` are synthetic directories, not real git repos.
+The `eval-corpus/repos/*` directories have no git remotes (not real cloned repos).
 
-**Verification:**
-```bash
-cd eval-corpus/repos/small-typescript && git remote -v
-# (empty - no remote origin)
-```
+**Next work unit:** WU-801-REAL — Clone real external repos from GitHub.
 
-**Resolution:** Execute WU-801-REAL to clone REAL repos from GitHub.
-See `/HARD_STOP.md` for detailed instructions.
-
-**Do NOT proceed to WU-1001 or any Phase 9/10 work until this is resolved.**
+See `/HARD_STOP.md` for the full work unit prompt.
 
 ---
 

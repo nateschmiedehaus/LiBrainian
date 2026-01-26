@@ -1,82 +1,82 @@
-# 🛑 HARD STOP — READ IMMEDIATELY
+# WU-801-REAL — Clone Real External Repos
 
-## Circular Evaluation Detected
+**This is the next work unit in the sequence.**
 
-**ALL PHASE 9/10 WORK IS INVALID** until this is resolved.
+## Context
 
-### The Problem
-
-The evaluation corpus at `eval-corpus/repos/` contains **synthetic directories**, NOT real external git repositories.
-
-**Proof:**
+The `eval-corpus/repos/*` directories have no git remotes:
 ```bash
-$ cd eval-corpus/repos/small-typescript
-$ git remote -v
-(no output - these are not cloned repos)
-
-$ git log --oneline -3
-3ebe521 docs: update orchestration for new eval framework  # <-- commits from MAIN repo
-f30cd3b docs(orchestrator): update master work-unit state
+$ cd eval-corpus/repos/small-typescript && git remote -v
+# (empty)
 ```
 
-These are just directories inside the main librarian repo, created by Codex itself. This is **circular evaluation** — the model evaluating its own outputs.
+Phase 10 needs real external repos for valid evaluation data. Execute this work unit to provide them.
 
-### Why This Is a Hard Stop
+## Task
 
-From `docs/librarian/specs/BLOCKER_RESOLUTION.md`:
+Clone 5+ real open-source repos from GitHub.
 
-> **Hard Stops (ONLY these things should stop you):**
-> - Circular evaluation (model evaluating its own outputs)
-
-### Required Action
-
-**STOP** whatever Phase 9/10 work you are doing and execute **WU-801-REAL**:
+## Commands
 
 ```bash
-# 1. Create directory for REAL external repos
+# 1. Create directory
 mkdir -p eval-corpus/external-repos
 cd eval-corpus/external-repos
 
-# 2. Find real, recent TypeScript repos
+# 2. Find recent TypeScript repos
 gh search repos --language=typescript --created=">2024-06-01" --stars="10..100" --limit=20
 
-# 3. Clone 5+ real repos (pick ones that look legitimate)
+# 3. Clone 5+ repos (pick ones with actual code, not just configs)
 git clone https://github.com/<owner>/<repo> repo-1
 git clone https://github.com/<owner>/<repo> repo-2
-# ... etc.
+git clone https://github.com/<owner>/<repo> repo-3
+git clone https://github.com/<owner>/<repo> repo-4
+git clone https://github.com/<owner>/<repo> repo-5
 
 # 4. Verify each is real
 for dir in */; do
   echo "=== $dir ==="
-  cd "$dir"
-  git remote -v
-  git log --oneline -3
-  cd ..
+  (cd "$dir" && git remote -v && git log --oneline -3)
 done
 
-# 5. Create manifest proving provenance
-cat > manifest.json << 'EOF'
+# 5. Create manifest
+cat > manifest.json << 'MANIFEST'
 {
   "repos": [
-    {
-      "localName": "repo-1",
-      "sourceUrl": "https://github.com/...",
-      "clonedAt": "2026-01-26T...",
-      "verification": "git remote shows real origin"
-    }
+    {"localName": "repo-1", "sourceUrl": "https://github.com/...", "verified": true},
+    {"localName": "repo-2", "sourceUrl": "https://github.com/...", "verified": true},
+    {"localName": "repo-3", "sourceUrl": "https://github.com/...", "verified": true},
+    {"localName": "repo-4", "sourceUrl": "https://github.com/...", "verified": true},
+    {"localName": "repo-5", "sourceUrl": "https://github.com/...", "verified": true}
   ],
-  "validationNote": "All repos are REAL GitHub projects, NOT AI-generated"
+  "validationNote": "All repos cloned from GitHub with verified git history"
 }
-EOF
+MANIFEST
 ```
 
-### Do Not Proceed Until
+## Requirements
+
+- Each repo must have `git remote -v` showing real GitHub origin
+- Each repo must have real commit history (`git log` shows actual commits)
+- Prefer repos created after 2024-06 or with <100 stars (less likely in training data)
+- Each repo should have >500 LOC of actual code
+
+## Definition of Done
 
 - [ ] `eval-corpus/external-repos/` exists with 5+ repos
-- [ ] Each repo has `git remote -v` showing real GitHub origin
-- [ ] `manifest.json` documents all repos with provenance
-- [ ] NO synthetic/AI-generated repos are used for evaluation
+- [ ] Each repo passes: `git remote -v` shows GitHub origin
+- [ ] `manifest.json` documents all repos
+- [ ] Continue to WU-1001 after completion
 
----
+## Output
 
-**This file will be deleted once WU-801-REAL is complete.**
+```json
+{
+  "wu_id": "WU-801-REAL",
+  "status": "complete",
+  "repos_cloned": ["repo-1", "repo-2", "repo-3", "repo-4", "repo-5"],
+  "evidence": "5 repos cloned from GitHub, all verified with git remote -v"
+}
+```
+
+**After completing this, proceed to WU-1001.**

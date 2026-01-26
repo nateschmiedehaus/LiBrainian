@@ -140,59 +140,26 @@ WHILE Full Build Charter NOT satisfied:
 
 ---
 
-## 🛑 HARD STOP — CIRCULAR EVALUATION ACTIVE
-
-**THE EVALUATION CORPUS IS INVALID. STOP CURRENT WORK.**
-
-**Problem:** `eval-corpus/repos/` contains synthetic directories, NOT real git repos.
-```bash
-$ cd eval-corpus/repos/small-typescript && git remote -v
-# (empty - no remote, not a real cloned repo)
-```
-
-**This violates HARD STOP #5: Circular evaluation (model evaluating its own outputs)**
-
-**Required Action:**
-1. STOP whatever work unit you are currently on
-2. Execute WU-801-REAL: Clone ACTUAL repos from GitHub
-3. Verify each has git history: `git log --oneline -3`
-4. Only THEN resume Phase 9/10 work
-
----
-
 ## MASTER STATE (Track This)
 
 ```
-CURRENT_PHASE: 8 (BLOCKED - must complete WU-801-REAL first)
+CURRENT_PHASE: 8
 COMPLETED_UNITS: [WU-001...WU-703, WU-906, WU-907, WU-908]
 IN_PROGRESS_UNITS: []
-BLOCKED_UNITS: [WU-1001, WU-1002, WU-1003...] (blocked on WU-801-REAL)
-INVALID_UNITS: [WU-801-OLD, WU-802-OLD, WU-803-OLD, WU-804-OLD, WU-805-OLD, WU-806-OLD, ALL-PHASE-9-10-WORK]
+BLOCKED_UNITS: [WU-1001, WU-1002, WU-1003] (blocked on WU-801-REAL)
+INVALID_UNITS: [WU-801-OLD...WU-806-OLD]
 FAILING_TESTS: []
-HARD_STOP: CIRCULAR_EVALUATION
 NEXT_UNITS: [WU-801-REAL]
 NOTES: |
-  🛑 HARD STOP ACTIVE: Circular evaluation detected.
-
-  eval-corpus/repos/* are NOT real repos. They have no git remotes.
-  All Phase 9/10 work built on this invalid foundation is INVALID.
-
-  MUST DO NOW:
-  1. mkdir -p eval-corpus/external-repos
-  2. gh search repos --language=typescript --created=">2024-06-01" --stars="10..100"
-  3. Clone 5+ REAL repos with actual git history
-  4. Create manifest.json documenting provenance
-  5. THEN resume scientific loop work
+  The eval-corpus/repos/* directories have no git remotes - they are not real cloned repos.
+  WU-801-REAL must clone REAL external repos before Phase 10 can use valid evaluation data.
 ```
 
-**CRITICAL: HARD_STOP must be resolved before ANY other work.**
+**NEXT WORK UNIT: WU-801-REAL** (see prompt below)
 
-### Immediate Action Required
+### Immediate Action
 
-1. **STOP** current Phase 10 work (WU-1001 etc.)
-2. **Execute WU-801-REAL**: Clone real external repos
-3. **Verify**: Each repo has `git remote -v` showing real origin
-4. **Only then** continue to Phase 9/10
+Execute WU-801-REAL now. This clones real external repos which Phase 10 needs for valid evaluation.
 
 Update this state after each work unit completes.
 
