@@ -40,17 +40,31 @@ type TreeSitterNode = {
 };
 type TreeSitterTree = { rootNode: TreeSitterNode };
 type TreeSitterParser = { setLanguage: (language: TreeSitterLanguage) => void; parse: (content: string) => TreeSitterTree };
-type TreeSitterModule = { Parser: new () => TreeSitterParser };
+type TreeSitterParserConstructor = new () => TreeSitterParser;
 type TreeSitterLanguage = { name?: string };
 
 const require = createRequire(import.meta.url);
 
-function loadTreeSitterModule(): TreeSitterModule | null {
+function loadTreeSitterParser(): TreeSitterParserConstructor | null {
   try {
-    return require('tree-sitter') as TreeSitterModule;
+    // tree-sitter exports the Parser class directly as the default export
+    const Parser = require('tree-sitter') as TreeSitterParserConstructor;
+    // Verify it's a constructor function
+    if (typeof Parser === 'function') {
+      return Parser;
+    }
+    return null;
   } catch {
     return null;
   }
+}
+
+type TreeSitterModule = { Parser: TreeSitterParserConstructor };
+
+function loadTreeSitterModule(): TreeSitterModule | null {
+  const Parser = loadTreeSitterParser();
+  if (!Parser) return null;
+  return { Parser };
 }
 
 function loadTreeSitterLanguage(moduleName: string): TreeSitterLanguage | null {
@@ -177,6 +191,71 @@ function parseRustModule(root: TreeSitterNode, content: string): Omit<ParserResu
       const text = nodeText(content, node);
       const match = text.match(/use\s+([^;]+);/);
       if (match?.[1]) dependencies.add(match[1].trim());
+    }
+  });
+
+  return {
+    functions,
+    module: { exports: emptyArray<string>(), dependencies: Array.from(dependencies) },
+  };
+}
+
+function parseJavaModule(root: TreeSitterNode, content: string): Omit<ParserResult, 'parser'> {
+  const functions: ParsedFunction[] = [];
+  const dependencies = new Set<string>();
+
+  walkTree(root, (node) => {
+    // Extract class declarations
+    if (node.type === 'class_declaration') {
+      const nameNode = node.childForFieldName('name');
+      const signature = buildTreeSitterSignature(content, node, 'body');
+      const parsed = buildParsedFunctionFromNode(node, content, nameNode, signature);
+      if (parsed) functions.push(parsed);
+    }
+
+    // Extract interface declarations
+    if (node.type === 'interface_declaration') {
+      const nameNode = node.childForFieldName('name');
+      const signature = buildTreeSitterSignature(content, node, 'body');
+      const parsed = buildParsedFunctionFromNode(node, content, nameNode, signature);
+      if (parsed) functions.push(parsed);
+    }
+
+    // Extract enum declarations
+    if (node.type === 'enum_declaration') {
+      const nameNode = node.childForFieldName('name');
+      const signature = buildTreeSitterSignature(content, node, 'body');
+      const parsed = buildParsedFunctionFromNode(node, content, nameNode, signature);
+      if (parsed) functions.push(parsed);
+    }
+
+    // Extract method declarations
+    if (node.type === 'method_declaration') {
+      const nameNode = node.childForFieldName('name');
+      const signature = buildTreeSitterSignature(content, node, 'body');
+      const parsed = buildParsedFunctionFromNode(node, content, nameNode, signature);
+      if (parsed) functions.push(parsed);
+    }
+
+    // Extract constructor declarations
+    if (node.type === 'constructor_declaration') {
+      const nameNode = node.childForFieldName('name');
+      const signature = buildTreeSitterSignature(content, node, 'body');
+      const parsed = buildParsedFunctionFromNode(node, content, nameNode, signature);
+      if (parsed) functions.push(parsed);
+    }
+
+    // Extract import declarations
+    if (node.type === 'import_declaration') {
+      const text = nodeText(content, node).trim();
+      // Match: import com.example.Foo; or import com.example.*;
+      const match = text.match(/import\s+(?:static\s+)?([^;]+);/);
+      if (match?.[1]) {
+        const importPath = match[1].trim();
+        // Remove wildcard if present
+        const cleanPath = importPath.replace(/\.\*$/, '');
+        dependencies.add(cleanPath);
+      }
     }
   });
 
@@ -326,6 +405,14 @@ export class ParserRegistry {
       this.registerParser(
         new TreeSitterParserAdapter('tree-sitter-rust', treeSitter.Parser, rust, parseRustModule),
         ['.rs']
+      );
+    }
+
+    const java = loadTreeSitterLanguage('tree-sitter-java');
+    if (java) {
+      this.registerParser(
+        new TreeSitterParserAdapter('tree-sitter-java', treeSitter.Parser, java, parseJavaModule),
+        ['.java']
       );
     }
   }
