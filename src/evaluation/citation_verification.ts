@@ -270,6 +270,22 @@ class CitationVerificationPipelineImpl implements CitationVerificationPipeline {
 
     const evidence: string[] = [];
     let score = 0;
+    let hasContradiction = false;
+
+    // Check for relationship contradictions first (same as semantic_similarity)
+    const relationships = this.detectRelationships(claim);
+    for (const rel of relationships) {
+      const relationshipMatch = this.checkExactRelationship(rel, textLower, relevantLower);
+      if (relationshipMatch.contradicts) {
+        hasContradiction = true;
+        evidence.push(`Contradiction: ${rel.subject} ${rel.type} ${relationshipMatch.actualObject} (not ${rel.object})`);
+      }
+    }
+
+    // If contradiction found, return low score immediately
+    if (hasContradiction) {
+      return this.createResult(citation, false, 0.2, evidence, 'exact_match');
+    }
 
     // Check for exact substring match
     if (textLower.includes(claim)) {

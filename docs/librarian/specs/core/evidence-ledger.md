@@ -543,16 +543,118 @@ function deriveEvidenceConfidence(entry: Omit<EvidenceEntry, 'confidence'>): Con
 
 ---
 
-## 9. Implementation Notes
+## 9. Epistemological Model
 
-### 9.1 Performance Considerations
+This section documents the philosophical foundations of Librarian's epistemic system, which differ fundamentally from classical approaches.
+
+### 9.1 Temporal Paraconsistent Epistemology
+
+Librarian implements **temporal paraconsistent epistemology**, NOT classical AGM belief revision. This distinction is critical:
+
+| Aspect | AGM Belief Revision | Librarian's Approach |
+|--------|---------------------|---------------------|
+| Contradictions | Immediately resolved via contraction | Kept visible indefinitely |
+| Belief sets | Always consistent | Can contain contradictions |
+| Revision | Binary: accept or reject | Graduated via confidence degradation |
+| Time | Atemporal | Time is a first-class dimension |
+| Closed-world | Yes (completeness assumed) | Open-world (incompleteness explicit) |
+
+**Why Paraconsistency?**
+
+In real codebases, contradictions are common and often meaningful:
+- Documentation may contradict implementation
+- Different versions of code have different behaviors
+- Human understanding evolves over time
+- LLM synthesis may produce inconsistent claims
+
+Rather than forcing premature resolution (which loses information), Librarian preserves contradictions and uses them to:
+1. Surface areas needing human attention
+2. Track uncertainty in specific code regions
+3. Improve calibration by observing which claims survive
+
+### 9.2 Contradictions: Visibility Over Resolution
+
+**Core Invariant**: Contradictions are NEVER silently reconciled.
+
+When two claims contradict:
+1. Both claims are marked with `status: 'contradicted'`
+2. A `Contradiction` record is created linking both claims
+3. Both claims remain queryable and visible
+4. Chain confidence is reduced (see propagation rules)
+
+This visibility serves several purposes:
+- **Auditability**: Users can always see where knowledge is uncertain
+- **Learning**: Feedback on contradictions improves future synthesis
+- **Safety**: No silent information loss from automated resolution
+
+**Resolution requires explicit action**:
+```typescript
+interface ContradictionResolution {
+  method: 'prefer_a' | 'prefer_b' | 'merge' | 'both_valid' | 'neither_valid' | 'context_dependent';
+  explanation: string;
+  resolver: string;  // Who/what made the decision
+  tradeoff: string;  // Explicit documentation of what was lost
+}
+```
+
+### 9.3 Soft Revision via Confidence Degradation
+
+Instead of binary belief acceptance/rejection, Librarian uses **soft revision** through graduated confidence degradation:
+
+**Confidence Propagation Rules** (configurable):
+
+| Rule | Formula | Use Case |
+|------|---------|----------|
+| `min` | min(confidences) | Conservative; single weak link breaks chain |
+| `max` | max(confidences) | Optimistic; any strong evidence sufficient |
+| `product` | conf1 * conf2 * ... | Independent probabilities |
+| `weighted_average` | sum(wi * ci) / sum(wi) | Weighted by evidence quality |
+| `noisy_or` | 1 - prod(1 - ci) | Multiple independent causes |
+
+**Contradiction Penalties** (applied automatically):
+
+| Contradiction Severity | Effect |
+|----------------------|--------|
+| `blocking` | Chain confidence = 0 |
+| `significant` | Confidence *= 0.5 per contradiction |
+| `minor` | Confidence *= 0.9 per contradiction |
+
+**Defeater Effects**:
+- Defeaters reduce confidence but don't immediately delete claims
+- Claims with low confidence are marked `stale` rather than removed
+- Historical claims remain in the ledger for calibration
+
+### 9.4 Time as a First-Class Dimension
+
+Every entry has an immutable timestamp, enabling:
+- **Temporal queries**: "What did we believe at time T?"
+- **Drift detection**: "Has this claim's support changed?"
+- **Staleness**: Claims decay in confidence over time
+- **Replay**: Reconstruct reasoning chains as they existed
+
+This contrasts with atemporal AGM where beliefs exist in a timeless set.
+
+### 9.5 Open-World Assumption
+
+Librarian operates under an **open-world assumption**:
+- Absence of a claim does not imply its negation
+- `AbsentConfidence` explicitly represents "we don't know"
+- Queries can return "insufficient evidence" rather than false
+
+This prevents false negatives when knowledge is simply missing.
+
+---
+
+## 10. Implementation Notes
+
+### 10.1 Performance Considerations
 
 - Use WAL mode for SQLite (concurrent reads during writes)
 - Batch appends for high-throughput scenarios
 - Index on `(kind, timestamp)` for common queries
 - Consider time-based partitioning for very large ledgers
 
-### 9.2 Migration Path
+### 10.2 Migration Path
 
 Existing systems that will wire into the ledger:
 1. MCP audit events → `tool_call` entries

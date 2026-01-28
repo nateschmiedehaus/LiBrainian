@@ -7,10 +7,13 @@
 [![npm version](https://img.shields.io/npm/v/@wave0/librarian.svg?style=flat-square)](https://www.npmjs.com/package/@wave0/librarian)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/tests-3500+-passing-brightgreen.svg?style=flat-square)](#testing)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 **Librarian** gives AI coding agents deep, evidence-backed understanding of any codebase.
+
+> **Status**: Core infrastructure complete with 3,500+ tests passing. Validation phases in progress.
+> See [CODEX_ORCHESTRATOR.md](CODEX_ORCHESTRATOR.md) for development roadmap.
 
 [Quick Start](#quick-start) · [Documentation](docs/) · [Examples](examples/) · [API Reference](docs/api/) · [Contributing](CONTRIBUTING.md)
 

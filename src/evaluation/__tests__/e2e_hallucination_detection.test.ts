@@ -635,9 +635,10 @@ Validator class:
       // Dynamically import Chain-of-Verification
       const { createChainOfVerification } = await import('../chain_of_verification.js');
       const cove = createChainOfVerification({
-        hedgeLowConfidence: true,
-        hedgeThreshold: 0.3,
-        removeUnverified: false,
+        maxVerificationQuestions: 5,
+        minConfidenceThreshold: 0.3,
+        addHedgingForLowConfidence: true,
+        hedgingThreshold: 0.5,
       });
 
       // Generate responses with potential hallucinations
@@ -651,6 +652,11 @@ Validator class:
       let afterHallucinations = 0;
       let totalClaims = 0;
 
+      // Convert facts to context strings
+      const context = typedriverFacts.slice(0, 20).map((f) =>
+        `${f.type}: ${f.identifier} at ${f.file}:${f.line}`
+      );
+
       for (const simResponse of responses) {
         // BEFORE: Check original response
         const beforeReport = await entailmentChecker.checkResponse(
@@ -660,12 +666,16 @@ Validator class:
         const beforeNonEntailed = beforeReport.summary.contradicted + beforeReport.summary.neutral;
         beforeHallucinations += beforeNonEntailed;
 
-        // APPLY Chain-of-Verification
-        const coveResult = await cove.verify(simResponse.response, TYPEDRIVER_REPO, typedriverFacts);
+        // APPLY Chain-of-Verification with correct API
+        const coveResult = await cove.verify({
+          query: simResponse.query,
+          context: context,
+          baselineResponse: simResponse.response,
+        });
 
-        // AFTER: Check refined response
+        // AFTER: Check refined response (use finalResponse from the result)
         const afterReport = await entailmentChecker.checkResponse(
-          coveResult.refinedResponse,
+          coveResult.finalResponse,
           path.join(TYPEDRIVER_REPO, 'src')
         );
         const afterNonEntailed = afterReport.summary.contradicted + afterReport.summary.neutral;
@@ -709,21 +719,32 @@ AFTER CoVe:
 
       const { createChainOfVerification } = await import('../chain_of_verification.js');
       const cove = createChainOfVerification({
-        hedgeLowConfidence: true,
-        hedgeThreshold: 0.5,
+        maxVerificationQuestions: 5,
+        minConfidenceThreshold: 0.3,
+        addHedgingForLowConfidence: true,
+        hedgingThreshold: 0.5,
       });
 
       // Response with likely unverifiable claim
       const response = `The \`NonExistentClass\` is the main entry point for the application.`;
 
-      const result = await cove.verify(response, TYPEDRIVER_REPO, typedriverFacts);
+      // Convert facts to context strings
+      const context = typedriverFacts.slice(0, 10).map((f) =>
+        `${f.type}: ${f.identifier} at ${f.file}:${f.line}`
+      );
+
+      const result = await cove.verify({
+        query: 'What is the main entry point?',
+        context: context,
+        baselineResponse: response,
+      });
 
       console.log(`
 Chain-of-Verification Hedging:
 - Original: ${response}
-- Refined: ${result.refinedResponse}
-- Modifications: ${result.modifications.length}
-- Actions: ${result.modifications.map((m) => m.action).join(', ')}
+- Final: ${result.finalResponse}
+- Questions generated: ${result.verificationQuestions.length}
+- Inconsistencies: ${result.inconsistencies.length}
 `);
 
       // Should have processed the claim

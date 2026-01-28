@@ -446,10 +446,6 @@ export class ReachabilityAnalyzer {
 
     // Track which function/method we're currently inside
     sourceFile.forEachDescendant((node) => {
-      if (process.env.DEBUG_REACHABILITY === '2') {
-        console.log(`[DEBUG] Visiting node kind=${node.getKindName()} at line ${node.getStartLineNumber()}`);
-      }
-
       if (Node.isCallExpression(node)) {
         const callLine = node.getStartLineNumber();
         const expr = node.getExpression();
@@ -461,11 +457,6 @@ export class ReachabilityAnalyzer {
         const containingName = this.getContainingFunctionName(containingFunc);
         // First try symbolMap lookup (most reliable for same-file functions)
         let callerId = symbolMap.get(containingName);
-
-        // Debug - uncomment to troubleshoot
-        if (process.env.DEBUG_REACHABILITY === '1') {
-          console.log(`[DEBUG] Processing call at line ${callLine}, containingName=${containingName}, callerId=${callerId}`);
-        }
 
         // Fallback to graph lookup
         if (!callerId) {
@@ -486,7 +477,7 @@ export class ReachabilityAnalyzer {
           const propertyName = expr.getName();
           const object = expr.getExpression();
 
-          if (Node.isThisKeyword(object)) {
+          if (Node.isThisExpression(object)) {
             // this.method()
             const containingClass = this.findContainingClass(node);
             if (containingClass) {
@@ -516,13 +507,15 @@ export class ReachabilityAnalyzer {
       // Handle function references (callbacks, event handlers)
       if (Node.isIdentifier(node)) {
         const parent = node.getParent();
+        const nodeText = node.getText();
 
         // Skip if this is the function name being declared
         if (parent && (
           Node.isFunctionDeclaration(parent) ||
           Node.isVariableDeclaration(parent) ||
           Node.isMethodDeclaration(parent) ||
-          Node.isParameter(parent)
+          Node.isParameterDeclaration(parent) ||
+          Node.isImportSpecifier(parent)
         )) {
           return;
         }
@@ -532,7 +525,7 @@ export class ReachabilityAnalyzer {
           return;
         }
 
-        const localName = node.getText();
+        const localName = nodeText;
         // Resolve imported name to original
         const resolvedName = importMap.get(localName) || localName;
         const calleeId = symbolMap.get(resolvedName);
