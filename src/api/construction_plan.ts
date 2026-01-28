@@ -122,7 +122,8 @@ export async function buildConstructionPlan(
       if (domains.size === 0) {
         disclosures.push(`unverified_by_trace(uc_missing): ${ucIds.join(', ')}`);
       } else {
-        domain = domains.values().next().value;
+        const domainValue = domains.values().next().value;
+        domain = domainValue ?? '';
         if (domains.size > 1) {
           disclosures.push(`unverified_by_trace(uc_domain_mismatch): ${Array.from(domains).join(', ')}`);
         }

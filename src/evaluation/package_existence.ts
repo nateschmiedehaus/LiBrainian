@@ -249,7 +249,7 @@ class PackageVerifierImpl implements PackageVerifier {
         };
       }
 
-      const data = await response.json();
+      const data = await response.json() as NpmApiResponse;
 
       return {
         name,
@@ -287,7 +287,7 @@ class PackageVerifierImpl implements PackageVerifier {
         };
       }
 
-      const data = await response.json();
+      const data = await response.json() as PyPIApiResponse;
 
       // Get the last published date from the latest release
       let lastPublished: Date | undefined;
@@ -332,7 +332,7 @@ class PackageVerifierImpl implements PackageVerifier {
         };
       }
 
-      const data = await response.json();
+      const data = await response.json() as CratesApiResponse;
 
       return {
         name,

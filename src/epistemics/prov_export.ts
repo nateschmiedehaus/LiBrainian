@@ -37,8 +37,8 @@ export interface PROVEntity {
   'prov:label'?: string;
   /** Location associated with entity */
   'prov:location'?: string;
-  /** Custom attributes */
-  [key: `librarian:${string}`]: unknown;
+  /** Custom attributes (namespace-prefixed) */
+  [key: string]: unknown;
 }
 
 /**
@@ -56,8 +56,8 @@ export interface PROVActivity {
   'prov:type'?: string | string[];
   /** Human-readable label */
   'prov:label'?: string;
-  /** Custom attributes */
-  [key: `librarian:${string}`]: unknown;
+  /** Custom attributes (namespace-prefixed) */
+  [key: string]: unknown;
 }
 
 /**
@@ -71,8 +71,8 @@ export interface PROVAgent {
   'prov:type'?: string | string[];
   /** Human-readable label */
   'prov:label'?: string;
-  /** Custom attributes */
-  [key: `librarian:${string}`]: unknown;
+  /** Custom attributes (namespace-prefixed) */
+  [key: string]: unknown;
 }
 
 /**

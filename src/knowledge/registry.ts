@@ -162,7 +162,16 @@ const OUTCOME_INVALIDATION: KnowledgeInvalidationRule = {
   triggers: [],
 };
 
-export const DEFAULT_KNOWLEDGE_OBJECT_DEFINITIONS: KnowledgeObjectDefinition<KnowledgeObjectBase>[] = [
+// Type for the heterogeneous array of definitions
+type AnyKnowledgeObjectDefinition =
+  | KnowledgeObjectDefinition<RepoFactObject>
+  | KnowledgeObjectDefinition<KnowledgeMapObject>
+  | KnowledgeObjectDefinition<KnowledgeClaimObject>
+  | KnowledgeObjectDefinition<KnowledgePackObject>
+  | KnowledgeObjectDefinition<KnowledgeEpisodeObject>
+  | KnowledgeObjectDefinition<KnowledgeOutcomeObject>;
+
+export const DEFAULT_KNOWLEDGE_OBJECT_DEFINITIONS: AnyKnowledgeObjectDefinition[] = [
   {
     kind: 'repo_fact',
     name: 'RepoFacts',
@@ -278,9 +287,11 @@ export class KnowledgeObjectRegistry {
     }
   }
 
-  registerDefinitions(definitions: KnowledgeObjectDefinition<KnowledgeObjectBase>[]): void {
+  registerDefinitions(definitions: AnyKnowledgeObjectDefinition[]): void {
     for (const definition of definitions) {
-      this.registerDefinition(definition);
+      // Safe cast: the union type AnyKnowledgeObjectDefinition is structurally compatible
+      // with KnowledgeObjectDefinition<KnowledgeObjectBase> at runtime
+      this.registerDefinition(definition as unknown as KnowledgeObjectDefinition<KnowledgeObjectBase>);
     }
   }
 
@@ -353,7 +364,7 @@ export class KnowledgeObjectRegistry {
 }
 
 export function createKnowledgeObjectRegistry(
-  definitions: KnowledgeObjectDefinition<KnowledgeObjectBase>[] = DEFAULT_KNOWLEDGE_OBJECT_DEFINITIONS
+  definitions: AnyKnowledgeObjectDefinition[] = DEFAULT_KNOWLEDGE_OBJECT_DEFINITIONS
 ): KnowledgeObjectRegistry {
   const registry = new KnowledgeObjectRegistry();
   registry.registerDefinitions(definitions);

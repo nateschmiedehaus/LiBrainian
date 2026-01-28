@@ -123,7 +123,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     defaultProvider: llmProvider,
     applyEnv: false,
   });
-  const policyModel = dailySelection.providers[llmProvider]?.model_id;
+  const policyModel = dailySelection?.providers[llmProvider]?.model_id;
   const selectedModel = requestedLlmModel ?? (
     llmProvider === 'codex' ? 'gpt-5.1-codex-mini' : policyModel
   );

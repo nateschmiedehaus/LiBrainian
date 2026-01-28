@@ -55,7 +55,7 @@ export interface WatcherConfig {
   rootPath: string;
   /** Glob patterns to include (e.g., ['**\/*.ts', '**\/*.tsx']) */
   patterns?: string[];
-  /** Glob patterns to exclude (e.g., ['**/node_modules/**']) */
+  /** Glob patterns to exclude (e.g., node_modules directories) */
   ignorePatterns?: string[];
   /** Debounce time for rapid changes to same file (default: 100ms) */
   debounceMs?: number;

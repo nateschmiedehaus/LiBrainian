@@ -3966,7 +3966,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     const db = this.ensureDb();
     const txContext = this.createTransactionContext();
 
-    let release: (() => void) | null = null;
+    let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -3977,13 +3977,13 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     try {
       db.exec('BEGIN');
     } catch (error) {
-      release?.();
+      release();
       throw error;
     }
     try {
       const result = await fn(txContext);
       db.exec('COMMIT');
-      release?.();
+      release();
       return result;
     } catch (error) {
       try {
@@ -3991,7 +3991,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       } catch (rollbackError) {
         logWarning('SQLite rollback failed', { path: this.dbPath, error: rollbackError });
       }
-      release?.();
+      release();
       throw error;
     }
   }

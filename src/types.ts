@@ -650,8 +650,8 @@ export interface LibrarianResponse {
 export interface OutputEnvelope {
   constructionPlan: ConstructionPlan;
   packs: ContextPack[];
-  adequacy: AdequacyReport | null;
-  verificationPlan: VerificationPlan | null;
+  adequacy?: AdequacyReport | null;
+  verificationPlan?: VerificationPlan | null;
   disclosures: string[];
   traceId: string;
 }
@@ -670,11 +670,11 @@ export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResp
       createdAt: new Date().toISOString(),
     };
   }
-  const adequacy = response.adequacy ?? null;
+  const adequacy = response.adequacy;
   if (!response.adequacy) {
     disclosures.add('unverified_by_trace(adequacy_missing)');
   }
-  const verificationPlan = response.verificationPlan ?? null;
+  const verificationPlan = response.verificationPlan;
   if (!response.verificationPlan) {
     disclosures.add('unverified_by_trace(verification_plan_missing)');
   }

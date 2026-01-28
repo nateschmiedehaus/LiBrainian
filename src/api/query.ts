@@ -342,8 +342,8 @@ export async function queryLibrarian(
     }
     const stageObserver = normalizeStageObserver(
       traceOptions.evidenceLedger && traceSessionId
-        ? (report) => {
-            void appendStageEvidence(traceOptions.evidenceLedger!, traceSessionId, report);
+        ? (report: StageReport) => {
+            void appendStageEvidence(traceOptions.evidenceLedger!, traceSessionId!, report);
             onStage?.(report);
           }
         : onStage

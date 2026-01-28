@@ -73,14 +73,15 @@ export class CausalDiscoveryEngine {
   async discoverFromProductionMetrics(series: MetricTimeSeries[]): Promise<DiscoveredCausalRelationship[]> {
     const observations: Array<{ causes: string[]; effects: string[] }> = [];
     for (const metric of series) {
-      if (!Number.isFinite(metric.spikeThreshold) || metric.spikeThreshold <= 0) {
+      const threshold = metric.spikeThreshold;
+      if (!Number.isFinite(threshold) || threshold === undefined || threshold <= 0) {
         continue;
       }
       for (let i = 1; i < metric.observations.length; i += 1) {
         const prev = metric.observations[i - 1];
         const current = metric.observations[i];
         const delta = current.value - prev.value;
-        if (Math.abs(delta) < metric.spikeThreshold) continue;
+        if (Math.abs(delta) < threshold) continue;
         if (!current.changedFiles || current.changedFiles.length === 0) continue;
         observations.push({
           causes: current.changedFiles,

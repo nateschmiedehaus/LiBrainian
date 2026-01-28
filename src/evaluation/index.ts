@@ -297,7 +297,7 @@ export {
   // Types (WU-CONTRA-001)
   type CommentAnalysis,
   type ConsistencyIssue,
-  type ConsistencyReport,
+  type ConsistencyReport as CommentConsistencyReport,
 
   // Class
   CommentCodeChecker,
@@ -359,7 +359,7 @@ export {
   type VerificationInput,
   type VerificationQuestion,
   type VerificationAnswer,
-  type VerificationResult,
+  type VerificationResult as ChainVerificationResult,
   type Inconsistency,
   type ChainOfVerificationConfig,
 
@@ -518,7 +518,7 @@ export {
   type IRCoTInput,
   type IRCoTOutput,
   type ReasoningStep,
-  type RetrievalDecision,
+  type RetrievalDecision as IRCoTRetrievalDecision,
   type IRCoTConfig,
 
   // Constants

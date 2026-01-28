@@ -216,8 +216,8 @@ export async function runProviderReadinessGate(
       startedAt,
       result,
       forceProbe,
-      preferredProvider: preferred,
-      lastSuccessfulProvider,
+      preferredProvider: preferred ?? null,
+      lastSuccessfulProvider: lastSuccessfulProvider ?? null,
     });
   }
   return result;

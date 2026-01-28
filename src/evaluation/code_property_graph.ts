@@ -1017,8 +1017,10 @@ export class CodePropertyGraphBuilder {
       graph.nodes.set(ifNodeId, ifNode);
 
       // Find statements in then block
-      const thenStmts = thenBlock.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
-        .concat(thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement));
+      const thenStmts: Node[] = [
+        ...thenBlock.getDescendantsOfKind(SyntaxKind.ExpressionStatement),
+        ...thenBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement),
+      ];
 
       if (thenStmts.length > 0) {
         const firstThenLine = thenStmts[0].getStartLineNumber();
@@ -1050,8 +1052,10 @@ export class CodePropertyGraphBuilder {
 
       // Find statements in else block
       if (elseBlock) {
-        const elseStmts = elseBlock.getDescendantsOfKind(SyntaxKind.ExpressionStatement)
-          .concat(elseBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement));
+        const elseStmts: Node[] = [
+          ...elseBlock.getDescendantsOfKind(SyntaxKind.ExpressionStatement),
+          ...elseBlock.getDescendantsOfKind(SyntaxKind.ReturnStatement),
+        ];
 
         if (elseStmts.length > 0) {
           const firstElseLine = elseStmts[0].getStartLineNumber();

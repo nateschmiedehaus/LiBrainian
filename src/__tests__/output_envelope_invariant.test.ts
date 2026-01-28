@@ -70,8 +70,8 @@ describe('Output envelope invariant', () => {
     const normalized = ensureOutputEnvelope(response);
 
     expect(normalized.constructionPlan).toBeDefined();
-    expect(normalized.adequacy).toBeNull();
-    expect(normalized.verificationPlan).toBeNull();
+    expect(normalized.adequacy).toBeUndefined();
+    expect(normalized.verificationPlan).toBeUndefined();
     expect(normalized.disclosures).toContain('unverified_by_trace(construction_plan_missing)');
     expect(normalized.disclosures).toContain('unverified_by_trace(adequacy_missing)');
     expect(normalized.disclosures).toContain('unverified_by_trace(verification_plan_missing)');

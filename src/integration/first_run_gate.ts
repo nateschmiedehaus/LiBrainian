@@ -245,7 +245,7 @@ export async function ensureLibrarianReady(
       const selectedProvider = providerStatus.selectedProvider === 'claude' || providerStatus.selectedProvider === 'codex'
         ? providerStatus.selectedProvider
         : null;
-      if (selectedProvider) {
+      if (selectedProvider && selection) {
         const selectedModel = selection.providers[selectedProvider]?.model_id;
         if (selectedModel) {
           process.env.LIBRARIAN_LLM_PROVIDER = selectedProvider;

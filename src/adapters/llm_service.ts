@@ -95,7 +95,7 @@ async function loadDefaultService(): Promise<LlmServiceInstance> {
   }
   if (!defaultServicePromise) {
     defaultServicePromise = Promise.resolve()
-      .then(() => defaultServiceFactory())
+      .then(() => defaultServiceFactory!())
       .then((service) => {
         validateServiceInstance(service);
         return service;

@@ -2672,10 +2672,10 @@ export class CacheOperatorInterpreter implements OperatorInterpreter {
     const cacheKey = resolveOperatorOutputKey(context.operator, 'cache');
     let entries = operatorState.cacheEntries as Record<string, unknown> | undefined;
     if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
-      entries = Object.create(null);
+      entries = Object.create(null) as Record<string, unknown>;
       operatorState.cacheEntries = entries;
     }
-    entries[cacheKey] = sanitizeCheckpointRecord(ensureOutputs(result.output));
+    entries![cacheKey] = sanitizeCheckpointRecord(ensureOutputs(result.output));
     return { type: 'continue', outputs: {} };
   }
 
