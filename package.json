@@ -79,6 +79,7 @@
     "test:watch": "vitest --watch",
     "lint": "eslint src/ --ext .ts",
     "lint:fix": "eslint src/ --ext .ts --fix",
+    "lint:filesize": "node scripts/check-file-sizes.mjs --all",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
@@ -87,19 +88,19 @@
     "release": "npm run build && npm publish --access public"
   },
   "dependencies": {
-    "better-sqlite3": "^11.0.0",
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": ">=11.0.0",
     "chalk": "^5.3.0",
     "cli-progress": "^3.12.0",
     "commander": "^12.0.0",
     "execa": "^9.0.0",
     "glob": "^11.0.0",
     "minimatch": "^10.0.0",
-    "ts-morph": "^24.0.0",
-    "@xenova/transformers": "^2.17.2",
     "ora": "^8.0.0",
     "proper-lockfile": "^4.1.2",
     "strip-json-comments": "^5.0.0",
     "table": "^6.8.0",
+    "ts-morph": ">=24.0.0",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
@@ -108,7 +109,8 @@
     "@modelcontextprotocol/sdk": ">=1.0.0",
     "better-sqlite3": ">=11.0.0",
     "openai": ">=4.0.0",
-    "tree-sitter": ">=0.21.0",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-java": "^0.23.5",
     "ts-morph": ">=24.0.0"
   },
   "peerDependenciesMeta": {
@@ -128,6 +130,9 @@
       "optional": true
     },
     "tree-sitter": {
+      "optional": true
+    },
+    "tree-sitter-java": {
       "optional": true
     }
   },

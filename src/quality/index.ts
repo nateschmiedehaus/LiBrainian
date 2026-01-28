@@ -53,6 +53,26 @@ export type {
   RuleViolation,
 } from './world_class_standards.js';
 
+// File Size Guard (AI tool compatibility)
+export {
+  checkFile,
+  checkDirectory,
+  checkFiles,
+  assertFileSizes,
+  formatReport,
+  estimateTokens,
+  DEFAULT_FILE_SIZE_CONFIG,
+  FileSizeError,
+} from './file_size_guard.js';
+
+export type {
+  FileSizeConfig,
+  FileSizeResult,
+  FileSizeReport,
+  FileSizeViolation,
+  ViolationType,
+} from './file_size_guard.js';
+
 // Component Research (best practices registry)
 export {
   ComponentRegistry,
