@@ -685,3 +685,56 @@ export {
   isActivity,
   isAgent,
 } from './evidence_record_schema.js';
+
+// Proven Formula AST System (WU-THIMPL-XXX)
+export {
+  // Proof Terms
+  type ProofTerm,
+  type ProofType,
+  isProofTerm,
+
+  // AST Node Types
+  type ProvenFormulaNode,
+  type LiteralNode,
+  type InputRefNode,
+  type BinaryOpNode,
+  type BinaryOp,
+  type UnaryOpNode,
+  type UnaryOp,
+  type ConditionalNode,
+
+  // Builder Functions
+  literal,
+  input,
+  add,
+  sub,
+  mul,
+  div,
+  min,
+  max,
+  and,
+  or,
+  neg,
+  conditional,
+
+  // Evaluator
+  evaluate,
+
+  // Serialization
+  provenFormulaToString,
+  parseProvenFormula,
+  type ParseError,
+  isParseError,
+
+  // Type Guards
+  isLiteralNode,
+  isInputRefNode,
+  isBinaryOpNode,
+  isUnaryOpNode,
+  isConditionalNode,
+  isProvenFormulaNode,
+
+  // Integration Type
+  type ProvenDerivedConfidence,
+  createProvenDerivedConfidence,
+} from './formula_ast.js';
