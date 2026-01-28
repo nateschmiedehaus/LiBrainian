@@ -16,6 +16,204 @@ import type { CalibrationAdjustmentOptions, CalibrationReport } from './calibrat
 import { adjustConfidenceScore } from './calibration.js';
 
 // ============================================================================
+// TYPED FORMULA AST (WU-THIMPL-201)
+// ============================================================================
+
+/**
+ * A node in the typed formula AST.
+ *
+ * This replaces string-based formula representations with a structured AST that:
+ * - Enables type-safe formula manipulation
+ * - Allows programmatic evaluation
+ * - Supports serialization and comparison
+ * - Prevents formula injection or malformed expressions
+ *
+ * @example
+ * ```typescript
+ * // min(a, b) * 0.9
+ * const formula: FormulaNode = {
+ *   type: 'scale',
+ *   factor: 0.9,
+ *   child: {
+ *     type: 'min',
+ *     children: [
+ *       { type: 'value', name: 'a' },
+ *       { type: 'value', name: 'b' }
+ *     ]
+ *   }
+ * };
+ * ```
+ */
+export type FormulaNode =
+  | FormulaValueNode
+  | FormulaMinNode
+  | FormulaMaxNode
+  | FormulaProductNode
+  | FormulaSumNode
+  | FormulaScaleNode;
+
+/** A leaf node representing a named value */
+export interface FormulaValueNode {
+  readonly type: 'value';
+  readonly name: string;
+}
+
+/** Minimum of child values */
+export interface FormulaMinNode {
+  readonly type: 'min';
+  readonly children: readonly FormulaNode[];
+}
+
+/** Maximum of child values */
+export interface FormulaMaxNode {
+  readonly type: 'max';
+  readonly children: readonly FormulaNode[];
+}
+
+/** Product of child values */
+export interface FormulaProductNode {
+  readonly type: 'product';
+  readonly children: readonly FormulaNode[];
+}
+
+/** Sum of child values */
+export interface FormulaSumNode {
+  readonly type: 'sum';
+  readonly children: readonly FormulaNode[];
+}
+
+/** Scale a child value by a constant factor */
+export interface FormulaScaleNode {
+  readonly type: 'scale';
+  readonly factor: number;
+  readonly child: FormulaNode;
+}
+
+/**
+ * Convert a FormulaNode AST to a human-readable string representation.
+ *
+ * @param node - The formula AST node
+ * @returns Human-readable formula string (e.g., "min(step_0, step_1)")
+ *
+ * @example
+ * ```typescript
+ * const formula: FormulaNode = {
+ *   type: 'min',
+ *   children: [
+ *     { type: 'value', name: 'a' },
+ *     { type: 'value', name: 'b' }
+ *   ]
+ * };
+ * formulaToString(formula); // "min(a, b)"
+ * ```
+ */
+export function formulaToString(node: FormulaNode): string {
+  switch (node.type) {
+    case 'value':
+      return node.name;
+    case 'min':
+      return `min(${node.children.map(formulaToString).join(', ')})`;
+    case 'max':
+      return `max(${node.children.map(formulaToString).join(', ')})`;
+    case 'product':
+      if (node.children.length === 0) return '1';
+      if (node.children.length === 1) return formulaToString(node.children[0]);
+      return node.children.map(formulaToString).join(' * ');
+    case 'sum':
+      if (node.children.length === 0) return '0';
+      if (node.children.length === 1) return formulaToString(node.children[0]);
+      return `(${node.children.map(formulaToString).join(' + ')})`;
+    case 'scale':
+      return `${node.factor} * ${formulaToString(node.child)}`;
+  }
+}
+
+/**
+ * Evaluate a FormulaNode AST with the given values.
+ *
+ * @param node - The formula AST node
+ * @param values - Map of variable names to their numeric values
+ * @returns The computed numeric result
+ * @throws Error if a required value is missing from the values map
+ *
+ * @example
+ * ```typescript
+ * const formula: FormulaNode = {
+ *   type: 'min',
+ *   children: [
+ *     { type: 'value', name: 'a' },
+ *     { type: 'value', name: 'b' }
+ *   ]
+ * };
+ * const result = evaluateFormula(formula, new Map([['a', 0.8], ['b', 0.9]]));
+ * // result = 0.8
+ * ```
+ */
+export function evaluateFormula(node: FormulaNode, values: Map<string, number>): number {
+  switch (node.type) {
+    case 'value': {
+      const value = values.get(node.name);
+      if (value === undefined) {
+        throw new Error(`Missing value for formula variable: ${node.name}`);
+      }
+      return value;
+    }
+    case 'min': {
+      if (node.children.length === 0) {
+        return Infinity; // Identity for min
+      }
+      return Math.min(...node.children.map((child) => evaluateFormula(child, values)));
+    }
+    case 'max': {
+      if (node.children.length === 0) {
+        return -Infinity; // Identity for max
+      }
+      return Math.max(...node.children.map((child) => evaluateFormula(child, values)));
+    }
+    case 'product': {
+      return node.children.reduce((acc, child) => acc * evaluateFormula(child, values), 1);
+    }
+    case 'sum': {
+      return node.children.reduce((acc, child) => acc + evaluateFormula(child, values), 0);
+    }
+    case 'scale': {
+      return node.factor * evaluateFormula(node.child, values);
+    }
+  }
+}
+
+/**
+ * Create a FormulaNode from a list of input names using the specified operation.
+ *
+ * @param operation - The operation type ('min', 'max', 'product', 'sum')
+ * @param inputNames - Names of the input values
+ * @returns A FormulaNode representing the operation
+ */
+export function createFormula(
+  operation: 'min' | 'max' | 'product' | 'sum',
+  inputNames: string[]
+): FormulaNode {
+  const children: FormulaValueNode[] = inputNames.map((name) => ({ type: 'value', name }));
+  return { type: operation, children } as FormulaNode;
+}
+
+/**
+ * Type guard to check if a value is a FormulaNode.
+ */
+export function isFormulaNode(value: unknown): value is FormulaNode {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { type?: unknown };
+  return (
+    candidate.type === 'value' ||
+    candidate.type === 'min' ||
+    candidate.type === 'max' ||
+    candidate.type === 'product' ||
+    candidate.type === 'sum' ||
+    candidate.type === 'scale'
+  );
+}
+
+// ============================================================================
 // CONFIDENCE VALUE TYPES
 // ============================================================================
 
@@ -59,6 +257,21 @@ export interface DerivedConfidence {
   readonly value: number; // 0.0 to 1.0, computed from formula
   readonly formula: string; // e.g., "min(step1, step2)" or "step1 * step2"
   readonly inputs: ReadonlyArray<{ name: string; confidence: ConfidenceValue }>;
+  /**
+   * Tracks whether derivation preserves input calibration properties.
+   * - 'preserved': All inputs are calibrated and formula preserves calibration
+   * - 'degraded': Some inputs are uncalibrated or formula may degrade calibration
+   * - 'unknown': Calibration status cannot be determined
+   */
+  readonly calibrationStatus?: 'preserved' | 'degraded' | 'unknown';
+  /**
+   * Optional typed formula AST (WU-THIMPL-201).
+   *
+   * When present, provides a structured representation of the formula
+   * that can be programmatically evaluated and manipulated.
+   * The `formula` string field remains for human readability.
+   */
+  readonly formulaAst?: FormulaNode;
 }
 
 /**
@@ -145,6 +358,145 @@ export function isConfidenceValue(value: unknown): value is ConfidenceValue {
 }
 
 // ============================================================================
+// CALIBRATION STATUS HELPERS
+// ============================================================================
+
+/** Type alias for calibration status */
+export type CalibrationStatus = 'preserved' | 'degraded' | 'unknown';
+
+/**
+ * Compute the calibration status for a derived confidence based on its inputs.
+ *
+ * Calibration is considered:
+ * - 'preserved': All inputs are measured (calibrated) or deterministic
+ * - 'degraded': At least one input is bounded, derived with unknown/degraded status, or absent
+ * - 'unknown': Cannot determine calibration status
+ *
+ * @param inputs - Array of input confidence values
+ * @returns The resulting calibration status
+ */
+export function computeCalibrationStatus(inputs: ConfidenceValue[]): CalibrationStatus {
+  if (inputs.length === 0) {
+    return 'unknown';
+  }
+
+  let allPreserved = true;
+  let anyDegraded = false;
+
+  for (const input of inputs) {
+    switch (input.type) {
+      case 'deterministic':
+        // Deterministic values are perfectly calibrated (always correct)
+        break;
+      case 'measured':
+        // Measured values are calibrated by definition
+        break;
+      case 'derived':
+        // Check the derived confidence's calibration status
+        if (input.calibrationStatus === 'degraded') {
+          anyDegraded = true;
+          allPreserved = false;
+        } else if (input.calibrationStatus === 'unknown' || input.calibrationStatus === undefined) {
+          // Treat unknown/missing as degraded for safety
+          anyDegraded = true;
+          allPreserved = false;
+        }
+        // 'preserved' maintains the current status
+        break;
+      case 'bounded':
+        // Bounded values are not empirically calibrated
+        anyDegraded = true;
+        allPreserved = false;
+        break;
+      case 'absent':
+        // Absent values definitely degrade calibration
+        anyDegraded = true;
+        allPreserved = false;
+        break;
+    }
+  }
+
+  if (allPreserved) {
+    return 'preserved';
+  }
+  if (anyDegraded) {
+    return 'degraded';
+  }
+  return 'unknown';
+}
+
+/**
+ * Derive a sequential confidence with calibration tracking.
+ *
+ * Uses min(steps) formula. Calibration is preserved only if all inputs are calibrated.
+ *
+ * @param steps - Array of confidence values in the sequence
+ * @returns DerivedConfidence with calibrationStatus set
+ */
+export function deriveSequentialConfidence(steps: ConfidenceValue[]): ConfidenceValue {
+  if (steps.length === 0) {
+    return { type: 'absent', reason: 'insufficient_data' };
+  }
+
+  // If any step has absent confidence, the sequence is degraded
+  const values = steps.map(getNumericValue);
+  if (values.some((v) => v === null)) {
+    return {
+      type: 'absent',
+      reason: 'uncalibrated',
+    };
+  }
+
+  const minValue = Math.min(...(values.filter((v): v is number => v !== null)));
+  const calibrationStatus = computeCalibrationStatus(steps);
+
+  return {
+    type: 'derived',
+    value: minValue,
+    formula: 'min(steps)',
+    inputs: steps.map((s, i) => ({ name: `step_${i}`, confidence: s })),
+    calibrationStatus,
+  };
+}
+
+/**
+ * Derive a parallel confidence with calibration tracking.
+ *
+ * Uses product(branches) formula for independent AND.
+ * Calibration is preserved only if all inputs are calibrated.
+ *
+ * Note: Product formula may degrade calibration even with calibrated inputs
+ * if the independence assumption is violated.
+ *
+ * @param branches - Array of confidence values (assumed independent)
+ * @returns DerivedConfidence with calibrationStatus set
+ */
+export function deriveParallelConfidence(branches: ConfidenceValue[]): ConfidenceValue {
+  if (branches.length === 0) {
+    return { type: 'absent', reason: 'insufficient_data' };
+  }
+
+  const values = branches.map(getNumericValue);
+  if (values.some((v) => v === null)) {
+    return {
+      type: 'absent',
+      reason: 'uncalibrated',
+    };
+  }
+
+  const product = (values.filter((v): v is number => v !== null)).reduce((a, b) => a * b, 1);
+  const calibrationStatus = computeCalibrationStatus(branches);
+
+  return {
+    type: 'derived',
+    value: product,
+    formula: 'product(branches)',
+    inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
+    calibrationStatus,
+  };
+}
+
+// ============================================================================
 // DERIVATION RULES (D1-D6)
 // ============================================================================
 
@@ -194,6 +546,18 @@ export function sequenceConfidence(steps: ConfidenceValue[]): ConfidenceValue {
  * D3: Parallel-All Composition → product(branches)
  *
  * All branches must succeed: confidence = product (independent AND)
+ *
+ * **Independence Assumption**: This formula assumes all branch confidences are
+ * statistically independent. For correlated inputs (e.g., branches that share
+ * underlying data sources, code paths, or LLM calls), the product formula may
+ * produce miscalibrated results - typically underestimating confidence when
+ * branches are positively correlated, or overestimating when negatively correlated.
+ *
+ * Consider using `sequenceConfidence` (min) if branch outcomes are highly correlated,
+ * or apply domain-specific correlation adjustments before combining.
+ *
+ * @param branches - Array of confidence values to combine (assumed independent)
+ * @returns Derived confidence representing P(all branches succeed)
  */
 export function parallelAllConfidence(branches: ConfidenceValue[]): ConfidenceValue {
   if (branches.length === 0) {
@@ -222,6 +586,18 @@ export function parallelAllConfidence(branches: ConfidenceValue[]): ConfidenceVa
  * D4: Parallel-Any Composition → 1 - product(1 - branches)
  *
  * Any branch can succeed: confidence = 1 - product of failures (independent OR)
+ *
+ * **Independence Assumption**: This formula assumes all branch confidences are
+ * statistically independent. For correlated inputs (e.g., branches that share
+ * underlying data sources, code paths, or LLM calls), the formula may produce
+ * miscalibrated results - typically overestimating confidence when branches are
+ * positively correlated (because if one fails, others are likely to fail too).
+ *
+ * Consider using `orConfidence` for pairwise combinations with explicit correlation
+ * handling, or apply domain-specific correlation adjustments before combining.
+ *
+ * @param branches - Array of confidence values to combine (assumed independent)
+ * @returns Derived confidence representing P(at least one branch succeeds)
  */
 export function parallelAnyConfidence(branches: ConfidenceValue[]): ConfidenceValue {
   if (branches.length === 0) {
@@ -244,6 +620,246 @@ export function parallelAnyConfidence(branches: ConfidenceValue[]): ConfidenceVa
     value: 1 - failureProduct,
     formula: '1 - product(1 - branches)',
     inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
+  };
+}
+
+// ============================================================================
+// CORRELATION-AWARE DERIVATION (WU-THIMPL-117)
+// ============================================================================
+
+/**
+ * Options for correlation-aware parallel confidence derivation.
+ */
+export interface CorrelationOptions {
+  /**
+   * Correlation coefficient between branches (0 to 1).
+   *
+   * - 0 = independent (standard product formula)
+   * - 1 = perfectly correlated (reduces to min/max)
+   * - Values in between = partial correlation
+   *
+   * For positive correlation, the effective joint probability is higher than
+   * the product (for AND) or lower than noisy-or (for OR).
+   */
+  correlation?: number;
+}
+
+/**
+ * Derive parallel-all confidence with optional correlation adjustment.
+ *
+ * This function extends `parallelAllConfidence` to handle correlated inputs.
+ * When branches are positively correlated (they tend to succeed or fail together),
+ * the standard product formula underestimates the joint probability.
+ *
+ * **Mathematical Background:**
+ *
+ * For two variables with correlation ρ:
+ * - P(A ∧ B) = P(A)P(B) + ρ√(P(A)(1-P(A))P(B)(1-P(B)))
+ *
+ * For n variables, we use a conservative linear interpolation:
+ * - At ρ=0: P = product(branches)
+ * - At ρ=1: P = min(branches)
+ * - For 0 < ρ < 1: P = (1-ρ)*product + ρ*min
+ *
+ * This interpolation is a simplification of the true multivariate distribution
+ * but provides a principled adjustment for correlation.
+ *
+ * @param branches - Array of confidence values to combine
+ * @param options - Optional correlation parameter
+ * @returns Derived confidence with correlation adjustment
+ *
+ * @example
+ * ```typescript
+ * // Two branches from same LLM call (correlated)
+ * const result = deriveParallelAllConfidence(
+ *   [branch1, branch2],
+ *   { correlation: 0.7 }
+ * );
+ * // Result will be higher than pure product
+ * ```
+ */
+export function deriveParallelAllConfidence(
+  branches: ConfidenceValue[],
+  options: CorrelationOptions = {}
+): ConfidenceValue {
+  if (branches.length === 0) {
+    return { type: 'absent', reason: 'insufficient_data' };
+  }
+
+  const values = branches.map(getNumericValue);
+  if (values.some((v) => v === null)) {
+    return { type: 'absent', reason: 'uncalibrated' };
+  }
+
+  const validValues = values.filter((v): v is number => v !== null);
+  const correlation = Math.max(0, Math.min(1, options.correlation ?? 0));
+
+  // Independent case: product
+  const product = validValues.reduce((a, b) => a * b, 1);
+
+  // Perfectly correlated case: minimum
+  const min = Math.min(...validValues);
+
+  // Interpolate based on correlation
+  // At ρ=0: use product, at ρ=1: use min
+  const adjustedValue = (1 - correlation) * product + correlation * min;
+
+  const formula = correlation === 0
+    ? 'product(branches)'
+    : `correlation_adjusted_product(ρ=${correlation.toFixed(2)})`;
+
+  const calibrationStatus = computeCalibrationStatus(branches);
+
+  return {
+    type: 'derived',
+    value: adjustedValue,
+    formula,
+    inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
+    calibrationStatus,
+  };
+}
+
+/**
+ * Options for parallel-any confidence derivation.
+ */
+export interface ParallelAnyOptions extends CorrelationOptions {
+  /**
+   * How to handle Absent inputs (WU-THIMPL-213).
+   *
+   * - 'strict': Return Absent if ANY input is Absent (original behavior)
+   * - 'relaxed': Compute result from non-Absent inputs only (OR semantics)
+   *
+   * For OR semantics, if ANY input has real confidence, the output should too.
+   * This is because in OR logic, we only need one success - so we can compute
+   * the probability using only the branches we know about.
+   *
+   * Default: 'relaxed' (aligned with OR semantics)
+   */
+  absentHandling?: 'strict' | 'relaxed';
+}
+
+/**
+ * Derive parallel-any confidence with optional correlation adjustment.
+ *
+ * This function extends `parallelAnyConfidence` to handle correlated inputs.
+ * When branches are positively correlated (they tend to succeed or fail together),
+ * the standard noisy-or formula overestimates the probability of at least one
+ * success.
+ *
+ * **Mathematical Background:**
+ *
+ * For two variables with correlation ρ:
+ * - P(A ∨ B) = P(A) + P(B) - P(A ∧ B)
+ *
+ * For n variables, we use a conservative linear interpolation:
+ * - At ρ=0: P = 1 - product(1 - branches) [noisy-or]
+ * - At ρ=1: P = max(branches)
+ * - For 0 < ρ < 1: P = (1-ρ)*noisy_or + ρ*max
+ *
+ * **Absent Handling (WU-THIMPL-213):**
+ *
+ * For OR semantics, if ANY input has real confidence, the output should too.
+ * With `absentHandling: 'relaxed'` (default), Absent inputs are excluded from
+ * computation. The rationale: in OR logic, we only need one branch to succeed,
+ * so unknown branches can be ignored - the known branches still give us a
+ * valid lower bound on the probability of at least one success.
+ *
+ * With `absentHandling: 'strict'`, the original behavior is preserved where
+ * any Absent input causes the output to be Absent.
+ *
+ * @param branches - Array of confidence values to combine
+ * @param options - Optional correlation and absent handling parameters
+ * @returns Derived confidence with correlation adjustment
+ *
+ * @example
+ * ```typescript
+ * // Three retrieval attempts that may share failure modes
+ * const result = deriveParallelAnyConfidence(
+ *   [attempt1, attempt2, attempt3],
+ *   { correlation: 0.5 }
+ * );
+ * // Result will be lower than pure noisy-or
+ *
+ * // With one absent branch (relaxed handling)
+ * const partial = deriveParallelAnyConfidence(
+ *   [measuredConf, absent()],
+ *   { absentHandling: 'relaxed' }
+ * );
+ * // Returns derived confidence using only the measured input
+ * ```
+ */
+export function deriveParallelAnyConfidence(
+  branches: ConfidenceValue[],
+  options: ParallelAnyOptions = {}
+): ConfidenceValue {
+  if (branches.length === 0) {
+    return { type: 'absent', reason: 'insufficient_data' };
+  }
+
+  const absentHandling = options.absentHandling ?? 'relaxed';
+
+  // Separate present and absent branches
+  const presentBranches: ConfidenceValue[] = [];
+  const presentValues: number[] = [];
+
+  for (const branch of branches) {
+    const value = getNumericValue(branch);
+    if (value !== null) {
+      presentBranches.push(branch);
+      presentValues.push(value);
+    }
+  }
+
+  // Handle based on absent handling mode
+  if (absentHandling === 'strict') {
+    // Original behavior: any absent means result is absent
+    if (presentValues.length < branches.length) {
+      return { type: 'absent', reason: 'uncalibrated' };
+    }
+  } else {
+    // Relaxed behavior (WU-THIMPL-213): compute from present branches only
+    // For OR semantics, if no branch has confidence, we can't compute
+    if (presentValues.length === 0) {
+      return { type: 'absent', reason: 'uncalibrated' };
+    }
+  }
+
+  const correlation = Math.max(0, Math.min(1, options.correlation ?? 0));
+
+  // Independent case: noisy-or
+  const failureProduct = presentValues.map((v) => 1 - v).reduce((a, b) => a * b, 1);
+  const noisyOr = 1 - failureProduct;
+
+  // Perfectly correlated case: maximum
+  const max = Math.max(...presentValues);
+
+  // Interpolate based on correlation
+  // At ρ=0: use noisy-or, at ρ=1: use max
+  const adjustedValue = (1 - correlation) * noisyOr + correlation * max;
+
+  // Build formula string
+  let formula: string;
+  const hasAbsent = presentBranches.length < branches.length;
+
+  if (correlation === 0) {
+    formula = hasAbsent
+      ? `1 - product(1 - present_branches) [${presentBranches.length}/${branches.length} branches]`
+      : '1 - product(1 - branches)';
+  } else {
+    formula = hasAbsent
+      ? `correlation_adjusted_noisy_or(ρ=${correlation.toFixed(2)}) [${presentBranches.length}/${branches.length} branches]`
+      : `correlation_adjusted_noisy_or(ρ=${correlation.toFixed(2)})`;
+  }
+
+  // Calibration status is based on present branches only
+  const calibrationStatus = computeCalibrationStatus(presentBranches);
+
+  return {
+    type: 'derived',
+    value: adjustedValue,
+    formula,
+    inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
+    calibrationStatus: hasAbsent ? 'degraded' : calibrationStatus,
   };
 }
 

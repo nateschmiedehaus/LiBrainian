@@ -293,6 +293,16 @@ export interface ExtendedDefeater {
 
   /** Resolution action if auto-resolvable */
   resolutionAction?: string;
+
+  /**
+   * IDs of defeaters that defeat this defeater (meta-defeat / higher-order defeat).
+   * A defeater is only active if none of its defeatedBy defeaters are active.
+   * This enables modeling of epistemic reinstatement where a defeater can be
+   * defeated by counter-evidence or higher-order reasoning.
+   *
+   * WU-THIMPL-102: Higher-order defeat support
+   */
+  defeatedBy?: string[];
 }
 
 /** Severity levels for defeaters */

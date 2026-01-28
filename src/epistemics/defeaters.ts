@@ -24,12 +24,20 @@ import {
   type ContradictionType,
   type ClaimSignalStrength,
   type EvidenceGraph,
+  type EvidenceEdge,
   createClaimId,
   createDefeater,
   createContradiction,
   computeOverallSignalStrength,
 } from './types.js';
+import type { EvidenceProvenance, ProvenanceSource } from './evidence_ledger.js';
 import type { EvidenceGraphStorage } from './storage.js';
+import {
+  type ConfidenceValue,
+  type DerivedConfidence,
+  getNumericValue,
+  absent,
+} from './confidence.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -849,4 +857,1263 @@ export async function runDefeaterCycle(
   const health = await assessGraphHealth(storage, config);
 
   return { detection, application, health };
+}
+
+// ============================================================================
+// HIGHER-ORDER DEFEAT (WU-THIMPL-102)
+// ============================================================================
+
+/**
+ * Check if a defeater is effectively active considering meta-defeat.
+ *
+ * A defeater is active if:
+ * 1. Its status is 'active' AND
+ * 2. None of its meta-defeaters (defeatedBy) are themselves active
+ *
+ * This implements Pollock's reinstatement: if defeater A defeats claim C,
+ * but defeater B defeats A, then C is reinstated (A is not effectively active).
+ *
+ * Handles cycles by tracking visited defeaters during traversal.
+ * Cycles are treated conservatively: if we encounter a cycle while checking
+ * whether a meta-defeater is active, we assume the meta-defeater is NOT active
+ * (thus not defeating the current defeater), preserving the current defeater.
+ *
+ * WU-THIMPL-102: Higher-order defeat support
+ *
+ * @param defeater - The defeater to check
+ * @param allDefeaters - All known defeaters for looking up meta-defeaters
+ * @param visited - Set of already-visited defeater IDs (for cycle detection)
+ * @returns true if the defeater is effectively active, false if defeated
+ */
+export function isDefeaterActive(
+  defeater: ExtendedDefeater,
+  allDefeaters: ExtendedDefeater[],
+  visited: Set<string> = new Set()
+): boolean {
+  // If the defeater's status is not 'active', it's not active
+  if (defeater.status !== 'active') {
+    return false;
+  }
+
+  // If no meta-defeaters, it's active
+  if (!defeater.defeatedBy || defeater.defeatedBy.length === 0) {
+    return true;
+  }
+
+  // Cycle detection: if we've already visited this defeater, break the cycle
+  // by treating this meta-defeater as NOT active (conservative: don't defeat)
+  if (visited.has(defeater.id)) {
+    // We're in a cycle - treat this branch as not defeating
+    // This returns false meaning "this meta-defeater is not active from the
+    // perspective of the cycle", so the parent defeater remains active
+    return false;
+  }
+
+  // Mark this defeater as visited before recursing
+  const newVisited = new Set(visited);
+  newVisited.add(defeater.id);
+
+  // Check if any meta-defeater is active (would defeat this defeater)
+  for (const metaDefeaterId of defeater.defeatedBy) {
+    const metaDefeater = allDefeaters.find((d) => d.id === metaDefeaterId);
+    if (metaDefeater && isDefeaterActive(metaDefeater, allDefeaters, newVisited)) {
+      // This defeater is defeated by an active meta-defeater
+      return false;
+    }
+  }
+
+  // No active meta-defeaters, so this defeater is active
+  return true;
+}
+
+/**
+ * Get all effectively active defeaters from a list, considering meta-defeat chains.
+ *
+ * WU-THIMPL-102: Higher-order defeat support
+ *
+ * @param allDefeaters - All known defeaters
+ * @returns Array of defeaters that are effectively active
+ */
+export function getEffectivelyActiveDefeaters(
+  allDefeaters: ExtendedDefeater[]
+): ExtendedDefeater[] {
+  return allDefeaters.filter((d) => isDefeaterActive(d, allDefeaters));
+}
+
+/**
+ * Add a meta-defeater relationship (defeater A defeats defeater B).
+ *
+ * WU-THIMPL-102: Higher-order defeat support
+ *
+ * @param targetDefeater - The defeater to be defeated
+ * @param metaDefeaterId - ID of the defeater that defeats the target
+ * @returns Updated defeater with the new meta-defeat relationship
+ */
+export function addMetaDefeater(
+  targetDefeater: ExtendedDefeater,
+  metaDefeaterId: string
+): ExtendedDefeater {
+  const existingDefeatedBy = targetDefeater.defeatedBy ?? [];
+  if (existingDefeatedBy.includes(metaDefeaterId)) {
+    return targetDefeater; // Already present
+  }
+  return {
+    ...targetDefeater,
+    defeatedBy: [...existingDefeatedBy, metaDefeaterId],
+  };
+}
+
+/**
+ * Remove a meta-defeater relationship.
+ *
+ * WU-THIMPL-102: Higher-order defeat support
+ *
+ * @param targetDefeater - The defeater to update
+ * @param metaDefeaterId - ID of the meta-defeater to remove
+ * @returns Updated defeater with the meta-defeat relationship removed
+ */
+export function removeMetaDefeater(
+  targetDefeater: ExtendedDefeater,
+  metaDefeaterId: string
+): ExtendedDefeater {
+  if (!targetDefeater.defeatedBy) {
+    return targetDefeater;
+  }
+  const updatedDefeatedBy = targetDefeater.defeatedBy.filter((id) => id !== metaDefeaterId);
+  return {
+    ...targetDefeater,
+    defeatedBy: updatedDefeatedBy.length > 0 ? updatedDefeatedBy : undefined,
+  };
+}
+
+// ============================================================================
+// TRANSITIVE DEFEAT PROPAGATION (WU-THIMPL-103)
+// ============================================================================
+
+/**
+ * Represents a claim affected by transitive defeat propagation.
+ */
+export interface AffectedClaim {
+  /** The claim ID that is affected */
+  claimId: ClaimId;
+  /** Why this claim is affected (the chain of reasoning) */
+  reason: string;
+  /** The path from the defeated claim to this claim */
+  dependencyPath: ClaimId[];
+  /** The edge type that created the dependency */
+  dependencyType: 'depends_on' | 'assumes' | 'supports';
+  /** Suggested action for this claim */
+  suggestedAction: 'revalidate' | 'mark_stale' | 'investigate';
+  /** Depth in the dependency chain (0 = directly dependent on defeated claim) */
+  depth: number;
+}
+
+/**
+ * Propagate defeat through a dependency graph.
+ *
+ * When a claim is defeated, claims that depend on it may need re-evaluation.
+ * This function traverses the dependency graph to find all transitively
+ * affected claims.
+ *
+ * Dependency types considered:
+ * - 'depends_on': Direct dependency - claim validity requires the source
+ * - 'assumes': Weaker dependency - claim assumes source is true
+ * - 'supports': Reverse support - if A supports B and A is defeated, B may be weakened
+ *
+ * WU-THIMPL-103: Transitive defeat propagation
+ *
+ * @param storage - The evidence graph storage
+ * @param defeatedClaimId - The claim that has been defeated
+ * @param maxDepth - Maximum depth to traverse (default: 10)
+ * @returns Array of affected claims with metadata
+ */
+export async function propagateDefeat(
+  storage: EvidenceGraphStorage,
+  defeatedClaimId: ClaimId,
+  maxDepth: number = 10
+): Promise<AffectedClaim[]> {
+  const affectedClaims: AffectedClaim[] = [];
+  const visited = new Set<string>();
+
+  // BFS to find all dependent claims
+  const queue: Array<{
+    claimId: ClaimId;
+    path: ClaimId[];
+    depth: number;
+    lastEdgeType: 'depends_on' | 'assumes' | 'supports';
+  }> = [];
+
+  // Initialize with edges pointing TO the defeated claim (claims that depend on it)
+  // and edges FROM the defeated claim of type 'supports' (claims it supported)
+  const edgesToDefeated = await storage.getEdgesTo(defeatedClaimId);
+  const edgesFromDefeated = await storage.getEdgesFrom(defeatedClaimId);
+
+  // Find claims that depend on or assume the defeated claim
+  for (const edge of edgesToDefeated) {
+    if (edge.type === 'depends_on' || edge.type === 'assumes') {
+      queue.push({
+        claimId: edge.fromClaimId,
+        path: [defeatedClaimId],
+        depth: 0,
+        lastEdgeType: edge.type as 'depends_on' | 'assumes',
+      });
+    }
+  }
+
+  // Find claims that were supported by the defeated claim
+  for (const edge of edgesFromDefeated) {
+    if (edge.type === 'supports') {
+      queue.push({
+        claimId: edge.toClaimId,
+        path: [defeatedClaimId],
+        depth: 0,
+        lastEdgeType: 'supports',
+      });
+    }
+  }
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    // Skip if already visited or at max depth
+    if (visited.has(current.claimId) || current.depth >= maxDepth) {
+      continue;
+    }
+    visited.add(current.claimId);
+
+    // Determine suggested action based on dependency type and depth
+    let suggestedAction: AffectedClaim['suggestedAction'];
+    if (current.lastEdgeType === 'depends_on') {
+      suggestedAction = current.depth === 0 ? 'mark_stale' : 'revalidate';
+    } else if (current.lastEdgeType === 'assumes') {
+      suggestedAction = 'investigate';
+    } else {
+      suggestedAction = current.depth === 0 ? 'revalidate' : 'investigate';
+    }
+
+    // Construct reason based on path
+    const pathDescription = [...current.path, current.claimId]
+      .map((id) => id.slice(0, 8) + '...')
+      .join(' -> ');
+
+    affectedClaims.push({
+      claimId: current.claimId,
+      reason: `Transitively affected via ${current.lastEdgeType} chain: ${pathDescription}`,
+      dependencyPath: [...current.path],
+      dependencyType: current.lastEdgeType,
+      suggestedAction,
+      depth: current.depth,
+    });
+
+    // Continue propagation for dependent claims
+    const nextEdgesTo = await storage.getEdgesTo(current.claimId);
+    const nextEdgesFrom = await storage.getEdgesFrom(current.claimId);
+
+    for (const edge of nextEdgesTo) {
+      if (edge.type === 'depends_on' || edge.type === 'assumes') {
+        queue.push({
+          claimId: edge.fromClaimId,
+          path: [...current.path, current.claimId],
+          depth: current.depth + 1,
+          lastEdgeType: edge.type as 'depends_on' | 'assumes',
+        });
+      }
+    }
+
+    for (const edge of nextEdgesFrom) {
+      if (edge.type === 'supports') {
+        queue.push({
+          claimId: edge.toClaimId,
+          path: [...current.path, current.claimId],
+          depth: current.depth + 1,
+          lastEdgeType: 'supports',
+        });
+      }
+    }
+  }
+
+  return affectedClaims;
+}
+
+/**
+ * Apply transitive defeat to affected claims.
+ *
+ * This marks affected claims as stale and optionally creates defeaters for them.
+ *
+ * WU-THIMPL-103: Transitive defeat propagation
+ *
+ * @param storage - The evidence graph storage
+ * @param defeatedClaimId - The originally defeated claim
+ * @param affectedClaims - Claims affected by the defeat (from propagateDefeat)
+ * @param createDefeaters - Whether to create defeaters for affected claims
+ * @returns Number of claims marked as stale
+ */
+export async function applyTransitiveDefeat(
+  storage: EvidenceGraphStorage,
+  defeatedClaimId: ClaimId,
+  affectedClaims: AffectedClaim[],
+  createDefeaters: boolean = true
+): Promise<number> {
+  let staleCount = 0;
+
+  for (const affected of affectedClaims) {
+    const claim = await storage.getClaim(affected.claimId);
+    if (!claim) continue;
+
+    // Mark claims that should be stale
+    if (affected.suggestedAction === 'mark_stale' || affected.suggestedAction === 'revalidate') {
+      if (claim.status === 'active') {
+        await storage.updateClaimStatus(affected.claimId, 'stale');
+        staleCount++;
+      }
+    }
+
+    // Optionally create defeaters for affected claims
+    if (createDefeaters && affected.dependencyType === 'depends_on') {
+      const defeater = createDefeater({
+        type: 'new_info',
+        description: `Dependency "${defeatedClaimId}" was defeated. ${affected.reason}`,
+        severity: affected.depth === 0 ? 'partial' : 'warning',
+        affectedClaimIds: [affected.claimId],
+        confidenceReduction: affected.depth === 0 ? 0.3 : 0.15,
+        autoResolvable: true,
+        resolutionAction: 'revalidate',
+        evidence: `Transitive defeat from claim ${defeatedClaimId}`,
+      });
+      await storage.upsertDefeater(defeater);
+    }
+  }
+
+  return staleCount;
+}
+
+/**
+ * Get the dependency graph for visualization/analysis.
+ *
+ * Returns a simplified representation of claim dependencies.
+ *
+ * WU-THIMPL-103: Transitive defeat propagation
+ *
+ * @param storage - The evidence graph storage
+ * @param rootClaimId - The claim to start from
+ * @param direction - 'upstream' (what this claim depends on) or 'downstream' (what depends on this)
+ * @param maxDepth - Maximum depth to traverse
+ */
+export async function getDependencyGraph(
+  storage: EvidenceGraphStorage,
+  rootClaimId: ClaimId,
+  direction: 'upstream' | 'downstream' = 'downstream',
+  maxDepth: number = 5
+): Promise<{
+  nodes: Array<{ id: ClaimId; proposition: string; status: string; depth: number }>;
+  edges: Array<{ from: ClaimId; to: ClaimId; type: string }>;
+}> {
+  const nodes: Array<{ id: ClaimId; proposition: string; status: string; depth: number }> = [];
+  const edges: Array<{ from: ClaimId; to: ClaimId; type: string }> = [];
+  const visited = new Set<string>();
+  const queue: Array<{ claimId: ClaimId; depth: number }> = [{ claimId: rootClaimId, depth: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (visited.has(current.claimId) || current.depth > maxDepth) continue;
+    visited.add(current.claimId);
+
+    const claim = await storage.getClaim(current.claimId);
+    if (claim) {
+      nodes.push({
+        id: claim.id,
+        proposition: claim.proposition.slice(0, 100),
+        status: claim.status,
+        depth: current.depth,
+      });
+    }
+
+    // Get edges based on direction
+    let relevantEdges: EvidenceEdge[];
+    if (direction === 'downstream') {
+      // What depends on this claim (edges pointing TO this claim)
+      relevantEdges = await storage.getEdgesTo(current.claimId);
+      for (const edge of relevantEdges) {
+        if (edge.type === 'depends_on' || edge.type === 'assumes') {
+          edges.push({ from: edge.fromClaimId, to: edge.toClaimId, type: edge.type });
+          queue.push({ claimId: edge.fromClaimId, depth: current.depth + 1 });
+        }
+      }
+    } else {
+      // What this claim depends on (edges pointing FROM this claim)
+      relevantEdges = await storage.getEdgesFrom(current.claimId);
+      for (const edge of relevantEdges) {
+        if (edge.type === 'depends_on' || edge.type === 'assumes') {
+          edges.push({ from: edge.fromClaimId, to: edge.toClaimId, type: edge.type });
+          queue.push({ claimId: edge.toClaimId, depth: current.depth + 1 });
+        }
+      }
+    }
+  }
+
+  return { nodes, edges };
+}
+
+// ============================================================================
+// DEFEATER-CONFIDENCEVALUE INTEGRATION (WU-THIMPL-104)
+// ============================================================================
+
+/**
+ * Result of applying a defeater to a confidence value.
+ */
+export interface DefeaterApplicationResult {
+  /** The new confidence value after applying the defeater */
+  confidence: ConfidenceValue;
+  /** Whether the confidence was fully defeated (value = 0) */
+  fullyDefeated: boolean;
+  /** The original confidence value */
+  originalConfidence: ConfidenceValue;
+  /** The defeater that was applied */
+  defeaterId: string;
+  /** Description of what happened */
+  description: string;
+}
+
+/**
+ * Apply a defeater to a confidence value.
+ *
+ * This transforms the input confidence into a DerivedConfidence that
+ * includes the defeater in its provenance/formula. This ensures that
+ * the epistemic impact of the defeater is tracked in the confidence
+ * value itself.
+ *
+ * Defeater application rules:
+ * - 'full' severity: confidence becomes 0.0
+ * - 'partial' severity: confidence reduced by confidenceReduction
+ * - 'warning' severity: smaller reduction, confidence noted as degraded
+ * - 'informational' severity: no reduction, just provenance tracking
+ *
+ * If the input is already a DerivedConfidence, the defeater is added
+ * to the derivation chain (nested derivation).
+ *
+ * WU-THIMPL-104: Defeater-ConfidenceValue integration
+ *
+ * @param confidence - The original confidence value
+ * @param defeater - The defeater to apply
+ * @returns A new DerivedConfidence with the defeater in the formula
+ */
+export function applyDefeaterToConfidence(
+  confidence: ConfidenceValue,
+  defeater: ExtendedDefeater
+): DefeaterApplicationResult {
+  // Handle absent confidence specially
+  if (confidence.type === 'absent') {
+    return {
+      confidence,
+      fullyDefeated: false,
+      originalConfidence: confidence,
+      defeaterId: defeater.id,
+      description: 'Confidence was already absent; defeater has no additional effect',
+    };
+  }
+
+  const originalValue = getNumericValue(confidence);
+  if (originalValue === null) {
+    return {
+      confidence,
+      fullyDefeated: false,
+      originalConfidence: confidence,
+      defeaterId: defeater.id,
+      description: 'Confidence value could not be extracted; defeater has no effect',
+    };
+  }
+
+  // Calculate new value based on defeater severity
+  let newValue: number;
+  let formula: string;
+  let description: string;
+
+  switch (defeater.severity) {
+    case 'full':
+      // Full defeat: confidence goes to 0
+      newValue = 0.0;
+      formula = `defeated_by(${defeater.type})`;
+      description = `Fully defeated by ${defeater.type}: ${defeater.description}`;
+      break;
+
+    case 'partial':
+      // Partial defeat: reduce by confidenceReduction
+      newValue = Math.max(0, originalValue - defeater.confidenceReduction);
+      formula = `partial_defeat(${defeater.type}, -${defeater.confidenceReduction})`;
+      description = `Partially defeated by ${defeater.type}: reduced by ${defeater.confidenceReduction}`;
+      break;
+
+    case 'warning':
+      // Warning: smaller reduction (half of confidenceReduction)
+      const warningReduction = defeater.confidenceReduction * 0.5;
+      newValue = Math.max(0, originalValue - warningReduction);
+      formula = `warning(${defeater.type}, -${warningReduction.toFixed(3)})`;
+      description = `Warning from ${defeater.type}: reduced by ${warningReduction.toFixed(3)}`;
+      break;
+
+    case 'informational':
+      // Informational: no reduction, just note
+      newValue = originalValue;
+      formula = `noted(${defeater.type})`;
+      description = `Information noted from ${defeater.type}: ${defeater.description}`;
+      break;
+
+    default:
+      // Unknown severity: treat as warning
+      newValue = Math.max(0, originalValue - defeater.confidenceReduction * 0.5);
+      formula = `unknown_defeat(${defeater.type})`;
+      description = `Unknown defeat severity from ${defeater.type}`;
+  }
+
+  const fullyDefeated = newValue === 0.0;
+
+  // Create the derived confidence with defeater in provenance
+  const derivedConfidence: DerivedConfidence = {
+    type: 'derived',
+    value: newValue,
+    formula,
+    inputs: [
+      { name: 'original', confidence },
+      {
+        name: 'defeater',
+        confidence: {
+          type: 'deterministic',
+          value: 1.0,
+          reason: `defeater_${defeater.id}`,
+        },
+      },
+    ],
+    // Defeaters always degrade calibration since they represent
+    // unexpected/invalidating information
+    calibrationStatus: 'degraded',
+  };
+
+  return {
+    confidence: derivedConfidence,
+    fullyDefeated,
+    originalConfidence: confidence,
+    defeaterId: defeater.id,
+    description,
+  };
+}
+
+/**
+ * Apply multiple defeaters to a confidence value.
+ *
+ * Defeaters are applied in order, with each subsequent defeater
+ * operating on the result of the previous application.
+ *
+ * WU-THIMPL-104: Defeater-ConfidenceValue integration
+ *
+ * @param confidence - The original confidence value
+ * @param defeaters - Array of defeaters to apply
+ * @returns Final confidence value and summary of all applications
+ */
+export function applyDefeatersToConfidence(
+  confidence: ConfidenceValue,
+  defeaters: ExtendedDefeater[]
+): {
+  confidence: ConfidenceValue;
+  fullyDefeated: boolean;
+  applications: DefeaterApplicationResult[];
+} {
+  if (defeaters.length === 0) {
+    return {
+      confidence,
+      fullyDefeated: false,
+      applications: [],
+    };
+  }
+
+  let currentConfidence = confidence;
+  const applications: DefeaterApplicationResult[] = [];
+  let fullyDefeated = false;
+
+  for (const defeater of defeaters) {
+    const result = applyDefeaterToConfidence(currentConfidence, defeater);
+    applications.push(result);
+    currentConfidence = result.confidence;
+
+    if (result.fullyDefeated) {
+      fullyDefeated = true;
+      // Once fully defeated, subsequent defeaters have no effect
+      // but we still record them
+    }
+  }
+
+  return {
+    confidence: currentConfidence,
+    fullyDefeated,
+    applications,
+  };
+}
+
+/**
+ * Check if a confidence value has been affected by defeaters.
+ *
+ * Examines the provenance chain to find any defeater applications.
+ *
+ * WU-THIMPL-104: Defeater-ConfidenceValue integration
+ *
+ * @param confidence - The confidence value to check
+ * @returns List of defeater IDs found in the provenance chain
+ */
+export function findDefeatersInConfidence(confidence: ConfidenceValue): string[] {
+  const defeaterIds: string[] = [];
+
+  function traverse(conf: ConfidenceValue): void {
+    if (conf.type !== 'derived') return;
+
+    // Check if this derivation is from a defeater
+    if (conf.formula.startsWith('defeated_by') ||
+        conf.formula.startsWith('partial_defeat') ||
+        conf.formula.startsWith('warning') ||
+        conf.formula.startsWith('noted') ||
+        conf.formula.startsWith('unknown_defeat')) {
+      // Extract defeater ID from inputs
+      for (const input of conf.inputs) {
+        if (input.name === 'defeater' && input.confidence.type === 'deterministic') {
+          const reason = input.confidence.reason;
+          if (reason.startsWith('defeater_')) {
+            defeaterIds.push(reason.slice('defeater_'.length));
+          }
+        }
+      }
+    }
+
+    // Recursively check inputs
+    for (const input of conf.inputs) {
+      traverse(input.confidence);
+    }
+  }
+
+  traverse(confidence);
+  return defeaterIds;
+}
+
+/**
+ * Remove defeater effects from a confidence value.
+ *
+ * If the confidence was derived through defeater application,
+ * returns the original (pre-defeat) confidence value.
+ *
+ * Note: This only works for direct defeater applications. Nested
+ * derivations will still show the original value from the first
+ * defeater input.
+ *
+ * WU-THIMPL-104: Defeater-ConfidenceValue integration
+ *
+ * @param confidence - The confidence value that may have defeater effects
+ * @returns The original confidence value if defeater was found, else input unchanged
+ */
+export function removeDefeaterFromConfidence(confidence: ConfidenceValue): ConfidenceValue {
+  if (confidence.type !== 'derived') {
+    return confidence;
+  }
+
+  // Check if this is a defeater application
+  if (confidence.formula.startsWith('defeated_by') ||
+      confidence.formula.startsWith('partial_defeat') ||
+      confidence.formula.startsWith('warning') ||
+      confidence.formula.startsWith('noted') ||
+      confidence.formula.startsWith('unknown_defeat')) {
+    // Find the original confidence in inputs
+    const originalInput = confidence.inputs.find((i) => i.name === 'original');
+    if (originalInput) {
+      return originalInput.confidence;
+    }
+  }
+
+  return confidence;
+}
+
+// ============================================================================
+// UNTRUSTED CONTENT DETECTION (WU-THIMPL-105)
+// ============================================================================
+
+/**
+ * Suspicious patterns that may indicate untrusted or injected content.
+ */
+const SUSPICIOUS_PATTERNS = [
+  /ignore\s+(previous|prior|all)\s+(instructions?|prompts?)/i,
+  /system\s*:\s*you\s+are/i,
+  /\[\s*INST\s*\]/i,
+  /<\|?(system|user|assistant)\|?>/i,
+  /```\s*system/i,
+  /role\s*:\s*(system|admin)/i,
+  /pretend\s+(you\s+are|to\s+be)/i,
+  /jailbreak/i,
+  /bypass\s+(security|filter|restriction)/i,
+  /act\s+as\s+(if|a|an)\s+unrestricted/i,
+];
+
+/**
+ * Known trusted sources that require less scrutiny.
+ */
+const TRUSTED_SOURCES: ProvenanceSource[] = [
+  'ast_parser',
+  'system_observation',
+];
+
+/**
+ * Sources that require agent attribution.
+ */
+const ATTRIBUTION_REQUIRED_SOURCES: ProvenanceSource[] = [
+  'llm_synthesis',
+  'tool_output',
+];
+
+/**
+ * Result of untrusted content detection.
+ */
+export interface UntrustedContentResult {
+  /** Whether the content is considered untrusted */
+  untrusted: boolean;
+  /** Reasons why the content is considered untrusted */
+  reasons: string[];
+  /** Severity of the trust issue */
+  severity: DefeaterSeverity;
+  /** Recommended confidence reduction */
+  confidenceReduction: number;
+}
+
+/**
+ * Detect if an evidence provenance indicates untrusted content.
+ *
+ * Checks for:
+ * - Unknown or missing source
+ * - Missing agent attribution for LLM/tool sources
+ * - Suspicious patterns in method descriptions
+ * - Missing input hash (reproducibility concern)
+ *
+ * WU-THIMPL-105: Untrusted content defeater detection
+ *
+ * @param provenance - The provenance to check
+ * @param contentSample - Optional content sample to check for suspicious patterns
+ * @returns UntrustedContentResult with detection details
+ */
+export function detectUntrustedContent(
+  provenance: EvidenceProvenance,
+  contentSample?: string
+): UntrustedContentResult {
+  const reasons: string[] = [];
+  let maxSeverity: DefeaterSeverity = 'informational';
+  let confidenceReduction = 0;
+
+  // Check 1: Missing or unknown source
+  if (!provenance.source) {
+    reasons.push('Missing provenance source');
+    maxSeverity = 'partial';
+    confidenceReduction = Math.max(confidenceReduction, 0.4);
+  }
+
+  // Check 2: Attribution required for LLM/tool sources
+  if (ATTRIBUTION_REQUIRED_SOURCES.includes(provenance.source)) {
+    if (!provenance.agent) {
+      reasons.push(`Missing agent attribution for ${provenance.source} source`);
+      maxSeverity = severityMax(maxSeverity, 'warning');
+      confidenceReduction = Math.max(confidenceReduction, 0.2);
+    } else if (!provenance.agent.identifier || provenance.agent.identifier.trim() === '') {
+      reasons.push('Agent identifier is empty');
+      maxSeverity = severityMax(maxSeverity, 'warning');
+      confidenceReduction = Math.max(confidenceReduction, 0.15);
+    }
+  }
+
+  // Check 3: Missing method description
+  if (!provenance.method || provenance.method.trim() === '') {
+    reasons.push('Missing method description');
+    maxSeverity = severityMax(maxSeverity, 'warning');
+    confidenceReduction = Math.max(confidenceReduction, 0.1);
+  }
+
+  // Check 4: Suspicious patterns in method
+  if (provenance.method) {
+    for (const pattern of SUSPICIOUS_PATTERNS) {
+      if (pattern.test(provenance.method)) {
+        reasons.push(`Suspicious pattern detected in method: ${pattern.source}`);
+        maxSeverity = severityMax(maxSeverity, 'full');
+        confidenceReduction = Math.max(confidenceReduction, 1.0);
+        break;
+      }
+    }
+  }
+
+  // Check 5: Suspicious patterns in content sample
+  if (contentSample) {
+    for (const pattern of SUSPICIOUS_PATTERNS) {
+      if (pattern.test(contentSample)) {
+        reasons.push(`Suspicious pattern detected in content: ${pattern.source}`);
+        maxSeverity = severityMax(maxSeverity, 'full');
+        confidenceReduction = Math.max(confidenceReduction, 1.0);
+        break;
+      }
+    }
+  }
+
+  // Check 6: User input without verification (lower trust)
+  if (provenance.source === 'user_input' && !provenance.inputHash) {
+    reasons.push('User input without content verification hash');
+    maxSeverity = severityMax(maxSeverity, 'informational');
+    confidenceReduction = Math.max(confidenceReduction, 0.05);
+  }
+
+  // Check 7: Embedding search without model version (reproducibility)
+  if (provenance.source === 'embedding_search' && provenance.agent && !provenance.agent.version) {
+    reasons.push('Embedding search without model version for reproducibility');
+    maxSeverity = severityMax(maxSeverity, 'informational');
+    confidenceReduction = Math.max(confidenceReduction, 0.05);
+  }
+
+  return {
+    untrusted: reasons.length > 0,
+    reasons,
+    severity: maxSeverity,
+    confidenceReduction,
+  };
+}
+
+/**
+ * Create a defeater from untrusted content detection result.
+ *
+ * WU-THIMPL-105: Untrusted content defeater detection
+ *
+ * @param result - The detection result
+ * @param affectedClaimIds - Claims affected by this untrusted content
+ * @returns A defeater if untrusted, null otherwise
+ */
+export function createUntrustedContentDefeater(
+  result: UntrustedContentResult,
+  affectedClaimIds: ClaimId[]
+): ExtendedDefeater | null {
+  if (!result.untrusted || affectedClaimIds.length === 0) {
+    return null;
+  }
+
+  return createDefeater({
+    type: 'untrusted_content',
+    description: `Untrusted content detected: ${result.reasons.join('; ')}`,
+    severity: result.severity,
+    affectedClaimIds,
+    confidenceReduction: result.confidenceReduction,
+    autoResolvable: result.severity !== 'full',
+    resolutionAction: result.severity === 'full' ? undefined : 'revalidate',
+    evidence: JSON.stringify({ reasons: result.reasons }),
+  });
+}
+
+/**
+ * Helper to get the maximum severity.
+ */
+function severityMax(a: DefeaterSeverity, b: DefeaterSeverity): DefeaterSeverity {
+  const order: DefeaterSeverity[] = ['informational', 'warning', 'partial', 'full'];
+  return order.indexOf(a) > order.indexOf(b) ? a : b;
+}
+
+// ============================================================================
+// DEPENDENCY DRIFT DETECTION (WU-THIMPL-106)
+// ============================================================================
+
+/**
+ * Information about a dependency.
+ */
+export interface DependencyInfo {
+  /** Package/module name */
+  name: string;
+  /** Current version */
+  version: string;
+  /** Whether the dependency is deprecated */
+  deprecated?: boolean;
+  /** Deprecation message if deprecated */
+  deprecationMessage?: string;
+  /** Version at time of claim creation (if known) */
+  claimTimeVersion?: string;
+  /** Whether API breaking changes occurred */
+  hasBreakingChanges?: boolean;
+  /** List of breaking change descriptions */
+  breakingChanges?: string[];
+}
+
+/**
+ * Result of dependency drift detection.
+ */
+export interface DependencyDriftResult {
+  /** Whether drift was detected */
+  driftDetected: boolean;
+  /** Drifted dependencies */
+  driftedDeps: Array<{
+    name: string;
+    reason: string;
+    severity: DefeaterSeverity;
+  }>;
+  /** Overall severity */
+  severity: DefeaterSeverity;
+  /** Recommended confidence reduction */
+  confidenceReduction: number;
+}
+
+/**
+ * Detect dependency drift that could invalidate a claim.
+ *
+ * Checks for:
+ * - Version changes between claim creation and now
+ * - Deprecated dependencies
+ * - Breaking API changes
+ *
+ * WU-THIMPL-106: Dependency drift defeater detection
+ *
+ * @param claim - The claim to check
+ * @param currentDeps - Current dependency information
+ * @returns DependencyDriftResult with detection details
+ */
+export function detectDependencyDrift(
+  claim: Claim,
+  currentDeps: DependencyInfo[]
+): DependencyDriftResult {
+  const driftedDeps: DependencyDriftResult['driftedDeps'] = [];
+  let maxSeverity: DefeaterSeverity = 'informational';
+  let totalReduction = 0;
+
+  for (const dep of currentDeps) {
+    // Check 1: Breaking changes
+    if (dep.hasBreakingChanges && dep.breakingChanges && dep.breakingChanges.length > 0) {
+      driftedDeps.push({
+        name: dep.name,
+        reason: `Breaking API changes: ${dep.breakingChanges.slice(0, 3).join(', ')}${dep.breakingChanges.length > 3 ? '...' : ''}`,
+        severity: 'full',
+      });
+      maxSeverity = 'full';
+      totalReduction += 0.5;
+    }
+
+    // Check 2: Deprecated dependency
+    if (dep.deprecated) {
+      driftedDeps.push({
+        name: dep.name,
+        reason: dep.deprecationMessage ?? 'Dependency is deprecated',
+        severity: 'partial',
+      });
+      maxSeverity = severityMax(maxSeverity, 'partial');
+      totalReduction += 0.3;
+    }
+
+    // Check 3: Major version change
+    if (dep.claimTimeVersion && dep.version !== dep.claimTimeVersion) {
+      const oldMajor = getMajorVersion(dep.claimTimeVersion);
+      const newMajor = getMajorVersion(dep.version);
+
+      if (oldMajor !== null && newMajor !== null && oldMajor !== newMajor) {
+        driftedDeps.push({
+          name: dep.name,
+          reason: `Major version change: ${dep.claimTimeVersion} -> ${dep.version}`,
+          severity: 'partial',
+        });
+        maxSeverity = severityMax(maxSeverity, 'partial');
+        totalReduction += 0.25;
+      } else if (dep.claimTimeVersion !== dep.version) {
+        // Minor/patch version change
+        driftedDeps.push({
+          name: dep.name,
+          reason: `Version change: ${dep.claimTimeVersion} -> ${dep.version}`,
+          severity: 'warning',
+        });
+        maxSeverity = severityMax(maxSeverity, 'warning');
+        totalReduction += 0.1;
+      }
+    }
+  }
+
+  // Cap total reduction at 1.0
+  const confidenceReduction = Math.min(1.0, totalReduction);
+
+  return {
+    driftDetected: driftedDeps.length > 0,
+    driftedDeps,
+    severity: driftedDeps.length > 0 ? maxSeverity : 'informational',
+    confidenceReduction,
+  };
+}
+
+/**
+ * Create a defeater from dependency drift detection result.
+ *
+ * WU-THIMPL-106: Dependency drift defeater detection
+ *
+ * @param result - The detection result
+ * @param claimId - The claim affected by dependency drift
+ * @returns A defeater if drift detected, null otherwise
+ */
+export function createDependencyDriftDefeater(
+  result: DependencyDriftResult,
+  claimId: ClaimId
+): ExtendedDefeater | null {
+  if (!result.driftDetected) {
+    return null;
+  }
+
+  const depSummary = result.driftedDeps
+    .map((d) => `${d.name}: ${d.reason}`)
+    .join('; ');
+
+  return createDefeater({
+    type: 'dependency_drift',
+    description: `Dependency drift detected: ${depSummary}`,
+    severity: result.severity,
+    affectedClaimIds: [claimId],
+    confidenceReduction: result.confidenceReduction,
+    autoResolvable: result.severity !== 'full',
+    resolutionAction: 'revalidate',
+    evidence: JSON.stringify({ driftedDeps: result.driftedDeps }),
+  });
+}
+
+/**
+ * Extract major version from a semver string.
+ * Returns null if the version cannot be parsed.
+ */
+function getMajorVersion(version: string): number | null {
+  // Handle common version prefixes
+  const cleaned = version.replace(/^[v^~]/, '');
+  const match = cleaned.match(/^(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+// ============================================================================
+// BAYESIAN DEFEAT REDUCTION (WU-THIMPL-202)
+// ============================================================================
+
+/**
+ * Options for computing defeated strength.
+ *
+ * WU-THIMPL-202: Bayesian alternative to linear strength reduction.
+ */
+export interface DefeatReductionOptions {
+  /**
+   * Method for computing defeated strength:
+   * - 'linear': Simple subtraction (originalStrength - reduction)
+   * - 'bayesian': Beta-binomial update model
+   */
+  method: 'linear' | 'bayesian';
+
+  /**
+   * Prior strength for Bayesian method.
+   * Represents our prior belief about the evidence strength before
+   * encountering the defeater. Higher values = more resistant to defeat.
+   * Range: (0, 1). Default: 0.5 (neutral prior).
+   */
+  priorStrength?: number;
+
+  /**
+   * Prior sample size for Bayesian method (pseudo-count).
+   * Controls how much weight the prior has relative to new evidence.
+   * Higher values = prior is more influential.
+   * Range: > 0. Default: 2 (weak prior).
+   */
+  priorSampleSize?: number;
+}
+
+/**
+ * Default options for defeat reduction.
+ */
+export const DEFAULT_DEFEAT_REDUCTION_OPTIONS: Required<DefeatReductionOptions> = {
+  method: 'linear',
+  priorStrength: 0.5,
+  priorSampleSize: 2,
+};
+
+/**
+ * Compute the defeated strength after applying a defeater.
+ *
+ * WU-THIMPL-202: Provides two methods for computing strength reduction:
+ *
+ * ## Linear Method (Default)
+ *
+ * Simple subtraction: `newStrength = max(0, originalStrength - reduction)`.
+ * Fast and interpretable, but doesn't account for prior beliefs.
+ *
+ * **When to use**: Quick assessments, well-calibrated defeaters,
+ * when simplicity is preferred.
+ *
+ * ## Bayesian Method
+ *
+ * Uses a beta-binomial update model to compute posterior strength.
+ * The original strength is treated as evidence for claim validity,
+ * and the defeater provides evidence against.
+ *
+ * Model:
+ * - Prior: Beta(α, β) where α = priorStrength * priorSampleSize,
+ *   β = (1 - priorStrength) * priorSampleSize
+ * - Observation: originalStrength is treated as observing 'success'
+ *   with probability proportional to strength
+ * - Defeat evidence: confidenceReduction is treated as observing
+ *   'failure' evidence
+ * - Posterior: Beta(α + success_evidence, β + failure_evidence)
+ *
+ * **When to use**: When you want defeat to be more gradual with
+ * strong prior beliefs, when combining multiple defeaters, when
+ * you need uncertainty quantification.
+ *
+ * @param originalStrength - The original evidence strength (0-1)
+ * @param defeater - The defeater to apply
+ * @param options - Options controlling the reduction method
+ * @returns The new strength after applying the defeater (0-1)
+ *
+ * @example
+ * ```typescript
+ * // Linear reduction (fast, simple)
+ * const linear = computeDefeatedStrength(0.8, defeater, { method: 'linear' });
+ * // Result: max(0, 0.8 - defeater.confidenceReduction)
+ *
+ * // Bayesian reduction (accounts for prior beliefs)
+ * const bayesian = computeDefeatedStrength(0.8, defeater, {
+ *   method: 'bayesian',
+ *   priorStrength: 0.7,    // Strong prior belief in evidence
+ *   priorSampleSize: 10,   // Moderate confidence in prior
+ * });
+ * // Result: Posterior mean from Beta-Binomial update
+ * ```
+ */
+export function computeDefeatedStrength(
+  originalStrength: number,
+  defeater: ExtendedDefeater,
+  options?: DefeatReductionOptions
+): number {
+  const opts = {
+    ...DEFAULT_DEFEAT_REDUCTION_OPTIONS,
+    ...options,
+  };
+
+  // Validate inputs
+  const strength = Math.max(0, Math.min(1, originalStrength));
+  const reduction = defeater.confidenceReduction;
+
+  if (opts.method === 'linear') {
+    // Linear method: simple subtraction
+    return Math.max(0, strength - reduction);
+  }
+
+  // Bayesian method: Beta-Binomial update
+  return computeBayesianDefeatedStrength(
+    strength,
+    reduction,
+    opts.priorStrength,
+    opts.priorSampleSize
+  );
+}
+
+/**
+ * Compute defeated strength using Beta-Binomial Bayesian update.
+ *
+ * WU-THIMPL-202: Mathematical details of the Bayesian method.
+ *
+ * ## Model
+ *
+ * We model the true evidence strength θ as a random variable with:
+ * - Prior: θ ~ Beta(α₀, β₀)
+ * - Evidence: originalStrength represents n_success observations
+ * - Defeat: confidenceReduction represents n_failure observations
+ *
+ * The posterior is:
+ *   θ | data ~ Beta(α₀ + n_success, β₀ + n_failure)
+ *
+ * We return the posterior mean:
+ *   E[θ | data] = (α₀ + n_success) / (α₀ + β₀ + n_success + n_failure)
+ *
+ * ## Interpretation
+ *
+ * - originalStrength is converted to pseudo-observations: if strength is 0.8,
+ *   it's like observing 0.8 successes out of 1 trial
+ * - confidenceReduction is similarly converted to failure observations
+ * - The prior acts as "virtual" observations from before any evidence
+ *
+ * ## Properties
+ *
+ * - With weak prior (small priorSampleSize), result is close to linear
+ * - With strong prior, result is pulled toward priorStrength
+ * - Multiple defeaters accumulate properly (sequential updates)
+ * - Never goes below 0 or above 1 by construction
+ *
+ * @param originalStrength - Evidence strength before defeat (0-1)
+ * @param reduction - Confidence reduction from defeater (0-1)
+ * @param priorStrength - Prior belief about strength (0-1)
+ * @param priorSampleSize - Strength of prior (pseudo-count)
+ * @returns Posterior mean strength after Bayesian update
+ */
+function computeBayesianDefeatedStrength(
+  originalStrength: number,
+  reduction: number,
+  priorStrength: number,
+  priorSampleSize: number
+): number {
+  // Convert prior strength to Beta parameters
+  // α = priorStrength * priorSampleSize
+  // β = (1 - priorStrength) * priorSampleSize
+  const alpha0 = priorStrength * priorSampleSize;
+  const beta0 = (1 - priorStrength) * priorSampleSize;
+
+  // Convert original strength to pseudo-observations
+  // Treat it as evidence weight: higher strength = more "success" evidence
+  const successEvidence = originalStrength;
+
+  // Convert defeat reduction to failure evidence
+  // Higher reduction = more "failure" evidence
+  const failureEvidence = reduction;
+
+  // Posterior parameters
+  const alphaPost = alpha0 + successEvidence;
+  const betaPost = beta0 + failureEvidence;
+
+  // Posterior mean
+  return alphaPost / (alphaPost + betaPost);
+}
+
+/**
+ * Apply multiple defeaters to a strength value using specified method.
+ *
+ * WU-THIMPL-202: Handles sequential defeater application.
+ *
+ * For linear method, defeaters are applied sequentially with floor at 0.
+ * For Bayesian method, defeat evidence accumulates in the posterior.
+ *
+ * @param originalStrength - Starting strength (0-1)
+ * @param defeaters - Array of defeaters to apply
+ * @param options - Options controlling the reduction method
+ * @returns Final strength after all defeaters applied
+ */
+export function computeMultipleDefeatedStrength(
+  originalStrength: number,
+  defeaters: ExtendedDefeater[],
+  options?: DefeatReductionOptions
+): number {
+  const opts = {
+    ...DEFAULT_DEFEAT_REDUCTION_OPTIONS,
+    ...options,
+  };
+
+  if (defeaters.length === 0) {
+    return originalStrength;
+  }
+
+  if (opts.method === 'linear') {
+    // Linear: apply each defeater sequentially
+    let strength = originalStrength;
+    for (const defeater of defeaters) {
+      strength = computeDefeatedStrength(strength, defeater, opts);
+    }
+    return strength;
+  }
+
+  // Bayesian: accumulate all defeat evidence, then compute posterior
+  const totalReduction = defeaters.reduce(
+    (sum, d) => sum + d.confidenceReduction,
+    0
+  );
+
+  // Create synthetic defeater with combined reduction
+  const combinedDefeater: ExtendedDefeater = {
+    ...defeaters[0],
+    confidenceReduction: Math.min(1, totalReduction), // Cap at 1
+  };
+
+  return computeDefeatedStrength(originalStrength, combinedDefeater, opts);
 }
