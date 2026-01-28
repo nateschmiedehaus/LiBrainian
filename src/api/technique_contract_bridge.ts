@@ -322,6 +322,8 @@ export class TechniqueContractBridge {
     const epistemicsContract: PrimitiveContract<Record<string, unknown>, Record<string, unknown>> = {
       id: contractId,
       name: `${primitive.name} Contract`,
+      description: `Contract for technique primitive: ${primitive.name}`,
+      version: '1.0.0',
       primitiveId,
       preconditions: this.mapTechniquePreconditions(techniqueContract),
       postconditions: this.mapTechniquePostconditions(techniqueContract),

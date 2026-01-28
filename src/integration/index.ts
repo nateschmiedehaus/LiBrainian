@@ -102,3 +102,20 @@ export type {
   ModularizationGuidance,
   FileCreationContext,
 } from './modularization_hooks.js';
+
+// File Watcher Integration with Evidence Ledger (WU-STALE-001)
+export {
+  FileWatcher,
+  createFileWatcher,
+} from './file_watcher_integration.js';
+export type {
+  FileChangeEvent,
+  WatcherConfig,
+  WatcherStats,
+  FileChangeHandler,
+  FileWatcherOptions as FileWatcherIntegrationOptions,
+} from './file_watcher_integration.js';
+
+// Bootstrap Tests (WU-BOOT-002)
+export { createBootstrapTestRunner } from './bootstrap_tests.js';
+export type { BootstrapTestResult, BootstrapTestRunner } from './bootstrap_tests.js';

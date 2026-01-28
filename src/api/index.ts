@@ -584,3 +584,136 @@ export type {
   EnhancedExecutionResult,
   ContractMapping,
 } from './technique_contract_bridge.js';
+
+// Template Registry API
+export {
+  createTemplateRegistry,
+  getDefaultTemplateRegistry,
+  resetDefaultTemplateRegistry,
+  DOMAIN_TO_TEMPLATES,
+} from './template_registry.js';
+export type {
+  TemplateRegistry,
+  ConstructionTemplate,
+  IntentHints,
+  RankedTemplate,
+  TemplateInfo,
+  OutputEnvelopeSpec,
+  TemplateContext,
+  TemplateResult,
+  TemplateSelectionEvidence,
+} from './template_registry.js';
+
+// T2 DeltaMap Template API
+export {
+  createDeltaMapTemplate,
+  parseDiffOutput,
+  parseFileDelta,
+  identifyAffectedComponents,
+  computeRiskAssessment,
+  executeGitDiff,
+  normalizeGitRef,
+} from './delta_map_template.js';
+export type {
+  DeltaMapInput,
+  DeltaMapOutput,
+  FileDelta,
+  DiffHunk,
+  DeltaMapTemplate,
+} from './delta_map_template.js';
+
+// T6 ReproAndBisect Template API
+export {
+  createReproAndBisectTemplate,
+  parseIssueDescription,
+  generateReproSteps,
+  executeBisect,
+  trackReproAttempt,
+  createMinimalReproCase,
+  analyzeBisectResult,
+  normalizeGitRef as normalizeGitRefRepro,
+  validateTestCommand,
+} from './repro_bisect_template.js';
+export type {
+  ReproAndBisectInput,
+  ReproAndBisectOutput,
+  ReproStep,
+  BisectResult,
+  ReproAttempt,
+  TrackedReproAttempt,
+  BisectAnalysis,
+  BisectOptions,
+  ParsedIssue,
+  ReproAndBisectTemplate,
+} from './repro_bisect_template.js';
+
+// T7 SupplyChain Template API
+export {
+  createSupplyChainTemplate,
+  parsePackageJson,
+  parsePackageLock,
+  parseYarnLock,
+  parsePnpmLock,
+  detectPackageManager,
+  analyzeDependencies,
+  generateSBOM,
+  checkVulnerabilities,
+  checkOutdated,
+  computeSupplyChainRisk,
+} from './supply_chain_template.js';
+export type {
+  SupplyChainInput,
+  SupplyChainOutput,
+  Dependency,
+  Vulnerability,
+  OutdatedInfo,
+  SBOM,
+  SupplyChainSummary,
+  SupplyChainTemplate,
+} from './supply_chain_template.js';
+
+// T8 InfraMap Template API
+export {
+  createInfraMapTemplate,
+  parseKubernetesYaml,
+  parseDockerfile,
+  parseDockerCompose,
+  parseTerraformFile,
+  parseHelmChart,
+  buildInfraGraph,
+  detectInfraIssues,
+  autoDetectInfraTypes,
+} from './infra_map_template.js';
+export type {
+  InfraMapInput,
+  InfraMapOutput,
+  InfraComponent,
+  InfraRelationship,
+  InfraIssue,
+  InfraComponentType,
+  InfraRelationshipType,
+  InfraIssueSeverity,
+  InfraType,
+  InfraGraph,
+  InfraParseResult,
+  InfraMapTemplate,
+} from './infra_map_template.js';
+
+// T12 UncertaintyReduction Template API
+export {
+  createUncertaintyReductionTemplate,
+  identifyUncertaintySources,
+  planReductionSteps,
+  executeReductionStep,
+  iterateUntilTarget,
+  mapDefeaterToUncertaintySource,
+} from './uncertainty_reduction_template.js';
+export type {
+  UncertaintyReductionInput,
+  UncertaintyReductionOutput,
+  UncertaintySource,
+  UncertaintySourceType,
+  ReductionStep,
+  ReductionAction,
+  UncertaintyReductionTemplate,
+} from './uncertainty_reduction_template.js';

@@ -179,7 +179,9 @@ describe('file_watcher', () => {
     (captured as (event: string, filename: string) => void)('change', 'src/a.ts');
     (captured as (event: string, filename: string) => void)('change', 'src/b.ts');
 
-    await new Promise((resolve) => setTimeout(resolve, 140));
+    // Wait for debounce (50ms min) + batch window (50ms) + async operations
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
     await flushPromises();
 
     expect(librarian.reindexFiles).toHaveBeenCalledTimes(1);
