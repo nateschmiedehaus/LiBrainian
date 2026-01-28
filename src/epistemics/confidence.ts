@@ -14,6 +14,11 @@
 
 import type { CalibrationAdjustmentOptions, CalibrationReport } from './calibration.js';
 import { adjustConfidenceScore } from './calibration.js';
+import type { ProvenFormulaNode } from './formula_ast.js';
+import {
+  migrateStringFormula,
+  provenFormulaToString,
+} from './formula_ast.js';
 
 // ============================================================================
 // TYPED FORMULA AST (WU-THIMPL-201)
@@ -272,6 +277,17 @@ export interface DerivedConfidence {
    * The `formula` string field remains for human readability.
    */
   readonly formulaAst?: FormulaNode;
+  /**
+   * Optional proven formula AST (WU-THEORY-001).
+   *
+   * When present, provides a type-safe AST with proof terms that guarantee
+   * the formula is valid by construction. This is the preferred way to
+   * represent formulas going forward.
+   *
+   * The `formula` string field remains for backwards compatibility and
+   * human readability.
+   */
+  readonly provenFormula?: ProvenFormulaNode;
 }
 
 /**
@@ -449,14 +465,25 @@ export function deriveSequentialConfidence(steps: ConfidenceValue[]): Confidence
 
   const minValue = Math.min(...(values.filter((v): v is number => v !== null)));
   const calibrationStatus = computeCalibrationStatus(steps);
+  const inputNames = steps.map((_, i) => `step_${i}`);
 
-  return {
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('min(steps)', inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: minValue,
     formula: 'min(steps)',
     inputs: steps.map((s, i) => ({ name: `step_${i}`, confidence: s })),
     calibrationStatus,
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -486,14 +513,25 @@ export function deriveParallelConfidence(branches: ConfidenceValue[]): Confidenc
 
   const product = (values.filter((v): v is number => v !== null)).reduce((a, b) => a * b, 1);
   const calibrationStatus = computeCalibrationStatus(branches);
+  const inputNames = branches.map((_, i) => `branch_${i}`);
 
-  return {
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('product(branches)', inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: product,
     formula: 'product(branches)',
     inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
     calibrationStatus,
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -533,13 +571,24 @@ export function sequenceConfidence(steps: ConfidenceValue[]): ConfidenceValue {
   }
 
   const minValue = Math.min(...(values.filter((v): v is number => v !== null)));
+  const inputNames = steps.map((_, i) => `step_${i}`);
 
-  return {
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('min(steps)', inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: minValue,
     formula: 'min(steps)',
     inputs: steps.map((s, i) => ({ name: `step_${i}`, confidence: s })),
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -573,13 +622,24 @@ export function parallelAllConfidence(branches: ConfidenceValue[]): ConfidenceVa
   }
 
   const product = (values.filter((v): v is number => v !== null)).reduce((a, b) => a * b, 1);
+  const inputNames = branches.map((_, i) => `branch_${i}`);
 
-  return {
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('product(branches)', inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: product,
     formula: 'product(branches)',
     inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -614,13 +674,24 @@ export function parallelAnyConfidence(branches: ConfidenceValue[]): ConfidenceVa
 
   const validValues = values.filter((v): v is number => v !== null);
   const failureProduct = validValues.map((v) => 1 - v).reduce((a, b) => a * b, 1);
+  const inputNames = branches.map((_, i) => `branch_${i}`);
 
-  return {
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('1 - product(1 - branches)', inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: 1 - failureProduct,
     formula: '1 - product(1 - branches)',
     inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -698,25 +769,38 @@ export function deriveParallelAllConfidence(
   const product = validValues.reduce((a, b) => a * b, 1);
 
   // Perfectly correlated case: minimum
-  const min = Math.min(...validValues);
+  const minVal = Math.min(...validValues);
 
   // Interpolate based on correlation
   // At ρ=0: use product, at ρ=1: use min
-  const adjustedValue = (1 - correlation) * product + correlation * min;
+  const adjustedValue = (1 - correlation) * product + correlation * minVal;
 
   const formula = correlation === 0
     ? 'product(branches)'
     : `correlation_adjusted_product(ρ=${correlation.toFixed(2)})`;
 
   const calibrationStatus = computeCalibrationStatus(branches);
+  const inputNames = branches.map((_, i) => `branch_${i}`);
 
-  return {
+  // Build proven formula AST (for non-correlated case)
+  const provenFormula = correlation === 0
+    ? migrateStringFormula('product(branches)', inputNames)
+    : null; // Correlation-adjusted formulas are not yet supported in proven AST
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: adjustedValue,
     formula,
     inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
     calibrationStatus,
   };
+
+  // Add proven formula if migration was successful
+  if (provenFormula !== null && !(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -853,14 +937,27 @@ export function deriveParallelAnyConfidence(
 
   // Calibration status is based on present branches only
   const calibrationStatus = computeCalibrationStatus(presentBranches);
+  const inputNames = branches.map((_, i) => `branch_${i}`);
 
-  return {
+  // Build proven formula AST (for non-correlated, non-absent case)
+  const provenFormula = correlation === 0 && !hasAbsent
+    ? migrateStringFormula('1 - product(1 - branches)', inputNames)
+    : null; // Correlation-adjusted or partial formulas are not yet supported in proven AST
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: adjustedValue,
     formula,
     inputs: branches.map((b, i) => ({ name: `branch_${i}`, confidence: b })),
     calibrationStatus: hasAbsent ? 'degraded' : calibrationStatus,
   };
+
+  // Add proven formula if migration was successful
+  if (provenFormula !== null && !(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -932,10 +1029,15 @@ export function adjustConfidenceValue(
   }
 
   const adjustment = adjustConfidenceScore(raw, report, options);
-  const adjusted: ConfidenceValue = {
+  const formula = `calibration_curve:${report.datasetId}`;
+
+  // For calibration curves, we don't build a proven formula since they
+  // represent external calibration data rather than a derivation formula.
+  // The formula string documents the calibration source.
+  const adjusted: DerivedConfidence = {
     type: 'derived',
     value: adjustment.calibrated,
-    formula: `calibration_curve:${report.datasetId}`,
+    formula,
     inputs: [{ name: 'raw_confidence', confidence }],
   };
 
@@ -1184,7 +1286,12 @@ export function combinedConfidence(
     return sum + (value ?? 0) * i.weight;
   }, 0) / totalWeight;
 
-  return {
+  const inputNames = presentInputs.map((i) => i.name);
+
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('weighted_average', inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: Math.max(0, Math.min(1, weightedValue)),
     formula: 'weighted_average',
@@ -1193,6 +1300,13 @@ export function combinedConfidence(
       confidence: i.confidence,
     })),
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -1246,7 +1360,10 @@ export function andConfidence(a: ConfidenceValue, b: ConfidenceValue): Confidenc
     return { type: 'absent', reason: 'insufficient_data' };
   }
 
-  return {
+  // Build proven formula AST
+  const provenFormula = migrateStringFormula('min(a, b)', ['a', 'b']);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: Math.min(aVal, bVal),
     formula: 'min(a, b)',
@@ -1255,6 +1372,13 @@ export function andConfidence(a: ConfidenceValue, b: ConfidenceValue): Confidenc
       { name: 'b', confidence: b },
     ],
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 /**
@@ -1267,7 +1391,10 @@ export function orConfidence(a: ConfidenceValue, b: ConfidenceValue): Confidence
   const bVal = getNumericValue(b);
 
   if (aVal !== null && bVal !== null) {
-    return {
+    // Build proven formula AST
+    const provenFormula = migrateStringFormula('max(a, b)', ['a', 'b']);
+
+    const result: DerivedConfidence = {
       type: 'derived',
       value: Math.max(aVal, bVal),
       formula: 'max(a, b)',
@@ -1276,6 +1403,13 @@ export function orConfidence(a: ConfidenceValue, b: ConfidenceValue): Confidence
         { name: 'b', confidence: b },
       ],
     };
+
+    // Add proven formula if migration was successful
+    if (!(provenFormula instanceof Error)) {
+      return { ...result, provenFormula };
+    }
+
+    return result;
   }
   if (aVal !== null) return a;
   if (bVal !== null) return b;

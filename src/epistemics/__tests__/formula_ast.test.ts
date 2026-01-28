@@ -69,6 +69,11 @@ import {
   // Integration Type
   type ProvenDerivedConfidence,
   createProvenDerivedConfidence,
+
+  // Migration Helpers
+  migrateStringFormula,
+  hasProvenFormula,
+  createDerivedConfidenceWithProof,
 } from '../formula_ast.js';
 
 describe('Proven Formula AST System', () => {
@@ -773,6 +778,166 @@ describe('Proven Formula AST System', () => {
         // max(min(0.3, 0.7), 0.5) = max(0.3, 0.5) = 0.5
         expect(evaluate(result, [0.3, 0.7, 0.5])).toBe(0.5);
       }
+    });
+  });
+
+  describe('Migration Helpers', () => {
+    describe('migrateStringFormula', () => {
+      it('should migrate min(steps) formula', () => {
+        const result = migrateStringFormula('min(steps)', ['step_0', 'step_1', 'step_2']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [0.8, 0.6, 0.9])).toBe(0.6);
+        }
+      });
+
+      it('should migrate min(a, b) formula', () => {
+        const result = migrateStringFormula('min(a, b)', ['a', 'b']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [0.8, 0.6])).toBe(0.6);
+        }
+      });
+
+      it('should migrate max(a, b) formula', () => {
+        const result = migrateStringFormula('max(a, b)', ['a', 'b']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [0.8, 0.6])).toBe(0.8);
+        }
+      });
+
+      it('should migrate product(branches) formula', () => {
+        const result = migrateStringFormula('product(branches)', ['branch_0', 'branch_1']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [0.8, 0.5])).toBeCloseTo(0.4);
+        }
+      });
+
+      it('should migrate 1 - product(1 - branches) formula (noisy-or)', () => {
+        const result = migrateStringFormula('1 - product(1 - branches)', ['branch_0', 'branch_1']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          // 1 - (1 - 0.8)(1 - 0.6) = 1 - 0.2 * 0.4 = 1 - 0.08 = 0.92
+          expect(evaluate(result, [0.8, 0.6])).toBeCloseTo(0.92);
+        }
+      });
+
+      it('should migrate weighted_average formula', () => {
+        const result = migrateStringFormula('weighted_average', ['a', 'b', 'c']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          // Simple average: (0.6 + 0.8 + 0.9) / 3 = 0.7666...
+          expect(evaluate(result, [0.6, 0.8, 0.9])).toBeCloseTo(2.3 / 3);
+        }
+      });
+
+      it('should return Error for empty formula', () => {
+        const result = migrateStringFormula('', ['a', 'b']);
+        expect(result).toBeInstanceOf(Error);
+      });
+
+      it('should return Error for empty inputs with non-literal formula', () => {
+        const result = migrateStringFormula('min(a, b)', []);
+        expect(result).toBeInstanceOf(Error);
+      });
+
+      it('should handle literal numeric formula with empty inputs', () => {
+        const result = migrateStringFormula('0.5', []);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [])).toBe(0.5);
+        }
+      });
+
+      it('should fall back to parsing for arbitrary formulas', () => {
+        const result = migrateStringFormula('a * 0.5 + b * 0.5', ['a', 'b']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [0.8, 0.6])).toBeCloseTo(0.7);
+        }
+      });
+
+      it('should handle single input min formula', () => {
+        const result = migrateStringFormula('min(steps)', ['step_0']);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, [0.8])).toBe(0.8);
+        }
+      });
+
+      it('should handle many inputs', () => {
+        const inputs = Array.from({ length: 10 }, (_, i) => `step_${i}`);
+        const values = Array.from({ length: 10 }, (_, i) => 0.9 - i * 0.05);
+        const result = migrateStringFormula('min(steps)', inputs);
+        expect(result).not.toBeInstanceOf(Error);
+        if (!(result instanceof Error)) {
+          expect(evaluate(result, values)).toBe(Math.min(...values));
+        }
+      });
+    });
+
+    describe('hasProvenFormula', () => {
+      it('should return true when provenFormula is present', () => {
+        const formula = literal(0.5);
+        expect(hasProvenFormula({ provenFormula: formula })).toBe(true);
+      });
+
+      it('should return false when provenFormula is undefined', () => {
+        expect(hasProvenFormula({})).toBe(false);
+      });
+
+      it('should return false when provenFormula is not a valid node', () => {
+        expect(hasProvenFormula({ provenFormula: { kind: 'invalid' } as any })).toBe(false);
+      });
+    });
+
+    describe('createDerivedConfidenceWithProof', () => {
+      it('should create DerivedConfidence with proven formula and string formula', () => {
+        const inputA = input('a', 0, 2);
+        const inputB = input('b', 1, 2);
+        expect(inputA).not.toBeInstanceOf(Error);
+        expect(inputB).not.toBeInstanceOf(Error);
+        if (!(inputA instanceof Error) && !(inputB instanceof Error)) {
+          const formula = min(inputA, inputB);
+          const result = createDerivedConfidenceWithProof({
+            value: 0.6,
+            provenFormula: formula,
+            inputs: [
+              { name: 'a', confidence: { type: 'deterministic', value: 1.0, reason: 'test' } },
+              { name: 'b', confidence: { type: 'deterministic', value: 1.0, reason: 'test' } },
+            ],
+          });
+
+          expect(result.type).toBe('derived');
+          expect(result.value).toBe(0.6);
+          expect(result.formula).toBe('min(a, b)');
+          expect(result.provenFormula).toBe(formula);
+          expect(result.inputs).toHaveLength(2);
+        }
+      });
+
+      it('should clamp value to [0, 1]', () => {
+        const formula = literal(1.5);
+        const result = createDerivedConfidenceWithProof({
+          value: 1.5,
+          provenFormula: formula,
+          inputs: [],
+        });
+        expect(result.value).toBe(1);
+      });
+
+      it('should include calibrationStatus when provided', () => {
+        const formula = literal(0.5);
+        const result = createDerivedConfidenceWithProof({
+          value: 0.5,
+          provenFormula: formula,
+          inputs: [],
+          calibrationStatus: 'preserved',
+        });
+        expect(result.calibrationStatus).toBe('preserved');
+      });
     });
   });
 });

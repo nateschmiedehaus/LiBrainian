@@ -26,6 +26,7 @@ import {
 } from '../epistemics/contracts.js';
 import type { ConfidenceValue, DerivedConfidence } from '../epistemics/confidence.js';
 import { bounded, absent, combinedConfidence, meetsThreshold } from '../epistemics/confidence.js';
+import { migrateStringFormula } from '../epistemics/formula_ast.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 
@@ -227,7 +228,10 @@ function createDerivedConfidence(
   formula: string,
   inputNames: string[]
 ): DerivedConfidence {
-  return {
+  // Try to build proven formula AST
+  const provenFormula = migrateStringFormula(formula, inputNames);
+
+  const result: DerivedConfidence = {
     type: 'derived',
     value: Math.max(0, Math.min(1, value)),
     formula,
@@ -236,6 +240,13 @@ function createDerivedConfidence(
       confidence: absent('uncalibrated'), // Simplified - actual inputs would be tracked
     })),
   };
+
+  // Add proven formula if migration was successful
+  if (!(provenFormula instanceof Error)) {
+    return { ...result, provenFormula };
+  }
+
+  return result;
 }
 
 // ============================================================================

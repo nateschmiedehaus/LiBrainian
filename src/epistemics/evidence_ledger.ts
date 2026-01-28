@@ -15,8 +15,9 @@
  */
 
 import type Database from 'better-sqlite3';
-import type { ConfidenceValue } from './confidence.js';
+import type { ConfidenceValue, DerivedConfidence } from './confidence.js';
 import { randomUUID, createHash } from 'node:crypto';
+import { migrateStringFormula, type ProvenFormulaNode } from './formula_ast.js';
 import { assertClaimConfidenceBoundary } from './confidence_guards.js';
 
 // ============================================================================
@@ -1172,7 +1173,35 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
         ? `${formulaBase} * contradiction_penalty(blocking=${blockingCount}, significant=${significantCount}, minor=${minorCount})`
         : formulaBase;
 
-    return {
+    const inputNames = entriesWithConfidence.map((e) => e.id);
+
+    // Build proven formula AST for base formulas without contradiction penalties
+    // Contradiction penalties are complex modifiers that aren't yet supported in proven AST
+    let provenFormula: ProvenFormulaNode | null = null;
+    if (contradictions.length === 0) {
+      // Map formulaBase to known patterns
+      let basePattern: string | null = null;
+      if (formulaBase === 'min(chain_entries)') {
+        basePattern = 'min(steps)';
+      } else if (formulaBase === 'max(chain_entries)') {
+        basePattern = 'max(a, b)';
+      } else if (formulaBase === 'product(chain_entries)') {
+        basePattern = 'product(branches)';
+      } else if (formulaBase === 'noisy_or(chain_entries)') {
+        basePattern = '1 - product(1 - branches)';
+      } else if (formulaBase === 'weighted_average(chain_entries)') {
+        basePattern = 'weighted_average';
+      }
+
+      if (basePattern) {
+        const result = migrateStringFormula(basePattern, inputNames);
+        if (!(result instanceof Error)) {
+          provenFormula = result;
+        }
+      }
+    }
+
+    const result: DerivedConfidence = {
       type: 'derived',
       value: aggregatedValue,
       formula,
@@ -1181,6 +1210,13 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
         confidence: e.confidence!,
       })),
     };
+
+    // Add proven formula if available
+    if (provenFormula !== null) {
+      return { ...result, provenFormula };
+    }
+
+    return result;
   }
 
   async getSessionEntries(sessionId: SessionId): Promise<EvidenceEntry[]> {

@@ -737,6 +737,11 @@ export {
   // Integration Type
   type ProvenDerivedConfidence,
   createProvenDerivedConfidence,
+
+  // Migration Helpers (WU-THEORY-001)
+  migrateStringFormula,
+  hasProvenFormula,
+  createDerivedConfidenceWithProof,
 } from './formula_ast.js';
 
 // Calibration Laws (Algebraic Laws for Confidence Values)

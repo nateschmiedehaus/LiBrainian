@@ -988,3 +988,314 @@ export function createProvenDerivedConfidence(
     calibrationStatus,
   };
 }
+
+// ============================================================================
+// MIGRATION HELPERS
+// ============================================================================
+
+/**
+ * Common formula patterns used in the codebase that can be recognized
+ * and converted to proven formulas.
+ */
+type KnownFormulaPattern =
+  | 'min(steps)'
+  | 'min(a, b)'
+  | 'max(a, b)'
+  | 'product(branches)'
+  | '1 - product(1 - branches)'
+  | 'weighted_average';
+
+/**
+ * Migrate a string formula to a ProvenFormulaNode.
+ *
+ * This helper supports migration from legacy string-based formulas to the
+ * proven formula AST system. It handles:
+ * 1. Common known formulas (min, max, product, etc.)
+ * 2. Arbitrary formulas via parsing
+ *
+ * For backwards compatibility, this function also accepts input names
+ * for variable binding during formula parsing.
+ *
+ * @param formula - The string formula to migrate
+ * @param inputNames - Array of input variable names
+ * @returns A ProvenFormulaNode or an Error if parsing fails
+ *
+ * @example
+ * ```typescript
+ * // Known formula pattern
+ * const result = migrateStringFormula('min(steps)', ['step_0', 'step_1']);
+ * if (!(result instanceof Error)) {
+ *   // result is a ProvenFormulaNode representing min(step_0, step_1)
+ * }
+ *
+ * // Arbitrary formula
+ * const result2 = migrateStringFormula('a * 0.5 + b * 0.5', ['a', 'b']);
+ * ```
+ */
+export function migrateStringFormula(
+  formula: string,
+  inputNames: string[]
+): ProvenFormulaNode | Error {
+  // Handle empty formula
+  if (!formula || formula.trim().length === 0) {
+    return new Error('Formula cannot be empty');
+  }
+
+  // Handle empty inputs
+  if (inputNames.length === 0) {
+    // Check if formula is a literal constant
+    const num = parseFloat(formula);
+    if (!isNaN(num)) {
+      return literal(num);
+    }
+    // Otherwise we need inputs to evaluate the formula
+    return new Error('Formula requires input names but none were provided');
+  }
+
+  // First try known formula patterns
+  const knownResult = tryKnownFormulaPattern(formula, inputNames);
+  if (knownResult !== null) {
+    return knownResult;
+  }
+
+  // Fall back to parsing the formula
+  const parsed = parseProvenFormula(formula, inputNames);
+  if (isParseError(parsed)) {
+    return new Error(`Failed to parse formula "${formula}": ${parsed.message}`);
+  }
+  return parsed;
+}
+
+/**
+ * Try to match a formula against known patterns and build a ProvenFormulaNode.
+ * Returns null if the formula doesn't match any known pattern.
+ */
+function tryKnownFormulaPattern(
+  formula: string,
+  inputNames: string[]
+): ProvenFormulaNode | null {
+  const trimmed = formula.trim().toLowerCase();
+
+  // min(steps) or min(a, b)
+  if (trimmed === 'min(steps)' || trimmed.startsWith('min(')) {
+    return buildMinFormula(inputNames);
+  }
+
+  // max(a, b)
+  if (trimmed === 'max(a, b)' || trimmed.startsWith('max(')) {
+    return buildMaxFormula(inputNames);
+  }
+
+  // product(branches)
+  if (trimmed === 'product(branches)') {
+    return buildProductFormula(inputNames);
+  }
+
+  // 1 - product(1 - branches) (noisy-or)
+  if (trimmed === '1 - product(1 - branches)' || trimmed.includes('noisy')) {
+    return buildNoisyOrFormula(inputNames);
+  }
+
+  // weighted_average
+  if (trimmed === 'weighted_average') {
+    // For weighted average, we use a simple average (weights handled externally)
+    return buildAverageFormula(inputNames);
+  }
+
+  return null;
+}
+
+/**
+ * Build a min formula for multiple inputs.
+ */
+function buildMinFormula(inputNames: string[]): ProvenFormulaNode | null {
+  if (inputNames.length === 0) return null;
+
+  if (inputNames.length === 1) {
+    const inputResult = input(inputNames[0], 0, 1);
+    if (inputResult instanceof Error) return null;
+    return inputResult;
+  }
+
+  // Start with first two inputs
+  const first = input(inputNames[0], 0, inputNames.length);
+  const second = input(inputNames[1], 1, inputNames.length);
+  if (first instanceof Error || second instanceof Error) return null;
+
+  let result: ProvenFormulaNode = min(first, second);
+
+  // Add remaining inputs
+  for (let i = 2; i < inputNames.length; i++) {
+    const nextInput = input(inputNames[i], i, inputNames.length);
+    if (nextInput instanceof Error) return null;
+    result = min(result, nextInput);
+  }
+
+  return result;
+}
+
+/**
+ * Build a max formula for multiple inputs.
+ */
+function buildMaxFormula(inputNames: string[]): ProvenFormulaNode | null {
+  if (inputNames.length === 0) return null;
+
+  if (inputNames.length === 1) {
+    const inputResult = input(inputNames[0], 0, 1);
+    if (inputResult instanceof Error) return null;
+    return inputResult;
+  }
+
+  // Start with first two inputs
+  const first = input(inputNames[0], 0, inputNames.length);
+  const second = input(inputNames[1], 1, inputNames.length);
+  if (first instanceof Error || second instanceof Error) return null;
+
+  let result: ProvenFormulaNode = max(first, second);
+
+  // Add remaining inputs
+  for (let i = 2; i < inputNames.length; i++) {
+    const nextInput = input(inputNames[i], i, inputNames.length);
+    if (nextInput instanceof Error) return null;
+    result = max(result, nextInput);
+  }
+
+  return result;
+}
+
+/**
+ * Build a product formula for multiple inputs.
+ */
+function buildProductFormula(inputNames: string[]): ProvenFormulaNode | null {
+  if (inputNames.length === 0) return literal(1); // Identity for product
+
+  if (inputNames.length === 1) {
+    const inputResult = input(inputNames[0], 0, 1);
+    if (inputResult instanceof Error) return null;
+    return inputResult;
+  }
+
+  // Start with first two inputs
+  const first = input(inputNames[0], 0, inputNames.length);
+  const second = input(inputNames[1], 1, inputNames.length);
+  if (first instanceof Error || second instanceof Error) return null;
+
+  let result: ProvenFormulaNode = mul(first, second);
+
+  // Add remaining inputs
+  for (let i = 2; i < inputNames.length; i++) {
+    const nextInput = input(inputNames[i], i, inputNames.length);
+    if (nextInput instanceof Error) return null;
+    result = mul(result, nextInput);
+  }
+
+  return result;
+}
+
+/**
+ * Build a noisy-or formula: 1 - product(1 - branches).
+ * This represents independent OR semantics.
+ */
+function buildNoisyOrFormula(inputNames: string[]): ProvenFormulaNode | null {
+  if (inputNames.length === 0) return literal(0); // Identity for OR
+
+  const one = literal(1);
+
+  if (inputNames.length === 1) {
+    // For single input, noisy-or is just the input itself
+    const inputResult = input(inputNames[0], 0, 1);
+    if (inputResult instanceof Error) return null;
+    return inputResult;
+  }
+
+  // Build: 1 - ((1 - x1) * (1 - x2) * ...)
+  // Start with (1 - x1) * (1 - x2)
+  const first = input(inputNames[0], 0, inputNames.length);
+  const second = input(inputNames[1], 1, inputNames.length);
+  if (first instanceof Error || second instanceof Error) return null;
+
+  let failureProduct: ProvenFormulaNode = mul(sub(one, first), sub(one, second));
+
+  // Add remaining inputs
+  for (let i = 2; i < inputNames.length; i++) {
+    const nextInput = input(inputNames[i], i, inputNames.length);
+    if (nextInput instanceof Error) return null;
+    failureProduct = mul(failureProduct, sub(one, nextInput));
+  }
+
+  // Return 1 - failureProduct
+  return sub(one, failureProduct);
+}
+
+/**
+ * Build an average formula: (x1 + x2 + ...) / n.
+ */
+function buildAverageFormula(inputNames: string[]): ProvenFormulaNode | null {
+  if (inputNames.length === 0) return literal(0);
+
+  if (inputNames.length === 1) {
+    const inputResult = input(inputNames[0], 0, 1);
+    if (inputResult instanceof Error) return null;
+    return inputResult;
+  }
+
+  // Build sum
+  const first = input(inputNames[0], 0, inputNames.length);
+  const second = input(inputNames[1], 1, inputNames.length);
+  if (first instanceof Error || second instanceof Error) return null;
+
+  let sum: ProvenFormulaNode = add(first, second);
+
+  for (let i = 2; i < inputNames.length; i++) {
+    const nextInput = input(inputNames[i], i, inputNames.length);
+    if (nextInput instanceof Error) return null;
+    sum = add(sum, nextInput);
+  }
+
+  // Divide by count
+  return div(sum, literal(inputNames.length));
+}
+
+/**
+ * Type guard to check if a DerivedConfidence has a proven formula.
+ */
+export function hasProvenFormula(
+  confidence: { readonly provenFormula?: ProvenFormulaNode }
+): confidence is { readonly provenFormula: ProvenFormulaNode } {
+  return (
+    confidence.provenFormula !== undefined &&
+    isProvenFormulaNode(confidence.provenFormula)
+  );
+}
+
+/**
+ * Create a DerivedConfidence with optional proven formula.
+ *
+ * This is the recommended way to create DerivedConfidence values going forward.
+ * It automatically generates the string formula from the proven formula if provided.
+ *
+ * @param options - Configuration for the derived confidence
+ * @returns A DerivedConfidence with both string and proven formula (if provided)
+ */
+export function createDerivedConfidenceWithProof(options: {
+  value: number;
+  provenFormula: ProvenFormulaNode;
+  inputs: ReadonlyArray<{ name: string; confidence: ConfidenceValue }>;
+  calibrationStatus?: CalibrationStatus;
+}): {
+  type: 'derived';
+  value: number;
+  formula: string;
+  inputs: ReadonlyArray<{ name: string; confidence: ConfidenceValue }>;
+  calibrationStatus?: CalibrationStatus;
+  provenFormula: ProvenFormulaNode;
+} {
+  return {
+    type: 'derived',
+    value: Math.max(0, Math.min(1, options.value)),
+    formula: provenFormulaToString(options.provenFormula),
+    inputs: options.inputs,
+    calibrationStatus: options.calibrationStatus,
+    provenFormula: options.provenFormula,
+  };
+}
