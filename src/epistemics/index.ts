@@ -738,3 +738,38 @@ export {
   type ProvenDerivedConfidence,
   createProvenDerivedConfidence,
 } from './formula_ast.js';
+
+// Calibration Laws (Algebraic Laws for Confidence Values)
+export {
+  // Semilattice law definitions
+  type SemilatticeLaw,
+  SEMILATTICE_LAWS,
+
+  // Law check result
+  type LawCheckResult,
+
+  // Law verification functions
+  checkAssociativity,
+  checkCommutativity,
+  checkIdempotence,
+  checkIdentity,
+  checkAbsorption,
+  verifyAllLaws,
+
+  // Calibration rules
+  type CalibrationRule,
+  CALIBRATION_RULES,
+  applyCalibrationRule,
+
+  // Calibration tracker
+  type CalibrationTrace,
+  CalibrationTracker,
+
+  // Semilattice structure
+  type Semilattice,
+  ConfidenceSemilattice,
+
+  // Helper functions
+  confidenceEquals,
+  createTestConfidence,
+} from './calibration_laws.js';
