@@ -2552,7 +2552,7 @@ interface DomainRule {
 cd packages/librarian && npx vitest run src/api/review/__tests__/
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Review') || k.includes('Diff'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Review') || k.includes('Diff'))))"
 
 # Parse a diff (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts review-diff --base main --head feature-branch

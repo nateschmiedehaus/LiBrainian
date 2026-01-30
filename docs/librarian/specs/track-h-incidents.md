@@ -2482,7 +2482,7 @@ interface PostmortemMetadata {
 cd packages/librarian && npx vitest run src/api/incidents/__tests__/
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Incident'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Incident'))))"
 
 # Correlate logs for time range (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts incidents correlate-logs --from "2026-01-23T10:00:00Z" --to "2026-01-23T11:00:00Z"

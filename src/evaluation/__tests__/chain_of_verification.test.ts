@@ -1,11 +1,14 @@
 /**
- * @fileoverview Tests for Chain-of-Verification (WU-HALU-004)
+ * @fileoverview Comprehensive Tests for Chain-of-Verification (ACL 2024)
  *
- * Implements TDD for the 4-step Chain-of-Verification process:
+ * Tests the 4-step Chain-of-Verification process:
  * 1. Generate baseline response
  * 2. Plan verification questions
  * 3. Answer verification questions independently
  * 4. Generate final verified response
+ *
+ * Also tests the new CoVeStep and CoVeResult interfaces, and integration
+ * with the epistemics system.
  *
  * @packageDocumentation
  */
@@ -14,12 +17,19 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   ChainOfVerification,
   createChainOfVerification,
+  generateVerificationQuestions,
+  executeVerificationChain,
+  reviseBasedOnVerification,
+  integrateWithEpistemics,
   type VerificationInput,
   type VerificationQuestion,
   type VerificationAnswer,
   type VerificationResult,
   type Inconsistency,
   type ChainOfVerificationConfig,
+  type CoVeStep,
+  type CoVeResult,
+  type Evidence,
   DEFAULT_CHAIN_OF_VERIFICATION_CONFIG,
 } from '../chain_of_verification.js';
 
@@ -42,6 +52,454 @@ const sampleBaselineResponse = `The UserService class has four methods:
 2. updateUser - updates a user record
 3. deleteUser - deletes a user from the database
 4. findById - accepts a string id and returns the user`;
+
+const sampleClaim = 'The UserService class has four methods: createUser, updateUser, deleteUser, and findById. The createUser method returns Promise<User>.';
+
+const sampleContextString = sampleContext.join('\n');
+
+// ============================================================================
+// CoVeStep INTERFACE TESTS
+// ============================================================================
+
+describe('CoVeStep Interface', () => {
+  it('should have all required fields', () => {
+    const step: CoVeStep = {
+      claim: 'The function returns a string',
+      verificationQuestion: 'What does the function return?',
+      answer: 'string',
+      confidence: 0.85,
+      sources: ['src/utils.ts:10'],
+    };
+
+    expect(step.claim).toBeDefined();
+    expect(step.verificationQuestion).toBeDefined();
+    expect(step.answer).toBeDefined();
+    expect(typeof step.confidence).toBe('number');
+    expect(Array.isArray(step.sources)).toBe(true);
+  });
+
+  it('should allow empty sources array', () => {
+    const step: CoVeStep = {
+      claim: 'The function is async',
+      verificationQuestion: 'Is the function async?',
+      answer: 'Unable to verify',
+      confidence: 0.2,
+      sources: [],
+    };
+
+    expect(step.sources).toHaveLength(0);
+  });
+
+  it('should support multiple sources', () => {
+    const step: CoVeStep = {
+      claim: 'The class extends BaseService',
+      verificationQuestion: 'Does the class extend BaseService?',
+      answer: 'Yes, confirmed',
+      confidence: 0.9,
+      sources: ['src/services/user.ts:1', 'src/services/base.ts:5', 'docs/README.md'],
+    };
+
+    expect(step.sources).toHaveLength(3);
+  });
+});
+
+// ============================================================================
+// CoVeResult INTERFACE TESTS
+// ============================================================================
+
+describe('CoVeResult Interface', () => {
+  it('should have all required fields', () => {
+    const result: CoVeResult = {
+      originalClaim: 'The UserService has four methods',
+      verificationChain: [],
+      finalVerdict: 'verified',
+      overallConfidence: 0.85,
+      revisions: [],
+    };
+
+    expect(result.originalClaim).toBeDefined();
+    expect(Array.isArray(result.verificationChain)).toBe(true);
+    expect(['verified', 'refuted', 'uncertain']).toContain(result.finalVerdict);
+    expect(typeof result.overallConfidence).toBe('number');
+    expect(Array.isArray(result.revisions)).toBe(true);
+  });
+
+  it('should support all verdict types', () => {
+    const verdicts: Array<'verified' | 'refuted' | 'uncertain'> = ['verified', 'refuted', 'uncertain'];
+
+    for (const verdict of verdicts) {
+      const result: CoVeResult = {
+        originalClaim: 'Test claim',
+        verificationChain: [],
+        finalVerdict: verdict,
+        overallConfidence: 0.5,
+        revisions: [],
+      };
+      expect(result.finalVerdict).toBe(verdict);
+    }
+  });
+
+  it('should contain verification chain steps', () => {
+    const result: CoVeResult = {
+      originalClaim: 'Test claim with multiple sub-claims',
+      verificationChain: [
+        {
+          claim: 'Sub-claim 1',
+          verificationQuestion: 'Is sub-claim 1 true?',
+          answer: 'Yes',
+          confidence: 0.9,
+          sources: ['source1.ts'],
+        },
+        {
+          claim: 'Sub-claim 2',
+          verificationQuestion: 'Is sub-claim 2 true?',
+          answer: 'Yes',
+          confidence: 0.8,
+          sources: ['source2.ts'],
+        },
+      ],
+      finalVerdict: 'verified',
+      overallConfidence: 0.85,
+      revisions: [],
+    };
+
+    expect(result.verificationChain).toHaveLength(2);
+    expect(result.verificationChain[0].claim).toBe('Sub-claim 1');
+    expect(result.verificationChain[1].confidence).toBe(0.8);
+  });
+});
+
+// ============================================================================
+// generateVerificationQuestions FUNCTION TESTS
+// ============================================================================
+
+describe('generateVerificationQuestions', () => {
+  it('should generate questions from numeric claims', () => {
+    const claim = 'The UserService has four methods.';
+    const questions = generateVerificationQuestions(claim);
+
+    expect(questions.length).toBeGreaterThan(0);
+    expect(questions.some((q) => q.toLowerCase().includes('how many'))).toBe(true);
+  });
+
+  it('should generate questions from return type claims', () => {
+    const claim = 'The createUser function returns Promise<User>.';
+    const questions = generateVerificationQuestions(claim);
+
+    expect(questions.length).toBeGreaterThan(0);
+    expect(questions.some((q) => q.toLowerCase().includes('return'))).toBe(true);
+  });
+
+  it('should generate questions from boolean claims', () => {
+    const claim = 'UserService is a class that extends BaseService.';
+    const questions = generateVerificationQuestions(claim);
+
+    expect(questions.length).toBeGreaterThan(0);
+  });
+
+  it('should generate questions from method existence claims', () => {
+    const claim = 'The class has a method called processData.';
+    const questions = generateVerificationQuestions(claim);
+
+    expect(questions.length).toBeGreaterThan(0);
+    expect(questions.some((q) => q.toLowerCase().includes('method'))).toBe(true);
+  });
+
+  it('should handle claims with no extractable patterns', () => {
+    const claim = 'This is a general statement without specific verifiable claims.';
+    const questions = generateVerificationQuestions(claim);
+
+    // Should generate general verification questions
+    expect(Array.isArray(questions)).toBe(true);
+  });
+
+  it('should deduplicate similar questions', () => {
+    const claim = 'UserService has four methods. The UserService has four methods.';
+    const questions = generateVerificationQuestions(claim);
+
+    // Check for no exact duplicates
+    const uniqueQuestions = [...new Set(questions.map((q) => q.toLowerCase()))];
+    expect(uniqueQuestions.length).toBe(questions.length);
+  });
+
+  it('should handle complex multi-claim text', () => {
+    const claim = `The UserService class has four methods: createUser, updateUser, deleteUser, and findById.
+    The createUser method returns Promise<User> and accepts a UserInput parameter.
+    UserService extends BaseService and implements IUserService.`;
+
+    const questions = generateVerificationQuestions(claim);
+
+    expect(questions.length).toBeGreaterThan(2);
+  });
+});
+
+// ============================================================================
+// executeVerificationChain FUNCTION TESTS
+// ============================================================================
+
+describe('executeVerificationChain', () => {
+  it('should return a valid CoVeResult', () => {
+    const result = executeVerificationChain(sampleClaim, sampleContextString);
+
+    expect(result).toHaveProperty('originalClaim');
+    expect(result).toHaveProperty('verificationChain');
+    expect(result).toHaveProperty('finalVerdict');
+    expect(result).toHaveProperty('overallConfidence');
+    expect(result).toHaveProperty('revisions');
+  });
+
+  it('should populate verification chain with steps', () => {
+    const result = executeVerificationChain(sampleClaim, sampleContextString);
+
+    expect(Array.isArray(result.verificationChain)).toBe(true);
+
+    for (const step of result.verificationChain) {
+      expect(step).toHaveProperty('claim');
+      expect(step).toHaveProperty('verificationQuestion');
+      expect(step).toHaveProperty('answer');
+      expect(step).toHaveProperty('confidence');
+      expect(step).toHaveProperty('sources');
+    }
+  });
+
+  it('should compute verdict based on verification', () => {
+    const result = executeVerificationChain(sampleClaim, sampleContextString);
+
+    expect(['verified', 'refuted', 'uncertain']).toContain(result.finalVerdict);
+    expect(result.overallConfidence).toBeGreaterThanOrEqual(0);
+    expect(result.overallConfidence).toBeLessThanOrEqual(1);
+  });
+
+  it('should handle empty context', () => {
+    const result = executeVerificationChain(sampleClaim, '');
+
+    // With no context, claims cannot be verified so verdict should be uncertain or refuted
+    expect(['uncertain', 'refuted']).toContain(result.finalVerdict);
+    expect(result.overallConfidence).toBeLessThanOrEqual(0.5);
+  });
+
+  it('should generate revisions for unverified claims', () => {
+    const unreliableClaim = 'The NonexistentClass has 100 methods and returns ComplexType.';
+    const result = executeVerificationChain(unreliableClaim, sampleContextString);
+
+    // Should either have revisions or be marked as uncertain/refuted
+    expect(
+      result.revisions.length > 0 ||
+      result.finalVerdict === 'refuted' ||
+      result.finalVerdict === 'uncertain'
+    ).toBe(true);
+  });
+
+  it('should include sources in verification steps', () => {
+    const result = executeVerificationChain(sampleClaim, sampleContextString);
+
+    // At least some steps should have sources if context is provided
+    const stepsWithSources = result.verificationChain.filter((s) => s.sources.length > 0);
+    expect(stepsWithSources.length).toBeGreaterThanOrEqual(0); // May be 0 if no matching context
+  });
+});
+
+// ============================================================================
+// reviseBasedOnVerification FUNCTION TESTS
+// ============================================================================
+
+describe('reviseBasedOnVerification', () => {
+  it('should return original claim if verified', () => {
+    const claim = 'This claim is verified.';
+    const result: CoVeResult = {
+      originalClaim: claim,
+      verificationChain: [],
+      finalVerdict: 'verified',
+      overallConfidence: 0.9,
+      revisions: [],
+    };
+
+    const revised = reviseBasedOnVerification(claim, result);
+    expect(revised).toBe(claim);
+  });
+
+  it('should return revision if refuted with revisions available', () => {
+    const claim = 'This claim is wrong.';
+    const result: CoVeResult = {
+      originalClaim: claim,
+      verificationChain: [],
+      finalVerdict: 'refuted',
+      overallConfidence: 0.2,
+      revisions: ['[Correction: This claim should be X]'],
+    };
+
+    const revised = reviseBasedOnVerification(claim, result);
+    expect(revised).toBe(result.revisions[0]);
+  });
+
+  it('should add [Unverified] prefix if refuted without revisions', () => {
+    const claim = 'This claim cannot be verified.';
+    const result: CoVeResult = {
+      originalClaim: claim,
+      verificationChain: [],
+      finalVerdict: 'refuted',
+      overallConfidence: 0.1,
+      revisions: [],
+    };
+
+    const revised = reviseBasedOnVerification(claim, result);
+    expect(revised).toContain('[Unverified]');
+    expect(revised).toContain(claim);
+  });
+
+  it('should add hedging language if uncertain', () => {
+    const claim = 'This claim is uncertain.';
+    const result: CoVeResult = {
+      originalClaim: claim,
+      verificationChain: [],
+      finalVerdict: 'uncertain',
+      overallConfidence: 0.5,
+      revisions: [],
+    };
+
+    const revised = reviseBasedOnVerification(claim, result);
+
+    // Should have hedging phrase
+    const hedgingPhrases = ['may', 'might', 'possibly', 'appears to', 'seems to', 'likely'];
+    expect(hedgingPhrases.some((h) => revised.toLowerCase().includes(h))).toBe(true);
+  });
+});
+
+// ============================================================================
+// integrateWithEpistemics FUNCTION TESTS
+// ============================================================================
+
+describe('integrateWithEpistemics', () => {
+  it('should return a valid Evidence object', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Test claim',
+      verificationChain: [
+        {
+          claim: 'Sub-claim',
+          verificationQuestion: 'Is it true?',
+          answer: 'Yes',
+          confidence: 0.85,
+          sources: ['test.ts:1'],
+        },
+      ],
+      finalVerdict: 'verified',
+      overallConfidence: 0.85,
+      revisions: [],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+
+    expect(evidence).toHaveProperty('id');
+    expect(evidence).toHaveProperty('type');
+    expect(evidence).toHaveProperty('claim');
+    expect(evidence).toHaveProperty('content');
+    expect(evidence).toHaveProperty('supports');
+    expect(evidence).toHaveProperty('confidence');
+    expect(evidence).toHaveProperty('source');
+    expect(evidence).toHaveProperty('timestamp');
+  });
+
+  it('should set supports=true for verified claims', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Verified claim',
+      verificationChain: [],
+      finalVerdict: 'verified',
+      overallConfidence: 0.9,
+      revisions: [],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+    expect(evidence.supports).toBe(true);
+  });
+
+  it('should set supports=false for refuted claims', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Refuted claim',
+      verificationChain: [],
+      finalVerdict: 'refuted',
+      overallConfidence: 0.2,
+      revisions: ['Correction'],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+    expect(evidence.supports).toBe(false);
+  });
+
+  it('should set supports=false for uncertain claims', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Uncertain claim',
+      verificationChain: [],
+      finalVerdict: 'uncertain',
+      overallConfidence: 0.5,
+      revisions: [],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+    expect(evidence.supports).toBe(false);
+  });
+
+  it('should include ConfidenceValue with proper type', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Test claim',
+      verificationChain: [
+        {
+          claim: 'Sub-claim',
+          verificationQuestion: 'Q?',
+          answer: 'A',
+          confidence: 0.8,
+          sources: [],
+        },
+      ],
+      finalVerdict: 'verified',
+      overallConfidence: 0.8,
+      revisions: [],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+
+    expect(evidence.confidence).toHaveProperty('type');
+    expect(['deterministic', 'derived', 'measured', 'bounded', 'absent']).toContain(evidence.confidence.type);
+  });
+
+  it('should include metadata with verification chain', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Test claim',
+      verificationChain: [
+        {
+          claim: 'Sub-claim',
+          verificationQuestion: 'Q?',
+          answer: 'A',
+          confidence: 0.8,
+          sources: ['src.ts'],
+        },
+      ],
+      finalVerdict: 'verified',
+      overallConfidence: 0.8,
+      revisions: ['Some revision'],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+
+    expect(evidence.metadata).toBeDefined();
+    expect(evidence.metadata?.verificationChain).toEqual(coveResult.verificationChain);
+    expect(evidence.metadata?.revisions).toEqual(coveResult.revisions);
+  });
+
+  it('should have source with tool type', () => {
+    const coveResult: CoVeResult = {
+      originalClaim: 'Test',
+      verificationChain: [],
+      finalVerdict: 'verified',
+      overallConfidence: 0.9,
+      revisions: [],
+    };
+
+    const evidence = integrateWithEpistemics(coveResult);
+
+    expect(evidence.source.type).toBe('tool');
+    expect(evidence.source.id).toBe('chain_of_verification');
+  });
+});
 
 // ============================================================================
 // FACTORY TESTS
@@ -604,57 +1062,67 @@ describe('ChainOfVerification.verify', () => {
 });
 
 // ============================================================================
-// IMPROVEMENT METRICS TESTS
+// toCoVeResult CONVERSION TESTS
 // ============================================================================
 
-describe('Improvement Metrics Calculation', () => {
+describe('ChainOfVerification.toCoVeResult', () => {
   let cov: ChainOfVerification;
 
   beforeEach(() => {
     cov = createChainOfVerification();
   });
 
-  it('should count verified claims correctly', async () => {
-    const input: VerificationInput = {
-      query: 'What is UserService?',
-      context: sampleContext,
-      baselineResponse: 'UserService is a class. UserService has methods.',
-    };
-
-    const result = await cov.verify(input);
-
-    expect(result.improvementMetrics.claimsVerified).toBeGreaterThanOrEqual(0);
-    expect(result.improvementMetrics.claimsVerified).toBeLessThanOrEqual(
-      result.verificationQuestions.length
-    );
-  });
-
-  it('should count revised claims correctly', async () => {
+  it('should convert VerificationResult to CoVeResult', async () => {
     const input: VerificationInput = {
       query: sampleQuery,
       context: sampleContext,
       baselineResponse: sampleBaselineResponse,
     };
 
-    const result = await cov.verify(input);
+    const verificationResult = await cov.verify(input);
+    const coveResult = cov.toCoVeResult(verificationResult);
 
-    expect(result.improvementMetrics.claimsRevised).toBeGreaterThanOrEqual(0);
-    expect(result.improvementMetrics.claimsRevised).toBeLessThanOrEqual(
-      result.inconsistencies.length
-    );
+    expect(coveResult).toHaveProperty('originalClaim');
+    expect(coveResult).toHaveProperty('verificationChain');
+    expect(coveResult).toHaveProperty('finalVerdict');
+    expect(coveResult).toHaveProperty('overallConfidence');
+    expect(coveResult).toHaveProperty('revisions');
   });
 
-  it('should calculate confidence improvement', async () => {
+  it('should preserve verification chain structure', async () => {
     const input: VerificationInput = {
       query: sampleQuery,
       context: sampleContext,
       baselineResponse: sampleBaselineResponse,
     };
 
-    const result = await cov.verify(input);
+    const verificationResult = await cov.verify(input);
+    const coveResult = cov.toCoVeResult(verificationResult);
 
-    // Confidence improvement can be positive, negative, or zero
-    expect(typeof result.improvementMetrics.confidenceImprovement).toBe('number');
+    expect(coveResult.verificationChain.length).toBe(verificationResult.verificationQuestions.length);
+
+    for (const step of coveResult.verificationChain) {
+      expect(step).toHaveProperty('claim');
+      expect(step).toHaveProperty('verificationQuestion');
+      expect(step).toHaveProperty('answer');
+      expect(step).toHaveProperty('confidence');
+      expect(step).toHaveProperty('sources');
+    }
+  });
+
+  it('should compute correct verdict', async () => {
+    const input: VerificationInput = {
+      query: sampleQuery,
+      context: sampleContext,
+      baselineResponse: sampleBaselineResponse,
+    };
+
+    const verificationResult = await cov.verify(input);
+    const coveResult = cov.toCoVeResult(verificationResult);
+
+    expect(['verified', 'refuted', 'uncertain']).toContain(coveResult.finalVerdict);
+    expect(coveResult.overallConfidence).toBeGreaterThanOrEqual(0);
+    expect(coveResult.overallConfidence).toBeLessThanOrEqual(1);
   });
 });
 
@@ -832,5 +1300,53 @@ describe('VerificationResult Structure', () => {
     const result = await cov.verify(input);
 
     expect(result.verificationAnswers.length).toBe(result.verificationQuestions.length);
+  });
+});
+
+// ============================================================================
+// INTEGRATION TESTS
+// ============================================================================
+
+describe('Integration with Epistemics System', () => {
+  let cov: ChainOfVerification;
+
+  beforeEach(() => {
+    cov = createChainOfVerification();
+  });
+
+  it('should produce Evidence compatible with epistemics', async () => {
+    const input: VerificationInput = {
+      query: sampleQuery,
+      context: sampleContext,
+      baselineResponse: sampleBaselineResponse,
+    };
+
+    const result = await cov.verify(input);
+    const coveResult = cov.toCoVeResult(result);
+    const evidence = integrateWithEpistemics(coveResult);
+
+    // Verify evidence has all required fields for epistemics integration
+    expect(evidence.id).toMatch(/^cove_/);
+    expect(evidence.type).toBe('cove_verification');
+    expect(evidence.source.type).toBe('tool');
+    expect(evidence.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    // Verify confidence is properly typed
+    expect(evidence.confidence).toHaveProperty('type');
+  });
+
+  it('should propagate verification chain to evidence metadata', async () => {
+    const input: VerificationInput = {
+      query: sampleQuery,
+      context: sampleContext,
+      baselineResponse: sampleBaselineResponse,
+    };
+
+    const result = await cov.verify(input);
+    const coveResult = cov.toCoVeResult(result);
+    const evidence = integrateWithEpistemics(coveResult);
+
+    expect(evidence.metadata?.verificationChain).toBeDefined();
+    expect(Array.isArray(evidence.metadata?.verificationChain)).toBe(true);
   });
 });

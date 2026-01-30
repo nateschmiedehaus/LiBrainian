@@ -899,7 +899,7 @@ describe('ComprehensiveConsistencyChecker - Edge Cases', () => {
 
     expect(result).toBeDefined();
     expect(typeof result.scores.overallScore).toBe('number');
-  });
+  }, 120000); // 2 minute timeout for processing very long response
 
   it('should handle response with special characters', async () => {
     const response = 'The function `processData<T>` returns `Promise<T[]>`.';

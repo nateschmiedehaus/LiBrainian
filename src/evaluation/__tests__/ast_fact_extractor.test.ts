@@ -3,6 +3,12 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  * Uses problem_detector.ts as the primary test fixture (self-referential but valid).
+ *
+ * Layer 5 Machine-Verifiable Evaluation tests added for:
+ * - extractFacts: Extract VerifiableFact from a file
+ * - extractFactsFromProject: Extract facts from project root
+ * - verifyFact: Verify a fact against source code
+ * - compareFacts: Compare expected vs actual facts
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -15,6 +21,14 @@ import {
   type ImportDetails,
   type ClassDetails,
   type ExportDetails,
+  // Layer 5 exports
+  extractFacts,
+  extractFactsFromProject,
+  verifyFact,
+  compareFacts,
+  type VerifiableFact,
+  type FactComparisonResult,
+  type FactVerificationResult,
 } from '../ast_fact_extractor.js';
 
 // ============================================================================
@@ -569,5 +583,340 @@ describe('ASTFact Structure', () => {
       expect(fact.details).toBeDefined();
       expect(typeof fact.details).toBe('object');
     });
+  });
+});
+
+// ============================================================================
+// LAYER 5 MACHINE-VERIFIABLE EVALUATION TESTS
+// ============================================================================
+
+describe('extractFacts (Layer 5)', () => {
+  it('should extract VerifiableFact objects from a file', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it('should produce facts with all required fields', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+
+    facts.forEach((fact) => {
+      // factId
+      expect(fact.factId).toBeDefined();
+      expect(typeof fact.factId).toBe('string');
+      expect(fact.factId.length).toBeGreaterThan(0);
+
+      // factType
+      expect(fact.factType).toBeDefined();
+      expect([
+        'function_call',
+        'import',
+        'export',
+        'type_def',
+        'variable_def',
+        'inheritance',
+        'implementation',
+      ]).toContain(fact.factType);
+
+      // location
+      expect(fact.location).toBeDefined();
+      expect(fact.location.file).toBeDefined();
+      expect(fact.location.line).toBeGreaterThan(0);
+      expect(fact.location.column).toBeGreaterThanOrEqual(1);
+
+      // content
+      expect(fact.content).toBeDefined();
+      expect(typeof fact.content).toBe('string');
+
+      // verifiable
+      expect(typeof fact.verifiable).toBe('boolean');
+
+      // confidence
+      expect(fact.confidence).toBeGreaterThanOrEqual(0);
+      expect(fact.confidence).toBeLessThanOrEqual(1);
+    });
+  });
+
+  it('should extract import facts with correct type', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const importFacts = facts.filter((f) => f.factType === 'import');
+
+    expect(importFacts.length).toBeGreaterThan(0);
+    importFacts.forEach((f) => {
+      expect(f.location.file).toContain('problem_detector.ts');
+    });
+  });
+
+  it('should extract function_call facts', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const functionFacts = facts.filter((f) => f.factType === 'function_call');
+
+    expect(functionFacts.length).toBeGreaterThan(0);
+  });
+
+  it('should extract implementation facts for classes that implement interfaces', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const implementationFacts = facts.filter((f) => f.factType === 'implementation');
+
+    // ProblemDetector implements ProblemDetectorAgent
+    expect(implementationFacts.length).toBeGreaterThan(0);
+  });
+
+  it('should return empty array for non-existent file', async () => {
+    const facts = await extractFacts('/non/existent/file.ts');
+    expect(facts).toEqual([]);
+  });
+
+  it('should have unique factIds', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const ids = facts.map((f) => f.factId);
+    const uniqueIds = new Set(ids);
+
+    expect(uniqueIds.size).toBe(ids.length);
+  });
+});
+
+describe('extractFactsFromProject (Layer 5)', () => {
+  it('should extract facts from all files in a directory', async () => {
+    const facts = await extractFactsFromProject(AGENTS_DIR);
+
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it('should include facts from multiple files', async () => {
+    const facts = await extractFactsFromProject(AGENTS_DIR);
+    const files = new Set(facts.map((f) => f.location.file));
+
+    expect(files.size).toBeGreaterThan(1);
+  });
+
+  it('should handle external repo directory', async () => {
+    const srcDir = path.join(EXTERNAL_REPO_ROOT, 'src');
+    const facts = await extractFactsFromProject(srcDir);
+
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it('should return empty array for non-existent directory', async () => {
+    const facts = await extractFactsFromProject('/non/existent/directory');
+    expect(facts).toEqual([]);
+  });
+});
+
+describe('verifyFact (Layer 5)', () => {
+  it('should verify a valid fact', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const fact = facts[0];
+
+    const result = await verifyFact(fact);
+
+    expect(result.fact).toBe(fact);
+    expect(result.verified).toBe(true);
+    expect(result.confidence).toBeGreaterThan(0);
+    expect(result.reason).toBeDefined();
+  });
+
+  it('should fail verification for non-existent file', async () => {
+    const fakeFact: VerifiableFact = {
+      factId: 'fake_fact_1',
+      factType: 'function_call',
+      location: {
+        file: '/non/existent/file.ts',
+        line: 10,
+        column: 1,
+      },
+      content: 'function test() {}',
+      verifiable: true,
+      confidence: 0.8,
+    };
+
+    const result = await verifyFact(fakeFact);
+
+    expect(result.verified).toBe(false);
+    expect(result.confidence).toBe(0);
+    expect(result.reason).toBe('file_not_found');
+  });
+
+  it('should fail verification for invalid line number', async () => {
+    const fakeFact: VerifiableFact = {
+      factId: 'fake_fact_2',
+      factType: 'function_call',
+      location: {
+        file: PROBLEM_DETECTOR_PATH,
+        line: 99999, // Invalid line
+        column: 1,
+      },
+      content: 'function test() {}',
+      verifiable: true,
+      confidence: 0.8,
+    };
+
+    const result = await verifyFact(fakeFact);
+
+    expect(result.verified).toBe(false);
+    expect(result.reason).toBe('line_out_of_range');
+  });
+
+  it('should return actualContent when available', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const fact = facts[0];
+
+    const result = await verifyFact(fact);
+
+    if (result.verified) {
+      // actualContent should be present for verified facts
+      expect(typeof result.actualContent).toBe('string');
+    }
+  });
+});
+
+describe('compareFacts (Layer 5)', () => {
+  it('should compare identical fact sets with perfect scores', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+
+    const result = compareFacts(facts, facts);
+
+    expect(result.totalExpected).toBe(facts.length);
+    expect(result.totalActual).toBe(facts.length);
+    expect(result.matched).toBe(facts.length);
+    expect(result.missing).toBe(0);
+    expect(result.extra).toBe(0);
+    expect(result.precision).toBe(1);
+    expect(result.recall).toBe(1);
+    expect(result.f1Score).toBe(1);
+  });
+
+  it('should detect missing facts', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const partial = facts.slice(0, Math.floor(facts.length / 2));
+
+    const result = compareFacts(facts, partial);
+
+    expect(result.missing).toBeGreaterThan(0);
+    expect(result.recall).toBeLessThan(1);
+  });
+
+  it('should detect extra facts', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const partial = facts.slice(0, Math.floor(facts.length / 2));
+
+    const result = compareFacts(partial, facts);
+
+    expect(result.extra).toBeGreaterThan(0);
+    expect(result.precision).toBeLessThan(1);
+  });
+
+  it('should handle empty expected facts', async () => {
+    const actual = await extractFacts(PROBLEM_DETECTOR_PATH);
+
+    const result = compareFacts([], actual);
+
+    expect(result.totalExpected).toBe(0);
+    expect(result.matched).toBe(0);
+    expect(result.recall).toBe(0);
+    expect(result.extra).toBe(actual.length);
+  });
+
+  it('should handle empty actual facts', async () => {
+    const expected = await extractFacts(PROBLEM_DETECTOR_PATH);
+
+    const result = compareFacts(expected, []);
+
+    expect(result.totalActual).toBe(0);
+    expect(result.matched).toBe(0);
+    expect(result.precision).toBe(0);
+    expect(result.missing).toBe(expected.length);
+  });
+
+  it('should provide detailed match information', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const result = compareFacts(facts, facts);
+
+    expect(result.matches.length).toBe(facts.length);
+    result.matches.forEach((match) => {
+      expect(match.expected).toBeDefined();
+      expect(match.actual).toBeDefined();
+      expect(match.matchConfidence).toBeGreaterThan(0);
+      expect(typeof match.locationMatch).toBe('boolean');
+      expect(typeof match.contentMatch).toBe('boolean');
+    });
+  });
+
+  it('should calculate F1 score correctly', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const half = Math.floor(facts.length / 2);
+    const expected = facts.slice(0, half + 10);
+    const actual = facts.slice(10, half + 20);
+
+    const result = compareFacts(expected, actual);
+
+    // F1 should be between 0 and 1
+    expect(result.f1Score).toBeGreaterThanOrEqual(0);
+    expect(result.f1Score).toBeLessThanOrEqual(1);
+
+    // F1 should be harmonic mean of precision and recall
+    if (result.precision + result.recall > 0) {
+      const expectedF1 =
+        (2 * result.precision * result.recall) / (result.precision + result.recall);
+      expect(Math.abs(result.f1Score - expectedF1)).toBeLessThan(0.001);
+    }
+  });
+});
+
+describe('VerifiableFact interface compliance', () => {
+  it('should produce facts matching the specified interface', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+
+    // Verify the interface structure matches the user specification
+    facts.forEach((fact) => {
+      // factId: string
+      expect(typeof fact.factId).toBe('string');
+
+      // factType: 'function_call' | 'import' | 'export' | 'type_def' | 'variable_def' | 'inheritance' | 'implementation'
+      const validTypes = [
+        'function_call',
+        'import',
+        'export',
+        'type_def',
+        'variable_def',
+        'inheritance',
+        'implementation',
+      ];
+      expect(validTypes).toContain(fact.factType);
+
+      // location: { file: string, line: number, column: number }
+      expect(typeof fact.location.file).toBe('string');
+      expect(typeof fact.location.line).toBe('number');
+      expect(typeof fact.location.column).toBe('number');
+
+      // content: string
+      expect(typeof fact.content).toBe('string');
+
+      // verifiable: boolean
+      expect(typeof fact.verifiable).toBe('boolean');
+
+      // confidence: number
+      expect(typeof fact.confidence).toBe('number');
+    });
+  });
+});
+
+describe('FactComparisonResult interface compliance', () => {
+  it('should produce comparison results matching the specified interface', async () => {
+    const facts = await extractFacts(PROBLEM_DETECTOR_PATH);
+    const result = compareFacts(facts, facts);
+
+    // All required fields
+    expect(typeof result.totalExpected).toBe('number');
+    expect(typeof result.totalActual).toBe('number');
+    expect(typeof result.matched).toBe('number');
+    expect(typeof result.missing).toBe('number');
+    expect(typeof result.extra).toBe('number');
+    expect(typeof result.precision).toBe('number');
+    expect(typeof result.recall).toBe('number');
+    expect(typeof result.f1Score).toBe('number');
+    expect(Array.isArray(result.matches)).toBe(true);
+    expect(Array.isArray(result.missingFacts)).toBe(true);
+    expect(Array.isArray(result.extraFacts)).toBe(true);
   });
 });

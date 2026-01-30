@@ -26,7 +26,7 @@ This is a **stop-the-line priority**. Historically, “we’ll extract later” 
 ### Definition of “fully extracted”
 
 “Extracted” means:
-- Librarian is a standalone repository (`@wave0/librarian`) with its own CI and docs.
+- Librarian is a standalone repository (`librarian`) with its own CI and docs.
 - Wave0 consumes Librarian strictly via its public package API (no direct imports of Librarian internals).
 - `src/librarian/**` in Wave0 is a **thin compatibility shim only** (no new product logic).
 

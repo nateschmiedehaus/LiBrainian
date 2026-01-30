@@ -861,7 +861,7 @@ cd packages/librarian && npx vitest run src/api/__tests__/universal_applicabilit
 cd packages/librarian && npx vitest run src/api/__tests__/epistemic_policy.test.ts
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m)))"
+node -e "import('librarian').then(m => console.log(Object.keys(m)))"
 
 # Check implementation exists
 ls -la packages/librarian/src/api/zero_knowledge_bootstrap.ts

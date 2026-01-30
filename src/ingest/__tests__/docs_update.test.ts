@@ -324,7 +324,7 @@ Section content.
       });
 
       const content = await fs.readFile(agentsPath, 'utf-8');
-      expect(content).toContain("import { getLibrarian } from '@wave0/librarian'");
+      expect(content).toContain("import { getLibrarian } from 'librarian'");
       expect(content).toContain('const librarian = await getLibrarian(workspaceRoot)');
       expect(content).toContain('librarian.query');
     });

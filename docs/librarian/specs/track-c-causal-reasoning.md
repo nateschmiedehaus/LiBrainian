@@ -2343,7 +2343,7 @@ interface TaskOutcome {
 cd packages/librarian && npx vitest run src/api/causal/__tests__/
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Causal'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Causal'))))"
 
 # Build causal model for a real codebase (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts causal-model /path/to/codebase

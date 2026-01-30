@@ -1382,7 +1382,7 @@ cd packages/librarian && npx vitest run src/api/__tests__/hierarchical_knowledge
 cd packages/librarian && npx vitest run src/api/__tests__/component_detection.test.ts
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Hierarchy'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Hierarchy'))))"
 
 # Build hierarchy for a real codebase (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts build-hierarchy /path/to/codebase

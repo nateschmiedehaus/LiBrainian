@@ -331,7 +331,7 @@ Third parties can register custom providers:
 
 ```typescript
 // In user code or a plugin
-import { llmProviderRegistry, type LlmProviderProbe } from '@wave0/librarian';
+import { llmProviderRegistry, type LlmProviderProbe } from 'librarian';
 
 const myCustomProbe: LlmProviderProbe = {
   descriptor: {

@@ -166,6 +166,20 @@ export async function autoDetectGovernorConfig(
   };
 }
 
+/**
+ * Configuration for adaptive resource management.
+ * Controls how the system monitors and adapts to available system resources.
+ */
+export interface ResourceManagementConfig {
+  mode: 'auto' | 'manual' | 'conservative' | 'aggressive';
+  targetMemoryUtilization?: number;   // 0-1, default 0.7
+  targetCpuUtilization?: number;      // 0-1, default 0.8
+  minReservedMemoryPercent?: number;  // 0-1, default 0.2
+  minReservedCpuCores?: number;       // default 2
+  monitorIntervalMs?: number;         // default 5000
+  oomKillThreshold?: number;          // 0-1, default 0.95
+}
+
 export interface GovernorConfig {
   maxTokensPerFile: number;
   maxTokensPerPhase: number;
@@ -175,6 +189,7 @@ export interface GovernorConfig {
   maxRetries: number;
   maxConcurrentWorkers: number;
   maxEmbeddingsPerBatch: number;
+  resourceManagement?: ResourceManagementConfig;
 }
 
 // ============================================================================
@@ -187,6 +202,21 @@ export interface GovernorConfig {
 // 3. Concurrency remains bounded to respect provider limits
 // 4. Diagnostics remain mandatory when failures occur
 //
+
+/**
+ * Default resource management configuration.
+ * Provides balanced defaults for adaptive resource monitoring.
+ */
+export const DEFAULT_RESOURCE_MANAGEMENT: ResourceManagementConfig = {
+  mode: 'auto',
+  targetMemoryUtilization: 0.7,
+  targetCpuUtilization: 0.8,
+  minReservedMemoryPercent: 0.2,
+  minReservedCpuCores: 2,
+  monitorIntervalMs: 5000,
+  oomKillThreshold: 0.95,
+};
+
 export const DEFAULT_GOVERNOR_CONFIG: GovernorConfig = {
   maxTokensPerFile: 0,         // 0 = unlimited
   maxTokensPerPhase: 0,        // 0 = unlimited
@@ -196,6 +226,7 @@ export const DEFAULT_GOVERNOR_CONFIG: GovernorConfig = {
   maxRetries: 0,               // 0 = unlimited retries
   maxConcurrentWorkers: 4,     // Parallel processing - balanced for API rate limits
   maxEmbeddingsPerBatch: 10,   // Batch size for embedding generation
+  resourceManagement: DEFAULT_RESOURCE_MANAGEMENT,
 };
 
 export type GovernorBudgetOutcome =

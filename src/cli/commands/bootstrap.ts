@@ -280,7 +280,7 @@ function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {
         'docs/AGENTS.md',
         'docs/TEST.md',
         'docs/LIVE_PROVIDERS_PLAYBOOK.md',
-        'docs/librarian-wave0-integration.md',
+        'docs/librarian-integration.md',
         'docs/AUTHENTICATION.md',
         'src/EMBEDDING_RULES.md',
       ],

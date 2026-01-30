@@ -1209,3 +1209,990 @@ export function createAdversarialPatternLibrary(
 ): AdversarialPatternLibrary {
   return new AdversarialPatternLibrary(initialPatterns);
 }
+
+// ============================================================================
+// ADVERSARIAL BEHAVIOR DETECTION TYPES
+// ============================================================================
+
+/**
+ * Categories of adversarial agent behavior
+ */
+export type AdversarialBehaviorCategory =
+  | 'reasoning_fallacy'        // Logical fallacies in reasoning
+  | 'evasion'                  // Avoiding direct answers
+  | 'misdirection'             // Redirecting to irrelevant topics
+  | 'overconfidence'           // Unjustified certainty
+  | 'underconfidence'          // Excessive hedging to avoid accountability
+  | 'circular_reasoning'       // Conclusions assumed in premises
+  | 'appeal_to_authority'      // Using authority instead of evidence
+  | 'hallucination_pattern'    // Patterns that indicate fabrication
+  | 'sycophancy'               // Excessive agreement without substance
+  | 'refusal_gaming'           // Gaming safety systems inappropriately
+  | 'context_manipulation';    // Manipulating context for desired outputs
+
+/**
+ * Severity of adversarial behavior
+ */
+export type BehaviorSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * A detected instance of adversarial behavior
+ */
+export interface AdversarialBehaviorDetection {
+  /** Unique identifier for this detection */
+  id: string;
+  /** Category of behavior detected */
+  category: AdversarialBehaviorCategory;
+  /** Severity of the behavior */
+  severity: BehaviorSeverity;
+  /** Evidence that triggered this detection */
+  evidence: string[];
+  /** Confidence in this detection (0-1) */
+  confidence: number;
+  /** Explanation of why this was flagged */
+  explanation: string;
+  /** Timestamp of detection */
+  detectedAt: string;
+  /** Related fallacy if applicable (from inference auditor) */
+  relatedFallacy?: string;
+}
+
+/**
+ * Remediation action for adversarial behavior
+ */
+export interface BehaviorRemediation {
+  /** Unique identifier */
+  id: string;
+  /** Human-readable description */
+  description: string;
+  /** Type of remediation aligned with quality gates */
+  type: 'clarify' | 'adjust' | 'rollback' | 'pivot' | 'abort' | 'hotfix' | 'escalate';
+  /** Estimated effort */
+  effort: 'trivial' | 'low' | 'medium' | 'high' | 'critical';
+  /** Specific steps to take */
+  steps: string[];
+  /** Which detections this addresses */
+  addressesDetections: string[];
+  /** Priority (lower = higher priority) */
+  priority: number;
+}
+
+/**
+ * Result of analyzing agent behavior for adversarial patterns
+ */
+export interface AdversarialBehaviorReport {
+  /** All detections found */
+  detections: AdversarialBehaviorDetection[];
+  /** Overall adversarial score (0-1, higher = more adversarial) */
+  adversarialScore: number;
+  /** Whether the behavior should be flagged for review */
+  shouldFlag: boolean;
+  /** Suggested remediations */
+  remediations: BehaviorRemediation[];
+  /** Summary of findings */
+  summary: string;
+  /** Timestamp of analysis */
+  analyzedAt: string;
+}
+
+/**
+ * Input for behavior analysis
+ */
+export interface BehaviorAnalysisInput {
+  /** The response or reasoning being analyzed */
+  content: string;
+  /** The original query/prompt that triggered this response */
+  originalQuery?: string;
+  /** Previous context or conversation history */
+  context?: string[];
+  /** Claimed confidence in the response */
+  statedConfidence?: number;
+  /** Evidence provided for claims */
+  providedEvidence?: string[];
+  /** Sources cited */
+  citations?: string[];
+  /** Inference steps taken (for integration with inference auditor) */
+  inferenceSteps?: Array<{
+    premises: string[];
+    conclusion: string;
+    rule?: string;
+    confidence?: number;
+  }>;
+}
+
+// ============================================================================
+// ADVERSARIAL BEHAVIOR DETECTOR
+// ============================================================================
+
+/**
+ * Built-in patterns for detecting adversarial behavior
+ */
+const BEHAVIOR_PATTERNS: Array<{
+  category: AdversarialBehaviorCategory;
+  patterns: RegExp[];
+  keywords: string[];
+  severity: BehaviorSeverity;
+  description: string;
+}> = [
+  {
+    category: 'evasion',
+    patterns: [
+      /I (?:can't|cannot|am unable to) (?:directly |fully |completely )?(?:answer|address|respond)/i,
+      /that's (?:beyond|outside) (?:my|the) (?:scope|capability)/i,
+      /I (?:don't|do not) have (?:access to|information about)/i,
+      /let me redirect you to/i,
+      /instead of answering.*let me/i,
+    ],
+    keywords: ['cannot answer', 'unable to', 'beyond scope', 'outside capability', 'redirect'],
+    severity: 'medium',
+    description: 'Response evades the direct question without justification',
+  },
+  {
+    category: 'misdirection',
+    patterns: [
+      /(?:more importantly|the real question is|what you should ask)/i,
+      /let's focus (?:instead )?on/i,
+      /a better question would be/i,
+      /rather than (?:that|this), consider/i,
+    ],
+    keywords: ['more importantly', 'real question', 'better question', 'focus instead'],
+    severity: 'medium',
+    description: 'Response redirects to a different topic without addressing the original',
+  },
+  {
+    category: 'overconfidence',
+    patterns: [
+      /(?:definitely|certainly|absolutely|undoubtedly|without (?:a )?doubt|100%)/i,
+      /(?:there is no|there's no) (?:question|doubt|uncertainty)/i,
+      /(?:always|never) (?:will|does|is)/i,
+      /guaranteed to/i,
+    ],
+    keywords: ['definitely', 'certainly', 'absolutely', 'undoubtedly', 'guaranteed', '100%'],
+    severity: 'high',
+    description: 'Claims excessive certainty without adequate evidence',
+  },
+  {
+    category: 'underconfidence',
+    patterns: [
+      /I (?:think|believe|suppose|guess) (?:that )?maybe/i,
+      /(?:might|could|may) (?:possibly|perhaps|maybe)/i,
+      /I'm not (?:entirely |completely )?(?:sure|certain)/i,
+      /(?:this|that) (?:might|may|could) (?:or might not|or may not)/i,
+    ],
+    keywords: ['might possibly', 'could perhaps', 'not entirely sure', 'may or may not'],
+    severity: 'low',
+    description: 'Excessive hedging that avoids making useful assertions',
+  },
+  {
+    category: 'circular_reasoning',
+    patterns: [
+      /because (?:it is|it's|that's) (?:true|the case)/i,
+      /(?:obviously|clearly) (?:this|that) (?:is|means)/i,
+      /(?:by definition|definitionally)/i,
+    ],
+    keywords: ['because it is true', 'obviously', 'by definition', 'self-evident'],
+    severity: 'high',
+    description: 'Conclusion is assumed in the premises',
+  },
+  {
+    category: 'appeal_to_authority',
+    patterns: [
+      /(?:experts|authorities|professionals) (?:say|agree|believe)/i,
+      /according to (?:most|many|leading) (?:experts|authorities)/i,
+      /(?:it is|it's) widely (?:accepted|believed|known)/i,
+    ],
+    keywords: ['experts say', 'authorities agree', 'widely accepted', 'professionals believe'],
+    severity: 'medium',
+    description: 'Uses authority claims without substantive evidence',
+  },
+  {
+    category: 'hallucination_pattern',
+    patterns: [
+      /(?:in|on) (?:page|chapter|section) \d+/i, // Specific citations without source
+      /(?:according to|as stated in) (?:the|their|its) (?:documentation|manual|guide)/i,
+      /version \d+\.\d+\.\d+ (?:introduces|adds|includes)/i, // Specific version claims
+      /(?:released|published|announced) (?:on|in) (?:January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2},? \d{4}/i,
+    ],
+    keywords: ['page number', 'chapter number', 'section number', 'specific date'],
+    severity: 'critical',
+    description: 'Contains suspiciously specific details that may be fabricated',
+  },
+  {
+    category: 'sycophancy',
+    patterns: [
+      /(?:you're|you are) (?:absolutely|completely|totally) (?:right|correct)/i,
+      /(?:great|excellent|wonderful) (?:question|point|observation)/i,
+      /I (?:completely|totally|fully) agree with (?:you|your|everything)/i,
+      /(?:couldn't|could not) have (?:said|put) it better/i,
+    ],
+    keywords: ['absolutely right', 'great question', 'completely agree', 'excellent point'],
+    severity: 'medium',
+    description: 'Excessive agreement without substantive contribution',
+  },
+  {
+    category: 'refusal_gaming',
+    patterns: [
+      /I (?:can't|cannot|won't|will not) (?:help with|assist with|provide)/i,
+      /(?:this|that) (?:request|query) (?:violates|goes against)/i,
+      /for (?:safety|ethical|legal) (?:reasons|concerns)/i,
+    ],
+    keywords: ['cannot help', 'safety reasons', 'ethical concerns', 'violates policy'],
+    severity: 'low',
+    description: 'May be inappropriately refusing a legitimate request',
+  },
+  {
+    category: 'context_manipulation',
+    patterns: [
+      /(?:as|like) (?:you|we) (?:mentioned|said|discussed) (?:earlier|before)/i,
+      /(?:based on|given) (?:our|your) (?:previous|earlier) (?:conversation|discussion)/i,
+      /(?:you|we) (?:agreed|established) that/i,
+    ],
+    keywords: ['as you mentioned', 'we discussed', 'you agreed', 'we established'],
+    severity: 'high',
+    description: 'References context that may not exist or be accurate',
+  },
+];
+
+/**
+ * Detector for adversarial agent behavior.
+ * Integrates with inference auditor for fallacy detection
+ * and quality gates for course correction.
+ */
+export class AdversarialBehaviorDetector {
+  private detectionCounter = 0;
+  private remediationCounter = 0;
+  private customPatterns: typeof BEHAVIOR_PATTERNS = [];
+
+  /**
+   * Add custom behavior patterns
+   */
+  addPattern(pattern: typeof BEHAVIOR_PATTERNS[0]): void {
+    this.customPatterns.push(pattern);
+  }
+
+  /**
+   * Analyze content for adversarial behavior patterns.
+   *
+   * @param input - The behavior analysis input
+   * @returns A comprehensive behavior report
+   */
+  analyze(input: BehaviorAnalysisInput): AdversarialBehaviorReport {
+    const detections: AdversarialBehaviorDetection[] = [];
+    const allPatterns = [...BEHAVIOR_PATTERNS, ...this.customPatterns];
+
+    // Phase 1: Pattern-based detection
+    for (const patternDef of allPatterns) {
+      const matches = this.findPatternMatches(input.content, patternDef);
+      if (matches.length > 0) {
+        this.detectionCounter++;
+        detections.push({
+          id: `detection_${this.detectionCounter}`,
+          category: patternDef.category,
+          severity: patternDef.severity,
+          evidence: matches,
+          confidence: this.calculatePatternConfidence(matches, patternDef),
+          explanation: patternDef.description,
+          detectedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Phase 2: Inference-based detection (if inference steps provided)
+    if (input.inferenceSteps && input.inferenceSteps.length > 0) {
+      const inferenceDetections = this.analyzeInferenceSteps(input.inferenceSteps);
+      detections.push(...inferenceDetections);
+    }
+
+    // Phase 3: Confidence calibration detection
+    if (input.statedConfidence !== undefined) {
+      const calibrationDetection = this.checkConfidenceCalibration(
+        input.content,
+        input.statedConfidence,
+        input.providedEvidence || []
+      );
+      if (calibrationDetection) {
+        detections.push(calibrationDetection);
+      }
+    }
+
+    // Phase 4: Citation verification
+    if (input.citations && input.citations.length > 0) {
+      const citationDetections = this.checkCitations(input.content, input.citations);
+      detections.push(...citationDetections);
+    }
+
+    // Phase 5: Context consistency (if context provided)
+    if (input.context && input.context.length > 0 && input.originalQuery) {
+      const contextDetection = this.checkContextConsistency(
+        input.content,
+        input.originalQuery,
+        input.context
+      );
+      if (contextDetection) {
+        detections.push(contextDetection);
+      }
+    }
+
+    // Calculate overall adversarial score
+    const adversarialScore = this.calculateAdversarialScore(detections);
+
+    // Generate remediations
+    const remediations = this.generateRemediations(detections);
+
+    // Determine if should flag
+    const shouldFlag = adversarialScore > 0.5 ||
+      detections.some(d => d.severity === 'critical') ||
+      detections.filter(d => d.severity === 'high').length >= 2;
+
+    // Build summary
+    const summary = this.buildSummary(detections, adversarialScore);
+
+    return {
+      detections,
+      adversarialScore,
+      shouldFlag,
+      remediations,
+      summary,
+      analyzedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Analyze inference steps for logical fallacies.
+   * Integrates with the inference auditor patterns.
+   */
+  private analyzeInferenceSteps(
+    steps: BehaviorAnalysisInput['inferenceSteps']
+  ): AdversarialBehaviorDetection[] {
+    const detections: AdversarialBehaviorDetection[] = [];
+
+    if (!steps) return detections;
+
+    for (const step of steps) {
+      // Check for circular reasoning
+      const conclusionLower = step.conclusion.toLowerCase();
+      for (const premise of step.premises) {
+        const premiseLower = premise.toLowerCase();
+        const similarity = this.stringSimilarity(premiseLower, conclusionLower);
+        if (similarity > 0.7) {
+          this.detectionCounter++;
+          detections.push({
+            id: `detection_${this.detectionCounter}`,
+            category: 'circular_reasoning',
+            severity: 'high',
+            evidence: [`Premise: "${premise}"`, `Conclusion: "${step.conclusion}"`],
+            confidence: similarity,
+            explanation: 'Conclusion appears to be restating a premise',
+            detectedAt: new Date().toISOString(),
+            relatedFallacy: 'circular_reasoning',
+          });
+        }
+      }
+
+      // Check for hasty generalization
+      const universalQuantifiers = ['all', 'every', 'always', 'never', 'none', 'no one'];
+      if (universalQuantifiers.some(q => conclusionLower.includes(q))) {
+        if (step.premises.length < 3) {
+          this.detectionCounter++;
+          detections.push({
+            id: `detection_${this.detectionCounter}`,
+            category: 'reasoning_fallacy',
+            severity: 'medium',
+            evidence: [
+              `Universal claim: "${step.conclusion}"`,
+              `Based on only ${step.premises.length} premise(s)`,
+            ],
+            confidence: 0.7,
+            explanation: 'Universal claim made with insufficient supporting premises',
+            detectedAt: new Date().toISOString(),
+            relatedFallacy: 'hasty_generalization',
+          });
+        }
+      }
+
+      // Check for low confidence inference with high certainty language
+      if (step.confidence !== undefined && step.confidence < 0.5) {
+        const highCertaintyWords = ['definitely', 'certainly', 'absolutely', 'clearly', 'obviously'];
+        if (highCertaintyWords.some(w => conclusionLower.includes(w))) {
+          this.detectionCounter++;
+          detections.push({
+            id: `detection_${this.detectionCounter}`,
+            category: 'overconfidence',
+            severity: 'high',
+            evidence: [
+              `Stated confidence: ${step.confidence}`,
+              `But uses high-certainty language: "${step.conclusion}"`,
+            ],
+            confidence: 0.8,
+            explanation: 'Language certainty does not match stated confidence',
+            detectedAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    return detections;
+  }
+
+  /**
+   * Check if stated confidence matches the evidence provided.
+   */
+  private checkConfidenceCalibration(
+    content: string,
+    statedConfidence: number,
+    evidence: string[]
+  ): AdversarialBehaviorDetection | null {
+    // High confidence with little evidence
+    if (statedConfidence > 0.8 && evidence.length < 2) {
+      this.detectionCounter++;
+      return {
+        id: `detection_${this.detectionCounter}`,
+        category: 'overconfidence',
+        severity: 'high',
+        evidence: [
+          `Stated confidence: ${statedConfidence}`,
+          `Evidence items provided: ${evidence.length}`,
+        ],
+        confidence: 0.75,
+        explanation: 'High confidence claimed with insufficient supporting evidence',
+        detectedAt: new Date().toISOString(),
+      };
+    }
+
+    // Very low confidence but making strong claims
+    if (statedConfidence < 0.3) {
+      const strongClaimPatterns = [
+        /(?:must|should|will) (?:be|do|have)/i,
+        /(?:definitely|certainly|absolutely)/i,
+        /(?:always|never)/i,
+      ];
+      for (const pattern of strongClaimPatterns) {
+        if (pattern.test(content)) {
+          this.detectionCounter++;
+          return {
+            id: `detection_${this.detectionCounter}`,
+            category: 'reasoning_fallacy',
+            severity: 'medium',
+            evidence: [
+              `Stated confidence: ${statedConfidence}`,
+              `But content contains strong claims`,
+            ],
+            confidence: 0.65,
+            explanation: 'Content makes strong claims despite low stated confidence',
+            detectedAt: new Date().toISOString(),
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check citations for potential hallucination patterns.
+   */
+  private checkCitations(content: string, citations: string[]): AdversarialBehaviorDetection[] {
+    const detections: AdversarialBehaviorDetection[] = [];
+
+    // Check for suspiciously specific citations
+    for (const citation of citations) {
+      // Very specific page numbers in long documents
+      const pageMatch = citation.match(/page\s*(\d+)/i);
+      if (pageMatch) {
+        const pageNum = parseInt(pageMatch[1], 10);
+        if (pageNum > 500) {
+          this.detectionCounter++;
+          detections.push({
+            id: `detection_${this.detectionCounter}`,
+            category: 'hallucination_pattern',
+            severity: 'high',
+            evidence: [`Citation: "${citation}"`, `Suspiciously specific page number: ${pageNum}`],
+            confidence: 0.6,
+            explanation: 'Very specific page number citation may indicate hallucination',
+            detectedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      // URLs that look fabricated (random-looking strings)
+      const urlMatch = citation.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        const url = urlMatch[0];
+        // Check for suspicious patterns in URLs
+        if (url.includes('/article/') && /\d{8,}/.test(url)) {
+          this.detectionCounter++;
+          detections.push({
+            id: `detection_${this.detectionCounter}`,
+            category: 'hallucination_pattern',
+            severity: 'medium',
+            evidence: [`URL: "${url}"`, 'Contains suspicious numeric ID pattern'],
+            confidence: 0.5,
+            explanation: 'URL pattern may indicate fabricated citation',
+            detectedAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    return detections;
+  }
+
+  /**
+   * Check for context manipulation.
+   */
+  private checkContextConsistency(
+    content: string,
+    query: string,
+    context: string[]
+  ): AdversarialBehaviorDetection | null {
+    // Check if response claims things about the context that aren't there
+    const claimPatterns = [
+      /(?:as|like) (?:you|we) (?:mentioned|said|discussed)/i,
+      /(?:you|we) (?:agreed|established|confirmed)/i,
+      /(?:based on|given) (?:our|your) (?:previous|earlier)/i,
+    ];
+
+    for (const pattern of claimPatterns) {
+      const match = content.match(pattern);
+      if (match) {
+        // Check if the claimed context actually exists
+        const contextStr = context.join(' ').toLowerCase();
+        const matchedText = match[0].toLowerCase();
+
+        // If claiming context but context is minimal
+        if (context.length < 2 || contextStr.length < 100) {
+          this.detectionCounter++;
+          return {
+            id: `detection_${this.detectionCounter}`,
+            category: 'context_manipulation',
+            severity: 'high',
+            evidence: [
+              `Claims: "${match[0]}"`,
+              `But context is minimal (${context.length} items, ${contextStr.length} chars)`,
+            ],
+            confidence: 0.7,
+            explanation: 'References context that may not exist',
+            detectedAt: new Date().toISOString(),
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find pattern matches in content.
+   */
+  private findPatternMatches(
+    content: string,
+    patternDef: typeof BEHAVIOR_PATTERNS[0]
+  ): string[] {
+    const matches: string[] = [];
+
+    // Check regex patterns
+    for (const pattern of patternDef.patterns) {
+      const match = content.match(pattern);
+      if (match) {
+        matches.push(match[0]);
+      }
+    }
+
+    // Check keywords (case-insensitive)
+    const contentLower = content.toLowerCase();
+    for (const keyword of patternDef.keywords) {
+      if (contentLower.includes(keyword.toLowerCase())) {
+        // Get surrounding context
+        const idx = contentLower.indexOf(keyword.toLowerCase());
+        const start = Math.max(0, idx - 20);
+        const end = Math.min(content.length, idx + keyword.length + 20);
+        const context = content.slice(start, end);
+        if (!matches.includes(context) && !matches.some(m => m.includes(keyword))) {
+          matches.push(`...${context}...`);
+        }
+      }
+    }
+
+    return matches;
+  }
+
+  /**
+   * Calculate confidence for pattern-based detection.
+   */
+  private calculatePatternConfidence(
+    matches: string[],
+    patternDef: typeof BEHAVIOR_PATTERNS[0]
+  ): number {
+    // Base confidence from number of matches
+    const matchCount = Math.min(matches.length, 5);
+    const baseConfidence = 0.4 + (matchCount * 0.12);
+
+    // Adjust by severity (more severe patterns should have higher confidence threshold)
+    const severityMultiplier: Record<BehaviorSeverity, number> = {
+      critical: 1.0,
+      high: 0.95,
+      medium: 0.9,
+      low: 0.85,
+    };
+
+    return Math.min(1.0, baseConfidence * severityMultiplier[patternDef.severity]);
+  }
+
+  /**
+   * Calculate overall adversarial score from detections.
+   */
+  private calculateAdversarialScore(detections: AdversarialBehaviorDetection[]): number {
+    if (detections.length === 0) return 0;
+
+    const severityWeights: Record<BehaviorSeverity, number> = {
+      critical: 1.0,
+      high: 0.7,
+      medium: 0.4,
+      low: 0.2,
+    };
+
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (const detection of detections) {
+      const weight = severityWeights[detection.severity];
+      weightedSum += detection.confidence * weight;
+      totalWeight += weight;
+    }
+
+    // Normalize by expected maximum
+    const normalizedScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+    // Apply scaling based on number of detections
+    const countFactor = Math.min(1.0, detections.length / 5);
+
+    return Math.min(1.0, normalizedScore * (0.5 + 0.5 * countFactor));
+  }
+
+  /**
+   * Generate remediations for detected issues.
+   * Returns remediation suggestions compatible with quality gates system.
+   */
+  private generateRemediations(
+    detections: AdversarialBehaviorDetection[]
+  ): BehaviorRemediation[] {
+    const remediations: BehaviorRemediation[] = [];
+    const addressedCategories = new Set<AdversarialBehaviorCategory>();
+
+    // Group detections by category for consolidated remediation
+    const byCategory = new Map<AdversarialBehaviorCategory, AdversarialBehaviorDetection[]>();
+    for (const detection of detections) {
+      if (!byCategory.has(detection.category)) {
+        byCategory.set(detection.category, []);
+      }
+      byCategory.get(detection.category)!.push(detection);
+    }
+
+    // Generate remediations by category
+    for (const [category, categoryDetections] of byCategory) {
+      if (addressedCategories.has(category)) continue;
+      addressedCategories.add(category);
+
+      this.remediationCounter++;
+      const remediation = this.createRemediationForCategory(
+        category,
+        categoryDetections
+      );
+      if (remediation) {
+        remediations.push(remediation);
+      }
+    }
+
+    // Sort by priority
+    remediations.sort((a, b) => a.priority - b.priority);
+
+    return remediations;
+  }
+
+  /**
+   * Create a specific remediation for a behavior category.
+   */
+  private createRemediationForCategory(
+    category: AdversarialBehaviorCategory,
+    detections: AdversarialBehaviorDetection[]
+  ): BehaviorRemediation | null {
+    const detectionIds = detections.map(d => d.id);
+    const maxSeverity = detections.reduce(
+      (max, d) => {
+        const order: Record<BehaviorSeverity, number> = { critical: 3, high: 2, medium: 1, low: 0 };
+        return order[d.severity] > order[max] ? d.severity : max;
+      },
+      'low' as BehaviorSeverity
+    );
+
+    const remediations: Record<AdversarialBehaviorCategory, Omit<BehaviorRemediation, 'id' | 'addressesDetections'>> = {
+      reasoning_fallacy: {
+        description: 'Address logical fallacies in reasoning chain',
+        type: 'adjust',
+        effort: 'medium',
+        steps: [
+          'Review each inference step for logical validity',
+          'Ensure conclusions follow from premises',
+          'Add missing premises or weaken conclusions',
+          'Consider alternative explanations',
+        ],
+        priority: 1,
+      },
+      evasion: {
+        description: 'Provide direct response to the question asked',
+        type: 'clarify',
+        effort: 'low',
+        steps: [
+          'Identify the core question being asked',
+          'Provide a direct answer if possible',
+          'If unable to answer, explain specific reasons',
+          'Offer alternative approaches if applicable',
+        ],
+        priority: 2,
+      },
+      misdirection: {
+        description: 'Address the original topic directly',
+        type: 'adjust',
+        effort: 'low',
+        steps: [
+          'Return focus to the original question',
+          'Address tangential points only after answering main question',
+          'Clearly distinguish between direct answers and related observations',
+        ],
+        priority: 2,
+      },
+      overconfidence: {
+        description: 'Calibrate confidence to match evidence',
+        type: 'adjust',
+        effort: 'medium',
+        steps: [
+          'Review evidence supporting each claim',
+          'Add appropriate hedging language where evidence is limited',
+          'Distinguish between facts and inferences',
+          'Acknowledge uncertainty explicitly',
+        ],
+        priority: 1,
+      },
+      underconfidence: {
+        description: 'Make clearer assertions where evidence supports them',
+        type: 'clarify',
+        effort: 'low',
+        steps: [
+          'Identify claims with strong supporting evidence',
+          'State well-supported claims more directly',
+          'Reserve hedging for genuinely uncertain claims',
+        ],
+        priority: 3,
+      },
+      circular_reasoning: {
+        description: 'Provide independent evidence for conclusions',
+        type: 'rollback',
+        effort: 'high',
+        steps: [
+          'Identify circular reasoning patterns',
+          'Find independent evidence for conclusions',
+          'Restructure argument with proper premise-conclusion flow',
+          'Verify each step adds new information',
+        ],
+        priority: 1,
+      },
+      appeal_to_authority: {
+        description: 'Provide substantive evidence beyond authority claims',
+        type: 'adjust',
+        effort: 'medium',
+        steps: [
+          'Identify claims relying solely on authority',
+          'Add substantive evidence (data, methodology, reasoning)',
+          'Verify authority relevance to specific domain',
+          'Distinguish expert consensus from individual opinion',
+        ],
+        priority: 2,
+      },
+      hallucination_pattern: {
+        description: 'Verify or remove potentially fabricated details',
+        type: 'abort',
+        effort: 'critical',
+        steps: [
+          'Flag all specific citations for verification',
+          'Remove unverifiable specific details',
+          'Replace with general statements if specific details cannot be confirmed',
+          'Add explicit uncertainty markers for unverified information',
+        ],
+        priority: 0,
+      },
+      sycophancy: {
+        description: 'Provide substantive analysis rather than agreement',
+        type: 'clarify',
+        effort: 'low',
+        steps: [
+          'Replace gratuitous praise with substantive response',
+          'Offer genuine critical analysis where appropriate',
+          'Focus on information value over social validation',
+        ],
+        priority: 3,
+      },
+      refusal_gaming: {
+        description: 'Reconsider refusal appropriateness',
+        type: 'escalate',
+        effort: 'medium',
+        steps: [
+          'Review the actual request for legitimacy',
+          'Determine if refusal is appropriate',
+          'If legitimate request, provide helpful response',
+          'If truly problematic, explain specific concerns',
+        ],
+        priority: 2,
+      },
+      context_manipulation: {
+        description: 'Verify context claims against actual history',
+        type: 'rollback',
+        effort: 'high',
+        steps: [
+          'Review all claims about prior context',
+          'Verify each claim against actual conversation history',
+          'Remove or correct false context claims',
+          'Base response only on verified information',
+        ],
+        priority: 1,
+      },
+    };
+
+    const config = remediations[category];
+    if (!config) return null;
+
+    // Adjust effort based on severity
+    let effort = config.effort;
+    if (maxSeverity === 'critical' && effort !== 'critical') {
+      effort = 'high';
+    }
+
+    return {
+      id: `remediation_${this.remediationCounter}`,
+      ...config,
+      effort,
+      addressesDetections: detectionIds,
+    };
+  }
+
+  /**
+   * Build a summary of the analysis.
+   */
+  private buildSummary(
+    detections: AdversarialBehaviorDetection[],
+    score: number
+  ): string {
+    if (detections.length === 0) {
+      return 'No adversarial behavior patterns detected.';
+    }
+
+    const criticalCount = detections.filter(d => d.severity === 'critical').length;
+    const highCount = detections.filter(d => d.severity === 'high').length;
+    const categories = [...new Set(detections.map(d => d.category))];
+
+    let summary = `Detected ${detections.length} potential issue(s) across ${categories.length} category(ies). `;
+
+    if (criticalCount > 0) {
+      summary += `${criticalCount} critical issue(s) require immediate attention. `;
+    }
+    if (highCount > 0) {
+      summary += `${highCount} high-severity issue(s) detected. `;
+    }
+
+    summary += `Overall adversarial score: ${(score * 100).toFixed(1)}%. `;
+
+    if (score > 0.7) {
+      summary += 'Recommend thorough review before proceeding.';
+    } else if (score > 0.5) {
+      summary += 'Some concerns warrant attention.';
+    } else if (score > 0.3) {
+      summary += 'Minor issues detected; consider addressing.';
+    } else {
+      summary += 'Low-risk; proceed with standard review.';
+    }
+
+    return summary;
+  }
+
+  /**
+   * Simple string similarity using Jaccard index on word tokens.
+   */
+  private stringSimilarity(a: string, b: string): number {
+    const wordsA = new Set(a.split(/\s+/).filter(w => w.length > 2));
+    const wordsB = new Set(b.split(/\s+/).filter(w => w.length > 2));
+
+    if (wordsA.size === 0 || wordsB.size === 0) return 0;
+
+    let intersection = 0;
+    for (const word of wordsA) {
+      if (wordsB.has(word)) intersection++;
+    }
+
+    const union = new Set([...wordsA, ...wordsB]).size;
+    return intersection / union;
+  }
+}
+
+// ============================================================================
+// QUALITY GATES INTEGRATION
+// ============================================================================
+
+/**
+ * Convert adversarial behavior report to quality gate compatible format.
+ * This enables integration with the course correction system.
+ */
+export function convertToGateViolations(
+  report: AdversarialBehaviorReport
+): Array<{
+  criterionId: string;
+  description: string;
+  severity: 'minor' | 'major' | 'critical';
+  score: number;
+  threshold: number;
+  explanation: string;
+}> {
+  return report.detections.map(detection => ({
+    criterionId: `adversarial_${detection.category}`,
+    description: `Adversarial behavior: ${detection.category.replace(/_/g, ' ')}`,
+    severity: detection.severity === 'critical' ? 'critical' :
+              detection.severity === 'high' ? 'major' : 'minor',
+    score: 1 - detection.confidence, // Invert: higher confidence in detection = lower score
+    threshold: 0.7,
+    explanation: detection.explanation,
+  }));
+}
+
+/**
+ * Convert behavior remediations to quality gate remediation format.
+ */
+export function convertToGateRemediations(
+  report: AdversarialBehaviorReport
+): Array<{
+  id: string;
+  description: string;
+  type: 'clarify' | 'adjust' | 'rollback' | 'pivot' | 'abort' | 'hotfix';
+  effort: 'trivial' | 'low' | 'medium' | 'high' | 'critical';
+  steps: string[];
+  addressesViolations: string[];
+}> {
+  return report.remediations.map(remediation => ({
+    id: remediation.id,
+    description: remediation.description,
+    type: remediation.type === 'escalate' ? 'clarify' : remediation.type, // Map escalate to clarify
+    effort: remediation.effort,
+    steps: remediation.steps,
+    addressesViolations: remediation.addressesDetections.map(
+      id => `adversarial_${report.detections.find(d => d.id === id)?.category || 'unknown'}`
+    ),
+  }));
+}
+
+// ============================================================================
+// FACTORY FUNCTIONS
+// ============================================================================
+
+/**
+ * Create an AdversarialBehaviorDetector instance
+ */
+export function createAdversarialBehaviorDetector(): AdversarialBehaviorDetector {
+  return new AdversarialBehaviorDetector();
+}

@@ -2218,7 +2218,7 @@ cd packages/librarian && npx vitest run src/api/__tests__/multi_repo.test.ts
 cd packages/librarian && npx vitest run src/api/__tests__/cross_repo_primitives.test.ts
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('MultiRepo') || k.includes('CrossRepo'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('MultiRepo') || k.includes('CrossRepo'))))"
 
 # Build federation for multiple repos (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts build-federation /path/to/repo1 /path/to/repo2 ...

@@ -530,7 +530,7 @@ describe('Skills Types', () => {
           source: {
             type: 'registry',
             registry: 'npm',
-            package: '@wave0/skill-pack',
+            package: '@librarian/skill-pack',
             version: '1.2.3',
           },
           version: '1.2.3',
@@ -542,7 +542,7 @@ describe('Skills Types', () => {
 
       expect(pack.evidence.source.type).toBe('registry');
       if (pack.evidence.source.type === 'registry') {
-        expect(pack.evidence.source.package).toBe('@wave0/skill-pack');
+        expect(pack.evidence.source.package).toBe('@librarian/skill-pack');
       }
     });
   });

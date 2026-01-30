@@ -428,7 +428,7 @@ export async function runStagedEvaluation(
   const fitnessReport = computeFitnessReport(
     variant.id,
     {
-      repository: 'wave0-autopilot',
+      repository: 'librarian',
       subsystem: 'librarian',
       commitHash: 'current',
     },

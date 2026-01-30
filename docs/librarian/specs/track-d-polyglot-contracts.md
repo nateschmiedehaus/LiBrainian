@@ -1564,7 +1564,7 @@ interface GateResult {
 cd packages/librarian && npx vitest run src/api/__tests__/polyglot_contracts.test.ts
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Contract') || k.includes('Polyglot'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Contract') || k.includes('Polyglot'))))"
 
 # Detect contracts in a polyglot codebase (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts contracts detect /path/to/codebase

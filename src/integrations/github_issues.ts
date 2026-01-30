@@ -61,7 +61,7 @@ async function fetchJson(url: string, token: string): Promise<unknown> {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'wave0-librarian',
+      'User-Agent': 'librarian-ai',
     },
   });
   if (!response.ok) {

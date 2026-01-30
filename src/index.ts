@@ -9,7 +9,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { createLibrarian } from '@wave0/librarian';
+ * import { createLibrarian } from 'librarian';
  *
  * // Initialize librarian (blocks until ready)
  * const librarian = await createLibrarian({
@@ -23,10 +23,10 @@
  * });
  * ```
  *
- * ## Integration with Wave0
+ * ## Integration
  *
  * ```typescript
- * import { preOrchestrationHook, enrichTaskContext } from '@wave0/librarian';
+ * import { preOrchestrationHook, enrichTaskContext } from 'librarian';
  *
  * // Before starting any agent work:
  * await preOrchestrationHook(workspace);

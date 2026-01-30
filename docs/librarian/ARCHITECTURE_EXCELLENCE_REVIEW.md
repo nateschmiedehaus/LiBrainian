@@ -16,7 +16,7 @@ Librarian is an ambitious and technically sophisticated project that aims to pro
 
 1. **Resolve Circular Dependencies (Critical)**: 26 circular dependency chains detected, including critical paths through `index.ts` that couple the entire system. This creates a fragile dependency graph that makes testing, tree-shaking, and maintenance difficult.
 
-2. **Enable Strict TypeScript (Critical)**: All strict mode options are disabled (`strict: false`, `noImplicitAny: false`, `strictNullChecks: false`). This is antithetical to building a trustworthy epistemic system - the type system should be the first line of defense against uncertainty.
+2. ~~**Enable Strict TypeScript (Critical)**~~: **COMPLETED** (January 2026) - TypeScript strict mode is now enabled with all strict options. This addresses the previous paradox of an epistemic system without type safety.
 
 3. **Refactor the Monolithic Storage Interface (High)**: The `LibrarianStorage` interface has 100+ methods spanning 1,500+ lines. This violates the Interface Segregation Principle and makes implementation and testing burdensome.
 
@@ -74,20 +74,21 @@ epistemics/confidence.ts -> epistemics/formula_ast.ts
 
 The `index.ts` barrel export participates in 8 circular chains, meaning any change to the public API can cascade through the entire system.
 
-#### 2. TypeScript Strict Mode Disabled (Critical)
-From `tsconfig.json`:
+#### 2. TypeScript Strict Mode ~~Disabled~~ **ENABLED** (Resolved)
+
+**Update (January 2026)**: TypeScript strict mode has been enabled. The `tsconfig.json` now includes:
 ```json
-"strict": false,
-"noImplicitAny": false,
-"strictNullChecks": false,
-"strictFunctionTypes": false,
-"noUnusedLocals": false,
-"noUnusedParameters": false,
-"noImplicitReturns": false,
-"noFallthroughCasesInSwitch": false
+"strict": true,
+"noImplicitAny": true,
+"strictNullChecks": true,
+"strictFunctionTypes": true,
+"noUnusedLocals": true,
+"noUnusedParameters": true,
+"noImplicitReturns": true,
+"noFallthroughCasesInSwitch": true
 ```
 
-For a system that claims to provide "evidence-backed understanding" and "calibrated confidence," this is paradoxical. The type system is the compiler-verified layer of your epistemic stack.
+This resolves the previous paradox - the epistemic system now has proper type safety as its first line of defense.
 
 #### 3. Monolithic Storage Interface (High)
 `LibrarianStorage` has 100+ methods across categories:
@@ -143,7 +144,7 @@ The following modules have overlapping concerns:
 - Missing facade/simple API for common use cases
 
 **Recommendations:**
-1. Create a `@wave0/librarian/simple` entry point with just 5-10 functions
+1. Create a `librarian/simple` entry point with just 5-10 functions
 2. Adopt consistent naming: `create*` for factories, `*Options` for configs, `*Result` for outputs
 3. Use the module pattern to hide implementation details
 4. Consider fluent/builder APIs for complex operations
@@ -300,12 +301,12 @@ The following modules have overlapping concerns:
 
 ### Tier 1: Critical Improvements
 
-| ID | Improvement | Impact | Effort |
-|----|-------------|--------|--------|
-| T1-1 | Enable strict TypeScript | Catches bugs, enforces contracts | Medium |
-| T1-2 | Break circular dependencies | Enables tree-shaking, cleaner architecture | High |
-| T1-3 | Split LibrarianStorage interface | Improves testability, reduces implementation burden | Medium |
-| T1-4 | Create simple public API facade | Improves onboarding, reduces cognitive load | Medium |
+| ID | Improvement | Impact | Effort | Status |
+|----|-------------|--------|--------|--------|
+| T1-1 | Enable strict TypeScript | Catches bugs, enforces contracts | Medium | **DONE** |
+| T1-2 | Break circular dependencies | Enables tree-shaking, cleaner architecture | High | In Progress |
+| T1-3 | Split LibrarianStorage interface | Improves testability, reduces implementation burden | Medium | Pending |
+| T1-4 | Create simple public API facade | Improves onboarding, reduces cognitive load | Medium | Pending |
 
 ### Tier 2: Important Improvements
 
@@ -331,10 +332,10 @@ The following modules have overlapping concerns:
 
 ## Proposed Work Units
 
-| WU ID | Name | Description | Impact | Effort |
-|-------|------|-------------|--------|--------|
-| WU-ARCH-001 | Enable Strict TypeScript | Enable all strict mode options, fix resulting errors | Critical | 3-5 days |
-| WU-ARCH-002 | Break index.ts Cycles | Restructure exports to eliminate barrel cycles | Critical | 2-3 days |
+| WU ID | Name | Description | Impact | Effort | Status |
+|-------|------|-------------|--------|--------|--------|
+| WU-ARCH-001 | Enable Strict TypeScript | Enable all strict mode options, fix resulting errors | Critical | 3-5 days | **DONE** |
+| WU-ARCH-002 | Break index.ts Cycles | Restructure exports to eliminate barrel cycles | Critical | 2-3 days | In Progress |
 | WU-ARCH-003 | Split Storage Interface | Create focused interfaces, update implementations | High | 3-4 days |
 | WU-ARCH-004 | Create Simple API | Design and implement minimal onboarding API | High | 2-3 days |
 | WU-ARCH-005 | Add Path Aliases | Configure tsconfig paths, update imports | Medium | 1 day |

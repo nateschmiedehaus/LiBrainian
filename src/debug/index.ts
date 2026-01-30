@@ -22,7 +22,7 @@
  *   globalTracer,
  *   traceAsync,
  *   createInspector,
- * } from '@wave0/librarian/debug';
+ * } from 'librarian/debug';
  *
  * // Tracing an operation
  * const result = await traceAsync('myOperation', async (spanId) => {

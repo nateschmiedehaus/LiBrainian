@@ -492,11 +492,10 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
       const packageContent = await fs.readFile(packageJsonPath, 'utf8');
       const pkg = JSON.parse(packageContent);
 
-      // Package name may be 'librarian', '@librarian/core', or '@wave0/librarian'
+      // Package name should be 'librarian'
       const isLibrarianPackage = (
         pkg.name === 'librarian' ||
         pkg.name === '@librarian/core' ||
-        pkg.name === '@wave0/librarian' ||
         pkg.name?.includes('librarian')
       );
       expect(isLibrarianPackage).toBe(true);

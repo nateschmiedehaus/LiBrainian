@@ -1,24 +1,103 @@
 /**
- * @fileoverview Chain-of-Verification Implementation (WU-HALU-004)
+ * @fileoverview Chain-of-Verification Implementation (ACL 2024)
  *
- * Implements the 4-step Chain-of-Verification (CoVe) process for hallucination reduction:
+ * Implements the Chain-of-Verification (CoVe) technique for hallucination reduction
+ * based on the ACL 2024 research paper.
  *
- * 1. Generate Baseline Response - Create initial response from query and context
- * 2. Plan Verification Questions - Extract verifiable claims and generate questions
- * 3. Answer Verification Questions - Independently verify each question against context
- * 4. Generate Final Response - Synthesize verified response with corrections
+ * The 4-step verification process:
+ * 1. Draft initial response (generate baseline)
+ * 2. Plan verification questions (decompose into verifiable sub-claims)
+ * 3. Execute verification (answer questions independently against context)
+ * 4. Revise based on findings (synthesize corrected response)
  *
- * Research basis: Chain-of-Verification technique reduces hallucinations by ~23%
- * through systematic self-verification of claims.
+ * Expected impact: +23% F1 improvement on factual accuracy.
+ *
+ * References:
+ * - docs/librarian/RESEARCH_IMPLEMENTATION_MAPPING.md (CoVe details)
+ * - ACL 2024: Chain-of-Verification Reduces Hallucination in Large Language Models
  *
  * @packageDocumentation
  */
 
-import { type ConfidenceValue, absent, type DerivedConfidence } from '../epistemics/confidence.js';
+import { type ConfidenceValue, absent, type DerivedConfidence, sequenceConfidence, deterministic } from '../epistemics/confidence.js';
+import { type Claim, type ClaimSource, createClaim, type ClaimType } from '../epistemics/types.js';
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
+
+/**
+ * A single step in the Chain-of-Verification process.
+ * Each step represents a verifiable sub-claim extracted from the original claim.
+ */
+export interface CoVeStep {
+  /** The sub-claim being verified */
+  claim: string;
+
+  /** The verification question generated for this claim */
+  verificationQuestion: string;
+
+  /** The answer obtained from verification */
+  answer: string;
+
+  /** Confidence in the verification answer (0-1) */
+  confidence: number;
+
+  /** Sources/citations that support the answer */
+  sources: string[];
+}
+
+/**
+ * Result of executing the complete Chain-of-Verification process.
+ */
+export interface CoVeResult {
+  /** The original claim that was verified */
+  originalClaim: string;
+
+  /** The chain of verification steps */
+  verificationChain: CoVeStep[];
+
+  /** Final verdict based on all verification steps */
+  finalVerdict: 'verified' | 'refuted' | 'uncertain';
+
+  /** Overall confidence in the verification result */
+  overallConfidence: number;
+
+  /** Revisions made to the original claim based on verification */
+  revisions: string[];
+}
+
+/**
+ * Evidence type for integration with epistemics system.
+ */
+export interface Evidence {
+  /** Unique identifier */
+  id: string;
+
+  /** Type of evidence */
+  type: 'cove_verification' | 'cove_step' | 'cove_revision';
+
+  /** The claim being supported/opposed */
+  claim: string;
+
+  /** Evidence content */
+  content: string;
+
+  /** Whether this evidence supports or opposes the claim */
+  supports: boolean;
+
+  /** Confidence in this evidence */
+  confidence: ConfidenceValue;
+
+  /** Source of the evidence */
+  source: ClaimSource;
+
+  /** Timestamp */
+  timestamp: string;
+
+  /** Additional metadata */
+  metadata?: Record<string, unknown>;
+}
 
 /**
  * Input for the verification process
@@ -117,6 +196,8 @@ export interface ChainOfVerificationConfig {
   addHedgingForLowConfidence: boolean;
   /** Confidence threshold below which hedging is added */
   hedgingThreshold: number;
+  /** Enable detailed logging */
+  verbose?: boolean;
 }
 
 // ============================================================================
@@ -131,6 +212,7 @@ export const DEFAULT_CHAIN_OF_VERIFICATION_CONFIG: ChainOfVerificationConfig = {
   minConfidenceThreshold: 0.5,
   addHedgingForLowConfidence: true,
   hedgingThreshold: 0.6,
+  verbose: false,
 };
 
 // ============================================================================
@@ -141,6 +223,7 @@ interface ClaimPattern {
   pattern: RegExp;
   type: 'factual' | 'boolean' | 'numeric';
   questionTemplate: (match: RegExpMatchArray) => string;
+  claimType: ClaimType;
 }
 
 const CLAIM_PATTERNS: ClaimPattern[] = [
@@ -149,48 +232,91 @@ const CLAIM_PATTERNS: ClaimPattern[] = [
     pattern: /(\w+)\s+has\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(\w+)/gi,
     type: 'numeric',
     questionTemplate: (m) => `How many ${m[3]} does ${m[1]} have?`,
+    claimType: 'structural',
   },
   // Return type claims
   {
     pattern: /(\w+)\s+returns?\s+([A-Z][a-zA-Z<>[\]]+|\w+)/gi,
     type: 'factual',
     questionTemplate: (m) => `What does ${m[1]} return?`,
+    claimType: 'structural',
   },
   // Is/are type claims
   {
     pattern: /(\w+)\s+is\s+(a|an)\s+(\w+)/gi,
     type: 'boolean',
     questionTemplate: (m) => `Is ${m[1]} ${m[2]} ${m[3]}?`,
+    claimType: 'structural',
   },
   // Existence claims
   {
     pattern: /(?:has|have)\s+(?:a\s+)?method\s+(?:called\s+)?(\w+)/gi,
     type: 'boolean',
     questionTemplate: (m) => `Does it have a method called ${m[1]}?`,
+    claimType: 'structural',
   },
   // Location claims
   {
     pattern: /(?:defined|located)\s+in\s+([^\s.]+)/gi,
     type: 'factual',
-    questionTemplate: (m) => `Where is it defined?`,
+    questionTemplate: (_m) => `Where is it defined?`,
+    claimType: 'structural',
   },
   // Accepts/takes parameter claims
   {
     pattern: /(?:accepts?|takes?)\s+(?:a\s+)?(\w+)\s+(?:parameter|argument)/gi,
     type: 'factual',
-    questionTemplate: (m) => `What parameter does it accept?`,
+    questionTemplate: (_m) => `What parameter does it accept?`,
+    claimType: 'structural',
   },
   // Extends/implements claims
   {
     pattern: /(\w+)\s+(?:extends?|implements?)\s+(\w+)/gi,
     type: 'boolean',
     questionTemplate: (m) => `Does ${m[1]} extend/implement ${m[2]}?`,
+    claimType: 'structural',
   },
   // Property/attribute claims
   {
     pattern: /has\s+(?:a\s+)?(?:property|attribute)\s+(?:called\s+)?(\w+)/gi,
     type: 'boolean',
     questionTemplate: (m) => `Does it have a property called ${m[1]}?`,
+    claimType: 'structural',
+  },
+  // Contains/includes claims
+  {
+    pattern: /(\w+)\s+(?:contains?|includes?)\s+(\w+)/gi,
+    type: 'boolean',
+    questionTemplate: (m) => `Does ${m[1]} contain ${m[2]}?`,
+    claimType: 'structural',
+  },
+  // Calls/invokes claims
+  {
+    pattern: /(\w+)\s+(?:calls?|invokes?)\s+(\w+)/gi,
+    type: 'boolean',
+    questionTemplate: (m) => `Does ${m[1]} call ${m[2]}?`,
+    claimType: 'behavioral',
+  },
+  // Depends on claims
+  {
+    pattern: /(\w+)\s+(?:depends?\s+on|requires?)\s+(\w+)/gi,
+    type: 'boolean',
+    questionTemplate: (m) => `Does ${m[1]} depend on ${m[2]}?`,
+    claimType: 'relational',
+  },
+  // Async/sync claims
+  {
+    pattern: /(\w+)\s+is\s+(async(?:hronous)?|sync(?:hronous)?)/gi,
+    type: 'boolean',
+    questionTemplate: (m) => `Is ${m[1]} ${m[2]}?`,
+    claimType: 'structural',
+  },
+  // Export claims
+  {
+    pattern: /(\w+)\s+is\s+(exported|public|private|protected)/gi,
+    type: 'boolean',
+    questionTemplate: (m) => `Is ${m[1]} ${m[2]}?`,
+    claimType: 'structural',
   },
 ];
 
@@ -214,13 +340,374 @@ const HEDGING_PHRASES = [
 ];
 
 // ============================================================================
+// CORE FUNCTIONS
+// ============================================================================
+
+/**
+ * Generate verification questions from a claim.
+ *
+ * Breaks down the claim into verifiable sub-claims and generates
+ * specific questions that can be independently verified against context.
+ *
+ * @param claim - The claim to generate verification questions for
+ * @returns Array of verification questions
+ */
+export function generateVerificationQuestions(claim: string): string[] {
+  const questions: string[] = [];
+  const seenQuestions = new Set<string>();
+
+  for (const patternDef of CLAIM_PATTERNS) {
+    const regex = new RegExp(patternDef.pattern.source, patternDef.pattern.flags);
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(claim)) !== null) {
+      const question = patternDef.questionTemplate(match);
+      const normalizedQuestion = question.toLowerCase().trim();
+
+      if (!seenQuestions.has(normalizedQuestion)) {
+        seenQuestions.add(normalizedQuestion);
+        questions.push(question);
+      }
+    }
+  }
+
+  // If no pattern-based questions, generate general verification questions
+  if (questions.length === 0) {
+    // Extract key terms for general questions
+    const keyTerms = extractKeyTerms(claim);
+    if (keyTerms.length > 0) {
+      questions.push(`Is the claim "${claim.slice(0, 100)}..." factually accurate?`);
+      questions.push(`What evidence supports or contradicts this claim?`);
+    }
+  }
+
+  return questions;
+}
+
+/**
+ * Execute the full Chain-of-Verification process.
+ *
+ * @param claim - The original claim to verify
+ * @param context - Context documents to verify against
+ * @returns The complete verification result
+ */
+export function executeVerificationChain(claim: string, context: string): CoVeResult {
+  const contextLines = context.split('\n').filter((line) => line.trim().length > 0);
+
+  // Step 1: Generate verification questions
+  const questions = generateVerificationQuestions(claim);
+
+  // Step 2: Execute verification for each question
+  const verificationChain: CoVeStep[] = questions.map((question) => {
+    const { answer, confidence, sources } = answerVerificationQuestion(question, claim, contextLines);
+    return {
+      claim: extractSubClaim(claim, question),
+      verificationQuestion: question,
+      answer,
+      confidence,
+      sources,
+    };
+  });
+
+  // Step 3: Compute overall verdict
+  const { verdict, overallConfidence } = computeVerdict(verificationChain);
+
+  // Step 4: Generate revisions
+  const revisions = generateRevisions(claim, verificationChain);
+
+  return {
+    originalClaim: claim,
+    verificationChain,
+    finalVerdict: verdict,
+    overallConfidence,
+    revisions,
+  };
+}
+
+/**
+ * Revise a claim based on verification findings.
+ *
+ * @param claim - The original claim
+ * @param result - The verification result
+ * @returns The revised claim
+ */
+export function reviseBasedOnVerification(claim: string, result: CoVeResult): string {
+  if (result.finalVerdict === 'verified') {
+    return claim;
+  }
+
+  if (result.finalVerdict === 'refuted') {
+    // Return the corrected version based on verification
+    if (result.revisions.length > 0) {
+      return result.revisions[0];
+    }
+    return `[Unverified] ${claim}`;
+  }
+
+  // Uncertain - add hedging
+  const hedgePhrase = HEDGING_PHRASES[Math.floor(result.overallConfidence * HEDGING_PHRASES.length)];
+  return `${hedgePhrase} ${claim.charAt(0).toLowerCase()}${claim.slice(1)}`;
+}
+
+/**
+ * Integrate CoVe result with the epistemics system.
+ *
+ * Converts a CoVeResult into an Evidence object that can be
+ * integrated with the broader epistemic framework.
+ *
+ * @param result - The CoVe verification result
+ * @returns Evidence object for the epistemics system
+ */
+export function integrateWithEpistemics(result: CoVeResult): Evidence {
+  // Build confidence value from verification chain
+  const stepConfidences: ConfidenceValue[] = result.verificationChain.map((step) => ({
+    type: 'derived' as const,
+    value: step.confidence,
+    formula: 'context_match_score',
+    inputs: [],
+  }));
+
+  // Combine step confidences using sequence (min) for chain
+  const combinedConfidence = stepConfidences.length > 0
+    ? sequenceConfidence(stepConfidences)
+    : absent('insufficient_data');
+
+  return {
+    id: `cove_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    type: 'cove_verification',
+    claim: result.originalClaim,
+    content: JSON.stringify({
+      verdict: result.finalVerdict,
+      overallConfidence: result.overallConfidence,
+      verificationSteps: result.verificationChain.length,
+      revisions: result.revisions,
+    }),
+    supports: result.finalVerdict === 'verified',
+    confidence: combinedConfidence,
+    source: {
+      type: 'tool',
+      id: 'chain_of_verification',
+      version: '1.0.0',
+    },
+    timestamp: new Date().toISOString(),
+    metadata: {
+      verificationChain: result.verificationChain,
+      revisions: result.revisions,
+    },
+  };
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Extract key terms from text.
+ */
+function extractKeyTerms(text: string): string[] {
+  const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'has', 'have', 'had',
+    'does', 'do', 'did', 'what', 'how', 'many', 'which', 'that', 'this', 'it', 'and', 'or', 'but']);
+
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !stopWords.has(word));
+}
+
+/**
+ * Answer a single verification question against context.
+ */
+function answerVerificationQuestion(
+  question: string,
+  originalClaim: string,
+  context: string[]
+): { answer: string; confidence: number; sources: string[] } {
+  if (context.length === 0) {
+    return {
+      answer: 'Unable to verify - no context available',
+      confidence: 0.1,
+      sources: [],
+    };
+  }
+
+  // Find relevant context lines
+  const questionTerms = extractKeyTerms(question);
+  const claimTerms = extractKeyTerms(originalClaim);
+  const allTerms = Array.from(new Set([...questionTerms, ...claimTerms]));
+
+  const relevantLines: Array<{ line: string; score: number }> = [];
+
+  for (const line of context) {
+    const lineLower = line.toLowerCase();
+    const matchCount = allTerms.filter((term) => lineLower.includes(term)).length;
+    if (matchCount > 0) {
+      relevantLines.push({ line, score: matchCount / allTerms.length });
+    }
+  }
+
+  // Sort by relevance
+  relevantLines.sort((a, b) => b.score - a.score);
+
+  if (relevantLines.length === 0) {
+    return {
+      answer: 'No relevant evidence found in context',
+      confidence: 0.2,
+      sources: [],
+    };
+  }
+
+  // Build answer from top relevant lines
+  const topLines = relevantLines.slice(0, 3);
+  const avgScore = topLines.reduce((sum, l) => sum + l.score, 0) / topLines.length;
+  const confidence = Math.min(0.95, 0.3 + avgScore * 0.7);
+
+  const answer = determineAnswer(question, originalClaim, topLines.map((l) => l.line));
+
+  return {
+    answer,
+    confidence,
+    sources: topLines.map((l) => l.line.slice(0, 100)),
+  };
+}
+
+/**
+ * Determine the answer based on question type and context.
+ */
+function determineAnswer(question: string, claim: string, relevantContext: string[]): string {
+  const questionLower = question.toLowerCase();
+  const contextJoined = relevantContext.join(' ').toLowerCase();
+  const claimLower = claim.toLowerCase();
+
+  // Boolean questions
+  if (questionLower.startsWith('is ') || questionLower.startsWith('does ')) {
+    const claimTerms = extractKeyTerms(claimLower);
+    const matchCount = claimTerms.filter((term) => contextJoined.includes(term)).length;
+    const matchRatio = matchCount / Math.max(1, claimTerms.length);
+
+    if (matchRatio >= 0.5) {
+      return 'Yes, confirmed by context evidence';
+    } else if (matchRatio >= 0.25) {
+      return 'Partially confirmed - some evidence found';
+    } else {
+      return 'Not confirmed by available context';
+    }
+  }
+
+  // Numeric questions
+  if (questionLower.includes('how many')) {
+    // Look for numbers in context
+    const numberMatch = contextJoined.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+\w+/i);
+    if (numberMatch) {
+      const numWord = numberMatch[1].toLowerCase();
+      const num = NUMERIC_WORDS[numWord] ?? parseInt(numWord, 10);
+      if (!isNaN(num)) {
+        return `${num} (found in context)`;
+      }
+    }
+    return 'Unable to determine exact count from context';
+  }
+
+  // What/factual questions
+  if (questionLower.startsWith('what ')) {
+    // Return the most relevant context line as the answer
+    if (relevantContext.length > 0) {
+      return relevantContext[0].trim().slice(0, 200);
+    }
+    return 'No specific answer found in context';
+  }
+
+  // Default: return summary of relevant context
+  return relevantContext.length > 0
+    ? `Based on context: ${relevantContext[0].slice(0, 150)}...`
+    : 'Unable to answer from available context';
+}
+
+/**
+ * Extract the sub-claim that a question is targeting.
+ */
+function extractSubClaim(fullClaim: string, question: string): string {
+  const questionTerms = extractKeyTerms(question);
+
+  // Find the sentence in the claim that best matches the question
+  const sentences = fullClaim.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+
+  let bestSentence = fullClaim;
+  let bestScore = 0;
+
+  for (const sentence of sentences) {
+    const sentenceLower = sentence.toLowerCase();
+    const matchCount = questionTerms.filter((term) => sentenceLower.includes(term)).length;
+    if (matchCount > bestScore) {
+      bestScore = matchCount;
+      bestSentence = sentence.trim();
+    }
+  }
+
+  return bestSentence;
+}
+
+/**
+ * Compute the overall verdict from verification steps.
+ */
+function computeVerdict(chain: CoVeStep[]): { verdict: 'verified' | 'refuted' | 'uncertain'; overallConfidence: number } {
+  if (chain.length === 0) {
+    return { verdict: 'uncertain', overallConfidence: 0.5 };
+  }
+
+  const avgConfidence = chain.reduce((sum, step) => sum + step.confidence, 0) / chain.length;
+
+  // Count how many steps have supporting evidence
+  const supportingSteps = chain.filter((step) =>
+    step.answer.toLowerCase().includes('yes') ||
+    step.answer.toLowerCase().includes('confirmed') ||
+    step.answer.toLowerCase().includes('found')
+  ).length;
+
+  const supportRatio = supportingSteps / chain.length;
+
+  if (supportRatio >= 0.7 && avgConfidence >= 0.6) {
+    return { verdict: 'verified', overallConfidence: avgConfidence };
+  } else if (supportRatio <= 0.3 || avgConfidence <= 0.3) {
+    return { verdict: 'refuted', overallConfidence: avgConfidence };
+  } else {
+    return { verdict: 'uncertain', overallConfidence: avgConfidence };
+  }
+}
+
+/**
+ * Generate revisions based on verification findings.
+ */
+function generateRevisions(originalClaim: string, chain: CoVeStep[]): string[] {
+  const revisions: string[] = [];
+
+  // Find steps that indicate corrections needed
+  for (const step of chain) {
+    if (step.answer.toLowerCase().includes('not confirmed') ||
+        step.answer.toLowerCase().includes('no ') ||
+        step.confidence < 0.4) {
+      // Generate a revision suggestion
+      const revision = `[Correction needed for: "${step.claim.slice(0, 50)}..."]`;
+      revisions.push(revision);
+    }
+  }
+
+  // If many corrections needed, suggest full revision
+  if (revisions.length >= chain.length * 0.5) {
+    revisions.unshift(`[Significant revision required] Original: "${originalClaim.slice(0, 100)}..."`);
+  }
+
+  return revisions;
+}
+
+// ============================================================================
 // CHAIN-OF-VERIFICATION CLASS
 // ============================================================================
 
 /**
- * Implements the Chain-of-Verification process for hallucination reduction.
+ * Chain-of-Verification class providing the complete verification pipeline.
  *
- * The 4-step process:
+ * Implements the 4-step CoVe process:
  * 1. Generate baseline response from query and context
  * 2. Plan verification questions by extracting claims
  * 3. Answer each verification question independently
@@ -241,7 +728,7 @@ export class ChainOfVerification {
     const { query, context, baselineResponse: providedBaseline } = input;
 
     // Step 1: Generate or use provided baseline
-    const baselineResponse = providedBaseline || await this.generateBaseline(query, context);
+    const baselineResponse = providedBaseline ?? await this.generateBaseline(query, context);
 
     // Step 2: Plan verification questions
     const verificationQuestions = this.planVerificationQuestions(baselineResponse);
@@ -298,8 +785,8 @@ export class ChainOfVerification {
     for (const line of context) {
       const lineLower = line.toLowerCase();
       // Check for keyword overlap
-      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 3);
-      const hasOverlap = queryWords.some(word => lineLower.includes(word));
+      const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 3);
+      const hasOverlap = queryWords.some((word) => lineLower.includes(word));
       if (hasOverlap) {
         relevantInfo.push(line);
       }
@@ -430,11 +917,11 @@ export class ChainOfVerification {
     const claimLower = question.targetClaim.toLowerCase();
 
     // Extract key terms from question and claim
-    const keyTerms = this.extractKeyTerms(questionLower + ' ' + claimLower);
+    const keyTerms = extractKeyTerms(questionLower + ' ' + claimLower);
 
     for (const line of context) {
       const lineLower = line.toLowerCase();
-      const matchCount = keyTerms.filter(term => lineLower.includes(term)).length;
+      const matchCount = keyTerms.filter((term) => lineLower.includes(term)).length;
 
       if (matchCount >= 1) {
         relevant.push(line);
@@ -442,20 +929,6 @@ export class ChainOfVerification {
     }
 
     return relevant;
-  }
-
-  /**
-   * Extract key terms from text
-   */
-  private extractKeyTerms(text: string): string[] {
-    const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'has', 'have', 'had',
-      'does', 'do', 'did', 'what', 'how', 'many', 'which', 'that', 'this', 'it']);
-
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => word.length > 2 && !stopWords.has(word));
   }
 
   /**
@@ -499,7 +972,7 @@ export class ChainOfVerification {
    */
   private extractNumericAnswer(
     context: string,
-    question: VerificationQuestion
+    _question: VerificationQuestion
   ): { answer: string; confidence: number } {
     // Look for numbers in context
     const numberMatch = context.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+\w+/gi);
@@ -533,8 +1006,8 @@ export class ChainOfVerification {
     const contextLower = context.toLowerCase();
 
     // Check if context supports the claim
-    const keyTerms = this.extractKeyTerms(claimLower);
-    const matchCount = keyTerms.filter(term => contextLower.includes(term)).length;
+    const keyTerms = extractKeyTerms(claimLower);
+    const matchCount = keyTerms.filter((term) => contextLower.includes(term)).length;
     const matchRatio = matchCount / keyTerms.length;
 
     if (matchRatio >= 0.5) {
@@ -555,20 +1028,20 @@ export class ChainOfVerification {
    */
   private extractFactualAnswer(context: string, question: VerificationQuestion): string {
     // For factual questions, return the most relevant portion of context
-    const sentences = context.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const sentences = context.split(/[.!?]+/).filter((s) => s.trim().length > 0);
 
     if (sentences.length === 0) {
       return 'No factual information found';
     }
 
     // Find most relevant sentence
-    const questionTerms = this.extractKeyTerms(question.question);
+    const questionTerms = extractKeyTerms(question.question);
     let bestSentence = sentences[0];
     let bestScore = 0;
 
     for (const sentence of sentences) {
       const sentenceLower = sentence.toLowerCase();
-      const score = questionTerms.filter(term => sentenceLower.includes(term)).length;
+      const score = questionTerms.filter((term) => sentenceLower.includes(term)).length;
       if (score > bestScore) {
         bestScore = score;
         bestSentence = sentence;
@@ -586,8 +1059,8 @@ export class ChainOfVerification {
     const answerLower = answer.toLowerCase();
 
     // Extract key terms from both
-    const claimTerms = this.extractKeyTerms(claimLower);
-    const answerTerms = this.extractKeyTerms(answerLower);
+    const claimTerms = extractKeyTerms(claimLower);
+    const answerTerms = extractKeyTerms(answerLower);
 
     // Check for contradictory indicators
     const contradictionIndicators = [
@@ -613,7 +1086,7 @@ export class ChainOfVerification {
     }
 
     // Check for term overlap
-    const overlap = claimTerms.filter(term => answerTerms.includes(term));
+    const overlap = claimTerms.filter((term) => answerTerms.includes(term));
     return overlap.length >= Math.min(2, claimTerms.length * 0.3);
   }
 
@@ -675,12 +1148,12 @@ export class ChainOfVerification {
    */
   private findClaimInBaseline(baseline: string, answer: VerificationAnswer): string {
     // Try to find a sentence containing key terms from the answer
-    const sentences = baseline.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    const answerTerms = this.extractKeyTerms(answer.answer);
+    const sentences = baseline.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+    const answerTerms = extractKeyTerms(answer.answer);
 
     for (const sentence of sentences) {
       const sentenceLower = sentence.toLowerCase();
-      const matchCount = answerTerms.filter(term => sentenceLower.includes(term)).length;
+      const matchCount = answerTerms.filter((term) => sentenceLower.includes(term)).length;
       if (matchCount >= 1) {
         return sentence.trim();
       }
@@ -700,7 +1173,7 @@ export class ChainOfVerification {
     let response = baseline;
 
     // Group answers by consistency
-    const inconsistentAnswers = answers.filter(a => !a.consistentWithBaseline);
+    const inconsistentAnswers = answers.filter((a) => !a.consistentWithBaseline);
 
     if (inconsistentAnswers.length === 0) {
       return baseline;
@@ -730,7 +1203,7 @@ export class ChainOfVerification {
     if (answerNumber !== null) {
       // Find and replace number in response
       const sentences = response.split(/([.!?]+)/);
-      const updatedSentences = sentences.map(sentence => {
+      const updatedSentences = sentences.map((sentence) => {
         const sentenceNumber = this.extractNumber(sentence.toLowerCase());
         if (sentenceNumber !== null && sentenceNumber !== answerNumber) {
           // Replace the number
@@ -765,11 +1238,11 @@ export class ChainOfVerification {
 
     // Find claim-related sentence and add hedging
     const sentences = response.split(/([.!?]+)/);
-    const answerTerms = this.extractKeyTerms(answer.answer);
+    const answerTerms = extractKeyTerms(answer.answer);
 
-    const updatedSentences = sentences.map(sentence => {
+    const updatedSentences = sentences.map((sentence) => {
       const sentenceLower = sentence.toLowerCase();
-      const matchCount = answerTerms.filter(term => sentenceLower.includes(term)).length;
+      const matchCount = answerTerms.filter((term) => sentenceLower.includes(term)).length;
 
       if (matchCount >= 1 && !this.hasHedging(sentence)) {
         // Add hedging to this sentence
@@ -789,7 +1262,7 @@ export class ChainOfVerification {
    */
   private hasHedging(sentence: string): boolean {
     const sentenceLower = sentence.toLowerCase();
-    return HEDGING_PHRASES.some(phrase => sentenceLower.includes(phrase));
+    return HEDGING_PHRASES.some((phrase) => sentenceLower.includes(phrase));
   }
 
   /**
@@ -800,8 +1273,8 @@ export class ChainOfVerification {
     answers: VerificationAnswer[],
     inconsistencies: Inconsistency[]
   ): VerificationResult['improvementMetrics'] {
-    const claimsVerified = answers.filter(a => a.consistentWithBaseline).length;
-    const claimsRevised = inconsistencies.filter(i => i.resolution === 'revised').length;
+    const claimsVerified = answers.filter((a) => a.consistentWithBaseline).length;
+    const claimsRevised = inconsistencies.filter((i) => i.resolution === 'revised').length;
 
     // Calculate confidence improvement
     const avgAnswerConfidence = answers.length > 0
@@ -840,7 +1313,7 @@ export class ChainOfVerification {
 
     // Calculate weighted average based on individual answer confidences
     const avgConfidence = answers.reduce((sum, a) => sum + a.confidence, 0) / answers.length;
-    const consistencyRate = answers.filter(a => a.consistentWithBaseline).length / answers.length;
+    const consistencyRate = answers.filter((a) => a.consistentWithBaseline).length / answers.length;
 
     // Combine average confidence with consistency rate
     const combinedConfidence = avgConfidence * 0.6 + consistencyRate * 0.4;
@@ -870,6 +1343,36 @@ export class ChainOfVerification {
    */
   private generateQuestionId(): string {
     return `vq-${++this.questionIdCounter}-${Date.now().toString(36)}`;
+  }
+
+  /**
+   * Convert a VerificationResult to a CoVeResult for the simplified API
+   */
+  toCoVeResult(verificationResult: VerificationResult): CoVeResult {
+    const verificationChain: CoVeStep[] = verificationResult.verificationQuestions.map((q, i) => {
+      const answer = verificationResult.verificationAnswers[i];
+      return {
+        claim: q.targetClaim,
+        verificationQuestion: q.question,
+        answer: answer?.answer ?? 'Unable to verify',
+        confidence: answer?.confidence ?? 0.1,
+        sources: answer?.sourceCitation ? [answer.sourceCitation] : [],
+      };
+    });
+
+    const { verdict, overallConfidence } = computeVerdict(verificationChain);
+
+    const revisions = verificationResult.inconsistencies
+      .filter((i) => i.resolution === 'revised')
+      .map((i) => `Revised: ${i.baselineClaim} -> ${i.verifiedClaim}`);
+
+    return {
+      originalClaim: verificationResult.baselineResponse,
+      verificationChain,
+      finalVerdict: verdict,
+      overallConfidence,
+      revisions,
+    };
   }
 }
 

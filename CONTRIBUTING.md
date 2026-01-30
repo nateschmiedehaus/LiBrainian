@@ -33,7 +33,7 @@ There are many ways to contribute:
 
 ### Before You Start
 
-1. Check existing [issues](https://github.com/wave0-ai/librarian/issues) and [PRs](https://github.com/wave0-ai/librarian/pulls)
+1. Check existing [issues](https://github.com/librarian-ai/librarian/issues) and [PRs](https://github.com/librarian-ai/librarian/pulls)
 2. For major changes, open an issue first to discuss
 3. Read our architecture docs in `docs/`
 
@@ -49,7 +49,7 @@ There are many ways to contribute:
 
 ```bash
 # Clone the repository
-git clone https://github.com/wave0-ai/librarian.git
+git clone https://github.com/librarian-ai/librarian.git
 cd librarian
 
 # Install dependencies
@@ -317,8 +317,8 @@ export async function query(options: QueryOptions): Promise<QueryResult> {
 ### Getting Help
 
 - **Discord**: [Join our Discord](https://discord.gg/anthropic)
-- **GitHub Discussions**: [Ask questions](https://github.com/wave0-ai/librarian/discussions)
-- **Issues**: [Report bugs](https://github.com/wave0-ai/librarian/issues)
+- **GitHub Discussions**: [Ask questions](https://github.com/librarian-ai/librarian/discussions)
+- **Issues**: [Report bugs](https://github.com/librarian-ai/librarian/issues)
 
 ### Recognition
 

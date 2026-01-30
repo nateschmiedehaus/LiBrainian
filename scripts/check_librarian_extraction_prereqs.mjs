@@ -69,7 +69,7 @@ async function main() {
     }
 
     if (pkg) {
-      if (pkg.name !== '@wave0/librarian') failures.push(`package_name_expected:@wave0/librarian got:${String(pkg.name)}`);
+      if (pkg.name !== 'librarian') failures.push(`package_name_expected:librarian got:${String(pkg.name)}`);
       if (pkg.type !== 'module') failures.push(`package_type_expected:module got:${String(pkg.type)}`);
       if (!pkg.exports || typeof pkg.exports !== 'object') failures.push('package_exports_missing');
       if (!pkg.bin || typeof pkg.bin !== 'object' || !pkg.bin.librarian) failures.push('package_bin_missing:librarian');

@@ -1,16 +1,16 @@
 {
-  "name": "@wave0/librarian",
-  "version": "0.1.0",
+  "name": "librarian",
+  "version": "0.2.0",
   "description": "The knowledge layer for agentic software development - semantic code understanding, quality detection, and best practices for AI coding agents",
   "author": "Nate Schmiedehaus",
   "license": "MIT",
-  "homepage": "https://github.com/wave0-ai/librarian#readme",
+  "homepage": "https://github.com/librarian-ai/librarian#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wave0-ai/librarian.git"
+    "url": "git+https://github.com/librarian-ai/librarian.git"
   },
   "bugs": {
-    "url": "https://github.com/wave0-ai/librarian/issues"
+    "url": "https://github.com/librarian-ai/librarian/issues"
   },
   "keywords": [
     "ai",
@@ -77,6 +77,12 @@
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
+    "test:unit": "LIBRARIAN_TEST_MODE=unit vitest",
+    "test:integration": "LIBRARIAN_TEST_MODE=integration vitest",
+    "test:heavy": "LIBRARIAN_TEST_MODE=heavy vitest",
+    "test:system": "LIBRARIAN_TEST_MODE=system vitest",
+    "test:sequential": "LIBRARIAN_TEST_WORKERS=1 vitest",
+    "test:conservative": "LIBRARIAN_RESOURCE_MODE=conservative vitest",
     "lint": "eslint src/ --ext .ts",
     "lint:fix": "eslint src/ --ext .ts --fix",
     "lint:filesize": "node scripts/check-file-sizes.mjs --all",

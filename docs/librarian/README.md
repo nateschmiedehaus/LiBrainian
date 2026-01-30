@@ -48,22 +48,43 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Super-brain implementation protocol -> `docs/librarian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`
 
 ## Canonical Doc Map
+
+### User-Facing Documentation
+- `docs/librarian/API.md` (comprehensive API reference)
+- `docs/librarian/EPISTEMICS.md` (epistemics framework guide - conative, temporal, intuitive, inference, quality gates)
+- `docs/librarian/AGENT_INTEGRATION.md` (agent integration patterns)
+- `docs/librarian/MCP_SERVER.md` (MCP server setup)
+
+### Verification Reports
+- `docs/librarian/test-verification-report.md` (780 tests across 10 new modules - 100% passing)
+
+### Architecture & Design
 - `/CODEX_ORCHESTRATOR.md` (full implementation + validation roadmap, Phases 0-22)
 - `docs/librarian/DOCS_ARCHITECTURE.md` (doc governance)
 - `docs/librarian/VISION.md` (why we exist)
 - `docs/librarian/SYSTEM_ARCHITECTURE.md` (components, boundaries, directory map)
+- `docs/librarian/ARCHITECTURE_EXCELLENCE_REVIEW.md` (architecture analysis)
 - `docs/librarian/UNDERSTANDING_LAYER.md` (knowledge primitives + constructions)
+
+### Use Cases & Scenarios
 - `docs/librarian/scenarios.md` (use-case taxonomy + prompts)
 - `docs/librarian/USE_CASE_MATRIX.md` (use-case matrix + dependencies + method catalog)
+
+### Implementation
 - `docs/librarian/PIPELINES_AND_WIRING.md` (end-to-end system wiring)
 - `docs/librarian/WORKPLAN.md` (phased build plan)
-- `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md` (Wave0 + external integration plan)
+- `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md` (integration plan)
 - `docs/librarian/PACKAGING_AND_ONBOARDING.md` (packaging + onboarding)
+- `docs/librarian/pending-items-analysis.md` (pending TODOs and roadmap items)
+
+### Operations
 - `docs/librarian/MODEL_POLICY.md` (daily model selection)
 - `docs/librarian/validation.md` (test and evidence gates, RAGAS-style metrics)
 - `docs/librarian/AUDIT.md` (audit runbook)
 - `docs/librarian/STATUS.md` (target vs reality, evidence linked)
 - `docs/librarian/GATES.json` (machine-readable gate status, layers 0-7)
+
+### Research & Planning
 - `docs/librarian/SUPER_BRAIN_PLAN.md` (Phase 6+: super-brain roadmap; planned)
 - `docs/librarian/MASTER.md` (working synthesis notes; not canonical)
 
@@ -77,7 +98,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Every scenario in `docs/librarian/scenarios.md` is answerable end-to-end.
 - Every row in `docs/librarian/USE_CASE_MATRIX.md` maps to architecture or plans.
 - No provider bypass, no fake embeddings, no unverified claims.
-- Librarian is the single source of understanding for Wave0.
+- Librarian is the single source of understanding for any codebase.
 - Any language is supported on first encounter with explicit evidence.
 
 ## Operational Rules (Hard)

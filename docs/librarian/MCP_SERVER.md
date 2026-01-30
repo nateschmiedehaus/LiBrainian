@@ -7,7 +7,7 @@ The Librarian MCP (Model Context Protocol) Server provides a standardized interf
 ## Quick Start
 
 ```typescript
-import { createLibrarianMCPServer, startStdioServer } from '@wave0/librarian/mcp';
+import { createLibrarianMCPServer, startStdioServer } from 'librarian/mcp';
 
 // Create and start server
 const server = await createLibrarianMCPServer({
@@ -303,7 +303,7 @@ All inputs are sanitized before processing:
 - Query validation
 
 ```typescript
-import { sanitizePath, sanitizeQuery } from '@wave0/librarian/security';
+import { sanitizePath, sanitizeQuery } from 'librarian/security';
 
 const pathResult = sanitizePath(userPath, {
   baseDir: workspace,
@@ -320,7 +320,7 @@ if (!pathResult.valid) {
 Built-in rate limiting with circuit breaker:
 
 ```typescript
-import { createDefaultRateLimiter } from '@wave0/librarian/security';
+import { createDefaultRateLimiter } from 'librarian/security';
 
 const rateLimiter = createDefaultRateLimiter();
 
@@ -335,7 +335,7 @@ if (!result.allowed) {
 Safe error handling with no sensitive data leakage:
 
 ```typescript
-import { withErrorBoundary, normalizeError } from '@wave0/librarian/security';
+import { withErrorBoundary, normalizeError } from 'librarian/security';
 
 const result = await withErrorBoundary(
   async () => await operation(),
@@ -366,7 +366,7 @@ The evaluation harness measures:
 ### Running Evaluations
 
 ```typescript
-import { createEvaluationHarness } from '@wave0/librarian/evaluation';
+import { createEvaluationHarness } from 'librarian/evaluation';
 
 const harness = createEvaluationHarness({
   cutoffK: 10,
@@ -425,7 +425,7 @@ const secureConfig = createSecureConfig({
 All tool inputs are validated against Zod schemas:
 
 ```typescript
-import { validateToolInput, getToolJsonSchema } from '@wave0/librarian/mcp';
+import { validateToolInput, getToolJsonSchema } from 'librarian/mcp';
 
 // Get JSON Schema for documentation
 const schema = getToolJsonSchema('query');
@@ -458,7 +458,7 @@ if (!validation.valid) {
 ### Programmatic Usage
 
 ```typescript
-import { Librarian, createLibrarianMCPServer } from '@wave0/librarian';
+import { Librarian, createLibrarianMCPServer } from 'librarian';
 
 // Initialize librarian
 const librarian = await Librarian.create({ workspace: '/path' });

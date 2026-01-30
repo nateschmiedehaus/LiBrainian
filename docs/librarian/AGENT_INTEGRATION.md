@@ -44,7 +44,7 @@ Truth source for “what runs today”: `docs/librarian/STATUS.md` and `packages
 Before any agent work begins, ensure Librarian is ready:
 
 ```typescript
-import { preOrchestrationHook, ensureLibrarianReady } from '@wave0/librarian';
+import { preOrchestrationHook, ensureLibrarianReady } from 'librarian';
 
 // Option 1: Simple hook (blocks until ready)
 await preOrchestrationHook(workspace);
@@ -62,7 +62,7 @@ const { librarian, wasBootstrapped, report } = await ensureLibrarianReady({
 When assembling task context for an agent:
 
 ```typescript
-import { enrichTaskContext, formatLibrarianContext } from '@wave0/librarian';
+import { enrichTaskContext, formatLibrarianContext } from 'librarian';
 
 // Get librarian context for a task
 const librarianContext = await enrichTaskContext(workspace, {
@@ -80,7 +80,7 @@ const formattedContext = formatLibrarianContext(librarianContext);
 Direct queries to the librarian:
 
 ```typescript
-import { queryLibrarian, createFunctionQuery, createRelatedQuery } from '@wave0/librarian';
+import { queryLibrarian, createFunctionQuery, createRelatedQuery } from 'librarian';
 
 // Intent-based query
 const results = await queryLibrarian(librarian, {
@@ -116,7 +116,7 @@ import {
   createTaskOutcomeFeedback,
   type AgentFeedback,
   type RelevanceRating
-} from '@wave0/librarian';
+} from 'librarian';
 
 // Create feedback from task outcome
 const feedback: AgentFeedback = {
@@ -152,7 +152,7 @@ console.log(result); // should include ledger entry IDs + any defeaters activate
 ### Automatic Feedback from Task Outcomes
 
 ```typescript
-import { createTaskOutcomeFeedback, processAgentFeedback } from '@wave0/librarian';
+import { createTaskOutcomeFeedback, processAgentFeedback } from 'librarian';
 
 // After task completion, create feedback automatically
 const feedback = createTaskOutcomeFeedback(
@@ -191,7 +191,7 @@ type QueryDepth = 'L0' | 'L1' | 'L2' | 'L3';
 ### Context Pack Structure
 
 ```typescript
-import type { ConfidenceValue } from '@wave0/librarian';
+import type { ConfidenceValue } from 'librarian';
 
 interface ContextPack {
   packId: string;
@@ -216,7 +216,7 @@ Otherwise, semantic confidence should be `absent('uncalibrated')` and the respon
 attach a VerificationPlan (how to prove/verify claims in this repo).
 
 ```typescript
-import { applyCalibrationToPacks, summarizeCalibration } from '@wave0/librarian';
+import { applyCalibrationToPacks, summarizeCalibration } from 'librarian';
 
 // Apply calibration to raw confidence scores
 const calibratedPacks = await applyCalibrationToPacks(packs, storage);
@@ -231,7 +231,7 @@ console.log(`Calibration error: ${summary.overallError}%`);
 ### Health Check
 
 ```typescript
-import { generateStateReport, assessHealth } from '@wave0/librarian';
+import { generateStateReport, assessHealth } from 'librarian';
 
 const report = await generateStateReport(storage);
 const health = assessHealth(report);
@@ -249,7 +249,7 @@ import {
   executeRecovery,
   getRecoveryStatus,
   DEFAULT_RECOVERY_BUDGET
-} from '@wave0/librarian';
+} from 'librarian';
 
 // Check recovery status
 const status = getRecoveryStatus();
@@ -283,7 +283,7 @@ import {
   collectConfidenceState,
   collectQueryPerformance,
   SLO_THRESHOLDS
-} from '@wave0/librarian';
+} from 'librarian';
 
 // Code graph health
 const graphHealth = await collectCodeGraphHealth(storage);
@@ -322,7 +322,7 @@ console.log(`P99 latency: ${performance.queryLatencyP99}ms`);
 When the agent modifies files, notify the librarian:
 
 ```typescript
-import { notifyFileChange, notifyFileChanges } from '@wave0/librarian';
+import { notifyFileChange, notifyFileChanges } from 'librarian';
 
 // Single file change
 await notifyFileChange(librarian, '/path/to/modified/file.ts');
@@ -339,7 +339,7 @@ await notifyFileChanges(librarian, [
 After agent work completes:
 
 ```typescript
-import { postOrchestrationHook, recordTaskOutcome } from '@wave0/librarian';
+import { postOrchestrationHook, recordTaskOutcome } from 'librarian';
 
 // Record task outcome for learning
 await recordTaskOutcome(librarian, {

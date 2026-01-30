@@ -9,6 +9,7 @@
  * See docs/librarian/specs/core/testing-architecture.md for complete policy.
  */
 
+import os from 'os';
 import { vi, beforeAll, afterAll } from 'vitest';
 
 const LIBRARIAN_TEST_MODE = process.env.LIBRARIAN_TEST_MODE ?? 'unit';
@@ -91,6 +92,13 @@ beforeAll(() => {
     } else if (LIBRARIAN_TEST_MODE === 'system') {
       console.log('[vitest.setup] System mode - tests require real providers');
     }
+
+    // Log resource information
+    const cpuCores = os.cpus().length;
+    const totalMemoryGB = (os.totalmem() / (1024 ** 3)).toFixed(1);
+    const freeMemoryGB = (os.freemem() / (1024 ** 3)).toFixed(1);
+    const loadAvg = os.loadavg()[0]?.toFixed(2) ?? 'N/A';
+    console.log(`[vitest.setup] System: ${cpuCores} cores, ${freeMemoryGB}GB free / ${totalMemoryGB}GB total, load: ${loadAvg}`);
   }
 });
 

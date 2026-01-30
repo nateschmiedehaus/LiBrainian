@@ -22,13 +22,15 @@
 11. [Technique Catalog and Planning](#technique-catalog-and-planning)
 12. [Data Structures Reference](#data-structures-reference)
 13. [Error Handling](#error-handling)
+14. [Epistemics API](#epistemics-api)
+15. [Resource Management API](#resource-management-api)
 
 ---
 
 ## Quick Start
 
 ```typescript
-import { Librarian } from '@wave0/librarian';
+import { Librarian } from 'librarian';
 
 // Initialize the librarian
 const librarian = new Librarian({
@@ -158,7 +160,7 @@ interface LibrarianResponse {
 
 ```typescript
 // Pre-built query creators
-import { createFunctionQuery, createFileQuery, createRelatedQuery } from '@wave0/librarian';
+import { createFunctionQuery, createFileQuery, createRelatedQuery } from 'librarian';
 
 // Query about a specific function
 const response = await librarian.query(
@@ -246,7 +248,7 @@ const knowledge = await librarian.queryKnowledge({
 ### Check Bootstrap Status
 
 ```typescript
-import { isBootstrapRequired } from '@wave0/librarian';
+import { isBootstrapRequired } from 'librarian';
 
 const { required, reason } = await isBootstrapRequired(
   workspace: string,
@@ -315,7 +317,7 @@ interface BootstrapReport {
 ### Manual Bootstrap
 
 ```typescript
-import { bootstrapProject } from '@wave0/librarian';
+import { bootstrapProject } from 'librarian';
 
 const report = await bootstrapProject(config, storage);
 
@@ -747,7 +749,7 @@ import {
   DEFAULT_TECHNIQUE_COMPOSITIONS,
   listTechniquePackages,
   compileTechniquePackageBundleById,
-} from '@wave0/librarian';
+} from 'librarian';
 
 const primitives = DEFAULT_TECHNIQUE_PRIMITIVES;
 const compositions = DEFAULT_TECHNIQUE_COMPOSITIONS;
@@ -768,7 +770,7 @@ import {
   getRelationshipSemantics,
   registerOperatorSemantics,
   lockTechniqueSemanticsRegistry,
-} from '@wave0/librarian';
+} from 'librarian';
 
 const profile = getTechniqueSemanticProfile('verification');
 const operatorSemantics = getOperatorSemantics('gate');
@@ -2382,7 +2384,7 @@ Pre-mortem analysis anticipates failures *before* they occur. Use this when plan
 ### Pre-Mortem Query API
 
 ```typescript
-import type { PreMortemRequest, PreMortemResult, PreMortemCategory } from '@wave0/librarian';
+import type { PreMortemRequest, PreMortemResult, PreMortemCategory } from 'librarian';
 
 // Basic pre-mortem for a set of files
 const premortem = await librarian.query({
@@ -2560,7 +2562,7 @@ const PRE_MORTEM_CHECKLIST: Record<PreMortemCategory, ChecklistItem[]> = {
 ### Slop Detection Query API
 
 ```typescript
-import type { SlopDetectionRequest, SlopDetectionResult, SlopPattern } from '@wave0/librarian';
+import type { SlopDetectionRequest, SlopDetectionResult, SlopPattern } from 'librarian';
 
 // Basic slop detection
 const slopAnalysis = await librarian.query({
@@ -2734,7 +2736,7 @@ import type {
   ProblemDetectionResult,
   ProblemCategory,
   DetectedProblem
-} from '@wave0/librarian';
+} from 'librarian';
 
 // Quick health check
 const health = await librarian.query({
@@ -3042,7 +3044,7 @@ async function preCommitCheck(): Promise<void> {
 When problems are detected, use these strategies to recover:
 
 ```typescript
-import type { RecoveryStrategy, ProblemCategory } from '@wave0/librarian';
+import type { RecoveryStrategy, ProblemCategory } from 'librarian';
 
 const RECOVERY_STRATEGIES: Record<string, RecoveryStrategy> = {
   memory_leak: {
@@ -3128,6 +3130,237 @@ async function getRecoveryPlan(problemType: string): Promise<RecoveryStrategy | 
 
 ---
 
+## Epistemics API
+
+The Epistemics module provides principled confidence handling, evidence tracking, and reasoning validation. For comprehensive documentation, see [EPISTEMICS.md](./EPISTEMICS.md).
+
+### Quick Reference
+
+```typescript
+import {
+  // Confidence types
+  deterministic,
+  bounded,
+  absent,
+  getNumericValue,
+  meetsThreshold,
+  sequenceConfidence,
+  parallelAllConfidence,
+
+  // Evidence tracking
+  createEvidenceLedger,
+  exportToPROVJSON,
+
+  // Defeaters
+  detectDefeaters,
+  applyDefeaters,
+
+  // Calibration
+  ClaimOutcomeTracker,
+  computeCalibrationCurve,
+  adjustConfidenceScore,
+
+  // Conative attitudes
+  createIntention,
+  createGoal,
+  createPreference,
+  createBDIAgentState,
+
+  // Temporal grounding
+  constructTemporalGrounding,
+  isGroundingValid,
+  detectStaleGroundings,
+
+  // Inference auditing
+  auditInference,
+  auditChain,
+  detectFallacy,
+
+  // Quality gates
+  createQualityGate,
+  evaluateGate,
+  getStandardGates,
+} from 'librarian/epistemics';
+```
+
+### Confidence System
+
+```typescript
+// Create typed confidence values
+const certain = deterministic(0.95);        // Known exactly
+const uncertain = bounded(0.6, 0.8);        // Interval [0.6, 0.8]
+const unknown = absent('data_unavailable'); // Unknown with reason
+
+// Combine confidences
+const sequential = sequenceConfidence([c1, c2]); // min semantics
+const parallel = parallelAllConfidence([c1, c2]); // all must succeed
+
+// Check thresholds
+if (meetsThreshold(result.confidence, 0.8)) {
+  // High confidence - proceed autonomously
+} else {
+  // Low confidence - request review
+}
+```
+
+### Evidence Ledger
+
+```typescript
+const ledger = await createEvidenceLedger('./librarian.db');
+
+// Track evidence
+await ledger.append({
+  id: createEvidenceId(),
+  sessionId,
+  timestamp: new Date(),
+  kind: 'claim',
+  provenance: { source: 'analysis', agentId: 'librarian' },
+  payload: { /* ... */ },
+});
+
+// Export to W3C PROV format
+const prov = await exportToPROVJSON(entries);
+```
+
+### Quality Gates
+
+```typescript
+// Standard quality gate chain
+const gates = createGateChain([
+  getStandardGates().minConfidence(0.7),
+  getStandardGates().noUnresolvedDefeaters(),
+  getStandardGates().temporalValidity(),
+]);
+
+const result = await gates.evaluate(context);
+if (!result.allPassed) {
+  for (const failure of result.failures) {
+    console.log(`Failed: ${failure.gateName}`);
+    console.log(`Fix: ${failure.recommendations.join(', ')}`);
+  }
+}
+```
+
+### Temporal Grounding
+
+```typescript
+import { constructTemporalGrounding, TEMPORAL_PRESETS } from 'librarian/epistemics';
+
+// Create grounding with preset
+const grounding = constructTemporalGrounding({
+  groundingId: 'g-001',
+  originalStrength: 0.9,
+  preset: 'medium_term', // 7 days validity with exponential decay
+});
+
+// Check validity
+if (!isGroundingValid(grounding)) {
+  console.log('Knowledge is stale - needs refresh');
+}
+```
+
+### Inference Auditing
+
+```typescript
+// Audit reasoning chain
+const audit = auditChain(inferenceSteps);
+
+for (const fallacy of audit.fallacies) {
+  console.log(`Fallacy: ${fallacy.type} (${fallacy.severity})`);
+  console.log(`Fix: ${suggestFix(fallacy)}`);
+}
+```
+
+For complete API documentation and examples, see [EPISTEMICS.md](./EPISTEMICS.md).
+
+---
+
+## Resource Management API
+
+Librarian includes resource monitoring and adaptive pool management for production deployments.
+
+### Resource Monitor
+
+```typescript
+import { createResourceMonitor, ResourceMonitor } from 'librarian/api';
+
+const monitor = createResourceMonitor({
+  checkIntervalMs: 1000,
+  memoryWarningThreshold: 0.7,   // 70% of heap
+  memoryCriticalThreshold: 0.9, // 90% of heap
+  onWarning: (metrics) => console.log('Memory warning:', metrics),
+  onCritical: (metrics) => console.log('Memory critical:', metrics),
+});
+
+// Start monitoring
+monitor.start();
+
+// Get current metrics
+const metrics = monitor.getMetrics();
+console.log(`Heap used: ${metrics.heapUsedMB}MB / ${metrics.heapTotalMB}MB`);
+console.log(`External: ${metrics.externalMB}MB`);
+
+// Check thresholds
+if (monitor.isMemoryPressure()) {
+  // Reduce concurrent operations
+}
+
+// Stop monitoring
+monitor.stop();
+```
+
+### Adaptive Pool
+
+```typescript
+import { createAdaptivePool } from 'librarian/api';
+
+const pool = createAdaptivePool({
+  minSize: 2,
+  maxSize: 10,
+  targetUtilization: 0.7,
+  scaleUpThreshold: 0.85,
+  scaleDownThreshold: 0.3,
+  cooldownMs: 5000,
+});
+
+// Acquire resource
+const resource = await pool.acquire();
+try {
+  // Use resource
+  await doWork(resource);
+} finally {
+  // Release back to pool
+  pool.release(resource);
+}
+
+// Get pool stats
+const stats = pool.getStats();
+console.log(`Pool size: ${stats.currentSize}`);
+console.log(`In use: ${stats.inUse}`);
+console.log(`Utilization: ${stats.utilization}`);
+```
+
+### Governor Integration
+
+Resource management integrates with the Governor system for backpressure:
+
+```typescript
+const governor = createGovernor({
+  resourceMonitor: monitor,
+  backpressure: {
+    enabled: true,
+    warningDelayMs: 100,
+    criticalDelayMs: 500,
+    criticalRejectRate: 0.5,
+  },
+});
+
+// Governor automatically throttles under memory pressure
+const result = await governor.execute(task);
+```
+
+---
+
 ## Related Documentation
 
 - [VISION.md](./VISION.md) - Architectural vision and principles
@@ -3136,3 +3369,4 @@ async function getRecoveryPlan(problemType: string): Promise<RecoveryStrategy | 
 - [CONFIDENCE_DECAY.md](./CONFIDENCE_DECAY.md) - Confidence model details
 - [MCP_SERVER.md](./MCP_SERVER.md) - MCP server integration
 - [AGENTIC_PROBLEM_DETECTION.md](./AGENTIC_PROBLEM_DETECTION.md) - Full problem detection guide
+- [EPISTEMICS.md](./EPISTEMICS.md) - Full epistemics framework documentation

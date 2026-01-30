@@ -1466,7 +1466,7 @@ rg "confidence:\s*0\.\d" packages/librarian/src/tiered --glob '*.ts' | wc -l
 # Should return 0
 
 # Verify tier exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Tier'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Tier'))))"
 ```
 
 ---

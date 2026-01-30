@@ -1794,7 +1794,7 @@ interface DebuggingOutcome {
 cd packages/librarian && npx vitest run src/api/debugging/__tests__/
 
 # Verify exports
-node -e "import('@wave0/librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Debug'))))"
+node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Debug'))))"
 
 # Start debugging session (when implemented)
 cd packages/librarian && npx tsx src/cli/index.ts debug --symptom "TypeError: Cannot read property 'user' of undefined"

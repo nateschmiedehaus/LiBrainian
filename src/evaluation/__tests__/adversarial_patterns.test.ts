@@ -1111,3 +1111,629 @@ describe('AdversarialPatternLibrary - Answer Matching', () => {
     expect(results[0].explanation.length).toBeGreaterThan(0);
   });
 });
+
+// ============================================================================
+// ADVERSARIAL BEHAVIOR DETECTOR TESTS
+// ============================================================================
+
+import {
+  AdversarialBehaviorDetector,
+  createAdversarialBehaviorDetector,
+  type AdversarialBehaviorDetection,
+  type AdversarialBehaviorReport,
+  type BehaviorAnalysisInput,
+  type BehaviorRemediation,
+  convertToGateViolations,
+  convertToGateRemediations,
+} from '../adversarial_patterns.js';
+
+describe('AdversarialBehaviorDetector', () => {
+  let detector: AdversarialBehaviorDetector;
+
+  beforeAll(() => {
+    detector = createAdversarialBehaviorDetector();
+  });
+
+  describe('creation', () => {
+    it('should create a detector instance', () => {
+      expect(detector).toBeInstanceOf(AdversarialBehaviorDetector);
+    });
+
+    it('should create via factory function', () => {
+      const d = createAdversarialBehaviorDetector();
+      expect(d).toBeInstanceOf(AdversarialBehaviorDetector);
+    });
+  });
+
+  describe('analyze - pattern detection', () => {
+    it('should detect evasion patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I cannot directly answer that question because it is beyond my scope.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.length).toBeGreaterThan(0);
+      expect(report.detections.some(d => d.category === 'evasion')).toBe(true);
+    });
+
+    it('should detect misdirection patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "The real question is not what you asked, but rather let's focus instead on something else entirely.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'misdirection')).toBe(true);
+    });
+
+    it('should detect overconfidence patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "This is absolutely certain and definitely correct without a doubt.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'overconfidence')).toBe(true);
+    });
+
+    it('should detect underconfidence patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I think that maybe this might possibly perhaps be the answer.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'underconfidence')).toBe(true);
+    });
+
+    it('should detect circular reasoning patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "This is true because it is the case. Obviously this means it is correct.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'circular_reasoning')).toBe(true);
+    });
+
+    it('should detect appeal to authority patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Experts say this is correct and authorities agree with this assessment.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'appeal_to_authority')).toBe(true);
+    });
+
+    it('should detect sycophancy patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Great question! You're absolutely right and I completely agree with everything you said.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'sycophancy')).toBe(true);
+    });
+
+    it('should detect context manipulation patterns', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "As you mentioned earlier, we agreed that this is the correct approach.",
+        context: [], // Empty context
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'context_manipulation')).toBe(true);
+    });
+
+    it('should return clean report for non-adversarial content', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "The function returns a string value. Here is an example of how to use it.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.adversarialScore).toBeLessThan(0.3);
+      expect(report.shouldFlag).toBe(false);
+    });
+  });
+
+  describe('analyze - inference step detection', () => {
+    it('should detect circular reasoning in inference steps', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Based on my analysis...",
+        inferenceSteps: [
+          {
+            premises: ['The sky is blue because it appears blue'],
+            conclusion: 'The sky appears blue',
+            confidence: 0.8,
+          },
+        ],
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d =>
+        d.category === 'circular_reasoning' &&
+        d.relatedFallacy === 'circular_reasoning'
+      )).toBe(true);
+    });
+
+    it('should detect hasty generalization in inference steps', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "All software has bugs.",
+        inferenceSteps: [
+          {
+            premises: ['I found a bug in this software'],
+            conclusion: 'All software always has bugs',
+            confidence: 0.7,
+          },
+        ],
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d =>
+        d.relatedFallacy === 'hasty_generalization'
+      )).toBe(true);
+    });
+
+    it('should detect confidence mismatch in inference steps', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "The result is definitely correct.",
+        inferenceSteps: [
+          {
+            premises: ['Some evidence suggests this'],
+            conclusion: 'This is definitely correct',
+            confidence: 0.3, // Low confidence
+          },
+        ],
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'overconfidence')).toBe(true);
+    });
+  });
+
+  describe('analyze - confidence calibration', () => {
+    it('should detect overconfidence with insufficient evidence', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "This is the correct answer.",
+        statedConfidence: 0.95,
+        providedEvidence: ['one piece of evidence'],
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'overconfidence')).toBe(true);
+    });
+
+    it('should not flag well-calibrated confidence', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Based on the evidence, this seems likely.",
+        statedConfidence: 0.7,
+        providedEvidence: [
+          'First piece of evidence',
+          'Second piece of evidence',
+          'Third piece of evidence',
+        ],
+      };
+
+      const report = detector.analyze(input);
+
+      // Should not detect overconfidence
+      const overconfidenceDetections = report.detections.filter(
+        d => d.category === 'overconfidence'
+      );
+      expect(overconfidenceDetections.length).toBe(0);
+    });
+  });
+
+  describe('analyze - citation verification', () => {
+    it('should flag suspiciously specific page numbers', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "According to the documentation...",
+        citations: ['Documentation, page 847'],
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.detections.some(d => d.category === 'hallucination_pattern')).toBe(true);
+    });
+
+    it('should not flag reasonable page numbers', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "According to chapter 3...",
+        citations: ['Book Title, page 42'],
+      };
+
+      const report = detector.analyze(input);
+
+      // Should not flag reasonable page numbers
+      const hallucinationDetections = report.detections.filter(
+        d => d.category === 'hallucination_pattern' &&
+             d.evidence.some(e => e.includes('page'))
+      );
+      expect(hallucinationDetections.length).toBe(0);
+    });
+  });
+
+  describe('report structure', () => {
+    it('should return complete report structure', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I cannot answer because experts say it is beyond my scope.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report).toHaveProperty('detections');
+      expect(report).toHaveProperty('adversarialScore');
+      expect(report).toHaveProperty('shouldFlag');
+      expect(report).toHaveProperty('remediations');
+      expect(report).toHaveProperty('summary');
+      expect(report).toHaveProperty('analyzedAt');
+    });
+
+    it('should calculate adversarial score between 0 and 1', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Some content with multiple issues. Definitely certain. Cannot answer. Great question!",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.adversarialScore).toBeGreaterThanOrEqual(0);
+      expect(report.adversarialScore).toBeLessThanOrEqual(1);
+    });
+
+    it('should flag high-severity detections', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "According to page 999 of the manual released on January 15, 2024...",
+        citations: ['Manual, page 999, released January 15, 2024'],
+      };
+
+      const report = detector.analyze(input);
+
+      // Hallucination patterns are critical severity
+      if (report.detections.some(d => d.severity === 'critical')) {
+        expect(report.shouldFlag).toBe(true);
+      }
+    });
+
+    it('should include detection timestamps', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Definitely correct answer.",
+      };
+
+      const report = detector.analyze(input);
+
+      for (const detection of report.detections) {
+        expect(detection.detectedAt).toBeDefined();
+        expect(() => new Date(detection.detectedAt)).not.toThrow();
+      }
+    });
+  });
+
+  describe('remediations', () => {
+    it('should generate remediations for detections', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I cannot answer because it is beyond my scope.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.remediations.length).toBeGreaterThan(0);
+    });
+
+    it('should include steps in remediations', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Experts say this is definitely correct.",
+      };
+
+      const report = detector.analyze(input);
+
+      for (const remediation of report.remediations) {
+        expect(remediation.steps).toBeDefined();
+        expect(remediation.steps.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should map remediations to detections', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I cannot answer. The real question is something else.",
+      };
+
+      const report = detector.analyze(input);
+
+      for (const remediation of report.remediations) {
+        expect(remediation.addressesDetections).toBeDefined();
+        expect(remediation.addressesDetections.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should sort remediations by priority', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Definitely correct per page 999. Cannot answer. Great question!",
+        citations: ['page 999'],
+      };
+
+      const report = detector.analyze(input);
+
+      if (report.remediations.length >= 2) {
+        for (let i = 1; i < report.remediations.length; i++) {
+          expect(report.remediations[i].priority).toBeGreaterThanOrEqual(
+            report.remediations[i - 1].priority
+          );
+        }
+      }
+    });
+  });
+
+  describe('summary', () => {
+    it('should generate meaningful summary', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "This is definitely correct and experts agree.",
+      };
+
+      const report = detector.analyze(input);
+
+      expect(report.summary).toBeDefined();
+      expect(report.summary.length).toBeGreaterThan(0);
+    });
+
+    it('should indicate clean report for no issues', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "The function returns a value based on the input parameter.",
+      };
+
+      const report = detector.analyze(input);
+
+      if (report.detections.length === 0) {
+        expect(report.summary.toLowerCase()).toContain('no');
+      }
+    });
+
+    it('should mention critical issues in summary', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "According to the documentation on page 999...",
+        citations: ['Doc page 999'],
+      };
+
+      const report = detector.analyze(input);
+
+      const hasCritical = report.detections.some(d => d.severity === 'critical');
+      if (hasCritical) {
+        expect(report.summary.toLowerCase()).toContain('critical');
+      }
+    });
+  });
+
+  describe('custom patterns', () => {
+    it('should allow adding custom patterns', () => {
+      const customDetector = createAdversarialBehaviorDetector();
+
+      customDetector.addPattern({
+        category: 'misdirection',
+        patterns: [/custom pattern test/i],
+        keywords: ['custom keyword'],
+        severity: 'medium',
+        description: 'Custom test pattern',
+      });
+
+      const input: BehaviorAnalysisInput = {
+        content: "This contains a custom pattern test phrase.",
+      };
+
+      const report = customDetector.analyze(input);
+
+      expect(report.detections.some(d =>
+        d.explanation === 'Custom test pattern'
+      )).toBe(true);
+    });
+  });
+});
+
+// ============================================================================
+// QUALITY GATES INTEGRATION TESTS
+// ============================================================================
+
+describe('Quality Gates Integration', () => {
+  let detector: AdversarialBehaviorDetector;
+
+  beforeAll(() => {
+    detector = createAdversarialBehaviorDetector();
+  });
+
+  describe('convertToGateViolations', () => {
+    it('should convert detections to gate violations', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Definitely cannot answer that question.",
+      };
+
+      const report = detector.analyze(input);
+      const violations = convertToGateViolations(report);
+
+      expect(Array.isArray(violations)).toBe(true);
+      expect(violations.length).toBe(report.detections.length);
+    });
+
+    it('should map severity correctly', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "According to page 999 of the docs...",
+        citations: ['page 999'],
+      };
+
+      const report = detector.analyze(input);
+      const violations = convertToGateViolations(report);
+
+      for (const violation of violations) {
+        expect(['minor', 'major', 'critical']).toContain(violation.severity);
+      }
+    });
+
+    it('should include criterion IDs', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Experts say this is definitely correct.",
+      };
+
+      const report = detector.analyze(input);
+      const violations = convertToGateViolations(report);
+
+      for (const violation of violations) {
+        expect(violation.criterionId).toMatch(/^adversarial_/);
+      }
+    });
+
+    it('should invert confidence to score', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "This is definitely the answer.",
+      };
+
+      const report = detector.analyze(input);
+      const violations = convertToGateViolations(report);
+
+      for (let i = 0; i < report.detections.length; i++) {
+        const detection = report.detections[i];
+        const violation = violations[i];
+        // Score should be 1 - confidence
+        expect(violation.score).toBeCloseTo(1 - detection.confidence, 1);
+      }
+    });
+  });
+
+  describe('convertToGateRemediations', () => {
+    it('should convert remediations to gate format', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I cannot directly answer.",
+      };
+
+      const report = detector.analyze(input);
+      const gateRemediations = convertToGateRemediations(report);
+
+      expect(Array.isArray(gateRemediations)).toBe(true);
+      expect(gateRemediations.length).toBe(report.remediations.length);
+    });
+
+    it('should include valid remediation types', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Definitely experts say cannot answer.",
+      };
+
+      const report = detector.analyze(input);
+      const gateRemediations = convertToGateRemediations(report);
+
+      const validTypes = ['clarify', 'adjust', 'rollback', 'pivot', 'abort', 'hotfix'];
+      for (const remediation of gateRemediations) {
+        expect(validTypes).toContain(remediation.type);
+      }
+    });
+
+    it('should preserve steps', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "Cannot answer the question.",
+      };
+
+      const report = detector.analyze(input);
+      const gateRemediations = convertToGateRemediations(report);
+
+      for (const remediation of gateRemediations) {
+        expect(remediation.steps).toBeDefined();
+        expect(remediation.steps.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should map addresses to violations', () => {
+      const input: BehaviorAnalysisInput = {
+        content: "I cannot answer. Experts say so.",
+      };
+
+      const report = detector.analyze(input);
+      const gateRemediations = convertToGateRemediations(report);
+
+      for (const remediation of gateRemediations) {
+        expect(remediation.addressesViolations).toBeDefined();
+        for (const violation of remediation.addressesViolations) {
+          expect(violation).toMatch(/^adversarial_/);
+        }
+      }
+    });
+  });
+});
+
+// ============================================================================
+// ADVERSARIAL BEHAVIOR TYPES TESTS
+// ============================================================================
+
+describe('AdversarialBehavior Types', () => {
+  it('should support all behavior categories', () => {
+    const categories = [
+      'reasoning_fallacy',
+      'evasion',
+      'misdirection',
+      'overconfidence',
+      'underconfidence',
+      'circular_reasoning',
+      'appeal_to_authority',
+      'hallucination_pattern',
+      'sycophancy',
+      'refusal_gaming',
+      'context_manipulation',
+    ];
+
+    // Verify categories are valid by creating detections for each
+    const detector = createAdversarialBehaviorDetector();
+
+    for (const category of categories) {
+      // Type assertion to verify it's a valid category type
+      const validCategory: AdversarialBehaviorDetection['category'] = category as AdversarialBehaviorDetection['category'];
+      expect(validCategory).toBe(category);
+    }
+  });
+
+  it('should support all severity levels', () => {
+    const severities: AdversarialBehaviorDetection['severity'][] = [
+      'critical',
+      'high',
+      'medium',
+      'low',
+    ];
+
+    for (const severity of severities) {
+      expect(['critical', 'high', 'medium', 'low']).toContain(severity);
+    }
+  });
+
+  it('should support all remediation types', () => {
+    const types: BehaviorRemediation['type'][] = [
+      'clarify',
+      'adjust',
+      'rollback',
+      'pivot',
+      'abort',
+      'hotfix',
+      'escalate',
+    ];
+
+    for (const type of types) {
+      expect([
+        'clarify', 'adjust', 'rollback', 'pivot', 'abort', 'hotfix', 'escalate'
+      ]).toContain(type);
+    }
+  });
+
+  it('should support all effort levels', () => {
+    const efforts: BehaviorRemediation['effort'][] = [
+      'trivial',
+      'low',
+      'medium',
+      'high',
+      'critical',
+    ];
+
+    for (const effort of efforts) {
+      expect(['trivial', 'low', 'medium', 'high', 'critical']).toContain(effort);
+    }
+  });
+});

@@ -1879,6 +1879,383 @@ function getMajorVersion(version: string): number | null {
 }
 
 // ============================================================================
+// FIXED-POINT DEFEATER RESOLUTION (GROUNDED SEMANTICS)
+// ============================================================================
+
+/**
+ * Graph representation of defeater attack relations.
+ *
+ * Based on Dung's Abstract Argumentation Frameworks (1995), where:
+ * - Nodes are arguments (defeaters)
+ * - Edges represent attacks (one defeater defeating another)
+ *
+ * This structure enables computation of various argumentation semantics,
+ * particularly the grounded extension which provides the most skeptical
+ * (cautious) set of accepted arguments.
+ *
+ * @see Dung, P.M. (1995) "On the Acceptability of Arguments and its
+ *      Fundamental Role in Nonmonotonic Reasoning"
+ */
+export interface DefeaterGraph {
+  /** All defeaters indexed by ID */
+  nodes: Map<string, ExtendedDefeater>;
+  /** Attack relation: defeaterId -> set of defeated defeater IDs */
+  edges: Map<string, Set<string>>;
+}
+
+/**
+ * Result of computing the grounded extension of a defeater graph.
+ *
+ * The grounded extension is the minimal complete extension, computed via
+ * Kleene iteration starting from the empty set. It represents the
+ * "skeptical" conclusion: only defeaters that must be accepted are accepted.
+ *
+ * For cycles (A defeats B, B defeats C, C defeats A), no member of the
+ * cycle will be in the accepted or rejected sets - they remain undecided.
+ * This is the principled behavior under grounded semantics.
+ *
+ * @see Baroni, P. & Giacomin, M. (2009) "Semantics of Abstract Argument Systems"
+ */
+export interface GroundedExtension {
+  /** Defeaters that survive (not defeated by any accepted defeater) */
+  accepted: Set<string>;
+  /** Defeaters that are defeated by an accepted defeater */
+  rejected: Set<string>;
+  /** Defeaters in cycles with no stable status */
+  undecided: Set<string>;
+  /** Number of Kleene iterations performed */
+  iterations: number;
+  /** Whether the iteration converged to a fixed point */
+  converged: boolean;
+}
+
+/**
+ * Build a defeater graph from a list of defeaters.
+ *
+ * Constructs the attack relation from the `defeatedBy` field on each defeater.
+ * If defeater A has defeater B in its `defeatedBy` list, then B attacks A
+ * (i.e., there's an edge from B to A in the graph).
+ *
+ * @param defeaters - Array of defeaters to include in the graph
+ * @returns DefeaterGraph with nodes and edges populated
+ *
+ * @example
+ * ```typescript
+ * const defeaters = [
+ *   { id: 'A', defeatedBy: ['B'] },  // B attacks A
+ *   { id: 'B', defeatedBy: ['C'] },  // C attacks B
+ *   { id: 'C', defeatedBy: [] },     // C is unattacked
+ * ];
+ * const graph = buildDefeaterGraph(defeaters);
+ * // graph.edges: { 'B' -> {'A'}, 'C' -> {'B'} }
+ * ```
+ */
+export function buildDefeaterGraph(defeaters: ExtendedDefeater[]): DefeaterGraph {
+  const nodes = new Map<string, ExtendedDefeater>();
+  const edges = new Map<string, Set<string>>();
+
+  // First pass: populate nodes and initialize empty edge sets
+  for (const defeater of defeaters) {
+    nodes.set(defeater.id, defeater);
+    edges.set(defeater.id, new Set<string>());
+  }
+
+  // Second pass: build attack relation from defeatedBy
+  // If defeater A is defeated by defeater B, then B attacks A
+  for (const defeater of defeaters) {
+    if (defeater.defeatedBy && defeater.defeatedBy.length > 0) {
+      for (const attackerId of defeater.defeatedBy) {
+        // Only add edge if attacker is in the graph
+        if (nodes.has(attackerId)) {
+          const attackerEdges = edges.get(attackerId);
+          if (attackerEdges) {
+            attackerEdges.add(defeater.id);
+          }
+        }
+      }
+    }
+  }
+
+  return { nodes, edges };
+}
+
+/**
+ * Compute the grounded extension of a defeater graph using Kleene iteration.
+ *
+ * The grounded semantics is defined as the least fixed point of the
+ * characteristic function F, where:
+ *
+ *   F(S) = { d | no attacker of d is in S and all attackers of d are attacked by S }
+ *
+ * For practical computation, we use the equivalent iterative definition:
+ * 1. Start with accepted = empty, rejected = empty
+ * 2. Add to accepted: defeaters with no unrejected attackers
+ * 3. Add to rejected: defeaters attacked by accepted defeaters
+ * 4. Repeat until no changes (fixed point)
+ *
+ * Defeaters not in accepted or rejected after convergence are undecided
+ * (typically involved in cycles).
+ *
+ * This implements Dung's grounded semantics which satisfies:
+ * - Conflict-free: No two accepted defeaters attack each other
+ * - Admissible: All accepted defeaters defend themselves
+ * - Complete: All defended defeaters are accepted
+ * - Grounded: Minimal complete extension (most skeptical)
+ *
+ * @param graph - The defeater graph to analyze
+ * @param maxIterations - Maximum iterations before stopping (default: 1000)
+ * @returns GroundedExtension with accepted, rejected, and undecided sets
+ *
+ * @example
+ * ```typescript
+ * // Linear chain: C attacks B, B attacks A
+ * // Result: C accepted, B rejected, A accepted (reinstated)
+ *
+ * // Cycle: A attacks B, B attacks C, C attacks A
+ * // Result: All undecided (no fixed point for any of them)
+ * ```
+ */
+export function computeGroundedExtension(
+  graph: DefeaterGraph,
+  maxIterations: number = 1000
+): GroundedExtension {
+  const accepted = new Set<string>();
+  const rejected = new Set<string>();
+  let iterations = 0;
+
+  // Build reverse attack map: who attacks this defeater?
+  const attackedBy = new Map<string, Set<string>>();
+  for (const [defeaterId] of graph.nodes) {
+    attackedBy.set(defeaterId, new Set<string>());
+  }
+  for (const [attackerId, targets] of graph.edges) {
+    for (const targetId of targets) {
+      const attackers = attackedBy.get(targetId);
+      if (attackers) {
+        attackers.add(attackerId);
+      }
+    }
+  }
+
+  // Kleene iteration
+  let changed = true;
+  while (changed && iterations < maxIterations) {
+    changed = false;
+    iterations++;
+
+    // Phase 1: Find defeaters that should be accepted
+    // A defeater is accepted if all its attackers are rejected
+    for (const [defeaterId] of graph.nodes) {
+      if (accepted.has(defeaterId) || rejected.has(defeaterId)) {
+        continue; // Already classified
+      }
+
+      const attackers = attackedBy.get(defeaterId) ?? new Set<string>();
+
+      // Check if all attackers are rejected
+      let allAttackersRejected = true;
+      for (const attackerId of attackers) {
+        if (!rejected.has(attackerId)) {
+          allAttackersRejected = false;
+          break;
+        }
+      }
+
+      // A defeater with no attackers, or all attackers rejected, is accepted
+      if (attackers.size === 0 || allAttackersRejected) {
+        accepted.add(defeaterId);
+        changed = true;
+      }
+    }
+
+    // Phase 2: Find defeaters that should be rejected
+    // A defeater is rejected if any of its attackers is accepted
+    for (const [defeaterId] of graph.nodes) {
+      if (accepted.has(defeaterId) || rejected.has(defeaterId)) {
+        continue; // Already classified
+      }
+
+      const attackers = attackedBy.get(defeaterId) ?? new Set<string>();
+
+      for (const attackerId of attackers) {
+        if (accepted.has(attackerId)) {
+          rejected.add(defeaterId);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Everything not accepted or rejected is undecided (in cycles)
+  const undecided = new Set<string>();
+  for (const [defeaterId] of graph.nodes) {
+    if (!accepted.has(defeaterId) && !rejected.has(defeaterId)) {
+      undecided.add(defeaterId);
+    }
+  }
+
+  return {
+    accepted,
+    rejected,
+    undecided,
+    iterations,
+    converged: !changed || iterations < maxIterations,
+  };
+}
+
+/**
+ * Resolve defeater cycles by computing the grounded extension.
+ *
+ * This function provides a high-level interface for applying grounded
+ * semantics to a set of defeaters. It:
+ * 1. Builds the attack graph from defeaters
+ * 2. Computes the grounded extension via Kleene iteration
+ * 3. Updates defeater status based on the extension
+ *
+ * Defeaters are updated as follows:
+ * - Accepted: status remains 'active' (or set to 'active' if pending)
+ * - Rejected: status set to 'resolved' (defeated by another defeater)
+ * - Undecided: status marked with special handling (cycle detected)
+ *
+ * This implements the formal semantics from Section 7 of the mathematical
+ * foundations, providing a principled approach to resolving circular defeat.
+ *
+ * @param defeaters - Array of defeaters that may have defeat relationships
+ * @returns Object containing resolved defeaters and the grounded extension
+ *
+ * @example
+ * ```typescript
+ * const defeaters = [
+ *   createDefeater({ id: 'stale1', defeatedBy: [] }),
+ *   createDefeater({ id: 'counter1', defeatedBy: ['stale1'] }),
+ * ];
+ * const { resolved, extension } = resolveDefeaterCycles(defeaters);
+ * // extension.accepted: {'stale1'}
+ * // extension.rejected: {'counter1'}
+ * ```
+ */
+export function resolveDefeaterCycles(
+  defeaters: ExtendedDefeater[]
+): { resolved: ExtendedDefeater[]; extension: GroundedExtension } {
+  // Build the attack graph
+  const graph = buildDefeaterGraph(defeaters);
+
+  // Compute the grounded extension
+  const extension = computeGroundedExtension(graph);
+
+  // Update defeaters based on extension
+  // Note: ExtendedDefeater doesn't have a metadata field, so we only update status.
+  // Grounded status information is available via the returned extension.
+  const resolved: ExtendedDefeater[] = defeaters.map((defeater) => {
+    if (extension.accepted.has(defeater.id)) {
+      // Accepted defeaters are effectively active
+      // Only change status if it was pending (don't override explicit status)
+      return {
+        ...defeater,
+        status: defeater.status === 'pending' ? 'active' : defeater.status,
+      } as ExtendedDefeater;
+    } else if (extension.rejected.has(defeater.id)) {
+      // Rejected defeaters are defeated by an accepted defeater
+      // Mark as resolved since they've been defeated
+      return {
+        ...defeater,
+        status: 'resolved' as const,
+      } as ExtendedDefeater;
+    } else {
+      // Undecided defeaters are in cycles - handle conservatively
+      // Keep current status; cycles are a form of epistemic stalemate
+      // The extension.undecided set tracks which defeaters are in this state
+      return defeater;
+    }
+  });
+
+  return { resolved, extension };
+}
+
+/**
+ * Detect cycles in the defeater attack graph.
+ *
+ * Uses depth-first search to find strongly connected components (SCCs)
+ * with more than one node, which represent cycles.
+ *
+ * @param graph - The defeater graph to analyze
+ * @returns Array of cycles, where each cycle is an array of defeater IDs
+ */
+export function detectDefeaterCycles(graph: DefeaterGraph): string[][] {
+  const cycles: string[][] = [];
+  const visited = new Set<string>();
+  const recursionStack = new Set<string>();
+  const path: string[] = [];
+
+  function dfs(nodeId: string): void {
+    visited.add(nodeId);
+    recursionStack.add(nodeId);
+    path.push(nodeId);
+
+    const edges = graph.edges.get(nodeId) ?? new Set<string>();
+    for (const targetId of edges) {
+      if (!visited.has(targetId)) {
+        dfs(targetId);
+      } else if (recursionStack.has(targetId)) {
+        // Found a cycle - extract it from the path
+        const cycleStart = path.indexOf(targetId);
+        if (cycleStart !== -1) {
+          const cycle = path.slice(cycleStart);
+          if (cycle.length > 1) {
+            cycles.push([...cycle]);
+          }
+        }
+      }
+    }
+
+    path.pop();
+    recursionStack.delete(nodeId);
+  }
+
+  for (const [nodeId] of graph.nodes) {
+    if (!visited.has(nodeId)) {
+      dfs(nodeId);
+    }
+  }
+
+  return cycles;
+}
+
+/**
+ * Check if the grounded extension is complete (all defeaters classified).
+ *
+ * A complete extension means no defeaters are undecided, which happens
+ * when the attack graph is acyclic.
+ *
+ * @param extension - The grounded extension to check
+ * @returns true if all defeaters are either accepted or rejected
+ */
+export function isExtensionComplete(extension: GroundedExtension): boolean {
+  return extension.undecided.size === 0;
+}
+
+/**
+ * Get the effective status of a defeater given a grounded extension.
+ *
+ * @param defeaterId - ID of the defeater to check
+ * @param extension - The computed grounded extension
+ * @returns 'accepted' | 'rejected' | 'undecided'
+ */
+export function getDefeaterGroundedStatus(
+  defeaterId: string,
+  extension: GroundedExtension
+): 'accepted' | 'rejected' | 'undecided' {
+  if (extension.accepted.has(defeaterId)) {
+    return 'accepted';
+  } else if (extension.rejected.has(defeaterId)) {
+    return 'rejected';
+  } else {
+    return 'undecided';
+  }
+}
+
+// ============================================================================
 // BAYESIAN DEFEAT REDUCTION (WU-THIMPL-202)
 // ============================================================================
 

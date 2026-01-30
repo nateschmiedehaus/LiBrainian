@@ -659,7 +659,7 @@ import {
   preOrchestrationHook,
   enrichTaskContext,
   recordTaskOutcome,
-} from '@wave0/librarian';
+} from 'librarian';
 
 // At startup (HARD FAILS if librarian unavailable)
 await preOrchestrationHook(workspace);

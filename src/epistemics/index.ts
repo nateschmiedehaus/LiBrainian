@@ -146,6 +146,16 @@ export {
   computeMultipleDefeatedStrength,
   DEFAULT_DEFEAT_REDUCTION_OPTIONS,
   type DefeatReductionOptions,
+
+  // Fixed-point defeater resolution (Grounded Semantics)
+  buildDefeaterGraph,
+  computeGroundedExtension,
+  resolveDefeaterCycles,
+  detectDefeaterCycles,
+  isExtensionComplete,
+  getDefeaterGroundedStatus,
+  type DefeaterGraph,
+  type GroundedExtension,
 } from './defeaters.js';
 
 // Computed Confidence
@@ -778,3 +788,595 @@ export {
   confidenceEquals,
   createTestConfidence,
 } from './calibration_laws.js';
+
+// Task Validation - Epistemic grounding for agent tasks
+export {
+  // Types
+  type TaskClaim,
+  type TaskId,
+  type TaskEpistemicGrounding,
+  type TaskAlternative,
+  type TaskObjection,
+  type MethodCalibrationData,
+  type TaskValidationCriteria,
+  type TaskValidationResult,
+  type TaskValidationBreakdown,
+  type RemediationPlan,
+  type RemediationAction,
+  type GroundingContext,
+  type ITaskEpistemicValidator,
+
+  // Factory functions
+  createClaimId as createTaskClaimId,
+  createTaskId,
+
+  // Presets
+  ValidationPresets,
+
+  // Implementation
+  TaskEpistemicValidator,
+} from './task_validation.js';
+
+// Validation Configuration
+export {
+  type EpistemicPreset,
+  type EpistemicValidationConfig,
+  DEFAULT_EPISTEMIC_CONFIG,
+  EPISTEMIC_ENV_VARS,
+  getEnvConfig,
+  resolveEpistemicConfig,
+  getValidationCriteria,
+  isEpistemicValidationEnabled,
+  getCurrentValidationCriteria,
+} from './validation_config.js';
+
+// Multi-Agent Epistemology (Social Epistemology)
+export {
+  // Agent modeling
+  type AgentProfile,
+  type BeliefBasis,
+  type AgentBelief,
+  isAgentProfile,
+  isAgentBelief,
+  createAgentProfile,
+  createAgentBelief,
+
+  // Disagreement handling
+  type DisagreementStrategy,
+  type DisagreementResolution,
+  computeDisagreementDegree,
+  resolveDisagreement,
+
+  // Belief aggregation (opinion pools)
+  aggregateBeliefs,
+  linearPool,
+  logPool,
+
+  // Common knowledge
+  type KnowledgeLevel,
+  isCommonKnowledge,
+  computeMutualKnowledgeLevel,
+
+  // Testimony evaluation
+  type TestimonyEvaluationResult,
+  evaluateTestimony,
+  shouldAcceptTestimony,
+
+  // Group epistemics
+  type EpistemicGroup,
+  createEpistemicGroup,
+  computeGroupConsensus,
+
+  // Utilities
+  getAgentsWhoKnow,
+  getAgentKnowledge,
+  findDisagreements,
+  rankByAuthority,
+} from './multi_agent.js';
+
+// Dempster-Shafer Belief Functions
+export {
+  // Core types
+  type Frame,
+  type BeliefMassFunction,
+  type CombinationResult,
+  type MassAssignment,
+
+  // Subset serialization
+  serializeSubset,
+  deserializeSubset,
+
+  // Creation functions
+  createBeliefMass,
+  createVacuousMass,
+  createBayesianMass,
+
+  // Belief and plausibility measures
+  belief,
+  plausibility,
+  beliefInterval,
+  pignisticProbability,
+
+  // Dempster's rule of combination
+  combineDempster,
+  combineMultiple,
+
+  // Conflict handling
+  DEFAULT_CONFLICT_THRESHOLD,
+  isConflictTooHigh,
+  type ConflictSeverity,
+  analyzeConflict,
+  combineWithHighConflict,
+
+  // BoundedConfidence integration
+  toBoundedConfidence,
+  fromBoundedConfidence,
+
+  // Utility functions
+  getFocalElements,
+  specificity,
+  nonSpecificity,
+
+  // Type guards
+  isBeliefMassFunction,
+  isCombinationResult,
+} from './belief_functions.js';
+
+// Epistemic Progress Metrics (Information Theory)
+export {
+  // Entropy metrics
+  shannonEntropy,
+  beliefEntropy,
+  differentialEntropy,
+
+  // Information gain
+  calculateInformationGain,
+  type InformationGain,
+  type InformationGainSignificance,
+
+  // KL divergence and related measures
+  klDivergence,
+  jsDivergence,
+  measureBeliefUpdate,
+
+  // Progress reports
+  generateProgressReport,
+  type EpistemicProgressReport,
+  type ProgressAssessment,
+
+  // Trend analysis
+  analyzeProgressTrend,
+  type ProgressTrend,
+  type TrendDirection,
+
+  // Utility functions
+  mutualInformation,
+  measureRedundancy,
+  estimateQueryValue,
+} from './progress_metrics.js';
+
+// AGM Belief Revision Theory
+export {
+  // Branded types
+  type ClaimId as BeliefClaimId,
+  createClaimId as createBeliefClaimId,
+
+  // Core types
+  type BeliefBase,
+  type RevisionOperation,
+  type RevisionResult,
+  type PostulateCheckResult,
+  type RevisionOptions,
+  DEFAULT_REVISION_OPTIONS,
+
+  // Belief base operations
+  createEmptyBeliefBase,
+  createBeliefBase,
+  cloneBeliefBase,
+  believes,
+  getEntrenchment,
+
+  // AGM operations
+  expand,
+  contract,
+  revise,
+
+  // Entrenchment computation
+  computeEntrenchment,
+  computeEntrenchmentFromConfidence,
+
+  // Selection for contraction
+  selectForContraction,
+  findMinimalRemovalSet,
+
+  // AGM postulate verification
+  checkAGMPostulates,
+
+  // Integration with confidence values
+  createRevisionConfidence,
+
+  // Batch operations
+  updateAllEntrenchment,
+  reviseMultiple,
+
+  // Type guards
+  isBeliefBase,
+  isRevisionResult,
+} from './belief_revision.js';
+
+// Credal Sets for Imprecise Probability
+export {
+  // Interval arithmetic
+  type Interval,
+  createInterval,
+  intervalContains,
+  addIntervals,
+  subtractIntervals,
+  multiplyIntervals,
+  complementInterval,
+  sequenceIntervals,
+  parallelIntervalsAnd,
+  parallelIntervalsOr,
+  intervalWidth,
+  intervalMidpoint,
+  isIntervalPrecise,
+  isIntervalVacuous,
+
+  // Credal set types
+  type CredalSet,
+  createCredalSet,
+  isInCredalSet,
+  vacuousCredal,
+  preciseCredal,
+  isVacuous,
+  isPrecise,
+  getOutcomeInterval,
+  credalImprecision,
+
+  // Credal operations
+  marginalize,
+  condition,
+  naturalExtension,
+
+  // BoundedConfidence integration
+  toCredalSet,
+  toBoundedFromCredal,
+  confidenceToInterval,
+  composeCredalBounds,
+  composeConfidenceCredal,
+
+  // Imprecision propagation
+  type ImprecisionPropagationResult,
+  trackImprecisionPropagation,
+
+  // Type guards
+  isInterval,
+  isCredalSet,
+} from './credal_sets.js';
+
+// Universal Coherence System
+export {
+  // Schema version
+  UNIVERSAL_COHERENCE_SCHEMA_VERSION,
+
+  // Branded types
+  type ContentId,
+  type ObjectId,
+  type GroundingId,
+  type NetworkId,
+  type AgentId,
+
+  // ID constructors
+  createContentId as createUniversalContentId,
+  createObjectId,
+  createGroundingId,
+  createNetworkId,
+  createAgentId as createUniversalAgentId,
+
+  // Primitive types
+  type ContentType,
+  type ContentSchema,
+  type Content,
+  type AttitudeType,
+  type StrengthBasis,
+  type GradedStrength,
+  type Attitude,
+  type AgentType as UniversalAgentType,
+  type TrustLevel,
+  type Agent as UniversalAgent,
+  type GroundingType,
+  type ExtendedGroundingType,
+  type GroundingStrength,
+  type Grounding,
+  type AbstractionLevel,
+  type LevelConstraints,
+  type ObjectStatus,
+  type SourceDescriptor,
+  type EpistemicMetadata,
+  type RevisionEntry,
+  type EpistemicObject,
+
+  // Coherence network types
+  type CoherenceRuleType,
+  type CoherenceRule,
+  type NetworkConfig,
+  type CoherenceViolation,
+  type CoherenceStatus,
+  type CoherenceNetwork,
+
+  // Evaluation types
+  type GroundingStatus,
+  type ObjectEvaluation,
+  type GroundingAnalysis,
+  type RecommendationType,
+  type EvaluationRecommendation,
+  type StakesLevel,
+  type EpistemicStandards,
+  type EvaluationContext,
+  type CoherenceResult,
+  type Conflict,
+  type LevelViolation,
+
+  // Error types
+  type GroundingErrorCode,
+  GroundingError,
+  type NetworkErrorCode,
+  NetworkError,
+
+  // Default rules
+  DEFAULT_COHERENCE_RULES,
+
+  // Constructors
+  constructContent,
+  constructAttitude,
+  constructEpistemicObject,
+  type ConstructOptions,
+  constructGrounding,
+  type GroundingOptions,
+  constructAbstractionLevel,
+  constructHierarchy,
+  constructCoherenceNetwork,
+  type NetworkConstructOptions,
+
+  // Coherence evaluation
+  evaluateCoherence,
+  findGroundingChain,
+  detectConflicts,
+  checkLevelConsistency,
+
+  // Presets
+  type PresetConfig,
+  SOFTWARE_DEV_PRESET,
+  SCIENTIFIC_METHOD_PRESET,
+  LEGAL_REASONING_PRESET,
+  PRESETS,
+  type PresetKey,
+  applyPreset,
+  adaptPreset,
+
+  // Auto-configuration
+  type InferredStructure,
+  inferStructure,
+  suggestPreset,
+
+  // Integration with Librarian epistemics
+  toConfidenceValue,
+  fromConfidenceValue,
+  toClaim,
+  fromClaim,
+  storeNetworkAsEvidence,
+} from './universal_coherence.js';
+
+// Conative Attitudes (Action-directed epistemic attitudes)
+export {
+  // Schema version
+  CONATIVE_ATTITUDES_SCHEMA_VERSION,
+
+  // Extended attitude types
+  type ConativeAttitudeType,
+  type ExtendedAttitudeType,
+  type PreferenceOrdering,
+
+  // Type guards for attitude types
+  isConativeAttitudeType,
+  isExtendedAttitudeType,
+
+  // Conative attitude interface
+  type ConativeAttitude,
+  isConativeAttitude,
+  validateCommitmentStrength,
+  validateDesireIntensity,
+
+  // Conative attitude construction
+  type ConativeAttitudeOptions,
+  constructConativeAttitude,
+
+  // Intention type
+  type MeansEndRelation,
+  type Intention,
+  type IntentionStatus,
+  type CreateIntentionOptions,
+  isIntention,
+  createIntention,
+  addMeansToIntention,
+  addConditionToIntention,
+  updateIntentionStatus,
+  areConditionsSatisfied,
+
+  // Preference type
+  type Preference,
+  type CreatePreferenceOptions,
+  isPreference,
+  createPreference,
+  isPreferred,
+  getMostPreferred,
+  getLeastPreferred,
+  checkTransitivity,
+  validatePreferenceConsistency,
+
+  // Goal type
+  type Goal,
+  type GoalStatus,
+  type CreateGoalOptions,
+  isGoal,
+  createGoal,
+  addCriterionToGoal,
+  addSubgoal,
+  updateGoalStatus,
+  isGoalAchieved,
+  computeGoalProgress,
+
+  // Desire type (including hope and fear)
+  type Desire,
+  isDesire,
+  createDesire,
+  createHope,
+  createFear,
+
+  // BDI Agent State
+  type BDIAgentState,
+  type CreateBDIAgentOptions,
+  isBDIAgentState,
+  createBDIAgentState,
+  addBelief,
+  addDesireToAgent,
+  addIntentionToAgent,
+  addGoalToAgent,
+  addPreferenceToAgent,
+
+  // Practical reasoning
+  type PracticalReasoningResult,
+  evaluatePracticalCoherence,
+  isIntentionAchievable,
+  deriveIntentionFromGoal,
+
+  // Integration with epistemic objects
+  intentionToEpistemicObject,
+  goalToEpistemicObject,
+  preferenceToEpistemicObject,
+} from './conative_attitudes.js';
+
+// Temporal Grounding Validity (WU-REC-7.2)
+export {
+  // Schema version
+  TEMPORAL_GROUNDING_SCHEMA_VERSION,
+
+  // Types
+  type DecayFunction,
+  type TemporalBounds,
+  type TemporalGrounding,
+  type TemporalPresetKey,
+  type TemporalGroundingOptions,
+
+  // Presets
+  EPHEMERAL,
+  SHORT_TERM,
+  MEDIUM_TERM,
+  LONG_TERM,
+  PERMANENT,
+  TEMPORAL_PRESETS,
+
+  // Preset helpers
+  createEphemeralBounds,
+  createShortTermBounds,
+  createMediumTermBounds,
+  createLongTermBounds,
+
+  // Core functions
+  isGroundingValid,
+  getGroundingStrength,
+  detectStaleGroundings,
+  refreshGrounding,
+  applyDecay as applyTemporalDecay,
+
+  // Construction
+  constructTemporalGrounding,
+  toTemporalGrounding,
+  isTemporalGrounding,
+
+  // Utilities
+  getGroundingAge,
+  getTimeSinceVerification,
+  getRemainingValidity,
+  extendValidity,
+  getExpiringGroundings,
+  groupByDecayFunction,
+  sortByUrgency,
+} from './temporal_grounding.js';
+
+// Intuitive Grounding System (WU-REC-7.3)
+export {
+  // Schema version
+  INTUITIVE_GROUNDING_SCHEMA_VERSION,
+
+  // Types
+  type ExtendedGroundingTypeWithIntuitive,
+  type IntuitiveSource,
+  type Articulability,
+  type UpgradePath,
+  type IntuitiveGrounding,
+  type Evidence,
+
+  // Constants
+  DEFAULT_INTUITIVE_CONFIDENCE,
+  INTUITIVE_CONFIDENCE_BOUNDS,
+  DEFAULT_UPGRADE_PATHS,
+
+  // Factory functions
+  createIntuitiveGrounding,
+  getDefaultConfidence,
+
+  // Upgrade functions
+  canUpgrade,
+  findBestUpgradePath,
+  upgradeGrounding,
+
+  // Articulability functions
+  isArticulable,
+  getArticulabilityScore,
+
+  // Pattern recognition helpers
+  detectPattern,
+  analogyFromPrior,
+
+  // Confidence conversion
+  toConfidenceValue as intuitiveToConfidenceValue,
+
+  // Type guards
+  isIntuitiveGrounding,
+  isIntuitiveSource,
+  isArticulability,
+
+  // Validation
+  validateIntuitiveGrounding,
+} from './intuitive_grounding.js';
+
+// Inference Auditor (Bad Agentic Logic Detection)
+export {
+  // Fallacy enumeration
+  InferenceFallacy,
+  FALLACY_DESCRIPTIONS,
+
+  // Inference step
+  type InferenceRule,
+  type InferenceStep,
+  createInferenceStep,
+
+  // Audit report
+  type AuditSeverity,
+  type InferenceAuditReport,
+
+  // Detection functions
+  detectFallacy,
+  checkCircularity,
+  checkOvergeneralization,
+  suggestFix,
+
+  // Audit functions
+  auditInference,
+  auditChain,
+
+  // Helper functions
+  createTestContent,
+  createSimpleInferenceStep,
+} from './inference_auditor.js';

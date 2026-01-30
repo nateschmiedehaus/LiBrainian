@@ -2,7 +2,7 @@
 
 ## Goal
 
-Extract librarian into a standalone package (`@wave0/librarian`) that can be used in **any agentic coding repository**, not just wave0-autopilot.
+Extract librarian into a standalone package (`librarian`) that can be used in **any agentic coding repository**, not just wave0-autopilot.
 
 This is a **stop-the-line** priority. If extraction is incomplete, do not grow Wave0’s internal librarian shim; implement changes in the Librarian package boundary.
 
@@ -130,7 +130,7 @@ Prefer:
 
 ```json
 {
-  "name": "@wave0/librarian",
+  "name": "librarian",
   "version": "0.1.0",
   "description": "Best-in-world code understanding for agentic software development",
   "main": "dist/index.js",
@@ -172,7 +172,7 @@ Prefer:
 
 ```bash
 # Install
-npm install @wave0/librarian
+npm install librarian
 
 # Bootstrap
 npx librarian bootstrap .
@@ -187,7 +187,7 @@ npx librarian quality --check=all
 ### As a Library
 
 ```typescript
-import { createLibrarian, requireProviders } from '@wave0/librarian';
+import { createLibrarian, requireProviders } from 'librarian';
 
 // Ensure live providers are available (Wave0 policy: CLI auth only, no API keys).
 // If providers are unavailable, this MUST fail honestly.
@@ -266,9 +266,9 @@ For wave0-autopilot, maintain compatibility:
 ```typescript
 // wave0-autopilot/src/librarian/index.ts
 // Re-export everything from the package for backwards compatibility
-export * from '@wave0/librarian';
-export * from '@wave0/librarian/api';
-export * from '@wave0/librarian/quality';
+export * from 'librarian';
+export * from 'librarian/api';
+export * from 'librarian/quality';
 
 // Add wave0-specific extensions
 export { ensureLibrarianReadyForOrchestrator } from './wave0_integration.js';
@@ -276,7 +276,7 @@ export { ensureLibrarianReadyForOrchestrator } from './wave0_integration.js';
 
 ## Success Criteria
 
-1. **Standalone**: `npm install @wave0/librarian && npx librarian bootstrap .` works on any TypeScript repo
+1. **Standalone**: `npm install librarian && npx librarian bootstrap .` works on any TypeScript repo
 2. **Zero wave0 deps**: Librarian has no imports from wave0-autopilot
 3. **Full functionality**: All current librarian features work
 4. **Easy adoption**: Single command to add to any repo

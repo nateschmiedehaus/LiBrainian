@@ -73,7 +73,7 @@ This is the single highest-leverage priority, because it makes Librarian usable 
 
 Status: completed. Wave0 imports Librarian only through the package boundary; `src/librarian/**` is now a compatibility shim.
 
-- Wave0 code imports Librarian only through a package boundary (e.g. `@wave0/librarian`), never via `../librarian/**` or `src/librarian/**` paths.
+- Wave0 code imports Librarian only through a package boundary (e.g. `librarian`), never via `../librarian/**` or `src/librarian/**` paths.
 - There is exactly one source of truth for Librarian implementation:
   - either **inside this repo** under `packages/librarian/src/**` (monorepo/workspace transitional strategy),
   - or **outside this repo** as its own repository (preferred end-state).
@@ -263,7 +263,7 @@ These invariants exist so an agent can always answer: “What evidence supports 
 - **2026-01-22**: Expanded the pattern catalog with eight new P5 patterns + tests and refreshed status blocks/paths in this doc for the package boundary.
 - **2026-01-22**: Implemented LCL core + preset storage, structure templates, and epistemic policy config in the package tree (tests added).
 - **2026-01-22**: Reduced `src/librarian/**` to compatibility shims, deleted the duplicated implementation tree + sync script, and retargeted root CLI/vitest configs to the package paths.
-- **2026-01-22**: Rewrote Wave0 imports to use `@wave0/librarian`, expanded package exports to cover integration/tooling, and added a Canon Guard boundary check to prevent `src/librarian/**` imports outside the package tree.
+- **2026-01-22**: Rewrote Wave0 imports to use `librarian`, expanded package exports to cover integration/tooling, and added a Canon Guard boundary check to prevent `src/librarian/**` imports outside the package tree.
 - **2026-01-22**: Wired `npm run test:tier0` to execute `packages/librarian` tests so the package surface is exercised directly.
 - **2026-01-21**: Expanded wave0 adapter auto-registration to check dist paths in addition to src.
 - **2026-01-21**: Added wave0 adapter auto-registration (LLM + model policy) during provider gate checks to preserve wave0 behavior without static imports.
@@ -294,7 +294,7 @@ These invariants exist so an agent can always answer: “What evidence supports 
 - **H-003 (resolved 2026-01-21)**: `packages/librarian` diverged from `src/librarian`. Evidence: `diff -qr src/librarian packages/librarian/src`. Resolution: added a sync workflow to reconcile drift; retired the sync script once `src/librarian/**` was reduced to shims.
 - **H-001 (resolved 2026-01-21)**: P0/P1 were marked both “completed” and “not started” (see `#implementation-status` vs `#what-to-implement-next-for-codex`). Resolution: status language was reconciled to “Implemented / Blocked / Not yet verified end-to-end”, and doc-supremacy phrasing was removed to satisfy Canon Guard.
 - **H-002 (resolved 2026-01-21)**: Typecheck gate note + late-doc execution-layer claims were stale. Evidence: `cd src/librarian && npx tsc --noEmit` now clean; execution layer exists but is explicitly labeled “implemented, not yet verified end-to-end” in Part XXI. Resolution: gate snapshot updated + Part XXI bottom-line revised.
-- **H-004 (resolved 2026-01-22)**: “Extraction” is not complete because Wave0 still consumes the in-repo implementation (`src/librarian/**`) directly, which keeps coupling risk high and prevents true portability. Evidence: `rg -n "from '\\.\\./librarian/|from \\\"\\.\\./librarian/\" src --glob '!src/librarian/**'` and `rg -n "src/librarian/" src scripts bin config --glob '!src/librarian/**'` return no results. Resolution: Wave0 now uses `@wave0/librarian` exclusively and `src/librarian/**` is shim-only.
+- **H-004 (resolved 2026-01-22)**: “Extraction” is not complete because Wave0 still consumes the in-repo implementation (`src/librarian/**`) directly, which keeps coupling risk high and prevents true portability. Evidence: `rg -n "from '\\.\\./librarian/|from \\\"\\.\\./librarian/\" src --glob '!src/librarian/**'` and `rg -n "src/librarian/" src scripts bin config --glob '!src/librarian/**'` return no results. Resolution: Wave0 now uses `librarian` exclusively and `src/librarian/**` is shim-only.
 - **H-005 (resolved 2026-01-22)**: `src/librarian/**` still exists as a duplicated tree (even though Wave0 imports are now package-bound). Evidence: `rg --files src/librarian` returns only the shim entrypoints + shim test. Resolution: removed the duplicate implementation tree, leaving the minimal compatibility shims.
 
 ## Table of Contents
@@ -497,7 +497,7 @@ This is not “nice to have”. It is the prerequisite that prevents wasted work
 | **E2** | Interface Abstraction | ~200 | Abstract non-librarian dependencies behind adapters | ✅ Completed (LLM adapter wiring across Librarian + tests) |
 | **E3** | Package Structure | ~100 | Create `packages/librarian/` with its own package.json | ✅ Completed (package synced to `src/librarian`) |
 | **E4** | Import Rewriting | ~0 | Update all imports to use package-local paths | ✅ Completed (adapter factories; no cross-tree imports) |
-| **E6** | Full Extraction (Wave0 Migration) | ~300–800 | Wave0 must consume Librarian via `@wave0/librarian` (no `src/librarian/**` coupling; delete/shim old tree) | ✅ Completed (package boundary enforced; shims retained) |
+| **E6** | Full Extraction (Wave0 Migration) | ~300–800 | Wave0 must consume Librarian via `librarian` (no `src/librarian/**` coupling; delete/shim old tree) | ✅ Completed (package boundary enforced; shims retained) |
 | **E5** | Standalone Tests | ~300 | Ensure tests run without wave0 context | 🚧 In Progress (package-only `librarian.test.ts` + `mvp_librarian.test.ts` ran; full `npm test`/Tier-0 pending) |
 | **E7** | Publishability | ~50 | Package exports/docs for external use (after E6 makes the boundary real) | ✅ Implemented (public entrypoints documented) |
 
@@ -519,17 +519,17 @@ This is the “make it real” step. It is intentionally concrete so an agent ca
 
 **Step 1 — Choose the packaging topology (decision, then commit to it)**
 - **Option A (recommended now)**: Monorepo consumption.
-  - Wave0 depends on `packages/librarian` (workspace or `file:` dependency) and imports `@wave0/librarian`.
+  - Wave0 depends on `packages/librarian` (workspace or `file:` dependency) and imports `librarian`.
   - Single source: `packages/librarian/src/**`.
 - **Option B (preferred end-state)**: Separate repo.
   - Move `packages/librarian` out (git subtree split or new repo), publish/install, then update Wave0 imports.
 
 **Step 2 — Make Wave0 import only via the package boundary**
-- Replace Wave0 imports like `../librarian/...` with `@wave0/librarian` (or `@wave0/librarian/api`, etc.).
+- Replace Wave0 imports like `../librarian/...` with `librarian` (or `librarian/api`, etc.).
 - Add a hard gate (grep-based) so `../librarian/**` never returns.
 
 **Step 3 — Eliminate duplication**
-- Delete `src/librarian/**` OR convert it to a tiny shim that re-exports from `@wave0/librarian` (temporary).
+- Delete `src/librarian/**` OR convert it to a tiny shim that re-exports from `librarian` (temporary).
 - Update build/test configs so Wave0 does not compile two copies.
 - Ensure `scripts/` and `bin/` paths follow the package boundary.
 
@@ -926,7 +926,7 @@ Add T1-T5 to the implementation plan AFTER P0-P7. The emergent capability protoc
 │                                                                     │
 │     Remove ALL wave0 dependencies → Standalone npm package          │
 │                                                                     │
-│  GATE: `npm install @wave0/librarian` works in any repo             │
+│  GATE: `npm install librarian` works in any repo             │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -15915,7 +15915,7 @@ Third parties can register custom providers:
 
 ```typescript
 // In user code or a plugin
-import { llmProviderRegistry, type LlmProviderProbe } from '@wave0/librarian';
+import { llmProviderRegistry, type LlmProviderProbe } from 'librarian';
 
 const myCustomProbe: LlmProviderProbe = {
   descriptor: {

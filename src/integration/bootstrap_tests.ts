@@ -6,8 +6,8 @@
  *
  * @example
  * ```typescript
- * import { createLibrarian } from '@wave0/librarian';
- * import { createBootstrapTestRunner } from '@wave0/librarian/integration';
+ * import { createLibrarian } from 'librarian';
+ * import { createBootstrapTestRunner } from 'librarian/integration';
  *
  * const librarian = await createLibrarian({ workspace: '/path/to/project' });
  * const runner = createBootstrapTestRunner(librarian);

@@ -107,3 +107,24 @@ export {
   type DebtAnalysisResult,
   type DebtSignals,
 } from './technical_debt_analysis.js';
+
+// Data Flow Analysis (tp_data_lineage, tp_state_trace from track-e-domain D1)
+export {
+  buildDataFlowGraph,
+  traceDataLineage,
+  traceState,
+  findDataSources,
+  findDataSinks,
+  findTaintedPaths,
+  findNullFlowRisks,
+  type DataFlowNode,
+  type DataFlowNodeType,
+  type DataFlowLocation,
+  type DataFlowNodeMetadata,
+  type DataFlowEdge,
+  type DataFlowTransformType,
+  type DataLineage,
+  type StateMutation,
+  type StateTrace,
+  type DataFlowGraph,
+} from './data_flow.js';

@@ -123,6 +123,29 @@ export {
 
 export {
   // Types
+  type CitationType,
+  type EnhancedCitation,
+  type VerificationStatus as EnhancedVerificationStatus,
+  type EnhancedVerificationResult,
+  type VerificationCheck,
+  type BatchVerificationConfig,
+  type BatchVerificationResult,
+  type VerificationStatistics,
+  type ValidationReport,
+  type ValidationRecommendation,
+
+  // Constants
+  DEFAULT_BATCH_CONFIG,
+
+  // Class
+  EnhancedCitationVerifier,
+
+  // Factory
+  createEnhancedCitationVerifier,
+} from './enhanced_citation_verifier.js';
+
+export {
+  // Types
   type QueryVariant,
   type QuerySet,
   type ConsistencyAnswer,

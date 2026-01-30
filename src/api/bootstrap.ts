@@ -627,6 +627,25 @@ function coerceGovernorConfig(source: Record<string, unknown> | null): GovernorC
       DEFAULT_GOVERNOR_CONFIG.maxEmbeddingsPerBatch,
       false
     ),
+    resourceManagement: coerceResourceManagement(source.resourceManagement),
+  };
+}
+
+function coerceResourceManagement(source: unknown): GovernorConfig['resourceManagement'] {
+  if (!source || typeof source !== 'object') {
+    return DEFAULT_GOVERNOR_CONFIG.resourceManagement;
+  }
+  const s = source as Record<string, unknown>;
+  const defaults = DEFAULT_GOVERNOR_CONFIG.resourceManagement!;
+  return {
+    mode: (s.mode === 'auto' || s.mode === 'manual' || s.mode === 'conservative' || s.mode === 'aggressive')
+      ? s.mode : defaults.mode,
+    targetMemoryUtilization: typeof s.targetMemoryUtilization === 'number' ? s.targetMemoryUtilization : defaults.targetMemoryUtilization,
+    targetCpuUtilization: typeof s.targetCpuUtilization === 'number' ? s.targetCpuUtilization : defaults.targetCpuUtilization,
+    minReservedMemoryPercent: typeof s.minReservedMemoryPercent === 'number' ? s.minReservedMemoryPercent : defaults.minReservedMemoryPercent,
+    minReservedCpuCores: typeof s.minReservedCpuCores === 'number' ? s.minReservedCpuCores : defaults.minReservedCpuCores,
+    monitorIntervalMs: typeof s.monitorIntervalMs === 'number' ? s.monitorIntervalMs : defaults.monitorIntervalMs,
+    oomKillThreshold: typeof s.oomKillThreshold === 'number' ? s.oomKillThreshold : defaults.oomKillThreshold,
   };
 }
 

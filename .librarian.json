@@ -1,0 +1,18 @@
+{
+  "$schema": "./docs/librarian/schemas/librarian-config.schema.json",
+  "projectName": "librarian",
+  "description": "The knowledge layer for agentic software development",
+
+  "epistemicValidation": {
+    "enabled": true,
+    "preset": "standard",
+    "overrides": {
+      "minimumAlternativesConsidered": 1,
+      "requireCounterAnalysis": true
+    }
+  },
+
+  "resourceManagement": {
+    "mode": "auto"
+  }
+}
