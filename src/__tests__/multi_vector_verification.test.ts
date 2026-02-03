@@ -28,7 +28,7 @@ import {
 } from '../measurement/retrieval_quality.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, '../../..');
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const AUDIT_DIR = path.join(REPO_ROOT, 'state', 'audits', 'librarian', 'retrieval');
 
 // ============================================================================

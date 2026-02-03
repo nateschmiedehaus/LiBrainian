@@ -17,8 +17,12 @@ import type { QueryCacheEntry } from '../storage/types.js';
 import { cleanupWorkspace } from './helpers/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
-const HAS_ORCHESTRATOR = fsSync.existsSync(path.join(workspaceRoot, 'src', 'orchestrator'));
+const repoRoot = path.resolve(__dirname, '..', '..');
+const expertiseMatcherCandidates = [
+  path.join(repoRoot, 'src', 'orchestrator', 'expertise_matcher.ts'),
+  path.join(repoRoot, 'src', 'orchestrator', 'expertise_matcher.js'),
+];
+const HAS_ORCHESTRATOR = expertiseMatcherCandidates.some((candidate) => fsSync.existsSync(candidate));
 const describeWave0 = HAS_ORCHESTRATOR ? describe : describe.skip;
 
 // Extended storage type with query cache methods
@@ -35,10 +39,10 @@ type QueryCacheStorage = LibrarianStorage & {
 
 describeWave0('G23: Expertise Matching', () => {
   // Import dynamically to avoid circular dependencies
-  let ExpertiseMatcher: typeof import('../../orchestrator/expertise_matcher.js').ExpertiseMatcher;
+  let ExpertiseMatcher: typeof import('../orchestrator/expertise_matcher.js').ExpertiseMatcher;
 
   beforeEach(async () => {
-    const module = await import('../../orchestrator/expertise_matcher.js');
+    const module = await import('../orchestrator/expertise_matcher.js');
     ExpertiseMatcher = module.ExpertiseMatcher;
   });
 
@@ -202,7 +206,7 @@ describe('G24: Persistent Query Cache', () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'g24-test-'));
     const dbPath = path.join(tempDir, 'librarian.db');
-    storage = createSqliteStorage(dbPath, workspaceRoot) as QueryCacheStorage;
+    storage = createSqliteStorage(dbPath, tempDir) as QueryCacheStorage;
     await storage.initialize();
   });
 
