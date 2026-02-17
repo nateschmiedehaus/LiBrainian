@@ -1,0 +1,107 @@
+name: publish-npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to npm after verification
+        required: true
+        type: boolean
+        default: false
+      npm_tag:
+        description: npm dist-tag to publish under
+        required: false
+        type: string
+        default: latest
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Package identity guard
+        run: npm run package:assert-identity
+
+      - name: Build and pack
+        run: npm run release:pack
+
+      - name: Fast release smoke tests
+        run: npm test -- --run src/__tests__/package_identity.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/github_readiness_docs.test.ts
+
+  publish-release:
+    if: github.event_name == 'release'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: npm-publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish to npm
+        run: npm run release:github
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-manual:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: npm-publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish to npm (manual)
+        run: npm publish --provenance --access public --tag "${NPM_TAG:-latest}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ inputs.npm_tag }}

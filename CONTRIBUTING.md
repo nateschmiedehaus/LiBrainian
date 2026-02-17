@@ -158,6 +158,23 @@ npm run package:install-smoke
 npm run eval:publish-gate -- --json
 ```
 
+### Streamlined npm Publish Flow
+
+For maintainers, npm publishing is wired to GitHub Actions so publishing does not depend on local machine state.
+
+1. Ensure `NPM_TOKEN` is configured in GitHub repository secrets.
+2. Run the `publish-npm` workflow:
+   - `publish=false` for verification-only.
+   - `publish=true` to publish after verification.
+3. Or publish automatically by creating a GitHub Release (`published` event triggers the same flow).
+
+Local verification helpers:
+
+```bash
+npm run release:pack
+npm run release:dry-run
+```
+
 ### PR Template
 
 ```markdown
