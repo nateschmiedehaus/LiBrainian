@@ -195,6 +195,19 @@ export interface AuditLogEntry {
   error?: string;
 }
 
+interface ReadResourceRequestLike {
+  params: {
+    uri: string;
+  };
+}
+
+interface CallToolRequestLike {
+  params: {
+    name: string;
+    arguments?: Record<string, unknown>;
+  };
+}
+
 // ============================================================================
 // SERVER IMPLEMENTATION
 // ============================================================================
@@ -255,13 +268,13 @@ export class LibrarianMCPServer {
     });
 
     // Read a resource
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request): Promise<ReadResourceResult> => {
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request: ReadResourceRequestLike): Promise<ReadResourceResult> => {
       const { uri } = request.params;
       return this.readResource(uri);
     });
 
     // Call a tool
-    this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequestLike): Promise<CallToolResult> => {
       const { name, arguments: args } = request.params;
       return this.callTool(name, args);
     });
