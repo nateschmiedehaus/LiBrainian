@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/librarian-ai/librarian/main/assets/librarian-logo.svg" alt="Librarian" width="120" />
+<img src="https://raw.githubusercontent.com/nateschmiedehaus/librarian/main/assets/librarian-logo.svg" alt="Librarian" width="120" />
 
 # Librarian
 
 ### The Epistemic Knowledge Layer for Agentic Software Development
 
-[![CI](https://github.com/librarian-ai/librarian/actions/workflows/ci.yml/badge.svg)](https://github.com/librarian-ai/librarian/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/librarian-ai/librarian)
+[![CI](https://github.com/nateschmiedehaus/librarian/actions/workflows/ci.yml/badge.svg)](https://github.com/nateschmiedehaus/librarian/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/nateschmiedehaus/librarian)
 [![npm version](https://img.shields.io/npm/v/librainian.svg)](https://www.npmjs.com/package/librainian)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-3178c6.svg)](https://www.typescriptlang.org/)
@@ -465,7 +465,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Development setup
-git clone https://github.com/librarian-ai/librarian.git
+git clone https://github.com/nateschmiedehaus/librarian.git
 cd librarian
 npm install
 npm run build
@@ -525,7 +525,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 Built by [Nate Schmiedehaus](https://github.com/librarian-ai) to advance the state of AI-assisted software development.
 
-Special thanks to all [contributors](https://github.com/librarian-ai/librarian/graphs/contributors).
+Special thanks to all [contributors](https://github.com/nateschmiedehaus/librarian/graphs/contributors).
 
 ---
 

@@ -34,7 +34,7 @@ There are many ways to contribute:
 
 ### Before You Start
 
-1. Check existing [issues](https://github.com/librarian-ai/librarian/issues) and [PRs](https://github.com/librarian-ai/librarian/pulls)
+1. Check existing [issues](https://github.com/nateschmiedehaus/librarian/issues) and [PRs](https://github.com/nateschmiedehaus/librarian/pulls)
 2. For major changes, open an issue first to discuss
 3. Read our architecture docs in `docs/`
 
@@ -50,7 +50,7 @@ There are many ways to contribute:
 
 ```bash
 # Clone the repository
-git clone https://github.com/librarian-ai/librarian.git
+git clone https://github.com/nateschmiedehaus/librarian.git
 cd librarian
 
 # Install dependencies
@@ -330,8 +330,8 @@ export async function query(options: QueryOptions): Promise<QueryResult> {
 ### Getting Help
 
 - **Discord**: [Join our Discord](https://discord.gg/anthropic)
-- **GitHub Discussions**: [Ask questions](https://github.com/librarian-ai/librarian/discussions)
-- **Issues**: [Report bugs](https://github.com/librarian-ai/librarian/issues)
+- **GitHub Discussions**: [Ask questions](https://github.com/nateschmiedehaus/librarian/discussions)
+- **Issues**: [Report bugs](https://github.com/nateschmiedehaus/librarian/issues)
 
 ### Recognition
 

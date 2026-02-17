@@ -1,9 +1,9 @@
 # Default owners
-* @librarian-ai
+* @nateschmiedehaus
 
 # Core system
-/src/ @librarian-ai
-/scripts/ @librarian-ai
-/docs/ @librarian-ai
-/package.json @librarian-ai
-/README.md @librarian-ai
+/src/ @nateschmiedehaus
+/scripts/ @nateschmiedehaus
+/docs/ @nateschmiedehaus
+/package.json @nateschmiedehaus
+/README.md @nateschmiedehaus
