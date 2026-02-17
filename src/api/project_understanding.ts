@@ -127,21 +127,20 @@ export async function extractProjectSummary(workspaceRoot: string): Promise<Proj
     if (pkg.keywords) summary.mainFeatures.push(...pkg.keywords);
 
     // Extract tech stack from dependencies
-    if (pkg.dependencies) {
-      const deps = Object.keys(pkg.dependencies);
-      if (deps.some(d => d.includes('react'))) summary.techStack.push('React');
-      if (deps.some(d => d.includes('vue'))) summary.techStack.push('Vue');
-      if (deps.some(d => d.includes('express'))) summary.techStack.push('Express');
-      if (deps.some(d => d.includes('fastify'))) summary.techStack.push('Fastify');
-      if (deps.some(d => d.includes('sqlite'))) summary.techStack.push('SQLite');
-      if (deps.some(d => d.includes('postgres'))) summary.techStack.push('PostgreSQL');
-    }
-    if (pkg.devDependencies) {
-      const deps = Object.keys(pkg.devDependencies);
-      if (deps.includes('typescript')) summary.techStack.push('TypeScript');
-      if (deps.some(d => d.includes('vitest'))) summary.techStack.push('Vitest');
-      if (deps.some(d => d.includes('jest'))) summary.techStack.push('Jest');
-    }
+    const dependencyKeys = Object.keys(pkg.dependencies ?? {});
+    const devDependencyKeys = Object.keys(pkg.devDependencies ?? {});
+    const allDependencyKeys = [...dependencyKeys, ...devDependencyKeys];
+
+    if (dependencyKeys.some(d => d.includes('react'))) summary.techStack.push('React');
+    if (dependencyKeys.some(d => d.includes('vue'))) summary.techStack.push('Vue');
+    if (dependencyKeys.some(d => d.includes('express'))) summary.techStack.push('Express');
+    if (dependencyKeys.some(d => d.includes('fastify'))) summary.techStack.push('Fastify');
+    if (dependencyKeys.some(d => d.includes('sqlite'))) summary.techStack.push('SQLite');
+    if (dependencyKeys.some(d => d.includes('postgres'))) summary.techStack.push('PostgreSQL');
+
+    if (allDependencyKeys.includes('typescript')) summary.techStack.push('TypeScript');
+    if (allDependencyKeys.some(d => d.includes('vitest'))) summary.techStack.push('Vitest');
+    if (allDependencyKeys.some(d => d.includes('jest'))) summary.techStack.push('Jest');
 
     summary.sources.push('package.json');
     summary.confidence = Math.min(1.0, summary.confidence + 0.15);
