@@ -17,6 +17,7 @@ First off, thank you for considering contributing to Librarian! It's people like
 ## Code of Conduct
 
 This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+For security reports, see [SECURITY.md](SECURITY.md).
 
 ## Getting Started
 
@@ -144,6 +145,18 @@ test(quality): add tests for dead code detection
 3. **Ensure CI passes** - all tests and linting must pass
 4. **Request review** from maintainers
 5. **Address feedback** promptly
+
+### Release-Grade Validation (Required Before Merge)
+
+Run these before requesting final review:
+
+```bash
+npm run typecheck
+npm test -- --run
+npm run package:assert-identity
+npm run package:install-smoke
+npm run eval:publish-gate -- --json
+```
 
 ### PR Template
 

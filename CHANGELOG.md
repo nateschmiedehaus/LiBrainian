@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Package identity hardening scripts:
+  - `npm run package:assert-identity`
+  - `npm run package:install-smoke`
+- Publish-path safeguards in `prepublishOnly` and `release` scripts.
+- GitHub governance docs:
+  - `CODE_OF_CONDUCT.md`
+  - `SECURITY.md`
+  - `.github/CODEOWNERS`
+  - `.github/ISSUE_TEMPLATE/config.yml`
+
+### Changed
+- npm package name from `librarian` to `librainian` to avoid npm registry collision.
+- Added backward-compatible CLI bin alias so both `librainian` and `librarian` commands resolve.
+- Updated public docs and examples to use `librainian` install/import commands.
+- Replaced legacy Wave0-prefixed environment naming with `LIBRARIAN_` naming across active docs/scripts/tests.
+
 ## [0.2.0] - 2026-01-29
 
 ### Added
@@ -73,5 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[Unreleased]: https://github.com/librarian-ai/librarian/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/librarian-ai/librarian/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/librarian-ai/librarian/releases/tag/v0.1.0

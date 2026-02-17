@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/librarian-ai/librarian/actions/workflows/ci.yml/badge.svg)](https://github.com/librarian-ai/librarian/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/librarian-ai/librarian)
-[![npm version](https://img.shields.io/npm/v/librarian.svg)](https://www.npmjs.com/package/librarian)
+[![npm version](https://img.shields.io/npm/v/librainian.svg)](https://www.npmjs.com/package/librainian)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
@@ -28,22 +28,25 @@ Get semantic codebase understanding in 30 seconds:
 
 ```bash
 # Install
-npm install librarian
+npm install librainian
 
-# Index your codebase (run once, updates incrementally)
-npx librarian bootstrap .
+# Smooth onboarding (auto-heal + bootstrap + baseline)
+npx librainian quickstart
+
+# Or, run a full bootstrap explicitly
+npx librainian bootstrap . --emit-baseline
 
 # Query for context
-npx librarian query "Where is authentication handled?"
+npx librainian query "Where is authentication handled?"
 
-# Check code quality
-npx librarian quality
+# Check index health
+npx librainian status
 ```
 
 ### Use in Your Agent
 
 ```typescript
-import { createLibrarian } from 'librarian';
+import { createLibrarian } from 'librainian';
 
 const librarian = await createLibrarian({
   workspace: process.cwd(),
@@ -170,7 +173,7 @@ console.log(result.evidence);       // ['src/payments/stripe.ts:L45', 'config/pa
 Automatically detect and track code quality issues with ROI-based prioritization:
 
 ```bash
-$ npx librarian quality
+$ npx librainian quality
 
   CODE QUALITY REPORT
 +------------------------------------------------------------------+
@@ -299,7 +302,7 @@ Librarian exports multiple entry points for different use cases:
 
 ```typescript
 // Main API
-import { createLibrarian } from 'librarian';
+import { createLibrarian } from 'librainian';
 
 // Query API
 import { queryLibrarian } from 'librarian/api';
@@ -319,56 +322,41 @@ import { createProvider } from 'librarian/providers';
 ## CLI Reference
 
 ```bash
-librarian <command> [options]
+librainian <command> [options]
 
 Commands:
+  quickstart           Smooth onboarding (heal + bootstrap + baseline)
   bootstrap [path]     Index a codebase (first-time or full refresh)
   query <intent>       Query for relevant context
-  quality              Analyze code quality
-  issues               List and manage quality issues
-  research <domain>    Get best practices for a domain
-  status               Show indexing status
-  serve                Start MCP server for IDE integration
+  status               Show indexing status and health
+  check-providers      Check provider availability
+  watch                Watch for file changes and auto-reindex
+  diagnose             Diagnose self-knowledge drift
+  doctor               Run diagnostics and config heal
+  health               Show system health (EvolutionOps)
+  analyze              Run static analysis (dead code, complexity)
+  coverage             UC × method × scenario audit
+  smoke                Run external repo smoke harness
+  journey              Run agentic journey simulations
 
 Options:
   --help, -h           Show help
   --version, -v        Show version
   --verbose            Verbose output
-  --json               Output as JSON
+  --format text|json   Output format (command-dependent)
+  --json               Alias for --format json
+
+Tip: run `librainian help` for the full, up-to-date command list.
+Legacy alias: `librarian` is still supported.
 
 Examples:
-  librarian bootstrap .
-  librarian query "How does the payment flow work?"
-  librarian quality --severity=critical,major
-  librarian issues --status=open --orderBy=roi
-  librarian research authentication
+  librainian bootstrap .
+  librainian query "How does the payment flow work?"
+  librainian status --format json
+  librainian check-providers --json
 ```
 
 ---
-
-## MCP Server Integration
-
-Run Librarian as an MCP server for seamless IDE integration:
-
-```bash
-librarian serve --port 3000
-```
-
-### Claude Desktop Setup
-
-Add to `~/.config/claude/mcp.json`:
-
-```json
-{
-  "servers": {
-    "librarian": {
-      "command": "npx",
-      "args": ["librarian", "serve"],
-      "cwd": "/path/to/your/project"
-    }
-  }
-}
-```
 
 ### Available MCP Tools
 
@@ -388,7 +376,7 @@ Add to `~/.config/claude/mcp.json`:
 Create `librarian.config.ts` in your project root:
 
 ```typescript
-import { defineConfig } from 'librarian';
+import { defineConfig } from 'librainian';
 
 export default defineConfig({
   // Paths to exclude from indexing
@@ -483,6 +471,14 @@ npm install
 npm run build
 npm test
 ```
+
+---
+
+## Community Standards
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Contributing Guide](CONTRIBUTING.md)
 
 ---
 

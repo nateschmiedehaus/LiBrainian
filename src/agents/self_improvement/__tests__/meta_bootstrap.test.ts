@@ -47,6 +47,10 @@ const EXCLUDED_DIRECTORY_PATTERNS = [
 const SELF_BOOTSTRAP_EXCLUDES = [
   'node_modules/**',
   'dist/**',
+  'state/**',
+  'eval-results/**',
+  'scratchpad/**',
+  '.tmp/**',
   '**/*.test.ts',
   'eval-corpus/**',
   '.git/**',
@@ -102,6 +106,18 @@ async function discoverFilesForSelfBootstrap(
   }
 
   return filteredFiles;
+}
+
+let cachedSelfBootstrapFilesPromise: Promise<string[]> | null = null;
+
+async function getSelfBootstrapFiles(): Promise<string[]> {
+  if (!cachedSelfBootstrapFilesPromise) {
+    cachedSelfBootstrapFilesPromise = discoverFilesForSelfBootstrap(
+      LIBRARIAN_ROOT,
+      SELF_BOOTSTRAP_EXCLUDES
+    );
+  }
+  return cachedSelfBootstrapFilesPromise;
 }
 
 // ============================================================================
@@ -352,10 +368,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
 
   describe('File Discovery (Dry Run Mode)', () => {
     it('should discover Librarian source files', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       // Should find a substantial number of files
       expect(files.length).toBeGreaterThan(50);
@@ -365,10 +378,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should discover all required core files', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       const relativeFiles = files.map(f => path.relative(LIBRARIAN_ROOT, f));
 
@@ -379,10 +389,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should exclude node_modules, dist, and git directories', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       for (const file of files) {
         const relativePath = path.relative(LIBRARIAN_ROOT, file);
@@ -398,10 +405,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should exclude test files when configured', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       // Filter to find test files in the Librarian src directory (not eval-corpus or external repos)
       const librarianSrcTestFiles = files.filter(f => {
@@ -431,10 +435,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should discover TypeScript source files', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       const tsFiles = files.filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts'));
       expect(tsFiles.length).toBeGreaterThan(30);
@@ -444,10 +445,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should discover key agent files', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       const relativeFiles = files.map(f => path.relative(LIBRARIAN_ROOT, f));
 
@@ -465,10 +463,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should discover self-improvement primitives', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       const selfImprovementFiles = files.filter(f =>
         f.includes('self_improvement') && !f.includes('__tests__')
@@ -492,8 +487,9 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
       const packageContent = await fs.readFile(packageJsonPath, 'utf8');
       const pkg = JSON.parse(packageContent);
 
-      // Package name should be 'librarian'
+      // Package name should identify this as Librarian
       const isLibrarianPackage = (
+        pkg.name === 'librainian' ||
         pkg.name === 'librarian' ||
         pkg.name === '@librarian/core' ||
         pkg.name?.includes('librarian')
@@ -577,10 +573,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
 
   describe('Coverage Analysis', () => {
     it('should report file category distribution', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       const categories: Record<string, number> = {};
 
@@ -596,10 +589,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     });
 
     it('should report directory structure depth', async () => {
-      const files = await discoverFilesForSelfBootstrap(
-        LIBRARIAN_ROOT,
-        SELF_BOOTSTRAP_EXCLUDES
-      );
+      const files = await getSelfBootstrapFiles();
 
       const depths = files.map(f => {
         const relativePath = path.relative(LIBRARIAN_ROOT, f);

@@ -1,0 +1,9 @@
+# Default owners
+* @librarian-ai
+
+# Core system
+/src/ @librarian-ai
+/scripts/ @librarian-ai
+/docs/ @librarian-ai
+/package.json @librarian-ai
+/README.md @librarian-ai

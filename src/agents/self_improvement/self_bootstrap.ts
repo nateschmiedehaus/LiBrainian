@@ -100,12 +100,18 @@ async function isSelfReferentialBootstrap(rootDir: string): Promise<boolean> {
     }
   }
 
-  // Check package.json for librarian name
+  // Check package.json for Librarian package identity
   try {
     const packagePath = path.join(rootDir, 'package.json');
     const content = await fs.readFile(packagePath, 'utf8');
-    const pkg = JSON.parse(content);
-    return pkg.name === 'librarian' || pkg.name === '@librarian/core';
+    const pkg = JSON.parse(content) as { name?: string };
+    const packageName = pkg.name ?? '';
+    return (
+      packageName === 'librainian' ||
+      packageName === 'librarian' ||
+      packageName === '@librarian/core' ||
+      packageName.includes('librarian')
+    );
   } catch {
     return false;
   }

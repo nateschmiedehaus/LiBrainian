@@ -78,7 +78,7 @@ describe('extractProjectSummary', () => {
 
   it('extracts name from package.json', async () => {
     const summary = await extractProjectSummary(workspaceRoot);
-    expect(summary.name).toBe('librarian');
+    expect(summary.name).toBe('librainian');
   });
 
   it('extracts description from package.json', async () => {
