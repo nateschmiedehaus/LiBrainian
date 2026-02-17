@@ -54,7 +54,7 @@ Memory per 1K LOC: unknown (target 50 MB)
 
 ## Validation Phases (12-22)
 
-See `CODEX_ORCHESTRATOR.md` for full details. Summary:
+See `docs/librarian/WORKPLAN.md` for full details. Summary:
 
 | Phase | Name | Key Deliverable |
 |-------|------|-----------------|

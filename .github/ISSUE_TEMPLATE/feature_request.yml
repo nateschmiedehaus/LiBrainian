@@ -1,0 +1,61 @@
+name: Feature Request
+description: Propose an improvement for LiBrainian UX or capabilities
+title: "[FEATURE] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the user problem first, then the proposed solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user pain does this solve?
+      placeholder: "New users struggle to understand whether quickstart completed correctly."
+    validations:
+      required: true
+  - type: checkboxes
+    id: user_journey
+    attributes:
+      label: User journey area
+      options:
+        - label: GitHub landing and discoverability
+        - label: Installation / quickstart
+        - label: Query quality and usefulness
+        - label: Editing / contributor workflow
+        - label: CI / publish / release readiness
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: "Add a post-quickstart verification command with explicit pass/fail output."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: "Considered adding docs only, but command-level feedback is more reliable."
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define measurable completion conditions.
+      placeholder: |
+        - New users complete install-to-first-query in under 2 minutes.
+        - docs/START_HERE.md includes exact verification command.
+        - CLI output shows explicit success signal.
+    validations:
+      required: true
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Will you contribute?
+      options:
+        - Yes, implementation
+        - Yes, testing/docs
+        - No, request only
+    validations:
+      required: true

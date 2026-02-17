@@ -66,6 +66,17 @@ npm test
 npm run dev
 ```
 
+### 10-Minute Contributor Flow
+
+```bash
+npm install
+npx librainian quickstart
+npm test -- --run
+npm run typecheck
+```
+
+If those pass, your environment is ready for editing and PR work.
+
 ### Environment Variables
 
 For full functionality, set these (all optional):
@@ -163,11 +174,16 @@ npm run eval:publish-gate -- --json
 
 For maintainers, npm publishing is wired to GitHub Actions so publishing does not depend on local machine state.
 
-1. Ensure `NPM_TOKEN` is configured in GitHub repository secrets.
-2. Run the `publish-npm` workflow:
+1. Connect npm trusted publishing to this GitHub repo/workflow in npm settings (recommended).
+2. Optionally set `NPM_TOKEN` in GitHub secrets as a fallback path.
+3. Run the `publish-npm` workflow:
    - `publish=false` for verification-only.
    - `publish=true` to publish after verification.
-3. Or publish automatically by creating a GitHub Release (`published` event triggers the same flow).
+4. Or publish automatically by creating a GitHub Release (`published` event triggers the same flow).
+
+The workflow now auto-selects auth mode:
+- Uses `NPM_TOKEN` when present **and valid**.
+- Automatically switches to trusted publishing (OIDC) when token is missing/invalid.
 
 Local verification helpers:
 

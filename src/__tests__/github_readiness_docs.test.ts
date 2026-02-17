@@ -27,4 +27,27 @@ describe('github readiness docs', () => {
     expect(contributing).toContain('npm run package:install-smoke');
     expect(contributing).toContain('npm run eval:publish-gate -- --json');
   });
+
+  it('keeps internal orchestration docs out of repository root', () => {
+    const root = process.cwd();
+    const internalRootArtifacts = [
+      'CODEX_ORCHESTRATOR.md',
+      'CODEX_FULL_IMPLEMENTATION.md',
+      'CODEX_ORCHESTRATOR_PROMPT.md',
+      'COMPLETE_FIX_PLAN.md',
+      'ORCHESTRATION_TASKS.md',
+      'START_IMPLEMENTATION.md',
+      'HARD_STOP.md',
+      'LIBRARIAN_QUALITY_EVALUATION_PLAN.md',
+      'META_PROMPT_CRITICAL_EVALUATION.md',
+    ];
+
+    for (const file of internalRootArtifacts) {
+      expect(fs.existsSync(path.join(root, file))).toBe(false);
+    }
+
+    expect(fs.existsSync(path.join(root, 'docs', 'internal', 'README.md'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'docs', 'internal', 'archive'))).toBe(false);
+    expect(fs.existsSync(path.join(root, '.github', 'README.md'))).toBe(false);
+  });
 });

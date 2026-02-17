@@ -4,78 +4,65 @@
 
 const HELP_TEXT = {
   main: `
-Librarian CLI - Developer Experience Interface for Wave0 Knowledge System
+LiBrainian CLI
 
 USAGE:
-    librarian <command> [options]
+    librainian <command> [options]
+    librarian <command> [options]     # compatibility alias
+
+START HERE:
+    librainian quickstart
+    librainian query "How does authentication work?"
+    librainian status --format json
 
 COMMANDS:
-    status              Show current librarian status and index health
-    query <intent>      Run a query against the knowledge base
-    bootstrap           Initialize or refresh the knowledge index
-    inspect <module>    Inspect a module or function's knowledge
-    confidence <entity> Show confidence scores for an entity
-    validate <file>     Validate constraints for a file
-    check-providers     Check provider availability and authentication
-    visualize           Generate codebase visualizations
-    coverage            Generate UC x method x scenario coverage audit
     quickstart          Smooth onboarding and recovery flow
+    query <intent>      Run a query against the knowledge base
+    status              Show current index and health status
+    bootstrap           Initialize or refresh the knowledge index
+    check-providers     Check provider availability and authentication
+    watch               Watch for file changes and auto-reindex
+    compose             Compile technique bundles from intent
+    doctor              Run diagnostics and recovery hints
+    health              Show current LiBrainian health status
     smoke               Run external repo smoke harness
     journey             Run agentic journey simulations
     live-fire           Run continuous objective trial matrix
-    health              Show current Librarian health status
+    publish-gate        Run strict publish-readiness gate checks
+    help [command]      Show help for a command
+
+ADVANCED:
+    inspect <module>    Inspect a module or function's knowledge
+    confidence <entity> Show confidence scores for an entity
+    validate <file>     Validate constraints for a file
+    visualize           Generate codebase visualizations
+    coverage            Generate UC x method x scenario coverage audit
     heal                Run homeostatic healing loop until healthy
     evolve              Run evolutionary improvement loop
     eval                Produce FitnessReport.v1 for current state
     replay              Replay an evolution cycle or variant
-    watch               Watch for file changes and auto-reindex
-    compose             Compile technique bundles from intent
     index --force <file...>  Incrementally index specific files
-	    analyze             Run static analysis (dead code, complexity)
-	    config heal         Auto-detect and fix suboptimal configuration
-	    doctor              Run health diagnostics to identify issues
-	    publish-gate        Run strict publish-readiness gate checks
-	    ralph               Run DETECT->FIX->VERIFY loop and write an audit report
-	    external-repos      Sync external repo corpus from manifest.json
-	    help [command]      Show help for a command
+    analyze             Run static analysis (dead code, complexity)
+    config heal         Auto-detect and fix suboptimal configuration
+    ralph               Run DETECT->FIX->VERIFY loop and write an audit report
+    external-repos      Sync external repo corpus from manifest.json
 
 GLOBAL OPTIONS:
     -h, --help          Show help information
     -v, --version       Show version information
     -w, --workspace     Set workspace directory (default: current directory)
     --verbose           Enable verbose output
-    --json              Enable JSON output for errors (for agent consumption)
-
-ERROR HANDLING:
-    When --json flag is present, errors are output as structured ErrorEnvelope:
-    {
-      "error": {
-        "code": "ENOINDEX",           // Machine-readable error code
-        "message": "...",             // Human-readable description
-        "retryable": false,           // Can the agent retry this operation?
-        "recoveryHints": [...],       // Suggested recovery actions
-        "context": { ... }            // Additional error context
-      }
-    }
-
-    Error codes include:
-    - ENOINDEX, ESTALE_INDEX        (storage errors - exit codes 10-19)
-    - EQUERY_TIMEOUT, EQUERY_INVALID (query errors - exit codes 20-29)
-    - EPROVIDER_UNAVAILABLE, etc.   (provider errors - exit codes 30-39)
-    - EBOOTSTRAP_REQUIRED, etc.     (bootstrap errors - exit codes 40-49)
-    - EINVALID_ARGUMENT, etc.       (validation errors - exit codes 50-59)
+    --json              Enable JSON output for errors (agent friendly)
 
 EXAMPLES:
-    librarian status
-    librarian query "How does authentication work?"
-    librarian bootstrap --force
-    librarian bootstrap --force-resume
-    librarian inspect src/auth/login.ts
-    librarian validate src/api/handler.ts
-    librarian compose "Prepare a release plan" --limit 1
+    librainian quickstart
+    librainian query "How does the payment flow work?"
+    librainian bootstrap --force
+    librainian compose "Prepare a release plan" --limit 1
+    librainian publish-gate --profile release --json
 
-For more information on a specific command, run:
-    librarian help <command>
+For command-specific details:
+    librainian help <command>
 `,
 
   status: `

@@ -281,7 +281,7 @@ See: `docs/LiBrainian/specs/track-eval-scientific-loop.md`
 
 ## CRITICAL: Orchestration Mode
 
-**See `CODEX_ORCHESTRATOR.md` for the full implementation orchestration system.**
+**Use `docs/librarian/WORKPLAN.md` + `docs/librarian/specs/README.md` as the orchestration source of truth.**
 
 Your mission is to implement the ENTIRE spec system from 0% to 100% completion.
 - Use sub-agents if available (up to 3 concurrent)
@@ -293,8 +293,7 @@ Your mission is to implement the ENTIRE spec system from 0% to 100% completion.
 
 | Document | Purpose |
 |----------|---------|
-| `CODEX_ORCHESTRATOR.md` | Master orchestration — work units, sub-agent prompts, tracking |
-| `CODEX_FULL_IMPLEMENTATION.md` | Detailed phase-by-phase implementation guide |
+| `docs/librarian/WORKPLAN.md` | Master orchestration — phases, checkpoints, work progression |
 | `docs/LiBrainian/specs/README.md` | Full Build Charter, Council of 30 mandates |
 | `docs/LiBrainian/specs/BLOCKER_RESOLUTION.md` | How to resolve ANY blocker |
 
@@ -550,7 +549,7 @@ If your environment supports spawning sub-agents:
 4. Update STATUS.md with work evidence
 
 ### Handoff Protocol
-- Each sub-agent gets a COMPLETE prompt from `CODEX_ORCHESTRATOR.md`
+- Each sub-agent gets a COMPLETE prompt from `docs/librarian/WORKPLAN.md` + relevant spec docs
 - Sub-agent returns structured output with status and evidence
 - Main agent verifies and spawns next work unit
 - No human involvement at any stage

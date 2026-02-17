@@ -205,7 +205,7 @@ unverified (evidence_manifest_missing): Table below is unverified.
 | Scientific Loop Fix Rate | >= 70% | **100%** | ✅ MET |
 
 ### Key Spec References unverified (evidence_manifest_missing)
-- unverified (evidence_manifest_missing): `CODEX_ORCHESTRATOR.md` — Full validation phase definitions
+- unverified (evidence_manifest_missing): `docs/librarian/WORKPLAN.md` — Full validation phase definitions
 - unverified (evidence_manifest_missing): `docs/LiBrainian/specs/track-eval-machine-verifiable.md` — AST-based ground truth
 - unverified (evidence_manifest_missing): `docs/LiBrainian/specs/track-eval-agent-performance.md` — Worker A/B testing
 - unverified (evidence_manifest_missing): `docs/LiBrainian/specs/track-eval-scientific-loop.md` — Scientific debugging loop

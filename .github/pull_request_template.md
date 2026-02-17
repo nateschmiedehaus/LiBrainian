@@ -2,6 +2,15 @@
 
 Brief description of the changes in this PR.
 
+## User-Visible Flow Impact
+
+What part of user experience gets better?
+- [ ] GitHub landing / docs discoverability
+- [ ] Install / quickstart
+- [ ] Query and context quality
+- [ ] Editing and contributor loop
+- [ ] Publish / release confidence
+
 ## Type of Change
 
 - [ ] Bug fix (non-breaking change that fixes an issue)
@@ -22,6 +31,8 @@ Describe the tests that you ran to verify your changes:
 - [ ] Unit tests
 - [ ] Integration tests
 - [ ] Manual testing
+- [ ] CLI quickstart manually verified (`npx librainian quickstart`)
+- [ ] Query manually verified (`npx librainian query "..."`)
 
 ## Screenshots (if applicable)
 

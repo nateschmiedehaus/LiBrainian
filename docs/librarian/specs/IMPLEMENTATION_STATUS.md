@@ -18,7 +18,7 @@ unverified (evidence_manifest_missing): **Infrastructure (Phases 0-11)**: ✅ CO
 unverified (evidence_manifest_missing): **Validation (Phases 12-22)**: ⏳ NOT STARTED
 - unverified (evidence_manifest_missing): 57 work units pending
 - unverified (evidence_manifest_missing): Key metrics NOT measured (Recall@5, Hallucination Rate, ECE, A/B Lift)
-- unverified (evidence_manifest_missing): See `CODEX_ORCHESTRATOR.md` for full validation plan
+- unverified (evidence_manifest_missing): See `docs/librarian/WORKPLAN.md` for full validation plan
 
 unverified (evidence_manifest_missing): ---
 

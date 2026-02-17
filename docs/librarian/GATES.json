@@ -965,7 +965,7 @@
       "lastRun": "2026-01-27",
       "target": "Run real queries through full pipeline on external repos",
       "measured": "124 E2E tests passing",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-12",
+      "spec": "docs/librarian/WORKPLAN.md#phase-12",
       "workUnits": [
         "WU-1201",
         "WU-1202",
@@ -986,7 +986,7 @@
       "lastRun": "2026-01-27",
       "target": "100+ machine-verifiable query/answer pairs",
       "measured": "4,785 queries, 2,455 AST facts across 7 repos",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-13",
+      "spec": "docs/librarian/WORKPLAN.md#phase-13",
       "workUnits": [
         "WU-1301",
         "WU-1302",
@@ -1014,7 +1014,7 @@
         "faithfulness": 0.87,
         "answerRelevancy": 0.79
       },
-      "spec": "CODEX_ORCHESTRATOR.md#phase-14",
+      "spec": "docs/librarian/WORKPLAN.md#phase-14",
       "workUnits": [
         "WU-1401",
         "WU-1402",
@@ -1035,7 +1035,7 @@
       "lastRun": "2026-01-27",
       "target": "Loop fixes at least 3 injected bugs without regression",
       "measured": "100% fix rate (3/3 bugs fixed), 9 prevention tests, 3 regression guards",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-15",
+      "spec": "docs/librarian/WORKPLAN.md#phase-15",
       "workUnits": [
         "WU-1501",
         "WU-1502",
@@ -1056,7 +1056,7 @@
       "lastRun": "2026-02-17",
       "target": "All 30 scenario families tested including HARD (SF-21 to SF-30)",
       "measured": "30/30",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-16",
+      "spec": "docs/librarian/WORKPLAN.md#phase-16",
       "workUnits": [
         "WU-1601",
         "WU-1602",
@@ -1086,7 +1086,7 @@
       "lastRun": "2026-02-17",
       "target": "Treatment >= 20% lift over Control, p < 0.05",
       "measured": "lift=0.20833333333333334 (p=0.09371405527122034)",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-17",
+      "spec": "docs/librarian/WORKPLAN.md#phase-17",
       "workUnits": [
         "WU-1701",
         "WU-1702",
@@ -1106,7 +1106,7 @@
       "lastRun": "2026-01-27",
       "target": "No crashes on empty repos, huge files, concurrent load",
       "measured": "0 crashes, 8/8 edge cases passed",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-18",
+      "spec": "docs/librarian/WORKPLAN.md#phase-18",
       "workUnits": [
         "WU-1801",
         "WU-1802",
@@ -1128,7 +1128,7 @@
       "lastRun": "2026-01-27",
       "target": "False negative rate < 5%, proper uncertainty disclosure",
       "measured": "0% false negative rate",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-19",
+      "spec": "docs/librarian/WORKPLAN.md#phase-19",
       "workUnits": [
         "WU-1901",
         "WU-1902",
@@ -1149,7 +1149,7 @@
       "lastRun": "2026-01-27",
       "target": "ECE < 0.10, reliability diagram close to diagonal",
       "measured": "ECE = 0.0602",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-20",
+      "spec": "docs/librarian/WORKPLAN.md#phase-20",
       "workUnits": [
         "WU-2001",
         "WU-2002",
@@ -1176,7 +1176,7 @@
         "memoryPerKLOC": 0.8981828401857475
       },
       "note": "Latency targets missing: only memory targets are part of the manifest summary.",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-21",
+      "spec": "docs/librarian/WORKPLAN.md#phase-21",
       "workUnits": [
         "WU-2101",
         "WU-2102",
@@ -1196,7 +1196,7 @@
       "target": "All claims backed by eval-results/, Full Build Charter complete",
       "measured": "100% evidence coverage, all metrics documented",
       "evidence": "eval-results/final-verification.json",
-      "spec": "CODEX_ORCHESTRATOR.md#phase-22",
+      "spec": "docs/librarian/WORKPLAN.md#phase-22",
       "workUnits": [
         "WU-2201",
         "WU-2202",

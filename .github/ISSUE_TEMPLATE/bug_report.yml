@@ -1,0 +1,105 @@
+name: Bug Report
+description: Report a reproducible bug in LiBrainian
+title: "[BUG] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please include exact commands and output so we can reproduce quickly.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the bug.
+      placeholder: "LiBrainian query returns empty results after quickstart on a TypeScript repo."
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What task is blocked and for whom?
+      placeholder: "Our agent cannot retrieve auth-related context, blocking login feature work."
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Include minimal steps and exact commands from a clean shell.
+      value: |
+        1. ...
+        2. ...
+        3. ...
+      placeholder: |
+        npx librainian quickstart
+        npx librainian query "Where is authentication enforced?"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: "Expected summary with related files and confidence score."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: "Received empty packs and confidence 0.0."
+    validations:
+      required: true
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Install method
+      options:
+        - npm install librainian
+        - npx librainian
+        - linked local package
+        - other
+    validations:
+      required: true
+  - type: input
+    id: librainian_version
+    attributes:
+      label: LiBrainian version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: node_version
+    attributes:
+      label: Node.js version
+      placeholder: "20.20.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 15.3 / Ubuntu 24.04"
+    validations:
+      required: true
+  - type: dropdown
+    id: repo_type
+    attributes:
+      label: Repository language mix
+      options:
+        - TypeScript / JavaScript
+        - Python
+        - Go
+        - Rust
+        - Mixed polyglot
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Paste relevant output, stack traces, or screenshots.
+      render: text

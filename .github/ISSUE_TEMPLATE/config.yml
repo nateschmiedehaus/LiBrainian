@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Quickstart docs
+    url: https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/START_HERE.md
+    about: Installation and first-query guide.
   - name: Security vulnerability report
-    url: https://github.com/nateschmiedehaus/librarian/security/advisories/new
+    url: https://github.com/nateschmiedehaus/LiBrainian/security/advisories/new
     about: Please report security issues privately.
   - name: Questions and support
-    url: https://github.com/nateschmiedehaus/librarian/discussions
-    about: Ask usage and integration questions in Discussions.
+    url: https://github.com/nateschmiedehaus/LiBrainian/discussions
+    about: Ask usage, onboarding, and integration questions in Discussions.

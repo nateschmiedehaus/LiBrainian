@@ -1,0 +1,4 @@
+# Reduce published tarball weight
+dist/**/*.map
+dist/test/**
+dist/**/__tests__/**

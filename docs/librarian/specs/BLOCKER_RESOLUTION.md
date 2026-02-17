@@ -438,7 +438,7 @@ The `eval-corpus/repos/*` directories have no git remotes (not real cloned repos
 
 **Next work unit:** WU-801-REAL — Clone real external repos from GitHub.
 
-See `/HARD_STOP.md` for the full work unit prompt.
+See `AGENTS.md` for the full work unit prompt.
 
 ---
 

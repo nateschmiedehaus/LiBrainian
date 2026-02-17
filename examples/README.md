@@ -1,10 +1,10 @@
 # LiBrainian Examples
 
-These examples are designed to be practical, copy-pasteable starting points.
+These examples are practical end-to-end starting points for integrating LiBrainian into agent workflows.
 
-## Run Examples
+## Run
 
-From the repo root:
+From the repository root:
 
 ```bash
 npx tsx examples/quickstart_programmatic.ts
@@ -12,33 +12,36 @@ npx tsx examples/agentic_task_loop.ts
 npx tsx examples/feedback_loop_example.ts
 ```
 
-You can also point examples at another workspace:
+Or target a different workspace:
 
 ```bash
-npx tsx examples/quickstart_programmatic.ts /absolute/path/to/repo "Where is auth handled?"
+npx tsx examples/quickstart_programmatic.ts /absolute/path/to/repo "Where is authentication enforced?"
 ```
 
-## What Each Example Covers
+## Example Guide
 
 - `quickstart_programmatic.ts`
-  - one-call `initializeLibrarian(...)`
-  - query + structured output
-  - health inspection
+  - Single-call `initializeLibrarian(...)`
+  - Query + confidence + related files output
+  - Session health and graceful shutdown
 - `agentic_task_loop.ts`
-  - query → task execution placeholder → outcome recording
-  - practical pattern for agent wrappers and orchestrators
+  - Agent loop scaffold: query → act → record outcome
+  - Good baseline for orchestrator wrappers
 - `feedback_loop_example.ts`
-  - low-level feedback loop primitives
-  - signal tracking and calibration bias analysis
+  - Feedback and calibration primitives
+  - Signal collection for quality improvement
 
-## Notes
+## Expected Experience
 
-- `initializeLibrarian(...)` auto-bootstraps and auto-configures for the workspace.
-- LLM providers are optional for many paths, but richer synthesis requires provider configuration.
-- For CLI-first usage, run:
+- Auto-bootstrap on first run
+- Incremental speedups on repeated runs
+- Actionable context with explicit confidence
+
+## CLI Equivalent
 
 ```bash
 npx librainian quickstart
 npx librainian query "How does bootstrap recovery work?"
+npx librainian status
 npx librainian health
 ```

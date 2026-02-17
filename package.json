@@ -1,7 +1,7 @@
 {
   "name": "librainian",
   "version": "0.2.0",
-  "description": "The knowledge layer for agentic software development - semantic code understanding, quality detection, and best practices for AI coding agents",
+  "description": "Codebase knowledge and intelligence for coding agents: semantic indexing, confidence-calibrated retrieval, quality gates, and self-healing onboarding.",
   "author": "Nate Schmiedehaus",
   "license": "MIT",
   "homepage": "https://github.com/nateschmiedehaus/LiBrainian#readme",
@@ -14,7 +14,9 @@
   },
   "keywords": [
     "ai",
+    "agentic-development",
     "coding-agent",
+    "code-intelligence",
     "code-understanding",
     "semantic-search",
     "code-quality",
@@ -61,7 +63,12 @@
     }
   },
   "files": [
-    "dist",
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/migrations/*.sql",
+    "!dist/**/*.map",
+    "!dist/test/**",
+    "!dist/**/__tests__/**",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

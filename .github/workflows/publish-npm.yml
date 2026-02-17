@@ -78,10 +78,35 @@ jobs:
       - name: Build distributable
         run: npm run package:assert-identity && npm run clean && npm run build && npm run package:install-smoke
 
-      - name: Publish to npm
+      - name: Determine npm auth mode
+        id: npm-auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            npmrc="$(mktemp)"
+            trap 'rm -f "$npmrc"' EXIT
+            printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_TOKEN" > "$npmrc"
+            if NPM_CONFIG_USERCONFIG="$npmrc" npm whoami --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              echo "mode=token" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::NPM_TOKEN is invalid or revoked; falling back to trusted publishing (OIDC)."
+              echo "mode=trusted" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "mode=trusted" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm (token)
+        if: steps.npm-auth.outputs.mode == 'token'
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm (trusted)
+        if: steps.npm-auth.outputs.mode == 'trusted'
+        run: npm publish --provenance --access public --ignore-scripts
 
   publish-manual:
     if: github.event_name == 'workflow_dispatch' && inputs.publish == true
@@ -106,8 +131,35 @@ jobs:
       - name: Build distributable
         run: npm run package:assert-identity && npm run clean && npm run build && npm run package:install-smoke
 
-      - name: Publish to npm (manual)
+      - name: Determine npm auth mode
+        id: npm-auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            npmrc="$(mktemp)"
+            trap 'rm -f "$npmrc"' EXIT
+            printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_TOKEN" > "$npmrc"
+            if NPM_CONFIG_USERCONFIG="$npmrc" npm whoami --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              echo "mode=token" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::NPM_TOKEN is invalid or revoked; falling back to trusted publishing (OIDC)."
+              echo "mode=trusted" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "mode=trusted" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm (manual token)
+        if: steps.npm-auth.outputs.mode == 'token'
         run: npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+
+      - name: Publish to npm (manual trusted)
+        if: steps.npm-auth.outputs.mode == 'trusted'
+        run: npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
+        env:
           NPM_TAG: ${{ inputs.npm_tag }}

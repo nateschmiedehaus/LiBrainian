@@ -17,3 +17,15 @@ eval-corpus/external-repos/*
 scenario-report.json
 debug_reach.ts
 .tmp/
+
+# Internal planning artifacts (must stay out of public repo)
+/docs/internal/archive/
+/CODEX_ORCHESTRATOR.md
+/CODEX_FULL_IMPLEMENTATION.md
+/CODEX_ORCHESTRATOR_PROMPT.md
+/COMPLETE_FIX_PLAN.md
+/ORCHESTRATION_TASKS.md
+/START_IMPLEMENTATION.md
+/HARD_STOP.md
+/LIBRARIAN_QUALITY_EVALUATION_PLAN.md
+/META_PROMPT_CRITICAL_EVALUATION.md
