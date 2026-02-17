@@ -4,13 +4,13 @@
   "description": "The knowledge layer for agentic software development - semantic code understanding, quality detection, and best practices for AI coding agents",
   "author": "Nate Schmiedehaus",
   "license": "MIT",
-  "homepage": "https://github.com/nateschmiedehaus/librarian#readme",
+  "homepage": "https://github.com/nateschmiedehaus/LiBrainian#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nateschmiedehaus/librarian.git"
+    "url": "git+https://github.com/nateschmiedehaus/LiBrainian.git"
   },
   "bugs": {
-    "url": "https://github.com/nateschmiedehaus/librarian/issues"
+    "url": "https://github.com/nateschmiedehaus/LiBrainian/issues"
   },
   "keywords": [
     "ai",
