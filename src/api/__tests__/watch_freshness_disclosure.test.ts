@@ -83,4 +83,19 @@ describe('watch freshness disclosures', () => {
     expect(result.disclosures).toContain('unverified_by_trace(watch_suspected_dead): watcher heartbeat stale');
     expect(result.disclosures).toContain('unverified_by_trace(watch_reconcile_stale): filesystem reconcile is stale');
   });
+
+  it('uses non-strict disclosures when watch state is unavailable', async () => {
+    const { queryLibrarian } = await import('../query.js');
+    storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
+    await storage.initialize();
+    await seedStorageForQuery(storage, 'src/auth.ts');
+
+    const result = await queryLibrarian(
+      { intent: 'watch state', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+      storage
+    );
+
+    expect(result.disclosures).toContain('watch_state_missing: watch state unavailable');
+    expect(result.disclosures.some((entry) => entry.includes('unverified_by_trace(watch_state_missing)'))).toBe(false);
+  });
 });

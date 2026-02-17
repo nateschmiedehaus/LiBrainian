@@ -58,6 +58,32 @@ interface ComplexityReport {
   };
 }
 
+interface DeadWeightFileResult {
+  file: string;
+  score: number;
+  deadCodeCandidates: number;
+  highConfidenceDeadCodeCandidates: number;
+  inboundImportCount: number;
+  exportedSymbolCount: number;
+  lines: number;
+  hasNearbyTests: boolean;
+  reasons: string[];
+}
+
+interface DeadWeightReport {
+  schema: 'DeadWeightReport.v1';
+  repoPath: string;
+  analyzedAt: string;
+  summary: {
+    totalFiles: number;
+    candidateFiles: number;
+    zeroInboundFiles: number;
+    filesWithDeadCodeCandidates: number;
+    filesWithHighConfidenceDeadCode: number;
+  };
+  files: DeadWeightFileResult[];
+}
+
 // ============================================================================
 // Dead Code Analysis
 // ============================================================================
@@ -66,7 +92,9 @@ async function runDeadCodeAnalysis(
   workspace: string,
   format: 'text' | 'json'
 ): Promise<void> {
-  console.log('Running dead code analysis...\n');
+  if (format === 'text') {
+    console.log('Running dead code analysis...\n');
+  }
 
   const detector = createDeadCodeDetector({ commentedCodeMinLines: 3 });
   const report = await detector.detect(workspace);
@@ -150,7 +178,9 @@ async function runComplexityAnalysis(
   format: 'text' | 'json',
   threshold: number
 ): Promise<void> {
-  console.log('Running complexity analysis...\n');
+  if (format === 'text') {
+    console.log('Running complexity analysis...\n');
+  }
 
   const report = analyzeComplexity(workspace, threshold);
 
@@ -160,6 +190,151 @@ async function runComplexityAnalysis(
   }
 
   printComplexityReport(report, threshold);
+}
+
+async function runDeadWeightAnalysis(
+  workspace: string,
+  format: 'text' | 'json'
+): Promise<void> {
+  if (format === 'text') {
+    console.log('Running dead-weight analysis...\n');
+  }
+
+  const detector = createDeadCodeDetector({ commentedCodeMinLines: 3 });
+  const deadCodeReport = await detector.detect(workspace);
+  const report = analyzeDeadWeight(workspace, deadCodeReport);
+
+  if (format === 'json') {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  printDeadWeightReport(report);
+}
+
+function analyzeDeadWeight(repoPath: string, deadCodeReport: DeadCodeReport): DeadWeightReport {
+  const files = getTypeScriptFiles(repoPath);
+  const project = new Project({
+    compilerOptions: {
+      allowJs: true,
+      checkJs: false,
+      noEmit: true,
+      skipLibCheck: true,
+    },
+    skipAddingFilesFromTsConfig: true,
+    skipFileDependencyResolution: true,
+  });
+
+  const inboundImportCount = new Map<string, number>();
+  const exportedSymbolCount = new Map<string, number>();
+  const lineCount = new Map<string, number>();
+
+  for (const file of files) {
+    inboundImportCount.set(file, 0);
+  }
+
+  for (const file of files) {
+    try {
+      const sourceFile = project.addSourceFileAtPath(file);
+      exportedSymbolCount.set(file, sourceFile.getExportedDeclarations().size);
+      lineCount.set(file, sourceFile.getEndLineNumber());
+
+      for (const importDecl of sourceFile.getImportDeclarations()) {
+        const specifier = importDecl.getModuleSpecifierValue();
+        const resolved = resolveImportPath(specifier, file);
+        if (!resolved) continue;
+        inboundImportCount.set(resolved, (inboundImportCount.get(resolved) ?? 0) + 1);
+      }
+    } catch {
+      // Skip files that can't be parsed
+      if (!exportedSymbolCount.has(file)) exportedSymbolCount.set(file, 0);
+      if (!lineCount.has(file)) lineCount.set(file, 0);
+    }
+  }
+
+  const deadCodeByFile = new Map<string, { total: number; highConfidence: number }>();
+  for (const candidate of deadCodeReport.candidates) {
+    const existing = deadCodeByFile.get(candidate.file) ?? { total: 0, highConfidence: 0 };
+    existing.total += 1;
+    if (candidate.confidence >= 0.8) existing.highConfidence += 1;
+    deadCodeByFile.set(candidate.file, existing);
+  }
+
+  const results: DeadWeightFileResult[] = files.map((file) => {
+    const deadCode = deadCodeByFile.get(file) ?? { total: 0, highConfidence: 0 };
+    const inbound = inboundImportCount.get(file) ?? 0;
+    const exports = exportedSymbolCount.get(file) ?? 0;
+    const lines = lineCount.get(file) ?? 0;
+    const hasTests = hasNearbyTests(file);
+    const reasons: string[] = [];
+    let score = 0;
+
+    if (deadCode.highConfidence > 0) {
+      score += Math.min(6, deadCode.highConfidence * 2);
+      reasons.push(`${deadCode.highConfidence} high-confidence dead-code candidate(s)`);
+    }
+    if (deadCode.total > deadCode.highConfidence) {
+      const lowConfidence = deadCode.total - deadCode.highConfidence;
+      score += Math.min(2, lowConfidence * 0.5);
+      reasons.push(`${lowConfidence} additional dead-code candidate(s)`);
+    }
+    if (inbound === 0) {
+      score += 2;
+      reasons.push('no inbound imports');
+    } else if (inbound <= 2) {
+      score += 1;
+      reasons.push(`low inbound imports (${inbound})`);
+    }
+    if (exports === 0 && deadCode.total > 0) {
+      score += 1;
+      reasons.push('internal-only code with dead-code candidates');
+    }
+    if (!hasTests) {
+      score += 0.5;
+      reasons.push('no nearby tests');
+    }
+
+    return {
+      file,
+      score: Math.round(score * 100) / 100,
+      deadCodeCandidates: deadCode.total,
+      highConfidenceDeadCodeCandidates: deadCode.highConfidence,
+      inboundImportCount: inbound,
+      exportedSymbolCount: exports,
+      lines,
+      hasNearbyTests: hasTests,
+      reasons,
+    };
+  });
+
+  const ranked = results
+    .filter((result) => result.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.highConfidenceDeadCodeCandidates !== a.highConfidenceDeadCodeCandidates) {
+        return b.highConfidenceDeadCodeCandidates - a.highConfidenceDeadCodeCandidates;
+      }
+      if (b.deadCodeCandidates !== a.deadCodeCandidates) {
+        return b.deadCodeCandidates - a.deadCodeCandidates;
+      }
+      return a.file.localeCompare(b.file);
+    });
+
+  return {
+    schema: 'DeadWeightReport.v1',
+    repoPath,
+    analyzedAt: new Date().toISOString(),
+    summary: {
+      totalFiles: files.length,
+      candidateFiles: ranked.length,
+      zeroInboundFiles: results.filter((result) => result.inboundImportCount === 0).length,
+      filesWithDeadCodeCandidates: results.filter((result) => result.deadCodeCandidates > 0).length,
+      filesWithHighConfidenceDeadCode: results.filter(
+        (result) => result.highConfidenceDeadCodeCandidates > 0
+      ).length,
+    },
+    files: ranked,
+  };
 }
 
 function analyzeComplexity(repoPath: string, threshold: number): ComplexityReport {
@@ -478,6 +653,38 @@ function printComplexityReport(report: ComplexityReport, threshold: number): voi
   }
 }
 
+function printDeadWeightReport(report: DeadWeightReport): void {
+  console.log('=== Dead-Weight Analysis Report ===\n');
+  console.log(`Repository: ${report.repoPath}`);
+  console.log(`Analyzed at: ${report.analyzedAt}`);
+  console.log(`Total files: ${report.summary.totalFiles}`);
+  console.log(`Candidate files: ${report.summary.candidateFiles}`);
+  console.log(`Zero inbound files: ${report.summary.zeroInboundFiles}`);
+  console.log(`Files with dead-code candidates: ${report.summary.filesWithDeadCodeCandidates}`);
+  console.log(`Files with high-confidence dead code: ${report.summary.filesWithHighConfidenceDeadCode}`);
+  console.log();
+
+  if (report.files.length === 0) {
+    console.log('No dead-weight candidates found.\n');
+    return;
+  }
+
+  console.log('--- Top Dead-Weight Candidates ---\n');
+  for (const candidate of report.files.slice(0, 40)) {
+    const displayPath = candidate.file.startsWith(report.repoPath)
+      ? candidate.file.slice(report.repoPath.length + 1)
+      : candidate.file;
+    console.log(`${displayPath}`);
+    console.log(
+      `  score=${candidate.score} dead=${candidate.deadCodeCandidates}/${candidate.highConfidenceDeadCodeCandidates} inbound=${candidate.inboundImportCount} exports=${candidate.exportedSymbolCount} tests=${candidate.hasNearbyTests ? 'yes' : 'no'}`
+    );
+    if (candidate.reasons.length > 0) {
+      console.log(`  reasons: ${candidate.reasons.join('; ')}`);
+    }
+  }
+  console.log();
+}
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -517,6 +724,41 @@ function getTypeScriptFiles(dirPath: string): string[] {
   return files;
 }
 
+function resolveImportPath(moduleSpecifier: string, fromFile: string): string | null {
+  if (!moduleSpecifier.startsWith('.')) return null;
+
+  const basePath = path.resolve(path.dirname(fromFile), moduleSpecifier);
+  const candidates = [
+    basePath,
+    `${basePath}.ts`,
+    `${basePath}.tsx`,
+    path.join(basePath, 'index.ts'),
+    path.join(basePath, 'index.tsx'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function hasNearbyTests(filePath: string): boolean {
+  const ext = path.extname(filePath);
+  const base = filePath.slice(0, -ext.length);
+  const fileName = path.basename(base);
+  const dir = path.dirname(filePath);
+  const candidates = [
+    `${base}.test${ext}`,
+    `${base}.spec${ext}`,
+    path.join(dir, '__tests__', `${fileName}.test${ext}`),
+    path.join(dir, '__tests__', `${fileName}.spec${ext}`),
+  ];
+
+  return candidates.some((candidate) => fs.existsSync(candidate));
+}
+
 // ============================================================================
 // Command Entry Point
 // ============================================================================
@@ -529,6 +771,7 @@ export async function analyzeCommand(options: AnalyzeCommandOptions): Promise<vo
     args: rawArgs,
     options: {
       'dead-code': { type: 'boolean', default: false },
+      'dead-weight': { type: 'boolean', default: false },
       complexity: { type: 'boolean', default: false },
       format: { type: 'string', default: 'text' },
       threshold: { type: 'string', default: '10' },
@@ -538,15 +781,17 @@ export async function analyzeCommand(options: AnalyzeCommandOptions): Promise<vo
   });
 
   const runDeadCode = values['dead-code'] as boolean;
+  const runDeadWeight = values['dead-weight'] as boolean;
   const runComplexity = values.complexity as boolean;
   const format = (values.format as string) === 'json' ? 'json' : 'text';
   const threshold = parseInt(values.threshold as string, 10) || 10;
 
-  if (!runDeadCode && !runComplexity) {
-    console.log('Usage: librarian analyze --dead-code | --complexity');
+  if (!runDeadCode && !runDeadWeight && !runComplexity) {
+    console.log('Usage: librarian analyze --dead-code | --dead-weight | --complexity');
     console.log();
     console.log('Options:');
     console.log('  --dead-code      Run dead code detection');
+    console.log('  --dead-weight    Rank dead-weight file/script candidates');
     console.log('  --complexity     Report function complexity metrics');
     console.log('  --format <fmt>   Output format: text | json (default: text)');
     console.log('  --threshold <n>  Complexity threshold (default: 10)');
@@ -560,6 +805,10 @@ export async function analyzeCommand(options: AnalyzeCommandOptions): Promise<vo
 
   if (runDeadCode) {
     await runDeadCodeAnalysis(workspace, format);
+  }
+
+  if (runDeadWeight) {
+    await runDeadWeightAnalysis(workspace, format);
   }
 
   if (runComplexity) {

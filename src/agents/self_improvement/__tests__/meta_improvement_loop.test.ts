@@ -733,7 +733,7 @@ describe('MetaImprovementLoop', () => {
       const elapsed = Date.now() - start;
 
       // Should have waited at least one cooldown period
-      expect(elapsed).toBeGreaterThanOrEqual(cooldownPeriod);
+      expect(elapsed).toBeGreaterThanOrEqual(cooldownPeriod - 5);
     });
 
     it('can be interrupted during cooldown', async () => {

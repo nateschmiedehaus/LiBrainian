@@ -57,8 +57,10 @@ function parseSarif(content: string): CodeqlFinding[] {
       const artifact = physical && typeof physical.artifactLocation === 'object'
         ? physical.artifactLocation as Record<string, unknown>
         : null;
-      const location = artifact && typeof artifact.uri === 'string' ? artifact.uri : undefined;
-      findings.push({ ruleId, message, severity, location });
+      const location = artifact && typeof artifact.uri === 'string' ? artifact.uri : null;
+      const finding: CodeqlFinding = { ruleId, message, severity };
+      if (location) finding.location = location;
+      findings.push(finding);
     }
   }
   return findings;

@@ -13,6 +13,7 @@
  */
 
 import * as path from 'node:path';
+import { getLanguageFromPath } from '../utils/language.js';
 import type { LibrarianStorage, TestMapping } from '../storage/types.js';
 import type { ContextPack, FunctionKnowledge, ModuleKnowledge } from '../types.js';
 import { detectTestQuery, findTestsForClass, type TestDiscoveryResult } from './test_discovery.js';
@@ -447,10 +448,7 @@ export async function createTestContextPacks(
     const functions = await storage.getFunctionsByPath(testFile.testPath);
 
     // Determine language from file extension
-    const extension = path.extname(testFile.testPath);
-    const language = extension === '.ts' || extension === '.tsx' ? 'typescript'
-      : extension === '.js' || extension === '.jsx' ? 'javascript'
-      : 'unknown';
+    const language = getLanguageFromPath(testFile.testPath, 'unknown');
 
     // Create a context pack for this test file
     // Use 'function_context' as the pack type since test files are functions

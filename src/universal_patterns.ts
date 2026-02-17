@@ -79,7 +79,7 @@ export const UNIVERSAL_FILE_PATTERNS: Record<FileCategory, FileCategoryConfig> =
       '**/*.r', '**/*.R', '**/*.rmd',
       '**/*.cs', '**/*.vb',
       '**/*.zig', '**/*.nim', '**/*.v',
-      '**/*.wasm', '**/*.wat',
+      '**/*.wat',
     ],
     parser: 'ast',
     embeddings: true,
@@ -428,7 +428,27 @@ export function getFileCategory(path: string): FileCategory {
   const fileName = path.split('/').pop()?.toLowerCase() ?? '';
 
   // Code
-  if (['ts', 'tsx', 'js', 'jsx', 'py', 'go', 'rs', 'java', 'kt', 'rb', 'php', 'c', 'cpp', 'h', 'swift'].includes(ext)) {
+  if ([
+    'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts',
+    'py', 'pyi', 'pyw',
+    'go', 'rs',
+    'c', 'h', 'cpp', 'cc', 'hpp', 'hh',
+    'java', 'kt', 'kts', 'scala', 'groovy',
+    'clj', 'cljs', 'cljc',
+    'rb', 'rake',
+    'php', 'phtml',
+    'pl', 'pm', 't',
+    'lua',
+    'hs', 'lhs', 'ml', 'mli',
+    'fs', 'fsx', 'fsi',
+    'ex', 'exs', 'erl', 'hrl',
+    'swift', 'm', 'mm',
+    'dart',
+    'r', 'rmd',
+    'cs', 'vb',
+    'zig', 'nim', 'v',
+    'wasm', 'wat',
+  ].includes(ext)) {
     return 'code';
   }
 

@@ -166,6 +166,7 @@ const SYMBOL_QUERY_PATTERNS: Array<{
   pattern: RegExp;
   kindExtractor?: (match: RegExpMatchArray) => SymbolKind | undefined;
   nameGroup: number;
+  isBare?: boolean;
 }> = [
   // "X class/function/interface/type/const/enum"
   {
@@ -228,13 +229,17 @@ const SYMBOL_QUERY_PATTERNS: Array<{
   {
     pattern: /^where\s+is\s+(?:the\s+)?(\w+)\s+(?:interface|type)(?:\s+defined)?$/i,
     nameGroup: 1,
-  },
-  // Bare symbol name (for fuzzy matching as fallback)
-  {
-    pattern: /^(\w+)$/,
-    nameGroup: 1,
-  },
-];
+	  },
+	  // Bare symbol name (for fuzzy matching as fallback)
+	  // This is intentionally permissive for quick lookups like "SqliteLibrarianStorage"
+	  // but we apply extra heuristics in parseSymbolQuery() to avoid routing generic
+	  // single-word intents (e.g., "bootstrap") into symbol lookup.
+	  {
+	    pattern: /^(\w+)$/,
+	    nameGroup: 1,
+	    isBare: true,
+	  },
+	];
 
 /**
  * Normalize kind string from query to SymbolKind.
@@ -307,12 +312,17 @@ export function parseSymbolQuery(query: string): SymbolQueryPattern | null {
   const isDefinitionQuery =
     /\bdefinitions?\b|\bdefined\b|\bdeclared\b|\bwhere\s+is\b/i.test(trimmed);
 
-  for (const { pattern, kindExtractor, nameGroup } of SYMBOL_QUERY_PATTERNS) {
+  for (const { pattern, kindExtractor, nameGroup, isBare } of SYMBOL_QUERY_PATTERNS) {
     const match = trimmed.match(pattern);
     if (match) {
       const symbolName = match[nameGroup];
       // Skip if the symbol name is too short or is a common word
       if (symbolName.length < 2 || isCommonWord(symbolName)) {
+        continue;
+      }
+      // Bare one-word queries are often intents rather than symbol lookups.
+      // Allow bare symbols, but block "command-like" verbs that create noisy routing.
+      if (isBare && isBareSymbolStopWord(symbolName)) {
         continue;
       }
       return {
@@ -426,6 +436,33 @@ function isCommonWord(word: string): boolean {
     'done',
   ]);
   return common.has(word.toLowerCase());
+}
+
+/**
+ * Stopwords for bare single-token queries.
+ *
+ * These are common in agent intents ("bootstrap", "watch", "query") but rarely
+ * indicate a request to locate a symbol definition by name.
+ *
+ * IMPORTANT: This should only be applied to the "bare symbol" pattern.
+ * Explicit symbol queries like "bootstrap function" must still work.
+ */
+function isBareSymbolStopWord(word: string): boolean {
+  const stop = new Set([
+    'bootstrap',
+    'initialize',
+    'init',
+    'start',
+    'run',
+    'watch',
+    'query',
+    'index',
+    'status',
+    'health',
+    'compose',
+    'contract',
+  ]);
+  return stop.has(word.toLowerCase());
 }
 
 // ============================================================================

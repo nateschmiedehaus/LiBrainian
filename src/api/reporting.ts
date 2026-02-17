@@ -7,6 +7,13 @@ import type { GuessViolation } from '../analysis/guess_detector.js';
 import { TAXONOMY_ITEMS, type TaxonomyItem, type TaxonomySource } from './taxonomy.js';
 import { noResult } from './empty_values.js';
 import { safeJsonParse } from '../utils/safe_json.js';
+import type { BootstrapReport, OnboardingBaseline } from '../types.js';
+import type { LibrarianStorage } from '../storage/types.js';
+import { checkProviderSnapshot } from './provider_check.js';
+import { generateStateReport } from '../measurement/observability.js';
+import { createSymbolStorage } from '../storage/symbol_storage.js';
+import { getErrorMessage } from '../utils/errors.js';
+import { logWarning } from '../telemetry/logger.js';
 export type ProviderName = 'claude' | 'codex';
 export interface ProviderStatusReportV1 { kind: 'ProviderStatusReport.v1'; schema_version: 1; created_at: string; canon: Awaited<ReturnType<typeof computeCanonRef>>; environment: ReturnType<typeof computeEnvironmentRef>; workspace: string; ready: boolean; reason?: string; providers: ProviderGateStatus[]; embedding?: EmbeddingGateStatus; llm_ready?: boolean; embedding_ready?: boolean; remediation_steps: string[]; fallback_chain: ProviderName[]; selected_provider: ProviderName | null; last_successful_provider: ProviderName | null; bypassed: boolean; guidance?: string[]; trace_refs: string[]; }
 export interface LibrarianRunReportV1 { kind: 'LibrarianRunReport.v1'; schema_version: 1; run_id: string; started_at: string; completed_at: string; outcome: 'success' | 'failure'; files_processed: number; functions_indexed: number; packs_created: number; governor_budget_used: number; governor_budget_limit: number; errors: Array<{ file: string; error: string }>; trace_refs: string[]; }
@@ -159,4 +166,107 @@ export async function writeTrajectoryAnalysisReport(workspaceRoot: string, repor
   const timestamp = report.created_at.replace(/[:.]/g, '-'); const dir = path.join(resolveLibrarianAuditDir(workspaceRoot), 'trajectory', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'TrajectoryAnalysisReport.v1.json'); await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8'); return reportPath;
+}
+
+function resolveBootstrapFileCoverage(report: BootstrapReport): { filesIndexed: number; totalFiles: number; coverage: number } {
+  const semanticPhase = report.phases.find((phase) => phase.phase.name === 'semantic_indexing');
+  const filesIndexed = semanticPhase?.metrics?.filesIndexed ?? report.totalFilesProcessed ?? 0;
+  const totalFiles = semanticPhase?.metrics?.totalFiles ?? report.totalFilesProcessed ?? 0;
+  const coverage = totalFiles > 0 ? filesIndexed / totalFiles : 0;
+  return { filesIndexed, totalFiles, coverage };
+}
+
+async function resolveClassCount(workspaceRoot: string): Promise<number> {
+  try {
+    const storage = createSymbolStorage(workspaceRoot);
+    await storage.initialize();
+    const stats = storage.getStats();
+    await storage.close();
+    return stats.byKind.class ?? 0;
+  } catch (error) {
+    logWarning('[librarian] Failed to load symbol storage stats', {
+      workspace: workspaceRoot,
+      error: getErrorMessage(error),
+    });
+    return 0;
+  }
+}
+
+async function resolveOwnershipGaps(storage: LibrarianStorage, filesIndexed: number): Promise<number> {
+  try {
+    const ownerships = await storage.getOwnerships();
+    const ownedFiles = new Set(ownerships.map((ownership) => ownership.filePath));
+    return Math.max(0, filesIndexed - ownedFiles.size);
+  } catch {
+    return 0;
+  }
+}
+
+export async function createOnboardingBaseline(input: {
+  workspaceRoot: string;
+  report: BootstrapReport;
+  storage: LibrarianStorage;
+}): Promise<OnboardingBaseline> {
+  const capturedAt = new Date().toISOString();
+  const completedAt = input.report.completedAt ?? new Date();
+  const bootstrapDurationMs = Math.max(0, completedAt.getTime() - input.report.startedAt.getTime());
+  const coverage = resolveBootstrapFileCoverage(input.report);
+  const stateReport = await generateStateReport(input.storage);
+  const stats = await input.storage.getStats();
+  const classCount = await resolveClassCount(input.workspaceRoot);
+  const missingOwnership = await resolveOwnershipGaps(input.storage, coverage.filesIndexed);
+
+  let providerAvailable = false;
+  let modelId = 'unknown';
+  let providerLatencyP50Ms = 0;
+  try {
+    const snapshot = await checkProviderSnapshot({ workspaceRoot: input.workspaceRoot });
+    const llm = snapshot.status.llm;
+    const embedding = snapshot.status.embedding;
+    providerAvailable = Boolean(llm.available || embedding.available);
+    modelId = llm.model ?? embedding.model ?? 'unknown';
+    providerLatencyP50Ms = Math.max(llm.latencyMs ?? 0, embedding.latencyMs ?? 0);
+  } catch {
+    // Provider checks are best-effort for baseline metrics.
+  }
+
+  return {
+    kind: 'OnboardingBaseline.v1',
+    schemaVersion: 1,
+    workspacePath: input.workspaceRoot,
+    capturedAt,
+    environment: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      providerAvailable,
+      modelId,
+    },
+    metrics: {
+      bootstrapDurationMs,
+      entityCoverage: coverage.coverage,
+      confidenceMean: stateReport.confidenceState.meanConfidence,
+      defeaterCount: stateReport.confidenceState.defeaterCount,
+      providerLatencyP50Ms,
+    },
+    entities: {
+      files: coverage.filesIndexed,
+      functions: stats.totalFunctions,
+      classes: classCount,
+      modules: stats.totalModules,
+    },
+    quality: {
+      orphanEntities: stateReport.codeGraphHealth.orphanEntities,
+      lowConfidenceEntities: stateReport.confidenceState.lowConfidenceCount,
+      missingOwnership,
+    },
+  };
+}
+
+export async function writeOnboardingBaseline(workspaceRoot: string, baseline: OnboardingBaseline): Promise<string> {
+  const timestamp = baseline.capturedAt.replace(/[:.]/g, '-');
+  const dir = path.join(resolveLibrarianAuditDir(workspaceRoot), 'baselines', timestamp);
+  await fs.mkdir(dir, { recursive: true });
+  const reportPath = path.join(dir, 'OnboardingBaseline.v1.json');
+  await fs.writeFile(reportPath, JSON.stringify(baseline, null, 2) + '\n', 'utf8');
+  return reportPath;
 }

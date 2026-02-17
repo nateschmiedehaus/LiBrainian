@@ -12,17 +12,23 @@ import type {
   FitnessVector,
   BehaviorDescriptors,
   FitnessDelta,
+  FitnessScoringIntegrity,
+  MeasurementCompleteness,
   StageResult,
   ResourceUsage,
   Variant,
 } from './types.js';
 import type { EvaluationReport } from '../evaluation/harness.js';
+import type { EvalReport } from '../evaluation/runner.js';
 import type { LibrarianStateReport } from '../measurement/observability.js';
+import { isRetrievalQualityReport, type RetrievalQualityReport } from '../measurement/retrieval_quality.js';
 import { computeContinuousOverallScore } from './continuous_fitness.js';
 
 // ============================================================================
 // FITNESS COMPUTATION
 // ============================================================================
+
+type RetrievalReportLike = EvaluationReport | EvalReport | RetrievalQualityReport;
 
 /**
  * Compute FitnessReport.v1 from evaluation results.
@@ -37,7 +43,7 @@ export function computeFitnessReport(
     stage3: StageResult;
     stage4: StageResult;
   },
-  retrievalReport?: EvaluationReport,
+  retrievalReport?: RetrievalReportLike,
   stateReport?: LibrarianStateReport,
   resourceUsage?: ResourceUsage,
   baseline?: FitnessReport
@@ -45,6 +51,8 @@ export function computeFitnessReport(
   const fitness = computeFitnessVector(stages, retrievalReport, stateReport);
   const descriptors = computeBehaviorDescriptors(fitness, stateReport);
   const delta = baseline ? computeFitnessDelta(fitness, baseline.fitness, baseline.variantId ?? 'baseline') : undefined;
+  const measurementCompleteness = computeMeasurementCompleteness(retrievalReport, stateReport);
+  const scoringIntegrity = computeScoringIntegrity(measurementCompleteness);
 
   return {
     kind: 'FitnessReport.v1',
@@ -62,6 +70,8 @@ export function computeFitnessReport(
     fitness,
     behaviorDescriptors: descriptors,
     resources: resourceUsage ?? { tokensUsed: 0, embeddingsUsed: 0, providerCallsUsed: 0, durationMs: 0 },
+    measurementCompleteness,
+    scoringIntegrity,
     baselineDelta: delta,
   };
 }
@@ -77,7 +87,7 @@ export function computeFitnessVector(
     stage3: StageResult;
     stage4: StageResult;
   },
-  retrievalReport?: EvaluationReport,
+  retrievalReport?: RetrievalReportLike,
   stateReport?: LibrarianStateReport
 ): FitnessVector {
   // Correctness from stage results
@@ -135,7 +145,7 @@ export function computeBehaviorDescriptors(
   // Latency bucket
   const latencyP50 = fitness.operationalQuality.queryLatencyP50Ms;
   const latencyBucket: BehaviorDescriptors['latencyBucket'] =
-    latencyP50 < 200 ? 'fast' : latencyP50 < 500 ? 'medium' : 'slow';
+    latencyP50 < 0 ? 'slow' : latencyP50 < 200 ? 'fast' : latencyP50 < 500 ? 'medium' : 'slow';
 
   // Token cost bucket
   const tokenUsage = fitness.costEfficiency.tokenUsage;
@@ -145,12 +155,12 @@ export function computeBehaviorDescriptors(
   // Evidence completeness bucket
   const evidenceCoverage = fitness.epistemicQuality.evidenceCoverage;
   const evidenceCompletenessBucket: BehaviorDescriptors['evidenceCompletenessBucket'] =
-    evidenceCoverage < 0.5 ? 'low' : evidenceCoverage < 0.8 ? 'medium' : 'high';
+    evidenceCoverage < 0 ? 'low' : evidenceCoverage < 0.5 ? 'low' : evidenceCoverage < 0.8 ? 'medium' : 'high';
 
   // Calibration bucket
   const calibrationError = fitness.epistemicQuality.calibrationError;
   const calibrationBucket: BehaviorDescriptors['calibrationBucket'] =
-    calibrationError > 0.2 ? 'low' : calibrationError > 0.1 ? 'medium' : 'high';
+    calibrationError < 0 ? 'low' : calibrationError > 0.2 ? 'low' : calibrationError > 0.1 ? 'medium' : 'high';
 
   // Retrieval strategy (simplified heuristic)
   const retrievalStrategy = inferRetrievalStrategy(stateReport);
@@ -185,15 +195,35 @@ export function computeFitnessDelta(
   compareMetric('tier1PassRate', current.correctness.tier1PassRate, baseline.correctness.tier1PassRate, improvements, regressions, neutral);
 
   // Compare retrieval
-  compareMetric('recallAt5', current.retrievalQuality.recallAt5, baseline.retrievalQuality.recallAt5, improvements, regressions, neutral);
-  compareMetric('nDCG', current.retrievalQuality.nDCG, baseline.retrievalQuality.nDCG, improvements, regressions, neutral);
+  if (current.retrievalQuality.recallAt5 >= 0 && baseline.retrievalQuality.recallAt5 >= 0) {
+    compareMetric('recallAt5', current.retrievalQuality.recallAt5, baseline.retrievalQuality.recallAt5, improvements, regressions, neutral);
+  } else {
+    neutral.push('recallAt5');
+  }
+  if (current.retrievalQuality.nDCG >= 0 && baseline.retrievalQuality.nDCG >= 0) {
+    compareMetric('nDCG', current.retrievalQuality.nDCG, baseline.retrievalQuality.nDCG, improvements, regressions, neutral);
+  } else {
+    neutral.push('nDCG');
+  }
 
   // Compare epistemic
-  compareMetric('evidenceCoverage', current.epistemicQuality.evidenceCoverage, baseline.epistemicQuality.evidenceCoverage, improvements, regressions, neutral);
-  compareMetric('calibrationError', baseline.epistemicQuality.calibrationError, current.epistemicQuality.calibrationError, improvements, regressions, neutral); // Lower is better
+  if (current.epistemicQuality.evidenceCoverage >= 0 && baseline.epistemicQuality.evidenceCoverage >= 0) {
+    compareMetric('evidenceCoverage', current.epistemicQuality.evidenceCoverage, baseline.epistemicQuality.evidenceCoverage, improvements, regressions, neutral);
+  } else {
+    neutral.push('evidenceCoverage');
+  }
+  if (current.epistemicQuality.calibrationError >= 0 && baseline.epistemicQuality.calibrationError >= 0) {
+    compareMetric('calibrationError', baseline.epistemicQuality.calibrationError, current.epistemicQuality.calibrationError, improvements, regressions, neutral); // Lower is better
+  } else {
+    neutral.push('calibrationError');
+  }
 
   // Compare operational (lower is better for latency)
-  compareMetric('queryLatencyP50', baseline.operationalQuality.queryLatencyP50Ms, current.operationalQuality.queryLatencyP50Ms, improvements, regressions, neutral);
+  if (current.operationalQuality.queryLatencyP50Ms >= 0 && baseline.operationalQuality.queryLatencyP50Ms >= 0) {
+    compareMetric('queryLatencyP50', baseline.operationalQuality.queryLatencyP50Ms, current.operationalQuality.queryLatencyP50Ms, improvements, regressions, neutral);
+  } else {
+    neutral.push('queryLatencyP50');
+  }
 
   // Compare overall
   compareMetric('overall', current.overall, baseline.overall, improvements, regressions, neutral);
@@ -223,33 +253,81 @@ function extractPassRate(stage: StageResult): number {
   return stage.status === 'passed' ? 1.0 : 0.0;
 }
 
-function extractRetrievalQuality(report?: EvaluationReport): FitnessVector['retrievalQuality'] {
-  if (!report?.aggregateMetrics) {
+function extractRetrievalQuality(report?: RetrievalReportLike): FitnessVector['retrievalQuality'] {
+  // Important: missing/skipped measurement is not "bad retrieval".
+  // Use sentinel negatives so scoring can mask this dimension rather than penalize it.
+  const completeness = getRetrievalMeasurementCompleteness(report);
+  if (!completeness.measured) return createUnmeasuredRetrievalQuality();
+
+  if (isRetrievalQualityReport(report)) {
+    if (!hasRetrievalMetricSet([
+      report.aggregate.meanRecallAtK[5],
+      report.aggregate.meanRecallAtK[10],
+      report.aggregate.meanPrecisionAtK[5],
+      report.aggregate.meanNdcgAtK[5],
+      report.aggregate.meanMrr,
+    ])) {
+      return createUnmeasuredRetrievalQuality();
+    }
     return {
-      recallAt5: 0,
-      recallAt10: 0,
-      precisionAt5: 0,
-      nDCG: 0,
-      mrr: 0,
+      recallAt5: report.aggregate.meanRecallAtK[5] ?? 0,
+      recallAt10: report.aggregate.meanRecallAtK[10] ?? 0,
+      precisionAt5: report.aggregate.meanPrecisionAtK[5] ?? 0,
+      nDCG: report.aggregate.meanNdcgAtK[5] ?? 0,
+      mrr: report.aggregate.meanMrr ?? 0,
     };
   }
 
+  if (isEvalRunnerReport(report)) {
+    if (!hasRetrievalMetricSet([
+      report.metrics.retrieval.recallAtK[5],
+      report.metrics.retrieval.recallAtK[10],
+      report.metrics.retrieval.precisionAtK[5],
+      report.metrics.retrieval.ndcg,
+      report.metrics.retrieval.mrr,
+    ])) {
+      return createUnmeasuredRetrievalQuality();
+    }
+    return {
+      recallAt5: report.metrics.retrieval.recallAtK[5] ?? 0,
+      recallAt10: report.metrics.retrieval.recallAtK[10] ?? 0,
+      precisionAt5: report.metrics.retrieval.precisionAtK[5] ?? 0,
+      nDCG: report.metrics.retrieval.ndcg ?? 0,
+      mrr: report.metrics.retrieval.mrr ?? 0,
+    };
+  }
+
+  const harnessReport = report as EvaluationReport;
+  if (!harnessReport.aggregateMetrics) {
+    return createUnmeasuredRetrievalQuality();
+  }
+  if (!hasRetrievalMetricSet([
+    harnessReport.aggregateMetrics.recall?.mean,
+    harnessReport.aggregateMetrics.precision?.mean,
+    harnessReport.aggregateMetrics.ndcg?.mean,
+    harnessReport.aggregateMetrics.mrr?.mean,
+  ])) {
+    return createUnmeasuredRetrievalQuality();
+  }
+
   return {
-    recallAt5: report.aggregateMetrics.recall?.mean ?? 0,
-    recallAt10: report.aggregateMetrics.recall?.mean ?? 0, // Would need separate k=10 run
-    precisionAt5: report.aggregateMetrics.precision?.mean ?? 0,
-    nDCG: report.aggregateMetrics.ndcg?.mean ?? 0,
-    mrr: report.aggregateMetrics.mrr?.mean ?? 0,
+    recallAt5: harnessReport.aggregateMetrics.recall?.mean ?? 0,
+    recallAt10: harnessReport.aggregateMetrics.recall?.mean ?? 0, // EvaluationHarness is single-cutoff; treat as same when unknown.
+    precisionAt5: harnessReport.aggregateMetrics.precision?.mean ?? 0,
+    nDCG: harnessReport.aggregateMetrics.ndcg?.mean ?? 0,
+    mrr: harnessReport.aggregateMetrics.mrr?.mean ?? 0,
   };
 }
 
 function extractEpistemicQuality(stateReport?: LibrarianStateReport): FitnessVector['epistemicQuality'] {
-  if (!stateReport) {
+  const completeness = getEpistemicMeasurementCompleteness(stateReport);
+  if (!stateReport || !completeness.measured) {
+    // Missing measurement is not "bad epistemics". Use sentinel values so scoring can mask.
     return {
-      evidenceCoverage: 0,
-      defeaterCorrectness: 0,
-      calibrationError: 1,
-      claimVerificationRate: 0,
+      evidenceCoverage: -1,
+      defeaterCorrectness: -1,
+      calibrationError: -1,
+      claimVerificationRate: -1,
     };
   }
 
@@ -262,13 +340,15 @@ function extractEpistemicQuality(stateReport?: LibrarianStateReport): FitnessVec
 }
 
 function extractOperationalQuality(stateReport?: LibrarianStateReport): FitnessVector['operationalQuality'] {
-  if (!stateReport) {
+  const completeness = getOperationalMeasurementCompleteness(stateReport);
+  if (!stateReport || !completeness.measured) {
+    // Missing measurement is not "slow". Use sentinel values so scoring can mask.
     return {
-      queryLatencyP50Ms: 1000,
-      queryLatencyP99Ms: 5000,
-      bootstrapTimeSeconds: 300,
-      cacheHitRate: 0,
-      freshnessLagSeconds: 600,
+      queryLatencyP50Ms: -1,
+      queryLatencyP99Ms: -1,
+      bootstrapTimeSeconds: -1,
+      cacheHitRate: -1,
+      freshnessLagSeconds: -1,
     };
   }
 
@@ -278,6 +358,164 @@ function extractOperationalQuality(stateReport?: LibrarianStateReport): FitnessV
     bootstrapTimeSeconds: 60, // Would need bootstrap timing
     cacheHitRate: stateReport.queryPerformance.cacheHitRate,
     freshnessLagSeconds: Math.max(0, stateReport.indexFreshness.stalenessMs / 1000),
+  };
+}
+
+function computeMeasurementCompleteness(
+  retrievalReport?: RetrievalReportLike,
+  stateReport?: LibrarianStateReport
+): MeasurementCompleteness {
+  return {
+    retrievalQuality: getRetrievalMeasurementCompleteness(retrievalReport),
+    epistemicQuality: getEpistemicMeasurementCompleteness(stateReport),
+    operationalQuality: getOperationalMeasurementCompleteness(stateReport),
+  };
+}
+
+function computeScoringIntegrity(
+  completeness: MeasurementCompleteness
+): FitnessScoringIntegrity {
+  const reasons: string[] = [];
+  let measuredFamilies = 0;
+  const totalFamilies = 3;
+
+  if (completeness.retrievalQuality.measured) {
+    measuredFamilies += 1;
+  } else {
+    reasons.push(`retrieval_quality_unmeasured:${completeness.retrievalQuality.reason ?? 'unknown'}`);
+  }
+
+  if (completeness.epistemicQuality.measured) {
+    measuredFamilies += 1;
+  } else {
+    reasons.push(`epistemic_quality_unmeasured:${completeness.epistemicQuality.reason ?? 'unknown'}`);
+  }
+
+  if (completeness.operationalQuality.measured) {
+    measuredFamilies += 1;
+  } else {
+    reasons.push(`operational_quality_unmeasured:${completeness.operationalQuality.reason ?? 'unknown'}`);
+  }
+
+  return {
+    status: reasons.length === 0 ? 'measured' : 'unverified_by_trace',
+    measuredFamilies,
+    totalFamilies,
+    coverageRatio: totalFamilies > 0 ? measuredFamilies / totalFamilies : 0,
+    reasons,
+  };
+}
+
+function getRetrievalMeasurementCompleteness(
+  report?: RetrievalReportLike
+): MeasurementCompleteness['retrievalQuality'] {
+  if (!report) {
+    return { measured: false, reason: 'missing_or_budget_skipped' };
+  }
+
+  const queryCount = getQueryCount(report);
+  if (typeof queryCount === 'number' && queryCount <= 0) {
+    return { measured: false, reason: 'zero_query_coverage', queryCount };
+  }
+
+  if (isRetrievalQualityReport(report)) {
+    if (!hasRetrievalMetricSet([
+      report.aggregate.meanRecallAtK[5],
+      report.aggregate.meanRecallAtK[10],
+      report.aggregate.meanPrecisionAtK[5],
+      report.aggregate.meanNdcgAtK[5],
+      report.aggregate.meanMrr,
+    ])) {
+      return { measured: false, reason: 'missing_metrics', queryCount };
+    }
+    return { measured: true, queryCount };
+  }
+
+  if (isEvalRunnerReport(report)) {
+    if (!hasRetrievalMetricSet([
+      report.metrics.retrieval.recallAtK[5],
+      report.metrics.retrieval.recallAtK[10],
+      report.metrics.retrieval.precisionAtK[5],
+      report.metrics.retrieval.ndcg,
+      report.metrics.retrieval.mrr,
+    ])) {
+      return { measured: false, reason: 'missing_metrics', queryCount };
+    }
+    return { measured: true, queryCount };
+  }
+
+  const harnessReport = report as EvaluationReport;
+  if (!harnessReport.aggregateMetrics) {
+    return { measured: false, reason: 'missing_metrics', queryCount };
+  }
+  if (!hasRetrievalMetricSet([
+    harnessReport.aggregateMetrics.recall?.mean,
+    harnessReport.aggregateMetrics.precision?.mean,
+    harnessReport.aggregateMetrics.ndcg?.mean,
+    harnessReport.aggregateMetrics.mrr?.mean,
+  ])) {
+    return { measured: false, reason: 'missing_metrics', queryCount };
+  }
+
+  return { measured: true, queryCount };
+}
+
+function getEpistemicMeasurementCompleteness(
+  stateReport?: LibrarianStateReport
+): MeasurementCompleteness['epistemicQuality'] {
+  if (!stateReport) {
+    return { measured: false, reason: 'missing_or_budget_skipped' };
+  }
+  if (
+    !Number.isFinite(stateReport.codeGraphHealth.coverageRatio)
+    || !Number.isFinite(stateReport.confidenceState.geometricMeanConfidence)
+    || (stateReport.confidenceState.calibrationError !== null && !Number.isFinite(stateReport.confidenceState.calibrationError))
+  ) {
+    return { measured: false, reason: 'missing_metrics' };
+  }
+  return { measured: true };
+}
+
+function getOperationalMeasurementCompleteness(
+  stateReport?: LibrarianStateReport
+): MeasurementCompleteness['operationalQuality'] {
+  if (!stateReport) {
+    return { measured: false, reason: 'missing_or_budget_skipped' };
+  }
+
+  const queryCount = stateReport.queryPerformance.queryCount;
+  if (queryCount <= 0) {
+    return { measured: false, reason: 'zero_query_coverage', queryCount };
+  }
+  if (
+    !Number.isFinite(stateReport.queryPerformance.queryLatencyP50)
+    || !Number.isFinite(stateReport.queryPerformance.queryLatencyP99)
+    || !Number.isFinite(stateReport.queryPerformance.cacheHitRate)
+  ) {
+    return { measured: false, reason: 'missing_metrics', queryCount };
+  }
+
+  return { measured: true, queryCount };
+}
+
+function hasRetrievalMetricSet(metrics: Array<number | undefined>): boolean {
+  return metrics.every((metric) => Number.isFinite(metric));
+}
+
+function getQueryCount(report: RetrievalReportLike): number | undefined {
+  if (isRetrievalQualityReport(report)) return report.queryCount;
+  if (isEvalRunnerReport(report)) return report.queryCount;
+  const harnessReport = report as EvaluationReport;
+  return typeof harnessReport.queryCount === 'number' ? harnessReport.queryCount : undefined;
+}
+
+function createUnmeasuredRetrievalQuality(): FitnessVector['retrievalQuality'] {
+  return {
+    recallAt5: -1,
+    recallAt10: -1,
+    precisionAt5: -1,
+    nDCG: -1,
+    mrr: -1,
   };
 }
 
@@ -362,6 +600,16 @@ function inferProviderReliance(fitness: FitnessVector): BehaviorDescriptors['pro
   if (calls === 0) return 'deterministic-only';
   if (calls < 10) return 'light-llm';
   return 'heavy-llm';
+}
+
+function isEvalRunnerReport(value: unknown): value is EvalReport {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  const metrics = v['metrics'];
+  if (!metrics || typeof metrics !== 'object') return false;
+  const retrieval = (metrics as Record<string, unknown>)['retrieval'];
+  if (!retrieval || typeof retrieval !== 'object') return false;
+  return typeof (retrieval as Record<string, unknown>)['mrr'] === 'number';
 }
 
 // ============================================================================

@@ -897,29 +897,39 @@ async function analyzeDirectoryFromFilesystem(workspace: string): Promise<Direct
       }
     }
 
-    // Detect language from file extensions in workspace root
     const rootFiles = entries.filter(e => e.isFile());
+    const rootLanguageMap: Record<string, string> = {
+      '.ts': 'TypeScript',
+      '.tsx': 'TypeScript',
+      '.js': 'JavaScript',
+      '.jsx': 'JavaScript',
+      '.mjs': 'JavaScript',
+      '.cjs': 'JavaScript',
+      '.py': 'Python',
+      '.rs': 'Rust',
+      '.go': 'Go',
+      '.java': 'Java',
+      '.kt': 'Kotlin',
+      '.kts': 'Kotlin',
+      '.swift': 'Swift',
+      '.scala': 'Scala',
+      '.dart': 'Dart',
+      '.cs': 'C#',
+      '.c': 'C',
+      '.cpp': 'C++',
+      '.cc': 'C++',
+      '.rb': 'Ruby',
+      '.php': 'PHP',
+      '.lua': 'Lua',
+      '.r': 'R',
+    };
     for (const file of rootFiles) {
       const ext = path.extname(file.name).toLowerCase();
-      if (ext === '.ts' || ext === '.tsx') {
-        result.primaryLanguage = 'TypeScript';
-        result.languages = ['TypeScript', 'JavaScript'];
+      const lang = rootLanguageMap[ext];
+      if (lang) {
+        result.primaryLanguage = lang;
+        result.languages = lang === 'TypeScript' ? ['TypeScript', 'JavaScript'] : [lang];
         break;
-      } else if (ext === '.js' || ext === '.mjs') {
-        result.primaryLanguage = 'JavaScript';
-        result.languages = ['JavaScript'];
-      } else if (ext === '.py') {
-        result.primaryLanguage = 'Python';
-        result.languages = ['Python'];
-      } else if (ext === '.rs') {
-        result.primaryLanguage = 'Rust';
-        result.languages = ['Rust'];
-      } else if (ext === '.go') {
-        result.primaryLanguage = 'Go';
-        result.languages = ['Go'];
-      } else if (ext === '.java') {
-        result.primaryLanguage = 'Java';
-        result.languages = ['Java'];
       }
     }
 
@@ -935,6 +945,8 @@ function detectLanguagesFromExtensions(extensionCounts: Record<string, number>):
   const languageMap: Record<string, string> = {
     ts: 'TypeScript',
     tsx: 'TypeScript',
+    mts: 'TypeScript',
+    cts: 'TypeScript',
     js: 'JavaScript',
     jsx: 'JavaScript',
     mjs: 'JavaScript',
@@ -944,17 +956,33 @@ function detectLanguagesFromExtensions(extensionCounts: Record<string, number>):
     go: 'Go',
     java: 'Java',
     kt: 'Kotlin',
+    kts: 'Kotlin',
     swift: 'Swift',
+    scala: 'Scala',
+    sc: 'Scala',
     rb: 'Ruby',
     php: 'PHP',
     cs: 'C#',
     cpp: 'C++',
+    cc: 'C++',
+    cxx: 'C++',
+    hpp: 'C++',
     c: 'C',
+    h: 'C',
+    dart: 'Dart',
+    lua: 'Lua',
+    r: 'R',
     sql: 'SQL',
+    sh: 'Shell',
+    bash: 'Shell',
+    zsh: 'Shell',
     md: 'Markdown',
     json: 'JSON',
+    jsonc: 'JSON',
+    json5: 'JSON',
     yaml: 'YAML',
     yml: 'YAML',
+    toml: 'TOML',
   };
 
   const languageCounts: Record<string, number> = {};

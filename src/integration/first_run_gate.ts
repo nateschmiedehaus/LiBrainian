@@ -17,6 +17,13 @@ import { ensureDailyModelSelection } from '../adapters/model_policy.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 import { resolveLibrarianModelId } from '../api/llm_env.js';
 import { INCLUDE_PATTERNS, EXCLUDE_PATTERNS } from '../universal_patterns.js';
+import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
+import {
+  scanWorkspaceLanguages,
+  assessGrammarCoverage,
+  getMissingGrammarPackages,
+  installMissingGrammars,
+} from '../cli/grammar_support.js';
 
 interface GateState {
   workspace: string;
@@ -113,6 +120,28 @@ export interface FirstRunGateOptions {
   excludePatterns?: string[];
   providerGate?: ProviderGateRunner;
   embeddingService?: EmbeddingService;
+  /**
+   * Allow degraded bootstrap when embeddings are unavailable.
+   * When true, skips embedding generation and continues with structural indexing.
+   */
+  allowDegradedEmbeddings?: boolean;
+  /**
+   * Force-disable all LLM usage (including LLM-based enrichment during bootstrap).
+   * This is stronger than `llmRequirement: "disabled"` at query time.
+   */
+  skipLlm?: boolean;
+  /**
+   * Best-effort auto-install of missing tree-sitter grammars into the Librarian
+   * grammar cache before bootstrapping.
+   *
+   * Default: enabled outside of test mode unless `LIBRARIAN_AUTO_INSTALL_GRAMMARS=0`.
+   */
+  autoInstallGrammars?: boolean;
+  /**
+   * Require complete parser coverage for detected source languages.
+   * When true, missing grammar modules or missing language configs fail closed.
+   */
+  requireCompleteParserCoverage?: boolean;
 }
 
 export interface FirstRunGateResult {
@@ -130,6 +159,19 @@ export async function ensureLibrarianReady(
   options: FirstRunGateOptions = {}
 ): Promise<FirstRunGateResult> {
   const startTime = Date.now();
+  const normalizedWorkspace = path.resolve(workspace);
+  const workspaceResolution = process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT === '1'
+    ? resolveWorkspaceRoot(normalizedWorkspace, { maxDepthUp: 0 })
+    : resolveWorkspaceRoot(normalizedWorkspace);
+  const workspaceRoot = workspaceResolution.workspace;
+  if (workspaceResolution.changed) {
+    logWarning('[librarian] Auto-detected workspace root', {
+      original: normalizedWorkspace,
+      workspace: workspaceRoot,
+      marker: workspaceResolution.marker,
+      confidence: workspaceResolution.confidence,
+    });
+  }
   const {
     onProgress,
     onStart,
@@ -142,45 +184,53 @@ export async function ensureLibrarianReady(
     excludePatterns,
     providerGate,
     embeddingService,
+    allowDegradedEmbeddings = true,
+    skipLlm: forceSkipLlm = false,
+    autoInstallGrammars,
+    requireCompleteParserCoverage = false,
   } = options;
   const currentVersion = getCurrentVersion().string;
   const normalizeTimeout = (value?: number): number => (value && value > 0 ? value : 0);
   const lockTimeoutMs = normalizeTimeout(maxWaitForBootstrapMs ?? timeoutMs);
   const waitTimeoutMs = normalizeTimeout(maxWaitForBootstrapMs ?? timeoutMs);
 
-  const existingState = gateStates.get(workspace);
-  if (existingState?.status === 'failed') gateStates.delete(workspace);
+  const existingState = gateStates.get(workspaceRoot);
+  if (existingState?.status === 'failed') gateStates.delete(workspaceRoot);
   if (existingState?.status === 'ready' && existingState.librarian) {
+    if (!existingState.librarian.isReady()) {
+      gateStates.delete(workspaceRoot);
+    } else {
     return { success: true, librarian: existingState.librarian, wasBootstrapped: false, wasUpgraded: false, durationMs: 0, report: existingState.report };
+    }
   }
 
   if (existingState?.status === 'running') {
     const elapsed = Date.now() - startTime;
     const remaining = waitTimeoutMs > 0 ? Math.max(0, waitTimeoutMs - elapsed) : 0;
-    const result = await waitForGate(workspace, remaining);
-    if (!result.success) gateStates.delete(workspace);
+    const result = await waitForGate(workspaceRoot, remaining);
+    if (!result.success) gateStates.delete(workspaceRoot);
     return result;
   }
 
-  const persistedGateState = await readGateState(workspace);
-  if (persistedGateState?.status === 'failed') await clearGateState(workspace);
+  const persistedGateState = await readGateState(workspaceRoot);
+  if (persistedGateState?.status === 'failed') await clearGateState(workspaceRoot);
 
   const state: GateState = {
-    workspace,
+    workspace: workspaceRoot,
     status: 'running',
     librarian: null,
     startedAt: new Date(),
     completedAt: null,
   };
-  gateStates.set(workspace, state);
+  gateStates.set(workspaceRoot, state);
 
-  const traceContext = createLibrarianTraceContext(workspace);
+  const traceContext = createLibrarianTraceContext(workspaceRoot);
   const runId = traceContext.traceId;
   recordLibrarianTrace(traceContext, 'bootstrap_started');
   const emitReports = async (outcome: 'success' | 'failure', errorMessage?: string): Promise<void> => {
     const startedAt = state.startedAt ?? new Date(startTime);
     const completedAt = state.completedAt ?? new Date();
-    const governorReport = await readLatestGovernorBudgetReport(workspace);
+    const governorReport = await readLatestGovernorBudgetReport(workspaceRoot);
     const runReport = createLibrarianRunReport({
       runId,
       startedAt,
@@ -194,19 +244,21 @@ export async function ensureLibrarianReady(
       errors: outcome === 'success' ? [] : [{ file: 'bootstrap', error: errorMessage ?? state.report?.error ?? 'unknown' }],
       traceRefs: getLibrarianTraceRefs(traceContext),
     });
-    await writeLibrarianRunReport(workspace, runReport);
-    const coverageReport = createKnowledgeCoverageReport({ workspace, traceRefs: getLibrarianTraceRefs(traceContext) });
-    await writeKnowledgeCoverageReport(workspace, coverageReport);
+    await writeLibrarianRunReport(workspaceRoot, runReport);
+    const coverageReport = createKnowledgeCoverageReport({ workspace: workspaceRoot, traceRefs: getLibrarianTraceRefs(traceContext) });
+    await writeKnowledgeCoverageReport(workspaceRoot, coverageReport);
   };
 
-  globalEventBus.emit(createBootstrapStartedEvent(workspace)); onStart?.(); onProgress?.('initializing', 0, 'Starting librarian initialization...');
+  globalEventBus.emit(createBootstrapStartedEvent(workspaceRoot)); onStart?.(); onProgress?.('initializing', 0, 'Starting librarian initialization...');
 
   let wasBootstrapped = false; let wasUpgraded = false; let providerUsed: 'claude' | 'codex' | null = null; let lockHandle: WorkspaceLockHandle | null = null;
 
   try {
     const gateRunner = providerGate ?? runProviderReadinessGate;
-    const providerStatus = await gateRunner(workspace);
-    providerUsed = providerStatus.selectedProvider ?? null;
+    const providerStatus = await gateRunner(workspaceRoot);
+    const llmReady = providerStatus.llmReady;
+    const embeddingReady = providerStatus.embeddingReady;
+    providerUsed = llmReady ? (providerStatus.selectedProvider ?? null) : null;
     logInfo('[librarian] Provider gate status', {
       ready: providerStatus.ready,
       selectedProvider: providerStatus.selectedProvider,
@@ -218,26 +270,51 @@ export async function ensureLibrarianReady(
         error: provider.error,
       })),
     });
-    if (!providerStatus.ready) {
+    if (!embeddingReady && !allowDegradedEmbeddings) {
       const missing = providerStatus.providers
         .filter((provider) => !(provider.available && provider.authenticated))
         .map((provider) => `${provider.provider}: ${provider.error ?? (provider.available ? 'unauthenticated' : 'unavailable')}`);
-      if (!providerStatus.embeddingReady) {
-        missing.push(`embedding: ${providerStatus.embedding.error ?? 'unavailable'}`);
-      }
+      missing.push(`embedding: ${providerStatus.embedding.error ?? 'unavailable'}`);
       const suggestion = (providerStatus.remediationSteps ?? []).join(' ')
         || providerStatus.reason
-        || 'Authenticate providers via CLI (Claude: `claude setup-token` or run `claude`; Codex: `codex login`).';
+        || 'Install embedding providers (xenova/transformers) or configure sentence-transformers.';
       throw new ProviderUnavailableError({
-        message: 'unverified_by_trace(provider_unavailable): Wave0 requires live providers to function',
-        missing: missing.length ? missing : ['providers unavailable'],
+        message: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
+        missing: missing.length ? missing : ['embedding unavailable'],
         suggestion,
+      });
+    }
+    if (!llmReady) {
+      const disabledByConfig =
+        Boolean(forceSkipLlm) ||
+        (providerStatus.reason ?? '').toLowerCase().includes('disabled');
+      const log = disabledByConfig ? logInfo : logWarning;
+      const message = disabledByConfig
+        ? '[librarian] LLM disabled; continuing without LLM'
+        : '[librarian] LLM providers unavailable; continuing in degraded mode';
+      log(message, {
+        workspace: workspaceRoot,
+        reason: providerStatus.reason,
+        providers: providerStatus.providers.map((provider) => ({
+          provider: provider.provider,
+          available: provider.available,
+          authenticated: provider.authenticated,
+          error: provider.error,
+        })),
+      });
+    }
+    if (!embeddingReady && allowDegradedEmbeddings) {
+      logWarning('[librarian] Embedding provider unavailable; continuing in degraded mode', {
+        workspace: workspaceRoot,
+        reason: providerStatus.reason ?? providerStatus.embedding.error ?? 'embedding unavailable',
       });
     }
     recordLibrarianTrace(traceContext, 'provider_gate_ready');
 
-    if (!isTestMode()) {
-      const selection = await ensureDailyModelSelection(path.resolve(workspace), {
+    const skipLlm = Boolean(forceSkipLlm) || !llmReady;
+
+    if (!isTestMode() && llmReady && !skipLlm) {
+      const selection = await ensureDailyModelSelection(path.resolve(workspaceRoot), {
         defaultProvider: providerStatus.selectedProvider ?? undefined,
         respectExistingEnv: false,
         applyEnv: false,
@@ -260,23 +337,105 @@ export async function ensureLibrarianReady(
     if (lockTimeoutMs > 0 && remainingTimeoutMs <= 0) {
       throw new Error('unverified_by_trace(lease_conflict): timeout waiting for librarian lock');
     }
-    lockHandle = await acquireWorkspaceLock(workspace, { timeoutMs: remainingTimeoutMs });
+    lockHandle = await acquireWorkspaceLock(workspaceRoot, { timeoutMs: remainingTimeoutMs });
 
-    const llmProvider = providerStatus.selectedProvider ?? undefined;
-    const llmModelId = resolveLlmModelId();
+    const llmProvider = llmReady && !skipLlm ? (providerStatus.selectedProvider ?? undefined) : undefined;
+    const llmModelId = llmReady && !skipLlm ? resolveLlmModelId() : undefined;
+    const disableLlmDiscovery = skipLlm;
+    const skipEmbeddings = !embeddingReady && allowDegradedEmbeddings;
+
+    const shouldAutoInstallGrammars =
+      (typeof autoInstallGrammars === 'boolean'
+        ? autoInstallGrammars
+        : (!isTestMode() && String(process.env.LIBRARIAN_AUTO_INSTALL_GRAMMARS ?? '1') !== '0'))
+      && String(process.env.LIBRARIAN_OFFLINE ?? '') !== '1'
+      && String(process.env.LIBRARIAN_SKIP_PROVIDER_CHECK ?? '') !== '1';
+
+    const shouldCheckParserCoverage = shouldAutoInstallGrammars || requireCompleteParserCoverage;
+    if (shouldCheckParserCoverage) {
+      try {
+        onProgress?.('grammars', 0, 'Checking parser coverage...');
+        const scan = await scanWorkspaceLanguages(workspaceRoot);
+        let coverage = assessGrammarCoverage(scan);
+        let missing = getMissingGrammarPackages(coverage);
+
+        if (missing.length > 0 && shouldAutoInstallGrammars) {
+          onProgress?.('grammars', 0.2, `Installing missing grammars (${missing.join(', ')})...`);
+          const installResult = await installMissingGrammars(workspaceRoot, coverage, { stdio: 'inherit' });
+          if (!installResult.success) {
+            const installMessage = `missing=${installResult.packages.join(', ')}, error=${installResult.error ?? 'unknown_error'}`;
+            if (requireCompleteParserCoverage) {
+              throw new Error(`unverified_by_trace(parser_coverage_incomplete): grammar auto-install failed (${installMessage})`);
+            }
+            logWarning('[librarian] Grammar auto-install failed; continuing without some parsers', {
+              workspace: workspaceRoot,
+              missing: installResult.packages,
+              error: installResult.error ?? 'unknown error',
+            });
+            onProgress?.('grammars', 1, 'Grammar auto-install failed');
+          } else {
+            const postInstallScan = await scanWorkspaceLanguages(workspaceRoot);
+            coverage = assessGrammarCoverage(postInstallScan);
+            missing = getMissingGrammarPackages(coverage);
+            onProgress?.('grammars', 1, 'Missing grammars installed');
+          }
+        } else {
+          onProgress?.('grammars', 1, 'Parser coverage checked');
+        }
+
+        if (requireCompleteParserCoverage) {
+          const strictMissingPackages = getMissingGrammarPackages(coverage);
+          const strictMissingConfigs = coverage.missingLanguageConfigs;
+          if (strictMissingPackages.length > 0 || strictMissingConfigs.length > 0) {
+            const issues: string[] = [];
+            if (strictMissingPackages.length > 0) {
+              issues.push(`missing_grammars=${strictMissingPackages.join(',')}`);
+            }
+            if (strictMissingConfigs.length > 0) {
+              issues.push(`missing_language_configs=${strictMissingConfigs.join(',')}`);
+            }
+            throw new Error(`unverified_by_trace(parser_coverage_incomplete): ${issues.join('; ')}`);
+          }
+        } else {
+          const missingConfigs = coverage.missingLanguageConfigs;
+          if (missingConfigs.length > 0) {
+            logWarning('[librarian] Parser coverage missing language configs; continuing in non-strict mode', {
+              workspace: workspaceRoot,
+              missingLanguageConfigs: missingConfigs,
+            });
+          }
+        }
+      } catch (error) {
+        if (requireCompleteParserCoverage) {
+          throw error;
+        }
+        logWarning('[librarian] Grammar auto-install crashed; continuing without auto-install', {
+          workspace: workspaceRoot,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        onProgress?.('grammars', 1, 'Grammar auto-install crashed');
+      }
+    }
+
     const librarian = await createLibrarian({
-      workspace,
+      workspace: workspaceRoot,
       dbPath,
       autoBootstrap: true,
       bootstrapTimeoutMs: timeoutMs,
+      autoHealConfig: !isTestMode(),
+      autoHealRiskTolerance: 'low',
+      skipEmbeddings,
       llmProvider,
       llmModelId,
+      disableLlmDiscovery,
       embeddingService,
       bootstrapConfig: {
         include: includePatterns || [...INCLUDE_PATTERNS],
         exclude: excludePatterns || [...EXCLUDE_PATTERNS],
         llmProvider,
         llmModelId,
+        skipLlm,
+        skipEmbeddings,
       },
       onProgress: (phase, progress, message) => { onProgress?.(phase, progress, message); },
       onBootstrapStart: () => { wasBootstrapped = true; onProgress?.('bootstrap', 0.1, 'Bootstrap started...'); },
@@ -293,24 +452,30 @@ export async function ensureLibrarianReady(
     state.completedAt = new Date();
     state.version = currentVersion;
     state.providerUsed = providerUsed;
-    gateStates.set(workspace, state);
-    await writeGateState(workspace, {
+    gateStates.set(workspaceRoot, state);
+    await writeGateState(workspaceRoot, {
       status: 'ready',
       completedAt: state.completedAt.toISOString(),
       version: currentVersion,
       providerUsed,
     });
     if (isTestMode()) {
-      const persisted = readGateStateSync(workspace);
+      let persisted = readGateStateSync(workspaceRoot);
+      if (!isGateStateReady(persisted, currentVersion)) {
+        for (let attempt = 0; attempt < 5 && !isGateStateReady(persisted, currentVersion); attempt += 1) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          persisted = readGateStateSync(workspaceRoot);
+        }
+      }
       if (!isGateStateReady(persisted, currentVersion)) throw new Error('Tier-0: gate state not persisted');
-      const snapshot = gateStates.get(workspace); gateStates.delete(workspace);
-      const reloaded = isLibrarianReady(workspace); if (snapshot) gateStates.set(workspace, snapshot);
+      const snapshot = gateStates.get(workspaceRoot); gateStates.delete(workspaceRoot);
+      const reloaded = isLibrarianReady(workspaceRoot); if (snapshot) gateStates.set(workspaceRoot, snapshot);
       if (!reloaded) throw new Error('Tier-0: gate state reload failed');
     }
 
     if (state.report?.phases?.length) {
       for (const phaseResult of state.report.phases) {
-        globalEventBus.emit(createBootstrapPhaseCompleteEvent(workspace, phaseResult.phase.name, phaseResult.durationMs, phaseResult.itemsProcessed));
+        globalEventBus.emit(createBootstrapPhaseCompleteEvent(workspaceRoot, phaseResult.phase.name, phaseResult.durationMs, phaseResult.itemsProcessed));
         recordLibrarianTrace(traceContext, `bootstrap_phase_${phaseResult.phase.name}`);
       }
     }
@@ -318,7 +483,7 @@ export async function ensureLibrarianReady(
     await emitReports('success');
 
     const durationMs = Date.now() - startTime;
-    globalEventBus.emit(createBootstrapCompleteEvent(workspace, true, durationMs));
+    globalEventBus.emit(createBootstrapCompleteEvent(workspaceRoot, true, durationMs));
     onComplete?.(true, state.report);
 
     return { success: true, librarian, wasBootstrapped, wasUpgraded, durationMs, report: state.report };
@@ -330,8 +495,8 @@ export async function ensureLibrarianReady(
     state.completedAt = new Date();
     state.version = currentVersion;
     state.providerUsed = providerUsed;
-    gateStates.set(workspace, state);
-    await writeGateState(workspace, {
+    gateStates.set(workspaceRoot, state);
+    await writeGateState(workspaceRoot, {
       status: 'failed',
       completedAt: state.completedAt.toISOString(),
       version: currentVersion,
@@ -343,7 +508,7 @@ export async function ensureLibrarianReady(
     await emitReports('failure', errorMessage);
 
     const durationMs = Date.now() - startTime;
-    globalEventBus.emit(createBootstrapCompleteEvent(workspace, false, durationMs, errorMessage));
+    globalEventBus.emit(createBootstrapCompleteEvent(workspaceRoot, false, durationMs, errorMessage));
     onComplete?.(false);
 
     if (throwOnFailure) {
@@ -352,7 +517,7 @@ export async function ensureLibrarianReady(
 
     return { success: false, librarian: null, wasBootstrapped, wasUpgraded: false, durationMs, error: errorMessage };
   } finally {
-    if (state.status === 'failed') gateStates.delete(workspace);
+    if (state.status === 'failed') gateStates.delete(workspaceRoot);
     if (lockHandle) await lockHandle.release();
   }
 }

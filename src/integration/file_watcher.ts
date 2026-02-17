@@ -224,6 +224,9 @@ class IncrementalFileWatcher implements FileWatcherHandle {
   private readonly debounceMs: number;
   private readonly batchWindowMs: number;
   private readonly stormThreshold: number;
+  private readonly warningOnceKeys = new Set<string>();
+  private reconcileDisabled = false;
+  private cascadeDisabled = false;
   private batchQueue = new Set<string>();
   private batchTimer: NodeJS.Timeout | null = null;
   private batchEventCount = 0;
@@ -263,6 +266,12 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       cascadeBatchSize: options.cascadeBatchSize ?? DEFAULT_CASCADE_BATCH_SIZE,
       excludes: [...WATCH_EXCLUDES],
     };
+  }
+
+  private warnOnce(key: string, message: string, meta: Record<string, unknown>): void {
+    if (this.warningOnceKeys.has(key)) return;
+    this.warningOnceKeys.add(key);
+    logWarning(message, meta);
   }
 
   start(): void {
@@ -462,6 +471,22 @@ class IncrementalFileWatcher implements FileWatcherHandle {
    */
   private async queueDependentsForCascade(changedFilePath: string): Promise<void> {
     if (!this.storage || !this.cascadeQueue) return;
+    if (this.cascadeDisabled) return;
+
+    const storageAny = this.storage as unknown as Record<string, unknown>;
+    const missing: string[] = [];
+    if (typeof storageAny.getModuleByPath !== 'function') missing.push('getModuleByPath');
+    if (typeof storageAny.getGraphEdges !== 'function') missing.push('getGraphEdges');
+    if (typeof storageAny.getModule !== 'function') missing.push('getModule');
+    if (missing.length > 0) {
+      this.cascadeDisabled = true;
+      this.warnOnce('cascade_storage_missing_graph_apis', '[librarian] Cascade reindex disabled', {
+        workspaceRoot: this.workspaceRoot,
+        reason: 'storage_missing_graph_apis',
+        missing,
+      });
+      return;
+    }
 
     try {
       // Get the module record for the changed file
@@ -513,9 +538,19 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         this.cascadeQueue.enqueue(dependentPaths);
       }
     } catch (error) {
+      const message = getErrorMessage(error);
+      if (message.includes('storage_slice_missing_method') || message.includes('is not a function')) {
+        this.cascadeDisabled = true;
+        this.warnOnce('cascade_storage_capability_mismatch', '[librarian] Cascade reindex disabled', {
+          workspaceRoot: this.workspaceRoot,
+          reason: 'storage_capability_mismatch',
+          error: message,
+        });
+        return;
+      }
       logWarning('[librarian] Failed to queue cascade reindex', {
         filePath: changedFilePath,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
     }
   }
@@ -535,6 +570,37 @@ class IncrementalFileWatcher implements FileWatcherHandle {
 
   private async reconcileWorkspace(): Promise<void> {
     if (!this.storage) return;
+    if (this.reconcileDisabled) return;
+    const storageAny = this.storage as unknown as Record<string, unknown>;
+    if (typeof storageAny.getFiles !== 'function') {
+      this.reconcileDisabled = true;
+      // Storage is attached but does not support workspace reconciliation. This should not
+      // spam logs; warn once and keep watcher functional for event-driven reindexing.
+      try {
+        await updateWatchState(this.storage, (prev) => ({
+          schema_version: 1,
+          workspace_root: this.workspaceRoot,
+          watch_started_at: prev?.watch_started_at,
+          watch_last_heartbeat_at: prev?.watch_last_heartbeat_at,
+          watch_last_event_at: prev?.watch_last_event_at,
+          watch_last_reindex_ok_at: prev?.watch_last_reindex_ok_at,
+          suspected_dead: false,
+          needs_catchup: true,
+          storage_attached: true,
+          effective_config: this.watchConfig,
+          cursor: prev?.cursor,
+          last_error: 'storage_missing_getFiles',
+        }));
+      } catch {
+        // Ignore: state updates are best-effort in degraded storage scenarios.
+      }
+      this.warnOnce('watch_reconcile_storage_missing_getFiles', '[librarian] Watch reconcile disabled', {
+        workspaceRoot: this.workspaceRoot,
+        reason: 'storage_missing_getFiles',
+        hint: 'Attach a full LibrarianStorage implementation to enable reconcile/catch-up.',
+      });
+      return;
+    }
     const startedAt = Date.now();
     try {
       const previousWatchState = await getWatchState(this.storage);
@@ -621,6 +687,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       });
       const filteredMatches = matches.filter((filePath) => !isWatchExcluded(filePath));
       const currentFiles = new Set(filteredMatches.map((filePath) => path.resolve(filePath)));
+
       const storedFiles = await this.storage.getFiles();
 
       const deleted: string[] = [];
@@ -692,6 +759,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
+      const message = getErrorMessage(error);
       await updateWatchState(this.storage, (prev) => ({
         schema_version: 1,
         workspace_root: this.workspaceRoot,
@@ -704,17 +772,25 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         storage_attached: true,
         effective_config: this.watchConfig,
         cursor: prev?.cursor,
-        last_error: getErrorMessage(error),
+        last_error: message,
       }));
-      logWarning('[librarian] Watch reconcile failed', {
-        workspaceRoot: this.workspaceRoot,
-        error: getErrorMessage(error),
-      });
+      if (message.includes('storage_slice_missing_method') || message.includes('is not a function')) {
+        this.reconcileDisabled = true;
+        this.warnOnce('watch_reconcile_storage_capability_mismatch', '[librarian] Watch reconcile disabled', {
+          workspaceRoot: this.workspaceRoot,
+          reason: 'storage_capability_mismatch',
+          error: message,
+        });
+        return;
+      }
+      logWarning('[librarian] Watch reconcile failed', { workspaceRoot: this.workspaceRoot, error: message });
     }
   }
 
   attachStorage(storage: LibrarianStorage): void {
     this.storage = storage;
+    this.reconcileDisabled = false;
+    this.cascadeDisabled = false;
     void this.updateWatchStorageAttached();
     this.startHeartbeat();
     void this.reconcileWorkspace();

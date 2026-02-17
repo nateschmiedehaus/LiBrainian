@@ -1,8 +1,23 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { logDebug, logError, logInfo, logWarning } from '../logger.js';
+
+let originalVerbose: string | undefined;
+let originalLevel: string | undefined;
+
+beforeEach(() => {
+  originalVerbose = process.env.LIBRARIAN_VERBOSE;
+  originalLevel = process.env.LIBRARIAN_LOG_LEVEL;
+  // Ensure logs are emitted for the "does log" assertions.
+  process.env.LIBRARIAN_LOG_LEVEL = 'debug';
+  delete process.env.LIBRARIAN_VERBOSE;
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
+  if (typeof originalVerbose === 'string') process.env.LIBRARIAN_VERBOSE = originalVerbose;
+  else delete process.env.LIBRARIAN_VERBOSE;
+  if (typeof originalLevel === 'string') process.env.LIBRARIAN_LOG_LEVEL = originalLevel;
+  else delete process.env.LIBRARIAN_LOG_LEVEL;
 });
 
 describe('telemetry logger', () => {
@@ -39,4 +54,25 @@ describe('telemetry logger', () => {
       expect(spy).toHaveBeenCalledWith('hello', context);
     });
   }
+
+  it('suppresses info/debug logs by default when not verbose', () => {
+    delete process.env.LIBRARIAN_LOG_LEVEL;
+    delete process.env.LIBRARIAN_VERBOSE;
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    logInfo('hello');
+    logDebug('hello');
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('emits info logs when verbose flag is enabled', () => {
+    delete process.env.LIBRARIAN_LOG_LEVEL;
+    process.env.LIBRARIAN_VERBOSE = '1';
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    logInfo('hello');
+    expect(spy).toHaveBeenCalledWith('hello');
+  });
 });

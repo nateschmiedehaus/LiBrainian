@@ -68,7 +68,7 @@ Scenario Families: 30/30 (100%)
 - unverified (evidence_manifest_missing): 2026-02-12 validation checkpoint:
   - unverified (evidence_manifest_missing): `npm test -- --run` -> **9283 passed, 0 failed, 102 skipped**.
   - unverified (evidence_manifest_missing): `npm run test:agentic:strict:quick` -> failed at A/B gate (`t3_plus_ceiling_time_reduction_below_threshold:-0.199<0.050`) with `agentCommandShare=1`, `agentVerifiedExecutionShare=1`, `artifactIntegrityShare=1`, `verificationFallbackShare=0`.
-- unverified (evidence_manifest_missing): Conversation intelligence tracker for launch strategy and release checklist: `docs/LiBrainian/CONVERSATION_INSIGHTS.md`
+- unverified (evidence_manifest_missing): Conversation intelligence tracker for launch strategy and release checklist: `docs/librarian/CONVERSATION_INSIGHTS.md`
 
 ### Validation (See Autogen Block Above) unverified (evidence_manifest_missing)
 unverified (evidence_manifest_missing): Narrative below is historical context; treat the autogen block + evidence manifest as the source of truth.
@@ -218,7 +218,7 @@ unverified (evidence_manifest_missing): ---
 2. Claims without trace are labeled `unverified (<reason>)`.
 3. This file is the single source of truth for current status.
 4. Each claim MUST include a verification depth and evidence links.
-5. Before publish signoff, complete and verify `docs/LiBrainian/CONVERSATION_INSIGHTS.md`.
+5. Before publish signoff, complete and verify `docs/librarian/CONVERSATION_INSIGHTS.md`.
 
 ## Verification Depth Levels
 

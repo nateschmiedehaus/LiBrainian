@@ -19,6 +19,10 @@ COMMANDS:
     check-providers     Check provider availability and authentication
     visualize           Generate codebase visualizations
     coverage            Generate UC x method x scenario coverage audit
+    quickstart          Smooth onboarding and recovery flow
+    smoke               Run external repo smoke harness
+    journey             Run agentic journey simulations
+    live-fire           Run continuous objective trial matrix
     health              Show current Librarian health status
     heal                Run homeostatic healing loop until healthy
     evolve              Run evolutionary improvement loop
@@ -27,10 +31,13 @@ COMMANDS:
     watch               Watch for file changes and auto-reindex
     compose             Compile technique bundles from intent
     index --force <file...>  Incrementally index specific files
-    analyze             Run static analysis (dead code, complexity)
-    config heal         Auto-detect and fix suboptimal configuration
-    doctor              Run health diagnostics to identify issues
-    help [command]      Show help for a command
+	    analyze             Run static analysis (dead code, complexity)
+	    config heal         Auto-detect and fix suboptimal configuration
+	    doctor              Run health diagnostics to identify issues
+	    publish-gate        Run strict publish-readiness gate checks
+	    ralph               Run DETECT->FIX->VERIFY loop and write an audit report
+	    external-repos      Sync external repo corpus from manifest.json
+	    help [command]      Show help for a command
 
 GLOBAL OPTIONS:
     -h, --help          Show help information
@@ -79,6 +86,8 @@ USAGE:
 
 OPTIONS:
     --verbose           Show detailed statistics
+    --format text|json  Output format (default: text)
+    --json              Alias for --format json
 
 DESCRIPTION:
     Displays the current state of the librarian knowledge index, including:
@@ -181,6 +190,8 @@ OPTIONS:
     --force-resume      Resume bootstrap even if workspace fingerprint changed
     --scope <name>      Bootstrap scope: full | librarian (default: full)
     --mode <name>       Bootstrap mode: fast | full (default: full)
+    --emit-baseline     Write OnboardingBaseline.v1 after successful bootstrap
+    --install-grammars  Install missing tree-sitter grammar packages
     --llm-provider <p>  Force LLM provider: claude | codex (default: auto)
     --llm-model <id>    Force LLM model id (default: daily selection)
 
@@ -208,6 +219,140 @@ EXAMPLES:
     librarian bootstrap --force-resume
     librarian bootstrap --scope librarian
     librarian bootstrap --scope librarian --llm-provider codex --llm-model gpt-4o-mini
+    librarian bootstrap --emit-baseline
+`,
+
+  quickstart: `
+librarian quickstart - Smooth onboarding and recovery flow
+
+USAGE:
+    librarian quickstart [options]
+
+OPTIONS:
+    --mode <name>       Bootstrap mode: fast | full (default: fast)
+    --risk-tolerance <t>  Config heal risk: safe | low | medium (default: low)
+    --force             Force bootstrap even if not required
+    --skip-baseline     Skip writing OnboardingBaseline.v1
+    --json              Output results as JSON
+
+DESCRIPTION:
+    Runs a full onboarding recovery flow to get Librarian operational:
+    - Auto-detects workspace root
+    - Heals configuration issues
+    - Recovers storage (stale locks/WAL)
+    - Bootstraps if required (fast by default)
+    - Emits a baseline audit (unless skipped)
+
+    If embeddings or LLMs are unavailable, quickstart proceeds in degraded mode.
+
+EXAMPLES:
+    librarian quickstart
+    librarian quickstart --mode full
+    librarian quickstart --force --skip-baseline
+    librarian quickstart --json
+`,
+
+  smoke: `
+librarian smoke - Run external repo smoke harness
+
+USAGE:
+    librarian smoke [options]
+
+OPTIONS:
+    --repos-root <path>  Root folder with external repos (default: eval-corpus/external-repos)
+    --max-repos <n>      Limit number of repos to test
+    --repo <a,b,c>       Restrict to specific repos by manifest name
+    --timeout-ms <n>     Fail closed if smoke run exceeds timeout
+    --artifacts-dir <path>  Write per-run artifacts and latest pointer
+    --json               Output results as JSON
+
+DESCRIPTION:
+    Runs a lightweight, agent-style smoke test across real external repos.
+    Uses a short query set to verify that overview and file-scoped context work.
+
+EXAMPLES:
+    librarian smoke
+    librarian smoke --max-repos 3
+    librarian smoke --timeout-ms 120000 --artifacts-dir state/eval/smoke
+    librarian smoke --repos-root ./eval-corpus/external-repos --json
+`,
+
+  journey: `
+librarian journey - Run agentic journey simulations
+
+USAGE:
+    librarian journey [options]
+
+OPTIONS:
+    --repos-root <path>  Root folder with external repos (default: eval-corpus/external-repos)
+    --max-repos <n>      Limit number of repos to test
+    --llm <mode>         LLM mode: disabled | optional (default: disabled)
+    --deterministic      Enable deterministic query mode
+    --strict-objective   Require retrieved context for pass
+    --timeout-ms <n>     Fail closed if journey run exceeds timeout
+    --artifacts-dir <path>  Write per-run artifacts and latest pointer
+    --json               Output results as JSON
+
+DESCRIPTION:
+    Runs a multi-step agent workflow across real repos:
+    - Project overview and module discovery queries
+    - Onboarding path query
+    - File-scoped context query
+    - Glance card + recommendations (when available)
+    - Constraint validation on a representative file
+
+EXAMPLES:
+    librarian journey
+    librarian journey --max-repos 3 --deterministic
+    librarian journey --strict-objective --timeout-ms 120000
+    librarian journey --llm optional --json
+`,
+
+  'live-fire': `
+librarian live-fire - Run continuous objective trial matrix
+
+USAGE:
+    librarian live-fire [options]
+
+OPTIONS:
+    --repos-root <path>            Root folder with external repos (default: eval-corpus/external-repos)
+    --profile <name>               Run one named profile (baseline, hardcore, soak, etc.)
+    --profiles <a,b,c>             Run selected profiles as a matrix
+    --profiles-file <path>         Load additional/override profiles from JSON
+    --matrix                        Run all available profiles (or --profiles selection)
+    --list-profiles                Print profiles and exit
+    --rounds <n>                   Number of repeated trial rounds (default: 3)
+    --max-repos <n>                Limit number of repos to test
+    --repo <a,b,c>                 Restrict to specific repo names
+    --llm-modes <modes>            Comma-separated: disabled,optional (default: disabled)
+    --deterministic                Enable deterministic query mode
+    --strict-objective             Require retrieved context for pass
+    --include-smoke                Include smoke checks in each run
+    --min-journey-pass-rate <r>    Pass threshold in [0,1]
+    --min-retrieved-context-rate <r>  Retrieved context threshold in [0,1]
+    --max-blocking-validation-rate <r> Blocking validation ceiling in [0,1]
+    --journey-timeout-ms <n>       Timeout for each journey run (default from profile/runner)
+    --smoke-timeout-ms <n>         Timeout for each smoke run (default from profile/runner)
+    --output <path>                Write JSON report to file
+    --json                         Output report as JSON
+
+DESCRIPTION:
+    Executes objective journey trials on real external repos with hard gates for:
+    - Journey pass rate
+    - Retrieved-context rate
+    - Blocking validation rate
+    - Optional smoke failures
+
+    Profile mode provides reproducible "hardcore" presets for CLI end-to-end
+    trial-by-fire testing. Matrix mode runs multiple profiles and emits a
+    LiveFireMatrixReport.v1 plus per-profile artifacts.
+
+EXAMPLES:
+    librarian live-fire --list-profiles
+    librarian live-fire --profile baseline --profiles-file config/live_fire_profiles.json
+    librarian live-fire --matrix --profiles baseline,hardcore --profiles-file config/live_fire_profiles.json
+    librarian live-fire --strict-objective --include-smoke
+    librarian live-fire --rounds 2 --llm-modes disabled,optional --json
 `,
 
   inspect: `
@@ -341,6 +486,7 @@ USAGE:
 
 OPTIONS:
     --json              Output results as JSON
+    --format text|json  Output format (default: text)
 
 DESCRIPTION:
     Checks the availability and authentication status of:
@@ -552,10 +698,12 @@ librarian analyze - Run static analysis on the codebase
 
 USAGE:
     librarian analyze --dead-code [options]
+    librarian analyze --dead-weight [options]
     librarian analyze --complexity [options]
 
 OPTIONS:
     --dead-code         Detect dead/unused code
+    --dead-weight       Rank dead-weight file/script candidates
     --complexity        Report function complexity metrics
     --format <fmt>      Output format: text | json (default: text)
     --threshold <n>     Complexity threshold for flagging (default: 10)
@@ -569,6 +717,11 @@ DESCRIPTION:
     - Identifies unused variables and parameters
     - Locates unused private functions
     - Flags commented-out code blocks
+
+    Dead-Weight Analysis (--dead-weight):
+    - Aggregates dead-code candidates by file
+    - Scores files using import-graph pressure and test proximity
+    - Ranks likely cleanup targets with reasons and confidence
 
     Complexity Analysis (--complexity):
     - Reports cyclomatic complexity for all functions
@@ -584,6 +737,8 @@ DESCRIPTION:
 
 EXAMPLES:
     librarian analyze --dead-code
+    librarian analyze --dead-weight
+    librarian analyze --dead-weight --format json
     librarian analyze --dead-code --format json
     librarian analyze --complexity
     librarian analyze --complexity --threshold 15
@@ -640,8 +795,8 @@ EXAMPLES:
     librarian config heal --format json      # JSON output for automation
 `,
 
-  doctor: `
-librarian doctor - Run health diagnostics to identify issues
+	  doctor: `
+	librarian doctor - Run health diagnostics to identify issues
 
 USAGE:
     librarian doctor [options]
@@ -649,6 +804,9 @@ USAGE:
 OPTIONS:
     --verbose           Show detailed diagnostic information
     --json              Output results as JSON
+    --heal              Attempt automatic healing (config + bootstrap)
+    --install-grammars  Install missing tree-sitter grammar packages
+    --risk-tolerance    Max risk for config fixes (safe|low|medium)
 
 DESCRIPTION:
     Runs comprehensive health diagnostics on the Librarian system to identify
@@ -700,6 +858,11 @@ DESCRIPTION:
     - Checks LLM availability for synthesis
     - Reports authentication status
 
+    PARSER COVERAGE:
+    - Detects languages in the workspace
+    - Flags missing tree-sitter configs or grammars
+    - Optionally installs missing grammar packages
+
 OUTPUT:
     Each check reports one of three statuses:
     - [OK]     Check passed, component is healthy
@@ -715,8 +878,99 @@ EXAMPLES:
     librarian doctor --verbose
     librarian doctor --json
     librarian doctor --verbose --json
-`,
-};
+    librarian doctor --heal
+	    librarian doctor --heal --risk-tolerance safe
+	    librarian doctor --install-grammars
+	`,
+
+	  'publish-gate': `
+	librarian publish-gate - Run strict publish-readiness gate checks
+
+	USAGE:
+	    librarian publish-gate [options]
+
+	OPTIONS:
+	    --profile broad|release
+	                      broad: block on all status drift and all unmet metrics
+	                      release: block on release evidence + release-critical metrics
+	    --gates-file <path>   override gates file path (default: docs/librarian/GATES.json)
+	    --status-file <path>  override status file path (default: docs/librarian/STATUS.md)
+	    --max-artifact-age-hours <n>
+	                      max allowed age for release evidence artifacts (default: 168)
+	    --live-fire-pointer <path>
+	                      override live-fire quick pointer path
+	    --ab-report <path>    override A/B harness report path
+	    --use-case-report <path>
+	                      override agentic use-case review report path
+	    --smoke-report <path> override external smoke report path
+	    --json                emit JSON report to stdout
+
+	DESCRIPTION:
+	    Evaluates whether Librarian is publish-ready using evidence-backed artifacts.
+	    Broad profile is backlog-complete and blocks on all status drift.
+	    Release profile is publish-focused: live-fire, strict A/B, strict use-case
+	    review, and external smoke evidence must be fresh and passing; smoke must
+	    demonstrate multi-language coverage; release-critical metrics must be met.
+	    Reports machine-actionable blockers with remediation hints.
+
+	EXAMPLES:
+	    librarian publish-gate
+	    librarian publish-gate --json
+	    librarian publish-gate --profile broad --json
+	    librarian publish-gate --gates-file /tmp/GATES.json --status-file /tmp/STATUS.md --json
+	`,
+
+	  ralph: `
+	librarian ralph - Run DETECT->FIX->VERIFY loop and write an audit report
+
+	USAGE:
+	    librarian ralph [options]
+
+	OPTIONS:
+	    --mode fast|full       fast bootstraps without LLM; full enables evaluation (default: fast)
+	    --max-cycles <n>       maximum loop cycles (default: 2)
+	    --skip-eval            disable evaluation even in full mode
+	    --output <path>        write report to an explicit path (default: state/audits/ralph/)
+	    --json                 emit JSON report to stdout
+
+	DESCRIPTION:
+	    Runs a pragmatic operational loop intended to take a repo from error-prone
+	    to a stable baseline:
+	    - Runs onboarding recovery (storage recovery, config heal, bootstrap)
+	    - Captures a state report
+	    - Optionally runs staged evaluation (FitnessReport) in full mode
+	    - Writes a single audit artifact for evidence and debugging
+
+	EXAMPLES:
+	    librarian ralph
+	    librarian ralph --mode full
+	    librarian ralph --mode full --max-cycles 3 --json
+	`,
+
+	  'external-repos': `
+	librarian external-repos - Sync external repo corpus from manifest.json
+
+	USAGE:
+	    librarian external-repos sync [options]
+
+	OPTIONS:
+	    --repos-root <path>   directory containing manifest.json (default: eval-corpus/external-repos)
+	    --max-repos <n>       sync only first n repos from manifest
+	    --verify              run smoke verification after sync
+	    --json                emit JSON report to stdout
+
+	DESCRIPTION:
+	    Ensures the external repo evaluation corpus is present on disk and pinned
+	    to the commits recorded in manifest.json. This is used by:
+	    - librarian smoke
+	    - evaluation harnesses that require real repos
+
+	EXAMPLES:
+	    librarian external-repos sync
+	    librarian external-repos sync --verify
+	    librarian external-repos sync --max-repos 3 --json
+	`,
+	};
 
 export function showHelp(command?: string): void {
   if (command && command in HELP_TEXT) {

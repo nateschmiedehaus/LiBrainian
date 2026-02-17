@@ -12,7 +12,90 @@
  * @packageDocumentation
  */
 
-import { minimatch } from 'minimatch';
+import { Minimatch } from 'minimatch';
+
+// ============================================================================
+// PERFORMANCE OPTIMIZATIONS
+// ============================================================================
+
+/**
+ * `minimatch()` is relatively expensive when called repeatedly. Durability checks
+ * happen on hot paths (e.g., batch classification during indexing), so we:
+ * - fast-path the default immutable patterns using string checks
+ * - cache compiled minimatch patterns for non-default/custom configs
+ */
+
+const DEFAULT_IMMUTABLE_BASENAMES = new Set<string>([
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'Cargo.lock',
+  'Gemfile.lock',
+  'poetry.lock',
+  'Pipfile.lock',
+  'composer.lock',
+  'go.sum',
+]);
+
+const DEFAULT_IMMUTABLE_PREFIX_MARKERS = [
+  'node_modules/',
+  '.git/',
+  'vendor/',
+  'dist/',
+  'build/',
+  '.pnpm/',
+  '.venv/',
+  'venv/',
+  '__pycache__/',
+  '.next/',
+  '.nuxt/',
+  'coverage/',
+  '.nyc_output/',
+] as const;
+
+const DEFAULT_IMMUTABLE_DIR_MARKERS = [
+  '/node_modules/',
+  '/.git/',
+  '/vendor/',
+  '/dist/',
+  '/build/',
+  '/.pnpm/',
+  '/.venv/',
+  '/venv/',
+  '/__pycache__/',
+  '/.next/',
+  '/.nuxt/',
+  '/coverage/',
+  '/.nyc_output/',
+] as const;
+
+function matchesDefaultImmutablePath(normalizedPath: string): boolean {
+  const lastSlash = normalizedPath.lastIndexOf('/');
+  const basename = lastSlash === -1 ? normalizedPath : normalizedPath.slice(lastSlash + 1);
+
+  if (DEFAULT_IMMUTABLE_BASENAMES.has(basename)) return true;
+  if (basename.endsWith('.lock')) return true;
+
+  for (const marker of DEFAULT_IMMUTABLE_PREFIX_MARKERS) {
+    if (normalizedPath.startsWith(marker)) return true;
+  }
+  for (const marker of DEFAULT_IMMUTABLE_DIR_MARKERS) {
+    if (normalizedPath.includes(marker)) return true;
+  }
+
+  return false;
+}
+
+const compiledPatternCache = new WeakMap<string[], Minimatch[]>();
+
+function getCompiledPatterns(patterns: string[]): Minimatch[] {
+  const cached = compiledPatternCache.get(patterns);
+  if (cached) return cached;
+
+  const compiled = patterns.map((pattern) => new Minimatch(pattern, { dot: true }));
+  compiledPatternCache.set(patterns, compiled);
+  return compiled;
+}
 
 // ============================================================================
 // TYPES
@@ -209,9 +292,19 @@ export function isImmutablePath(filePath: string, patterns: string[]): boolean {
   // Normalize path separators for cross-platform compatibility
   const normalizedPath = filePath.replace(/\\/g, '/');
 
-  return patterns.some((pattern) =>
-    minimatch(normalizedPath, pattern, { dot: true })
-  );
+  // Fast-path the default immutable patterns: avoids running minimatch for the
+  // overwhelmingly common case of regular source files.
+  if (patterns === DEFAULT_DURABILITY_CONFIG.immutablePatterns) {
+    return matchesDefaultImmutablePath(normalizedPath);
+  }
+
+  // Fall back to minimatch semantics for custom patterns/configs, but cache
+  // compilation to avoid re-parsing globs on every call.
+  const compiled = getCompiledPatterns(patterns);
+  for (const matcher of compiled) {
+    if (matcher.match(normalizedPath)) return true;
+  }
+  return false;
 }
 
 // ============================================================================
@@ -457,9 +550,13 @@ export function classifyBatch(
   const batch: string[] = [];
   const priority: string[] = [];
 
+  // Avoid per-file `new Date()` allocations and ensure consistent classification
+  // across a batch.
+  const currentTime = now ?? new Date();
+
   for (const file of files) {
-    const durability = classifyDurability(file.path, file.lastModified, config, now);
-    const shouldRevalidateFile = shouldRevalidate(durability, file.lastValidated, now);
+    const durability = classifyDurability(file.path, file.lastModified, config, currentTime);
+    const shouldRevalidateFile = shouldRevalidate(durability, file.lastValidated, currentTime);
 
     updateStats(stats, durability, shouldRevalidateFile);
 

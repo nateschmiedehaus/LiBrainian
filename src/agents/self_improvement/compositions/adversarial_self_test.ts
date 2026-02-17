@@ -8,7 +8,6 @@
  */
 
 import type { LibrarianStorage } from '../../../storage/types.js';
-import type { ConfidenceValue } from '../types.js';
 import {
   analyzeArchitecture,
   type ArchitectureAnalysisResult,
@@ -19,8 +18,6 @@ import {
   type Weakness,
   type WeaknessType,
   type AdversarialTestCase,
-  type FailureMode,
-  type AdversarialTestResult,
 } from '../adversarial_test.js';
 import {
   planFix,
@@ -118,6 +115,13 @@ export interface AdversarialSelfTestOptions {
   maxTests?: number;
   /** Whether to execute the generated tests */
   executeTests?: boolean;
+  /**
+   * Executes generated adversarial tests against a real test runner.
+   *
+   * If `executeTests` is enabled but `testExecutor` is not provided, Librarian
+   * fails closed and marks the execution phase as failed.
+   */
+  testExecutor?: TestExecutor;
   /** Test difficulty level */
   difficulty?: 'easy' | 'medium' | 'hard' | 'extreme';
   /** Maximum weaknesses to process */
@@ -129,6 +133,24 @@ export interface AdversarialSelfTestOptions {
   /** Enable verbose logging */
   verbose?: boolean;
 }
+
+export interface TestExecutionContext {
+  rootDir: string;
+  storage: LibrarianStorage;
+  verbose: boolean;
+}
+
+export interface TestExecutionResult {
+  executed: number;
+  passed: number;
+  failed: number;
+  failedTests: AdversarialTestCase[];
+}
+
+export type TestExecutor = (
+  tests: AdversarialTestCase[],
+  context: TestExecutionContext
+) => Promise<TestExecutionResult>;
 
 // ============================================================================
 // CONSTANTS
@@ -249,39 +271,6 @@ function mapViolationToWeaknessType(
 }
 
 // ============================================================================
-// TEST EXECUTION (SIMULATED)
-// ============================================================================
-
-/**
- * Execute generated tests.
- * Note: This is a simulated execution - in production would actually run tests.
- */
-async function executeGeneratedTests(
-  tests: AdversarialTestCase[],
-  verbose: boolean
-): Promise<{
-  executed: number;
-  passed: number;
-  failed: number;
-  failedTests: AdversarialTestCase[];
-}> {
-  // Simulate test execution
-  // In production, this would actually compile and run the tests
-  const executed = tests.length;
-  const passed = Math.floor(tests.length * 0.7); // Simulate 70% pass rate
-  const failed = executed - passed;
-
-  // Select some tests as "failed" for demonstration
-  const failedTests = tests.slice(0, failed);
-
-  if (verbose) {
-    console.log(`[adversarialSelfTest] Executed ${executed} tests: ${passed} passed, ${failed} failed`);
-  }
-
-  return { executed, passed, failed, failedTests };
-}
-
-// ============================================================================
 // ISSUE GENERATION
 // ============================================================================
 
@@ -368,6 +357,7 @@ export async function adversarialSelfTest(
     focusAreas,
     maxTests = DEFAULT_MAX_TESTS,
     executeTests = false,
+    testExecutor,
     difficulty = DEFAULT_DIFFICULTY,
     maxWeaknesses = DEFAULT_MAX_WEAKNESSES,
     generateFixPlans = true,
@@ -554,25 +544,48 @@ export async function adversarialSelfTest(
   let testsFailed = 0;
   let failedTestCases: AdversarialTestCase[] = [];
 
-  if (executeTests && allTestCases.length > 0) {
+  if (executeTests) {
     try {
-      if (verbose) {
-        console.log('[adversarialSelfTest] Phase 4: Executing tests');
+      if (!testExecutor) {
+        errors.push('[execution] test_execution_unavailable: executeTests=true requires testExecutor');
+        phaseReports.push({
+          phase: 'test_execution',
+          status: 'failed',
+          duration: Date.now() - phase4Start,
+          itemsProcessed: 0,
+          errors: errors.filter((e) => e.includes('[execution]')),
+        });
+      } else if (allTestCases.length === 0) {
+        phaseReports.push({
+          phase: 'test_execution',
+          status: 'skipped',
+          duration: Date.now() - phase4Start,
+          itemsProcessed: 0,
+          errors: [],
+        });
+      } else {
+        if (verbose) {
+          console.log('[adversarialSelfTest] Phase 4: Executing tests');
+        }
+
+        const executionResult = await testExecutor(allTestCases, {
+          rootDir,
+          storage,
+          verbose,
+        });
+        testsExecuted = executionResult.executed;
+        testsPassed = executionResult.passed;
+        testsFailed = executionResult.failed;
+        failedTestCases = executionResult.failedTests;
+
+        phaseReports.push({
+          phase: 'test_execution',
+          status: testsFailed === 0 ? 'success' : 'partial',
+          duration: Date.now() - phase4Start,
+          itemsProcessed: testsExecuted,
+          errors: [],
+        });
       }
-
-      const executionResult = await executeGeneratedTests(allTestCases, verbose);
-      testsExecuted = executionResult.executed;
-      testsPassed = executionResult.passed;
-      testsFailed = executionResult.failed;
-      failedTestCases = executionResult.failedTests;
-
-      phaseReports.push({
-        phase: 'test_execution',
-        status: testsFailed === 0 ? 'success' : 'partial',
-        duration: Date.now() - phase4Start,
-        itemsProcessed: testsExecuted,
-        errors: [],
-      });
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       errors.push(`[execution] Test execution failed: ${errorMsg}`);
@@ -728,17 +741,15 @@ export async function adversarialSelfTest(
   // CALCULATE METRICS
   // ============================================================================
 
-  // Calculate coverage improvement (simulated based on tests generated)
-  const coverageImprovement = testsGenerated.length > 0
-    ? Math.min(0.2, testsGenerated.length * 0.01) // ~1% per test, max 20%
+  // Fail closed when tests were not actually executed.
+  const coverageImprovement = testsExecuted > 0
+    ? Math.min(0.2, testsExecuted * 0.01)
     : 0;
 
   // Calculate robustness score
   const robustnessScore = testsExecuted > 0
     ? testsPassed / testsExecuted
-    : testsGenerated.length > 0
-      ? 0.7 // Assume 70% robustness if not executed
-      : 1.0; // Perfect if no weaknesses found
+    : 0;
 
   if (verbose) {
     console.log('[adversarialSelfTest] Composition complete');

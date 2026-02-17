@@ -13,6 +13,7 @@
  */
 
 import * as path from 'path';
+import { getLanguageFromPath } from '../utils/language.js';
 import {
   SymbolTable,
   detectSymbolQuery,
@@ -259,7 +260,7 @@ async function symbolToFullContextPack(
       content: snippetContent,
       startLine: symbol.line,
       endLine: endLine,
-      language: getLanguageFromPath(symbol.file),
+      language: getLanguageFromPath(symbol.file, 'text'),
     };
   } catch (error) {
     // Could not read file, proceed without snippet
@@ -285,46 +286,6 @@ async function symbolToFullContextPack(
   };
 
   return pack;
-}
-
-/**
- * Get language from file path.
- */
-function getLanguageFromPath(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  switch (ext) {
-    case '.ts':
-    case '.tsx':
-      return 'typescript';
-    case '.js':
-    case '.jsx':
-    case '.mjs':
-    case '.cjs':
-      return 'javascript';
-    case '.py':
-      return 'python';
-    case '.rs':
-      return 'rust';
-    case '.go':
-      return 'go';
-    case '.java':
-      return 'java';
-    case '.rb':
-      return 'ruby';
-    case '.php':
-      return 'php';
-    case '.c':
-    case '.h':
-      return 'c';
-    case '.cpp':
-    case '.hpp':
-    case '.cc':
-      return 'cpp';
-    case '.cs':
-      return 'csharp';
-    default:
-      return 'text';
-  }
 }
 
 // ============================================================================

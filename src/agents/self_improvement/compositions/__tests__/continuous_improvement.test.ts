@@ -9,6 +9,7 @@ import {
   type ContinuousImprovementOptions,
 } from '../continuous_improvement.js';
 import type { LibrarianStorage } from '../../../../storage/types.js';
+import type { FixPlan } from '../../plan_fix.js';
 
 // Mock the primitive modules
 vi.mock('../../self_refresh.js', () => ({
@@ -476,7 +477,7 @@ describe('runContinuousImprovement', () => {
       expect(applyPhase?.status).toBe('skipped');
     });
 
-    it('applies fixes when autoApplyFixes is true', async () => {
+    it('fails closed when autoApplyFixes is true but no fixApplier is provided', async () => {
       (analyzeConsistency as Mock).mockResolvedValue({
         codeTestMismatches: [
           { id: 'mismatch-1', type: 'interface_signature', severity: 'error', claimed: 'string', actual: 'number', location: 'src/api.ts', suggestedResolution: 'Update type' },
@@ -497,10 +498,13 @@ describe('runContinuousImprovement', () => {
         autoApplyFixes: true,
       });
 
-      expect(result.fixesApplied.length).toBeGreaterThan(0);
+      expect(result.fixesApplied.length).toBe(0);
+      expect(result.errors.some((e) => e.includes('fix_application_unavailable'))).toBe(true);
+      const applyPhase = result.phaseReports.find((p) => p.phase === 'apply_fixes');
+      expect(applyPhase?.status).toBe('failed');
     });
 
-    it('reports applied fix success/failure', async () => {
+    it('applies fixes when autoApplyFixes is true and fixApplier is provided', async () => {
       (analyzeConsistency as Mock).mockResolvedValue({
         codeTestMismatches: [
           { id: 'mismatch-1', type: 'interface_signature', severity: 'error', claimed: 'string', actual: 'number', location: 'src/api.ts', suggestedResolution: 'Update type' },
@@ -516,11 +520,23 @@ describe('runContinuousImprovement', () => {
         errors: [],
       });
 
+      const fixApplier = vi.fn(async (plan: FixPlan) => {
+        return {
+          plan,
+          success: true,
+          verified: true,
+          duration: 10,
+        };
+      });
+
       const result = await runContinuousImprovement({
         ...defaultOptions,
         autoApplyFixes: true,
+        fixApplier,
       });
 
+      expect(fixApplier).toHaveBeenCalled();
+      expect(result.fixesApplied.length).toBeGreaterThan(0);
       for (const fix of result.fixesApplied) {
         expect(fix).toHaveProperty('success');
         expect(fix).toHaveProperty('verified');
@@ -546,9 +562,19 @@ describe('runContinuousImprovement', () => {
         errors: [],
       });
 
+      const fixApplier = vi.fn(async (plan: FixPlan) => {
+        return {
+          plan,
+          success: true,
+          verified: true,
+          duration: 10,
+        };
+      });
+
       await runContinuousImprovement({
         ...defaultOptions,
         autoApplyFixes: true,
+        fixApplier,
         learningEnabled: true,
       });
 
@@ -583,9 +609,19 @@ describe('runContinuousImprovement', () => {
       });
       (learnFromOutcome as Mock).mockRejectedValue(new Error('Learning failed'));
 
+      const fixApplier = vi.fn(async (plan: FixPlan) => {
+        return {
+          plan,
+          success: true,
+          verified: true,
+          duration: 10,
+        };
+      });
+
       const result = await runContinuousImprovement({
         ...defaultOptions,
         autoApplyFixes: true,
+        fixApplier,
         learningEnabled: true,
       });
 

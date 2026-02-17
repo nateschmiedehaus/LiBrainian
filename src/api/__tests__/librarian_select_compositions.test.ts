@@ -4,7 +4,13 @@ import type { LibrarianStorage } from '../../storage/types.js';
 
 // Mock provider checks to fail fast instead of timing out
 vi.mock('../provider_check.js', () => ({
-  requireProviders: vi.fn().mockResolvedValue(undefined),
+  // Unit tests should behave as if providers are unavailable, forcing the
+  // system onto its keyword-based fallback path.
+  requireProviders: vi.fn().mockRejectedValue(
+    Object.assign(new Error('unverified_by_trace(provider_unavailable): test mode'), {
+      name: 'ProviderUnavailableError',
+    })
+  ),
   checkAllProviders: vi.fn().mockResolvedValue({
     llm: { available: false, provider: 'none', model: 'unknown', latencyMs: 0, error: 'unavailable' },
     embedding: { available: false, provider: 'none', model: 'unknown', latencyMs: 0, error: 'unavailable' },

@@ -3,8 +3,10 @@ import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { queryLibrarian } from '../../api/query.js';
-import { isBootstrapRequired } from '../../api/bootstrap.js';
+import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from '../../api/bootstrap.js';
 import { detectLibrarianVersion } from '../../api/versioning.js';
+import { resolveLibrarianModelConfigWithDiscovery, resolveLibrarianModelId } from '../../api/llm_env.js';
+import { checkAllProviders } from '../../api/provider_check.js';
 import type { LibrarianQuery, TokenBudget } from '../../types.js';
 import { createError, suggestSimilarQueries } from '../errors.js';
 import { createSpinner, formatDuration, printKeyValue } from '../progress.js';
@@ -49,6 +51,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       'token-budget': { type: 'string' },
       'token-reserve': { type: 'string' },
       'token-priority': { type: 'string' },
+      'no-bootstrap': { type: 'boolean', default: false },
       // Exhaustive mode flags
       exhaustive: { type: 'boolean', default: false },
       transitive: { type: 'boolean', default: false },
@@ -77,6 +80,11 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librarian queries');
   }
   const outputJson = values.json as boolean;
+  if (outputJson) {
+    // Keep stdout machine-readable when JSON output is requested.
+    // Progress indicators render to stderr, but disable them entirely for JSON mode.
+    process.env.LIBRARIAN_NO_PROGRESS = '1';
+  }
   const noSynthesis = values['no-synthesis'] as boolean;
   const deterministic = values.deterministic as boolean;
   const requestedLlmProviderRaw = typeof values['llm-provider'] === 'string' ? values['llm-provider'].trim() : '';
@@ -89,6 +97,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   const ucFreshnessDays = typeof values['uc-freshness-days'] === 'string'
     ? Number.parseInt(values['uc-freshness-days'], 10)
     : undefined;
+  const noBootstrap = values['no-bootstrap'] as boolean;
 
   // Token budget configuration
   const tokenBudgetRaw = typeof values['token-budget'] === 'string' ? values['token-budget'] : '';
@@ -130,7 +139,34 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     const effectiveTier = currentVersion?.qualityTier ?? 'full';
     const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: effectiveTier });
     if (bootstrapCheck.required) {
-      throw createError('NOT_BOOTSTRAPPED', bootstrapCheck.reason);
+      if (noBootstrap) {
+        throw createError('NOT_BOOTSTRAPPED', bootstrapCheck.reason);
+      }
+      const bootstrapSpinner = createSpinner('Bootstrap required; initializing (fast mode)...');
+      try {
+        let skipEmbeddings = false;
+        const providerCheckSkipped = process.env.LIBRARIAN_SKIP_PROVIDER_CHECK === '1';
+        if (providerCheckSkipped) {
+          skipEmbeddings = true;
+        } else {
+          try {
+            const providerStatus = await checkAllProviders({ workspaceRoot: workspace });
+            skipEmbeddings = !providerStatus.embedding.available;
+          } catch {
+            skipEmbeddings = true;
+          }
+        }
+        const config = createBootstrapConfig(workspace, {
+          bootstrapMode: 'fast',
+          skipLlm: true,
+          skipEmbeddings,
+        });
+        await bootstrapProject(config, storage);
+        bootstrapSpinner.succeed('Bootstrap complete');
+      } catch (error) {
+        bootstrapSpinner.fail('Bootstrap failed');
+        throw error;
+      }
     }
 
     // Check if this is an enumeration query (explicit flag or auto-detected)
@@ -309,11 +345,11 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     }
 
     const spinner = createSpinner(`Querying: "${intent.substring(0, 50)}${intent.length > 50 ? '...' : ''}"`);
-    let resolvedProvider = requestedLlmProvider;
-    let resolvedModel = requestedLlmModel;
+    let resolvedProvider: 'claude' | 'codex' | undefined = requestedLlmProvider;
+    let resolvedModel: string | undefined = requestedLlmModel;
     if (!resolvedProvider && resolvedModel) {
-      if (resolvedModel.startsWith('claude-')) resolvedProvider = 'claude';
-      else if (resolvedModel.startsWith('gpt-')) resolvedProvider = 'codex';
+      if (resolvedModel.startsWith('claude-') || resolvedModel.startsWith('claude')) resolvedProvider = 'claude';
+      else if (resolvedModel.startsWith('gpt-') || resolvedModel.startsWith('codex')) resolvedProvider = 'codex';
     }
     if (!resolvedProvider && !resolvedModel) {
       const rawDefaults = await storage.getState('librarian.llm_defaults.v1');
@@ -325,10 +361,37 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         resolvedModel = modelId.trim();
       }
     }
-    if (!resolvedProvider) resolvedProvider = 'codex';
-    if (!resolvedModel) resolvedModel = resolvedProvider === 'codex' ? 'gpt-5.1-codex-mini' : 'claude-haiku-4-5-20241022';
-    process.env.LIBRARIAN_LLM_PROVIDER = resolvedProvider;
-    process.env.LIBRARIAN_LLM_MODEL = resolvedModel;
+    if (!resolvedProvider && !resolvedModel && !noSynthesis) {
+      try {
+        const discovered = await resolveLibrarianModelConfigWithDiscovery();
+        if (discovered.provider && discovered.modelId) {
+          resolvedProvider = discovered.provider;
+          resolvedModel = discovered.modelId;
+        }
+      } catch {
+        // No providers discovered - continue without LLM synthesis
+      }
+    }
+    if (resolvedProvider && !resolvedModel) {
+      resolvedModel =
+        resolveLibrarianModelId(resolvedProvider)
+        ?? (resolvedProvider === 'codex' ? 'gpt-5.1-codex-mini' : 'claude-haiku-4-5-20241022');
+    }
+    const hasLlmConfig = Boolean(resolvedProvider && resolvedModel);
+    if (hasLlmConfig && resolvedProvider && resolvedModel) {
+      process.env.LIBRARIAN_LLM_PROVIDER = resolvedProvider;
+      process.env.LIBRARIAN_LLM_MODEL = resolvedModel;
+    }
+    let llmRequirement: LibrarianQuery['llmRequirement'] = noSynthesis ? 'disabled' : undefined;
+    if (!noSynthesis && !hasLlmConfig) {
+      llmRequirement = 'disabled';
+      const warning = 'LLM not configured; running without synthesis. Provide --llm-provider/--llm-model or bootstrap with providers to enable.';
+      if (outputJson) {
+        console.error(warning);
+      } else {
+        console.error(warning);
+      }
+    }
     const query: LibrarianQuery = {
       intent,
       depth,
@@ -339,7 +402,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         evidenceThreshold: Number.isFinite(ucEvidence ?? NaN) ? ucEvidence : undefined,
         freshnessMaxDays: Number.isFinite(ucFreshnessDays ?? NaN) ? ucFreshnessDays : undefined,
       } : undefined,
-      llmRequirement: noSynthesis ? 'disabled' : undefined,
+      llmRequirement,
       tokenBudget,
       deterministic,
     };

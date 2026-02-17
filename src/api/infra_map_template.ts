@@ -1330,6 +1330,7 @@ export function createInfraMapTemplate(): InfraMapTemplate {
     supportedUcs: ['UC-081', 'UC-082'],
     requiredMaps: ['InfraMap', 'OwnerMap', 'RiskMap'],
     optionalMaps: [],
+    requiredObjects: ['map', 'pack'],
     outputEnvelope: {
       packTypes: ['InfraPack'],
       requiresAdequacy: true,

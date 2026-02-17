@@ -374,6 +374,11 @@ describe('parseSymbolQuery', () => {
     expect(result!.expectedKind).toBeUndefined();
   });
 
+  it('should not parse bare lowercase words as symbols', () => {
+    const result = parseSymbolQuery('bootstrap');
+    expect(result).toBeNull();
+  });
+
   it('should parse "find X" pattern', () => {
     const result = parseSymbolQuery('find SqliteLibrarianStorage');
     expect(result).not.toBeNull();

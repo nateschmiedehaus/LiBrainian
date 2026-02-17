@@ -52,8 +52,10 @@ function parseSarif(content: string): JoernFinding[] {
       const artifact = physical && typeof physical.artifactLocation === 'object'
         ? physical.artifactLocation as Record<string, unknown>
         : null;
-      const location = artifact && typeof artifact.uri === 'string' ? artifact.uri : undefined;
-      findings.push({ ruleId, message, severity, location });
+      const location = artifact && typeof artifact.uri === 'string' ? artifact.uri : null;
+      const finding: JoernFinding = { ruleId, message, severity };
+      if (location) finding.location = location;
+      findings.push(finding);
     }
   }
   return findings;
@@ -70,8 +72,10 @@ function parseGenericJson(parsed: Record<string, unknown>): JoernFinding[] {
     const ruleId = typeof entry.ruleId === 'string' ? entry.ruleId : 'unknown';
     const message = typeof entry.message === 'string' ? entry.message : 'unknown';
     const severity = typeof entry.severity === 'string' ? entry.severity : null;
-    const location = typeof entry.location === 'string' ? entry.location : undefined;
-    findings.push({ ruleId, message, severity, location });
+    const location = typeof entry.location === 'string' ? entry.location : null;
+    const finding: JoernFinding = { ruleId, message, severity };
+    if (location) finding.location = location;
+    findings.push(finding);
   }
   return findings;
 }

@@ -85,6 +85,21 @@ describe('plan compiler', () => {
     expect(selections.map((item) => item.id)).toContain('tc_scaling_readiness');
   });
 
+  it('selects cross-repo contract drift composition', () => {
+    const selections = selectTechniqueCompositions('Cross repo API contract drift before release');
+    expect(selections.map((item) => item.id)).toContain('tc_cross_repo_contract_drift');
+  });
+
+  it('selects migration safety rollout composition', () => {
+    const selections = selectTechniqueCompositions('Risky schema migration rollout with rollback verification');
+    expect(selections.map((item) => item.id)).toContain('tc_migration_safety_rollout');
+  });
+
+  it('selects incident hotfix governed composition', () => {
+    const selections = selectTechniqueCompositions('Incident hotfix with audit trail and minimal blast radius');
+    expect(selections.map((item) => item.id)).toContain('tc_incident_hotfix_governed');
+  });
+
   it('returns empty when no keywords match', () => {
     const selections = selectTechniqueCompositions('Draft a friendly status update');
     expect(selections).toHaveLength(0);

@@ -28,6 +28,47 @@ import * as fs from 'node:fs/promises';
 import type { LibrarianStorage } from '../storage/types.js';
 import { createSymbolStorage } from '../storage/symbol_storage.js';
 
+const DEFAULT_ENDPOINT_SCAN_MAX_FILES = 1000;
+const DEFAULT_ENDPOINT_SCAN_MAX_FILES_TEST = 200;
+const DEFAULT_ENDPOINT_SCAN_BUDGET_MS = 15000;
+const DEFAULT_ENDPOINT_SCAN_BUDGET_MS_TEST = 5000;
+const DEFAULT_ENDPOINT_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function readEnvNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isUnitTestMode(): boolean {
+  return process.env.NODE_ENV === 'test' || process.env.LIBRARIAN_TEST_MODE === 'unit';
+}
+
+function getEndpointScanSettings(): {
+  maxFiles: number;
+  timeBudgetMs: number;
+  cacheTtlMs: number;
+  cacheEnabled: boolean;
+} {
+  const isUnit = isUnitTestMode();
+  const maxFiles = Math.max(
+    1,
+    readEnvNumber(
+      'LIBRARIAN_ENDPOINT_MAX_FILES',
+      isUnit ? DEFAULT_ENDPOINT_SCAN_MAX_FILES_TEST : DEFAULT_ENDPOINT_SCAN_MAX_FILES
+    )
+  );
+  const timeBudgetRaw = readEnvNumber(
+    'LIBRARIAN_ENDPOINT_SCAN_BUDGET_MS',
+    isUnit ? DEFAULT_ENDPOINT_SCAN_BUDGET_MS_TEST : DEFAULT_ENDPOINT_SCAN_BUDGET_MS
+  );
+  const timeBudgetMs = timeBudgetRaw <= 0 ? Number.POSITIVE_INFINITY : timeBudgetRaw;
+  const cacheTtlMs = Math.max(0, readEnvNumber('LIBRARIAN_ENDPOINT_CACHE_TTL_MS', DEFAULT_ENDPOINT_CACHE_TTL_MS));
+  const cacheEnabled = process.env.LIBRARIAN_ENDPOINT_CACHE_DISABLED !== '1' && cacheTtlMs > 0;
+  return { maxFiles, timeBudgetMs, cacheTtlMs, cacheEnabled };
+}
+
 // ============================================================================
 // PAGINATION & OPTIONS TYPES
 // ============================================================================
@@ -189,6 +230,9 @@ export interface EnumeratedEntity {
   /** Short description if available */
   description?: string;
 }
+
+type EndpointCacheEntry = { at: number; entities: EnumeratedEntity[] };
+const endpointCache = new Map<string, EndpointCacheEntry>();
 
 /**
  * Result of an enumeration query.
@@ -1121,6 +1165,13 @@ async function enumerateEndpoints(
   workspace: string,
   _storage?: LibrarianStorage
 ): Promise<EnumeratedEntity[]> {
+  const settings = getEndpointScanSettings();
+  if (settings.cacheEnabled) {
+    const cached = endpointCache.get(workspace);
+    if (cached && Date.now() - cached.at < settings.cacheTtlMs) {
+      return cached.entities;
+    }
+  }
   const entities: EnumeratedEntity[] = [];
   const patterns = ['**/*.ts', '**/*.js', '**/*.tsx', '**/*.jsx'];
 
@@ -1151,8 +1202,13 @@ async function enumerateEndpoints(
 
     const uniqueFiles = [...new Set(files)];
     const endpointInfos: EndpointInfo[] = [];
+    const scanStart = Date.now();
+    let scanned = 0;
 
-    for (const filePath of uniqueFiles.slice(0, 1000)) { // Limit to first 1000 files
+    for (const filePath of uniqueFiles) {
+      if (scanned >= settings.maxFiles) break;
+      if (Date.now() - scanStart > settings.timeBudgetMs) break;
+      scanned += 1;
       try {
         const content = await fs.readFile(filePath, 'utf-8');
         const relativePath = path.relative(workspace, filePath);
@@ -1335,7 +1391,7 @@ async function enumerateEndpoints(
       }
     }
 
-    return entities.sort((a, b) => {
+    const sorted = entities.sort((a, b) => {
       // Sort by path first, then method
       const pathA = (a.metadata.path as string) || '';
       const pathB = (b.metadata.path as string) || '';
@@ -1343,6 +1399,10 @@ async function enumerateEndpoints(
       if (pathCompare !== 0) return pathCompare;
       return a.name.localeCompare(b.name);
     });
+    if (settings.cacheEnabled) {
+      endpointCache.set(workspace, { at: Date.now(), entities: sorted });
+    }
+    return sorted;
   } catch {
     return [];
   }

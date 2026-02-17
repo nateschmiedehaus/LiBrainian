@@ -28,8 +28,8 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const librarianRoot = path.resolve(__dirname, '..');
 const srcRoot = path.resolve(__dirname, '..', '..');
-const IS_TIER0 = process.env.WVO_TIER0 === '1';
-const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && process.env.WVO_TIER0 !== '1');
+const IS_TIER0 = process.env.LIBRARIAN_TIER0 === '1';
+const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && process.env.LIBRARIAN_TIER0 !== '1');
 const describeLive = IS_TIER0 || IS_UNIT_MODE ? describe.skip : describe;
 
 // ============================================================================

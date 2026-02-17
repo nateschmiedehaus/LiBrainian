@@ -1,18 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { startWatchSession } from '../watch.js';
 import { Librarian } from '../../../api/librarian.js';
-import { resolveLibrarianModelConfigWithDiscovery } from '../../../api/llm_env.js';
 import { startFileWatcher, stopFileWatcher } from '../../../integration/file_watcher.js';
 import { globalEventBus } from '../../../events.js';
 import { CliError } from '../../errors.js';
+import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
 
 vi.mock('../../../api/librarian.js');
-vi.mock('../../../api/llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
-    provider: 'claude',
-    modelId: 'claude-sonnet-4-20250514',
-  }),
-}));
 vi.mock('../../../integration/file_watcher.js', () => ({
   startFileWatcher: vi.fn(() => ({ stop: vi.fn() })),
   stopFileWatcher: vi.fn().mockResolvedValue(undefined),
@@ -29,6 +23,9 @@ vi.mock('../../../events.js', async () => {
     },
   };
 });
+vi.mock('../../../utils/workspace_resolver.js', () => ({
+  resolveWorkspaceRoot: vi.fn(),
+}));
 
 describe('startWatchSession', () => {
   const mockWorkspace = '/test/workspace';
@@ -52,10 +49,6 @@ describe('startWatchSession', () => {
 
     vi.mocked(startFileWatcher).mockImplementation(() => ({ stop: vi.fn() }));
     vi.mocked(stopFileWatcher).mockResolvedValue(undefined);
-    vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-      provider: 'claude',
-      modelId: 'claude-sonnet-4-20250514',
-    });
 
     mockLibrarian = {
       initialize: vi.fn().mockResolvedValue(undefined),
@@ -71,6 +64,13 @@ describe('startWatchSession', () => {
     };
 
     (Librarian as unknown as Mock).mockImplementation(() => mockLibrarian);
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: mockWorkspace,
+      workspace: mockWorkspace,
+      changed: false,
+      sourceFileCount: 0,
+      reason: 'no_candidate',
+    });
   });
 
   afterEach(() => {
@@ -93,6 +93,31 @@ describe('startWatchSession', () => {
 
     await session.shutdown();
     expect(stopFileWatcher).toHaveBeenCalledWith(mockWorkspace);
+  });
+
+  it('uses resolved workspace when auto-detect changes', async () => {
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: mockWorkspace,
+      workspace: '/resolved/workspace',
+      changed: true,
+      reason: 'marker:.git',
+      confidence: 0.9,
+      marker: '.git',
+      sourceFileCount: 0,
+      candidateFileCount: 12,
+    });
+
+    const session = await startWatchSession({
+      workspace: mockWorkspace,
+      quiet: true,
+    });
+
+    expect(startFileWatcher).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceRoot: '/resolved/workspace',
+    }));
+
+    await session.shutdown();
+    expect(stopFileWatcher).toHaveBeenCalledWith('/resolved/workspace');
   });
 
   it('passes librarian without storage when storage is not available', async () => {
@@ -132,116 +157,32 @@ describe('startWatchSession', () => {
   });
 
   describe('LLM config resolution', () => {
-    it('uses provider and modelId from resolveLibrarianModelConfigWithDiscovery', async () => {
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-        provider: 'claude',
-        modelId: 'claude-opus-4-5-20251101',
-      });
-
-      const session = await startWatchSession({
-        workspace: mockWorkspace,
-        quiet: true,
-      });
-
-      expect(Librarian).toHaveBeenCalledWith(expect.objectContaining({
-        llmProvider: 'claude',
-        llmModelId: 'claude-opus-4-5-20251101',
-      }));
-
-      await session.shutdown();
-    });
-
-    it('sets LIBRARIAN_LLM_PROVIDER env var if not already set', async () => {
-      delete process.env.LIBRARIAN_LLM_PROVIDER;
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-        provider: 'claude',
-        modelId: 'claude-sonnet-4-20250514',
-      });
-
-      const session = await startWatchSession({
-        workspace: mockWorkspace,
-        quiet: true,
-      });
-
-      expect(process.env.LIBRARIAN_LLM_PROVIDER).toBe('claude');
-      await session.shutdown();
-    });
-
-    it('sets LIBRARIAN_LLM_MODEL env var if not already set', async () => {
-      delete process.env.LIBRARIAN_LLM_MODEL;
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-        provider: 'claude',
-        modelId: 'claude-sonnet-4-20250514',
-      });
-
-      const session = await startWatchSession({
-        workspace: mockWorkspace,
-        quiet: true,
-      });
-
-      expect(process.env.LIBRARIAN_LLM_MODEL).toBe('claude-sonnet-4-20250514');
-      await session.shutdown();
-    });
-
-    it('does not overwrite existing LIBRARIAN_LLM_PROVIDER env var', async () => {
+    it('passes LLM provider/model from env when present', async () => {
       process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-        provider: 'claude',
-        modelId: 'claude-sonnet-4-20250514',
-      });
+      process.env.LIBRARIAN_LLM_MODEL = 'gpt-5.1-codex-mini';
 
-      const session = await startWatchSession({
-        workspace: mockWorkspace,
-        quiet: true,
-      });
-
-      expect(process.env.LIBRARIAN_LLM_PROVIDER).toBe('codex');
-      await session.shutdown();
-    });
-
-    it('does not overwrite existing LIBRARIAN_LLM_MODEL env var', async () => {
-      process.env.LIBRARIAN_LLM_MODEL = 'my-custom-model';
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-        provider: 'claude',
-        modelId: 'claude-sonnet-4-20250514',
-      });
-
-      const session = await startWatchSession({
-        workspace: mockWorkspace,
-        quiet: true,
-      });
-
-      expect(process.env.LIBRARIAN_LLM_MODEL).toBe('my-custom-model');
-      await session.shutdown();
-    });
-
-    it('handles codex provider', async () => {
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({
-        provider: 'codex',
-        modelId: 'codex-mini-latest',
-      });
-
-      const session = await startWatchSession({
-        workspace: mockWorkspace,
-        quiet: true,
-      });
+      const session = await startWatchSession({ workspace: mockWorkspace, quiet: true });
 
       expect(Librarian).toHaveBeenCalledWith(expect.objectContaining({
         llmProvider: 'codex',
-        llmModelId: 'codex-mini-latest',
+        llmModelId: 'gpt-5.1-codex-mini',
       }));
 
       await session.shutdown();
     });
 
-    it('propagates error when resolveLibrarianModelConfigWithDiscovery fails', async () => {
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockRejectedValue(
-        new Error('unverified_by_trace(provider_unavailable): No LLM providers available.')
-      );
+    it('does not pass invalid LLM provider env value', async () => {
+      process.env.LIBRARIAN_LLM_PROVIDER = 'not-a-provider';
+      process.env.LIBRARIAN_LLM_MODEL = 'some-model';
 
-      await expect(startWatchSession({ workspace: mockWorkspace, quiet: true }))
-        .rejects
-        .toThrow('provider_unavailable');
+      const session = await startWatchSession({ workspace: mockWorkspace, quiet: true });
+
+      expect(Librarian).toHaveBeenCalledWith(expect.objectContaining({
+        llmProvider: undefined,
+        llmModelId: undefined,
+      }));
+
+      await session.shutdown();
     });
   });
 

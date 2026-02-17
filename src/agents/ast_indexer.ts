@@ -24,12 +24,14 @@ import { globalEventBus, createLanguageOnboardingEvent } from '../events.js';
 export type LlmProvider = 'claude' | 'codex';
 
 export interface AstIndexerOptions {
-  llmProvider: LlmProvider;
-  llmModelId: string;
+  llmProvider?: LlmProvider;
+  llmModelId?: string;
   registry?: ParserRegistry;
   llmService?: LlmServiceAdapter;
-  /** When false, skips per-file LLM analysis (purpose extraction); LLM is still used for parser fallback when needed. */
+  /** When false, skips per-file LLM analysis (purpose extraction). */
   enableAnalysis?: boolean;
+  /** When true, allows LLM-based parser fallback when deterministic parsers are unavailable. */
+  enableLlmFallback?: boolean;
   embeddingProvider?: EmbeddingProvider;
   embeddingModelId?: string;
   embeddingService?: EmbeddingService;
@@ -66,16 +68,17 @@ const PARSER_BEGIN_MARKER = 'BEGIN_PARSER_JSON', PARSER_END_MARKER = 'END_PARSER
 const DEFAULT_MAX_PROMPT_CHARS = 12000, MAX_ANALYSIS_RESPONSE_CHARS = 200_000;
 
 export class AstIndexer {
-  private registry: ParserRegistry; private readonly llmProvider: LlmProvider; private readonly llmModelId: string; private readonly llmService: LlmServiceAdapter; private readonly analysisEnabled: boolean; private readonly embeddingService: EmbeddingService | null; private readonly embeddingsEnabled: boolean; private readonly storage?: LibrarianStorage; private readonly workspaceRoot?: string; private readonly computeMetrics: boolean; private governor: GovernorContext | null; private readonly maxPromptChars: number; private readonly resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>; private readonly resolveModuleId?: (filePath: string) => Promise<string | null>;
+  private registry: ParserRegistry; private readonly llmProvider: LlmProvider | null; private readonly llmModelId: string | null; private readonly llmService: LlmServiceAdapter | null; private readonly analysisEnabled: boolean; private readonly fallbackEnabled: boolean; private readonly embeddingService: EmbeddingService | null; private readonly embeddingsEnabled: boolean; private readonly storage?: LibrarianStorage; private readonly workspaceRoot?: string; private readonly computeMetrics: boolean; private governor: GovernorContext | null; private readonly maxPromptChars: number; private readonly resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>; private readonly resolveModuleId?: (filePath: string) => Promise<string | null>;
 
   constructor(options: AstIndexerOptions) {
     this.registry = options.registry ?? ParserRegistry.getInstance();
-    this.llmProvider = options.llmProvider;
-    this.llmModelId = options.llmModelId;
-    if (!this.llmProvider || !this.llmModelId) throw new Error('LLM provider and model id are required for AST indexing');
-    this.llmService = resolveLlmServiceAdapter(options.llmService ?? null);
+    this.llmProvider = options.llmProvider ?? null;
+    this.llmModelId = options.llmModelId ?? null;
+    const llmConfigured = Boolean(this.llmProvider && this.llmModelId);
+    this.llmService = llmConfigured ? resolveLlmServiceAdapter(options.llmService ?? null) : null;
     this.governor = options.governorContext ?? new GovernorContext({ phase: 'ast_index', config: DEFAULT_GOVERNOR_CONFIG });
-    this.analysisEnabled = options.enableAnalysis ?? false;
+    this.analysisEnabled = llmConfigured && (options.enableAnalysis ?? false);
+    this.fallbackEnabled = llmConfigured && (options.enableLlmFallback ?? true);
     // Real embedding providers (xenova/sentence-transformers) - configured automatically
     // NO LLM-generated embeddings (they're hallucinated numbers, not real vectors)
     this.embeddingsEnabled = options.enableEmbeddings ?? true;
@@ -106,16 +109,29 @@ export class AstIndexer {
         message.includes('unverified_by_trace(parser_failed)') ||
         message.includes('unverified_by_trace(regex_parser_disallowed)')
       ) {
-        parserFallback = true;
-        parsed = await this.parseWithLlmFallback(filePath, source, governor ?? undefined);
         await this.recordLanguageGap(filePath, message);
-        void globalEventBus.emit(createLanguageOnboardingEvent(
-          filePath,
-          path.extname(filePath) || 'unknown',
-          parsed.parser,
-          message
-        ));
-        logWarning('Parser unavailable; using LLM fallback parsing', { filePath, error: message });
+        if (!this.fallbackEnabled) {
+          // Degrade gracefully: still index the file as a module so bootstrap/query
+          // does not end up in an empty-storage state on repos without AST parsers.
+          // This is provider-free and keeps indexing deterministic.
+          parserFallback = true;
+          parsed = {
+            parser: 'unverified_by_trace(parser_unavailable)',
+            functions: [],
+            module: { exports: [], dependencies: [] },
+          };
+          logWarning('Parser unavailable; indexing as text-only module (LLM fallback disabled)', { filePath, error: message });
+        } else {
+          parserFallback = true;
+          parsed = await this.parseWithLlmFallback(filePath, source, governor ?? undefined);
+          void globalEventBus.emit(createLanguageOnboardingEvent(
+            filePath,
+            path.extname(filePath) || 'unknown',
+            parsed.parser,
+            message
+          ));
+          logWarning('Parser unavailable; using LLM fallback parsing', { filePath, error: message });
+        }
       } else {
         throw error;
       }
@@ -144,14 +160,38 @@ export class AstIndexer {
       tokensBefore = governor.snapshot().usage.tokens_used_file;
     }
 
-    if (parserFallback || hasRedactions) {
+    if (parserFallback) {
+      partiallyIndexed = true;
+    }
+    // Redactions only imply partial indexing when they prevent LLM-backed enrichment.
+    // If analysis is disabled (no LLM configured), redactions do not reduce indexing quality.
+    if (hasRedactions && this.analysisEnabled) {
       partiallyIndexed = true;
     }
     if (this.analysisEnabled && !hasRedactions) {
       try {
         analysis = await this.analyzeWithLlm(filePath, analysisSource, parsed, governor ?? undefined);
       } catch (error: unknown) {
-        if (isBudgetExceeded(error)) partiallyIndexed = true; else throw error;
+        if (isBudgetExceeded(error)) {
+          partiallyIndexed = true;
+        } else {
+          const message = getErrorMessage(error);
+          const isExpectedFailure =
+            message.includes('unverified_by_trace(provider_unavailable)') ||
+            message.includes('unverified_by_trace(provider_invalid_output)') ||
+            message.includes('unverified_by_trace(llm_execution_failed)') ||
+            message.includes('unverified_by_trace(llm_adapter_') ||
+            message.includes('unverified_by_trace(analysis_redaction_blocked)');
+          if (isExpectedFailure) {
+            partiallyIndexed = true;
+            logWarning('LLM analysis failed; continuing without analysis', {
+              filePath,
+              error: message,
+            });
+          } else {
+            throw error;
+          }
+        }
       }
     }
 
@@ -239,6 +279,9 @@ export class AstIndexer {
     source: string,
     governor?: GovernorContext
   ): Promise<ParserResult> {
+    if (!this.llmService || !this.llmProvider || !this.llmModelId) {
+      throw wrapProviderUnavailable('LLM parser fallback disabled or provider not configured');
+    }
     const sanitized = redactText(source);
     if (sanitized.counts.total > 0) {
       throw new Error('unverified_by_trace(analysis_redaction_blocked): redactions detected in parser fallback input');
@@ -278,6 +321,9 @@ export class AstIndexer {
   }
 
   private async analyzeWithLlm(filePath: string, source: string, parsed: ParserResult, governor?: GovernorContext): Promise<LlmAnalysisResult> {
+    if (!this.llmService || !this.llmProvider || !this.llmModelId) {
+      throw wrapProviderUnavailable('LLM analysis disabled or provider not configured');
+    }
     const sanitized = redactText(source);
     if (sanitized.counts.total > 0) {
       throw new Error('unverified_by_trace(analysis_redaction_blocked): redactions detected in analysis input');
@@ -464,9 +510,36 @@ function isBudgetExceeded(error: unknown): boolean { const message = error insta
 function wrapProviderUnavailable(message: string): Error { return message.includes('unverified_by_trace') ? new Error(message) : new Error(`unverified_by_trace(provider_unavailable): ${message}`); }
 function wrapInvalidOutput(message: string): Error { return message.includes('unverified_by_trace') ? new Error(message) : new Error(`unverified_by_trace(provider_invalid_output): ${message}`); }
 const callEdgeWarnings = new Set<string>();
+let didWarnCallEdgeSuppression = false;
+
+function shouldLogCallEdgeWarnings(): boolean {
+  // Extremely common on large codebases; keep silent by default to avoid
+  // drowning out real bootstrap/indexing failures. Enable explicitly when
+  // debugging relationship mapping.
+  return (
+    process.env.LIBRARIAN_DEBUG_CALL_EDGES === '1' ||
+    process.env.LIBRARIAN_DEBUG_CALL_EDGES === 'true'
+  );
+}
+
+function getCallEdgeWarningLimit(): number {
+  const raw = process.env.LIBRARIAN_DEBUG_CALL_EDGES_MAX;
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return 25;
+}
 
 function warnCallEdgeOnce(key: string, message: string, meta: Record<string, unknown>): void {
+  if (!shouldLogCallEdgeWarnings()) return;
   if (callEdgeWarnings.has(key)) return;
+  const limit = getCallEdgeWarningLimit();
+  if (callEdgeWarnings.size >= limit) {
+    if (!didWarnCallEdgeSuppression) {
+      didWarnCallEdgeSuppression = true;
+      logWarning('[librarian] Suppressing further call-edge ambiguity warnings', { limit });
+    }
+    return;
+  }
   callEdgeWarnings.add(key);
   logWarning(`[librarian] ${message}`, meta);
 }

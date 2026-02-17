@@ -12,9 +12,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import { existsSync, unlinkSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import {
   createEvidenceGraphStorage,
   SqliteEvidenceGraphStorage,
@@ -36,15 +37,14 @@ import { deterministic } from '../confidence.js';
 describe('Evidence Graph Storage', () => {
   let storage: EvidenceGraphStorage;
   let dbPath: string;
-  const testDir = join(tmpdir(), 'librarian-test-' + Date.now());
+  let testDir: string;
   const workspace = '/test/workspace';
 
   beforeEach(async () => {
-    // Create test directory
-    if (!existsSync(testDir)) {
-      mkdirSync(testDir, { recursive: true });
-    }
-    dbPath = join(testDir, `test-${Date.now()}.db`);
+    // Use a unique directory per test to avoid cross-worker collisions (SQLite WAL files, cleanup races).
+    testDir = mkdtempSync(join(tmpdir(), 'librarian-test-'));
+    if (!existsSync(testDir)) mkdirSync(testDir, { recursive: true });
+    dbPath = join(testDir, `test-${randomUUID()}.db`);
     storage = createEvidenceGraphStorage(dbPath, workspace);
     await storage.initialize();
   });
@@ -57,6 +57,13 @@ describe('Evidence Graph Storage', () => {
         unlinkSync(dbPath);
         unlinkSync(dbPath + '-wal');
         unlinkSync(dbPath + '-shm');
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    if (testDir) {
+      try {
+        rmSync(testDir, { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }

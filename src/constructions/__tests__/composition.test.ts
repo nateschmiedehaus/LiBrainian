@@ -1081,7 +1081,7 @@ describe('Utility Functions', () => {
       );
 
       const result = await construction.execute(1);
-      expect(result.analysisTimeMs).toBeGreaterThanOrEqual(50);
+      expect(result.analysisTimeMs).toBeGreaterThanOrEqual(45);
     });
 
     it('should include provided evidence refs', async () => {

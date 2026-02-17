@@ -312,6 +312,10 @@ const DEFAULT_EMBEDDING_RETRY_CONFIG: EmbeddingRetryConfig = {
   nonRetryableErrors: [
     'provider_unavailable',
     'embedding_redaction_blocked',
+    // Deterministic validation failures; retries won't change the embedding.
+    'embedding_zero_norm',
+    'embedding_non_finite',
+    'embedding_invalid_norm',
     'invalid_input',
     'invalid_request',
   ],

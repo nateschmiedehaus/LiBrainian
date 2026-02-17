@@ -9,6 +9,7 @@
  */
 
 import { createRequire } from 'node:module';
+import { getGrammarRequirePaths } from '../../utils/grammar_cache.js';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -49,6 +50,8 @@ export interface SyntaxNode {
 export interface SyntaxTree {
   rootNode: SyntaxNode;
   text: string;
+  /** Language passed to `parse` (best-effort). */
+  language?: string;
 }
 
 /**
@@ -68,6 +71,18 @@ export interface LanguageSupport {
   language: string;
   extensions: string[];
   grammarPath: string;
+}
+
+export interface TreeSitterLanguageConfig {
+  language: string;
+  extensions: string[];
+  grammarModule: string;
+  grammarModuleExport?: string;
+  grammarModuleExports?: Record<string, string>;
+  patterns?: RegExp[];
+  functionNodeTypes?: string[];
+  classNodeTypes?: string[];
+  available?: boolean;
 }
 
 /**
@@ -95,6 +110,17 @@ export interface ClassNode {
   modifiers?: string[];
   superclass?: string;
   interfaces?: string[];
+}
+
+/**
+ * Represents an extracted call site from the syntax tree.
+ */
+export interface CallNode {
+  callee: string;
+  caller?: string;
+  callerClass?: string;
+  startPosition: Position;
+  endPosition: Position;
 }
 
 /**
@@ -148,31 +174,53 @@ type TreeSitterTree = {
 };
 type InternalTreeSitterParser = {
   setLanguage: (language: TreeSitterLanguage) => void;
-  parse: (content: string, oldTree?: TreeSitterTree) => TreeSitterTree;
+  parse: (content: string | ((index: number) => string), oldTree?: TreeSitterTree) => TreeSitterTree;
 };
 type TreeSitterParserConstructor = new () => InternalTreeSitterParser;
 type TreeSitterLanguage = { name?: string };
+
+const MAX_TREE_SITTER_DIRECT_PARSE_CHARS = 32_000;
+const TREE_SITTER_INPUT_CHUNK_SIZE = 16_384;
+
+function parseTreeSitter(parser: InternalTreeSitterParser, content: string, oldTree?: TreeSitterTree): TreeSitterTree {
+  // tree-sitter Node bindings can throw "Invalid argument" on large direct-string inputs.
+  // Use an input callback for large strings to avoid that limitation.
+  if (content.length <= MAX_TREE_SITTER_DIRECT_PARSE_CHARS) {
+    return parser.parse(content, oldTree);
+  }
+  const input = (index: number): string => content.slice(index, index + TREE_SITTER_INPUT_CHUNK_SIZE);
+  return parser.parse(input, oldTree);
+}
 
 // ============================================================================
 // LANGUAGE CONFIGURATIONS
 // ============================================================================
 
-const LANGUAGE_CONFIGS: Array<{
-  language: string;
-  extensions: string[];
-  grammarModule: string;
-  available: boolean;
-}> = [
+export const TREE_SITTER_LANGUAGE_CONFIGS: TreeSitterLanguageConfig[] = [
   {
     language: 'typescript',
     extensions: ['.ts', '.tsx', '.mts', '.cts'],
     grammarModule: 'tree-sitter-typescript',
+    grammarModuleExport: 'typescript',
+    grammarModuleExports: {
+      '.ts': 'typescript',
+      '.tsx': 'tsx',
+      '.mts': 'typescript',
+      '.cts': 'typescript',
+    },
     available: false,
   },
   {
     language: 'javascript',
     extensions: ['.js', '.jsx', '.mjs', '.cjs'],
     grammarModule: 'tree-sitter-javascript',
+    grammarModuleExport: 'javascript',
+    grammarModuleExports: {
+      '.js': 'javascript',
+      '.jsx': 'jsx',
+      '.mjs': 'javascript',
+      '.cjs': 'javascript',
+    },
     available: false,
   },
   {
@@ -221,6 +269,79 @@ const LANGUAGE_CONFIGS: Array<{
     language: 'php',
     extensions: ['.php', '.phtml'],
     grammarModule: 'tree-sitter-php',
+    grammarModuleExport: 'php',
+    available: false,
+  },
+  {
+    language: 'csharp',
+    extensions: ['.cs'],
+    grammarModule: 'tree-sitter-c-sharp',
+    available: false,
+  },
+  {
+    language: 'kotlin',
+    extensions: ['.kt', '.kts'],
+    grammarModule: 'tree-sitter-kotlin',
+    available: false,
+  },
+  {
+    language: 'swift',
+    extensions: ['.swift'],
+    grammarModule: 'tree-sitter-swift',
+    available: false,
+  },
+  {
+    language: 'scala',
+    extensions: ['.scala', '.sc'],
+    grammarModule: 'tree-sitter-scala',
+    available: false,
+  },
+  {
+    language: 'dart',
+    extensions: ['.dart'],
+    grammarModule: 'tree-sitter-dart',
+    available: false,
+  },
+  {
+    language: 'lua',
+    extensions: ['.lua'],
+    grammarModule: 'tree-sitter-lua',
+    available: false,
+  },
+  {
+    language: 'bash',
+    extensions: ['.sh', '.bash', '.zsh'],
+    grammarModule: 'tree-sitter-bash',
+    available: false,
+  },
+  {
+    language: 'sql',
+    extensions: ['.sql'],
+    grammarModule: 'tree-sitter-sql',
+    available: false,
+  },
+  {
+    language: 'html',
+    extensions: ['.html', '.htm'],
+    grammarModule: 'tree-sitter-html',
+    available: false,
+  },
+  {
+    language: 'css',
+    extensions: ['.css', '.scss', '.sass', '.less'],
+    grammarModule: 'tree-sitter-css',
+    available: false,
+  },
+  {
+    language: 'json',
+    extensions: ['.json', '.json5', '.jsonc'],
+    grammarModule: 'tree-sitter-json',
+    available: false,
+  },
+  {
+    language: 'yaml',
+    extensions: ['.yaml', '.yml'],
+    grammarModule: 'tree-sitter-yaml',
     available: false,
   },
 ];
@@ -269,13 +390,61 @@ const LANGUAGE_PATTERNS: Array<{ language: string; patterns: RegExp[] }> = [
     patterns: [/\bdef\s+\w+/, /\bclass\s+\w+/, /\bend\b/, /\bputs\b/],
   },
   {
+    language: 'html',
+    patterns: [/<html\b/i, /<!doctype\s+html/i, /<div\b/i],
+  },
+  {
+    language: 'css',
+    patterns: [/\.[\w-]+\s*\{/, /#[\w-]+\s*\{/, /\bcolor\s*:\s*[^;]+;/],
+  },
+  {
     language: 'php',
     patterns: [/<\?php/, /\$\w+/, /\bfunction\s+\w+\s*\(/, /\becho\b/],
+  },
+  {
+    language: 'csharp',
+    patterns: [/\busing\s+\w+(\.\w+)*\s*;/, /\bnamespace\s+\w+/, /\bpublic\s+class\b/, /\binterface\s+\w+/],
+  },
+  {
+    language: 'kotlin',
+    patterns: [/\bfun\s+\w+\s*\(/, /\bclass\s+\w+/, /\bval\s+\w+\s*:/, /\bobject\s+\w+/],
+  },
+  {
+    language: 'swift',
+    patterns: [/\bfunc\s+\w+\s*\(/, /\bimport\s+\w+/, /\bstruct\s+\w+/, /\bclass\s+\w+/],
+  },
+  {
+    language: 'scala',
+    patterns: [/\bdef\s+\w+\s*\(/, /\bobject\s+\w+/, /\btrait\s+\w+/, /\bcase\s+class\b/],
+  },
+  {
+    language: 'dart',
+    patterns: [/\bclass\s+\w+/, /\bimport\s+['"]/, /\bvoid\s+main\s*\(/, /\bfinal\s+\w+/],
+  },
+  {
+    language: 'lua',
+    patterns: [/\bfunction\s+\w+/, /\bend\b/, /\blocal\s+\w+\s*=/, /\brequire\s*\(/],
+  },
+  {
+    language: 'bash',
+    patterns: [/^#!.*\b(bash|sh|zsh)\b/m, /\bfunction\s+\w+/, /\$\{?\w+\}?/],
+  },
+  {
+    language: 'sql',
+    patterns: [/\bSELECT\b/i, /\bFROM\b/i, /\bCREATE\s+TABLE\b/i, /\bINSERT\s+INTO\b/i],
+  },
+  {
+    language: 'json',
+    patterns: [/^\s*\{/, /^\s*\[/],
+  },
+  {
+    language: 'yaml',
+    patterns: [/^\s*[\w-]+\s*:/m, /^\s*-\s+/m],
   },
 ];
 
 // Function node types per language
-const FUNCTION_NODE_TYPES: Record<string, string[]> = {
+export const FUNCTION_NODE_TYPES: Record<string, string[]> = {
   typescript: [
     'function_declaration',
     'method_definition',
@@ -298,10 +467,21 @@ const FUNCTION_NODE_TYPES: Record<string, string[]> = {
   cpp: ['function_definition'],
   ruby: ['method', 'singleton_method'],
   php: ['function_definition', 'method_declaration'],
+  csharp: ['method_declaration', 'constructor_declaration', 'local_function_statement', 'accessor_declaration'],
+  kotlin: ['function_declaration', 'primary_constructor', 'secondary_constructor'],
+  swift: ['function_declaration', 'initializer_declaration', 'deinitializer_declaration'],
+  scala: ['function_definition', 'function_declaration', 'method_definition'],
+  dart: ['function_declaration', 'method_declaration', 'constructor_declaration', 'function_signature'],
+  lua: ['function_declaration', 'function_definition'],
+  r: ['function_definition'],
+  bash: ['function_definition'],
+  sql: ['create_function_statement', 'function_definition', 'create_procedure_statement'],
+  json: [],
+  yaml: [],
 };
 
 // Class node types per language
-const CLASS_NODE_TYPES: Record<string, string[]> = {
+export const CLASS_NODE_TYPES: Record<string, string[]> = {
   typescript: ['class_declaration', 'interface_declaration'],
   javascript: ['class_declaration'],
   python: ['class_definition'],
@@ -312,7 +492,85 @@ const CLASS_NODE_TYPES: Record<string, string[]> = {
   cpp: ['class_specifier', 'struct_specifier'],
   ruby: ['class', 'module'],
   php: ['class_declaration', 'interface_declaration'],
+  csharp: ['class_declaration', 'interface_declaration', 'struct_declaration', 'enum_declaration', 'record_declaration'],
+  kotlin: ['class_declaration', 'object_declaration', 'interface_declaration'],
+  swift: ['class_declaration', 'struct_declaration', 'protocol_declaration', 'enum_declaration', 'extension_declaration'],
+  scala: ['class_definition', 'object_definition', 'trait_definition'],
+  dart: ['class_definition', 'mixin_declaration', 'enum_declaration', 'extension_declaration'],
+  lua: [],
+  r: [],
+  bash: [],
+  sql: [],
+  json: [],
+  yaml: [],
 };
+
+// Call expression node types per language
+export const CALL_NODE_TYPES: Record<string, string[]> = {
+  typescript: ['call_expression'],
+  javascript: ['call_expression'],
+  python: ['call'],
+  go: ['call_expression'],
+  rust: ['call_expression'],
+  java: ['method_invocation'],
+  c: ['call_expression'],
+  cpp: ['call_expression'],
+  ruby: ['call'],
+  php: ['function_call_expression', 'method_call_expression'],
+  csharp: ['invocation_expression'],
+  kotlin: ['call_expression'],
+  swift: ['call_expression'],
+  scala: ['call_expression', 'function_call'],
+  dart: ['method_invocation'],
+  lua: ['function_call'],
+  r: ['call'],
+  bash: [],
+  sql: [],
+  json: [],
+  yaml: [],
+};
+
+export function registerTreeSitterLanguage(config: TreeSitterLanguageConfig): void {
+  if (!config.language || !config.grammarModule || !Array.isArray(config.extensions)) {
+    return;
+  }
+  const normalizedExtensions = config.extensions.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`));
+  const existingIndex = TREE_SITTER_LANGUAGE_CONFIGS.findIndex((entry) => entry.language === config.language);
+  const nextConfig: TreeSitterLanguageConfig = {
+    language: config.language,
+    extensions: normalizedExtensions,
+    grammarModule: config.grammarModule,
+    grammarModuleExport: config.grammarModuleExport,
+    grammarModuleExports: config.grammarModuleExports,
+    available: false,
+  };
+  if (existingIndex >= 0) {
+    TREE_SITTER_LANGUAGE_CONFIGS[existingIndex] = {
+      ...TREE_SITTER_LANGUAGE_CONFIGS[existingIndex],
+      ...nextConfig,
+    };
+  } else {
+    TREE_SITTER_LANGUAGE_CONFIGS.push(nextConfig);
+  }
+  if (Array.isArray(config.patterns) && config.patterns.length > 0) {
+    const existingPatternIndex = LANGUAGE_PATTERNS.findIndex((entry) => entry.language === config.language);
+    if (existingPatternIndex >= 0) {
+      LANGUAGE_PATTERNS[existingPatternIndex] = { language: config.language, patterns: config.patterns };
+    } else {
+      LANGUAGE_PATTERNS.push({ language: config.language, patterns: config.patterns });
+    }
+  }
+  if (Array.isArray(config.functionNodeTypes) && config.functionNodeTypes.length > 0) {
+    FUNCTION_NODE_TYPES[config.language] = config.functionNodeTypes;
+  }
+  if (Array.isArray(config.classNodeTypes) && config.classNodeTypes.length > 0) {
+    CLASS_NODE_TYPES[config.language] = config.classNodeTypes;
+  }
+}
+
+export function getTreeSitterLanguageConfigs(): TreeSitterLanguageConfig[] {
+  return [...TREE_SITTER_LANGUAGE_CONFIGS];
+}
 
 // ============================================================================
 // TREE-SITTER PARSER CLASS
@@ -328,6 +586,7 @@ export class TreeSitterParser {
   private readonly languages: Map<string, TreeSitterLanguage> = new Map();
   private readonly availableLanguages: LanguageSupport[] = [];
   private readonly extensionMap: Map<string, string> = new Map();
+  private readonly languageConfigByLanguage: Map<string, TreeSitterLanguageConfig> = new Map();
 
   constructor() {
     this.parserConstructor = this.loadTreeSitterParser();
@@ -341,13 +600,18 @@ export class TreeSitterParser {
     const startTime = performance.now();
 
     // Validate language
+    if (!this.parserConstructor) {
+      throw new Error('unverified_by_trace(parser_unavailable): tree-sitter core not available. Install tree-sitter.');
+    }
     const langConfig = this.languages.get(language);
     if (!langConfig) {
-      throw new Error(`Unsupported language: ${language}`);
-    }
-
-    if (!this.parserConstructor) {
-      throw new Error('tree-sitter parser not available');
+      const config = this.languageConfigByLanguage.get(language);
+      if (config) {
+        throw new Error(
+          `unverified_by_trace(parser_unavailable): Tree-sitter grammar missing for ${language}. Install ${config.grammarModule}.`
+        );
+      }
+      throw new Error(`unverified_by_trace(parser_unavailable): Unsupported language: ${language}`);
     }
 
     // Create parser
@@ -372,14 +636,14 @@ export class TreeSitterParser {
     }
 
     // Parse
-    const tree = parser.parse(code, oldTree);
+    const tree = parseTreeSitter(parser, code, oldTree);
     const parseTime = performance.now() - startTime;
 
     // Extract errors
     const errors = this.extractErrors(tree.rootNode, code);
 
     // Convert to our SyntaxTree format
-    const syntaxTree = this.convertTree(tree.rootNode, code);
+    const syntaxTree = this.convertTree(tree.rootNode, code, language);
 
     return {
       language,
@@ -460,6 +724,55 @@ export class TreeSitterParser {
   }
 
   /**
+   * Extract call sites from a syntax tree.
+   */
+  extractCalls(tree: SyntaxTree): CallNode[] {
+    const calls: CallNode[] = [];
+    const language = this.detectLanguageFromTree(tree);
+    const functionTypes = FUNCTION_NODE_TYPES[language] || [];
+    const classTypes = CLASS_NODE_TYPES[language] || [];
+    const callTypes = CALL_NODE_TYPES[language] || [];
+
+    const visit = (node: SyntaxNode, ctx: { callerName: string; callerClass?: string }) => {
+      let nextCtx = ctx;
+
+      if (classTypes.includes(node.type)) {
+        const cls = this.extractClassFromNode(node, tree, language);
+        if (cls?.name) {
+          nextCtx = { callerName: ctx.callerName, callerClass: cls.name };
+        }
+      }
+
+      if (functionTypes.includes(node.type)) {
+        const fn = this.extractFunctionFromNode(node, language);
+        if (fn?.name) {
+          nextCtx = { callerName: fn.name, callerClass: ctx.callerClass };
+        }
+      }
+
+      if (callTypes.includes(node.type)) {
+        const callee = this.extractCalleeFromCallNode(node);
+        if (callee) {
+          calls.push({
+            callee,
+            caller: nextCtx.callerName,
+            callerClass: nextCtx.callerClass,
+            startPosition: node.startPosition,
+            endPosition: node.endPosition,
+          });
+        }
+      }
+
+      for (const child of node.namedChildren) {
+        visit(child, nextCtx);
+      }
+    };
+
+    visit(tree.rootNode, { callerName: '<module>' });
+    return calls;
+  }
+
+  /**
    * Query tree for nodes matching a pattern (node type).
    */
   queryTree(tree: SyntaxTree, pattern: string): SyntaxNode[] {
@@ -490,14 +803,39 @@ export class TreeSitterParser {
     }
   }
 
-  private loadLanguageModule(moduleName: string): TreeSitterLanguage | null {
+  private resolveModulePath(moduleName: string): string | null {
     try {
-      const mod = require(moduleName) as TreeSitterLanguage | { default?: TreeSitterLanguage };
+      return require.resolve(moduleName);
+    } catch {
+      // Fall back to grammar cache paths for optional language modules.
+      for (const extraPath of getGrammarRequirePaths()) {
+        try {
+          return require.resolve(moduleName, { paths: [extraPath] });
+        } catch {
+          // keep trying
+        }
+      }
+      return null;
+    }
+  }
+
+  private loadLanguageModule(moduleName: string, exportName?: string): TreeSitterLanguage | null {
+    try {
+      const resolved = this.resolveModulePath(moduleName);
+      if (!resolved) return null;
+      const mod = require(resolved) as TreeSitterLanguage | { default?: TreeSitterLanguage };
 
       // Handle TypeScript grammar which has typescript and tsx exports
       if (moduleName === 'tree-sitter-typescript') {
-        const tsmod = mod as { typescript?: TreeSitterLanguage };
+        const tsmod = mod as { typescript?: TreeSitterLanguage; tsx?: TreeSitterLanguage };
+        if (exportName && typeof (tsmod as Record<string, TreeSitterLanguage | undefined>)[exportName] !== 'undefined') {
+          return (tsmod as Record<string, TreeSitterLanguage | undefined>)[exportName] ?? null;
+        }
         return tsmod.typescript ?? null;
+      }
+
+      if (exportName && typeof (mod as Record<string, TreeSitterLanguage | undefined>)[exportName] !== 'undefined') {
+        return (mod as Record<string, TreeSitterLanguage | undefined>)[exportName] ?? null;
       }
 
       if (typeof (mod as { default?: TreeSitterLanguage }).default !== 'undefined') {
@@ -511,7 +849,8 @@ export class TreeSitterParser {
 
   private initializeLanguages(): void {
     // Always build extension map for all configured languages (for detectLanguage)
-    for (const config of LANGUAGE_CONFIGS) {
+    for (const config of TREE_SITTER_LANGUAGE_CONFIGS) {
+      this.languageConfigByLanguage.set(config.language, config);
       for (const ext of config.extensions) {
         this.extensionMap.set(ext.toLowerCase(), config.language);
       }
@@ -522,8 +861,13 @@ export class TreeSitterParser {
       return;
     }
 
-    for (const config of LANGUAGE_CONFIGS) {
-      const grammar = this.loadLanguageModule(config.grammarModule);
+    for (const config of TREE_SITTER_LANGUAGE_CONFIGS) {
+      const exportName =
+        config.grammarModuleExport ??
+        (config.grammarModuleExports
+          ? config.grammarModuleExports[config.extensions[0]?.toLowerCase() ?? '']
+          : undefined);
+      const grammar = this.loadLanguageModule(config.grammarModule, exportName);
       if (grammar) {
         this.languages.set(config.language, grammar);
         this.availableLanguages.push({
@@ -571,11 +915,21 @@ export class TreeSitterParser {
     return errors;
   }
 
-  private convertTree(node: TreeSitterNode, code: string): SyntaxTree {
+  private extractCalleeFromCallNode(node: SyntaxNode): string | null {
+    const text = node.text.trim();
+    if (!text) return null;
+    const match = text.match(/^([A-Za-z0-9_$.\-]+)\s*\(/);
+    if (match?.[1]) return match[1];
+    const fallback = text.split(/\s+/)[0];
+    return fallback ? fallback.slice(0, 50) : null;
+  }
+
+  private convertTree(node: TreeSitterNode, code: string, language?: string): SyntaxTree {
     const rootNode = this.convertNode(node, code);
     return {
       rootNode,
       text: code,
+      language,
     };
   }
 
@@ -611,6 +965,9 @@ export class TreeSitterParser {
   }
 
   private detectLanguageFromTree(tree: SyntaxTree): string {
+    if (tree.language && tree.language !== 'unknown') {
+      return tree.language;
+    }
     // Try to detect from tree structure
     const rootType = tree.rootNode.type;
 
@@ -624,6 +981,11 @@ export class TreeSitterParser {
       // Could be Go, Rust, etc.
       const content = tree.text;
       return this.detectLanguage(content);
+    }
+
+    // Common non-JS/TS roots.
+    if (rootType === 'module' || rootType === 'translation_unit' || rootType === 'compilation_unit') {
+      return this.detectLanguage(tree.text);
     }
 
     return 'unknown';

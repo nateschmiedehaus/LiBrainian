@@ -183,6 +183,8 @@ export type {
 export {
   TreeSitterParser,
   createTreeSitterParser,
+  registerTreeSitterLanguage,
+  getTreeSitterLanguageConfigs,
 } from './parsers/index.js';
 export type {
   ParseResult,
@@ -195,6 +197,7 @@ export type {
   ClassNode,
   EditRange,
   ParseOptions,
+  TreeSitterLanguageConfig,
 } from './parsers/index.js';
 
 // Specialized Retrieval Agents (WU-AGENT-002)

@@ -147,6 +147,8 @@ export interface PatternLLMConfig {
 // PATTERN KNOWLEDGE
 // ============================================================================
 
+let didWarnDeprecatedPatternQuery = false;
+
 export class PatternKnowledge {
   constructor(private storage: LibrarianStorage) {}
 
@@ -218,10 +220,13 @@ export class PatternKnowledge {
    * Use only for rapid prototyping or when LLM is unavailable with explicit acknowledgment.
    */
   async query(q: PatternQuery): Promise<PatternResult> {
-    console.warn(
-      '[DEPRECATED] PatternKnowledge.query() uses heuristic detection. ' +
-      'Use queryWithLLM() for verified semantic pattern claims per VISION architecture.'
-    );
+    if (!didWarnDeprecatedPatternQuery && shouldWarnDeprecatedPatternQuery()) {
+      didWarnDeprecatedPatternQuery = true;
+      console.warn(
+        '[DEPRECATED] PatternKnowledge.query() uses heuristic detection. ' +
+        'Use queryWithLLM() for verified semantic pattern claims per VISION architecture.'
+      );
+    }
     return this.queryHeuristic(q);
   }
 
@@ -746,6 +751,15 @@ export class PatternKnowledge {
       recommendations: [...new Set(recommendations)],
     };
   }
+}
+
+function shouldWarnDeprecatedPatternQuery(): boolean {
+  if (process.env.LIBRARIAN_SUPPRESS_DEPRECATION_WARNINGS === '1') return false;
+  // Only warn when an LLM is configured for the process. In offline/no-LLM mode,
+  // heuristic pattern queries are expected and warning noise harms UX.
+  const provider = process.env.LIBRARIAN_LLM_PROVIDER;
+  const model = process.env.LIBRARIAN_LLM_MODEL;
+  return Boolean(provider && model);
 }
 
 function findDependencyCycles(graph: Map<string, Set<string>>, limit: number): string[][] {

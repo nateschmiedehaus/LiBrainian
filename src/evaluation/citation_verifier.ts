@@ -38,8 +38,11 @@ export type VerificationReason =
   | 'file_not_found'
   | 'line_valid'
   | 'line_out_of_range'
+  | 'line_empty'
   | 'identifier_found'
   | 'identifier_not_found'
+  | 'identifier_not_in_file'
+  | 'identifier_not_at_line'
   | 'claim_matches_fact'
   | 'claim_mismatch';
 
@@ -93,12 +96,14 @@ export interface CitationVerificationReport {
  */
 export class CitationVerifier {
   private astExtractor: ASTFactExtractor;
+  private fileLineCache: Map<string, string[]>;
 
   /** Line tolerance for fuzzy matching (citations within this many lines of a fact are considered matches) */
   private static readonly LINE_TOLERANCE = 15;
 
   constructor() {
     this.astExtractor = createASTFactExtractor();
+    this.fileLineCache = new Map();
   }
 
   /**
@@ -234,7 +239,7 @@ export class CitationVerifier {
   /**
    * Verify a single citation against AST facts
    */
-  async verifyCitation(citation: Citation, facts: ASTFact[]): Promise<CitationVerificationResult> {
+  verifyCitation(citation: Citation, facts: ASTFact[]): CitationVerificationResult {
     // Step 1: Check file existence
     const fileExists = fs.existsSync(citation.file);
 
@@ -247,6 +252,8 @@ export class CitationVerifier {
       };
     }
 
+    const fileLines = this.getFileLines(citation.file);
+
     // Step 2: If line number is provided, validate it
     if (citation.line !== undefined) {
       if (citation.line <= 0) {
@@ -258,7 +265,7 @@ export class CitationVerifier {
         };
       }
 
-      const lineCount = this.getFileLineCount(citation.file);
+      const lineCount = fileLines.length;
       if (citation.line > lineCount) {
         return {
           citation,
@@ -267,10 +274,60 @@ export class CitationVerifier {
           confidence: 0.1,
         };
       }
+
+      const lineText = fileLines[citation.line - 1] ?? '';
+      if (!lineText.trim()) {
+        return {
+          citation,
+          verified: false,
+          reason: 'line_empty',
+          confidence: 0.2,
+        };
+      }
     }
 
     // Step 3: If identifier is provided, look for matching fact
     if (citation.identifier) {
+      const identifierLines = this.findIdentifierLines(fileLines, citation.identifier);
+
+      if (identifierLines.length === 0) {
+        return {
+          citation,
+          verified: false,
+          reason: 'identifier_not_in_file',
+          confidence: 0.2,
+        };
+      }
+
+      if (citation.line !== undefined) {
+        const nearest = this.findNearestLine(identifierLines, citation.line);
+        if (nearest !== undefined && Math.abs(nearest - citation.line) <= CitationVerifier.LINE_TOLERANCE) {
+          return {
+            citation,
+            verified: true,
+            reason: 'identifier_found',
+            confidence: 0.9,
+          };
+        }
+
+        return {
+          citation,
+          verified: false,
+          reason: 'identifier_not_at_line',
+          confidence: 0.4,
+        };
+      }
+
+      // Identifier exists in file, consider verified even without AST facts
+      if (identifierLines.length > 0 && citation.line === undefined) {
+        return {
+          citation,
+          verified: true,
+          reason: 'identifier_found',
+          confidence: 0.8,
+        };
+      }
+
       const matchingFact = this.findMatchingFact(citation, facts);
 
       if (matchingFact) {
@@ -284,7 +341,7 @@ export class CitationVerifier {
         };
       }
 
-      // Identifier provided but not found
+      // Identifier provided but not found in AST facts
       return {
         citation,
         verified: false,
@@ -347,7 +404,7 @@ export class CitationVerifier {
     const results: CitationVerificationResult[] = [];
 
     for (const citation of citations) {
-      const result = await this.verifyCitation(citation, facts);
+      const result = this.verifyCitation(citation, facts);
       results.push(result);
     }
 
@@ -495,12 +552,49 @@ export class CitationVerifier {
    * Get the number of lines in a file
    */
   private getFileLineCount(filePath: string): number {
+    return this.getFileLines(filePath).length;
+  }
+
+  /**
+   * Read file lines with caching
+   */
+  private getFileLines(filePath: string): string[] {
+    const cached = this.fileLineCache.get(filePath);
+    if (cached) return cached;
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      return content.split('\n').length;
+      const lines = content.split('\n');
+      this.fileLineCache.set(filePath, lines);
+      return lines;
     } catch {
-      return 0;
+      return [];
     }
+  }
+
+  private findIdentifierLines(lines: string[], identifier: string): number[] {
+    const results: number[] = [];
+    const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`\\b${escaped}\\b`);
+    for (let i = 0; i < lines.length; i += 1) {
+      if (pattern.test(lines[i])) {
+        results.push(i + 1);
+      }
+    }
+    return results;
+  }
+
+  private findNearestLine(lines: number[], target: number): number | undefined {
+    if (lines.length === 0) return undefined;
+    let nearest = lines[0];
+    let bestDiff = Math.abs(nearest - target);
+    for (const line of lines) {
+      const diff = Math.abs(line - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        nearest = line;
+      }
+    }
+    return nearest;
   }
 
   /**

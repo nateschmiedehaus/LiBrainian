@@ -97,9 +97,172 @@
       "commit": "52486283381cf881f8fd229ab4a77528466748ef",
       "remote": "https://github.com/Quansight-Labs/pytest-run-parallel.git",
       "verifiedAt": "2026-02-03"
+    },
+    {
+      "name": "tlsproxy-go",
+      "source": "https://github.com/rosahaj/tlsproxy",
+      "language": "go",
+      "commit": "6128a3d315ada78877514800489d918db8671b07",
+      "remote": "https://github.com/rosahaj/tlsproxy.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "cipherdrop-rs",
+      "source": "https://github.com/Hattorius/CipherDrop",
+      "language": "rust",
+      "commit": "5ebfa5ef886bce9bc6ef5a9695687d12301fb7bb",
+      "remote": "https://github.com/Hattorius/CipherDrop.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "velocityscoreboardapi-java",
+      "source": "https://github.com/NEZNAMY/VelocityScoreboardAPI",
+      "language": "java",
+      "commit": "eb523d1ab20815aec23d32f26edd3403b071f2a3",
+      "remote": "https://github.com/NEZNAMY/VelocityScoreboardAPI.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "openai-kotlin",
+      "source": "https://github.com/tddworks/openai-kotlin",
+      "language": "kotlin",
+      "commit": "d02d678103d2ba9e254e4a09e9703c412ab22a12",
+      "remote": "https://github.com/tddworks/openai-kotlin.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "smartdate-csharp",
+      "source": "https://github.com/JamesnetGroup/smartdate",
+      "language": "csharp",
+      "commit": "1498b16aba9cbcc190ad35f871ff6eb9556f6fb2",
+      "remote": "https://github.com/JamesnetGroup/smartdate.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "onetime-message-php",
+      "source": "https://github.com/yangtb2024/OneTimeMessagePHP",
+      "language": "php",
+      "commit": "1100cd62c4d3e4e3df16064b8410c334d017d3b4",
+      "remote": "https://github.com/yangtb2024/OneTimeMessagePHP.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "tuist-filesystem-swift",
+      "source": "https://github.com/tuist/FileSystem",
+      "language": "swift",
+      "commit": "732df00c576548c5917d98784d3ab9445037c57a",
+      "remote": "https://github.com/tuist/FileSystem.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "active-record-tracer-rb",
+      "source": "https://github.com/fatkodima/active_record_tracer",
+      "language": "ruby",
+      "commit": "59b046aa09a1cd6152c2daeb1fd2638d9af1e990",
+      "remote": "https://github.com/fatkodima/active_record_tracer.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "ptx-c",
+      "source": "https://github.com/tidwall/ptx",
+      "language": "c",
+      "commit": "82eddf1bd091d8819d68e2558db2c51bf02fdc38",
+      "remote": "https://github.com/tidwall/ptx.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "turbosqueeze-cpp",
+      "source": "https://github.com/julienperriercornet/turbosqueeze",
+      "language": "cpp",
+      "stars": 49,
+      "created": "2025-10-15",
+      "commit": "25710f3e2446f0d496c0ff635c5371b2fa085025",
+      "remote": "https://github.com/julienperriercornet/turbosqueeze.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "jing-scala",
+      "source": "https://github.com/TomasMikula/jing",
+      "language": "scala",
+      "stars": 49,
+      "created": "2025-03-02",
+      "commit": "65b3b65335aa4ff778aaefca65f920d521b8b2bd",
+      "remote": "https://github.com/TomasMikula/jing.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "icarus-dart",
+      "source": "https://github.com/SunkenInTime/icarus",
+      "language": "dart",
+      "stars": 49,
+      "created": "2024-11-17",
+      "commit": "4db3adc5e1ec00e1a70b607b515685f43ef3046c",
+      "remote": "https://github.com/SunkenInTime/icarus.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "binary-nvim-lua",
+      "source": "https://github.com/jackplus-xyz/binary.nvim",
+      "language": "lua",
+      "stars": 49,
+      "created": "2025-01-08",
+      "commit": "0a0422551dfc9e8b02c00b133f63d72a75938d81",
+      "remote": "https://github.com/jackplus-xyz/binary.nvim.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "tailwindcss-preset-email-js",
+      "source": "https://github.com/maizzle/tailwindcss-preset-email",
+      "language": "javascript",
+      "stars": 49,
+      "created": "2024-01-17",
+      "commit": "8c502a9f24f45d7710e03a8d5cbacb2cbc657704",
+      "remote": "https://github.com/maizzle/tailwindcss-preset-email.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "port-forwarding-sh",
+      "source": "https://github.com/Jaydooooooo/Port-forwarding",
+      "language": "shell",
+      "stars": 49,
+      "created": "2024-03-09",
+      "commit": "819802070bfa8bf051bd2701b739fcb09049e960",
+      "remote": "https://github.com/Jaydooooooo/Port-forwarding.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "byte-by-byte-sql",
+      "source": "https://github.com/nataliapaulino/byte-by-byte",
+      "language": "sql",
+      "stars": 18,
+      "created": "2025-05-25",
+      "commit": "034e12fc53f720dd9c48bf7717a0d2ae9319d06d",
+      "remote": "https://github.com/nataliapaulino/byte-by-byte.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "cryptonize-html",
+      "source": "https://github.com/lishikagoel/Cryptonize",
+      "language": "html",
+      "stars": 49,
+      "created": "2024-02-29",
+      "commit": "4e5ebd50cd14b6e9653c276356f6283a0c30ab33",
+      "remote": "https://github.com/lishikagoel/Cryptonize.git",
+      "verifiedAt": "2026-02-06"
+    },
+    {
+      "name": "zen-beautiful-blur-css",
+      "source": "https://github.com/ShauryaKesarwani/Zen-Beautiful-Blur-Theme",
+      "language": "css",
+      "stars": 49,
+      "created": "2024-12-30",
+      "commit": "4894bdca2363df7b7a0637dc520ee2ea9a27f233",
+      "remote": "https://github.com/ShauryaKesarwani/Zen-Beautiful-Blur-Theme.git",
+      "verifiedAt": "2026-02-06"
     }
   ],
-  "validationNote": "All repos are real GitHub projects, not AI-generated. Selected for: post-2024 creation OR low star count (<100) to minimize training contamination, presence of test suites, meaningful size (>500 LOC), and TypeScript/Python language support.",
+  "validationNote": "All repos are real GitHub projects, not AI-generated. Selected for: post-2024 creation OR low star count to minimize training contamination, and polyglot coverage across 20 common languages (TypeScript/JavaScript/Python/Go/Rust/Java/Kotlin/C#/PHP/Swift/Ruby/C/C++/Scala/Dart/Lua/Shell/SQL/HTML/CSS). Commits are pinned for reproducibility; some metadata is intentionally omitted when not verified.",
   "clonedBy": "WU-801-REAL",
-  "clonedDate": "2026-01-26"
+  "clonedDate": "2026-01-26",
+  "lastExpandedDate": "2026-02-06"
 }

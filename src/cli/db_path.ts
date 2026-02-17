@@ -6,6 +6,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { logInfo } from '../telemetry/logger.js';
 
 const SQLITE_FILENAME = 'librarian.sqlite';
 const LEGACY_DB_FILENAME = 'librarian.db';
@@ -37,7 +38,7 @@ export async function resolveDbPath(workspace: string): Promise<string> {
     await fs.access(legacyPath);
     // Migrate by renaming
     await fs.rename(legacyPath, sqlitePath);
-    console.log(`[librarian] Migrated database from ${LEGACY_DB_FILENAME} to ${SQLITE_FILENAME}`);
+    logInfo(`[librarian] Migrated database from ${LEGACY_DB_FILENAME} to ${SQLITE_FILENAME}`);
     return sqlitePath;
   } catch {
     // Neither exists, return path for new .sqlite

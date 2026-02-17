@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { createLibrarian } from 'librarian';
+ * import { createLibrarian } from 'librainian';
  * import { createBootstrapTestRunner } from 'librarian/integration';
  *
  * const librarian = await createLibrarian({ workspace: '/path/to/project' });

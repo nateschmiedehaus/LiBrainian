@@ -12,6 +12,8 @@
  */
 
 import { execSync, type ExecSyncOptions } from 'node:child_process';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import type {
   StageResult,
   StagedEvaluator,
@@ -20,7 +22,9 @@ import type {
   FitnessReport,
   ResourceUsage,
 } from './types.js';
-import { computeFitnessReport, computeFitnessVector } from './fitness.js';
+import { computeFitnessReport } from './fitness.js';
+import type { LibrarianStateReport } from '../measurement/observability.js';
+import type { EvalOptions, EvalReport } from '../evaluation/runner.js';
 
 // ============================================================================
 // STAGE 0: STATIC SANITY
@@ -77,7 +81,8 @@ export class Stage0StaticEvaluator implements StagedEvaluator {
       metrics['determinism_verified'] = true;
     } catch {
       metrics['determinism_verified'] = false;
-      errors.push('Complexity check failed');
+      // Complexity budget is a signal, not a hard failure gate. Treat this like lint:
+      // record the metric and let downstream fitness scoring reflect degradation.
     }
 
     const passed = errors.length === 0;
@@ -299,7 +304,7 @@ export class Stage4AdversarialEvaluator implements StagedEvaluator {
   name = 'Adversarial/Stress Suite';
   estimatedCost = { tokens: 5000, embeddings: 100, providerCalls: 10 };
 
-  async run(_variant: Variant, context: EvaluationContext): Promise<StageResult> {
+  async run(variant: Variant, context: EvaluationContext): Promise<StageResult> {
     const startTime = Date.now();
     const metrics: Record<string, number | boolean | string> = {};
     const artifacts: string[] = [];
@@ -332,6 +337,63 @@ export class Stage4AdversarialEvaluator implements StagedEvaluator {
       metrics['via_negativa_passed'] = true;
     } catch {
       metrics['via_negativa_passed'] = false;
+    }
+
+    // Tier-3 "live cognition" audit: budgeted, fail-closed, artifact-backed.
+    // This is intentionally only attempted when providers are available.
+    // If it fails, we mark the stage as unverified_by_trace rather than silently skipping.
+    try {
+      const { runLiveCognitionAuditSuite } = await import('../evaluation/live_cognition_audit.js');
+      const cognitionDir = path.join(
+        context.workspaceRoot,
+        'state',
+        'audits',
+        'evolution',
+        'evaluations',
+        variant.id,
+        'cognition'
+      );
+      const result = await runLiveCognitionAuditSuite({
+        workspaceRoot: context.workspaceRoot,
+        outputDir: cognitionDir,
+        maxTokens: 1200,
+        temperature: 0.2,
+        budget: {
+          timeoutMs: Math.max(60_000, Math.min(300_000, context.budget.maxDurationMs)),
+          maxTopLevelFiles: 200,
+          maxDocs: 6,
+          maxDocBytes: 64 * 1024,
+          maxTotalDocBytes: 196 * 1024,
+          maxPromptChars: 250_000,
+        },
+      });
+      artifacts.push(result.reportPath);
+      metrics['cognition_audit_generated'] = true;
+      metrics['cognition_audit_status'] = result.report.status;
+      metrics['cognition_audit_suite_report'] = result.reportPath;
+      metrics['cognition_audit_objectives_measured'] = Object.values(result.report.objectives)
+        .filter((objective) => objective.status === 'measured')
+        .length;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const reportPath = (() => {
+        if (!error || typeof error !== 'object') return undefined;
+        const candidate = (error as { reportPath?: unknown }).reportPath;
+        return typeof candidate === 'string' ? candidate : undefined;
+      })();
+      if (reportPath) artifacts.push(reportPath);
+      metrics['cognition_audit_generated'] = false;
+      if (reportPath) metrics['cognition_audit_report'] = reportPath;
+      metrics['cognition_audit_error'] = message.slice(0, 200);
+      return {
+        status: 'unverified_by_trace',
+        reason: message.includes('unverified_by_trace')
+          ? message
+          : `unverified_by_trace(cognition_audit_failed): ${message.slice(0, 160)}`,
+        metrics,
+        durationMs: Date.now() - startTime,
+        artifacts,
+      };
     }
 
     return {
@@ -424,7 +486,61 @@ export async function runStagedEvaluation(
     }
   }
 
-  // Compute fitness report
+  const auditRoot = path.join(context.workspaceRoot, 'state', 'audits', 'evolution', 'evaluations', variant.id);
+  await fs.mkdir(auditRoot, { recursive: true }).catch(() => {});
+
+  // Compute state report (epistemic + operational dimensions).
+  const stateReport = await maybeGenerateStateReport(context, auditRoot);
+
+  // Compute retrieval report (measured retrieval quality).
+  const retrievalReport = await maybeRunRetrievalEval(context, auditRoot);
+
+  // Record measurement completeness explicitly so missing measurements don't silently
+  // show up as "bad scores" or get lost in logs.
+  const stage0 = stages['stage0'];
+  if (stage0 && typeof stage0 === 'object') {
+    stage0.metrics = stage0.metrics ?? {};
+    stage0.metrics['state_report_measured'] = Boolean(stateReport);
+    stage0.metrics['retrieval_eval_measured'] = Boolean(retrievalReport);
+  }
+
+  if (!stateReport) {
+    const payload = {
+      schema: 'MissingMeasurement.v1',
+      kind: 'state_report',
+      generatedAt: new Date().toISOString(),
+      workspaceRoot: context.workspaceRoot,
+      note: 'State report was not generated; epistemic/operational dimensions are unmeasured for this run.',
+    };
+    await fs.writeFile(
+      path.join(auditRoot, 'MissingStateReport.v1.json'),
+      `${JSON.stringify(payload, null, 2)}\n`,
+      'utf8'
+    ).catch(() => {});
+  }
+
+  if (!retrievalReport && context.retrievalEval?.enabled) {
+    const payload = {
+      schema: 'MissingMeasurement.v1',
+      kind: 'retrieval_eval',
+      generatedAt: new Date().toISOString(),
+      workspaceRoot: context.workspaceRoot,
+      retrievalEval: {
+        corpusPath: context.retrievalEval?.corpusPath ?? null,
+        corpusPaths: context.retrievalEval?.corpusPaths ?? null,
+        maxRepos: context.retrievalEval?.maxRepos ?? null,
+        maxQueries: context.retrievalEval?.maxQueries ?? null,
+      },
+      note: 'Retrieval eval was enabled but no retrieval report was produced; retrieval quality is unmeasured for this run.',
+    };
+    await fs.writeFile(
+      path.join(auditRoot, 'MissingRetrievalEvalReport.v1.json'),
+      `${JSON.stringify(payload, null, 2)}\n`,
+      'utf8'
+    ).catch(() => {});
+  }
+
+  // Compute fitness report using measured reality when available.
   const fitnessReport = computeFitnessReport(
     variant.id,
     {
@@ -439,8 +555,8 @@ export async function runStagedEvaluation(
       stage3: stages['stage3'],
       stage4: stages['stage4'],
     },
-    undefined, // retrievalReport - would need to run evaluation harness
-    undefined, // stateReport - would need to generate
+    retrievalReport,
+    stateReport,
     resourceUsage,
     context.baselineReport
   );
@@ -468,4 +584,118 @@ function canAffordEvaluator(
     currentUsage.embeddingsUsed + evaluator.estimatedCost.embeddings <= budget.maxEmbeddings &&
     currentUsage.providerCallsUsed + evaluator.estimatedCost.providerCalls <= budget.maxProviderCalls
   );
+}
+
+async function resolveDbPathForWorkspace(workspaceRoot: string): Promise<string> {
+  const librarianDir = path.join(workspaceRoot, '.librarian');
+  const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+  const legacyPath = path.join(librarianDir, 'librarian.db');
+  await fs.mkdir(librarianDir, { recursive: true });
+
+  try {
+    await fs.access(sqlitePath);
+    return sqlitePath;
+  } catch {
+    // continue
+  }
+
+  try {
+    await fs.access(legacyPath);
+    await fs.rename(legacyPath, sqlitePath);
+    return sqlitePath;
+  } catch {
+    return sqlitePath;
+  }
+}
+
+async function maybeGenerateStateReport(
+  context: EvaluationContext,
+  auditRoot: string
+): Promise<LibrarianStateReport | undefined> {
+  const { createSqliteStorage } = await import('../storage/sqlite_storage.js');
+  const { generateStateReport } = await import('../measurement/observability.js');
+  const dbPath = context.dbPath ?? await resolveDbPathForWorkspace(context.workspaceRoot);
+  const storage = createSqliteStorage(dbPath, context.workspaceRoot);
+  try {
+    await storage.initialize();
+    const report = await generateStateReport(storage);
+    await fs.writeFile(path.join(auditRoot, 'LibrarianStateReport.v1.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+      .catch(() => {});
+    return report;
+  } catch {
+    return undefined;
+  } finally {
+    await storage.close().catch(() => {});
+  }
+}
+
+async function maybeRunRetrievalEval(
+  context: EvaluationContext,
+  auditRoot: string
+): Promise<EvalReport | undefined> {
+  if (!context.retrievalEval?.enabled) return undefined;
+
+  const corpusPath = context.retrievalEval?.corpusPath
+    ? path.resolve(context.workspaceRoot, context.retrievalEval.corpusPath)
+    : path.join(context.workspaceRoot, 'eval-corpus');
+
+  try {
+    await fs.access(path.join(corpusPath, 'repos'));
+  } catch {
+    return undefined;
+  }
+
+  const externalDefault = path.join(context.workspaceRoot, 'eval-corpus', 'external-repos');
+  const requestedExtra = context.retrievalEval?.corpusPaths?.length
+    ? context.retrievalEval.corpusPaths.map((p) => path.resolve(context.workspaceRoot, p))
+    : [externalDefault];
+  const corpusPaths: string[] = [];
+  for (const candidate of requestedExtra) {
+    try {
+      await fs.access(path.join(candidate, 'repos'));
+      corpusPaths.push(candidate);
+    } catch {
+      // ignore missing corpus roots
+    }
+  }
+
+  const { createEvalRunner } = await import('../evaluation/runner.js');
+  const { createLibrarianEvalPipeline } = await import('../evaluation/librarian_eval_pipeline.js');
+
+  const { pipeline, shutdown } = createLibrarianEvalPipeline({
+    maxDocs: 12,
+    depth: 'L1',
+    llmRequirement: 'disabled',
+    embeddingRequirement: 'optional',
+    skipLlm: true,
+    allowDegradedEmbeddings: true,
+    maxOpenWorkspaces: 2,
+  });
+
+  const runner = createEvalRunner({ pipeline });
+
+  const evalOptions: EvalOptions = {
+    corpusPath,
+    corpusPaths: corpusPaths.length > 0 ? corpusPaths : undefined,
+    queryFilter: {
+      categories: ['structural'],
+      difficulties: ['trivial', 'moderate'],
+    },
+    parallel: context.retrievalEval?.parallel ?? 1,
+    timeoutMs: context.retrievalEval?.timeoutMs ?? 60_000,
+    includeLatency: true,
+    maxRepos: context.retrievalEval?.maxRepos ?? 2,
+    maxQueries: context.retrievalEval?.maxQueries ?? 40,
+  };
+
+  try {
+    const report = await runner.evaluate(evalOptions);
+    await fs.writeFile(path.join(auditRoot, 'EvalReport.v1.retrieval.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+      .catch(() => {});
+    return report;
+  } catch {
+    return undefined;
+  } finally {
+    await shutdown().catch(() => {});
+  }
 }

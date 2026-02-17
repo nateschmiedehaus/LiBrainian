@@ -16,7 +16,7 @@
 
 **LiBrainian gives AI coding agents calibrated, evidence-backed understanding of any codebase.**
 
-[Quick Start](#quick-start) | [Why LiBrainian](#why-LiBrainian) | [Features](#features) | [Documentation](docs/) | [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) | [Examples](#examples) | [Why LiBrainian](#why-LiBrainian) | [Features](#features) | [Documentation](docs/) | [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -69,6 +69,21 @@ const issues = await LiBrainian.getIssues({
   orderBy: 'roi',
   limit: 10
 });
+```
+
+## Examples
+
+Practical examples live in `/examples`:
+
+- `examples/quickstart_programmatic.ts`
+- `examples/agentic_task_loop.ts`
+- `examples/feedback_loop_example.ts`
+
+Run them with:
+
+```bash
+npx tsx examples/quickstart_programmatic.ts
+npx tsx examples/agentic_task_loop.ts
 ```
 
 ---

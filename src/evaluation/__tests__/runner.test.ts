@@ -43,7 +43,7 @@ describe('EvalRunner', () => {
       synthesize: async ({ query }) => ({
         answer: query.correctAnswer.summary,
         claims: [...query.correctAnswer.mustIncludeFacts],
-        citations: query.correctAnswer.evidenceRefs.map((ref) => ref.refId),
+        citations: query.correctAnswer.evidenceRefs.map((ref) => ({ refId: ref.refId })),
         latencyMs: 7,
       }),
     };

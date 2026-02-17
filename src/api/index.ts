@@ -68,6 +68,14 @@ export type {
   ProviderGateRunner,
   ProviderGateOptions,
 } from './provider_gate.js';
+export { runOnboardingRecovery } from './onboarding_recovery.js';
+export type {
+  OnboardingRecoveryOptions,
+  OnboardingRecoveryResult,
+  OnboardingConfigHealResult,
+  OnboardingStorageRecoveryResult,
+  OnboardingBootstrapResult,
+} from './onboarding_recovery.js';
 export {
   negotiateCapabilities,
   negotiateCapabilityContract,

@@ -71,6 +71,65 @@ export interface RegisterModelPolicyProviderOptions {
 }
 
 let modelPolicyProvider: ModelPolicyProvider | null = null;
+const warnedMissingProvider = new Set<string>();
+
+function coerceModelProvider(value: string | undefined): ModelProvider | null {
+  if (value === 'claude' || value === 'codex') return value;
+  return null;
+}
+
+function resolveFallbackProvider(options: ModelPolicyOptions): ModelProvider {
+  return coerceModelProvider(options.defaultProvider)
+    ?? coerceModelProvider(process.env.LIBRARIAN_LLM_PROVIDER)
+    ?? coerceModelProvider(process.env.WAVE0_LLM_PROVIDER)
+    ?? coerceModelProvider(process.env.LLM_PROVIDER)
+    ?? 'codex';
+}
+
+function resolveFallbackModelId(provider: ModelProvider): string {
+  if (provider === 'codex') {
+    return process.env.LIBRARIAN_LLM_MODEL
+      ?? process.env.CODEX_MODEL
+      ?? 'gpt-5-codex';
+  }
+  return process.env.LIBRARIAN_LLM_MODEL
+    ?? process.env.CLAUDE_MODEL
+    ?? 'claude-sonnet-4-20250514';
+}
+
+function createFallbackSelection(workspaceRoot: string, options: ModelPolicyOptions): DailyModelSelection {
+  const now = (options.now ?? (() => new Date()))();
+  const provider = resolveFallbackProvider(options);
+  const modelId = resolveFallbackModelId(provider);
+  const selection: SelectedModelInfo = {
+    provider,
+    model_id: modelId,
+    name: modelId,
+    rationale: 'fallback_model_policy_provider_missing',
+    access_method: 'subscription',
+    tool_support: true,
+  };
+  const notes = [
+    'fallback_model_policy_provider_missing',
+    `workspace=${workspaceRoot}`,
+  ];
+  return {
+    schema_version: 1,
+    date: now.toISOString().slice(0, 10),
+    local_date: now.toLocaleDateString('en-CA'),
+    timezone_offset_minutes: now.getTimezoneOffset(),
+    generated_at: now.toISOString(),
+    providers: {
+      claude: provider === 'claude' ? selection : null,
+      codex: provider === 'codex' ? selection : null,
+    },
+    sources: {
+      claude: { urls: [], ids_found: [], errors: [] },
+      codex: { urls: [], ids_found: [], errors: [] },
+    },
+    notes,
+  };
+}
 
 function validateModelPolicyProvider(provider: ModelPolicyProvider): void {
   if (!provider || typeof provider.ensureDailyModelSelection !== 'function') {
@@ -100,11 +159,14 @@ export async function ensureDailyModelSelection(
   options: ModelPolicyOptions = {}
 ): Promise<DailyModelSelection | null> {
   if (!modelPolicyProvider) {
-    logWarning(
-      'unverified_by_trace(model_policy_unavailable): Model policy provider not registered; skipping selection.',
-      { workspaceRoot }
-    );
-    return null;
+    if (!warnedMissingProvider.has(workspaceRoot)) {
+      warnedMissingProvider.add(workspaceRoot);
+      logWarning(
+        'Model policy provider not registered; using fallback model selection.',
+        { workspaceRoot }
+      );
+    }
+    return createFallbackSelection(workspaceRoot, options);
   }
   return await modelPolicyProvider.ensureDailyModelSelection(workspaceRoot, options);
 }

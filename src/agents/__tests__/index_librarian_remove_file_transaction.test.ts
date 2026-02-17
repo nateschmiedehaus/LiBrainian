@@ -8,7 +8,7 @@ import { globalEventBus } from '../../events.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 
 // Skip in unit test mode (no real providers)
-const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && !process.env.WVO_TIER0);
+const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && !process.env.LIBRARIAN_TIER0);
 const describeWithProviders = IS_UNIT_MODE ? describe.skip : describe;
 import type { FileKnowledge, FunctionKnowledge, ModuleKnowledge } from '../../types.js';
 import type { LibrarianStorage, TransactionContext, UniversalKnowledgeRecord } from '../../storage/types.js';

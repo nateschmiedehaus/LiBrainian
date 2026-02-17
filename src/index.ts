@@ -9,7 +9,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { createLibrarian } from 'librarian';
+ * import { createLibrarian } from 'librainian';
  *
  * // Initialize librarian (blocks until ready)
  * const librarian = await createLibrarian({
@@ -26,7 +26,7 @@
  * ## Integration
  *
  * ```typescript
- * import { preOrchestrationHook, enrichTaskContext } from 'librarian';
+ * import { preOrchestrationHook, enrichTaskContext } from 'librainian';
  *
  * // Before starting any agent work:
  * await preOrchestrationHook(workspace);
@@ -51,7 +51,7 @@
 //
 // The recommended way to use Librarian is through the unified orchestrator:
 //
-//   import { initializeLibrarian } from 'librarian';
+//   import { initializeLibrarian } from 'librainian';
 //
 //   const session = await initializeLibrarian(workspace);
 //   const context = await session.query('How does auth work?');

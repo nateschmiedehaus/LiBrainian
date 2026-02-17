@@ -1,0 +1,294 @@
+{
+  "tasks": [
+    {
+      "id": "srtd-bugfix-error-message-regression",
+      "repo": "srtd-ts",
+      "complexity": "T3",
+      "description": "Users report that runtime errors now surface the error name instead of the original message. Restore the expected error message behavior without changing tests.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/getErrorMessage.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/getErrorMessage.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/getErrorMessage.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/getErrorMessage.ts';const from='return error instanceof Error ? error.message : String(error);';const to='return error instanceof Error ? error.name : String(error);';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-relative-time-threshold",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "Recent timestamp formatting changes broke the just-now boundary and users see second-level noise too early. Fix the regression in relative time behavior.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/formatTime.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/formatTime.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/formatTime.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/formatTime.ts';const from='const JUST_NOW_THRESHOLD = 5;';const to='const JUST_NOW_THRESHOLD = 1;';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-relative-formatter-branch",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "The timestamp formatter now routes relative requests to full-format output, breaking CLI UX expectations. Restore correct mode routing.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/formatTime.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/formatTime.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/formatTime.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/formatTime.ts';const from='    case \\'relative\\':\\n      return relative(date);';const to='    case \\'relative\\':\\n      return full(date);';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-prompt-exit-classification",
+      "repo": "srtd-ts",
+      "complexity": "T3",
+      "description": "Prompt cancellation is misclassified and abort handling now misses ExitPromptError. Restore correct prompt-exit detection.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/getErrorMessage.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/getErrorMessage.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/getErrorMessage.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/getErrorMessage.ts';const from=\\\"return error instanceof Error && error.name === 'ExitPromptError';\\\";const to=\\\"return error instanceof Error && error.name === 'AbortError';\\\";const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-truncate-path-depth",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "Nested path truncation regressed and now leaves deep migration paths untrimmed. Restore the intended truncation depth behavior.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/formatPath.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/formatPath.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/formatPath.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/formatPath.ts';const from='const [parent, filename] = parts.slice(-2);';const to='const [parent, filename] = parts.slice(-3);';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-dependency-parser-case",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "Template dependency parsing no longer handles case variations for @depends-on directives. Restore case-insensitive dependency extraction.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/dependencyParser.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/dependencyParser.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/dependencyParser.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/dependencyParser.ts';const c=fs.readFileSync(p,'utf8');const n=c.replace('/gim;','/gm;');if(n===c)process.exit(1);fs.writeFileSync(p,n);\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-dependency-graph-case-resolution",
+      "repo": "srtd-ts",
+      "complexity": "T5",
+      "description": "Dependency ordering started missing links when teams mixed filename case in @depends-on directives. Restore reliable dependency resolution for mixed-case references.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/dependencyGraph.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/dependencyGraph.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/dependencyGraph.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/dependencyGraph.ts';const from='const depPath = filenameToPath.get(dep.toLowerCase());';const to='const depPath = filenameToPath.get(dep);';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-topological-order-regression",
+      "repo": "srtd-ts",
+      "complexity": "T5",
+      "description": "A recent dependency-ordering refactor now applies dependents before prerequisites in some graphs. Restore correct topological ordering semantics.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/dependencyGraph.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/dependencyGraph.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/dependencyGraph.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/dependencyGraph.ts';const from='    result.push(node);';const to='    result.unshift(node);';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-timestamp-increment-step",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "Migration IDs started skipping values under high-frequency generation, creating noisy drift and review churn. Restore the expected next-timestamp increment behavior.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/getNextTimestamp.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/getNextTimestamp.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/getNextTimestamp.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/getNextTimestamp.ts';const from='const nextTimestamp = (BigInt(lastTimestamp) + 1n).toString();';const to='const nextTimestamp = (BigInt(lastTimestamp) + 2n).toString();';const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-bugfix-error-hint-mapping",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "Users now get generic advice for missing-table failures, making migration recovery much harder. Restore the exact actionable hint mapping for missing relation errors: 'Table or view does not exist. Ensure the migration that creates it has run first.'.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["src/utils/errorHints.ts"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "npx vitest run src/utils/errorHints.test.ts --reporter=dot"
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "npx vitest run src/utils/errorHints.test.ts --reporter=dot"
+        ]
+      },
+      "setup": [
+        "npm install --no-audit --no-fund",
+        "node -e \"const fs=require('node:fs');const p='src/utils/errorHints.ts';const from=\\\"'42P01': 'Table or view does not exist. Ensure the migration that creates it has run first.',\\\";const to=\\\"'42P01': 'Unknown database failure.',\\\";const c=fs.readFileSync(p,'utf8');if(!c.includes(from))process.exit(1);fs.writeFileSync(p,c.replace(from,to));\""
+      ],
+      "contextByLevel": {
+        "L1": ["package.json", "src/utils/errorHints.test.ts"]
+      },
+      "requireTargetFileModification": true
+    }
+  ]
+}

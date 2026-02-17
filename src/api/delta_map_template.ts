@@ -470,6 +470,8 @@ export function createDeltaMapTemplate(): DeltaMapTemplate {
     supportedUcs: ['UC-041', 'UC-042', 'UC-049'],
     requiredMaps: ['ChangeMap', 'FreshnessCursor'],
     optionalMaps: ['ImpactMap'],
+    requiredObjects: ['repo_fact', 'map', 'episode', 'pack'],
+    requiredCapabilities: ['tool:git'],
     outputEnvelope: {
       packTypes: ['DeltaPack'],
       requiresAdequacy: true,

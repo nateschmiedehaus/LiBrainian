@@ -125,30 +125,39 @@ export async function extractDirectoryKnowledge(
   const parent = relativePath ? path.dirname(absolutePath) : null;
   const siblings = await getSiblings(absolutePath, parent);
 
-  // Generate purpose and description (LLM-required)
+  // Generate purpose and description (LLM when available, otherwise heuristic fallback)
   let purpose: string;
   let description: string;
   let confidence = 0.1;
   let llmEvidence: LlmEvidence | undefined;
-  if (config.skipLlm) {
-    throw new Error('unverified_by_trace(llm_required): directory semantic extraction requires LLM');
+  const heuristic = extractHeuristicSemantics(name, relativePath, role, boundedContext, files, subdirs);
+  if (config.skipLlm || !config.llmProvider) {
+    purpose = heuristic.purpose;
+    description = heuristic.description;
+    confidence = heuristic.confidence;
+    // No llmEvidence - no LLM was used
+  } else {
+    try {
+      // Use LLM for semantic extraction
+      const llmResult = await extractDirectorySemantics(
+        name,
+        relativePath,
+        files,
+        subdirs,
+        role,
+        config
+      );
+      purpose = llmResult.purpose;
+      description = llmResult.description;
+      confidence = llmResult.confidence;
+      llmEvidence = llmResult.llmEvidence; // Capture LLM evidence when available
+    } catch {
+      purpose = heuristic.purpose;
+      description = heuristic.description;
+      confidence = heuristic.confidence;
+      llmEvidence = undefined;
+    }
   }
-  if (!config.llmProvider) {
-    throw new Error('unverified_by_trace(provider_unavailable): directory semantic extraction requires LLM provider');
-  }
-  // Use LLM for semantic extraction
-  const llmResult = await extractDirectorySemantics(
-    name,
-    relativePath,
-    files,
-    subdirs,
-    role,
-    config
-  );
-  purpose = llmResult.purpose;
-  description = llmResult.description;
-  confidence = llmResult.confidence;
-  llmEvidence = llmResult.llmEvidence; // Capture LLM evidence for mandate compliance
 
   // Find related directories based on naming patterns
   const relatedDirectories = findRelatedDirectories(name, relativePath);

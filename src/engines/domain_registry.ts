@@ -1209,4 +1209,6 @@ export const LIBRARIAN_META_CAPABILITIES = {
 
 // Count total domains
 const totalDomains = getAllDomains().length;
-logInfo(`Domain Registry: ${totalDomains} specialized domains defined`);
+if (process.env.LIBRARIAN_VERBOSE === '1' || process.env.LIBRARIAN_VERBOSE === 'true') {
+  logInfo(`Domain Registry: ${totalDomains} specialized domains defined`);
+}

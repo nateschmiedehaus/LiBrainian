@@ -31,7 +31,7 @@ import { resolveLibrarianModelId } from '../../api/llm_env.js';
 const WORKSPACE_ROOT = process.cwd();
 const AGENTIC_TIMEOUT_MS = 0;
 const QUERY_TIMEOUT_MS = 0;
-const IS_TIER0 = Boolean(process.env.WVO_FAIL_OPEN_LOG_DIR);
+const IS_TIER0 = Boolean(process.env.LIBRARIAN_FAIL_OPEN_LOG_DIR);
 const LLM_SERVICE_PATH_CANDIDATES = [
   path.join(WORKSPACE_ROOT, 'src', 'soma', 'providers', 'llm_service.ts'),
   path.join(WORKSPACE_ROOT, 'src', 'soma', 'providers', 'llm_service.js'),

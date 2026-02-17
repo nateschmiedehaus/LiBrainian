@@ -83,6 +83,21 @@ describe('TreeSitterParser', () => {
       expect(parser.detectLanguage('', 'test.java')).toBe('java');
       expect(parser.detectLanguage('', 'test.c')).toBe('c');
       expect(parser.detectLanguage('', 'test.cpp')).toBe('cpp');
+      expect(parser.detectLanguage('', 'test.cs')).toBe('csharp');
+      expect(parser.detectLanguage('', 'test.kt')).toBe('kotlin');
+      expect(parser.detectLanguage('', 'test.kts')).toBe('kotlin');
+      expect(parser.detectLanguage('', 'test.swift')).toBe('swift');
+      expect(parser.detectLanguage('', 'test.scala')).toBe('scala');
+      expect(parser.detectLanguage('', 'test.dart')).toBe('dart');
+      expect(parser.detectLanguage('', 'test.lua')).toBe('lua');
+      expect(parser.detectLanguage('', 'test.r')).toBe('unknown');
+      expect(parser.detectLanguage('', 'test.sh')).toBe('bash');
+      expect(parser.detectLanguage('', 'test.sql')).toBe('sql');
+      expect(parser.detectLanguage('', 'test.json')).toBe('json');
+      expect(parser.detectLanguage('', 'test.html')).toBe('html');
+      expect(parser.detectLanguage('', 'test.css')).toBe('css');
+      expect(parser.detectLanguage('', 'test.yaml')).toBe('yaml');
+      expect(parser.detectLanguage('', 'test.yml')).toBe('yaml');
     });
 
     it('should detect language from code content when no filename', () => {
@@ -492,6 +507,11 @@ func main() {
 
       expect(result).toBeDefined();
       expect(result.tree).toBeDefined();
+    });
+
+    itIfHasLanguage('javascript', 'should parse >32k input without Invalid argument', () => {
+      const code = 'function a() { return 1 }\n'.repeat(2000); // ~50k chars
+      expect(() => parser.parse(code, 'javascript')).not.toThrow();
     });
 
     it('should handle unsupported language with clear error', () => {

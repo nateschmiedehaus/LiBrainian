@@ -4,7 +4,15 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { computeChecksum16 } from '../../utils/checksums.js';
 import { getCurrentGitSha, getGitDiffNames, getGitStatusChanges } from '../../utils/git.js';
-import { startFileWatcher, stopFileWatcher } from '../file_watcher.js';
+
+vi.mock('../../telemetry/logger.js', () => ({
+  logInfo: vi.fn(),
+  logWarning: vi.fn(),
+}));
+
+let startFileWatcher: typeof import('../file_watcher.js').startFileWatcher;
+let stopFileWatcher: typeof import('../file_watcher.js').stopFileWatcher;
+let logger: typeof import('../../telemetry/logger.js');
 
 vi.mock('../../utils/git.js', () => ({
   getCurrentGitSha: vi.fn(),
@@ -27,19 +35,81 @@ const flushPromises = async (): Promise<void> => {
   await Promise.resolve();
 };
 
+const waitForCondition = async (
+  condition: () => boolean,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void> => {
+  const timeoutMs = options?.timeoutMs ?? 500;
+  const intervalMs = options?.intervalMs ?? 20;
+  const startedAt = Date.now();
+  while (!condition()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error('Timed out waiting for condition');
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+};
+
 const createTempWorkspace = async (): Promise<string> => {
   return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-file-watcher-'));
 };
 
 describe('file_watcher', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    ({ startFileWatcher, stopFileWatcher } = await import('../file_watcher.js'));
+    logger = await import('../../telemetry/logger.js');
     vi.mocked(getCurrentGitSha).mockResolvedValue(null);
     vi.mocked(getGitDiffNames).mockResolvedValue(null);
     vi.mocked(getGitStatusChanges).mockResolvedValue(null);
+    vi.mocked(logger.logWarning).mockClear();
   });
 
   afterEach(async () => {
     await flushPromises();
+  });
+
+  it('does not spam reconcile warnings when storage lacks getFiles', async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const filePath = path.join(workspaceRoot, 'src', 'a.ts');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, 'export const a = 1;\n', 'utf8');
+
+    const checksum = computeChecksum16(await fs.readFile(filePath, 'utf8'));
+    const states = new Map<string, string>();
+    const storage: StorageStub = {
+      async getFileChecksum(fp) {
+        return fp === filePath ? checksum : null;
+      },
+      async getState(key) {
+        return states.get(key) ?? null;
+      },
+      async setState(key, value) {
+        states.set(key, value);
+      },
+    };
+
+    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
+    const handle = startFileWatcher({
+      workspaceRoot,
+      librarian: librarian as any,
+      storage: storage as any,
+      debounceMs: 10,
+      watch: (_root, _options, _callback) => {
+        return { close: () => {} } as any;
+      },
+    });
+
+    // Force a second reconcile attempt. This should not emit a second warning.
+    handle.attachStorage?.(storage as any);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await flushPromises();
+
+    const reconcileWarnings = vi
+      .mocked(logger.logWarning)
+      .mock.calls.filter(([msg]) => typeof msg === 'string' && msg.includes('Watch reconcile disabled'));
+    expect(reconcileWarnings).toHaveLength(1);
+
+    await stopFileWatcher(workspaceRoot);
   });
 
   it('skips reindex when file checksum unchanged', async () => {
@@ -257,6 +327,123 @@ describe('file_watcher', () => {
     stopFileWatcher(workspaceRoot);
   });
 
+  it('warns once and disables reconcile when storage lacks getFiles', async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const fileA = path.join(workspaceRoot, 'src', 'storm-a.ts');
+    const fileB = path.join(workspaceRoot, 'src', 'storm-b.ts');
+    const fileC = path.join(workspaceRoot, 'src', 'storm-c.ts');
+    await fs.mkdir(path.dirname(fileA), { recursive: true });
+    await fs.writeFile(fileA, 'export const a = 1;\n', 'utf8');
+    await fs.writeFile(fileB, 'export const b = 2;\n', 'utf8');
+    await fs.writeFile(fileC, 'export const c = 3;\n', 'utf8');
+
+    const states = new Map<string, string>();
+    const storage: StorageStub = {
+      async getFileChecksum() {
+        return 'mismatch';
+      },
+      async getState(key) {
+        return states.get(key) ?? null;
+      },
+      async setState(key, value) {
+        states.set(key, value);
+      },
+      // getFiles intentionally omitted
+    };
+
+    const warnSpy = vi.spyOn(logger, 'logWarning');
+    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+      reindexFiles: (paths: string[]) => Promise<void>;
+    };
+    let captured: ((event: string, filename: any) => void) | null = null;
+
+    startFileWatcher({
+      workspaceRoot,
+      librarian: librarian as any,
+      storage: storage as any,
+      debounceMs: 10,
+      batchWindowMs: 50,
+      stormThreshold: 2,
+      watch: (_root, _options, callback) => {
+        captured = callback;
+        return { close: () => {} } as any;
+      },
+    });
+
+    if (!captured) throw new Error('Expected file watcher callback to be registered');
+    (captured as (event: string, filename: string) => void)('change', 'src/storm-a.ts');
+    (captured as (event: string, filename: string) => void)('change', 'src/storm-b.ts');
+    (captured as (event: string, filename: string) => void)('change', 'src/storm-c.ts');
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await flushPromises();
+
+    const reconcileWarnings = warnSpy.mock.calls.filter(
+      ([message]) => typeof message === 'string' && message.includes('Watch reconcile disabled')
+    );
+    expect(reconcileWarnings).toHaveLength(1);
+
+    stopFileWatcher(workspaceRoot);
+    warnSpy.mockRestore();
+  });
+
+  it('warns once and disables cascade when storage lacks graph methods', async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const filePath = path.join(workspaceRoot, 'src', 'cascade.ts');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, 'export const cascade = 1;\n', 'utf8');
+
+    const states = new Map<string, string>();
+    const storage: StorageStub = {
+      async getFileChecksum() {
+        return 'mismatch';
+      },
+      async getState(key) {
+        return states.get(key) ?? null;
+      },
+      async setState(key, value) {
+        states.set(key, value);
+      },
+      async getFiles() {
+        return [{ path: filePath, lastModified: '3000-01-01T00:00:00.000Z' }];
+      },
+      // getModuleByPath/getGraphEdges/getModule intentionally omitted
+    };
+
+    const warnSpy = vi.spyOn(logger, 'logWarning');
+    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+      reindexFiles: (paths: string[]) => Promise<void>;
+    };
+    let captured: ((event: string, filename: any) => void) | null = null;
+
+    startFileWatcher({
+      workspaceRoot,
+      librarian: librarian as any,
+      storage: storage as any,
+      debounceMs: 10,
+      cascadeReindex: true,
+      watch: (_root, _options, callback) => {
+        captured = callback;
+        return { close: () => {} } as any;
+      },
+    });
+
+    if (!captured) throw new Error('Expected file watcher callback to be registered');
+    (captured as (event: string, filename: string) => void)('change', 'src/cascade.ts');
+    (captured as (event: string, filename: string) => void)('change', 'src/cascade.ts');
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await flushPromises();
+
+    const cascadeWarnings = warnSpy.mock.calls.filter(
+      ([message]) => typeof message === 'string' && message.includes('Cascade reindex disabled')
+    );
+    expect(cascadeWarnings).toHaveLength(1);
+
+    stopFileWatcher(workspaceRoot);
+    warnSpy.mockRestore();
+  });
+
   it('updates git cursor after incremental reindex', async () => {
     const workspaceRoot = await createTempWorkspace();
     const filePath = path.join(workspaceRoot, 'src', 'cursor.ts');
@@ -378,20 +565,10 @@ describe('file_watcher', () => {
       if (!captured) throw new Error('Expected file watcher callback to be registered');
       (captured as (event: string, filename: string) => void)('change', 'src/utils.ts');
 
-      // Wait for initial reindex
-      await new Promise((resolve) => setTimeout(resolve, 80));
-      await flushPromises();
-
-      // Initial reindex of changed file
-      expect(reindexCalls.length).toBeGreaterThanOrEqual(1);
+      await waitForCondition(() => reindexCalls.length >= 1, { timeoutMs: 600 });
       expect(reindexCalls[0]).toContain(changedFile);
 
-      // Wait for cascade queue to process
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      await flushPromises();
-
-      // Cascade reindex of dependent file
-      expect(reindexCalls.length).toBe(2);
+      await waitForCondition(() => reindexCalls.length >= 2, { timeoutMs: 800 });
       expect(reindexCalls[1]).toContain(dependentFile);
 
       stopFileWatcher(workspaceRoot);

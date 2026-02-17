@@ -90,6 +90,7 @@
     "lint": "eslint src/ --ext .ts",
     "lint:fix": "eslint src/ --ext .ts --fix",
     "lint:filesize": "node scripts/check-file-sizes.mjs --all",
+    "repo:audit": "node scripts/repo-folder-audit.mjs",
     "canon:guard": "node scripts/canon_guard.mjs",
     "complexity:check": "node scripts/complexity_check.mjs",
     "typecheck": "tsc --noEmit",

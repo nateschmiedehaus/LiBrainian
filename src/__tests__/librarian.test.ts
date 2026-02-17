@@ -492,19 +492,32 @@ describe('ParserRegistry', () => {
 
     const tsResult = registry.parseFile('sample.ts', 'export function add(a: number, b: number) { return a + b; }');
     const jsResult = registry.parseFile('sample.js', 'function sub(a, b) { return a - b; }');
+    const jsonResult = registry.parseFile('config.json', '{"name": "test"}');
 
     expect(tsResult.parser).toBe('ts-morph');
     expect(jsResult.parser).toBe('ts-morph');
+    expect(jsonResult.parser).toBe('tree-sitter-json');
 
-    expect(() => registry.parseFile('config.json', '{"name": "test"}'))
-      .toThrow('unverified_by_trace(parser_unavailable)');
     expect(() => registry.parseFile('script.unknown', 'function add() { return 1; }'))
       .toThrow('unverified_by_trace(parser_unavailable)');
 
     const coverage = registry.getCoverageReport();
     expect(coverage.files_by_parser['ts-morph']).toBeGreaterThanOrEqual(2);
-    expect(coverage.coverage_gaps).toContain('*.json');
+    expect(coverage.files_by_parser['tree-sitter-json']).toBeGreaterThanOrEqual(1);
     expect(coverage.coverage_gaps).toContain('*.unknown');
+  });
+
+  it('parses large tree-sitter inputs without throwing Invalid argument', () => {
+    const registry = ParserRegistry.getInstance();
+    const supported = new Set(registry.getSupportedExtensions());
+    if (!supported.has('.py')) {
+      // In environments where tree-sitter-python is not present, skip gracefully.
+      return;
+    }
+
+    const largePython = 'x = 1\n'.repeat(10_000); // >32k chars
+    const result = registry.parseFile('big.py', largePython);
+    expect(result.parser).toBe('tree-sitter-python');
   });
 });
 
@@ -565,6 +578,7 @@ describe('First-Run Gate (Tier-0)', () => {
       ensureLibrarianReady(workspace, {
         throwOnFailure: true,
         includePatterns: ['**/*.ts'],
+        allowDegradedEmbeddings: false,
         providerGate,
         embeddingService: undefined,
       })

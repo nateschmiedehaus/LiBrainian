@@ -17,6 +17,7 @@ import type {
 import type { AgentKnowledgeContext, ContextAssemblyOptions } from './context_assembly.js';
 import { createStorageSlices } from '../storage/slices.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
+import { attemptStorageRecovery, isRecoverableStorageError } from '../storage/storage_recovery.js';
 import {
   isBootstrapRequired,
   bootstrapProject,
@@ -24,6 +25,7 @@ import {
   createBootstrapConfig,
   loadGovernorConfig,
 } from './bootstrap.js';
+import { planBootstrapRecovery } from '../bootstrap/bootstrap_recovery.js';
 import { detectLibrarianVersion, getCurrentVersion } from './versioning.js';
 import { queryLibrarian as executeQuery, assembleContext as assembleContextQuery } from './query.js';
 import { generateContextPacks } from './packs.js';
@@ -130,6 +132,8 @@ import type { ActivationSummary } from '../knowledge/defeater_activation.js';
 import type { RefactoringRecommendation } from '../recommendations/refactoring_advisor.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { safeJsonParse } from '../utils/safe_json.js';
+import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
 import {
   diagnoseConfiguration,
   autoHealConfiguration,
@@ -163,6 +167,16 @@ export interface LibrarianConfig {
   bootstrapConfig?: Partial<BootstrapConfig>;
   // 0 or undefined means no timeout (preferred)
   bootstrapTimeoutMs?: number;
+  /**
+   * Skip embedding generation (degraded mode).
+   * Queries can still run with structural context and disclosures.
+   */
+  skipEmbeddings?: boolean;
+  /**
+   * Disable LLM provider/model discovery.
+   * When true, Librarian will only use explicitly provided LLM config.
+   */
+  disableLlmDiscovery?: boolean;
   onProgress?: (phase: string, progress: number, message: string) => void;
   onBootstrapStart?: () => void;
   onBootstrapComplete?: (report: BootstrapReport) => void;
@@ -198,6 +212,8 @@ export interface WatchStatus {
 const DEFAULT_CONFIG: Omit<LibrarianConfig, 'workspace'> = {
   autoBootstrap: true,
   bootstrapTimeoutMs: 0,
+  skipEmbeddings: false,
+  disableLlmDiscovery: false,
 };
 
 export class Librarian {
@@ -248,7 +264,51 @@ export class Librarian {
     }
 
     this.storage = createSqliteStorage(dbPath, this.config.workspace);
-    await this.storage.initialize();
+    try {
+      await this.storage.initialize();
+    } catch (error) {
+      const canRecover = process.env.LIBRARIAN_DISABLE_STORAGE_RECOVERY !== '1' && isRecoverableStorageError(error);
+      if (!canRecover) throw error;
+      const recovery = await attemptStorageRecovery(dbPath, { error });
+      if (!recovery.recovered) throw error;
+      this.storage = createSqliteStorage(dbPath, this.config.workspace);
+      await this.storage.initialize();
+    }
+    // Resolve LLM configuration from stored defaults or provider discovery when not explicitly set.
+    if (!this.config.disableLlmDiscovery && (!this.config.llmProvider || !this.config.llmModelId)) {
+      try {
+        const rawDefaults = await this.storage.getState('librarian.llm_defaults.v1');
+        const parsed = rawDefaults ? safeJsonParse<Record<string, unknown>>(rawDefaults) : null;
+        const provider = parsed?.ok ? parsed.value.provider : null;
+        const modelId = parsed?.ok ? parsed.value.modelId : null;
+        if ((provider === 'claude' || provider === 'codex') && typeof modelId === 'string' && modelId.trim()) {
+          this.config.llmProvider = provider;
+          this.config.llmModelId = modelId.trim();
+        }
+      } catch (error) {
+        logWarning('[librarian] Failed to read stored LLM defaults', {
+          workspace: this.config.workspace,
+          error: getErrorMessage(error),
+        });
+      }
+    }
+    if (!this.config.disableLlmDiscovery && (!this.config.llmProvider || !this.config.llmModelId)) {
+      if (process.env.LIBRARIAN_SKIP_PROVIDER_CHECK !== '1') {
+        try {
+          const discovered = await resolveLibrarianModelConfigWithDiscovery();
+          if (discovered.provider && discovered.modelId) {
+            this.config.llmProvider = discovered.provider;
+            this.config.llmModelId = discovered.modelId;
+          }
+        } catch {
+          // No providers discovered - proceed in degraded mode.
+        }
+      }
+    }
+    if (this.config.llmProvider && this.config.llmModelId) {
+      process.env.LIBRARIAN_LLM_PROVIDER = this.config.llmProvider;
+      process.env.LIBRARIAN_LLM_MODEL = this.config.llmModelId;
+    }
     try {
       const ledgerPath = path.join(librarianRoot, 'evidence_ledger.db');
       this.evidenceLedger = new SqliteEvidenceLedger(ledgerPath);
@@ -317,6 +377,7 @@ export class Librarian {
       llmModelId: this.config.llmModelId,
       // Real embedding providers (xenova/sentence-transformers) - configured automatically
       embeddingService: this.embeddingService ?? undefined,
+      generateEmbeddings: !this.config.skipEmbeddings,
       governorReportWorkspace: this.config.workspace,
       workspaceRoot: this.config.workspace,
       computeGraphMetrics: true,
@@ -373,7 +434,8 @@ export class Librarian {
       this.config.onProgress?.('bootstrap', 0, `Bootstrap required: ${reason}`);
       this.config.onBootstrapStart?.();
 
-      const bootstrapConfig = createBootstrapConfig(this.config.workspace, {
+      const hasLlmConfig = Boolean(this.config.llmProvider && this.config.llmModelId);
+      const bootstrapOverrides: Partial<BootstrapConfig> = {
         ...this.config.bootstrapConfig,
         timeoutMs: this.config.bootstrapTimeoutMs,
         llmProvider: this.config.llmProvider,
@@ -381,21 +443,50 @@ export class Librarian {
         // Real embedding providers (xenova/sentence-transformers) - configured automatically
         embeddingService: this.embeddingService ?? undefined,
         progressCallback: (phase, progress) => { this.config.onProgress?.(phase.name, progress, phase.description); },
-      });
-
-      const report = await bootstrapProject(bootstrapConfig, this.storage);
-      this.bootstrapped = report.success;
-
-      this.config.onBootstrapComplete?.(report);
-
-      if (!report.success) {
-        const lastPhase = report.phases.at(-1)?.phase.name;
-        throw new Error(`Bootstrap failed${lastPhase ? ` at ${lastPhase}` : ''}: ${report.error ?? 'unknown error'}`);
+      };
+      if (bootstrapOverrides.skipLlm === undefined && !hasLlmConfig) {
+        bootstrapOverrides.skipLlm = true;
       }
+      let bootstrapConfig = createBootstrapConfig(this.config.workspace, bootstrapOverrides);
+      const autoRetryEnabled = process.env.LIBRARIAN_DISABLE_BOOTSTRAP_AUTORETRY !== '1';
+      let attempt = 0;
+      let report: BootstrapReport | null = null;
 
-      // Start file watcher if autoWatch is enabled
-      if (this.config.autoWatch && report.success) {
-        this.startWatching();
+      while (true) {
+        report = await bootstrapProject(bootstrapConfig, this.storage);
+        if (report.success) {
+          this.bootstrapped = true;
+          this.config.onBootstrapComplete?.(report);
+          if (this.config.autoWatch) {
+            this.startWatching();
+          }
+          break;
+        }
+
+        const errorMessage = report.error ?? 'unknown error';
+        if (attempt === 0 && autoRetryEnabled) {
+          const plan = planBootstrapRecovery({
+            workspaceRoot: this.config.workspace,
+            scope: 'full',
+            errorMessage,
+          });
+          if (plan) {
+            this.config.onProgress?.('bootstrap', 0, `Retrying bootstrap: ${plan.reason}`);
+            if (plan.include) {
+              bootstrapConfig = { ...bootstrapConfig, include: plan.include };
+            }
+            if (plan.exclude) {
+              bootstrapConfig = { ...bootstrapConfig, exclude: plan.exclude };
+            }
+            attempt += 1;
+            continue;
+          }
+        }
+
+        this.bootstrapped = false;
+        this.config.onBootstrapComplete?.(report);
+        const lastPhase = report.phases.at(-1)?.phase.name;
+        throw new Error(`Bootstrap failed${lastPhase ? ` at ${lastPhase}` : ''}: ${errorMessage}`);
       }
     } else if (!required) {
       // Bootstrap is not required - existing data is valid
@@ -1013,26 +1104,20 @@ export class Librarian {
       throw new Error(`unverified_by_trace(lease_conflict): failed to acquire file locks (${blocked || 'unknown'})`);
     }
     try {
-      const llmProvider = this.config.llmProvider;
-      const llmModelId = this.config.llmModelId;
-      const hasLlmConfig = Boolean(llmProvider && llmModelId);
-      if (!hasLlmConfig) {
-        throw new ProviderUnavailableError({
-          message: 'unverified_by_trace(provider_unavailable): Reindex requires live LLM providers. There is no non-agentic mode.',
-          missing: ['reindex_llm_not_configured'],
-          suggestion: 'Authenticate providers via CLI and set LIBRARIAN_LLM_PROVIDER/LIBRARIAN_LLM_MODEL.',
-        });
-      }
-      const fileExtractionConfig: FileExtractionConfig = {
-        llmProvider: llmProvider ?? undefined,
-        llmModelId: llmModelId ?? undefined,
-        skipLlm: false,
-      };
-      const directoryExtractionConfig: DirectoryExtractionConfig = {
-        llmProvider: llmProvider ?? undefined,
-        llmModelId: llmModelId ?? undefined,
-        skipLlm: false,
-      };
+	      const llmProvider = this.config.llmProvider;
+	      const llmModelId = this.config.llmModelId;
+	      const hasLlmConfig = Boolean(llmProvider && llmModelId);
+	      const skipLlm = !hasLlmConfig;
+	      const fileExtractionConfig: FileExtractionConfig = {
+	        llmProvider: llmProvider ?? undefined,
+	        llmModelId: llmModelId ?? undefined,
+	        skipLlm,
+	      };
+	      const directoryExtractionConfig: DirectoryExtractionConfig = {
+	        llmProvider: llmProvider ?? undefined,
+	        llmModelId: llmModelId ?? undefined,
+	        skipLlm,
+	      };
       const fileKnowledgeUpdates = [];
       const directoryPaths = new Set<string>();
       stateBefore = await getIndexState(this.storage!);
@@ -1194,14 +1279,19 @@ export class Librarian {
   async forceRebootstrap(): Promise<BootstrapReport> {
     this.ensureReady();
 
-    const bootstrapConfig = createBootstrapConfig(this.config.workspace, {
+    const hasLlmConfig = Boolean(this.config.llmProvider && this.config.llmModelId);
+    const bootstrapOverrides: Partial<BootstrapConfig> = {
       ...this.config.bootstrapConfig,
       timeoutMs: this.config.bootstrapTimeoutMs,
       llmProvider: this.config.llmProvider,
       llmModelId: this.config.llmModelId,
       // Real embedding providers (xenova/sentence-transformers) - configured automatically
       embeddingService: this.embeddingService ?? undefined,
-    });
+    };
+    if (bootstrapOverrides.skipLlm === undefined && !hasLlmConfig) {
+      bootstrapOverrides.skipLlm = true;
+    }
+    const bootstrapConfig = createBootstrapConfig(this.config.workspace, bootstrapOverrides);
 
     return bootstrapProject(bootstrapConfig, this.storage!);
   }

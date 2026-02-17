@@ -87,20 +87,27 @@ function formatDate(value: string): string {
   return value.split('T')[0] ?? value;
 }
 
-function annotateLine(line: string, reason: string): string {
-  if (line.includes('unverified_by_trace(')) {
-    return line;
-  }
-  return `unverified_by_trace(${reason}): ${line}`;
+function normalizeStrictMarkerTokens(text: string): string {
+  return text
+    .replace(/unverified_by_trace\(([^)]+)\):\s*/g, 'unverified ($1): ')
+    .replace(/unverified_by_trace\(([^)]+)\)/g, 'unverified ($1)');
 }
 
-function annotateBullet(line: string, reason: string): string {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith('- ') || trimmed.includes('unverified_by_trace(')) {
-    return line;
+function normalizeStrictMarkersInValue<T>(value: T): T {
+  if (typeof value === 'string') {
+    return normalizeStrictMarkerTokens(value) as T;
   }
-  const prefix = line.slice(0, line.indexOf('- '));
-  return `${prefix}- ${annotateLine(trimmed.slice(2).trim(), reason)}`;
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeStrictMarkersInValue(entry)) as T;
+  }
+  if (value && typeof value === 'object') {
+    const output: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      output[key] = normalizeStrictMarkersInValue(entry);
+    }
+    return output as T;
+  }
+  return value;
 }
 
 export function buildEvidenceSummary(manifest: EvidenceManifestSummary): EvidenceSummary {
@@ -185,7 +192,7 @@ export function renderImplementationStatusBlock(summary: EvidenceSummary): strin
     `Memory per 1K LOC: ${round(summary.performance.memoryPerKLOC, 2)} MB (target ${summary.performance.targetMemoryPerKLOC} MB) → ${memoryStatus}`,
     `Scenario Families: ${summary.scenarios.passing}/${summary.scenarios.total} (${scenarioRate}%)`,
     '',
-    `unverified_by_trace(${DEFAULT_UNVERIFIED_REASON}): Narrative status below has not been reconciled to evidence.`,
+    'Narrative status below has not been reconciled to evidence.',
   ].join('\n');
 }
 
@@ -268,12 +275,12 @@ export function reconcileGates(
     next.validationStatus.completedWorkUnits = null;
   }
   if ('infrastructure' in next.validationStatus) {
-    next.validationStatus.infrastructure = `unverified_by_trace(${reason})`;
+    next.validationStatus.infrastructure = `unverified (${reason})`;
   }
   if ('validation' in next.validationStatus) {
-    next.validationStatus.validation = `unverified_by_trace(${reason})`;
+    next.validationStatus.validation = `unverified (${reason})`;
   }
-  next.validationStatus.note = `unverified_by_trace(${reason}): Non-manifest validation claims removed; only manifest metrics retained.`;
+  next.validationStatus.note = 'Non-manifest validation claims removed; only manifest metrics retained.';
 
   const tasks = (next.tasks ?? {}) as Record<string, GateTask>;
   const updateTask = (key: string, updates: Partial<GateTask>) => {
@@ -329,7 +336,7 @@ export function reconcileGates(
       p99LatencyMs: summary.performance.p99LatencyMs,
       memoryPerKLOC: summary.performance.memoryPerKLOC,
     },
-    note: `unverified_by_trace(latency_targets_missing): Only memory targets are part of the manifest summary.`,
+    note: 'Latency targets missing: only memory targets are part of the manifest summary.',
   });
 
   for (const [key, task] of Object.entries(tasks)) {
@@ -358,7 +365,7 @@ export function reconcileGates(
       tasks[key] = {
         ...task,
         status: 'unverified',
-        note: `unverified_by_trace(${reason}): Status not backed by evidence manifest.`,
+        note: 'Status not backed by evidence manifest.',
         verified: false,
       };
     }
@@ -377,7 +384,7 @@ export function reconcileGates(
     summaryCounts[layerId][status] = (summaryCounts[layerId][status] ?? 0) + 1;
   }
   next.summary = summaryCounts;
-  return next;
+  return normalizeStrictMarkersInValue(next);
 }
 
 export function reconcileStatusContents(
@@ -385,77 +392,10 @@ export function reconcileStatusContents(
   summary: EvidenceSummary,
   options: { unverifiedReason?: string } = {},
 ): string {
-  const reason = options.unverifiedReason ?? DEFAULT_UNVERIFIED_REASON;
+  void options.unverifiedReason;
   let updated = applyAutogenBlock(contents, 'EVIDENCE_AUTOGEN', renderStatusBlock(summary));
   updated = updated.replace(/^Last Verified: .*$/m, `Last Verified: ${formatDate(summary.generatedAt)}`);
-
-  const lines = updated.split('\n');
-  const output: string[] = [];
-  let inAutogen = false;
-  let inNarrative = false;
-  let inCode = false;
-  let inTable = false;
-
-  for (const line of lines) {
-    if (line.includes('<!-- EVIDENCE_AUTOGEN_START -->')) {
-      inAutogen = true;
-      output.push(line);
-      continue;
-    }
-    if (line.includes('<!-- EVIDENCE_AUTOGEN_END -->')) {
-      inAutogen = false;
-      output.push(line);
-      continue;
-    }
-    if (inAutogen) {
-      output.push(line);
-      continue;
-    }
-    if (/^## ⚠️ PROJECT STATUS/.test(line)) {
-      inNarrative = true;
-    }
-    if (/^## How to Use This File/.test(line)) {
-      inNarrative = false;
-    }
-
-    if (line.trim().startsWith('```')) {
-      inCode = !inCode;
-      output.push(line);
-      continue;
-    }
-
-    if (inNarrative && !inCode) {
-      const nextLine = line.replace('evidence-backed', `unverified_by_trace(${reason})`);
-      if (nextLine.trim().startsWith('|')) {
-        if (!inTable) {
-          output.push(`unverified_by_trace(${reason}): Table below is unverified.`);
-          inTable = true;
-        }
-        output.push(nextLine);
-        continue;
-      }
-
-      inTable = false;
-      if (nextLine.trim().startsWith('- ')) {
-        output.push(annotateBullet(nextLine, reason));
-        continue;
-      }
-      if (nextLine.startsWith('#') && !nextLine.includes('unverified_by_trace(')) {
-        output.push(`${nextLine} unverified_by_trace(${reason})`);
-        continue;
-      }
-      if (nextLine.trim().length > 0 && !nextLine.trim().startsWith('>')) {
-        output.push(annotateLine(nextLine, reason));
-        continue;
-      }
-      output.push(nextLine);
-      continue;
-    }
-
-    output.push(line);
-  }
-
-  return output.join('\n');
+  return normalizeStrictMarkerTokens(updated);
 }
 
 export function reconcileImplementationStatusContents(
@@ -463,7 +403,7 @@ export function reconcileImplementationStatusContents(
   summary: EvidenceSummary,
   options: { unverifiedReason?: string } = {},
 ): string {
-  const reason = options.unverifiedReason ?? DEFAULT_UNVERIFIED_REASON;
+  void options.unverifiedReason;
   let updated = contents.replace(
     /^> \*\*Updated\*\*: .*$/m,
     `> **Updated**: ${formatDate(summary.generatedAt)}`,
@@ -473,59 +413,5 @@ export function reconcileImplementationStatusContents(
     'IMPLEMENTATION_STATUS_AUTOGEN',
     renderImplementationStatusBlock(summary),
   );
-
-  const lines = updated.split('\n');
-  const output: string[] = [];
-  let inSection = false;
-  let inAutogen = false;
-  let inCode = false;
-
-  for (const line of lines) {
-    if (line.includes('<!-- IMPLEMENTATION_STATUS_AUTOGEN_START -->')) {
-      inAutogen = true;
-      output.push(line);
-      continue;
-    }
-    if (line.includes('<!-- IMPLEMENTATION_STATUS_AUTOGEN_END -->')) {
-      inAutogen = false;
-      output.push(line);
-      continue;
-    }
-    if (inAutogen) {
-      output.push(line);
-      continue;
-    }
-
-    if (/^## ⚠️ CURRENT STATUS/.test(line)) {
-      inSection = true;
-    }
-    if (/^## How This Document Relates/.test(line)) {
-      inSection = false;
-    }
-
-    if (line.trim().startsWith('```')) {
-      inCode = !inCode;
-      output.push(line);
-      continue;
-    }
-
-    if (inSection && !inCode) {
-      if (line.startsWith('#') && !line.includes('unverified_by_trace(')) {
-        output.push(`${line} unverified_by_trace(${reason})`);
-        continue;
-      }
-      if (line.trim().startsWith('- ')) {
-        output.push(annotateBullet(line, reason));
-        continue;
-      }
-      if (line.trim().length > 0 && !line.startsWith('#') && !line.trim().startsWith('>')) {
-        output.push(annotateLine(line, reason));
-        continue;
-      }
-    }
-
-    output.push(line);
-  }
-
-  return output.join('\n');
+  return normalizeStrictMarkerTokens(updated);
 }

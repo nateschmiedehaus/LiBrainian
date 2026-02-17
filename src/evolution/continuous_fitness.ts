@@ -55,6 +55,8 @@ export interface ContinuousFitnessResult {
     method: 'weighted_harmonic_mean';
     floorsApplied: string[];
     rawInputs: FitnessDimensions;
+    maskedDimensions?: Partial<Record<keyof FitnessDimensions, boolean>>;
+    weights?: FitnessDimensions;
   };
 }
 
@@ -108,6 +110,45 @@ export const DIMENSION_WEIGHTS: FitnessDimensions = {
  * @returns Continuous fitness result with overall score and metadata
  */
 export function computeContinuousFitness(input: FitnessDimensions): ContinuousFitnessResult {
+  return computeContinuousFitnessWithWeights(input, DIMENSION_WEIGHTS);
+}
+
+/**
+ * Compute continuous fitness with a dimension mask.
+ *
+ * When a dimension is unmeasured, we mask it by setting its weight to 0 and
+ * renormalizing the remaining weights. This prevents missing measurement from
+ * being scored as poor performance.
+ */
+export function computeContinuousFitnessMasked(
+  input: FitnessDimensions,
+  maskedDimensions: Partial<Record<keyof FitnessDimensions, boolean>>
+): ContinuousFitnessResult {
+  const maskedWeights: FitnessDimensions = { ...DIMENSION_WEIGHTS };
+  for (const key of Object.keys(maskedWeights) as Array<keyof FitnessDimensions>) {
+    if (maskedDimensions[key]) maskedWeights[key] = 0;
+  }
+
+  const sum = Object.values(maskedWeights).reduce((acc, value) => acc + value, 0);
+  const weights = sum > 0
+    ? {
+        correctness: maskedWeights.correctness / sum,
+        retrieval: maskedWeights.retrieval / sum,
+        epistemic: maskedWeights.epistemic / sum,
+        operational: maskedWeights.operational / sum,
+        calibration: maskedWeights.calibration / sum,
+        coverage: maskedWeights.coverage / sum,
+      }
+    : { ...DIMENSION_WEIGHTS };
+
+  return computeContinuousFitnessWithWeights(input, weights, maskedDimensions);
+}
+
+function computeContinuousFitnessWithWeights(
+  input: FitnessDimensions,
+  weights: FitnessDimensions,
+  maskedDimensions: Partial<Record<keyof FitnessDimensions, boolean>> = {}
+): ContinuousFitnessResult {
   const floorsApplied: string[] = [];
 
   // Apply floors to prevent division by zero and provide gradient
@@ -127,7 +168,7 @@ export function computeContinuousFitness(input: FitnessDimensions): ContinuousFi
 
   const dims = Object.keys(floored) as (keyof FitnessDimensions)[];
   for (const dim of dims) {
-    const weight = DIMENSION_WEIGHTS[dim];
+    const weight = weights[dim];
     const value = floored[dim];
     weightedReciprocalsSum += weight / value;
     totalWeight += weight;
@@ -138,12 +179,12 @@ export function computeContinuousFitness(input: FitnessDimensions): ContinuousFi
 
   // Compute per-dimension contributions (for analysis)
   const contributions: FitnessDimensions = {
-    correctness: computeContribution(floored.correctness, DIMENSION_WEIGHTS.correctness, harmonicMean),
-    retrieval: computeContribution(floored.retrieval, DIMENSION_WEIGHTS.retrieval, harmonicMean),
-    epistemic: computeContribution(floored.epistemic, DIMENSION_WEIGHTS.epistemic, harmonicMean),
-    operational: computeContribution(floored.operational, DIMENSION_WEIGHTS.operational, harmonicMean),
-    calibration: computeContribution(floored.calibration, DIMENSION_WEIGHTS.calibration, harmonicMean),
-    coverage: computeContribution(floored.coverage, DIMENSION_WEIGHTS.coverage, harmonicMean),
+    correctness: computeContribution(floored.correctness, weights.correctness, harmonicMean),
+    retrieval: computeContribution(floored.retrieval, weights.retrieval, harmonicMean),
+    epistemic: computeContribution(floored.epistemic, weights.epistemic, harmonicMean),
+    operational: computeContribution(floored.operational, weights.operational, harmonicMean),
+    calibration: computeContribution(floored.calibration, weights.calibration, harmonicMean),
+    coverage: computeContribution(floored.coverage, weights.coverage, harmonicMean),
   };
 
   return {
@@ -154,6 +195,8 @@ export function computeContinuousFitness(input: FitnessDimensions): ContinuousFi
       method: 'weighted_harmonic_mean',
       floorsApplied,
       rawInputs: { ...input },
+      maskedDimensions: Object.keys(maskedDimensions).length > 0 ? { ...maskedDimensions } : undefined,
+      weights,
     },
   };
 }
@@ -202,8 +245,41 @@ export function extractDimensionsFromVector(fitness: FitnessVector): FitnessDime
  * This is the main entry point for replacing the old geometric mean.
  */
 export function computeContinuousOverallScore(fitness: FitnessVector): number {
-  const dimensions = extractDimensionsFromVector(fitness);
-  const result = computeContinuousFitness(dimensions);
+  const masked: Partial<Record<keyof FitnessDimensions, boolean>> = {};
+
+  // Sentinel convention: negative values represent "unmeasured", not "bad".
+  if (fitness.retrievalQuality.nDCG < 0 || fitness.retrievalQuality.recallAt5 < 0) {
+    masked.retrieval = true;
+  }
+  if (fitness.epistemicQuality.evidenceCoverage < 0) {
+    masked.epistemic = true;
+    masked.coverage = true;
+  }
+  if (fitness.epistemicQuality.calibrationError < 0) {
+    masked.calibration = true;
+  }
+  if (fitness.operationalQuality.queryLatencyP50Ms < 0 || fitness.operationalQuality.cacheHitRate < 0) {
+    masked.operational = true;
+  }
+
+  const sanitized: FitnessVector = {
+    ...fitness,
+    retrievalQuality: masked.retrieval
+      ? { ...fitness.retrievalQuality, nDCG: 0, recallAt5: 0 }
+      : fitness.retrievalQuality,
+    epistemicQuality: {
+      ...fitness.epistemicQuality,
+      evidenceCoverage: masked.epistemic ? 0 : fitness.epistemicQuality.evidenceCoverage,
+      calibrationError: masked.calibration ? 1 : fitness.epistemicQuality.calibrationError,
+    },
+    operationalQuality: masked.operational
+      ? { ...fitness.operationalQuality, queryLatencyP50Ms: 10_000, cacheHitRate: 0 }
+      : fitness.operationalQuality,
+  };
+
+  const dimensions = extractDimensionsFromVector(sanitized);
+  const hasMask = Object.keys(masked).length > 0;
+  const result = hasMask ? computeContinuousFitnessMasked(dimensions, masked) : computeContinuousFitness(dimensions);
   return result.overall;
 }
 

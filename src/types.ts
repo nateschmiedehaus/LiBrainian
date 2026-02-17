@@ -379,7 +379,27 @@ export interface BootstrapConfig {
     currentFile?: string;
   }) => void;
 
-  // LLM Configuration (REQUIRED - there is NO non-agentic mode)
+  /**
+   * If true, bootstrap must not invoke LLMs (heuristic/offline mode).
+   * Embeddings/AST indexing can still run.
+   */
+  skipLlm?: boolean;
+  /**
+   * If true, bootstrap must not generate embeddings (degraded/offline mode).
+   * Structural indexing and context packs can still run.
+   */
+  skipEmbeddings?: boolean;
+  /**
+   * Emit an onboarding baseline report after successful bootstrap.
+   */
+  emitBaseline?: boolean;
+  /**
+   * Automatically recover from stale bootstrap checkpoints by restarting clean.
+   * When false, stale checkpoints throw and require manual force-resume.
+   */
+  autoRecover?: boolean;
+
+  // LLM Configuration (optional when skipLlm=true)
   llmProvider?: 'claude' | 'codex';
   llmModelId?: string;
   llmPhaseOverrides?: Partial<Record<BootstrapPhaseName, BootstrapLlmPhaseConfig>>;
@@ -564,6 +584,41 @@ export interface BootstrapPhaseResult {
 }
 
 // ============================================================================
+// ONBOARDING BASELINE
+// ============================================================================
+
+export interface OnboardingBaseline {
+  kind: 'OnboardingBaseline.v1';
+  schemaVersion: 1;
+  workspacePath: string;
+  capturedAt: string;
+  environment: {
+    nodeVersion: string;
+    platform: string;
+    providerAvailable: boolean;
+    modelId: string;
+  };
+  metrics: {
+    bootstrapDurationMs: number;
+    entityCoverage: number;
+    confidenceMean: number;
+    defeaterCount: number;
+    providerLatencyP50Ms: number;
+  };
+  entities: {
+    files: number;
+    functions: number;
+    classes: number;
+    modules: number;
+  };
+  quality: {
+    orphanEntities: number;
+    lowConfidenceEntities: number;
+    missingOwnership: number;
+  };
+}
+
+// ============================================================================
 // PERSPECTIVE TYPES
 // ============================================================================
 
@@ -650,6 +705,7 @@ export interface TokenBudgetResult {
 // ============================================================================
 
 export type LlmRequirement = 'required' | 'optional' | 'disabled';
+export type EmbeddingRequirement = 'required' | 'optional' | 'disabled';
 
 export type LlmRequired<T> = T & { llmRequirement: 'required'; llmAvailable: true };
 export type LlmOptional<T> = T & { llmRequirement: 'optional' | 'disabled'; llmAvailable: boolean };
@@ -808,6 +864,7 @@ export interface LibrarianQuery {
   minConfidence?: number;
   ucRequirements?: UCRequirementSet;
   llmRequirement?: LlmRequirement;
+  embeddingRequirement?: EmbeddingRequirement;
 
   /**
    * Deterministic mode for testing and verification.
@@ -834,6 +891,18 @@ export interface LibrarianQuery {
   deterministic?: boolean;
 
   /**
+   * Disable method-guidance LLM enrichment for this query.
+   * Useful for latency-critical evaluation paths where guidance hints are not part of the scoring target.
+   */
+  disableMethodGuidance?: boolean;
+
+  /**
+   * Force synthesis from retrieved summaries without issuing a full LLM synthesis call.
+   * Intended for high-volume evaluation workflows where deterministic, evidence-linked summaries are preferred.
+   */
+  forceSummarySynthesis?: boolean;
+
+  /**
    * Query perspective for multi-view retrieval.
    * When specified, boosts relevant T-patterns and adjusts scoring weights.
    *
@@ -857,6 +926,12 @@ export interface LibrarianQuery {
    * and verbose responses waste valuable context space.
    */
   tokenBudget?: TokenBudget;
+
+  /**
+   * Disable query cache reads/writes for this request.
+   * Useful for evaluation runs that must reflect current logic rather than prior cached responses.
+   */
+  disableCache?: boolean;
 
   /**
    * Edge types to filter knowledge graph traversal.
@@ -942,6 +1017,19 @@ export interface ConstructionPlan {
   intent: string;
   source: 'uc' | 'intent' | 'taskType' | 'default';
   createdAt: string;
+  selectionReason?: string;
+  rankedCandidates?: Array<{
+    templateId: string;
+    score: number;
+    reasoning: string;
+    source: 'uc' | 'intent' | 'default';
+  }>;
+  requiredMaps?: string[];
+  optionalMaps?: string[];
+  requiredObjects?: string[];
+  optionalObjects?: string[];
+  requiredCapabilities?: string[];
+  requiredArtifacts?: string[];
 }
 
 export interface ConfidenceCalibrationSummary {
@@ -1473,6 +1561,7 @@ export type LibrarianEventType =
   | 'ingestion_completed'
   | 'indexing_started'
   | 'indexing_complete'
+  | 'index:external_edges_resolved'
   | 'task_received'
   | 'task_completed'
   | 'task_failed'

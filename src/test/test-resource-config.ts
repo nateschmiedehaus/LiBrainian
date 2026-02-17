@@ -117,8 +117,14 @@ export function detectTestResources(
   const freeMemoryGB = (snapshot.freeMemoryBytes / (1024 * 1024 * 1024)).toFixed(
     2
   );
+  const availableMemoryBytes = snapshot.availableMemoryBytes;
+  const availableMemoryGB = Number.isFinite(availableMemoryBytes)
+    ? ((availableMemoryBytes as number) / (1024 * 1024 * 1024)).toFixed(2)
+    : null;
   reasoning.push(
-    `System: ${snapshot.cpuCores} cores, ${freeMemoryGB}GB free`
+    availableMemoryGB
+      ? `System: ${snapshot.cpuCores} cores, ${availableMemoryGB}GB available (${freeMemoryGB}GB free)`
+      : `System: ${snapshot.cpuCores} cores, ${freeMemoryGB}GB free`
   );
 
   // Add load information

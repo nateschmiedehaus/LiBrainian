@@ -127,7 +127,11 @@ export function getBlame(dir: string, filePath: string): Map<number, string> {
  */
 export function getCurrentGitSha(dir?: string): string | null {
   try {
-    return execSync('git rev-parse HEAD', { cwd: dir ?? process.cwd(), encoding: 'utf8' }).trim();
+    return execSync('git rev-parse HEAD', {
+      cwd: dir ?? process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
   } catch {
     return null;
   }
@@ -138,7 +142,11 @@ export function getCurrentGitSha(dir?: string): string | null {
  */
 export function getCurrentGitShort(dir?: string): string | null {
   try {
-    return execSync('git rev-parse --short HEAD', { cwd: dir ?? process.cwd(), encoding: 'utf8' }).trim();
+    return execSync('git rev-parse --short HEAD', {
+      cwd: dir ?? process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
   } catch {
     return null;
   }

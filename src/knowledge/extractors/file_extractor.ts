@@ -8,7 +8,8 @@
  * - Structural metrics (line count, function count, etc.)
  * - Relationships (imports/exports)
  *
- * Uses LLM for deep semantic analysis (no heuristic fallbacks).
+ * Uses LLM for deep semantic analysis when available, with heuristic fallbacks
+ * for offline / rate-limited environments.
  */
 
 import * as fs from 'fs/promises';
@@ -42,7 +43,13 @@ export interface FileExtractionResult {
 // File category detection patterns
 const CATEGORY_PATTERNS: Record<FileKnowledge['category'], RegExp[]> = {
   code: [/\.(ts|tsx|js|jsx|py|go|rs|java|cpp|c|h|hpp|rb|php|swift|kt)$/i],
-  config: [/\.(json|yaml|yml|toml|ini|env|config\.[jt]s)$/i, /^(tsconfig|package|\.eslint|\.prettier|jest\.config)/i],
+  config: [
+    /\.(json|yaml|yml|toml|ini|env|config\.[jt]s)$/i,
+    /\.(tf|tfvars|hcl)$/i,
+    /(?:^|\/)Dockerfile(\..+)?$/i,
+    /(?:^|\/)\.dockerignore$/i,
+    /^(tsconfig|package|\.eslint|\.prettier|jest\.config)/i,
+  ],
   docs: [/\.(md|mdx|txt|rst|adoc)$/i, /^(README|CHANGELOG|LICENSE|CONTRIBUTING)/i],
   test: [/\.(test|spec|e2e)\.[jt]sx?$/i, /__tests__/, /\.test\./, /\.spec\./],
   data: [/\.(csv|xml|sql|graphql|prisma)$/i],
@@ -59,7 +66,7 @@ const ROLE_PATTERNS: Record<string, RegExp[]> = {
   'model': [/model/i, /entity/i, /types?\.ts$/i],
   'controller': [/controller/i, /handler/i, /route/i],
   'test': [/\.test\.|\.spec\.|__tests__/],
-  'configuration': [/config/i, /settings/i],
+  'configuration': [/config/i, /settings/i, /\.(tf|tfvars|hcl)$/i, /(?:^|\/)Dockerfile(\..+)?$/i, /(?:^|\/)\.dockerignore$/i],
   'hook': [/hooks?\//i, /use[A-Z]/],
   'middleware': [/middleware/i],
   'store': [/store/i, /reducer/i, /slice/i],
@@ -139,18 +146,28 @@ export async function extractFileKnowledge(
     summary = 'unverified_by_trace(file_unreadable): binary or unreadable file';
     // No llmEvidence for unreadable files - no LLM was used
   } else {
-    if (config.skipLlm) {
-      throw new Error('unverified_by_trace(llm_required): file semantic extraction requires LLM');
+    const heuristic = extractHeuristicSemantics(content, name, relativePath, category, role);
+    if (config.skipLlm || !config.llmProvider) {
+      purpose = heuristic.purpose;
+      summary = heuristic.summary;
+      confidence = heuristic.confidence;
+      // No llmEvidence - no LLM was used
+    } else {
+      try {
+        // Use LLM for semantic extraction (only if content was readable)
+        const llmResult = await extractFileSemantics(content, name, relativePath, config);
+        purpose = llmResult.purpose;
+        summary = llmResult.summary;
+        confidence = llmResult.confidence;
+        llmEvidence = llmResult.llmEvidence; // Capture LLM evidence when available
+      } catch {
+        // Degrade gracefully under rate limits / provider failures.
+        purpose = heuristic.purpose;
+        summary = heuristic.summary;
+        confidence = heuristic.confidence;
+        llmEvidence = undefined;
+      }
     }
-    if (!config.llmProvider) {
-      throw new Error('unverified_by_trace(provider_unavailable): file semantic extraction requires LLM provider');
-    }
-    // Use LLM for semantic extraction (only if content was readable)
-    const llmResult = await extractFileSemantics(content, name, relativePath, config);
-    purpose = llmResult.purpose;
-    summary = llmResult.summary;
-    confidence = llmResult.confidence;
-    llmEvidence = llmResult.llmEvidence; // Capture LLM evidence for mandate compliance
   }
 
   const id = createHash('sha256').update(absolutePath).digest('hex').slice(0, 16);
@@ -306,6 +323,49 @@ function detectHasTests(absolutePath: string, relativePath: string): boolean {
 
 function extractMainConcepts(content: string, extension: string): string[] {
   const concepts: Set<string> = new Set();
+
+  // Infra/config heuristics (offline-safe): Dockerfile + Terraform/HCL.
+  const looksLikeDockerfile = /^\s*FROM\s+\S+/mi.test(content) && /^\s*(FROM|RUN|COPY|ADD|ARG|ENV|WORKDIR|EXPOSE|CMD|ENTRYPOINT)\b/mi.test(content);
+  if (looksLikeDockerfile) {
+    const fromMatches = content.matchAll(/^\s*FROM\s+([^\s]+)(?:\s+AS\s+([^\s]+))?/gim);
+    for (const match of fromMatches) {
+      const image = match[1]?.trim();
+      const stage = match[2]?.trim();
+      if (image) concepts.add(image);
+      if (stage) concepts.add(`stage:${stage}`);
+    }
+    const exposeMatches = content.matchAll(/^\s*EXPOSE\s+([0-9]{2,5})(?:\/\w+)?/gim);
+    for (const match of exposeMatches) {
+      const port = match[1]?.trim();
+      if (port) concepts.add(`port:${port}`);
+    }
+    // Keep Docker concepts compact and useful.
+    concepts.add('Dockerfile');
+    return [...concepts].slice(0, 10);
+  }
+
+  const looksLikeTerraform = /\b(resource|module|provider|variable|output)\s+"[^"]+"/.test(content) || /^\s*terraform\s*\{/m.test(content);
+  if (looksLikeTerraform) {
+    const resourceMatches = content.matchAll(/^\s*resource\s+"([^"]+)"\s+"([^"]+)"/gim);
+    for (const match of resourceMatches) {
+      const type = match[1]?.trim();
+      const name = match[2]?.trim();
+      if (type) concepts.add(`resource:${type}`);
+      if (name) concepts.add(`name:${name}`);
+    }
+    const moduleMatches = content.matchAll(/^\s*module\s+"([^"]+)"/gim);
+    for (const match of moduleMatches) {
+      const name = match[1]?.trim();
+      if (name) concepts.add(`module:${name}`);
+    }
+    const providerMatches = content.matchAll(/^\s*provider\s+"([^"]+)"/gim);
+    for (const match of providerMatches) {
+      const name = match[1]?.trim();
+      if (name) concepts.add(`provider:${name}`);
+    }
+    concepts.add('Terraform');
+    return [...concepts].slice(0, 10);
+  }
 
   // Extract from JSDoc/TSDoc comments
   const docComments = content.match(/\/\*\*[\s\S]*?\*\//g) || [];

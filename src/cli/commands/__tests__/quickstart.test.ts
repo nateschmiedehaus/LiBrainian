@@ -1,0 +1,113 @@
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { quickstartCommand } from '../quickstart.js';
+import { resolveDbPath } from '../../db_path.js';
+import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
+import { runOnboardingRecovery } from '../../../api/onboarding_recovery.js';
+
+vi.mock('../../db_path.js', () => ({
+  resolveDbPath: vi.fn(),
+}));
+vi.mock('../../../utils/workspace_resolver.js', () => ({
+  resolveWorkspaceRoot: vi.fn(),
+}));
+vi.mock('../../../api/onboarding_recovery.js', () => ({
+  runOnboardingRecovery: vi.fn(),
+}));
+
+describe('quickstartCommand', () => {
+  const workspace = '/tmp/librarian-quickstart';
+  const resolvedWorkspace = '/tmp/librarian-quickstart/root';
+  const dbPath = '/tmp/librarian.sqlite';
+
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.mocked(resolveDbPath).mockResolvedValue(dbPath);
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      workspace: resolvedWorkspace,
+      changed: true,
+      marker: 'package.json',
+      confidence: 0.9,
+    });
+    vi.mocked(runOnboardingRecovery).mockResolvedValue({
+      errors: [],
+      configHeal: { attempted: false, success: true, appliedFixes: 0, failedFixes: 0 },
+      storageRecovery: { attempted: false, recovered: false, actions: [], errors: [] },
+      bootstrap: { required: false, attempted: false, success: true, retries: 0, skipEmbeddings: true, skipLlm: true },
+    } as any);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+    delete process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT;
+  });
+
+  it('uses defaults and resolved workspace root', async () => {
+    await quickstartCommand({ workspace, args: [], rawArgs: ['quickstart'] });
+
+    expect(runOnboardingRecovery).toHaveBeenCalledWith(expect.objectContaining({
+      workspace: resolvedWorkspace,
+      dbPath,
+      autoHealConfig: true,
+      allowDegradedEmbeddings: true,
+      bootstrapMode: 'fast',
+      emitBaseline: true,
+      forceBootstrap: false,
+      riskTolerance: 'low',
+    }));
+  });
+
+  it('respects explicit flags', async () => {
+    await quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['quickstart', '--mode', 'full', '--risk-tolerance', 'medium', '--force', '--skip-baseline', '--json'],
+    });
+
+    expect(runOnboardingRecovery).toHaveBeenCalledWith(expect.objectContaining({
+      bootstrapMode: 'full',
+      riskTolerance: 'medium',
+      forceBootstrap: true,
+      emitBaseline: false,
+    }));
+
+    const payload = consoleLogSpy.mock.calls
+      .map(call => call[0])
+      .find(value => typeof value === 'string' && value.includes('"status"')) as string | undefined;
+    expect(payload).toBeTruthy();
+    const parsed = JSON.parse(payload!);
+    expect(parsed.status).toBeTruthy();
+  });
+
+  it('surfaces bootstrap warnings in JSON output', async () => {
+    vi.mocked(runOnboardingRecovery).mockResolvedValue({
+      errors: [],
+      configHeal: { attempted: false, success: true, appliedFixes: 0, failedFixes: 0 },
+      storageRecovery: { attempted: false, recovered: false, actions: [], errors: [] },
+      bootstrap: {
+        required: true,
+        attempted: true,
+        success: true,
+        retries: 0,
+        skipEmbeddings: false,
+        skipLlm: true,
+        report: { warnings: ['Semantic search unavailable - no embeddings generated.'] },
+      },
+    } as any);
+
+    await quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['quickstart', '--json'],
+    });
+
+    const payload = consoleLogSpy.mock.calls
+      .map(call => call[0])
+      .find(value => typeof value === 'string' && value.includes('"warnings"')) as string | undefined;
+    expect(payload).toBeTruthy();
+    const parsed = JSON.parse(payload!);
+    expect(parsed.warnings).toContain('Semantic search unavailable - no embeddings generated.');
+  });
+});

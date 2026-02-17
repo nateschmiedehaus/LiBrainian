@@ -20,8 +20,9 @@
  */
 
 import * as path from 'path';
+import * as os from 'os';
 import * as fs from 'fs/promises';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import type { LibrarianContext } from './wave0_integration.js';
 import { formatLibrarianContext } from './wave0_integration.js';
 import { processAgentFeedback, type AgentFeedback } from './agent_feedback.js';
@@ -137,7 +138,9 @@ interface FileChangeTracker {
 interface FileSnapshot {
   exists: boolean;
   mtime?: number;
+  ctime?: number;
   size?: number;
+  hash?: string;
 }
 
 // ============================================================================
@@ -429,9 +432,14 @@ export async function stopFileMonitoring(
     const wasModified =
       initialSnapshot.exists !== currentSnapshot.exists ||
       initialSnapshot.mtime !== currentSnapshot.mtime ||
+      initialSnapshot.ctime !== currentSnapshot.ctime ||
       initialSnapshot.size !== currentSnapshot.size;
 
-    if (wasModified) {
+    const hasHash =
+      initialSnapshot.hash !== undefined && currentSnapshot.hash !== undefined;
+    const hashModified = hasHash && initialSnapshot.hash !== currentSnapshot.hash;
+
+    if (wasModified || hashModified) {
       modifiedFiles.push(filePath);
       if (config.emitEvents !== false) {
         void globalEventBus.emit(createFileModifiedEvent(filePath, 'agent_task'));
@@ -636,30 +644,99 @@ export async function detectWorkspace(): Promise<string | null> {
     }
   }
 
-  // Try current directory
   const cwd = process.cwd();
-  const librarianDir = path.join(cwd, '.librarian');
+
+  // If `.librarian/` exists in the current directory, treat it as the workspace
+  // even if the directory lacks other "project root" markers.
   try {
-    const stats = await fs.stat(librarianDir);
-    if (stats.isDirectory()) {
-      return cwd;
-    }
+    const stats = await fs.stat(path.join(cwd, '.librarian'));
+    if (stats.isDirectory()) return cwd;
   } catch {
-    // Fall through
+    // continue
   }
 
-  // Walk up directories looking for .librarian
+  // Scope detection to a real project root so we don't "snap" to an unrelated
+  // `.librarian/` directory elsewhere on the machine (common when users
+  // accidentally index their home directory once).
+  const projectMarkers = [
+    '.git',
+    // JS/TS
+    'package.json',
+    'tsconfig.json',
+    // Python
+    'pyproject.toml',
+    'setup.py',
+    'requirements.txt',
+    // Go / Rust
+    'go.mod',
+    'Cargo.toml',
+    // Java / Kotlin / Gradle / Maven
+    'pom.xml',
+    'build.gradle',
+    'build.gradle.kts',
+    // Ruby / PHP / Elixir / Dart / Swift
+    'Gemfile',
+    'composer.json',
+    'mix.exs',
+    'pubspec.yaml',
+    'Package.swift',
+  ];
+
+  const allowMarkerless =
+    process.env.LIBRARIAN_ALLOW_MARKERLESS_WORKSPACE === '1' ||
+    process.env.LIBRARIAN_ALLOW_MARKERLESS_WORKSPACE === 'true';
+  const allowHomeRoot =
+    process.env.LIBRARIAN_ALLOW_HOME_WORKSPACE === '1' ||
+    process.env.LIBRARIAN_ALLOW_HOME_WORKSPACE === 'true';
+
+  const home = os.homedir();
+  const samePath = (a: string, b: string) => path.resolve(a) === path.resolve(b);
+
+  let projectRoot: string | null = null;
+  if (allowMarkerless) {
+    projectRoot = cwd;
+  } else {
+    let dir = cwd;
+    while (dir !== path.dirname(dir)) {
+      // Avoid treating the user home directory as a project root by default.
+      if (!allowHomeRoot && samePath(dir, home)) break;
+
+      for (const marker of projectMarkers) {
+        const markerPath = path.join(dir, marker);
+        try {
+          const stats = await fs.stat(markerPath);
+          if (stats.isDirectory() || stats.isFile()) {
+            projectRoot = dir;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (projectRoot) break;
+
+      // If we reach the user home directory without seeing any project markers,
+      // treat this as "no workspace" rather than a global fallback.
+      if (samePath(dir, home)) break;
+      dir = path.dirname(dir);
+    }
+  }
+
+  if (!projectRoot) return null;
+
+  // Walk from cwd up to projectRoot (inclusive) looking for `.librarian/`.
   let dir = cwd;
-  while (dir !== path.dirname(dir)) {
+  while (true) {
     const libDir = path.join(dir, '.librarian');
     try {
       const stats = await fs.stat(libDir);
-      if (stats.isDirectory()) {
-        return dir;
-      }
+      if (stats.isDirectory()) return dir;
     } catch {
-      // Continue
+      // continue
     }
+
+    if (samePath(dir, projectRoot)) break;
+    if (dir === path.dirname(dir)) break;
     dir = path.dirname(dir);
   }
 
@@ -721,10 +798,24 @@ function buildCacheKey(request: TaskContextRequest, workspace: string): string {
 async function snapshotFile(filePath: string): Promise<FileSnapshot> {
   try {
     const stats = await fs.stat(filePath);
+    let hash: string | undefined;
+
+    // `mtimeMs` + `size` can miss quick same-size rewrites on some filesystems.
+    // Hash small files to make change detection reliable without heavy IO.
+    if (stats.isFile() && stats.size <= 64 * 1024) {
+      try {
+        const buf = await fs.readFile(filePath);
+        hash = createHash('sha1').update(buf).digest('hex');
+      } catch {
+        // Ignore hash failures, fall back to metadata only.
+      }
+    }
     return {
       exists: true,
       mtime: stats.mtimeMs,
+      ctime: stats.ctimeMs,
       size: stats.size,
+      hash,
     };
   } catch {
     return { exists: false };

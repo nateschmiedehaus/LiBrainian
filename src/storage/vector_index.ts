@@ -459,13 +459,21 @@ export class HNSWIndex {
  * Threshold above which HNSW mode is automatically enabled.
  * Below this size, brute-force is fast enough.
  */
-export const HNSW_AUTO_THRESHOLD = 1000;
+// Auto-enable HNSW only for large indexes.
+//
+// NOTE: HNSW graph construction is expensive in pure TypeScript and can dominate
+// cold-start latency (e.g. CLI one-shot queries). For small/medium corpora,
+// brute-force cosine similarity is typically fast enough and avoids multi-second
+// index build time.
+export const HNSW_AUTO_THRESHOLD = 50_000;
 
 export interface VectorIndexConfig {
   /** Use HNSW index for O(log n) search. Auto-enabled when size > HNSW_AUTO_THRESHOLD */
   useHNSW?: boolean | 'auto';
   /** HNSW configuration (only used if useHNSW is true) */
   hnswConfig?: Partial<HNSWConfig>;
+  /** Threshold above which HNSW is auto-enabled when useHNSW="auto" */
+  hnswAutoThreshold?: number;
 }
 
 export class VectorIndex {
@@ -476,9 +484,14 @@ export class VectorIndex {
   private useHNSWMode: boolean = false;
 
   constructor(config: VectorIndexConfig = {}) {
+    const hnswAutoThreshold =
+      typeof config.hnswAutoThreshold === 'number' && Number.isFinite(config.hnswAutoThreshold) && config.hnswAutoThreshold > 0
+        ? config.hnswAutoThreshold
+        : HNSW_AUTO_THRESHOLD;
     this.config = {
       useHNSW: config.useHNSW ?? 'auto',
       hnswConfig: config.hnswConfig,
+      hnswAutoThreshold,
     };
   }
 
@@ -494,7 +507,7 @@ export class VectorIndex {
     if (this.config.useHNSW === true) {
       this.useHNSWMode = true;
     } else if (this.config.useHNSW === 'auto') {
-      this.useHNSWMode = items.length >= HNSW_AUTO_THRESHOLD;
+      this.useHNSWMode = items.length >= (this.config.hnswAutoThreshold ?? HNSW_AUTO_THRESHOLD);
     } else {
       this.useHNSWMode = false;
     }
@@ -519,7 +532,11 @@ export class VectorIndex {
     this.dimensions.add(item.embedding.length);
 
     // Check if we should switch to HNSW mode
-    if (this.config.useHNSW === 'auto' && !this.useHNSWMode && this.items.length >= HNSW_AUTO_THRESHOLD) {
+    if (
+      this.config.useHNSW === 'auto' &&
+      !this.useHNSWMode &&
+      this.items.length >= (this.config.hnswAutoThreshold ?? HNSW_AUTO_THRESHOLD)
+    ) {
       // Upgrade to HNSW mode
       this.load(this.items);
       return;

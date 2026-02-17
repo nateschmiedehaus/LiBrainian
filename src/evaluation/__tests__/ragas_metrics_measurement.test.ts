@@ -65,6 +65,8 @@ interface MeasuredMetric {
   target: number;
   met: boolean;
   samples: number[];
+  isEvidence: boolean;
+  evidenceStatus?: string;
 }
 
 /**
@@ -165,7 +167,12 @@ function computeMean(samples: number[]): number {
 /**
  * Create a measured metric object
  */
-function createMeasuredMetric(samples: number[], target: number, isMaxTarget = false): MeasuredMetric {
+function createMeasuredMetric(
+  samples: number[],
+  target: number,
+  isMaxTarget = false,
+  evidenceStatus?: string
+): MeasuredMetric {
   const mean = computeMean(samples);
   const ci = computeConfidenceInterval(samples);
   const met = isMaxTarget ? mean <= target : mean >= target;
@@ -176,6 +183,8 @@ function createMeasuredMetric(samples: number[], target: number, isMaxTarget = f
     target,
     met,
     samples,
+    isEvidence: !evidenceStatus,
+    evidenceStatus,
   };
 }
 
@@ -357,13 +366,19 @@ describe('RAGAS-Style Metrics Measurement', () => {
         console.log('No corpora loaded - creating synthetic test');
         // Create minimal synthetic test
         const samples = [0.85, 0.82, 0.78, 0.90, 0.75];
-        const metric = createMeasuredMetric(samples, TARGETS.retrievalRecallAt5);
+        const metric = createMeasuredMetric(
+          samples,
+          TARGETS.retrievalRecallAt5,
+          false,
+          'unverified_by_trace(synthetic_samples)'
+        );
 
         console.log(`Synthetic Recall@5: ${(metric.mean * 100).toFixed(1)}%`);
         console.log(`  95% CI: [${(metric.ci_95[0] * 100).toFixed(1)}%, ${(metric.ci_95[1] * 100).toFixed(1)}%]`);
         console.log(`  Target: ${(TARGETS.retrievalRecallAt5 * 100).toFixed(0)}%`);
         console.log(`  Status: ${metric.met ? 'MET' : 'NOT MET'}`);
 
+        expect(metric.isEvidence).toBe(false);
         expect(metric.mean).toBeGreaterThan(0);
         return;
       }
@@ -379,7 +394,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
         }
       }
 
-      const metric = createMeasuredMetric(recallSamples, TARGETS.retrievalRecallAt5);
+      const metric = createMeasuredMetric(
+        recallSamples,
+        TARGETS.retrievalRecallAt5,
+        false,
+        'unverified_by_trace(simulated_retrieval)'
+      );
 
       console.log('\n=== WU-1401: Retrieval Recall@5 ===');
       console.log(`Corpus Size: ${recallSamples.length} queries`);
@@ -388,6 +408,7 @@ describe('RAGAS-Style Metrics Measurement', () => {
       console.log(`Target: ${(TARGETS.retrievalRecallAt5 * 100).toFixed(0)}%`);
       console.log(`Status: ${metric.met ? 'MET' : 'NOT MET'}`);
 
+      expect(metric.isEvidence).toBe(false);
       expect(recallSamples.length).toBeGreaterThan(0);
       expect(metric.mean).toBeGreaterThanOrEqual(0);
       expect(metric.mean).toBeLessThanOrEqual(1);
@@ -427,13 +448,19 @@ describe('RAGAS-Style Metrics Measurement', () => {
     it('measures precision across ground truth corpus', async () => {
       if (allCorpora.length === 0) {
         const samples = [0.72, 0.68, 0.75, 0.70, 0.73];
-        const metric = createMeasuredMetric(samples, TARGETS.contextPrecision);
+        const metric = createMeasuredMetric(
+          samples,
+          TARGETS.contextPrecision,
+          false,
+          'unverified_by_trace(synthetic_samples)'
+        );
 
         console.log('\n=== WU-1402: Context Precision (Synthetic) ===');
         console.log(`Mean Precision: ${(metric.mean * 100).toFixed(1)}%`);
         console.log(`Target: ${(TARGETS.contextPrecision * 100).toFixed(0)}%`);
         console.log(`Status: ${metric.met ? 'MET' : 'NOT MET'}`);
 
+        expect(metric.isEvidence).toBe(false);
         expect(metric.mean).toBeGreaterThan(0);
         return;
       }
@@ -449,7 +476,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
         }
       }
 
-      const metric = createMeasuredMetric(precisionSamples, TARGETS.contextPrecision);
+      const metric = createMeasuredMetric(
+        precisionSamples,
+        TARGETS.contextPrecision,
+        false,
+        'unverified_by_trace(simulated_retrieval)'
+      );
 
       console.log('\n=== WU-1402: Context Precision ===');
       console.log(`Corpus Size: ${precisionSamples.length} queries`);
@@ -458,6 +490,7 @@ describe('RAGAS-Style Metrics Measurement', () => {
       console.log(`Target: ${(TARGETS.contextPrecision * 100).toFixed(0)}%`);
       console.log(`Status: ${metric.met ? 'MET' : 'NOT MET'}`);
 
+      expect(metric.isEvidence).toBe(false);
       expect(precisionSamples.length).toBeGreaterThan(0);
     });
 
@@ -479,7 +512,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
       if (allCorpora.length === 0) {
         console.log('No corpora - using synthetic hallucination data');
         const samples = [0.02, 0.03, 0.01, 0.04, 0.02];
-        const metric = createMeasuredMetric(samples, TARGETS.hallucinationRate, true);
+        const metric = createMeasuredMetric(
+          samples,
+          TARGETS.hallucinationRate,
+          true,
+          'unverified_by_trace(synthetic_samples)'
+        );
 
         console.log('\n=== WU-1403: Hallucination Rate (Citation, Synthetic) ===');
         console.log(`Mean Rate: ${(metric.mean * 100).toFixed(1)}%`);
@@ -527,7 +565,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
     it('measures hallucination rate via entailment checking', async () => {
       if (allCorpora.length === 0) {
         const samples = [0.03, 0.02, 0.04, 0.01, 0.03];
-        const metric = createMeasuredMetric(samples, TARGETS.hallucinationRate, true);
+        const metric = createMeasuredMetric(
+          samples,
+          TARGETS.hallucinationRate,
+          true,
+          'unverified_by_trace(synthetic_samples)'
+        );
 
         console.log('\n=== WU-1403: Hallucination Rate (Entailment, Synthetic) ===');
         console.log(`Mean Rate: ${(metric.mean * 100).toFixed(1)}%`);
@@ -576,7 +619,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
 
       // Combined: average of both methods
       const combinedSamples = citationSamples.map((c, i) => (c + entailmentSamples[i]) / 2);
-      const metric = createMeasuredMetric(combinedSamples, TARGETS.hallucinationRate, true);
+      const metric = createMeasuredMetric(
+        combinedSamples,
+        TARGETS.hallucinationRate,
+        true,
+        'unverified_by_trace(synthetic_samples)'
+      );
 
       console.log('\n=== WU-1403: Combined Hallucination Rate ===');
       console.log(`Combined Mean: ${(metric.mean * 100).toFixed(1)}%`);
@@ -595,7 +643,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
     it('measures faithfulness (grounded claims)', async () => {
       if (allCorpora.length === 0) {
         const samples = [0.88, 0.85, 0.90, 0.82, 0.87];
-        const metric = createMeasuredMetric(samples, TARGETS.faithfulness);
+        const metric = createMeasuredMetric(
+          samples,
+          TARGETS.faithfulness,
+          false,
+          'unverified_by_trace(synthetic_samples)'
+        );
 
         console.log('\n=== WU-1404: Faithfulness (Synthetic) ===');
         console.log(`Mean Faithfulness: ${(metric.mean * 100).toFixed(1)}%`);
@@ -652,7 +705,12 @@ describe('RAGAS-Style Metrics Measurement', () => {
     it('measures answer relevancy', async () => {
       if (allCorpora.length === 0) {
         const samples = [0.78, 0.75, 0.82, 0.73, 0.80];
-        const metric = createMeasuredMetric(samples, TARGETS.answerRelevancy);
+        const metric = createMeasuredMetric(
+          samples,
+          TARGETS.answerRelevancy,
+          false,
+          'unverified_by_trace(synthetic_samples)'
+        );
 
         console.log('\n=== WU-1405: Answer Relevancy (Synthetic) ===');
         console.log(`Mean Relevancy: ${(metric.mean * 100).toFixed(1)}%`);
@@ -722,12 +780,10 @@ describe('RAGAS-Style Metrics Measurement', () => {
       };
 
       // Compute overall status
+      const metricValues = Object.values(report.metrics);
+      const evidential = metricValues.filter((metric) => metric.isEvidence);
       report.targets_met =
-        report.metrics.retrieval_recall_at_5.met &&
-        report.metrics.context_precision.met &&
-        report.metrics.hallucination_rate.met &&
-        report.metrics.faithfulness.met &&
-        report.metrics.answer_relevancy.met;
+        evidential.length > 0 && evidential.every((metric) => metric.met);
 
       // Generate summary
       report.summary = [
@@ -736,7 +792,10 @@ describe('RAGAS-Style Metrics Measurement', () => {
         `Hallucination Rate: ${(report.metrics.hallucination_rate.mean * 100).toFixed(1)}% ${report.metrics.hallucination_rate.met ? '[MET]' : '[NOT MET]'}`,
         `Faithfulness: ${(report.metrics.faithfulness.mean * 100).toFixed(1)}% ${report.metrics.faithfulness.met ? '[MET]' : '[NOT MET]'}`,
         `Answer Relevancy: ${(report.metrics.answer_relevancy.mean * 100).toFixed(1)}% ${report.metrics.answer_relevancy.met ? '[MET]' : '[NOT MET]'}`,
-        `Overall: ${report.targets_met ? 'ALL TARGETS MET' : 'SOME TARGETS NOT MET'}`,
+        `Overall: ${report.targets_met ? 'ALL EVIDENCE TARGETS MET' : 'SOME TARGETS NOT MET OR NON-EVIDENTIAL'}`,
+        ...metricValues
+          .filter((metric) => !metric.isEvidence && metric.evidenceStatus)
+          .map((metric) => `Non-evidential metric: ${metric.evidenceStatus}`),
       ];
 
       console.log('\n=== WU-1406: Comprehensive Metrics Report ===');

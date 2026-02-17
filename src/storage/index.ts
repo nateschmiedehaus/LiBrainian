@@ -70,6 +70,10 @@ export {
   createSqliteStorage,
   createStorageFromBackend,
 } from './sqlite_storage.js';
+export {
+  attemptStorageRecovery,
+  isRecoverableStorageError,
+} from './storage_recovery.js';
 
 export { createStorageSlices } from './slices.js';
 export {

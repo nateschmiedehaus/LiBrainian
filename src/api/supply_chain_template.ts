@@ -620,6 +620,7 @@ export function createSupplyChainTemplate(): SupplyChainTemplate {
     supportedUcs: ['UC-101', 'UC-102', 'UC-103'],
     requiredMaps: ['DepMap', 'SupplyChainMap', 'LicenseMap'],
     optionalMaps: [],
+    requiredObjects: ['repo_fact', 'map', 'pack'],
     outputEnvelope: {
       packTypes: ['SBOMPack', 'DependencyRiskPack'],
       requiresAdequacy: true,

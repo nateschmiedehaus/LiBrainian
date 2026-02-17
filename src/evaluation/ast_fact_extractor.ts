@@ -1,8 +1,9 @@
 /**
  * @fileoverview AST Fact Extractor
  *
- * Extracts machine-verifiable facts from TypeScript/JavaScript codebases
- * using the TypeScript Compiler API (via ts-morph).
+ * Extracts machine-verifiable facts from multi-language codebases.
+ * TypeScript/JavaScript uses the TypeScript Compiler API directly (no ts-morph).
+ * Other languages use tree-sitter when grammars are available.
  *
  * Facts extracted:
  * 1. Function definitions: name, parameters, return type, file:line
@@ -20,9 +21,11 @@
  * @packageDocumentation
  */
 
-import { Project, SourceFile, SyntaxKind, Node } from 'ts-morph';
+import * as ts from 'typescript';
 import * as fs from 'fs';
 import * as path from 'path';
+import { TreeSitterParser } from '../agents/parsers/tree_sitter_parser.js';
+import { getLanguageFromPath, SUPPORTED_LANGUAGE_EXTENSIONS } from '../utils/language.js';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -252,22 +255,29 @@ export interface FactVerificationResult {
 // ============================================================================
 
 /**
- * Extracts machine-verifiable facts from TypeScript source code
+ * Extracts machine-verifiable facts from source code
  */
-export class ASTFactExtractor {
-  private project: Project;
+export interface ASTFactExtractorOptions {
+  /**
+   * Restrict extraction to a specific set of file extensions (including the leading dot),
+   * e.g. [".ts", ".js"]. When omitted, uses `SUPPORTED_LANGUAGE_EXTENSIONS`.
+   */
+  includeExtensions?: string[];
+}
 
-  constructor() {
-    this.project = new Project({
-      compilerOptions: {
-        allowJs: true,
-        checkJs: false,
-        noEmit: true,
-        skipLibCheck: true,
-      },
-      skipAddingFilesFromTsConfig: true,
-      skipFileDependencyResolution: true,
-    });
+export class ASTFactExtractor {
+  private treeSitterParser: TreeSitterParser | null;
+  private includeExtensionsLower?: Set<string>;
+
+  constructor(options: ASTFactExtractorOptions = {}) {
+    this.treeSitterParser = new TreeSitterParser();
+    if (Array.isArray(options.includeExtensions) && options.includeExtensions.length > 0) {
+      this.includeExtensionsLower = new Set(
+        options.includeExtensions
+          .map((ext) => ext.toLowerCase())
+          .filter((ext) => ext.startsWith('.'))
+      );
+    }
   }
 
   /**
@@ -278,22 +288,18 @@ export class ASTFactExtractor {
       if (!fs.existsSync(filePath)) {
         return [];
       }
-
-      const sourceFile = this.getOrAddSourceFile(filePath);
-      if (!sourceFile) {
-        return [];
+      if (this.isTsFamily(filePath)) {
+        let sourceContent = '';
+        try {
+          sourceContent = fs.readFileSync(filePath, 'utf-8');
+        } catch {
+          return [];
+        }
+        const sourceFile = this.parseTypeScriptSourceFile(filePath, sourceContent);
+        return this.extractFactsFromTypeScriptSource(sourceFile, filePath);
       }
 
-      const facts: ASTFact[] = [];
-
-      facts.push(...this.extractFunctionsFromSource(sourceFile));
-      facts.push(...this.extractImportsFromSource(sourceFile));
-      facts.push(...this.extractExportsFromSource(sourceFile));
-      facts.push(...this.extractClassesFromSource(sourceFile));
-      facts.push(...this.extractCallsFromSource(sourceFile));
-      facts.push(...this.extractTypesFromSource(sourceFile));
-
-      return facts;
+      return this.extractFromFileWithTreeSitter(filePath);
     } catch {
       return [];
     }
@@ -309,7 +315,7 @@ export class ASTFactExtractor {
       }
 
       const facts: ASTFact[] = [];
-      const files = this.getTypeScriptFiles(dirPath);
+      const files = this.getSourceFiles(dirPath);
 
       for (const file of files) {
         const fileFacts = await this.extractFromFile(file);
@@ -330,13 +336,13 @@ export class ASTFactExtractor {
       if (!fs.existsSync(filePath)) {
         return [];
       }
-
-      const sourceFile = this.getOrAddSourceFile(filePath);
-      if (!sourceFile) {
-        return [];
+      if (this.isTsFamily(filePath)) {
+        const sourceContent = fs.readFileSync(filePath, 'utf-8');
+        const sourceFile = this.parseTypeScriptSourceFile(filePath, sourceContent);
+        return this.extractFunctionsFromTypeScriptSource(sourceFile, filePath);
       }
-
-      return this.extractFunctionsFromSource(sourceFile);
+      const facts = this.extractFromFileWithTreeSitter(filePath);
+      return facts.filter((fact) => fact.type === 'function_def');
     } catch {
       return [];
     }
@@ -350,13 +356,13 @@ export class ASTFactExtractor {
       if (!fs.existsSync(filePath)) {
         return [];
       }
-
-      const sourceFile = this.getOrAddSourceFile(filePath);
-      if (!sourceFile) {
-        return [];
+      if (this.isTsFamily(filePath)) {
+        const sourceContent = fs.readFileSync(filePath, 'utf-8');
+        const sourceFile = this.parseTypeScriptSourceFile(filePath, sourceContent);
+        return this.extractImportsFromTypeScriptSource(sourceFile, filePath);
       }
-
-      return this.extractImportsFromSource(sourceFile);
+      const facts = this.extractFromFileWithTreeSitter(filePath);
+      return facts.filter((fact) => fact.type === 'import');
     } catch {
       return [];
     }
@@ -370,13 +376,13 @@ export class ASTFactExtractor {
       if (!fs.existsSync(filePath)) {
         return [];
       }
-
-      const sourceFile = this.getOrAddSourceFile(filePath);
-      if (!sourceFile) {
-        return [];
+      if (this.isTsFamily(filePath)) {
+        const sourceContent = fs.readFileSync(filePath, 'utf-8');
+        const sourceFile = this.parseTypeScriptSourceFile(filePath, sourceContent);
+        return this.extractClassesFromTypeScriptSource(sourceFile, filePath);
       }
-
-      return this.extractClassesFromSource(sourceFile);
+      const facts = this.extractFromFileWithTreeSitter(filePath);
+      return facts.filter((fact) => fact.type === 'class');
     } catch {
       return [];
     }
@@ -390,13 +396,13 @@ export class ASTFactExtractor {
       if (!fs.existsSync(filePath)) {
         return [];
       }
-
-      const sourceFile = this.getOrAddSourceFile(filePath);
-      if (!sourceFile) {
-        return [];
+      if (this.isTsFamily(filePath)) {
+        const sourceContent = fs.readFileSync(filePath, 'utf-8');
+        const sourceFile = this.parseTypeScriptSourceFile(filePath, sourceContent);
+        return this.extractExportsFromTypeScriptSource(sourceFile, filePath);
       }
-
-      return this.extractExportsFromSource(sourceFile);
+      const facts = this.extractFromFileWithTreeSitter(filePath);
+      return facts.filter((fact) => fact.type === 'export');
     } catch {
       return [];
     }
@@ -406,21 +412,9 @@ export class ASTFactExtractor {
   // PRIVATE EXTRACTION METHODS
   // ============================================================================
 
-  private getOrAddSourceFile(filePath: string): SourceFile | undefined {
-    try {
-      const absolutePath = path.resolve(filePath);
-      let sourceFile = this.project.getSourceFile(absolutePath);
-      if (!sourceFile) {
-        sourceFile = this.project.addSourceFileAtPath(absolutePath);
-      }
-      return sourceFile;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private getTypeScriptFiles(dirPath: string): string[] {
+  private getSourceFiles(dirPath: string): string[] {
     const files: string[] = [];
+    const extensions = this.includeExtensionsLower ?? new Set(SUPPORTED_LANGUAGE_EXTENSIONS.map((ext) => ext.toLowerCase()));
 
     const walk = (dir: string) => {
       try {
@@ -429,11 +423,10 @@ export class ASTFactExtractor {
           const fullPath = path.join(dir, entry.name);
           if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
             walk(fullPath);
-          } else if (
-            entry.isFile() &&
-            (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) &&
-            !entry.name.endsWith('.d.ts')
-          ) {
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (!ext || !extensions.has(ext)) continue;
+            if (entry.name.endsWith('.d.ts')) continue;
             files.push(fullPath);
           }
         }
@@ -446,142 +439,131 @@ export class ASTFactExtractor {
     return files;
   }
 
-  private extractFunctionsFromSource(sourceFile: SourceFile): ASTFact[] {
+  private parseTypeScriptSourceFile(filePath: string, sourceContent: string): ts.SourceFile {
+    const ext = path.extname(filePath).toLowerCase();
+    const scriptKind =
+      ext === '.js' || ext === '.cjs' || ext === '.mjs' || ext === '.jsx'
+        ? ts.ScriptKind.JS
+        : ext === '.tsx'
+          ? ts.ScriptKind.TSX
+          : ts.ScriptKind.TS;
+    // Parent pointers are not needed for our extraction and add overhead.
+    return ts.createSourceFile(filePath, sourceContent, ts.ScriptTarget.Latest, false, scriptKind);
+  }
+
+  private extractFactsFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
     const facts: ASTFact[] = [];
-    const filePath = sourceFile.getFilePath();
+    facts.push(...this.extractFunctionsFromTypeScriptSource(sourceFile, filePath));
+    facts.push(...this.extractImportsFromTypeScriptSource(sourceFile, filePath));
+    facts.push(...this.extractExportsFromTypeScriptSource(sourceFile, filePath));
+    facts.push(...this.extractClassesFromTypeScriptSource(sourceFile, filePath));
+    facts.push(...this.extractCallsFromTypeScriptSource(sourceFile, filePath));
+    facts.push(...this.extractTypesFromTypeScriptSource(sourceFile, filePath));
+    return facts;
+  }
 
-    // Extract standalone functions
-    for (const func of sourceFile.getFunctions()) {
-      const name = func.getName();
-      if (!name) continue;
+  private extractFunctionsFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
+    const facts: ASTFact[] = [];
 
+    const recordFunction = (name: string, node: ts.SignatureDeclarationBase, isExported: boolean, className?: string) => {
       const details: FunctionDefDetails = {
-        parameters: func.getParameters().map((p) => ({
-          name: p.getName(),
-          type: p.getType().getText(),
+        parameters: node.parameters.map((p) => ({
+          name: p.name.getText(sourceFile),
+          type: p.type?.getText(sourceFile),
         })),
-        returnType: func.getReturnType().getText(),
-        isAsync: func.isAsync(),
-        isExported: func.isExported(),
+        returnType: node.type?.getText(sourceFile),
+        isAsync: this.hasModifier(node, ts.SyntaxKind.AsyncKeyword),
+        isExported,
+        className,
       };
-
       facts.push({
         type: 'function_def',
         identifier: name,
         file: filePath,
-        line: func.getStartLineNumber(),
+        line: this.getNodeLine(sourceFile, node),
         details,
       });
-    }
+    };
 
-    // Extract class methods
-    for (const cls of sourceFile.getClasses()) {
-      const className = cls.getName();
-
-      for (const method of cls.getMethods()) {
-        const methodName = method.getName();
-
-        const details: FunctionDefDetails = {
-          parameters: method.getParameters().map((p) => ({
-            name: p.getName(),
-            type: p.getType().getText(),
-          })),
-          returnType: method.getReturnType().getText(),
-          isAsync: method.isAsync(),
-          isExported: cls.isExported(),
-          className,
-        };
-
-        facts.push({
-          type: 'function_def',
-          identifier: methodName,
-          file: filePath,
-          line: method.getStartLineNumber(),
-          details,
-        });
+    for (const stmt of sourceFile.statements) {
+      if (ts.isFunctionDeclaration(stmt) && stmt.name?.text) {
+        recordFunction(stmt.name.text, stmt, this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword));
+        continue;
       }
-    }
 
-    // Extract arrow functions assigned to variables
-    for (const varDecl of sourceFile.getVariableDeclarations()) {
-      const initializer = varDecl.getInitializer();
-      if (initializer && Node.isArrowFunction(initializer)) {
-        const name = varDecl.getName();
-        const isExported = varDecl.isExported();
+      if (ts.isVariableStatement(stmt)) {
+        const isExported = this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword);
+        for (const decl of stmt.declarationList.declarations) {
+          if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+          if (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer)) {
+            recordFunction(decl.name.text, decl.initializer, isExported);
+          }
+        }
+        continue;
+      }
 
-        const details: FunctionDefDetails = {
-          parameters: initializer.getParameters().map((p) => ({
-            name: p.getName(),
-            type: p.getType().getText(),
-          })),
-          returnType: initializer.getReturnType().getText(),
-          isAsync: initializer.isAsync(),
-          isExported,
-        };
-
-        facts.push({
-          type: 'function_def',
-          identifier: name,
-          file: filePath,
-          line: varDecl.getStartLineNumber(),
-          details,
-        });
+      if (ts.isClassDeclaration(stmt) && stmt.name?.text) {
+        const className = stmt.name.text;
+        const classExported = this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword);
+        for (const member of stmt.members) {
+          if (ts.isMethodDeclaration(member) && member.name) {
+            const methodName = this.getPropertyNameText(member.name, sourceFile);
+            if (methodName) recordFunction(methodName, member, classExported, className);
+          } else if (ts.isConstructorDeclaration(member)) {
+            recordFunction('constructor', member, classExported, className);
+          }
+        }
       }
     }
 
     return facts;
   }
 
-  private extractImportsFromSource(sourceFile: SourceFile): ASTFact[] {
+  private extractImportsFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
     const facts: ASTFact[] = [];
-    const filePath = sourceFile.getFilePath();
 
-    for (const importDecl of sourceFile.getImportDeclarations()) {
-      const moduleSpecifier = importDecl.getModuleSpecifierValue();
+    for (const stmt of sourceFile.statements) {
+      if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+      const source = stmt.moduleSpecifier.text;
       const specifiers: Array<{ name: string; alias?: string }> = [];
-
-      const defaultImport = importDecl.getDefaultImport();
-      const namespaceImport = importDecl.getNamespaceImport();
-      const namedImports = importDecl.getNamedImports();
-
       let isDefault = false;
       let isNamespace = false;
-      let identifier = moduleSpecifier;
+      let identifier = source;
 
-      if (defaultImport) {
+      const clause = stmt.importClause;
+      if (clause?.name) {
         isDefault = true;
-        identifier = defaultImport.getText();
-        specifiers.push({ name: defaultImport.getText() });
+        const name = clause.name.text;
+        specifiers.push({ name });
+        identifier = name;
       }
-
-      if (namespaceImport) {
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) {
         isNamespace = true;
-        identifier = namespaceImport.getText();
-        specifiers.push({ name: namespaceImport.getText() });
-      }
-
-      for (const namedImport of namedImports) {
-        const name = namedImport.getName();
-        const alias = namedImport.getAliasNode()?.getText();
-        specifiers.push({ name, alias });
-        if (!identifier || identifier === moduleSpecifier) {
-          identifier = name;
+        const name = bindings.name.text;
+        specifiers.push({ name });
+        identifier = name;
+      } else if (bindings && ts.isNamedImports(bindings)) {
+        for (const el of bindings.elements) {
+          const name = el.name.text;
+          const alias = el.propertyName?.text;
+          specifiers.push({ name, alias });
+          if (!identifier || identifier === source) identifier = name;
         }
       }
 
       const details: ImportDetails = {
-        source: moduleSpecifier,
+        source,
         specifiers,
         isDefault,
         isNamespace,
-        isTypeOnly: importDecl.isTypeOnly(),
+        isTypeOnly: Boolean(clause?.isTypeOnly),
       };
-
       facts.push({
         type: 'import',
         identifier,
         file: filePath,
-        line: importDecl.getStartLineNumber(),
+        line: this.getNodeLine(sourceFile, stmt),
         details,
       });
     }
@@ -589,157 +571,58 @@ export class ASTFactExtractor {
     return facts;
   }
 
-  private extractExportsFromSource(sourceFile: SourceFile): ASTFact[] {
+  private extractExportsFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
     const facts: ASTFact[] = [];
-    const filePath = sourceFile.getFilePath();
 
-    // Export declarations (export { x, y })
-    for (const exportDecl of sourceFile.getExportDeclarations()) {
-      for (const namedExport of exportDecl.getNamedExports()) {
-        const name = namedExport.getName();
-        const details: ExportDetails = {
-          kind: 'variable',
-          isDefault: false,
-          isTypeOnly: exportDecl.isTypeOnly(),
-        };
-
-        facts.push({
-          type: 'export',
-          identifier: name,
-          file: filePath,
-          line: exportDecl.getStartLineNumber(),
-          details,
-        });
+    for (const stmt of sourceFile.statements) {
+      if (ts.isExportDeclaration(stmt)) {
+        const isTypeOnly = Boolean(stmt.isTypeOnly);
+        if (stmt.exportClause && ts.isNamedExports(stmt.exportClause)) {
+          for (const el of stmt.exportClause.elements) {
+            const name = el.name.text;
+            const details: ExportDetails = { kind: 'variable', isDefault: false, isTypeOnly };
+            facts.push({ type: 'export', identifier: name, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+          }
+        }
+        continue;
       }
-    }
 
-    // Exported functions
-    for (const func of sourceFile.getFunctions()) {
-      if (func.isExported()) {
-        const name = func.getName();
-        if (!name) continue;
-
-        const details: ExportDetails = {
-          kind: 'function',
-          isDefault: func.isDefaultExport(),
-          isTypeOnly: false,
-        };
-
-        facts.push({
-          type: 'export',
-          identifier: name,
-          file: filePath,
-          line: func.getStartLineNumber(),
-          details,
-        });
+      if (ts.isFunctionDeclaration(stmt) && stmt.name?.text && this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) {
+        const details: ExportDetails = { kind: 'function', isDefault: this.hasModifier(stmt, ts.SyntaxKind.DefaultKeyword), isTypeOnly: false };
+        facts.push({ type: 'export', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+        continue;
       }
-    }
 
-    // Exported classes
-    for (const cls of sourceFile.getClasses()) {
-      if (cls.isExported()) {
-        const name = cls.getName();
-        if (!name) continue;
-
-        const details: ExportDetails = {
-          kind: 'class',
-          isDefault: cls.isDefaultExport(),
-          isTypeOnly: false,
-        };
-
-        facts.push({
-          type: 'export',
-          identifier: name,
-          file: filePath,
-          line: cls.getStartLineNumber(),
-          details,
-        });
+      if (ts.isClassDeclaration(stmt) && stmt.name?.text && this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) {
+        const details: ExportDetails = { kind: 'class', isDefault: this.hasModifier(stmt, ts.SyntaxKind.DefaultKeyword), isTypeOnly: false };
+        facts.push({ type: 'export', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+        continue;
       }
-    }
 
-    // Exported interfaces
-    for (const iface of sourceFile.getInterfaces()) {
-      if (iface.isExported()) {
-        const name = iface.getName();
-
-        const details: ExportDetails = {
-          kind: 'interface',
-          isDefault: iface.isDefaultExport(),
-          isTypeOnly: true,
-        };
-
-        facts.push({
-          type: 'export',
-          identifier: name,
-          file: filePath,
-          line: iface.getStartLineNumber(),
-          details,
-        });
+      if (ts.isInterfaceDeclaration(stmt) && this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) {
+        const details: ExportDetails = { kind: 'interface', isDefault: this.hasModifier(stmt, ts.SyntaxKind.DefaultKeyword), isTypeOnly: true };
+        facts.push({ type: 'export', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+        continue;
       }
-    }
 
-    // Exported type aliases
-    for (const typeAlias of sourceFile.getTypeAliases()) {
-      if (typeAlias.isExported()) {
-        const name = typeAlias.getName();
-
-        const details: ExportDetails = {
-          kind: 'type',
-          isDefault: typeAlias.isDefaultExport(),
-          isTypeOnly: true,
-        };
-
-        facts.push({
-          type: 'export',
-          identifier: name,
-          file: filePath,
-          line: typeAlias.getStartLineNumber(),
-          details,
-        });
+      if (ts.isTypeAliasDeclaration(stmt) && this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) {
+        const details: ExportDetails = { kind: 'type', isDefault: this.hasModifier(stmt, ts.SyntaxKind.DefaultKeyword), isTypeOnly: true };
+        facts.push({ type: 'export', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+        continue;
       }
-    }
 
-    // Exported enums
-    for (const enumDecl of sourceFile.getEnums()) {
-      if (enumDecl.isExported()) {
-        const name = enumDecl.getName();
-
-        const details: ExportDetails = {
-          kind: 'enum',
-          isDefault: false,
-          isTypeOnly: false,
-        };
-
-        facts.push({
-          type: 'export',
-          identifier: name,
-          file: filePath,
-          line: enumDecl.getStartLineNumber(),
-          details,
-        });
+      if (ts.isEnumDeclaration(stmt) && this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) {
+        const details: ExportDetails = { kind: 'enum', isDefault: false, isTypeOnly: false };
+        facts.push({ type: 'export', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+        continue;
       }
-    }
 
-    // Exported variables/constants
-    for (const varStmt of sourceFile.getVariableStatements()) {
-      if (varStmt.isExported()) {
-        for (const decl of varStmt.getDeclarations()) {
-          const name = decl.getName();
-          const kind = varStmt.getDeclarationKind().toString() === 'const' ? 'const' : 'variable';
-
-          const details: ExportDetails = {
-            kind: kind as 'const' | 'variable',
-            isDefault: false,
-            isTypeOnly: false,
-          };
-
-          facts.push({
-            type: 'export',
-            identifier: name,
-            file: filePath,
-            line: varStmt.getStartLineNumber(),
-            details,
-          });
+      if (ts.isVariableStatement(stmt) && this.hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) {
+        const declKind = (stmt.declarationList.flags & ts.NodeFlags.Const) !== 0 ? 'const' : 'variable';
+        for (const decl of stmt.declarationList.declarations) {
+          if (!ts.isIdentifier(decl.name)) continue;
+          const details: ExportDetails = { kind: declKind, isDefault: false, isTypeOnly: false };
+          facts.push({ type: 'export', identifier: decl.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
         }
       }
     }
@@ -747,165 +630,264 @@ export class ASTFactExtractor {
     return facts;
   }
 
-  private extractClassesFromSource(sourceFile: SourceFile): ASTFact[] {
+  private extractClassesFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
     const facts: ASTFact[] = [];
-    const filePath = sourceFile.getFilePath();
 
-    for (const cls of sourceFile.getClasses()) {
-      const name = cls.getName();
-      if (!name) continue;
-
-      const extendsClause = cls.getExtends();
-      const implementsClauses = cls.getImplements();
-
-      const methods = cls.getMethods().map((m) => m.getName());
-      const properties = cls.getProperties().map((p) => p.getName());
-
+    for (const stmt of sourceFile.statements) {
+      if (!ts.isClassDeclaration(stmt) || !stmt.name?.text) continue;
+      const name = stmt.name.text;
+      let extendsText: string | undefined;
+      let implementsTexts: string[] | undefined;
+      if (stmt.heritageClauses) {
+        for (const clause of stmt.heritageClauses) {
+          if (clause.token === ts.SyntaxKind.ExtendsKeyword) {
+            const first = clause.types[0];
+            extendsText = first?.expression.getText(sourceFile);
+          } else if (clause.token === ts.SyntaxKind.ImplementsKeyword) {
+            implementsTexts = clause.types.map((t) => t.expression.getText(sourceFile));
+          }
+        }
+      }
+      const methods: string[] = [];
+      const properties: string[] = [];
+      for (const member of stmt.members) {
+        if (ts.isMethodDeclaration(member) && member.name) {
+          const methodName = this.getPropertyNameText(member.name, sourceFile);
+          if (methodName) methods.push(methodName);
+        } else if (ts.isPropertyDeclaration(member) && member.name) {
+          const propName = this.getPropertyNameText(member.name, sourceFile);
+          if (propName) properties.push(propName);
+        }
+      }
       const details: ClassDetails = {
-        extends: extendsClause?.getText(),
-        implements: implementsClauses.map((i) => i.getText()),
+        extends: extendsText,
+        implements: implementsTexts,
         methods,
         properties,
-        isAbstract: cls.isAbstract(),
+        isAbstract: this.hasModifier(stmt, ts.SyntaxKind.AbstractKeyword),
       };
+      facts.push({ type: 'class', identifier: name, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+    }
 
+    return facts;
+  }
+
+  private extractCallsFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
+    const facts: ASTFact[] = [];
+
+    type Ctx = { callerName: string; callerClass?: string } | null;
+    const mkCallee = (expr: ts.Expression): string => {
+      if (ts.isPropertyAccessExpression(expr)) {
+        const objText = expr.expression.getText(sourceFile);
+        const propName = expr.name.text;
+        if (objText === 'this') return propName;
+        const left = objText.length > 40 ? objText.slice(0, 40) : objText;
+        return `${left}.${propName}`;
+      }
+      if (ts.isIdentifier(expr)) return expr.text;
+      const text = expr.getText(sourceFile);
+      return text.length > 50 ? text.slice(0, 50) : text;
+    };
+
+    const visit = (node: ts.Node, ctx: Ctx) => {
+      if (ts.isFunctionDeclaration(node) && node.name?.text) {
+        const next: Ctx = { callerName: node.name.text };
+        ts.forEachChild(node, (child) => visit(child, next));
+        return;
+      }
+
+      if (ts.isMethodDeclaration(node) && node.name) {
+        const methodName = this.getPropertyNameText(node.name, sourceFile) ?? '<anonymous>';
+        const next: Ctx = { callerName: methodName, callerClass: ctx?.callerClass };
+        ts.forEachChild(node, (child) => visit(child, next));
+        return;
+      }
+
+      if (ts.isConstructorDeclaration(node)) {
+        const next: Ctx = { callerName: 'constructor', callerClass: ctx?.callerClass };
+        ts.forEachChild(node, (child) => visit(child, next));
+        return;
+      }
+
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+        const next: Ctx = { callerName: node.name.text };
+        ts.forEachChild(node.initializer, (child) => visit(child, next));
+        return;
+      }
+
+      if (ts.isClassDeclaration(node) && node.name?.text) {
+        const next: Ctx = { callerName: ctx?.callerName ?? '<module>', callerClass: node.name.text };
+        ts.forEachChild(node, (child) => visit(child, next));
+        return;
+      }
+
+      if (ctx && ts.isCallExpression(node)) {
+        const callee = mkCallee(node.expression);
+        const details: CallDetails = { caller: ctx.callerName, callee, callerClass: ctx.callerClass };
+        facts.push({
+          type: 'call',
+          identifier: `${ctx.callerName}->${callee}`,
+          file: filePath,
+          line: this.getNodeLine(sourceFile, node),
+          details,
+        });
+      }
+
+      ts.forEachChild(node, (child) => visit(child, ctx));
+    };
+
+    visit(sourceFile, { callerName: '<module>' });
+    return facts;
+  }
+
+  private extractTypesFromTypeScriptSource(sourceFile: ts.SourceFile, filePath: string): ASTFact[] {
+    const facts: ASTFact[] = [];
+
+    for (const stmt of sourceFile.statements) {
+      if (ts.isInterfaceDeclaration(stmt)) {
+        const name = stmt.name.text;
+        const properties = stmt.members
+          .filter((m): m is ts.PropertySignature => ts.isPropertySignature(m))
+          .map((m) => (m.name ? m.name.getText(sourceFile) : ''))
+          .filter(Boolean);
+        const details: TypeDetails = { kind: 'interface', properties };
+        facts.push({ type: 'type', identifier: name, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+      } else if (ts.isTypeAliasDeclaration(stmt)) {
+        const details: TypeDetails = { kind: 'type_alias' };
+        facts.push({ type: 'type', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+      } else if (ts.isEnumDeclaration(stmt)) {
+        const members = stmt.members.map((m) => m.name.getText(sourceFile));
+        const details: TypeDetails = { kind: 'enum', members };
+        facts.push({ type: 'type', identifier: stmt.name.text, file: filePath, line: this.getNodeLine(sourceFile, stmt), details });
+      }
+    }
+
+    return facts;
+  }
+
+  private getPropertyNameText(name: ts.PropertyName, sourceFile: ts.SourceFile): string | null {
+    if (ts.isIdentifier(name)) return name.text;
+    if (ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text;
+    if (ts.isComputedPropertyName(name)) return name.expression.getText(sourceFile);
+    return null;
+  }
+
+  private hasModifier(node: ts.Node, modifierKind: ts.SyntaxKind): boolean {
+    const mods = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
+    return Boolean(mods?.some((m) => m.kind === modifierKind));
+  }
+
+  private getNodeLine(sourceFile: ts.SourceFile, node: ts.Node): number {
+    const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile, false));
+    return line + 1;
+  }
+
+  private isTsFamily(filePath: string): boolean {
+    const language = getLanguageFromPath(filePath, 'unknown');
+    return language === 'typescript' || language === 'javascript';
+  }
+
+  private extractFromFileWithTreeSitter(filePath: string): ASTFact[] {
+    if (!this.treeSitterParser) return [];
+    let sourceContent = '';
+    try {
+      sourceContent = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      return [];
+    }
+    const language = this.treeSitterParser.detectLanguage(sourceContent, filePath);
+    if (language === 'unknown') {
+      return [];
+    }
+    let result: ReturnType<TreeSitterParser['parse']>;
+    try {
+      result = this.treeSitterParser.parse(sourceContent, language);
+    } catch {
+      return [];
+    }
+
+    const facts: ASTFact[] = [];
+    const functions = this.treeSitterParser.extractFunctions(result.tree);
+    for (const fn of functions) {
+      const details: FunctionDefDetails = {
+        parameters: fn.parameters.map((name) => ({ name })),
+        isAsync: false,
+        isExported: false,
+      };
+      facts.push({
+        type: 'function_def',
+        identifier: fn.name,
+        file: filePath,
+        line: fn.startPosition.row + 1,
+        details,
+      });
+    }
+
+    const classes = this.treeSitterParser.extractClasses(result.tree);
+    for (const cls of classes) {
+      const details: ClassDetails = {
+        methods: (cls.methods ?? []).map((method) => method.name),
+        properties: cls.properties ?? [],
+        isAbstract: false,
+      };
       facts.push({
         type: 'class',
-        identifier: name,
+        identifier: cls.name,
         file: filePath,
-        line: cls.getStartLineNumber(),
+        line: cls.startPosition.row + 1,
         details,
       });
     }
 
-    return facts;
-  }
+    const importNodes = this.treeSitterParser.queryTree(result.tree, 'import_statement')
+      .concat(this.treeSitterParser.queryTree(result.tree, 'import_declaration'))
+      .concat(this.treeSitterParser.queryTree(result.tree, 'using_directive'))
+      .concat(this.treeSitterParser.queryTree(result.tree, 'preproc_include'));
 
-  private extractCallsFromSource(sourceFile: SourceFile): ASTFact[] {
-    const facts: ASTFact[] = [];
-    const filePath = sourceFile.getFilePath();
+    for (const node of importNodes) {
+      const text = node.text.trim();
+      let source = '';
+      const includeMatch = text.match(/#include\s+[<"]([^>"]+)[>"]/);
+      const usingMatch = text.match(/\busing\s+([^\s;]+)\s*;/);
+      const importFromMatch = text.match(/\bfrom\s+([^\s]+)\s+import\b/);
+      const importMatch = text.match(/\bimport\s+([^\s'";]+)\s*;?/);
+      const importStringMatch = text.match(/\bimport\s+['"]([^'"]+)['"]/);
+      if (includeMatch?.[1]) source = includeMatch[1];
+      else if (usingMatch?.[1]) source = usingMatch[1];
+      else if (importFromMatch?.[1]) source = importFromMatch[1];
+      else if (importStringMatch?.[1]) source = importStringMatch[1];
+      else if (importMatch?.[1]) source = importMatch[1];
+      if (!source) continue;
 
-    // Extract calls from functions
-    for (const func of sourceFile.getFunctions()) {
-      const callerName = func.getName() || '<anonymous>';
-      this.extractCallsFromNode(func, callerName, undefined, filePath, facts);
-    }
-
-    // Extract calls from class methods
-    for (const cls of sourceFile.getClasses()) {
-      const className = cls.getName();
-
-      for (const method of cls.getMethods()) {
-        const methodName = method.getName();
-        this.extractCallsFromNode(method, methodName, className, filePath, facts);
-      }
-    }
-
-    return facts;
-  }
-
-  private extractCallsFromNode(
-    node: Node,
-    callerName: string,
-    callerClass: string | undefined,
-    filePath: string,
-    facts: ASTFact[]
-  ): void {
-    const callExpressions = node.getDescendantsOfKind(SyntaxKind.CallExpression);
-
-    for (const call of callExpressions) {
-      const expression = call.getExpression();
-      let callee: string;
-
-      if (Node.isPropertyAccessExpression(expression)) {
-        // Method call: obj.method() or this.method()
-        const propName = expression.getName();
-        const objText = expression.getExpression().getText();
-
-        if (objText === 'this') {
-          callee = propName;
-        } else {
-          callee = `${objText}.${propName}`;
-        }
-      } else if (Node.isIdentifier(expression)) {
-        // Direct function call: fn()
-        callee = expression.getText();
-      } else {
-        // Other call expressions (e.g., IIFE, computed property access)
-        callee = expression.getText().slice(0, 50);
-      }
-
-      const details: CallDetails = {
-        caller: callerName,
-        callee,
-        callerClass,
+      const details: ImportDetails = {
+        source,
+        specifiers: [],
+        isDefault: false,
+        isNamespace: false,
+        isTypeOnly: false,
       };
+      facts.push({
+        type: 'import',
+        identifier: source,
+        file: filePath,
+        line: node.startPosition.row + 1,
+        details,
+      });
+    }
 
+    const callNodes = this.treeSitterParser.extractCalls(result.tree);
+    for (const call of callNodes) {
+      const caller = call.caller ?? '<module>';
+      const details: CallDetails = {
+        caller,
+        callee: call.callee,
+        callerClass: call.callerClass,
+      };
       facts.push({
         type: 'call',
-        identifier: `${callerName}->${callee}`,
+        identifier: `${caller}->${call.callee}`,
         file: filePath,
-        line: call.getStartLineNumber(),
-        details,
-      });
-    }
-  }
-
-  private extractTypesFromSource(sourceFile: SourceFile): ASTFact[] {
-    const facts: ASTFact[] = [];
-    const filePath = sourceFile.getFilePath();
-
-    // Extract interfaces
-    for (const iface of sourceFile.getInterfaces()) {
-      const name = iface.getName();
-      const properties = iface.getProperties().map((p) => p.getName());
-
-      const details: TypeDetails = {
-        kind: 'interface',
-        properties,
-      };
-
-      facts.push({
-        type: 'type',
-        identifier: name,
-        file: filePath,
-        line: iface.getStartLineNumber(),
-        details,
-      });
-    }
-
-    // Extract type aliases
-    for (const typeAlias of sourceFile.getTypeAliases()) {
-      const name = typeAlias.getName();
-
-      const details: TypeDetails = {
-        kind: 'type_alias',
-      };
-
-      facts.push({
-        type: 'type',
-        identifier: name,
-        file: filePath,
-        line: typeAlias.getStartLineNumber(),
-        details,
-      });
-    }
-
-    // Extract enums
-    for (const enumDecl of sourceFile.getEnums()) {
-      const name = enumDecl.getName();
-      const members = enumDecl.getMembers().map((m) => m.getName());
-
-      const details: TypeDetails = {
-        kind: 'enum',
-        members,
-      };
-
-      facts.push({
-        type: 'type',
-        identifier: name,
-        file: filePath,
-        line: enumDecl.getStartLineNumber(),
+        line: call.startPosition.row + 1,
         details,
       });
     }
@@ -921,8 +903,8 @@ export class ASTFactExtractor {
 /**
  * Create a new ASTFactExtractor instance
  */
-export function createASTFactExtractor(): ASTFactExtractor {
-  return new ASTFactExtractor();
+export function createASTFactExtractor(options: ASTFactExtractorOptions = {}): ASTFactExtractor {
+  return new ASTFactExtractor(options);
 }
 
 // ============================================================================
@@ -943,7 +925,7 @@ function convertToVerifiableFact(fact: ASTFact, sourceContent: string): Verifiab
     location: {
       file: fact.file,
       line: fact.line,
-      column: 1, // ts-morph provides line but not always column
+      column: 1, // column is not currently tracked in internal facts
     },
     content,
     verifiable: true,
@@ -1080,7 +1062,7 @@ export async function extractFacts(filePath: string): Promise<VerifiableFact[]> 
  * Extract all machine-verifiable facts from a project root
  *
  * @param root - Root directory of the project
- * @returns Array of VerifiableFact objects from all TypeScript files
+ * @returns Array of VerifiableFact objects from all supported source files
  */
 export async function extractFactsFromProject(root: string): Promise<VerifiableFact[]> {
   const extractor = createASTFactExtractor();

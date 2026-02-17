@@ -1,0 +1,194 @@
+/**
+ * @fileoverview Quickstart Command
+ *
+ * Runs end-to-end onboarding recovery with sensible defaults to get
+ * Librarian operational in a new workspace.
+ */
+
+import { parseArgs } from 'node:util';
+import * as path from 'node:path';
+import { resolveDbPath } from '../db_path.js';
+import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
+import { runOnboardingRecovery } from '../../api/onboarding_recovery.js';
+import { createError } from '../errors.js';
+import { printKeyValue } from '../progress.js';
+
+export interface QuickstartCommandOptions {
+  workspace: string;
+  args: string[];
+  rawArgs: string[];
+}
+
+type QuickstartStatus = 'ok' | 'warning' | 'error';
+
+interface QuickstartReport {
+  status: QuickstartStatus;
+  workspace: string;
+  mode: 'fast' | 'full';
+  baseline: boolean;
+  warnings: string[];
+  errors: string[];
+  recovery: unknown;
+}
+
+function resolveBootstrapMode(raw: string): 'fast' | 'full' {
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'fast' || normalized === 'full') return normalized;
+  throw createError('INVALID_ARGUMENT', `Unknown mode "${raw}" (use "fast" or "full").`);
+}
+
+function resolveRiskTolerance(raw?: string): 'safe' | 'low' | 'medium' {
+  if (!raw) return 'low';
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'safe' || normalized === 'low' || normalized === 'medium') return normalized;
+  throw createError('INVALID_ARGUMENT', `Unknown risk tolerance "${raw}" (use "safe", "low", or "medium").`);
+}
+
+function summarizeRecovery(recovery: {
+  errors?: string[];
+  configHeal?: { attempted: boolean; success: boolean; appliedFixes: number; failedFixes: number };
+  storageRecovery?: { attempted: boolean; recovered: boolean; actions: string[] };
+  bootstrap?: { required: boolean; attempted: boolean; success: boolean; skipEmbeddings: boolean; skipLlm: boolean; report?: { totalFilesProcessed?: number; warnings?: string[] } };
+}): { status: QuickstartStatus; warnings: string[]; errors: string[] } {
+  const errors: string[] = [...(recovery.errors ?? [])];
+  const warnings: string[] = [];
+
+  if (recovery.configHeal?.attempted && !recovery.configHeal.success) {
+    errors.push('configuration_heal_failed');
+  }
+
+  if (recovery.storageRecovery?.attempted && !recovery.storageRecovery.recovered) {
+    errors.push('storage_recovery_failed');
+  }
+
+  if (recovery.bootstrap?.required && recovery.bootstrap.attempted && !recovery.bootstrap.success) {
+    errors.push('bootstrap_failed');
+  }
+
+  if (recovery.bootstrap?.skipEmbeddings) {
+    warnings.push('Embeddings disabled (semantic search limited)');
+  }
+  if (recovery.bootstrap?.skipLlm) {
+    warnings.push('LLM disabled (heuristic mode)');
+  }
+  if (recovery.bootstrap?.report?.warnings && recovery.bootstrap.report.warnings.length > 0) {
+    warnings.push(...recovery.bootstrap.report.warnings);
+  }
+
+  const status: QuickstartStatus = errors.length > 0 ? 'error' : (warnings.length > 0 ? 'warning' : 'ok');
+  return { status, warnings, errors };
+}
+
+export async function quickstartCommand(options: QuickstartCommandOptions): Promise<void> {
+  const { workspace, rawArgs } = options;
+
+  const { values } = parseArgs({
+    args: rawArgs.slice(1),
+    options: {
+      mode: { type: 'string', default: 'fast' },
+      'risk-tolerance': { type: 'string' },
+      force: { type: 'boolean', default: false },
+      'skip-baseline': { type: 'boolean', default: false },
+      json: { type: 'boolean', default: false },
+    },
+    allowPositionals: true,
+    strict: false,
+  });
+
+  let workspaceRoot = path.resolve(workspace);
+  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
+    const resolution = resolveWorkspaceRoot(workspaceRoot);
+    if (resolution.changed) {
+      const detail = resolution.marker ? `marker ${resolution.marker}` : 'source discovery';
+      console.log(`Auto-detected project root at ${resolution.workspace} (${detail}). Using it.`);
+      workspaceRoot = resolution.workspace;
+    }
+  }
+
+  const bootstrapMode = resolveBootstrapMode(String(values.mode ?? 'fast'));
+  const riskTolerance = resolveRiskTolerance(typeof values['risk-tolerance'] === 'string' ? values['risk-tolerance'] : undefined);
+  const forceBootstrap = values.force as boolean;
+  const skipBaseline = values['skip-baseline'] as boolean;
+  const emitBaseline = !skipBaseline;
+  const json = values.json as boolean;
+
+  const dbPath = await resolveDbPath(workspaceRoot);
+
+  const recovery = await runOnboardingRecovery({
+    workspace: workspaceRoot,
+    dbPath,
+    autoHealConfig: true,
+    riskTolerance,
+    allowDegradedEmbeddings: true,
+    bootstrapMode,
+    emitBaseline,
+    forceBootstrap,
+  });
+
+  const summary = summarizeRecovery(recovery as any);
+  const report: QuickstartReport = {
+    status: summary.status,
+    workspace: workspaceRoot,
+    mode: bootstrapMode,
+    baseline: emitBaseline,
+    warnings: summary.warnings,
+    errors: summary.errors,
+    recovery,
+  };
+
+  if (json) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    console.log('Librarian Quickstart');
+    console.log('====================\n');
+    printKeyValue([
+      { key: 'Workspace', value: workspaceRoot },
+      { key: 'Mode', value: bootstrapMode },
+      { key: 'Baseline', value: emitBaseline ? 'enabled' : 'disabled' },
+      { key: 'Status', value: summary.status.toUpperCase() },
+    ]);
+
+    console.log('\nRecovery Summary:');
+    const bootstrapFiles = recovery.bootstrap?.report?.totalFilesProcessed ?? 0;
+    const bootstrapSummary = recovery.bootstrap?.required
+      ? (recovery.bootstrap.success ? `ok (${bootstrapFiles} files)` : 'failed')
+      : 'not required';
+    const configSummary = recovery.configHeal?.attempted
+      ? (recovery.configHeal.success ? `ok (${recovery.configHeal.appliedFixes} fixes)` : 'failed')
+      : 'ok';
+    const storageSummary = recovery.storageRecovery?.attempted
+      ? (recovery.storageRecovery.recovered ? `recovered (${recovery.storageRecovery.actions.join(', ') || 'no actions'})` : 'failed')
+      : 'ok';
+
+    printKeyValue([
+      { key: 'Config Heal', value: configSummary },
+      { key: 'Storage Recovery', value: storageSummary },
+      { key: 'Bootstrap', value: bootstrapSummary },
+      { key: 'Embeddings', value: recovery.bootstrap?.skipEmbeddings ? 'disabled' : 'enabled' },
+      { key: 'LLM', value: recovery.bootstrap?.skipLlm ? 'disabled' : 'enabled' },
+    ]);
+
+    if (summary.warnings.length > 0) {
+      console.log('\nWarnings:');
+      for (const warning of summary.warnings) {
+        console.log(`  - ${warning}`);
+      }
+    }
+
+    if (summary.errors.length > 0) {
+      console.log('\nErrors:');
+      for (const error of summary.errors) {
+        console.log(`  - ${error}`);
+      }
+      console.log('\nNext steps:');
+      console.log('  - Run `librarian doctor --heal` for deeper diagnostics');
+      console.log('  - Run `librarian bootstrap --force` for a full rebuild');
+    } else {
+      console.log('\nLibrarian is ready for use.');
+    }
+  }
+
+  if (summary.status === 'error') {
+    process.exitCode = 1;
+  }
+}

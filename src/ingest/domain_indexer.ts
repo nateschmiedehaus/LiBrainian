@@ -19,6 +19,9 @@ export interface DomainIngestionOptions {
 const DEFAULT_GLOBS = ['src/**/*.{ts,tsx}'];
 const DEFAULT_MAX_BYTES = 256_000;
 const DEFAULT_MAX_FILES = 400;
+const MAX_DOMAIN_ENTITIES_STORED = 200;
+const MAX_DOMAIN_INVARIANTS_STORED = 200;
+const MAX_DOMAIN_FILES_STORED = 200;
 const DOMAIN_TAXONOMY: TaxonomyItem[] = ['domain_model_invariants', 'business_rules_constraints'];
 
 function hashPayload(payload: unknown): string {
@@ -114,7 +117,17 @@ export function createDomainIngestionSource(options: DomainIngestionOptions = {}
         invariants.push(...extractInvariants(content, relative));
       }
 
-      const payload = { entities, invariants, files: limited.map((file) => path.relative(ctx.workspace, file)) };
+      const fileList = limited.map((file) => path.relative(ctx.workspace, file));
+      const payload = {
+        entities: entities.slice(0, MAX_DOMAIN_ENTITIES_STORED),
+        invariants: invariants.slice(0, MAX_DOMAIN_INVARIANTS_STORED),
+        files: fileList.slice(0, MAX_DOMAIN_FILES_STORED),
+        truncated: {
+          entities: entities.length > MAX_DOMAIN_ENTITIES_STORED,
+          invariants: invariants.length > MAX_DOMAIN_INVARIANTS_STORED,
+          files: fileList.length > MAX_DOMAIN_FILES_STORED,
+        },
+      };
       items.push({
         id: 'domain:knowledge',
         sourceType: 'domain',
@@ -124,6 +137,7 @@ export function createDomainIngestionSource(options: DomainIngestionOptions = {}
         metadata: {
           hash: hashPayload(payload),
           taxonomy: DOMAIN_TAXONOMY,
+          file_count: fileList.length,
           entity_count: entities.length,
           invariant_count: invariants.length,
         },

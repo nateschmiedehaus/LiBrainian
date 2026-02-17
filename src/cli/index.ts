@@ -12,6 +12,10 @@
  *   librarian validate <file>     - Validate constraints for a file
  *   librarian check-providers     - Check provider availability
  *   librarian visualize           - Generate codebase visualizations
+ *   librarian quickstart          - Smooth onboarding and recovery flow
+ *   librarian smoke               - Run external repo smoke harness
+ *   librarian journey             - Run agentic journey simulations
+ *   librarian live-fire           - Run continuous objective trial matrix
  *   librarian watch               - Watch for file changes and auto-reindex
  *   librarian contract            - Show system contract and provenance
  *   librarian diagnose            - Diagnose Librarian self-knowledge drift
@@ -23,6 +27,7 @@
  *   librarian analyze             - Run static analysis (dead code, complexity)
  *   librarian config heal         - Auto-detect and fix suboptimal config
  *   librarian doctor              - Run health diagnostics to identify issues
+ *   librarian publish-gate        - Run strict publish-readiness gate checks
  *
  * @packageDocumentation
  */
@@ -38,6 +43,10 @@ import { validateCommand } from './commands/validate.js';
 import { checkProvidersCommand } from './commands/check_providers.js';
 import { visualizeCommand } from './commands/visualize.js';
 import { coverageCommand } from './commands/coverage.js';
+import { quickstartCommand } from './commands/quickstart.js';
+import { smokeCommand } from './commands/smoke.js';
+import { journeyCommand } from './commands/journey.js';
+import { liveFireCommand } from './commands/live_fire.js';
 import { healthCommand } from './commands/health.js';
 import { healCommand } from './commands/heal.js';
 import { evolveCommand } from './commands/evolve.js';
@@ -51,6 +60,10 @@ import { composeCommand } from './commands/compose.js';
 import { analyzeCommand } from './commands/analyze.js';
 import { configHealCommand } from './commands/config_heal.js';
 import { doctorCommand } from './commands/doctor.js';
+import { publishGateCommand } from './commands/publish_gate.js';
+import { ralphCommand } from './commands/ralph.js';
+import { externalReposCommand } from './commands/external_repos.js';
+import { resolveWorkspaceArg } from './workspace_arg.js';
 import {
   CliError,
   formatError,
@@ -62,7 +75,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'bootstrap' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'help';
+type Command = 'status' | 'query' | 'bootstrap' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -87,15 +100,15 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean): void 
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
     description: 'Show current librarian status',
-    usage: 'librarian status',
+    usage: 'librarian status [--verbose] [--format text|json]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>]',
+    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--no-bootstrap]',
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
-    usage: 'librarian bootstrap [--force] [--force-resume]',
+    usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars]',
   },
   'inspect': {
     description: 'Inspect a module or function\'s knowledge',
@@ -111,7 +124,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'check-providers': {
     description: 'Check provider availability and authentication',
-    usage: 'librarian check-providers',
+    usage: 'librarian check-providers [--format text|json]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
@@ -120,6 +133,22 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'coverage': {
     description: 'Generate UC x method x scenario coverage audit',
     usage: 'librarian coverage [--output <path>] [--strict]',
+  },
+  'quickstart': {
+    description: 'Smooth onboarding and recovery flow',
+    usage: 'librarian quickstart [--mode fast|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline]',
+  },
+  'smoke': {
+    description: 'Run external repo smoke harness',
+    usage: 'librarian smoke [--repos-root <path>] [--max-repos N] [--repo a,b] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
+  },
+  'journey': {
+    description: 'Run agentic journey simulations',
+    usage: 'librarian journey [--repos-root <path>] [--max-repos N] [--llm disabled|optional] [--deterministic] [--strict-objective] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
+  },
+  'live-fire': {
+    description: 'Run continuous objective trial matrix',
+    usage: 'librarian live-fire [--profile <name>|--profiles <a,b>] [--matrix] [--profiles-file <path>] [--repos-root <path>] [--rounds N] [--llm-modes disabled,optional] [--strict-objective] [--include-smoke] [--json]',
   },
   'health': {
     description: 'Show current Librarian health status',
@@ -151,7 +180,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'diagnose': {
     description: 'Diagnose Librarian self-knowledge drift',
-    usage: 'librarian diagnose [--pretty]',
+    usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
   },
   'compose': {
     description: 'Compile technique bundles from intent',
@@ -171,7 +200,19 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'doctor': {
     description: 'Run health diagnostics to identify issues',
-    usage: 'librarian doctor [--verbose] [--json]',
+    usage: 'librarian doctor [--verbose] [--json] [--heal] [--install-grammars] [--risk-tolerance safe|low|medium]',
+  },
+  'publish-gate': {
+    description: 'Run strict publish-readiness gate checks',
+    usage: 'librarian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
+  },
+  'ralph': {
+    description: 'Run DETECT->FIX->VERIFY loop and write an audit report',
+    usage: 'librarian ralph [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
+  },
+  'external-repos': {
+    description: 'Sync external repo corpus from manifest.json',
+    usage: 'librarian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
   },
   'help': {
     description: 'Show help information',
@@ -202,9 +243,12 @@ async function main(): Promise<void> {
   }
 
   const command = positionals[0] as Command | undefined;
-  const commandArgs = positionals.slice(1);
-  const workspace = values.workspace as string;
+  let commandArgs = positionals.slice(1);
+  const defaultWorkspace = values.workspace as string;
   const verbose = values.verbose as boolean;
+  if (verbose) {
+    process.env.LIBRARIAN_VERBOSE = '1';
+  }
 
   if (values.help || !command || command === 'help') {
     const helpCommand = command === 'help' ? commandArgs[0] : undefined;
@@ -214,6 +258,24 @@ async function main(): Promise<void> {
 
   // Check for --json flag early for structured error output
   const jsonMode = hasJsonFlag(args);
+  // In JSON mode, stdout is reserved for machine-readable output. Silence logs by default
+  // unless the caller explicitly set a log level.
+  if (jsonMode && !process.env.LIBRARIAN_LOG_LEVEL) {
+    process.env.LIBRARIAN_LOG_LEVEL = 'silent';
+  }
+  const defaultFormat = jsonMode ? 'json' : getFormatArg(args);
+  const diagnoseFormat = jsonMode
+    ? 'json'
+    : (args.includes('--format') ? (getFormatArg(args) as 'text' | 'json') : undefined);
+
+  const resolved = resolveWorkspaceArg({
+    command,
+    commandArgs,
+    rawArgs: args,
+    defaultWorkspace,
+  });
+  const workspace = resolved.workspace;
+  commandArgs = resolved.commandArgs;
 
   if (!(command in COMMANDS)) {
     const envelope = createErrorEnvelope(
@@ -235,7 +297,7 @@ async function main(): Promise<void> {
   try {
     switch (command) {
       case 'status':
-        await statusCommand({ workspace, verbose });
+        await statusCommand({ workspace, verbose, format: defaultFormat as 'text' | 'json' });
         break;
 
       case 'query':
@@ -259,7 +321,7 @@ async function main(): Promise<void> {
         break;
 
       case 'check-providers':
-        await checkProvidersCommand({ workspace });
+        await checkProvidersCommand({ workspace, format: defaultFormat as 'text' | 'json' });
         break;
 
       case 'visualize':
@@ -267,6 +329,18 @@ async function main(): Promise<void> {
         break;
       case 'coverage':
         await coverageCommand({ workspace, args: commandArgs });
+        break;
+      case 'quickstart':
+        await quickstartCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'smoke':
+        await smokeCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'journey':
+        await journeyCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'live-fire':
+        await liveFireCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'health':
         await healthCommand({
@@ -327,10 +401,20 @@ async function main(): Promise<void> {
         });
         break;
       case 'diagnose':
-        await diagnoseCommand({
-          workspace,
-          pretty: args.includes('--pretty'),
-        });
+        {
+          const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
+          const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
+            ? riskToleranceRaw
+            : undefined;
+          await diagnoseCommand({
+            workspace,
+            pretty: args.includes('--pretty'),
+            config: args.includes('--config'),
+            heal: args.includes('--heal'),
+            riskTolerance,
+            format: diagnoseFormat,
+          });
+        }
         break;
       case 'compose':
         await composeCommand({
@@ -372,15 +456,33 @@ async function main(): Promise<void> {
           process.exitCode = 1;
         }
         break;
-      case 'doctor':
-        await doctorCommand({
-          workspace,
-          verbose,
-          json: jsonMode,
-        });
+	      case 'doctor':
+	        {
+	          const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
+	          const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
+	            ? riskToleranceRaw
+	            : undefined;
+	          await doctorCommand({
+	            workspace,
+	            verbose,
+	            json: jsonMode,
+	            heal: args.includes('--heal'),
+	            installGrammars: args.includes('--install-grammars'),
+	            riskTolerance,
+	          });
+	        }
+	        break;
+      case 'publish-gate':
+        await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
-    }
-  } catch (error) {
+	      case 'ralph':
+	        await ralphCommand({ workspace, args: commandArgs, rawArgs: args });
+	        break;
+	      case 'external-repos':
+	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
+	        break;
+	    }
+	  } catch (error) {
     // Convert error to structured envelope for programmatic handling
     const envelope = classifyError(error);
 
@@ -397,13 +499,24 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  // Fatal errors also get structured output if possible
-  const jsonMode = process.argv.includes('--json');
-  const envelope = classifyError(error);
-  outputStructuredError(envelope, jsonMode);
-  process.exitCode = getExitCode(envelope);
-});
+const CLI_NON_EXITING_COMMANDS = new Set(['watch']);
+
+main()
+  .catch((error) => {
+    // Fatal errors also get structured output if possible
+    const jsonMode = process.argv.includes('--json');
+    const envelope = classifyError(error);
+    outputStructuredError(envelope, jsonMode);
+    process.exitCode = getExitCode(envelope);
+  })
+  .finally(() => {
+    const command = process.argv[2]?.toLowerCase() ?? '';
+    const shouldForceExit = !CLI_NON_EXITING_COMMANDS.has(command);
+    if (!shouldForceExit) return;
+    setImmediate(() => {
+      process.exit(process.exitCode ?? 0);
+    });
+  });
 
 // Helper functions for argument parsing
 

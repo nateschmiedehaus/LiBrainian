@@ -1,0 +1,60 @@
+{
+  "tasks": [
+    {
+      "id": "typedriver-agentic-readme-installation",
+      "repo": "typedriver-ts",
+      "complexity": "T3",
+      "description": "In README.md, rename the install section heading to `## Installation` and preserve all other content.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["README.md"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "node -e \"const fs=require('node:fs');const c=fs.readFileSync('README.md','utf8');process.exit(c.includes('## Installation')?0:1)\""
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "node -e \"const fs=require('node:fs');const c=fs.readFileSync('README.md','utf8');process.exit(c.includes('## Installation')?0:1)\""
+        ]
+      },
+      "setup": [
+        "npm install"
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    },
+    {
+      "id": "srtd-agentic-readme-title-case",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "In README.md, update the title phrase to use `Live-reloading` capitalization while keeping the title semantics unchanged.",
+      "contextLevel": 1,
+      "mode": "agent_command",
+      "targetFiles": ["README.md"],
+      "agentExecution": {
+        "commandTemplate": "${AB_HARNESS_AGENT_CMD}"
+      },
+      "verification": {
+        "baseline": [
+          "node -e \"const fs=require('node:fs');const c=fs.readFileSync('README.md','utf8');process.exit(c.includes('Live-reloading')?0:1)\""
+        ],
+        "requireBaselineFailure": true,
+        "tests": [
+          "node -e \"const fs=require('node:fs');const c=fs.readFileSync('README.md','utf8');process.exit(c.includes('Live-reloading')?0:1)\""
+        ]
+      },
+      "setup": [
+        "npm install"
+      ],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      },
+      "requireTargetFileModification": true
+    }
+  ]
+}

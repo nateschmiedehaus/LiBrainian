@@ -14,7 +14,7 @@ import { ConstraintEngine } from '../../engines/constraint_engine.js';
 import { MetaKnowledgeEngine } from '../../engines/meta_engine.js';
 import { cleanupWorkspace } from '../helpers/index.js';
 
-const IS_TIER0 = Boolean(process.env.WVO_FAIL_OPEN_LOG_DIR);
+const IS_TIER0 = Boolean(process.env.LIBRARIAN_FAIL_OPEN_LOG_DIR);
 const agenticSuite = IS_TIER0 ? describe.skip : describe.sequential;
 
 let workspaceRoot: string;
@@ -218,7 +218,7 @@ agenticSuite('Librarian Agentic Engine Feedback', () => {
 });
 
 function resolveTestEmbeddingDimension(): number {
-  const raw = Number.parseInt(process.env.WVO_TEST_EMBED_DIMENSION ?? '', 10);
+  const raw = Number.parseInt(process.env.LIBRARIAN_TEST_EMBED_DIMENSION ?? '', 10);
   // Default to 64 dimensions - matches EmbeddingService default and Claude can reliably generate this count
   return Number.isFinite(raw) && raw > 0 ? raw : 64;
 }

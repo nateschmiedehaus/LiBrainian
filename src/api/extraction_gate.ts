@@ -8,6 +8,7 @@ import { createSessionId } from '../epistemics/evidence_ledger.js';
 export interface ExtractionGateOptions {
   workspaceRoot?: string;
   gatesPath?: string;
+  discloseMissingMetadata?: boolean;
   ledger?: IEvidenceLedger;
   sessionId?: SessionId;
 }
@@ -49,6 +50,7 @@ const EXTRACTION_METADATA_UNAVAILABLE =
 export async function checkExtractionSnapshot(options: ExtractionGateOptions = {}): Promise<ExtractionGateSnapshot> {
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
   const startedAt = Date.now();
+  const discloseMissingMetadata = options.discloseMissingMetadata ?? true;
   const gatesPath = options.gatesPath ?? await resolveGatesPath(workspaceRoot);
   const snapshot: ExtractionGateSnapshot = {
     workspaceRoot,
@@ -61,7 +63,9 @@ export async function checkExtractionSnapshot(options: ExtractionGateOptions = {
   };
 
   if (!gatesPath) {
-    snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    if (discloseMissingMetadata) {
+      snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    }
     await appendExtractionGateEvidence(snapshot, startedAt, options);
     return snapshot;
   }
@@ -70,21 +74,27 @@ export async function checkExtractionSnapshot(options: ExtractionGateOptions = {
   try {
     raw = await fs.readFile(gatesPath, 'utf8');
   } catch {
-    snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    if (discloseMissingMetadata) {
+      snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    }
     await appendExtractionGateEvidence(snapshot, startedAt, options);
     return snapshot;
   }
 
   const parsed = safeJsonParse<Record<string, unknown>>(raw);
   if (!parsed.ok || !parsed.value || typeof parsed.value !== 'object') {
-    snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    if (discloseMissingMetadata) {
+      snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    }
     await appendExtractionGateEvidence(snapshot, startedAt, options);
     return snapshot;
   }
 
   const tasksRaw = (parsed.value as { tasks?: Record<string, unknown> }).tasks;
   if (!tasksRaw || typeof tasksRaw !== 'object') {
-    snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    if (discloseMissingMetadata) {
+      snapshot.disclosures.push(EXTRACTION_METADATA_UNAVAILABLE);
+    }
     await appendExtractionGateEvidence(snapshot, startedAt, options);
     return snapshot;
   }

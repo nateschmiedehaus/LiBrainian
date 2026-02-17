@@ -7,6 +7,7 @@ import { getIndexState } from '../../../state/index_state.js';
 import { checkAllProviders } from '../../../api/provider_check.js';
 import { getWatchState } from '../../../state/watch_state.js';
 import { printKeyValue } from '../../progress.js';
+import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
 import type { LibrarianStorage } from '../../../storage/types.js';
 
 vi.mock('../../db_path.js', () => ({
@@ -27,6 +28,9 @@ vi.mock('../../../api/provider_check.js', () => ({
 }));
 vi.mock('../../../state/watch_state.js', () => ({
   getWatchState: vi.fn(),
+}));
+vi.mock('../../../utils/workspace_resolver.js', () => ({
+  resolveWorkspaceRoot: vi.fn(),
 }));
 vi.mock('../../progress.js', async () => {
   const actual = await vi.importActual('../../progress.js');
@@ -75,6 +79,13 @@ describe('statusCommand', () => {
     };
 
     vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: workspace,
+      workspace,
+      changed: false,
+      sourceFileCount: 0,
+      reason: 'no_candidate',
+    });
     vi.mocked(createSqliteStorage).mockReturnValue(mockStorage as unknown as LibrarianStorage);
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: false, reason: 'ok' });
     vi.mocked(getBootstrapStatus).mockReturnValue({
@@ -140,5 +151,60 @@ describe('statusCommand', () => {
     const calls = vi.mocked(printKeyValue).mock.calls;
     const watchCall = calls.find((call) => call[0].some((entry) => entry.key === 'Watch Status'));
     expect(watchCall).toBeTruthy();
+  });
+
+  it('emits JSON when format is json', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    expect(typeof output).toBe('string');
+    const parsed = JSON.parse(output ?? '{}') as { workspace?: string; storage?: { status?: string } };
+    expect(parsed.workspace).toBe(workspace);
+    expect(parsed.storage?.status).toBe('ready');
+  });
+
+  it('handles serialized metadata timestamps from storage', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.getMetadata.mockResolvedValue({
+      version: { major: 1, minor: 2, patch: 3, string: '1.2.3' },
+      qualityTier: 'full',
+      lastBootstrap: '2026-01-19T02:00:00.000Z',
+      lastIndexing: '2026-01-19T03:00:00.000Z',
+      totalFiles: 12,
+      workspace,
+      totalFunctions: 0,
+      totalContextPacks: 0,
+    });
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as { metadata?: { lastBootstrap?: string | null; lastIndexing?: string | null } };
+    expect(parsed.metadata?.lastBootstrap).toBe('2026-01-19T02:00:00.000Z');
+    expect(parsed.metadata?.lastIndexing).toBe('2026-01-19T03:00:00.000Z');
+  });
+
+  it('uses resolved workspace when auto-detect changes', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: workspace,
+      workspace: '/resolved/workspace',
+      changed: true,
+      reason: 'marker:.git',
+      confidence: 0.9,
+      marker: '.git',
+      sourceFileCount: 0,
+      candidateFileCount: 12,
+    });
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    expect(resolveDbPath).toHaveBeenCalledWith('/resolved/workspace');
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as { workspace?: string; workspaceOriginal?: string };
+    expect(parsed.workspace).toBe('/resolved/workspace');
+    expect(parsed.workspaceOriginal).toBe(workspace);
   });
 });

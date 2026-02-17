@@ -108,6 +108,34 @@ export {
 } from './ground_truth_generator.js';
 
 export {
+  type RepoMetaInput,
+  type StructuralGroundTruthExport,
+  exportStructuralGroundTruth,
+} from './ground_truth_export.js';
+
+export {
+  type AbTaskComplexity,
+  type AbWorkerType,
+  type ContextLevel,
+  type AbFileEdit,
+  type AbVerification,
+  type AbTaskDefinition,
+  type AbCommandResult,
+  type AbVerificationPhaseResult,
+  type AbVerificationResult,
+  type AbTaskRunResult,
+  type AbTaskRunOptions,
+  type AbHarnessOptions,
+  type AbGroupStats,
+  type AbLiftSummary,
+  type AbExperimentReport,
+  computeAbLiftSummary,
+  runAbTask,
+  runAbExperiment,
+  loadAbTasks,
+} from './ab_harness.js';
+
+export {
   // Types
   type Citation,
   type VerificationReason,

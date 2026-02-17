@@ -5,6 +5,13 @@ import path from 'node:path';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import type { LlmChatOptions, LlmProviderHealth, LlmServiceFactory } from './llm_service.js';
 import { resolveCodexCliOptions } from './codex_cli.js';
+import {
+  classifyProviderFailure,
+  getActiveProviderFailures,
+  recordProviderFailure,
+  recordProviderSuccess,
+  resolveProviderWorkspaceRoot,
+} from '../utils/provider_failures.js';
 
 type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: number) => void; recordRetry?: () => void };
 
@@ -92,6 +99,15 @@ function coerceGovernorContext(value: unknown): GovernorContextLike | null {
     : null;
 }
 
+function resolveForcedProvider(): CliProvider | null {
+  const raw =
+    process.env.LIBRARIAN_LLM_PROVIDER
+    ?? process.env.WAVE0_LLM_PROVIDER
+    ?? process.env.LLM_PROVIDER;
+  if (raw === 'claude' || raw === 'codex') return raw;
+  return null;
+}
+
 function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
   return {
     provider,
@@ -102,11 +118,12 @@ function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
 }
 
 export class CliLlmService {
-  private claudeTimeoutMs = coerceTimeout(process.env.CLAUDE_TIMEOUT_MS, 0);
+  private claudeTimeoutMs = coerceTimeout(process.env.CLAUDE_TIMEOUT_MS, 180000);
   private codexTimeoutMs = coerceTimeout(process.env.CODEX_TIMEOUT_MS, 0);
   private claudeHealthCheckTimeoutMs = coerceTimeout(process.env.CLAUDE_HEALTH_CHECK_TIMEOUT_MS, 60000);
   private codexHealthCheckTimeoutMs = coerceTimeout(process.env.CODEX_HEALTH_CHECK_TIMEOUT_MS, 20000);
   private healthCheckIntervalMs = coerceTimeout(process.env.LLM_HEALTH_CHECK_INTERVAL_MS, 60000);
+  private providerWorkspaceRoot = resolveProviderWorkspaceRoot();
 
   private health: HealthState = {
     claude: buildInitialHealth('claude'),
@@ -114,7 +131,7 @@ export class CliLlmService {
   };
 
   async chat(options: LlmChatOptions): Promise<ChatResult> {
-    const provider: CliProvider = options.provider === 'codex' ? 'codex' : 'claude';
+    const provider: CliProvider = resolveForcedProvider() ?? (options.provider === 'codex' ? 'codex' : 'claude');
     if (provider === 'codex') {
       return this.callCodex(options);
     }
@@ -264,6 +281,7 @@ export class CliLlmService {
   }
 
   private async callClaude(options: LlmChatOptions): Promise<ChatResult> {
+    await this.assertProviderAvailable('claude');
     const fullPrompt = buildFullPrompt(options.messages);
     const systemPrompt = extractSystemPrompt(options.messages);
     const governor = coerceGovernorContext(options.governorContext);
@@ -291,17 +309,20 @@ export class CliLlmService {
       if (result.exitCode !== 0) {
         const errorMsg = String(result.stderr || result.stdout || 'Claude CLI error');
         logWarning('CLI LLM: Claude call failed', { error: errorMsg });
+        await this.recordFailure('claude', errorMsg);
         throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
       }
       const content = String(result.stdout ?? '');
       if (governor) {
         governor.recordTokens(estimateTokenCount(content));
       }
+      await this.recordSuccess('claude');
       return { provider: 'claude', content };
     });
   }
 
   private async callCodex(options: LlmChatOptions): Promise<ChatResult> {
+    await this.assertProviderAvailable('codex');
     const fullPrompt = buildFullPrompt(options.messages);
     const governor = coerceGovernorContext(options.governorContext);
     if (governor) {
@@ -350,6 +371,7 @@ export class CliLlmService {
         if (result.exitCode !== 0) {
           const errorMsg = String(result.stderr || result.stdout || 'Codex CLI error');
           logWarning('CLI LLM: Codex call failed', { error: errorMsg });
+          await this.recordFailure('codex', errorMsg);
           throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
         }
 
@@ -366,6 +388,7 @@ export class CliLlmService {
           governor.recordTokens(estimateTokenCount(content));
         }
 
+        await this.recordSuccess('codex');
         return { provider: 'codex', content };
       } finally {
         if (tempDir) {
@@ -373,6 +396,43 @@ export class CliLlmService {
         }
       }
     });
+  }
+
+  private async recordFailure(provider: CliProvider, message: string): Promise<void> {
+    try {
+      const classification = classifyProviderFailure(message);
+      await recordProviderFailure(this.providerWorkspaceRoot, {
+        provider,
+        reason: classification.reason,
+        message,
+        ttlMs: classification.ttlMs,
+        at: new Date().toISOString(),
+      });
+    } catch {
+      // Provider failures should not block LLM calls.
+    }
+  }
+
+  private async recordSuccess(provider: CliProvider): Promise<void> {
+    try {
+      await recordProviderSuccess(this.providerWorkspaceRoot, provider);
+    } catch {
+      // Ignore persistence failures.
+    }
+  }
+
+  private async assertProviderAvailable(provider: CliProvider): Promise<void> {
+    try {
+      const failures = await getActiveProviderFailures(this.providerWorkspaceRoot);
+      const failure = failures[provider];
+      if (failure) {
+        throw new Error(`unverified_by_trace(provider_unavailable): recent ${failure.reason}: ${failure.message}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('provider_unavailable')) {
+        throw error;
+      }
+    }
   }
 }
 

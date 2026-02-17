@@ -1,0 +1,44 @@
+{
+  "schema": "LiveFireProfiles.v1",
+  "profiles": {
+    "baseline": {
+      "rounds": 1,
+      "maxRepos": 3,
+      "llmModes": ["disabled"],
+      "deterministic": true,
+      "strictObjective": true,
+      "includeSmoke": true,
+      "minJourneyPassRate": 1,
+      "minRetrievedContextRate": 0.95,
+      "maxBlockingValidationRate": 0,
+      "journeyTimeoutMs": 180000,
+      "smokeTimeoutMs": 180000
+    },
+    "hardcore": {
+      "rounds": 2,
+      "maxRepos": 6,
+      "llmModes": ["disabled", "optional"],
+      "deterministic": true,
+      "strictObjective": true,
+      "includeSmoke": true,
+      "minJourneyPassRate": 1,
+      "minRetrievedContextRate": 0.98,
+      "maxBlockingValidationRate": 0,
+      "journeyTimeoutMs": 180000,
+      "smokeTimeoutMs": 180000
+    },
+    "soak": {
+      "rounds": 4,
+      "maxRepos": 10,
+      "llmModes": ["disabled", "optional"],
+      "deterministic": true,
+      "strictObjective": true,
+      "includeSmoke": true,
+      "minJourneyPassRate": 1,
+      "minRetrievedContextRate": 0.98,
+      "maxBlockingValidationRate": 0,
+      "journeyTimeoutMs": 240000,
+      "smokeTimeoutMs": 180000
+    }
+  }
+}

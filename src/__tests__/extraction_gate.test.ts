@@ -31,6 +31,15 @@ describe('checkExtractionSnapshot', () => {
     });
   });
 
+  it('can suppress missing-metadata disclosure for external repos', async () => {
+    await withTempWorkspace(async (workspaceRoot) => {
+      const snapshot = await checkExtractionSnapshot({ workspaceRoot, discloseMissingMetadata: false });
+      expect(snapshot.gatesPath).toBeNull();
+      expect(snapshot.boundaryReady).toBe(false);
+      expect(snapshot.disclosures).toEqual([]);
+    });
+  });
+
   it('reports boundary readiness and repo extraction status', async () => {
     await withTempWorkspace(async (workspaceRoot) => {
       await writeGateFile(workspaceRoot, {

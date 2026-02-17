@@ -10,6 +10,7 @@ import { removeControlChars } from '../security/sanitization.js';
 import type { LibrarianStorage, MultiVectorRecord } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
 import { computeChecksum16 } from '../utils/checksums.js';
+import { getLanguageFromPath } from '../utils/language.js';
 import type {
   IndexingAgent,
   FileIndexResult,
@@ -31,7 +32,6 @@ import { EmbeddingService, type EmbeddingRequest, type EmbeddingProvider } from 
 import { GovernorContext, estimateTokenCount } from '../api/governor_context.js';
 import { writeGovernorBudgetReport, type GovernorBudgetOutcome } from '../api/governors.js';
 import { minimizeSnippet } from '../api/redaction.js';
-import { ProviderUnavailableError } from '../api/provider_check.js';
 import { generateMultiVector, serializeMultiVector } from '../api/embedding_providers/multi_vector_representations.js';
 import { AstIndexer, type LlmProvider, type ResolvedCallEdge } from './ast_indexer.js';
 import { computeCallEdgeConfidence, computeImportEdgeConfidence } from './edge_confidence.js';
@@ -199,7 +199,7 @@ export class IndexLibrarian implements IndexingAgent {
     if (isTestMode() && config.computeGraphMetrics === undefined) {
       this.config.computeGraphMetrics = false;
     }
-    // AST indexer with LLM is REQUIRED - no bypass allowed
+    // AST indexing is required for Librarian. LLM usage is optional.
     const useAstIndexer = this.config.useAstIndexer ?? true;
     if (!useAstIndexer) {
       throw new Error('unverified_by_trace(indexer_mode_invalid): AST indexing is required for librarian');
@@ -222,24 +222,13 @@ export class IndexLibrarian implements IndexingAgent {
       await storage.initialize();
     }
     if (this.useAstIndexer && !this.astIndexer) {
-      const candidateProvider = this.config.llmProvider ?? this.config.embeddingProvider;
-      const llmProvider =
-        candidateProvider === 'claude' || candidateProvider === 'codex'
-          ? candidateProvider
-          : undefined;
-      const llmModelId = this.config.llmModelId ?? this.config.embeddingModelId;
-      if (!llmProvider || !llmModelId) {
-        // LLM provider is REQUIRED - no bypass allowed
-        throw new ProviderUnavailableError({
-          message: 'unverified_by_trace(provider_unavailable): Librarian AST indexing requires a live LLM provider. There is no non-agentic mode.',
-          missing: ['llm_provider_config_missing'],
-          suggestion: 'Configure librarian LLM provider/model or authenticate via CLI. LLM providers are mandatory.',
-        });
-      }
+      const llmProvider = this.config.llmProvider;
+      const llmModelId = this.config.llmModelId;
+      const llmConfigured = Boolean(llmProvider && llmModelId);
       this.astIndexer = new AstIndexer({
-        llmProvider,
-        llmModelId,
-        enableAnalysis: this.config.enableLlmAnalysis ?? false,
+        llmProvider: llmConfigured ? llmProvider : undefined,
+        llmModelId: llmConfigured ? llmModelId : undefined,
+        enableAnalysis: llmConfigured && (this.config.enableLlmAnalysis ?? false),
         enableEmbeddings: false,
         storage,
         workspaceRoot: this.config.workspaceRoot ?? this.config.governorReportWorkspace,
@@ -427,10 +416,9 @@ export class IndexLibrarian implements IndexingAgent {
         // Non-blocking: just track for debugging
         void globalEventBus.emit({
           type: 'index:external_edges_resolved',
-          resolved,
-          total,
-          percentage: pct,
-        } as unknown as Parameters<typeof globalEventBus.emit>[0]);
+          timestamp: new Date(),
+          data: { resolved, total, percentage: pct },
+        });
       }
     } catch (error: unknown) {
       const message = getErrorMessage(error);
@@ -609,7 +597,7 @@ export class IndexLibrarian implements IndexingAgent {
       module = this.extractModule(filePath, content, functions);
     }
     if (partiallyIndexed) {
-      errors.push('File partially indexed due to governor budget limits.');
+      errors.push('File partially indexed (optional enrichment skipped).');
     }
 
     const functionsToIndex = this
@@ -684,8 +672,8 @@ export class IndexLibrarian implements IndexingAgent {
         entityType: 'function';
       };
     }> = [];
-    if (embeddingTargets.length > 0 && this.embeddingService) {
-      try {
+	    if (embeddingTargets.length > 0 && this.embeddingService) {
+	      try {
         const requests = embeddingTargets.map((target) => target.request);
         const embeddings = await this.embeddingService.generateEmbeddings(requests, {
           governorContext: this.governor ?? undefined,
@@ -712,14 +700,15 @@ export class IndexLibrarian implements IndexingAgent {
             },
           });
         }
-      } catch (error: unknown) {
-        const message = getErrorMessage(error);
-        if (message.includes('unverified_by_trace')) {
-          throw new Error(`${message} (embedding generation for ${filePath})`);
-        }
-        throw error;
-      }
-    }
+	      } catch (error: unknown) {
+	        const message = getErrorMessage(error);
+	        if (message.includes('unverified_by_trace(budget_exhausted)')) {
+	          throw error;
+	        }
+	        errors.push(`Embedding generation failed; continuing without embeddings: ${message}`);
+	        this.disableEmbeddingsForRun(message);
+	      }
+	    }
 
     let moduleWrite: { module: ModuleKnowledge; existed: boolean } | null = null;
     let moduleEmbedding: {
@@ -753,8 +742,8 @@ export class IndexLibrarian implements IndexingAgent {
         errors.push(`Failed to index module metadata: ${message}`);
       }
 
-      if (moduleWrite && allowEmbeddings && this.embeddingService) {
-        try {
+	      if (moduleWrite && allowEmbeddings && this.embeddingService) {
+	        try {
           const needsEmbedding = await this.shouldGenerateModuleEmbedding(existingModule, module);
           if (needsEmbedding) {
             const embeddingText = buildModuleEmbeddingInput(module, functionsToIndex, content);
@@ -777,16 +766,19 @@ export class IndexLibrarian implements IndexingAgent {
               },
             };
           }
-          multiVectorRecord = await this.buildMultiVectorRecord(module, content, needsEmbedding);
-        } catch (error: unknown) {
-          const message = getErrorMessage(error);
-          if (message.includes('unverified_by_trace')) {
-            throw new Error(`${message} (module embedding for ${filePath})`);
-          }
-          errors.push(`Failed to generate module embeddings: ${message}`);
-        }
-      }
-    }
+	          multiVectorRecord = await this.buildMultiVectorRecord(module, content, needsEmbedding);
+	        } catch (error: unknown) {
+	          const message = getErrorMessage(error);
+	          if (message.includes('unverified_by_trace(budget_exhausted)')) {
+	            throw error;
+	          }
+	          errors.push(`Module embedding generation failed; continuing without embeddings: ${message}`);
+	          if (message.includes('unverified_by_trace(provider_unavailable)') || message.includes('unverified_by_trace(provider_invalid_output)')) {
+	            this.disableEmbeddingsForRun(message);
+	          }
+	        }
+	      }
+	    }
 
     const indexedFunctionIds = new Set(functionWrites.map(({ fn }) => fn.id));
     const graphEdges = this.buildGraphEdges(
@@ -1320,26 +1312,42 @@ export class IndexLibrarian implements IndexingAgent {
   }
 
   private shouldProcessFile(filePath: string): boolean {
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalizedAbsolute = filePath.replace(/\\/g, '/');
+    let normalizedRelative: string | null = null;
+    if (this.config.workspaceRoot) {
+      const relativePath = path.relative(this.config.workspaceRoot, filePath).replace(/\\/g, '/');
+      if (relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+        normalizedRelative = relativePath;
+      }
+    }
+    const candidatePaths = normalizedRelative ? [normalizedRelative, normalizedAbsolute] : [normalizedAbsolute];
 
     for (const pattern of this.config.excludePatterns) {
-      if (pattern.test(normalized)) {
+      if (candidatePaths.some((value) => pattern.test(value))) {
         return false;
       }
     }
 
-    if (isExcluded(normalized)) {
+    const exclusionCandidate = normalizedRelative ?? normalizedAbsolute;
+    if (isExcluded(exclusionCandidate)) {
       return false;
     }
 
     if (this.config.extensions.length > 0) {
-      const ext = path.extname(normalized).toLowerCase();
+      const ext = path.extname(normalizedAbsolute).toLowerCase();
       if (!this.config.extensions.includes(ext)) {
         return false;
       }
     }
 
     return true;
+  }
+
+  private disableEmbeddingsForRun(reason: string): void {
+    if (!this.config.generateEmbeddings) return;
+    this.config.generateEmbeddings = false;
+    this.embeddingService = null;
+    logWarning('[index_librarian] Embeddings disabled for remainder of run', { reason });
   }
 
   private isBinarySuspiciousByte(byte: number): boolean {
@@ -1433,19 +1441,7 @@ export class IndexLibrarian implements IndexingAgent {
   }
 
   private getLanguage(filePath: string): string {
-    const ext = path.extname(filePath);
-    switch (ext) {
-      case '.ts':
-      case '.tsx':
-        return 'typescript';
-      case '.js':
-      case '.jsx':
-      case '.mjs':
-      case '.cjs':
-        return 'javascript';
-      default:
-        return 'plaintext';
-    }
+    return getLanguageFromPath(filePath, 'plaintext');
   }
 
   private async shouldGenerateEmbedding(

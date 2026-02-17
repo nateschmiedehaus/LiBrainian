@@ -324,29 +324,18 @@ index abc123..0000000
 
   describe('Integration with Storage', () => {
     let storage: LibrarianStorage;
-    let dbPath: string;
     const testDir = join(tmpdir(), 'diff-indexer-test-' + Date.now());
 
     beforeEach(async () => {
       if (!existsSync(testDir)) {
         mkdirSync(testDir, { recursive: true });
       }
-      dbPath = join(testDir, `test-${Date.now()}.db`);
-      storage = createSqliteStorage(dbPath, testDir);
+      storage = createSqliteStorage(':memory:', testDir);
       await storage.initialize();
     });
 
     afterEach(async () => {
       await storage.close();
-      if (existsSync(dbPath)) {
-        try {
-          unlinkSync(dbPath);
-          unlinkSync(dbPath + '-wal');
-          unlinkSync(dbPath + '-shm');
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
     });
 
     it('should store and retrieve diff records', async () => {

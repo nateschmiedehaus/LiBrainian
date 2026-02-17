@@ -62,8 +62,8 @@ import {
 // TEST UTILITIES
 // ============================================================================
 
-const IS_TIER0 = process.env.WVO_TIER0 === '1';
-const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && process.env.WVO_TIER0 !== '1');
+const IS_TIER0 = process.env.LIBRARIAN_TIER0 === '1';
+const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && process.env.LIBRARIAN_TIER0 !== '1');
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../../..');
 const LIBRARIAN_ROOT = path.resolve(import.meta.dirname, '..');
 const SRC_ROOT = path.resolve(REPO_ROOT, 'src');

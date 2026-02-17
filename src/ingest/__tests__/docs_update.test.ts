@@ -324,7 +324,7 @@ Section content.
       });
 
       const content = await fs.readFile(agentsPath, 'utf-8');
-      expect(content).toContain("import { getLibrarian } from 'librarian'");
+      expect(content).toContain("import { getLibrarian } from 'librainian'");
       expect(content).toContain('const librarian = await getLibrarian(workspaceRoot)');
       expect(content).toContain('librarian.query');
     });
@@ -340,7 +340,7 @@ Section content.
       });
 
       const content = await fs.readFile(agentsPath, 'utf-8');
-      expect(content).toContain('npx librarian reindex --force');
+      expect(content).toContain('npx librainian reindex --force');
       expect(content).toContain('When to Re-index');
     });
 

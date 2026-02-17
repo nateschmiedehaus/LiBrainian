@@ -172,22 +172,23 @@ export function createSecurityIngestionSource(options: SecurityIngestionOptions 
           errors.push(`Failed to read ${filePath}: ${getErrorMessage(error)}`);
           continue;
         }
-        try {
-          const parsed = parseTsconfig(content);
-          const options = parsed.options;
-          tsconfigs.push({
-            path: path.relative(ctx.workspace, filePath),
-            strict: parsed.strict,
-            noImplicitAny: typeof options.noImplicitAny === 'boolean' ? options.noImplicitAny : undefined,
-            strictNullChecks: typeof options.strictNullChecks === 'boolean' ? options.strictNullChecks : undefined,
-            noImplicitReturns: typeof options.noImplicitReturns === 'boolean' ? options.noImplicitReturns : undefined,
-            exactOptionalPropertyTypes: typeof options.exactOptionalPropertyTypes === 'boolean' ? options.exactOptionalPropertyTypes : undefined,
-            useUnknownInCatchVariables: typeof options.useUnknownInCatchVariables === 'boolean' ? options.useUnknownInCatchVariables : undefined,
-          });
-        } catch (error: unknown) {
-          errors.push(`Failed to parse ${filePath}: ${getErrorMessage(error)}`);
-        }
-      }
+	        try {
+	          const parsed = parseTsconfig(content);
+	          const options = parsed.options;
+	          const summary: TsconfigSecuritySummary = {
+	            path: path.relative(ctx.workspace, filePath),
+	            strict: parsed.strict,
+	          };
+	          if (typeof options.noImplicitAny === 'boolean') summary.noImplicitAny = options.noImplicitAny;
+	          if (typeof options.strictNullChecks === 'boolean') summary.strictNullChecks = options.strictNullChecks;
+	          if (typeof options.noImplicitReturns === 'boolean') summary.noImplicitReturns = options.noImplicitReturns;
+	          if (typeof options.exactOptionalPropertyTypes === 'boolean') summary.exactOptionalPropertyTypes = options.exactOptionalPropertyTypes;
+	          if (typeof options.useUnknownInCatchVariables === 'boolean') summary.useUnknownInCatchVariables = options.useUnknownInCatchVariables;
+	          tsconfigs.push(summary);
+	        } catch (error: unknown) {
+	          errors.push(`Failed to parse ${filePath}: ${getErrorMessage(error)}`);
+	        }
+	      }
 
       let codeql: CodeqlScan | null = null;
       let joern: JoernScan | null = null;

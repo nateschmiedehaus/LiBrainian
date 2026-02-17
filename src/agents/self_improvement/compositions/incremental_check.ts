@@ -310,6 +310,18 @@ export async function incrementalSelfCheck(
     throw new Error('storage is required for incrementalSelfCheck');
   }
 
+  // Ensure storage is usable even if no changes are detected.
+  // This prevents false "healthy" results when the underlying storage is broken.
+  try {
+    if (!storage.isInitialized()) {
+      await storage.initialize();
+    }
+    // Smoke check: avoid loading the full corpus (limit to 1 when supported).
+    await storage.getFunctions({ limit: 1 });
+  } catch (error) {
+    errors.push(`Storage check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // Default to checking since HEAD~1 if no reference provided
   const effectiveSinceCommit = sinceCommit ?? (sinceDays ? undefined : 'HEAD~1');
   const effectiveSinceDays = sinceDays ?? (sinceCommit ? undefined : undefined);
@@ -362,7 +374,7 @@ export async function incrementalSelfCheck(
       newIssues: [],
       resolvedIssues: [],
       healthDelta: 0,
-      status: 'healthy',
+      status: errors.length > 0 ? 'degraded' : 'healthy',
       duration: Date.now() - startTime,
       errors,
       timestamp,

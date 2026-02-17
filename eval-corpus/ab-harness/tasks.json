@@ -1,0 +1,51 @@
+{
+  "tasks": [
+    {
+      "id": "typedriver-readme-install-heading",
+      "repo": "typedriver-ts",
+      "complexity": "T3",
+      "description": "Update the README install heading to read Installation.",
+      "contextLevel": 1,
+      "targetFiles": ["README.md"],
+      "edits": [
+        {
+          "file": "README.md",
+          "search": "## Install",
+          "replace": "## Installation"
+        }
+      ],
+      "verification": {
+        "tests": ["npm run test"],
+        "typecheck": ["npm run build"],
+        "build": ["npm run build"]
+      },
+      "contextByLevel": {
+        "L1": ["package.json"]
+      }
+    },
+    {
+      "id": "srtd-readme-title-case",
+      "repo": "srtd-ts",
+      "complexity": "T4",
+      "description": "Adjust the README title capitalization for consistency.",
+      "contextLevel": 1,
+      "targetFiles": ["README.md"],
+      "edits": [
+        {
+          "file": "README.md",
+          "search": "# `srtd` — Live-Reloading, declarative, SQL migration templates for Supabase and Postgres",
+          "replace": "# `srtd` — Live-reloading, declarative, SQL migration templates for Supabase and Postgres"
+        }
+      ],
+      "verification": {
+        "tests": ["npm test"],
+        "typecheck": ["npm run typecheck"],
+        "build": ["npm run build"]
+      },
+      "setup": ["npm install"],
+      "contextByLevel": {
+        "L1": ["package.json"]
+      }
+    }
+  ]
+}

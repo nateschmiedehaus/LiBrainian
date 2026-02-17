@@ -65,6 +65,16 @@ export interface ExtractedPurpose {
   extractedAt: number;
   /** Content hash for cache validation */
   contentHash: string;
+  /** Origin of the purpose extraction */
+  source: 'llm' | 'heuristic';
+  /** Disclosures for degraded or invalid outputs */
+  disclosures?: string[];
+  /** Provider used for LLM extraction (when source = llm) */
+  provider?: 'claude' | 'codex';
+  /** Model id used for LLM extraction (when source = llm) */
+  modelId?: string;
+  /** Prompt digest for provenance (when source = llm) */
+  promptDigest?: string;
 }
 
 export interface ExtractionOptions {
@@ -174,6 +184,10 @@ export function computeContentHash(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
 }
 
+function computePromptDigest(prompt: string): string {
+  return crypto.createHash('sha256').update(prompt).digest('hex');
+}
+
 function estimateTokenCount(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 1;
@@ -209,15 +223,20 @@ export async function extractPurpose(
   const prompt = PURPOSE_EXTRACTION_PROMPT
     .replace('{filePath}', filePath)
     .replace('{content}', truncatedContent);
+  const promptDigest = computePromptDigest(prompt);
 
   // Call LLM
   let rawResponse: string;
   let tokensUsed = { input: 0, output: 0 };
+  let llmProvider: 'claude' | 'codex' | undefined;
+  let llmModelId: string | undefined;
 
   try {
     await requireProviders({ llm: true, embedding: false }, { workspaceRoot: process.cwd() });
     const resolved = await resolvePurposeLlmConfig(model, hasExplicitModel);
     const { provider, modelId } = resolved;
+    llmProvider = provider;
+    llmModelId = modelId;
     resolvedModel = resolved.resolvedModel;
     const llmService = resolveLlmServiceAdapter();
     const response = await llmService.chat({
@@ -237,19 +256,51 @@ export async function extractPurpose(
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`unverified_by_trace(provider_unavailable): ${message}`);
     }
-    rawResponse = heuristicPurposeExtraction(filePath, content);
+    const fallbackUnavailable = buildHeuristicPurpose(
+      filePath,
+      content,
+      { contentHash, model: resolvedModel },
+      { reason: 'provider_unavailable' }
+    );
+    rawResponse = JSON.stringify(fallbackUnavailable);
     tokensUsed = { input: 0, output: 0 };
+    return {
+      purpose: fallbackUnavailable,
+      rawResponse,
+      tokensUsed,
+      latencyMs: Date.now() - startTime,
+    };
   }
 
   // Parse response
-  const purpose = parsePurposeResponse(rawResponse, {
+  const parseResult = parsePurposeResponse(rawResponse, {
     filePath,
     contentHash,
     model: resolvedModel,
+    provider: llmProvider,
+    modelId: llmModelId,
+    promptDigest,
   });
+  if (!parseResult.ok) {
+    if (!allowHeuristics) {
+      throw new Error(`unverified_by_trace(provider_invalid_output): ${parseResult.error}`);
+    }
+    const fallbackInvalid = buildHeuristicPurpose(
+      filePath,
+      content,
+      { contentHash, model: resolvedModel },
+      { reason: 'provider_invalid_output' }
+    );
+    return {
+      purpose: fallbackInvalid,
+      rawResponse,
+      tokensUsed,
+      latencyMs: Date.now() - startTime,
+    };
+  }
 
   return {
-    purpose,
+    purpose: parseResult.value,
     rawResponse,
     tokensUsed,
     latencyMs: Date.now() - startTime,
@@ -259,14 +310,41 @@ export async function extractPurpose(
 /**
  * Parse LLM response into structured purpose.
  */
+function validatePurposePayload(value: unknown): { ok: true } | { ok: false; error: string } {
+  if (!value || typeof value !== 'object') {
+    return { ok: false, error: 'payload_not_object' };
+  }
+  const payload = value as Record<string, unknown>;
+  if (typeof payload.purpose !== 'string' || payload.purpose.trim().length === 0) {
+    return { ok: false, error: 'purpose_missing' };
+  }
+  if (typeof payload.domain !== 'string' || payload.domain.trim().length === 0) {
+    return { ok: false, error: 'domain_missing' };
+  }
+  if (payload.complexity !== 'simple' && payload.complexity !== 'moderate' && payload.complexity !== 'complex') {
+    return { ok: false, error: 'complexity_invalid' };
+  }
+  const listFields = ['responsibilities', 'concepts', 'relatedTo'] as const;
+  for (const field of listFields) {
+    const value = payload[field];
+    if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+      return { ok: false, error: `${field}_invalid` };
+    }
+  }
+  return { ok: true };
+}
+
 function parsePurposeResponse(
   response: string,
   defaults: {
     filePath: string;
     contentHash: string;
     model: PurposeExtractionModel;
+    provider?: 'claude' | 'codex';
+    modelId?: string;
+    promptDigest?: string;
   }
-): ExtractedPurpose {
+): { ok: true; value: ExtractedPurpose } | { ok: false; error: string } {
   try {
     // Extract JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -275,38 +353,52 @@ function parsePurposeResponse(
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
+    const validation = validatePurposePayload(parsed);
+    if (!validation.ok) {
+      throw new Error(validation.error);
+    }
 
     return {
-      purpose: parsed.purpose || 'Purpose extraction failed',
-      responsibilities: parsed.responsibilities || [],
-      domain: parsed.domain || 'unknown',
-      complexity: parsed.complexity || 'moderate',
-      concepts: parsed.concepts || [],
-      relatedTo: parsed.relatedTo || [],
-      model: defaults.model,
-      extractedAt: Date.now(),
-      contentHash: defaults.contentHash,
+      ok: true,
+      value: {
+        purpose: parsed.purpose,
+        responsibilities: parsed.responsibilities,
+        domain: parsed.domain,
+        complexity: parsed.complexity,
+        concepts: parsed.concepts,
+        relatedTo: parsed.relatedTo,
+        model: defaults.model,
+        extractedAt: Date.now(),
+        contentHash: defaults.contentHash,
+        source: 'llm',
+        disclosures: [],
+        provider: defaults.provider,
+        modelId: defaults.modelId,
+        promptDigest: defaults.promptDigest,
+      },
     };
   } catch (error) {
-    // Return default on parse failure
     return {
-      purpose: `Code file: ${defaults.filePath}`,
-      responsibilities: [],
-      domain: inferDomain(defaults.filePath),
-      complexity: 'moderate',
-      concepts: [],
-      relatedTo: [],
-      model: defaults.model,
-      extractedAt: Date.now(),
-      contentHash: defaults.contentHash,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
 /**
- * Heuristic purpose extraction when LLM is unavailable.
+ * Heuristic purpose extraction when LLM is unavailable or invalid.
  */
-function heuristicPurposeExtraction(filePath: string, content: string): string {
+function buildHeuristicPurpose(
+  filePath: string,
+  content: string,
+  defaults: {
+    contentHash: string;
+    model: PurposeExtractionModel;
+  },
+  options: {
+    reason: 'provider_unavailable' | 'provider_invalid_output';
+  }
+): ExtractedPurpose {
   const purpose = [];
   const responsibilities = [];
   const concepts = [];
@@ -345,14 +437,19 @@ function heuristicPurposeExtraction(filePath: string, content: string): string {
 
   const domain = inferDomain(filePath);
 
-  return JSON.stringify({
+  return {
     purpose: purpose[0] || `${domain} module: ${fileName}`,
-    responsibilities: responsibilities,
-    domain: domain,
+    responsibilities,
+    domain,
     complexity: content.length > 2000 ? 'complex' : content.length > 500 ? 'moderate' : 'simple',
-    concepts: concepts,
+    concepts,
     relatedTo: [],
-  });
+    model: defaults.model,
+    extractedAt: Date.now(),
+    contentHash: defaults.contentHash,
+    source: 'heuristic',
+    disclosures: [`unverified_by_trace(${options.reason}): purpose extraction fallback used`],
+  };
 }
 
 /**

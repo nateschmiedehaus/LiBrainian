@@ -37,6 +37,7 @@ import {
   isLibrarianReady,
   resetGate,
 } from '../integration/first_run_gate.js';
+import { createWatchRecoveryGate } from '../integration/watch_recovery.js';
 import {
   enrichTaskContext,
   recordTaskOutcome as recordOutcomeInternal,
@@ -47,6 +48,8 @@ import {
   assessHealth,
   SLO_THRESHOLDS,
 } from '../measurement/observability.js';
+import { deriveWatchHealth } from '../state/watch_health.js';
+import { getWatchState } from '../state/watch_state.js';
 import {
   executeRecovery,
   getRecoveryStatus,
@@ -65,6 +68,7 @@ import {
   type ConstructableId,
   type ProjectType,
 } from '../constructions/auto_selector.js';
+import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
 
 // ============================================================================
 // PUBLIC TYPES
@@ -152,6 +156,12 @@ export interface InitializeOptions {
   skipWatcher?: boolean;
   /** Skip automatic self-healing loop */
   skipHealing?: boolean;
+  /** Reuse an existing in-process session for the same workspace (default: true). */
+  reuseExistingSession?: boolean;
+  /** Force-disable all LLM usage (bootstrap + queries). */
+  skipLlm?: boolean;
+  /** Allow degraded operation when embeddings are unavailable */
+  allowDegradedEmbeddings?: boolean;
   /** Progress callback */
   onProgress?: (phase: string, progress: number, message: string) => void;
   /** Custom include patterns for indexing */
@@ -260,6 +270,12 @@ interface SessionState {
   options: InitializeOptions;
 }
 
+interface WatchRecoveryContext {
+  enabled: boolean;
+  getWatcher: () => FileWatcherHandle | null;
+  setWatcher: (watcher: FileWatcherHandle | null) => void;
+}
+
 const activeSessions = new Map<string, SessionState>();
 
 // ============================================================================
@@ -305,11 +321,21 @@ export async function initializeLibrarian(
   workspace: string,
   options: InitializeOptions = {}
 ): Promise<LibrarianSession> {
-  const resolvedWorkspace = normalizeWorkspacePath(workspace);
+  const normalizedWorkspace = normalizeWorkspacePath(workspace);
+  const resolution = process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT === '1'
+    ? resolveWorkspaceRoot(normalizedWorkspace, { maxDepthUp: 0 })
+    : resolveWorkspaceRoot(normalizedWorkspace);
+  const resolvedWorkspace = resolution.workspace;
 
   // Check for existing session
   const existingSession = activeSessions.get(resolvedWorkspace);
-  if (existingSession) {
+  const reuseExistingSession = options.reuseExistingSession !== false;
+  const requestedSkipLlm = Boolean(options.skipLlm);
+  const existingSkipLlm = Boolean(existingSession?.options.skipLlm);
+  const incompatible = requestedSkipLlm && !existingSkipLlm;
+  const shouldRegisterSession = reuseExistingSession && !existingSession;
+
+  if (existingSession && reuseExistingSession && !incompatible) {
     logInfo('[unified-init] Reusing existing session', { workspace: resolvedWorkspace });
     return createSessionInterface(existingSession);
   }
@@ -318,16 +344,27 @@ export async function initializeLibrarian(
     silent = false,
     skipWatcher = false,
     skipHealing = false,
+    skipLlm = false,
+    reuseExistingSession: _reuseExistingSession,
     onProgress,
     includePatterns,
     excludePatterns,
     bootstrapTimeoutMs = 0,
+    allowDegradedEmbeddings = true,
   } = options;
 
   if (!silent) {
     logInfo('[unified-init] Initializing Librarian', {
       workspace: resolvedWorkspace,
       tier: 'full',
+    });
+  }
+  if (resolution.changed && !silent) {
+    logWarning('[unified-init] Auto-detected workspace root', {
+      original: resolution.original,
+      workspace: resolvedWorkspace,
+      marker: resolution.marker,
+      confidence: resolution.confidence,
     });
   }
 
@@ -337,6 +374,8 @@ export async function initializeLibrarian(
     timeoutMs: bootstrapTimeoutMs,
     includePatterns,
     excludePatterns,
+    allowDegradedEmbeddings,
+    skipLlm,
     onProgress: onProgress ?? (silent ? undefined : defaultProgressHandler),
     onStart: () => {
       if (!silent) {
@@ -425,13 +464,26 @@ export async function initializeLibrarian(
     }
   }
 
+  const sessionState: SessionState = {
+    librarian,
+    workspace: resolvedWorkspace,
+    fileWatcher: null,
+    healingInterval: null,
+    startedAt: new Date(),
+    tier,
+    tierRecommendation,
+    constructableConfig,
+    options,
+  };
+
   // Step 4: Start background file watcher
-  let fileWatcher: FileWatcherHandle | null = null;
   if (!skipWatcher) {
     try {
-      fileWatcher = await startFileWatcher({
+      const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
+      sessionState.fileWatcher = await startFileWatcher({
         workspaceRoot: resolvedWorkspace,
         librarian,
+        storage,
         cascadeReindex: true, // Enable cascade re-indexing
       });
       if (!silent) {
@@ -446,28 +498,23 @@ export async function initializeLibrarian(
   }
 
   // Step 5: Start self-healing loop
-  let healingInterval: NodeJS.Timeout | null = null;
   if (!skipHealing) {
-    healingInterval = startSelfHealingLoop(resolvedWorkspace, librarian, silent);
+    const watchRecovery: WatchRecoveryContext = {
+      enabled: !skipWatcher,
+      getWatcher: () => sessionState.fileWatcher,
+      setWatcher: (watcher) => {
+        sessionState.fileWatcher = watcher;
+      },
+    };
+    sessionState.healingInterval = startSelfHealingLoop(resolvedWorkspace, librarian, silent, watchRecovery);
     if (!silent) {
       logInfo('[unified-init] Self-healing loop started', { workspace: resolvedWorkspace });
     }
   }
 
-  // Create session state
-  const sessionState: SessionState = {
-    librarian,
-    workspace: resolvedWorkspace,
-    fileWatcher,
-    healingInterval,
-    startedAt: new Date(),
-    tier,
-    tierRecommendation,
-    constructableConfig,
-    options,
-  };
-
-  activeSessions.set(resolvedWorkspace, sessionState);
+  if (shouldRegisterSession) {
+    activeSessions.set(resolvedWorkspace, sessionState);
+  }
 
   if (!silent) {
     logInfo('[unified-init] Session ready', {
@@ -676,12 +723,55 @@ const HEALING_INTERVAL_MS = 60_000; // Check every minute
 function startSelfHealingLoop(
   workspace: string,
   librarian: Librarian,
-  silent: boolean
+  silent: boolean,
+  watchRecovery?: WatchRecoveryContext
 ): NodeJS.Timeout {
+  const watchRecoveryGate = createWatchRecoveryGate();
   return setInterval(async () => {
     try {
       const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
       if (!storage) return;
+
+      if (watchRecovery && watchRecovery.enabled) {
+        const watchState = await getWatchState(storage);
+        const watchHealth = deriveWatchHealth(watchState);
+        const decision = watchRecoveryGate.evaluate(watchHealth);
+
+        if (decision.shouldAttempt) {
+          if (!silent) {
+            logWarning('[unified-init] Watcher suspected dead, attempting restart', {
+              workspace,
+            });
+          }
+          try {
+            await stopFileWatcher(workspace);
+          } catch (error) {
+            logWarning('[unified-init] Failed to stop file watcher during recovery', {
+              workspace,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+
+          try {
+            const recoveredWatcher = await startFileWatcher({
+              workspaceRoot: workspace,
+              librarian,
+              storage,
+              cascadeReindex: true,
+            });
+            watchRecovery.setWatcher(recoveredWatcher);
+            if (!silent) {
+              logInfo('[unified-init] File watcher recovered', { workspace });
+            }
+          } catch (error) {
+            watchRecovery.setWatcher(null);
+            logWarning('[unified-init] Watcher recovery failed', {
+              workspace,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
 
       // Generate state report for diagnosis
       const stateReport = await generateStateReport(storage);
@@ -736,6 +826,15 @@ function normalizeWorkspacePath(workspace: string): string {
   return path.resolve(workspace);
 }
 
+function resolveWorkspacePath(workspace: string): string {
+  const normalized = normalizeWorkspacePath(workspace);
+  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT === '1') {
+    return normalized;
+  }
+  const resolution = resolveWorkspaceRoot(normalized);
+  return resolution.changed ? resolution.workspace : normalized;
+}
+
 function defaultProgressHandler(phase: string, progress: number, message: string): void {
   const pct = Math.round(progress * 100);
   process.stderr.write(`\r[librarian] ${phase}: ${pct}% - ${message}`);
@@ -752,14 +851,14 @@ function defaultProgressHandler(phase: string, progress: number, message: string
  * Check if a session is already initialized for a workspace.
  */
 export function hasSession(workspace: string): boolean {
-  return activeSessions.has(normalizeWorkspacePath(workspace));
+  return activeSessions.has(resolveWorkspacePath(workspace));
 }
 
 /**
  * Get an existing session if available.
  */
 export function getSession(workspace: string): LibrarianSession | null {
-  const state = activeSessions.get(normalizeWorkspacePath(workspace));
+  const state = activeSessions.get(resolveWorkspacePath(workspace));
   return state ? createSessionInterface(state) : null;
 }
 

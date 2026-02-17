@@ -228,6 +228,29 @@ describe('query pipeline definition', () => {
     expect(report?.status).toBe('partial');
   });
 
+  it('skips method guidance when query disables it', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const resolveMethodGuidanceFn = vi.fn();
+    const result = await __testing.runMethodGuidanceStage({
+      query: { intent: 'test method guidance', depth: 'L1', disableMethodGuidance: true },
+      storage: {} as LibrarianStorage,
+      governor: new GovernorContext({ phase: 'test' }),
+      stageTracker,
+      recordCoverageGap,
+      synthesisEnabled: true,
+      resolveMethodGuidanceFn,
+      resolveLlmConfig: async () => ({ provider: 'claude', modelId: 'test-model' }),
+    });
+
+    expect(result).toBeNull();
+    expect(resolveMethodGuidanceFn).not.toHaveBeenCalled();
+    const report = stageTracker.report().find((stage) => stage.stage === 'method_guidance');
+    expect(report?.status).toBe('skipped');
+  });
+
   it('records partial status when method guidance throws', async () => {
     const stageTracker = __testing.createStageTracker();
     const coverageGaps: string[] = [];
@@ -308,6 +331,45 @@ describe('query pipeline definition', () => {
     expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('success');
+  });
+
+  it('forces summary synthesis without full LLM call when requested', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const createQuickAnswerFn = vi.fn().mockReturnValue({
+      answer: 'forced-quick',
+      confidence: 0.7,
+      citations: ['pack-1'],
+      keyInsights: ['insight'],
+      uncertainties: [],
+    });
+    const synthesizeQueryAnswerFn = vi.fn().mockResolvedValue({
+      synthesized: true,
+      answer: 'full',
+      confidence: 0.5,
+      citations: ['pack-1'],
+      keyInsights: ['insight'],
+      uncertainties: [],
+    });
+    const result = await __testing.runSynthesisStage({
+      query: { intent: 'explain architecture map', depth: 'L1', forceSummarySynthesis: true },
+      storage: {} as LibrarianStorage,
+      finalPacks: [createPack({})],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+      canAnswerFromSummariesFn: () => false,
+      createQuickAnswerFn,
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result?.answer).toBe('forced-quick');
+    expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
+    expect(synthesizeQueryAnswerFn).not.toHaveBeenCalled();
   });
 
   it('uses full synthesis when summaries are insufficient', async () => {

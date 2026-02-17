@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { runProviderReadinessGate } from '../api/provider_gate.js';
 import type { AuthChecker, AuthStatusSummary } from '../utils/auth_checker.js';
 import * as adapters from '../adapters/llm_service.js';
 import type { LlmServiceAdapter } from '../adapters/llm_service.js';
 import { SqliteEvidenceLedger, createSessionId } from '../epistemics/evidence_ledger.js';
+import { getActiveProviderFailures, recordProviderFailure } from '../utils/provider_failures.js';
 
 function buildAdapter(overrides: Partial<LlmServiceAdapter>): LlmServiceAdapter {
   return {
@@ -437,5 +441,60 @@ describe('runProviderReadinessGate', () => {
 
     expect(first.selectedProvider).toBe('claude');
     expect(second.selectedProvider).toBe('claude');
+  });
+
+  it('treats recent provider failures as unavailable', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-'));
+    try {
+      await recordProviderFailure(workspaceRoot, {
+        provider: 'claude',
+        reason: 'rate_limit',
+        message: 'Rate limit exceeded',
+        ttlMs: 15 * 60 * 1000,
+        at: new Date().toISOString(),
+      });
+      const activeFailures = await getActiveProviderFailures(workspaceRoot);
+      expect(activeFailures.claude).toBeDefined();
+
+      const authChecker = {
+        checkAll: async () => buildAuthStatus({
+          claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+        }),
+        getAuthGuidance: () => [],
+      } as unknown as AuthChecker;
+
+      const llmService = buildAdapter({
+        checkClaudeHealth: async () => ({
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        }),
+        checkCodexHealth: async () => ({
+          provider: 'codex',
+          available: false,
+          authenticated: false,
+          lastCheck: Date.now(),
+        }),
+      });
+
+      const result = await runProviderReadinessGate(workspaceRoot, {
+        authChecker,
+        llmService,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+        }),
+        emitReport: false,
+      });
+
+      const claudeStatus = result.providers.find((provider) => provider.provider === 'claude');
+      expect(claudeStatus?.available).toBe(false);
+      expect(result.llmReady).toBe(false);
+      expect(result.selectedProvider).toBeNull();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
   });
 });

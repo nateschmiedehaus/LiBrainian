@@ -4,6 +4,7 @@ import * as path from 'path';
 import { glob } from 'glob';
 import { createHash } from 'crypto';
 import { getErrorMessage } from '../utils/errors.js';
+import { getCurrentGitSha } from '../utils/git.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
 import type { LibrarianStorage, TransactionContext } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
@@ -64,12 +65,14 @@ import { preloadEmbeddingModel } from './embedding_providers/real_embeddings.js'
 import { generateContextPacks } from './packs.js';
 import { createKnowledgeGenerator } from '../knowledge/generator.js';
 import { requireProviders } from './provider_check.js';
+import { ResourceMonitor } from './resource_monitor.js';
 import { ensureDailyModelSelection } from '../adapters/model_policy.js';
 import { queryLibrarian } from './query.js';
 import { CodebaseCompositionAdvisor } from './codebase_advisor.js';
 import { preloadMethodPacks } from '../methods/method_pack_service.js';
 import { integrateWithBootstrap as selectConstructables, type ManualOverrides } from '../constructions/auto_selector.js';
 import { sanitizePath } from '../security/sanitization.js';
+import { updateWatchState } from '../state/watch_state.js';
 import type { MethodFamilyId } from '../methods/method_guidance.js';
 import {
   extractFileKnowledge,
@@ -94,6 +97,7 @@ import {
   INCLUDE_PATTERNS,
   EXCLUDE_PATTERNS,
   getFileCategory,
+  getParserType,
   shouldGenerateEmbeddings,
 } from '../universal_patterns.js';
 import { buildTemporalGraph } from '../graphs/temporal_graph.js';
@@ -119,6 +123,7 @@ import {
   type ValidationGateContext,
   type ValidationGateResult,
 } from '../preflight/index.js';
+import { createOnboardingBaseline, writeOnboardingBaseline } from './reporting.js';
 import {
   acquireWorkspaceLock,
   cleanupWorkspaceLock,
@@ -1215,17 +1220,34 @@ export async function bootstrapProject(
   config: BootstrapConfig,
   storage: LibrarianStorage
 ): Promise<BootstrapReport> {
-  const { workspace } = config;
+  const configuredWorkspace = path.resolve(config.workspace);
+  let workspace = configuredWorkspace;
+  try {
+    workspace = await fs.realpath(configuredWorkspace);
+  } catch {
+    workspace = configuredWorkspace;
+  }
+  if (workspace !== config.workspace) {
+    config = {
+      ...config,
+      workspace,
+    };
+  }
   const workspaceRoot = path.resolve(workspace);
-  // Skip probe if caller already verified providers (avoids slow/flaky CLI test)
-  const forceProbe = config.skipProviderProbe !== true;
-  await requireProviders({ llm: true, embedding: true }, { workspaceRoot, forceProbe });
-  const defaultProvider = config.llmProvider === 'codex' ? 'codex' : 'claude';
-  await ensureDailyModelSelection(workspaceRoot, {
-    defaultProvider,
-    applyEnv: true,
-    respectExistingEnv: true,
-  });
+  // Providers are optional: Librarian can bootstrap in degraded mode (AST-only / keyword-only)
+  // when embeddings or LLM providers are unavailable.
+  if (!config.skipLlm) {
+    try {
+      const defaultProvider = config.llmProvider === 'codex' ? 'codex' : 'claude';
+      await ensureDailyModelSelection(workspaceRoot, {
+        defaultProvider,
+        applyEnv: true,
+        respectExistingEnv: true,
+      });
+    } catch (error) {
+      logWarning('Bootstrap: model selection skipped (LLM unavailable)', { workspace: workspaceRoot, error: getErrorMessage(error) });
+    }
+  }
   const baseGovernorConfig = await loadGovernorConfig(workspace);
   const normalizeTimeout = (value?: number): number => (value && value > 0 ? value : 0);
   const timeoutMs = normalizeTimeout(config.timeoutMs);
@@ -1284,24 +1306,38 @@ export async function bootstrapProject(
     include: config.include,
     exclude: config.exclude,
   });
-  const storedFingerprint = recovery?.workspace_fingerprint;
-  const fingerprintMatches = storedFingerprint
+  const autoRecover = config.autoRecover !== false;
+  let storedFingerprint = recovery?.workspace_fingerprint;
+  let fingerprintMatches = storedFingerprint
     ? fingerprintsMatch(currentFingerprint, storedFingerprint)
     : false;
   if (recovery && (!storedFingerprint || !fingerprintMatches)) {
     if (!config.forceResume) {
-      const detail = storedFingerprint
-        ? 'Workspace changed since last bootstrap.'
-        : 'Recovery state missing workspace fingerprint.';
-      throw new Error(
-        `unverified_by_trace(bootstrap_recovery_stale): ${detail}\n` +
-        'Please run a fresh bootstrap or use --force-resume to continue anyway.'
-      );
+      if (autoRecover) {
+        logWarning('Bootstrap: recovery checkpoint stale; restarting clean', {
+          workspace,
+          reason: storedFingerprint ? 'workspace_changed' : 'missing_fingerprint',
+        });
+        await clearBootstrapRecoveryState(workspace);
+        recovery = null;
+        storedFingerprint = undefined;
+        fingerprintMatches = false;
+      } else {
+        const detail = storedFingerprint
+          ? 'Workspace changed since last bootstrap.'
+          : 'Recovery state missing workspace fingerprint.';
+        throw new Error(
+          `unverified_by_trace(bootstrap_recovery_stale): ${detail}\n` +
+          'Please run a fresh bootstrap or use --force-resume to continue anyway.'
+        );
+      }
     }
-    logWarning('Bootstrap: workspace fingerprint mismatch; resuming due to forceResume', {
-      workspace,
-      phase: recovery.phase_name,
-    });
+    if (config.forceResume && recovery) {
+      logWarning('Bootstrap: workspace fingerprint mismatch; resuming due to forceResume', {
+        workspace,
+        phase: recovery.phase_name,
+      });
+    }
   }
   const effectiveFingerprint = storedFingerprint && fingerprintMatches
     ? storedFingerprint
@@ -1348,15 +1384,58 @@ export async function bootstrapProject(
     // Initialize storage
     await storage.initialize();
 
-    // Preload embedding model to avoid cold-start latency on first query
-    console.log('[librarian] Preloading embedding model...');
-    const preloadStart = Date.now();
-    try {
-      await preloadEmbeddingModel();
-      console.log(`[librarian] Embedding model preloaded in ${Date.now() - preloadStart}ms`);
-    } catch (error) {
-      // Log but don't fail bootstrap - embeddings will load lazily on first query
-      console.warn('[librarian] Embedding model preload failed (will load lazily):', error);
+    if (!config.skipEmbeddings) {
+      const overrideRaw = process.env.LIBRARIAN_PRELOAD_EMBEDDINGS;
+      const override = overrideRaw?.trim().toLowerCase();
+      const overrideValue = override === undefined
+        ? null
+        : (override === '1' || override === 'true' || override === 'yes' || override === 'on')
+          ? true
+          : (override === '0' || override === 'false' || override === 'no' || override === 'off')
+            ? false
+            : null;
+
+      const isUnitTestMode = (
+        process.env.LIBRARIAN_TEST_MODE === 'unit' ||
+        process.env.NODE_ENV === 'test' ||
+        process.env.VITEST !== undefined ||
+        process.env.JEST_WORKER_ID !== undefined
+      );
+
+      const monitor = new ResourceMonitor();
+      const snapshot = monitor.takeSnapshot();
+      const pressure = monitor.calculatePressure();
+      const availableBytes = Number.isFinite(snapshot.availableMemoryBytes)
+        ? snapshot.availableMemoryBytes
+        : snapshot.freeMemoryBytes;
+      const availableMB = Math.round(availableBytes / (1024 * 1024));
+
+      const shouldPreload = overrideValue === true
+        ? true
+        : overrideValue === false
+          ? false
+          : !isUnitTestMode && (pressure.level === 'nominal' || pressure.level === 'elevated');
+
+      if (!shouldPreload) {
+        const reason = overrideValue === false
+          ? 'env_disabled'
+          : isUnitTestMode
+            ? 'unit_test_mode'
+            : `resource_pressure_${pressure.level}`;
+        logInfo('[librarian] Skipping embedding preload', { reason, pressure: pressure.level, availableMB });
+      } else {
+        // Preload embedding model to avoid cold-start latency on first query.
+        logInfo('[librarian] Preloading embedding model...');
+        const preloadStart = Date.now();
+        try {
+          await preloadEmbeddingModel();
+          logInfo(`[librarian] Embedding model preloaded in ${Date.now() - preloadStart}ms`);
+        } catch (error) {
+          // Log but don't fail bootstrap - embeddings will load lazily on first query.
+          const message = error instanceof Error ? error.message : String(error);
+          logWarning('[librarian] Embedding model preload failed (will load lazily)', { error: message });
+        }
+      }
     }
 
     indexStateWriter = createIndexStateWriter(storage);
@@ -1437,8 +1516,13 @@ export async function bootstrapProject(
       });
     }
 
-    if (config.bootstrapMode === 'full') {
-      await preloadMethodPacksForBootstrap(config, storage, governorConfig, governorRunState);
+    if (config.bootstrapMode === 'full' && !config.skipLlm) {
+      try {
+        await preloadMethodPacksForBootstrap(config, storage, governorConfig, governorRunState);
+      } catch (error) {
+        report.warnings = report.warnings ?? [];
+        report.warnings.push(`Method pack preload skipped: ${getErrorMessage(error)}`);
+      }
     }
 
     // Mark version in storage
@@ -1450,6 +1534,12 @@ export async function bootstrapProject(
     report.warnings = capabilitiesResult.warnings;
     report.statusSummary = capabilitiesResult.statusSummary;
     report.nextSteps = capabilitiesResult.nextSteps;
+    if (config.skipEmbeddings) {
+      report.warnings = report.warnings ?? [];
+      report.warnings.push('Embeddings skipped by configuration; semantic search disabled for this bootstrap.');
+      report.nextSteps = report.nextSteps ?? [];
+      report.nextSteps.unshift('Enable embeddings and re-run bootstrap for semantic search and best retrieval quality.');
+    }
 
     const suggestionResult = await computeCompositionSuggestions(
       storage,
@@ -1509,15 +1599,38 @@ export async function bootstrapProject(
     report.completedAt = new Date();
     report.success = true;
     await storage.recordBootstrapReport(report);
-    if (config.llmProvider && config.llmModelId) {
-      await storage.setState('librarian.llm_defaults.v1', JSON.stringify({ schema_version: 1, kind: 'LibrarianLlmDefaults.v1', provider: config.llmProvider, modelId: config.llmModelId, bootstrapMode: config.bootstrapMode ?? 'full', updatedAt: report.completedAt.toISOString() }));
-    }
+	    if (config.llmProvider && config.llmModelId) {
+	      await storage.setState('librarian.llm_defaults.v1', JSON.stringify({ schema_version: 1, kind: 'LibrarianLlmDefaults.v1', provider: config.llmProvider, modelId: config.llmModelId, bootstrapMode: config.bootstrapMode ?? 'full', updatedAt: report.completedAt.toISOString() }));
+	    }
 
-    // Update metadata (especially important for resumed bootstraps that skip structural_scan).
-    await upsertMetadataForSuccessfulBootstrap(storage, workspace, report);
+	    // Update metadata (especially important for resumed bootstraps that skip structural_scan).
+	    await upsertMetadataForSuccessfulBootstrap(storage, workspace, report);
 
-    // Update state
-    state.status = 'completed';
+	    // Seed watch state so queries can reason about freshness even when file watching isn't running.
+	    try {
+	      await seedWatchStateAfterBootstrap(storage, workspaceRoot, report.completedAt);
+	    } catch (error) {
+	      report.warnings.push(`Failed to seed watch state: ${getErrorMessage(error)}`);
+	    }
+
+	    if (config.emitBaseline) {
+	      try {
+	        const baseline = await createOnboardingBaseline({
+	          workspaceRoot,
+	          report,
+	          storage,
+	        });
+	        const baselinePath = await writeOnboardingBaseline(workspaceRoot, baseline);
+	        report.nextSteps = report.nextSteps ?? [];
+	        report.nextSteps.push(`Onboarding baseline captured: ${baselinePath}`);
+	      } catch (error) {
+	        report.warnings = report.warnings ?? [];
+	        report.warnings.push(`Failed to capture onboarding baseline: ${getErrorMessage(error)}`);
+	      }
+	    }
+
+	    // Update state
+	    state.status = 'completed';
     state.progress = 1;
     state.completedAt = report.completedAt;
     bootstrapStates.set(workspace, state);
@@ -1647,6 +1760,33 @@ async function upsertMetadataForSuccessfulBootstrap(
   } catch {
     // Metadata should not block successful bootstrap completion.
   }
+}
+
+async function seedWatchStateAfterBootstrap(
+  storage: LibrarianStorage,
+  workspaceRoot: string,
+  completedAt: Date | null
+): Promise<void> {
+  const completedAtIso = (completedAt ?? new Date()).toISOString();
+  const currentSha = getCurrentGitSha(workspaceRoot);
+  const cursor = currentSha
+    ? { kind: 'git' as const, lastIndexedCommitSha: currentSha }
+    : { kind: 'fs' as const, lastReconcileCompletedAt: completedAtIso };
+
+  await updateWatchState(storage, (prev) => ({
+    schema_version: 1,
+    workspace_root: workspaceRoot,
+    watch_started_at: prev?.watch_started_at,
+    watch_last_heartbeat_at: prev?.watch_last_heartbeat_at,
+    watch_last_event_at: prev?.watch_last_event_at,
+    watch_last_reindex_ok_at: completedAtIso,
+    suspected_dead: false,
+    needs_catchup: false,
+    storage_attached: true,
+    effective_config: prev?.effective_config,
+    cursor,
+    last_error: undefined,
+  }));
 }
 
 async function preloadMethodPacksForBootstrap(
@@ -2038,7 +2178,8 @@ async function runFileDirectoryKnowledgeExtraction(
   const extractorConfig: FileExtractionConfig = {
     llmProvider: config.llmProvider,
     llmModelId: config.llmModelId,
-    skipLlm: false, // LLM-only semantic extraction (no heuristic fallback)
+    skipLlm: Boolean(config.skipLlm),
+    governor,
   };
 
   // Collect unique directories
@@ -2272,10 +2413,16 @@ async function runSemanticIndexing(
     follow: false,
     nodir: true,
   });
-  const parserRegistry = ParserRegistry.getInstance();
-  const supportedExtensions = new Set(parserRegistry.getSupportedExtensions());
-  const astFiles = files.filter((file) => supportedExtensions.has(path.extname(file).toLowerCase()));
-  const totalFiles = astFiles.length;
+  // IMPORTANT: select candidates by file category intent (AST) rather than
+  // by currently-installed parsers. This enables:
+  // 1) polyglot coverage when optional tree-sitter grammars are available, and
+  // 2) clean onboarding telemetry when parsers are missing (handled by AstIndexer).
+  const astFiles = files.filter((file) => getParserType(file) === 'ast');
+  const nonAstEmbeddableFiles = files.filter((file) => getParserType(file) !== 'ast' && shouldGenerateEmbeddings(file));
+  // Most repos have AST-eligible source. When they don't (script-only, schema-only,
+  // docs-only), we still index embeddable non-AST files to avoid empty-storage.
+  const semanticFiles = astFiles.length > 0 ? astFiles : nonAstEmbeddableFiles;
+  const totalFiles = semanticFiles.length;
   if (progress?.onProgress) {
     await progress.onProgress({ total: totalFiles, completed: 0 });
   }
@@ -2306,6 +2453,7 @@ async function runSemanticIndexing(
   }
 
   const maxWorkers = Math.max(1, governor?.snapshot().config.maxConcurrentWorkers ?? 1);
+  const generateEmbeddings = !phaseConfig.skipEmbeddings;
   if (maxWorkers > 1) {
     const swarmResult = await new SwarmRunner({
       storage,
@@ -2313,8 +2461,8 @@ async function runSemanticIndexing(
       maxWorkers,
       maxFileSizeBytes: phaseConfig.maxFileSizeBytes,
       useAstIndexer: phaseConfig.useAstIndexer,
-      generateEmbeddings: true,
-      enableLlmAnalysis: phaseConfig.bootstrapMode === 'full',
+      generateEmbeddings,
+      enableLlmAnalysis: phaseConfig.bootstrapMode === 'full' && !phaseConfig.skipLlm,
       embeddingBatchSize: governor?.snapshot().config.maxEmbeddingsPerBatch ?? undefined,
       llmProvider,
       llmModelId,
@@ -2327,21 +2475,23 @@ async function runSemanticIndexing(
       governor,
       progressCallback: progress?.onProgress,
       forceReindex: phaseConfig.forceReindex,
-    }).run(astFiles);
+    }).run(semanticFiles);
     return { ...swarmResult, totalFiles };
   }
 
   // Create index librarian
   const indexer = new IndexLibrarian({
     maxFileSizeBytes: phaseConfig.maxFileSizeBytes,
-    generateEmbeddings: true,
+    generateEmbeddings,
     createContextPacks: false, // Done in separate phase
-    enableLlmAnalysis: phaseConfig.bootstrapMode === 'full',
+    enableLlmAnalysis: phaseConfig.bootstrapMode === 'full' && !phaseConfig.skipLlm,
     embeddingBatchSize: governor?.snapshot().config.maxEmbeddingsPerBatch ?? undefined,
     useAstIndexer: phaseConfig.useAstIndexer,
     llmProvider,
     llmModelId,
-    extensions: Array.from(supportedExtensions),
+    // We pass explicit task paths below; don't re-filter by extensions here.
+    // This keeps semantic indexing aligned with the ast-candidate selection above.
+    extensions: [],
     embeddingProvider: phaseConfig.embeddingProvider,
     embeddingModelId: phaseConfig.embeddingModelId,
     embeddingService: phaseConfig.embeddingService ?? undefined,
@@ -2359,7 +2509,7 @@ async function runSemanticIndexing(
   // Index all files
   const task: IndexingTask = {
     type: 'full',
-    paths: astFiles,
+    paths: semanticFiles,
     priority: 'high',
     reason: 'bootstrap',
     triggeredBy: 'bootstrap',
@@ -2442,7 +2592,9 @@ async function runRelationshipMapping(
 
   // Advanced Library Features (2025-2026 research)
   // Run git primitives indexing and analysis passes for full mode
-  if (config.bootstrapMode === 'full') {
+  // NOTE: These passes can be extremely expensive (e.g., clone detection is O(n^2) over functions).
+  // Treat them as an opt-in "deep analysis" stage; core Librarian functionality should not depend on them.
+  if (config.bootstrapMode === 'full' && !config.skipLlm) {
     await runAdvancedLibraryFeatures(config, storage, governor);
   }
 
@@ -2582,7 +2734,7 @@ async function runContextPackGeneration(
 ): Promise<number> {
   governor?.checkBudget();
   const phaseConfig = await withPhaseLlmConfig(config, 'context_pack_generation');
-  const fallback = await resolvePackLlmConfig({ allowMissing: phaseConfig.bootstrapMode !== 'full' });
+  const fallback = await resolvePackLlmConfig({ allowMissing: phaseConfig.bootstrapMode !== 'full' || Boolean(phaseConfig.skipLlm) });
   const provider = phaseConfig.llmProvider ?? fallback.provider;
   const modelId = phaseConfig.llmModelId ?? fallback.modelId;
 
@@ -2620,14 +2772,12 @@ async function runContextPackGeneration(
     return packsCreated + entryPointsIndexed;
   }
 
-  // Full bootstrap: LLM-backed summaries for packs.
-  if (!provider || !modelId) {
-    throw new Error('unverified_by_trace(provider_unavailable): Context pack generation requires live LLM providers.');
-  }
+  // Full bootstrap: generate packs; use LLM summaries only when enabled.
   const packsCreated = await generateContextPacks(storage, {
     governorContext: governor,
     llmProvider: provider,
     llmModelId: modelId,
+    skipLlm: Boolean(phaseConfig.skipLlm) || !provider || !modelId,
     includeSupplemental: true,
     force: Boolean(config.forceReindex),
     version: getTargetVersion('full'),
@@ -2695,6 +2845,13 @@ async function runKnowledgeGeneration(
 ): Promise<number> {
   const phaseConfig = await withPhaseLlmConfig(config, 'knowledge_generation');
   if (phaseConfig.bootstrapMode !== 'full') return 0;
+  if (phaseConfig.skipLlm) return 0;
+  if (!phaseConfig.llmProvider || !phaseConfig.llmModelId) {
+    logWarning('Knowledge generation skipped: LLM provider not configured', {
+      workspace: phaseConfig.workspace,
+    });
+    return 0;
+  }
   // Production mode: Full LLM-powered knowledge generation
   // No MVP shortcuts - generate comprehensive knowledge for every entity
   governor?.checkBudget();
@@ -2713,9 +2870,16 @@ async function runKnowledgeGeneration(
     onProgress: onProgress ? (current, total, item) => onProgress(current, total, item) : undefined,
   });
 
-  const result = await generator.generateAll();
-  onProgress?.(result.successCount + result.partialCount, result.successCount + result.partialCount, 'Knowledge generation complete');
-  return result.successCount + result.partialCount;
+  try {
+    const result = await generator.generateAll();
+    onProgress?.(result.successCount + result.partialCount, result.successCount + result.partialCount, 'Knowledge generation complete');
+    return result.successCount + result.partialCount;
+  } catch (error) {
+    logWarning('Knowledge generation failed - continuing without universal knowledge records', {
+      error: getErrorMessage(error),
+    });
+    return 0;
+  }
 }
 
 // HELPERS
@@ -2749,6 +2913,9 @@ async function resolvePackLlmConfig(options?: { allowMissing?: boolean }): Promi
 }
 
 async function resolveIndexLlmConfig(config: BootstrapConfig): Promise<{ llmProvider?: 'claude' | 'codex'; llmModelId?: string }> {
+  if (config.skipLlm) {
+    return { llmProvider: undefined, llmModelId: undefined };
+  }
   if (config.llmProvider || config.llmModelId) {
     return { llmProvider: config.llmProvider, llmModelId: config.llmModelId };
   }
@@ -2760,6 +2927,9 @@ async function resolvePhaseLlmConfig(
   config: BootstrapConfig,
   phase: BootstrapPhaseName
 ): Promise<{ llmProvider?: 'claude' | 'codex'; llmModelId?: string }> {
+  if (config.skipLlm) {
+    return { llmProvider: undefined, llmModelId: undefined };
+  }
   const override = config.llmPhaseOverrides?.[phase];
   const fallback = await resolvePackLlmConfig({ allowMissing: true });
   return {
@@ -2902,11 +3072,8 @@ async function runIngestionSources(
   framework.registerSource(createSchemaIngestionSource({ exclude: config.exclude }));
   framework.registerSource(createApiIngestionSource({ exclude: config.exclude }));
 
-  const includeLlmSources = config.bootstrapMode === 'full';
-  if (includeLlmSources) {
-    if (!provider) {
-      throw new Error('unverified_by_trace(provider_unavailable): LLM provider is required for full bootstrap ingestion.');
-    }
+  const includeDocsAndCommit = config.bootstrapMode === 'full';
+  if (includeDocsAndCommit) {
     framework.registerSource(createDocsIngestionSource({
       exclude: config.exclude,
       llmProvider: provider,
@@ -2940,11 +3107,12 @@ async function runIngestionSources(
   // Generate embeddings for documentation files (meta-queries support)
   const docItems = result.items.filter(item => item.sourceType === 'docs');
   let docEmbeddingErrors: string[] = [];
-  if (docItems.length > 0 && config.embeddingService) {
+  if (docItems.length > 0) {
+    const embeddingService = resolveBootstrapEmbeddingService(config);
     const embeddingResult = await generateDocumentEmbeddings(
       storage,
       docItems,
-      config.embeddingService,
+      embeddingService,
       ingestionWorkspace
     );
     docEmbeddingErrors = embeddingResult.errors;
@@ -3334,7 +3502,8 @@ function estimateCompletion(startedAtMs: number, progress: { total: number; comp
  * everything except truly binary/generated content.
  *
  * EMBEDDING CONFIGURATION:
- * - Embeddings are mandatory and generated via real embedding providers
+ * - Embeddings are mandatory for full semantic search
+ * - Degraded mode may skip embeddings (skipEmbeddings) with explicit disclosures
  *
  * See src/librarian/universal_patterns.ts for the complete file type list.
  * See docs/librarian/VISION.md section 6.3 for bootstrap modes.
@@ -3356,6 +3525,8 @@ export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
 
   // Recovery behavior
   forceResume: false,
+  autoRecover: true,
+  skipEmbeddings: false,
 
   // Composition suggestions (codebase-aware recommendations after bootstrap)
   compositionSuggestions: { enabled: true },
@@ -3507,6 +3678,11 @@ async function computeCompositionSuggestions(
 ): Promise<{ suggestions: CompositionSuggestion[]; warnings: string[] }> {
   const suggestionConfig = resolveSuggestionConfig(config);
   if (suggestionConfig.enabled === false) {
+    return { suggestions: [], warnings: [] };
+  }
+  // Composition suggestions are helpful, but should never make bootstrap noisy or brittle in no-LLM mode.
+  // Skip entirely when LLM is disabled to avoid slow/stochastic synthesis + provider-limit spam.
+  if (config.skipLlm) {
     return { suggestions: [], warnings: [] };
   }
   if (capabilities && !capabilities.semanticSearch) {

@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-03T18:09:00.000Z",
+  "lastUpdated": "2026-02-17T15:51:36.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -13,7 +13,7 @@
       "lastRun": "2026-01-26",
       "evidence": "npx tsc --noEmit completed without errors",
       "dependsOn": [],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer0.build": {
@@ -26,7 +26,7 @@
       "dependsOn": [
         "layer0.typecheck"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer0.tier0": {
@@ -41,7 +41,7 @@
       "dependsOn": [
         "layer0.build"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer0.tier1": {
@@ -105,7 +105,7 @@
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer1.noDirectImports": {
@@ -118,7 +118,7 @@
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer1.standaloneTests": {
@@ -132,7 +132,7 @@
         "layer1.noWave0Imports",
         "layer1.noDirectImports"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer1.extractionPrereqs": {
@@ -145,7 +145,7 @@
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer2.llmAdapter": {
@@ -158,7 +158,7 @@
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer2.evidenceLedger": {
@@ -171,7 +171,7 @@
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer2.capabilityNegotiation": {
@@ -184,7 +184,7 @@
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer2.toolAdapter": {
@@ -197,7 +197,7 @@
       "dependsOn": [
         "layer2.evidenceLedger"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer3.P0": {
@@ -208,7 +208,7 @@
       "dependsOn": [
         "layer2.toolAdapter"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P1": {
       "name": "Operator Execution",
@@ -218,7 +218,7 @@
       "dependsOn": [
         "layer3.P0"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P2": {
       "name": "Semantic Selector",
@@ -228,7 +228,7 @@
       "dependsOn": [
         "layer3.P0"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P3": {
       "name": "LCL Core",
@@ -239,7 +239,7 @@
         "layer3.P0",
         "layer3.P1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P4": {
       "name": "Structure Templates",
@@ -249,7 +249,7 @@
       "dependsOn": [
         "layer3.P3"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P5": {
       "name": "Pattern Catalog",
@@ -259,7 +259,7 @@
       "dependsOn": [
         "layer3.P3"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P6": {
       "name": "Codebase Advisor",
@@ -269,7 +269,7 @@
       "dependsOn": [
         "layer3.P5"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P7": {
       "name": "Evolution Engine",
@@ -279,7 +279,7 @@
       "dependsOn": [
         "layer3.P6"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P8": {
       "name": "Zero-Knowledge Bootstrap",
@@ -289,7 +289,7 @@
       "dependsOn": [
         "layer3.P1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P9": {
       "name": "Universal Applicability",
@@ -299,7 +299,7 @@
       "dependsOn": [
         "layer3.P8"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P10": {
       "name": "Epistemic Policy",
@@ -309,7 +309,7 @@
       "dependsOn": [
         "layer3.P9"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P11": {
       "name": "Storage Interface Split",
@@ -319,7 +319,7 @@
       "dependsOn": [
         "layer3.P10"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P12": {
       "name": "Transaction Boundaries",
@@ -329,7 +329,7 @@
       "dependsOn": [
         "layer3.P11"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P13": {
       "name": "Prediction-Oriented Memory",
@@ -339,7 +339,7 @@
       "dependsOn": [
         "layer3.P12"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P14": {
       "name": "Self-Aware Oracle",
@@ -349,7 +349,7 @@
       "dependsOn": [
         "layer3.P13"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P15": {
       "name": "Proof-Carrying Context",
@@ -359,7 +359,7 @@
       "dependsOn": [
         "layer3.P14"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P16": {
       "name": "Causal Discovery",
@@ -369,7 +369,7 @@
       "dependsOn": [
         "layer3.P15"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P17": {
       "name": "Bi-Temporal Knowledge",
@@ -379,7 +379,7 @@
       "dependsOn": [
         "layer3.P16"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.P18": {
       "name": "Metacognitive Architecture",
@@ -389,7 +389,7 @@
       "dependsOn": [
         "layer3.P17"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q1": {
       "name": "ConfidenceValue Type",
@@ -399,7 +399,7 @@
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q2": {
       "name": "Derivation Rules",
@@ -409,7 +409,7 @@
       "dependsOn": [
         "layer3.Q1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q3": {
       "name": "Degradation Handlers",
@@ -419,7 +419,7 @@
       "dependsOn": [
         "layer3.Q1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q4": {
       "name": "Migration Script",
@@ -442,7 +442,7 @@
       "dependsOn": [
         "layer3.Q4"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q6": {
       "name": "Rename heuristic confidence fields",
@@ -454,7 +454,7 @@
       "dependsOn": [
         "layer3.Q5"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q7": {
       "name": "Reduce legacy placeholder usage",
@@ -466,7 +466,7 @@
       "dependsOn": [
         "layer3.Q5"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.Q8": {
       "name": "TypeScript enforcement (claim boundary)",
@@ -478,7 +478,7 @@
       "dependsOn": [
         "layer3.Q1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.D1": {
       "name": "7 Domain Primitives",
@@ -490,7 +490,7 @@
         "layer3.Q2",
         "layer3.Q3"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.D2": {
       "name": "10 World-Class Compositions",
@@ -500,7 +500,7 @@
       "dependsOn": [
         "layer3.D1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.D3": {
       "name": "Domain Construction Protocol",
@@ -510,7 +510,7 @@
       "dependsOn": [
         "layer3.D2"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.D4": {
       "name": "Aspect Decomposer",
@@ -520,7 +520,7 @@
       "dependsOn": [
         "layer3.D3"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.C1": {
       "name": "Claim-Outcome Tracking",
@@ -532,7 +532,7 @@
       "dependsOn": [
         "layer3.Q2"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.C2": {
       "name": "Calibration Curves",
@@ -544,7 +544,7 @@
       "dependsOn": [
         "layer3.C1"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.C3": {
       "name": "Confidence Adjustment",
@@ -556,7 +556,7 @@
       "dependsOn": [
         "layer3.C2"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
     },
     "layer3.C4": {
       "name": "Calibration Dashboard",
@@ -589,7 +589,7 @@
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer5.evalCorpus": {
@@ -723,7 +723,7 @@
       "dependsOn": [
         "layer5.abExperiments"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer5.retrievalRecall": {
@@ -736,7 +736,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-03",
+      "lastRun": "2026-02-17",
       "measured": 0.82
     },
     "layer5.retrievalPrecision": {
@@ -749,7 +749,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-03",
+      "lastRun": "2026-02-17",
       "measured": 0.74
     },
     "layer5.hallucinationRate": {
@@ -762,7 +762,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-03",
+      "lastRun": "2026-02-17",
       "measured": 0.03
     },
     "layer5.synthesisAccuracyStructural": {
@@ -976,7 +976,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer7.groundTruthCorpus": {
@@ -998,14 +998,14 @@
       "dependsOn": [
         "layer7.e2eIntegration"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer7.metricsRAGAS": {
       "name": "RAGAS-Style Metrics Measurement (Phase 14)",
       "layer": 7,
       "status": "pass",
-      "lastRun": "2026-02-03",
+      "lastRun": "2026-02-17",
       "target": "Recall@5>=80%, Precision>=70%, Hallucination<5%, Faithfulness>=85%",
       "measured": {
         "recallAt5": 0.82,
@@ -1046,14 +1046,14 @@
       "dependsOn": [
         "layer7.metricsRAGAS"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer7.scenarioFamilies": {
       "name": "Scenario Family Testing SF-01 to SF-30 (Phase 16)",
       "layer": 7,
       "status": "pass",
-      "lastRun": "2026-02-03",
+      "lastRun": "2026-02-17",
       "target": "All 30 scenario families tested including HARD (SF-21 to SF-30)",
       "measured": "30/30",
       "spec": "CODEX_ORCHESTRATOR.md#phase-16",
@@ -1083,7 +1083,7 @@
       "name": "A/B Worker Experiments (Phase 17)",
       "layer": 7,
       "status": "fail",
-      "lastRun": "2026-02-03",
+      "lastRun": "2026-02-17",
       "target": "Treatment >= 20% lift over Control, p < 0.05",
       "measured": "lift=0.20833333333333334 (p=0.09371405527122034)",
       "spec": "CODEX_ORCHESTRATOR.md#phase-17",
@@ -1118,7 +1118,7 @@
       "dependsOn": [
         "layer7.abExperiments"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer7.negativeTesting": {
@@ -1139,7 +1139,7 @@
       "dependsOn": [
         "layer7.edgeCases"
       ],
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer7.calibrationValidation": {
@@ -1161,21 +1161,21 @@
         "layer7.negativeTesting"
       ],
       "blocking": false,
-      "note": "unverified_by_trace(evidence_manifest_missing): Status not backed by evidence manifest.",
+      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
       "verified": false
     },
     "layer7.performanceBenchmark": {
       "name": "Performance Benchmarking (Phase 21)",
       "layer": 7,
-      "status": "fail",
-      "lastRun": "2026-02-03",
+      "status": "partial",
+      "lastRun": "2026-02-17",
       "target": "p50 < 500ms, p99 < 2s, memory < 50MB/1K LOC",
       "measured": {
         "p50LatencyMs": 0,
         "p99LatencyMs": 1,
-        "memoryPerKLOC": 212.22749194919328
+        "memoryPerKLOC": 0.8981828401857475
       },
-      "note": "unverified_by_trace(latency_targets_missing): Only memory targets are part of the manifest summary.",
+      "note": "Latency targets missing: only memory targets are part of the manifest summary.",
       "spec": "CODEX_ORCHESTRATOR.md#phase-21",
       "workUnits": [
         "WU-2101",
@@ -1252,15 +1252,16 @@
       "total": 11,
       "unverified": 6,
       "pass": 3,
-      "fail": 2
+      "fail": 1,
+      "partial": 1
     }
   },
   "validationStatus": {
-    "infrastructure": "unverified_by_trace(evidence_manifest_missing)",
-    "validation": "unverified_by_trace(evidence_manifest_missing)",
+    "infrastructure": "unverified (evidence_manifest_missing)",
+    "validation": "unverified (evidence_manifest_missing)",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-03T18:09:00.000Z",
+    "lastVerified": "2026-02-17T15:51:36.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",
@@ -1294,11 +1295,11 @@
       },
       "Memory per 1K LOC": {
         "target": "<=50 MB",
-        "measured": "212.22749194919328 MB",
-        "status": "NOT MET"
+        "measured": "0.8981828401857475 MB",
+        "status": "MET"
       }
     },
     "evidence": "eval-results/final-verification.json",
-    "note": "unverified_by_trace(evidence_manifest_missing): Non-manifest validation claims removed; only manifest metrics retained."
+    "note": "Non-manifest validation claims removed; only manifest metrics retained."
   }
 }

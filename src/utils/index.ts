@@ -66,3 +66,10 @@ export type {
 
 export { computeChecksum16 } from './checksums.js';
 export { computeContentHash } from '../storage/content_cache.js';
+
+export {
+  getLanguageFromExtension,
+  getLanguageFromPath,
+  SUPPORTED_LANGUAGES,
+  SUPPORTED_LANGUAGE_EXTENSIONS,
+} from './language.js';

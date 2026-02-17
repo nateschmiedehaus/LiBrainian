@@ -6,10 +6,10 @@
  */
 
 import { Librarian } from '../../api/librarian.js';
-import { resolveLibrarianModelConfigWithDiscovery } from '../../api/llm_env.js';
 import { startFileWatcher, stopFileWatcher } from '../../integration/file_watcher.js';
 import { globalEventBus, type LibrarianEvent } from '../../events.js';
 import { CliError } from '../errors.js';
+import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 
 const DEFAULT_WATCH_STORM_THRESHOLD = 200;
 
@@ -26,7 +26,17 @@ export interface WatchSession {
 }
 
 export async function startWatchSession(options: WatchCommandOptions): Promise<WatchSession> {
-  const workspace = options.workspace || process.cwd();
+  let workspace = options.workspace || process.cwd();
+  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
+    const resolution = resolveWorkspaceRoot(workspace);
+    if (resolution.changed) {
+      const detail = resolution.marker ? `marker ${resolution.marker}` : (resolution.reason ?? 'source discovery');
+      if (!options.quiet) {
+        console.log(`Auto-detected project root at ${resolution.workspace} (${detail}). Using it.\n`);
+      }
+      workspace = resolution.workspace;
+    }
+  }
   const debounceMs = options.debounceMs ?? 200;
   const batchWindowMs = options.batchWindowMs ?? debounceMs;
   const stormThreshold = options.stormThreshold ?? DEFAULT_WATCH_STORM_THRESHOLD;
@@ -41,17 +51,17 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
   }
 
   // Initialize librarian without auto-bootstrap
-  const llmConfig = await resolveLibrarianModelConfigWithDiscovery();
-  const llmProvider = llmConfig.provider;
-  const llmModelId = llmConfig.modelId;
-  if (!process.env.LIBRARIAN_LLM_PROVIDER) process.env.LIBRARIAN_LLM_PROVIDER = llmProvider;
-  if (!process.env.LIBRARIAN_LLM_MODEL) process.env.LIBRARIAN_LLM_MODEL = llmModelId;
+  const llmProviderEnv = process.env.LIBRARIAN_LLM_PROVIDER;
+  const llmModelEnv = process.env.LIBRARIAN_LLM_MODEL;
+  const llmProvider = llmProviderEnv === 'claude' || llmProviderEnv === 'codex' ? llmProviderEnv : undefined;
+  const llmModelId = typeof llmModelEnv === 'string' && llmModelEnv.trim().length > 0 ? llmModelEnv : undefined;
+  const hasLlmConfig = Boolean(llmProvider && llmModelId);
   const librarian = new Librarian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
-    llmProvider,
-    llmModelId,
+    llmProvider: hasLlmConfig ? llmProvider : undefined,
+    llmModelId: hasLlmConfig ? llmModelId : undefined,
   });
 
   await librarian.initialize();
@@ -59,7 +69,7 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
   const status = await librarian.getStatus();
   if (!status.bootstrapped) {
     throw new CliError(
-      'Librarian not bootstrapped. Run "librarian bootstrap" first.',
+      'Librarian not bootstrapped. Run "librarian quickstart" or "librarian bootstrap" first.',
       'NOT_BOOTSTRAPPED'
     );
   }

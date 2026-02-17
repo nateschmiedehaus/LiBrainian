@@ -44,11 +44,15 @@ describe('computeSynthesisMetrics', () => {
       citations: ['ref-1'],
       mustIncludeFacts: ['loads module', 'exports helper', 'handles errors'],
       category: 'structural',
+      citationVerification: {
+        verifiedCitations: 1,
+        verifiableCitations: 2,
+      },
     });
 
     expect(result.factRecall).toBeCloseTo(2 / 3, 5);
     expect(result.structuralAccuracy).toBeCloseTo(2 / 3, 5);
     expect(result.groundingRate).toBeCloseTo(0.5, 5);
-    expect(result.fabricationRate).toBe(0);
+    expect(result.fabricationRate).toBeCloseTo(0.5, 5);
   });
 });

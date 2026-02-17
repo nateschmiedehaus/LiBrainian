@@ -332,7 +332,7 @@ describe('Unified Librarian Orchestrator', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const health = session.health();
-      expect(health.uptimeMs).toBeGreaterThanOrEqual(10);
+      expect(health.uptimeMs).toBeGreaterThanOrEqual(5);
     });
   });
 

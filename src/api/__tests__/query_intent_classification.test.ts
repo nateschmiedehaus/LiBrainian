@@ -315,6 +315,11 @@ describe('classifyQueryIntent', () => {
       expect(result.isProjectUnderstandingQuery).toBe(false);
     });
 
+    it('does not classify "bootstrap" as entry point query', () => {
+      const result = classifyQueryIntent('bootstrap');
+      expect(result.isEntryPointQuery).toBe(false);
+    });
+
     it('only searches documents for project understanding queries', () => {
       const result = classifyQueryIntent('what does this codebase do');
       expect(result.entityTypes).toContain('document');

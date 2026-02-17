@@ -9,6 +9,7 @@ export interface WorkspaceLockOptions { timeoutMs?: number; pollIntervalMs?: num
 const DEFAULT_TIMEOUT_MS = 0;
 const DEFAULT_POLL_INTERVAL_MS = 200;
 const registeredLocks = new Map<string, WorkspaceLockState>();
+let globalCleanupRegistered = false;
 const isTestMode = (): boolean => process.env.NODE_ENV === 'test' || process.env.WAVE0_TEST_MODE === 'true';
 
 export async function acquireWorkspaceLock(workspaceRoot: string, options: WorkspaceLockOptions = {}): Promise<WorkspaceLockHandle> {
@@ -35,7 +36,12 @@ export async function acquireWorkspaceLock(workspaceRoot: string, options: Works
     if (!existing || !isPidAlive(existing.pid)) { await removeLockFile(lockPath); continue; }
     await sleep(pollIntervalMs);
   }
-  throw new Error('unverified_by_trace(lease_conflict): timed out waiting for librarian bootstrap lock');
+  const existing = await readLockState(lockPath);
+  const details = existing ? ` (pid=${existing.pid}, startedAt=${existing.startedAt})` : '';
+  throw new Error(
+    `unverified_by_trace(lease_conflict): timed out waiting for librarian bootstrap lock${details}. ` +
+      'If this is stale, delete `.librarian/bootstrap.lock` or run `librarian doctor`.'
+  );
 }
 
 export async function cleanupWorkspaceLock(workspaceRoot: string): Promise<void> {
@@ -43,6 +49,7 @@ export async function cleanupWorkspaceLock(workspaceRoot: string): Promise<void>
   if (!existing) return;
   if (existing.pid === process.pid || !isPidAlive(existing.pid)) {
     const removed = await removeLockFile(lockPath);
+    if (removed) registeredLocks.delete(lockPath);
     if (isTestMode() && !removed) throw new Error('Tier-0: workspace lock cleanup failed');
   }
 }
@@ -51,17 +58,32 @@ async function releaseWorkspaceLock(lockPath: string, expected: WorkspaceLockSta
   const current = await readLockState(lockPath);
   if (!current || current.pid !== expected.pid || current.startedAt !== expected.startedAt) return;
   const removed = await removeLockFile(lockPath);
+  if (removed) registeredLocks.delete(lockPath);
   if (isTestMode() && !removed) throw new Error('Tier-0: workspace lock cleanup failed');
 }
 
 function registerLockCleanup(lockPath: string, state: WorkspaceLockState): void {
   if (registeredLocks.has(lockPath)) return;
   registeredLocks.set(lockPath, state);
-  const cleanup = () => void releaseWorkspaceLock(lockPath, state);
-  process.on('exit', cleanup); process.on('SIGINT', cleanup); process.on('SIGTERM', cleanup);
+  ensureGlobalCleanupHandlers();
 }
 
 const resolveLockPath = (workspaceRoot: string): string => path.join(workspaceRoot, '.librarian', 'bootstrap.lock');
+
+function ensureGlobalCleanupHandlers(): void {
+  if (globalCleanupRegistered) return;
+  globalCleanupRegistered = true;
+
+  const cleanupAll = () => {
+    for (const [lockPath, state] of registeredLocks.entries()) {
+      void releaseWorkspaceLock(lockPath, state);
+    }
+  };
+
+  process.once('exit', cleanupAll);
+  process.once('SIGINT', cleanupAll);
+  process.once('SIGTERM', cleanupAll);
+}
 
 async function removeLockFile(lockPath: string): Promise<boolean> {
   try {

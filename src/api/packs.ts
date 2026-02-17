@@ -18,6 +18,7 @@ import type {
   LibrarianVersion,
 } from '../types.js';
 import { LIBRARIAN_VERSION } from '../index.js';
+import { getLanguageFromPath } from '../utils/language.js';
 import { minimizeSnippet } from './redaction.js';
 import { GovernorContext } from './governor_context.js';
 import { DEFAULT_GOVERNOR_CONFIG } from './governors.js';
@@ -1116,39 +1117,9 @@ function isBudgetExceeded(error: unknown): boolean {
 }
 
 function getLanguage(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase().replace(/^\./, '');
-  const map: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'typescript',
-    js: 'javascript',
-    jsx: 'javascript',
-    mjs: 'javascript',
-    cjs: 'javascript',
-    py: 'python',
-    go: 'go',
-    rs: 'rust',
-    java: 'java',
-    kt: 'kotlin',
-    swift: 'swift',
-    cs: 'csharp',
-    cpp: 'cpp',
-    c: 'c',
-    h: 'c',
-    hpp: 'cpp',
-    rb: 'ruby',
-    php: 'php',
-    scala: 'scala',
-    sh: 'shell',
-    bash: 'shell',
-    zsh: 'shell',
-    json: 'json',
-    yml: 'yaml',
-    yaml: 'yaml',
-    toml: 'toml',
-    md: 'markdown',
-  };
-  if (!ext) return 'plaintext';
-  return map[ext] ?? ext;
+  const fallback = path.extname(filePath).toLowerCase().replace(/^\./, '') || 'plaintext';
+  const language = getLanguageFromPath(filePath, 'text');
+  return language === 'text' ? fallback : language;
 }
 
 function getCurrentVersion(): LibrarianVersion {

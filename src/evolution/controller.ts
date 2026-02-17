@@ -149,14 +149,15 @@ export class EvolutionController {
       }
 
       // Record fitness
-      const fitness = result.fitnessReport.fitness.overall;
+      const measuredFitness = result.fitnessReport.scoringIntegrity.status === 'measured';
+      const fitness = measuredFitness ? result.fitnessReport.fitness.overall : 0;
       candidate.evaluated = true;
       candidate.fitnessReport = result.fitnessReport;
       evaluatedVariants.push({ variant: candidate, fitness });
 
       // Compute reward for bandit with multi-component signal
       const baselineFitness = this.baselineReport?.fitness.overall ?? 0;
-      const fitnessDelta = fitness - baselineFitness;
+      const fitnessDelta = measuredFitness ? fitness - baselineFitness : 0;
 
       const reward = this.bandit.computeReward(
         fitnessDelta,
@@ -174,11 +175,13 @@ export class EvolutionController {
       );
 
       // Try to add to archive
-      const improved = this.archive.tryAdd(
-        candidate,
-        fitness,
-        result.fitnessReport.behaviorDescriptors
-      );
+      const improved = measuredFitness
+        ? this.archive.tryAdd(
+            candidate,
+            fitness,
+            result.fitnessReport.behaviorDescriptors
+          )
+        : false;
 
       // Record trial
       this.bandit.recordTrial(emitter.id, reward, improved);

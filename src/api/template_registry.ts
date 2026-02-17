@@ -12,10 +12,12 @@
 import type { ContextPack } from '../types.js';
 import type { AdequacyReport } from './difficulty_detectors.js';
 import type { VerificationPlan } from '../strategic/verification_plan.js';
+import type { KnowledgeObjectKind } from '../knowledge/registry.js';
 import { createDeltaMapTemplate } from './delta_map_template.js';
 import { createSupplyChainTemplate } from './supply_chain_template.js';
 import { createInfraMapTemplate } from './infra_map_template.js';
 import { createReproAndBisectTemplate } from './repro_bisect_template.js';
+import { createUncertaintyReductionTemplate } from './uncertainty_reduction_template.js';
 
 // ============================================================================
 // TYPES
@@ -88,6 +90,14 @@ export interface ConstructionTemplate {
   requiredMaps: string[];
   /** Optional maps that enhance the template */
   optionalMaps: string[];
+  /** Required knowledge objects (RepoFacts/Maps/Claims/Packs/Episodes/Outcomes) */
+  requiredObjects: KnowledgeObjectKind[];
+  /** Optional knowledge objects */
+  optionalObjects?: KnowledgeObjectKind[];
+  /** Required artifacts (work objects, adequacy reports, etc.) */
+  requiredArtifacts?: string[];
+  /** Required adapters/capabilities */
+  requiredCapabilities?: string[];
   /** Output envelope specification */
   outputEnvelope: OutputEnvelopeSpec;
   /** Execute the template with given context */
@@ -122,6 +132,10 @@ export interface TemplateInfo {
   supportedUcs: string[];
   requiredMaps: string[];
   optionalMaps: string[];
+  requiredObjects: KnowledgeObjectKind[];
+  optionalObjects?: KnowledgeObjectKind[];
+  requiredArtifacts?: string[];
+  requiredCapabilities?: string[];
 }
 
 /**
@@ -214,6 +228,25 @@ const UC_DOMAIN_RANGES: Array<{ start: number; end: number; domain: string }> = 
   { start: 241, end: 250, domain: 'Edge' },
   { start: 251, end: 260, domain: 'Synthesis' },
 ];
+
+/**
+ * Get domain from UC ID using UC_DOMAIN_RANGES.
+ */
+export function getDomainForUcId(ucId: string): string | null {
+  const match = ucId.match(/^UC-?(\d+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const ucNumber = parseInt(match[1], 10);
+  for (const range of UC_DOMAIN_RANGES) {
+    if (ucNumber >= range.start && ucNumber <= range.end) {
+      return range.domain;
+    }
+  }
+
+  return null;
+}
 
 // ============================================================================
 // KEYWORD MATCHING FOR INTENT
@@ -311,6 +344,7 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-001', 'UC-002', 'UC-003', 'UC-010', 'UC-011'],
       requiredMaps: ['RepoMap', 'SymbolMap', 'ModuleMap'],
       optionalMaps: ['OwnerMap'],
+      requiredObjects: ['repo_fact', 'map', 'pack'],
       outputEnvelope: {
         packTypes: ['RepoMapPack'],
         requiresAdequacy: true,
@@ -329,6 +363,7 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-031', 'UC-032', 'UC-033', 'UC-034'],
       requiredMaps: ['CallGraph', 'ImportGraph'],
       optionalMaps: ['TestMap', 'OwnerMap'],
+      requiredObjects: ['map', 'pack'],
       outputEnvelope: {
         packTypes: ['EditContextPack'],
         requiresAdequacy: true,
@@ -344,6 +379,8 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-042', 'UC-044', 'UC-046'],
       requiredMaps: ['ImpactMap', 'RiskMap', 'TestMap', 'OwnerMap'],
       optionalMaps: [],
+      requiredObjects: ['map', 'pack'],
+      requiredArtifacts: ['work_objects'],
       outputEnvelope: {
         packTypes: ['VerificationPlanPack'],
         requiresAdequacy: true,
@@ -359,6 +396,7 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-035', 'UC-042'],
       requiredMaps: ['TestMap', 'DepMap', 'ImpactMap'],
       optionalMaps: [],
+      requiredObjects: ['map', 'pack'],
       outputEnvelope: {
         packTypes: ['TestSelectionPack'],
         requiresAdequacy: true,
@@ -382,6 +420,7 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-161', 'UC-162'],
       requiredMaps: ['ObsMap', 'RunbookMap'],
       optionalMaps: [],
+      requiredObjects: ['map', 'pack'],
       outputEnvelope: {
         packTypes: ['ObservabilityPack', 'InstrumentationPlanPack'],
         requiresAdequacy: true,
@@ -397,6 +436,7 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-111', 'UC-112'],
       requiredMaps: ['ComplianceMap'],
       optionalMaps: ['OwnerMap', 'AuditMap'],
+      requiredObjects: ['map', 'pack'],
       outputEnvelope: {
         packTypes: ['ComplianceEvidencePack'],
         requiresAdequacy: true,
@@ -412,6 +452,8 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       supportedUcs: ['UC-211', 'UC-212'],
       requiredMaps: [],
       optionalMaps: ['ChangeMap', 'OwnerMap'],
+      requiredObjects: ['claim', 'pack'],
+      requiredArtifacts: ['work_objects'],
       outputEnvelope: {
         packTypes: ['ConflictPack'],
         requiresAdequacy: true,
@@ -420,20 +462,7 @@ function createDefaultTemplates(): ConstructionTemplate[] {
       execute: createStubExecute('T11'),
     },
     // T12: UncertaintyReduction (next-best question and gap closure)
-    {
-      id: 'T12',
-      name: 'UncertaintyReduction',
-      description: 'Identify next-best questions for uncertainty reduction and gap closure.',
-      supportedUcs: ['UC-241', 'UC-251'],
-      requiredMaps: [],
-      optionalMaps: ['GapModel', 'AdequacyReport'],
-      outputEnvelope: {
-        packTypes: ['NextQuestionPack'],
-        requiresAdequacy: true,
-        requiresVerificationPlan: false,
-      },
-      execute: createStubExecute('T12'),
-    },
+    createUncertaintyReductionTemplate(),
   ];
 }
 
@@ -466,7 +495,7 @@ class TemplateRegistryImpl implements TemplateRegistry {
     }
 
     // Then, add domain-based defaults
-    const domain = this.getDomainFromUc(ucId);
+    const domain = getDomainForUcId(ucId);
     if (domain) {
       const domainTemplateIds = DOMAIN_TO_TEMPLATES[domain] ?? [];
       for (const templateId of domainTemplateIds) {
@@ -558,30 +587,15 @@ class TemplateRegistryImpl implements TemplateRegistry {
         supportedUcs: template.supportedUcs.slice(),
         requiredMaps: template.requiredMaps.slice(),
         optionalMaps: template.optionalMaps.slice(),
+        requiredObjects: template.requiredObjects.slice(),
+        optionalObjects: template.optionalObjects ? template.optionalObjects.slice() : undefined,
+        requiredArtifacts: template.requiredArtifacts ? template.requiredArtifacts.slice() : undefined,
+        requiredCapabilities: template.requiredCapabilities ? template.requiredCapabilities.slice() : undefined,
       });
     }
     return list;
   }
 
-  /**
-   * Get domain from UC ID using UC_DOMAIN_RANGES.
-   */
-  private getDomainFromUc(ucId: string): string | null {
-    // Parse UC-### format
-    const match = ucId.match(/^UC-?(\d+)$/);
-    if (!match) {
-      return null;
-    }
-
-    const ucNumber = parseInt(match[1], 10);
-    for (const range of UC_DOMAIN_RANGES) {
-      if (ucNumber >= range.start && ucNumber <= range.end) {
-        return range.domain;
-      }
-    }
-
-    return null;
-  }
 }
 
 // ============================================================================

@@ -2516,73 +2516,107 @@ function calculateAssessmentConfidence(
  * Create a basic independent validation implementation.
  */
 export function createIndependentValidation(): IndependentValidation {
+  const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+  const deterministicScore = (seed: string): number => {
+    let hash = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash ^= seed.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return ((hash >>> 0) % 10000) / 10000;
+  };
+  const normalizeMetricValue = (value: number): number => {
+    if (!Number.isFinite(value) || value < 0) return 0;
+    if (value <= 1) return value;
+    return Math.min(value, 100) / 100;
+  };
+  const deriveArtifactSignal = (artifact: Artifact): number => {
+    const metricValues = Object.values(artifact.metrics).filter(
+      (value): value is number => typeof value === 'number' && Number.isFinite(value)
+    );
+    const metricSignal = metricValues.length > 0
+      ? metricValues.map((value) => normalizeMetricValue(value)).reduce((sum, value) => sum + value, 0) / metricValues.length
+      : 0;
+    const evidenceSignal = artifact.evidence.length > 0
+      ? artifact.evidence.reduce((sum, evidence) => sum + clamp01(evidence.reliability), 0) / artifact.evidence.length
+      : 0;
+    return clamp01(metricSignal * 0.6 + evidenceSignal * 0.4);
+  };
+
   return {
     simulateExternalAudit(artifact: Artifact, standard: AuditStandard): AuditResult {
-      // Simplified audit simulation
       const controlsChecked: ControlResult[] = [];
       const criticalFindings: AuditFinding[] = [];
       const majorFindings: AuditFinding[] = [];
       const minorFindings: AuditFinding[] = [];
 
-      // Simulate control checks based on standard
       const controlCount = getControlCountForStandard(standard);
-      let passedControls = 0;
+      const complianceSignal = deriveArtifactSignal(artifact);
+      const passedControls = Math.floor(controlCount * complianceSignal);
 
       for (let i = 0; i < controlCount; i++) {
-        const passed = Math.random() > 0.2; // 80% pass rate simulation
+        const controlId = `${standard}-CTRL-${i + 1}`;
+        const passed = i < passedControls;
         controlsChecked.push({
-          controlId: `${standard}-CTRL-${i + 1}`,
+          controlId,
           description: `Control ${i + 1} for ${standard}`,
           passed,
-          evidence: passed ? ['Evidence provided'] : [],
+          evidence: passed ? ['Artifact metrics/evidence satisfy deterministic threshold'] : [],
+          notes: passed ? 'Deterministic pass based on available evidence signal' : 'Control unmet due to insufficient evidence signal',
         });
 
-        if (passed) {
-          passedControls++;
-        } else {
-          const severity: 'critical' | 'major' | 'minor' =
-            Math.random() < 0.1 ? 'critical' :
-            Math.random() < 0.3 ? 'major' : 'minor';
+        if (passed) continue;
 
-          const finding: AuditFinding = {
-            id: `finding-${randomUUID()}`,
-            severity,
-            controlId: `${standard}-CTRL-${i + 1}`,
-            description: `Control ${i + 1} not met`,
-            expected: 'Control implemented',
-            observed: 'Control not fully implemented',
-            businessImpact: 'Potential compliance risk',
-            remediation: 'Implement control',
-          };
+        const failedIndex = i - passedControls;
+        const criticalBudget = Math.max(1, Math.floor(controlCount * 0.05));
+        const majorBudget = Math.max(2, Math.floor(controlCount * 0.2));
+        const severity: 'critical' | 'major' | 'minor' = failedIndex < criticalBudget && complianceSignal < 0.8
+          ? 'critical'
+          : failedIndex < majorBudget
+            ? 'major'
+            : 'minor';
 
-          switch (severity) {
-            case 'critical':
-              criticalFindings.push(finding);
-              break;
-            case 'major':
-              majorFindings.push(finding);
-              break;
-            case 'minor':
-              minorFindings.push(finding);
-              break;
-          }
+        const finding: AuditFinding = {
+          id: `finding-${standard}-${i + 1}`,
+          severity,
+          controlId,
+          description: `Control ${i + 1} did not meet deterministic compliance threshold`,
+          expected: 'Control implemented with verifiable evidence',
+          observed: 'Insufficient metric/evidence signal for control compliance',
+          businessImpact: 'Compliance confidence degraded; independent external audit required',
+          remediation: 'Provide stronger evidence or improve control implementation',
+        };
+
+        switch (severity) {
+          case 'critical':
+            criticalFindings.push(finding);
+            break;
+          case 'major':
+            majorFindings.push(finding);
+            break;
+          case 'minor':
+            minorFindings.push(finding);
+            break;
         }
       }
 
       const complianceScore = (passedControls / controlCount) * 100;
 
       return {
-        id: `audit-${randomUUID()}`,
+        id: `audit-${standard}-${artifact.id}`,
         standard,
         artifactId: artifact.id,
         auditedAt: new Date().toISOString(),
         complianceScore,
-        passed: criticalFindings.length === 0 && complianceScore >= 80,
+        passed: criticalFindings.length === 0 && complianceScore >= 80 && artifact.evidence.length > 0,
         controlsChecked,
         criticalFindings,
         majorFindings,
         minorFindings,
-        observations: [],
+        observations: [
+          'Deterministic internal pre-audit only; not a substitute for external certification.',
+          'Outcome quality is bounded by provided artifact metrics and evidence completeness.',
+        ],
         remediationRequired: [...criticalFindings, ...majorFindings].map(f => ({
           findingId: f.id,
           action: f.remediation,
@@ -2594,18 +2628,24 @@ export function createIndependentValidation(): IndependentValidation {
     },
 
     runRedTeamExercise(system: System, attackVectors: AttackVector[]): RedTeamResult {
-      // Simplified red team simulation
       const successfulBreaches: Breach[] = [];
       const blockedAttempts: BlockedAttempt[] = [];
       let totalDetectionTime = 0;
       let detectedCount = 0;
+      const defenseStrength = clamp01((system.securityControls.length / 10) + (system.components.length / 20));
 
       for (const vector of attackVectors) {
-        const success = Math.random() < (0.3 / vector.complexity); // Lower success for complex attacks
+        const attackPressure = clamp01((vector.potentialImpact + vector.complexity) / 10);
+        const successProbability = clamp01(attackPressure - (defenseStrength * 0.6));
+        const breachRoll = deterministicScore(`${system.id}:${vector.id}:breach`);
+        const success = breachRoll < successProbability;
 
         if (success) {
-          const detected = Math.random() > 0.4;
-          const detectionTime = detected ? Math.random() * 3600 : undefined;
+          const detectionProbability = clamp01((defenseStrength * 0.8) + 0.2);
+          const detected = deterministicScore(`${system.id}:${vector.id}:detected`) < detectionProbability;
+          const detectionTime = detected
+            ? Math.round(60 + deterministicScore(`${system.id}:${vector.id}:detect-time`) * 3540)
+            : undefined;
 
           if (detected && detectionTime !== undefined) {
             totalDetectionTime += detectionTime;
@@ -2613,11 +2653,11 @@ export function createIndependentValidation(): IndependentValidation {
           }
 
           successfulBreaches.push({
-            id: `breach-${randomUUID()}`,
+            id: `breach-${vector.id}`,
             vectorId: vector.id,
             compromised: vector.targets[0] || 'unknown',
             method: vector.techniques[0] || 'unknown',
-            timeTaken: Math.random() * 3600,
+            timeTaken: Math.round(120 + deterministicScore(`${system.id}:${vector.id}:time`) * 3480),
             impact: 'Potential data exposure',
             detected,
             detectionTime,
@@ -2626,8 +2666,8 @@ export function createIndependentValidation(): IndependentValidation {
           blockedAttempts.push({
             vectorId: vector.id,
             blockedBy: system.securityControls[0] || 'Unknown control',
-            timeToBlock: Math.random() * 60,
-            alertGenerated: Math.random() > 0.3,
+            timeToBlock: Math.round(5 + deterministicScore(`${system.id}:${vector.id}:block-time`) * 55),
+            alertGenerated: deterministicScore(`${system.id}:${vector.id}:alert`) < 0.8,
           });
         }
       }
@@ -2635,9 +2675,23 @@ export function createIndependentValidation(): IndependentValidation {
       const detectionRate = attackVectors.length > 0
         ? (blockedAttempts.length + detectedCount) / attackVectors.length
         : 1;
+      const breachRate = attackVectors.length > 0 ? successfulBreaches.length / attackVectors.length : 0;
+      const securityScore = clamp01((detectionRate * 0.7) + ((1 - breachRate) * 0.3)) * 100;
+      const criticalVulnerabilities = successfulBreaches
+        .filter((breach) => {
+          const vector = attackVectors.find((candidate) => candidate.id === breach.vectorId);
+          return (vector?.potentialImpact ?? 0) >= 4;
+        })
+        .map((breach) => ({
+          id: `vuln-${breach.vectorId}`,
+          severity: 'critical' as const,
+          description: `High-impact breach path succeeded via ${breach.method}`,
+          affectedComponents: [breach.compromised],
+          remediation: 'Strengthen preventive controls and improve attack path detection',
+        }));
 
       return {
-        id: `redteam-${randomUUID()}`,
+        id: `redteam-${system.id}`,
         systemId: system.id,
         conductedAt: new Date().toISOString(),
         durationHours: 8,
@@ -2647,16 +2701,18 @@ export function createIndependentValidation(): IndependentValidation {
         detectionRate,
         meanTimeToDetect: detectedCount > 0 ? totalDetectionTime / detectedCount : 0,
         meanTimeToRespond: 300, // 5 minutes average
-        securityScore: detectionRate * 100,
-        criticalVulnerabilities: [],
-        recommendations: successfulBreaches.length > 0
-          ? ['Review and strengthen security controls']
-          : ['Continue current security practices'],
+        securityScore,
+        criticalVulnerabilities,
+        recommendations: [
+          successfulBreaches.length > 0
+            ? 'Prioritize controls for successful breach vectors before claiming resilience.'
+            : 'No deterministic breach success observed under configured vectors.',
+          'Run independent external penetration testing for certification-grade security claims.',
+        ],
       };
     },
 
     performAdversarialTesting(component: Component, config: AdversarialConfig): AdversarialResult {
-      // Simplified adversarial testing simulation
       const totalTests = config.useFuzzing
         ? (config.fuzzingSeedCount || 100)
         : 50;
@@ -2667,12 +2723,12 @@ export function createIndependentValidation(): IndependentValidation {
 
       let passed = 0;
       let failed = 0;
+      const failureRate = clamp01(0.03 + (config.intensity * 0.02));
 
       for (let i = 0; i < totalTests; i++) {
-        const result = Math.random();
+        const result = deterministicScore(`${component.id}:${config.intensity}:${i}`);
 
-        if (result < 0.02) {
-          // 2% crash rate
+        if (result < failureRate * 0.25) {
           crashes.push({
             testCaseId: `test-${i}`,
             input: `fuzz-input-${i}`,
@@ -2681,8 +2737,7 @@ export function createIndependentValidation(): IndependentValidation {
             severity: 'high',
           });
           failed++;
-        } else if (result < 0.05) {
-          // 3% unexpected behavior rate
+        } else if (result < failureRate * 0.6) {
           unexpectedBehaviors.push({
             testCaseId: `test-${i}`,
             input: `input-${i}`,
@@ -2691,20 +2746,28 @@ export function createIndependentValidation(): IndependentValidation {
             severity: 'medium',
           });
           failed++;
-        } else if (result < 0.08) {
-          // 3% performance anomaly rate
+        } else if (result < failureRate) {
           performanceAnomalies.push({
             testCaseId: `test-${i}`,
             metric: 'responseTime',
             expectedValue: 100,
-            actualValue: 500,
-            deviationPercent: 400,
+            actualValue: 100 + Math.round(deterministicScore(`${component.id}:${i}:perf`) * 600),
+            deviationPercent: 100 + Math.round(deterministicScore(`${component.id}:${i}:dev`) * 400),
           });
           passed++; // Performance anomalies don't necessarily mean failure
         } else {
           passed++;
         }
       }
+
+      const coverage = clamp01(
+        0.45
+        + Math.min(0.35, config.intensity * 0.07)
+        + (config.useFuzzing ? 0.08 : 0)
+        + (config.testBoundaries ? 0.04 : 0)
+        + (config.testMalformedInput ? 0.04 : 0)
+        + (config.testConcurrency ? 0.04 : 0)
+      );
 
       return {
         componentId: component.id,
@@ -2716,25 +2779,29 @@ export function createIndependentValidation(): IndependentValidation {
         crashes,
         unexpectedBehaviors,
         performanceAnomalies,
-        coverage: 0.75 + Math.random() * 0.2, // 75-95% coverage
+        coverage,
         reliabilityScore: (passed / totalTests) * 100,
       };
     },
 
     exhaustEdgeCases(targetId: string, domain: Domain): EdgeCaseReport {
-      // Simplified edge case exhaustion
       const categories: EdgeCaseCategory[] = getEdgeCaseCategories(domain);
       const failedCases: FailedEdgeCase[] = [];
       let totalCases = 0;
       let passedCases = 0;
+      const failureThreshold = domain.type === 'object'
+        ? 0.12
+        : domain.type === 'numeric'
+          ? 0.08
+          : 0.06;
 
       for (const category of categories) {
         for (const example of category.examples) {
           totalCases++;
           category.casesTested++;
 
-          // 95% pass rate simulation
-          if (Math.random() < 0.95) {
+          const score = deterministicScore(`${targetId}:${category.name}:${JSON.stringify(example)}`);
+          if (score >= failureThreshold) {
             passedCases++;
             category.casesPassed++;
           } else {
@@ -2751,6 +2818,7 @@ export function createIndependentValidation(): IndependentValidation {
       const categoryCoverage = categories.length > 0
         ? categories.filter(c => c.casesTested > 0).length / categories.length
         : 0;
+      const robustnessScore = totalCases > 0 ? (passedCases / totalCases) * 100 : 0;
 
       return {
         targetId,
@@ -2761,10 +2829,16 @@ export function createIndependentValidation(): IndependentValidation {
         failedCases,
         categoriesTested: categories,
         categoryCoverage,
-        robustnessScore: (passedCases / totalCases) * 100,
+        robustnessScore,
         recommendations: failedCases.length > 0
-          ? ['Review edge case handling for failed cases']
-          : ['Edge case handling is robust'],
+          ? [
+            'Review failed edge-case categories before claiming robustness.',
+            'Validate critical edge paths with independent system-level tests.',
+          ]
+          : [
+            'No deterministic edge-case failures observed for generated categories.',
+            'Run external negative-path validation before certification claims.',
+          ],
       };
     },
   };

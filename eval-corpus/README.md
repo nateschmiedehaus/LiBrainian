@@ -21,7 +21,10 @@ repositories, annotations, and query/answer pairs.
 - `ab-harness/tasks.agentic.json`: Agent-command taskpack for autonomous
   treatment/control benchmarking with strict gate support.
 
-## Placeholder Status
+## Current Status
 
-All contents are placeholders until real corpora are added. File counts and
-query arrays are currently empty and should be updated alongside real fixtures.
+This corpus contains active harness assets (`ab-harness/*.json`) and external
+repo manifests (`external-repos/manifest.json`) used by live evaluation runs.
+
+Some query sets remain sparse or intentionally narrow and should continue to be
+expanded with machine-verifiable fixtures as evaluation coverage grows.

@@ -669,6 +669,8 @@ export function createUncertaintyReductionTemplate(): UncertaintyReductionTempla
     supportedUcs: ['UC-241', 'UC-251'],
     requiredMaps: [],
     optionalMaps: ['GapModel', 'AdequacyReport'],
+    requiredObjects: ['claim', 'pack'],
+    requiredArtifacts: ['adequacy_report', 'gap_model', 'defeaters'],
     outputEnvelope: {
       packTypes: ['NextQuestionPack'],
       requiresAdequacy: true,

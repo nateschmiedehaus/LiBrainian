@@ -2,6 +2,9 @@
  * @fileoverview Citation accuracy scoring for eval harness.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve as resolvePathNode, isAbsolute } from 'node:path';
+
 export interface EvidenceLocation {
   startLine: number;
   endLine?: number;
@@ -20,17 +23,21 @@ export type CitationInput =
     file?: string;
     line?: number;
     endLine?: number;
+    identifier?: string;
   };
 
 export interface CitationAccuracyInput {
   citations?: CitationInput[];
   evidenceRefs: CitationEvidenceRef[];
+  repoRoot?: string;
 }
 
 export interface CitationAccuracyResult {
   accuracy: number;
   validCitations: number;
   totalCitations: number;
+  verifiableCitations: number;
+  unverifiableCitations: number;
   invalidCitations: string[];
 }
 
@@ -39,6 +46,7 @@ interface ParsedCitation {
   path?: string;
   line?: number;
   endLine?: number;
+  identifier?: string;
 }
 
 export function computeCitationAccuracy(
@@ -58,6 +66,8 @@ export function computeCitationAccuracy(
       accuracy: 0,
       validCitations: 0,
       totalCitations: 0,
+      verifiableCitations: 0,
+      unverifiableCitations: 0,
       invalidCitations: [],
     };
   }
@@ -66,78 +76,95 @@ export function computeCitationAccuracy(
   const evidenceByPath = buildEvidenceByPath(input.evidenceRefs);
 
   let validCitations = 0;
+  let verifiableCitations = 0;
+  let unverifiableCitations = 0;
   const invalidCitations: string[] = [];
 
+  const repoRoot = input.repoRoot?.trim();
+  const fileLineCache = new Map<string, string[]>();
+
   for (const citation of citations) {
-    const isValid = isCitationValid(citation, refIdSet, evidenceByPath);
-    if (isValid) {
+    const resolved = resolveCitation(citation, refIdSet, evidenceByPath);
+
+    if (!repoRoot || !resolved?.path || (!resolved.line && !resolved.identifier)) {
+      unverifiableCitations += 1;
+      continue;
+    }
+
+    verifiableCitations += 1;
+    const file = resolvePath(repoRoot, resolved.path);
+    const verified = verifyCitationAgainstFilesystem(file, resolved.line, resolved.identifier, fileLineCache);
+
+    if (verified) {
       validCitations += 1;
     } else {
       invalidCitations.push(typeof citation === 'string' ? citation : JSON.stringify(citation));
     }
   }
 
+  const accuracy = verifiableCitations > 0 ? validCitations / verifiableCitations : 0;
+
   return {
-    accuracy: validCitations / totalCitations,
+    accuracy,
     validCitations,
     totalCitations,
+    verifiableCitations,
+    unverifiableCitations,
     invalidCitations,
   };
 }
 
-function isCitationValid(
+function resolveCitation(
   citation: CitationInput,
   refIdSet: Set<string>,
   evidenceByPath: Map<string, CitationEvidenceRef[]>
-): boolean {
+): ParsedCitation | null {
   if (typeof citation === 'string') {
     const trimmed = citation.trim();
-    if (!trimmed) return false;
-    if (refIdSet.has(trimmed)) return true;
+    if (!trimmed) return null;
+    if (refIdSet.has(trimmed)) {
+      return resolveEvidenceRef(trimmed, evidenceByPath);
+    }
 
     const parsed = parseCitationString(trimmed);
-    if (!parsed.path) return false;
-    return matchesEvidence(parsed, evidenceByPath);
+    if (!parsed.path) return null;
+    return parsed;
   }
 
-  if (!citation) return false;
-  if (citation.refId && refIdSet.has(citation.refId)) return true;
+  if (!citation) return null;
+  if (citation.refId && refIdSet.has(citation.refId)) {
+    return resolveEvidenceRef(citation.refId, evidenceByPath);
+  }
 
   const file = citation.file?.trim();
-  if (!file) return false;
+  if (!file) return null;
 
-  return matchesEvidence(
-    {
-      raw: file,
-      path: file,
-      line: citation.line,
-      endLine: citation.endLine,
-    },
-    evidenceByPath
-  );
+  return {
+    raw: file,
+    path: file,
+    line: citation.line,
+    endLine: citation.endLine,
+    identifier: citation.identifier,
+  };
 }
 
-function matchesEvidence(
-  citation: ParsedCitation,
+function resolveEvidenceRef(
+  refId: string,
   evidenceByPath: Map<string, CitationEvidenceRef[]>
-): boolean {
-  const candidates = findEvidenceCandidates(citation.path ?? '', evidenceByPath);
-  if (candidates.length === 0) return false;
-  if (!citation.line) return true;
-
-  for (const candidate of candidates) {
-    const location = candidate.location;
-    if (!location?.startLine) return true;
-    const citeStart = citation.line;
-    const citeEnd = citation.endLine ?? citation.line;
-    const evidenceStart = location.startLine;
-    const evidenceEnd = location.endLine ?? location.startLine;
-    if (rangesOverlap(citeStart, citeEnd, evidenceStart, evidenceEnd)) {
-      return true;
+): ParsedCitation | null {
+  for (const refs of evidenceByPath.values()) {
+    for (const ref of refs) {
+      if (ref.refId !== refId || !ref.path) continue;
+      const line = ref.location?.startLine;
+      return {
+        raw: refId,
+        path: ref.path,
+        line,
+        endLine: ref.location?.endLine,
+      };
     }
   }
-
-  return false;
+  return null;
 }
 
 function buildEvidenceByPath(
@@ -157,24 +184,6 @@ function buildEvidenceByPath(
   }
 
   return map;
-}
-
-function findEvidenceCandidates(
-  path: string,
-  evidenceByPath: Map<string, CitationEvidenceRef[]>
-): CitationEvidenceRef[] {
-  const normalized = normalizePath(path);
-  const direct = evidenceByPath.get(normalized);
-  if (direct) return direct;
-
-  const candidates: CitationEvidenceRef[] = [];
-  for (const [key, refs] of evidenceByPath.entries()) {
-    if (normalized.endsWith(key) || key.endsWith(normalized)) {
-      candidates.push(...refs);
-    }
-  }
-
-  return candidates;
 }
 
 function parseCitationString(value: string): ParsedCitation {
@@ -235,11 +244,60 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, '/').replace(/^\.\//, '').trim();
 }
 
-function rangesOverlap(
-  startA: number,
-  endA: number,
-  startB: number,
-  endB: number
+function resolvePath(repoRoot: string, citationPath: string): string {
+  if (!citationPath) return repoRoot;
+  const normalized = citationPath.replace(/\\/g, '/');
+  if (isAbsolute(normalized)) {
+    return normalized;
+  }
+  return resolvePathNode(repoRoot, normalized);
+}
+
+function verifyCitationAgainstFilesystem(
+  filePath: string,
+  line: number | undefined,
+  identifier: string | undefined,
+  cache: Map<string, string[]>
 ): boolean {
-  return startA <= endB && endA >= startB;
+  if (!existsSync(filePath)) return false;
+
+  const lines = getCachedLines(filePath, cache);
+  if (lines.length === 0) return false;
+
+  if (line !== undefined) {
+    if (line <= 0 || line > lines.length) return false;
+    const lineText = lines[line - 1] ?? '';
+    if (!lineText.trim() && !identifier) return false;
+  }
+
+  if (!identifier) {
+    return true;
+  }
+
+  const matchLines: number[] = [];
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    if (lines[idx]?.includes(identifier)) {
+      matchLines.push(idx + 1);
+    }
+  }
+  if (matchLines.length === 0) return false;
+
+  if (line === undefined) return true;
+
+  const tolerance = 15;
+  return matchLines.some((matchLine) => Math.abs(matchLine - line) <= tolerance);
+}
+
+function getCachedLines(filePath: string, cache: Map<string, string[]>): string[] {
+  const cached = cache.get(filePath);
+  if (cached) return cached;
+  try {
+    const contents = readFileSync(filePath, 'utf8');
+    const lines = contents.split(/\r?\n/);
+    cache.set(filePath, lines);
+    return lines;
+  } catch {
+    cache.set(filePath, []);
+    return [];
+  }
 }

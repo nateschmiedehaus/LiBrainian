@@ -1,15 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { diagnoseCommand } from '../diagnose.js';
 import { Librarian } from '../../../api/librarian.js';
-import { resolveLibrarianModelConfigWithDiscovery } from '../../../api/llm_env.js';
 
 vi.mock('../../../api/librarian.js');
-vi.mock('../../../api/llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
-    provider: 'claude',
-    modelId: 'claude-sonnet-4-20250514',
-  }),
-}));
 
 describe('diagnoseCommand', () => {
   const mockWorkspace = '/test/workspace';
@@ -18,6 +11,8 @@ describe('diagnoseCommand', () => {
   let mockLibrarian: {
     initialize: Mock;
     diagnoseSelf: Mock;
+    diagnoseConfig: Mock;
+    healConfig: Mock;
     shutdown: Mock;
   };
 
@@ -28,6 +23,8 @@ describe('diagnoseCommand', () => {
     mockLibrarian = {
       initialize: vi.fn().mockResolvedValue(undefined),
       diagnoseSelf: vi.fn().mockResolvedValue({ status: 'ok' }),
+      diagnoseConfig: vi.fn().mockResolvedValue({ healthScore: 0.9, isOptimal: true }),
+      healConfig: vi.fn().mockResolvedValue({ success: true }),
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -50,5 +47,26 @@ describe('diagnoseCommand', () => {
     await diagnoseCommand({ workspace: mockWorkspace, pretty: true });
 
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('\n  "status": "ok"'));
+  });
+
+  it('includes config diagnosis when requested', async () => {
+    await diagnoseCommand({ workspace: mockWorkspace, config: true });
+
+    expect(mockLibrarian.diagnoseConfig).toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"config"'));
+  });
+
+  it('runs config healing when requested', async () => {
+    await diagnoseCommand({ workspace: mockWorkspace, config: true, heal: true });
+
+    expect(mockLibrarian.healConfig).toHaveBeenCalledWith({ riskTolerance: 'low' });
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"healing"'));
+  });
+
+  it('prints a text summary when format is text', async () => {
+    await diagnoseCommand({ workspace: mockWorkspace, format: 'text' });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Self Diagnosis'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Status: ok'));
   });
 });

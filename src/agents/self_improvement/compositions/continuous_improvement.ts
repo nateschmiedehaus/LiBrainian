@@ -82,6 +82,14 @@ export interface AppliedFix {
   error?: string;
 }
 
+export interface FixApplicationContext {
+  rootDir: string;
+  storage: LibrarianStorage;
+  verbose: boolean;
+}
+
+export type FixApplier = (plan: FixPlan, context: FixApplicationContext) => Promise<AppliedFix>;
+
 /**
  * Result of continuous improvement composition.
  */
@@ -140,6 +148,13 @@ export interface ContinuousImprovementOptions {
   maxCycles?: number;
   /** Automatically apply fixes */
   autoApplyFixes?: boolean;
+  /**
+   * Applies a planned fix.
+   *
+   * If `autoApplyFixes` is enabled but `fixApplier` is not provided, Librarian
+   * will fail closed and mark the apply phase as failed.
+   */
+  fixApplier?: FixApplier;
   /** Enable learning from outcomes */
   learningEnabled?: boolean;
   /** Extract patterns from improvements */
@@ -340,47 +355,6 @@ function extractIssuesFromConsistency(
   }
 
   return issues;
-}
-
-// ============================================================================
-// FIX APPLICATION (SIMULATED)
-// ============================================================================
-
-/**
- * Apply a fix plan.
- * Note: This is simulated - in production would execute actual file modifications.
- */
-async function applyFix(
-  plan: FixPlan,
-  verbose: boolean
-): Promise<AppliedFix> {
-  const startTime = Date.now();
-
-  // Simulate fix application
-  // In production, this would:
-  // 1. Create a branch
-  // 2. Apply the changes
-  // 3. Run tests
-  // 4. Commit if successful
-
-  if (verbose) {
-    console.log(`[continuousImprovement] Applying fix for: ${plan.issue.id}`);
-  }
-
-  // Simulate some work
-  await new Promise((resolve) => setTimeout(resolve, 100));
-
-  // Simulate 80% success rate
-  const success = Math.random() > 0.2;
-  const verified = success && Math.random() > 0.1; // 90% verification rate if successful
-
-  return {
-    plan,
-    success,
-    verified,
-    duration: Date.now() - startTime,
-    error: success ? undefined : 'Simulated fix failure',
-  };
 }
 
 // ============================================================================
@@ -682,31 +656,42 @@ async function runSingleCycle(
         console.log(`[continuousImprovement] Phase 5: Applying ${fixesPlanned.length} fixes`);
       }
 
-      for (const plan of fixesPlanned) {
-        try {
-          const applied = await applyFix(plan, verbose);
-          fixesApplied.push(applied);
-        } catch (error) {
-          errors.push(`[apply] Failed for ${plan.issue.id}: ${getErrorMessage(error)}`);
-          fixesApplied.push({
-            plan,
-            success: false,
-            verified: false,
-            duration: 0,
-            error: getErrorMessage(error),
-          });
+      if (!options.fixApplier) {
+        errors.push('[apply] fix_application_unavailable: autoApplyFixes=true requires fixApplier');
+        phaseReports.push({
+          phase: 'apply_fixes',
+          status: 'failed',
+          duration: Date.now() - phase5Start,
+          itemsProcessed: 0,
+          errors: errors.filter((e) => e.includes('[apply]')),
+        });
+      } else {
+        for (const plan of fixesPlanned) {
+          try {
+            const applied = await options.fixApplier(plan, { rootDir, storage, verbose });
+            fixesApplied.push(applied);
+          } catch (error) {
+            errors.push(`[apply] Failed for ${plan.issue.id}: ${getErrorMessage(error)}`);
+            fixesApplied.push({
+              plan,
+              success: false,
+              verified: false,
+              duration: 0,
+              error: getErrorMessage(error),
+            });
+          }
         }
-      }
 
-      const successCount = fixesApplied.filter((f) => f.success).length;
-      phaseReports.push({
-        phase: 'apply_fixes',
-        status: successCount === fixesApplied.length ? 'success' :
-          successCount > 0 ? 'partial' : 'failed',
-        duration: Date.now() - phase5Start,
-        itemsProcessed: fixesApplied.length,
-        errors: errors.filter((e) => e.includes('[apply]')),
-      });
+        const successCount = fixesApplied.filter((f) => f.success).length;
+        phaseReports.push({
+          phase: 'apply_fixes',
+          status: successCount === fixesApplied.length ? 'success' :
+            successCount > 0 ? 'partial' : 'failed',
+          duration: Date.now() - phase5Start,
+          itemsProcessed: fixesApplied.length,
+          errors: errors.filter((e) => e.includes('[apply]')),
+        });
+      }
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       errors.push(`[apply] Phase failed: ${errorMsg}`);
@@ -913,7 +898,10 @@ async function runSingleCycle(
   ).length;
 
   // Determine status
-  const status = determineStatus(healthImprovement, issuesFound, criticalCount);
+  let status = determineStatus(healthImprovement, issuesFound, criticalCount);
+  if (errors.some((error) => error.includes('fix_application_unavailable')) && status !== 'needs_attention') {
+    status = 'degraded';
+  }
 
   // Schedule next check
   const nextScheduledCheck = new Date(

@@ -1093,7 +1093,15 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       .get('metadata') as { value: string } | undefined;
 
     if (!row) return noResult();
-    return parseJsonOrNull<LibrarianMetadata>(row.value);
+    const parsed = parseJsonOrNull<LibrarianMetadata>(row.value);
+    if (!parsed || typeof parsed !== 'object') {
+      return noResult();
+    }
+    return {
+      ...parsed,
+      lastBootstrap: parseOptionalDate((parsed as { lastBootstrap?: unknown }).lastBootstrap),
+      lastIndexing: parseOptionalDate((parsed as { lastIndexing?: unknown }).lastIndexing),
+    };
   }
 
   async setMetadata(metadata: LibrarianMetadata): Promise<void> {
@@ -6119,6 +6127,18 @@ function rowToUniversalKnowledge(row: UniversalKnowledgeRow): UniversalKnowledge
 function parseJsonOrNull<T>(raw: string): T | null {
   const parsed = safeJsonParse<T>(raw);
   return parsed.ok ? parsed.value : null;
+}
+
+function parseOptionalDate(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
 }
 
 function parseJsonArray<T>(raw: string): T[] {

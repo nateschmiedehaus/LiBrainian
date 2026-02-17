@@ -14,6 +14,57 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
 
+const DEFAULT_TEST_DISCOVERY_MAX_FILES = 2000;
+const DEFAULT_TEST_DISCOVERY_MAX_FILES_TEST = 2000;
+const DEFAULT_TEST_DISCOVERY_BUDGET_MS = 15000;
+const DEFAULT_TEST_DISCOVERY_BUDGET_MS_TEST = 15000;
+const DEFAULT_TEST_DISCOVERY_CACHE_TTL_MS = 2 * 60 * 1000;
+const DEFAULT_TEST_DISCOVERY_MAX_CACHED_FILE_BYTES = 200 * 1024;
+
+function readEnvNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isUnitTestMode(): boolean {
+  return process.env.NODE_ENV === 'test' || process.env.LIBRARIAN_TEST_MODE === 'unit';
+}
+
+function getTestDiscoverySettings(): {
+  maxFiles: number;
+  timeBudgetMs: number;
+  cacheTtlMs: number;
+  cacheEnabled: boolean;
+  maxCachedFileBytes: number;
+} {
+  const isUnit = isUnitTestMode();
+  const maxFiles = Math.max(
+    1,
+    readEnvNumber(
+      'LIBRARIAN_TEST_DISCOVERY_MAX_FILES',
+      isUnit ? DEFAULT_TEST_DISCOVERY_MAX_FILES_TEST : DEFAULT_TEST_DISCOVERY_MAX_FILES
+    )
+  );
+  const timeBudgetRaw = readEnvNumber(
+    'LIBRARIAN_TEST_DISCOVERY_BUDGET_MS',
+    isUnit ? DEFAULT_TEST_DISCOVERY_BUDGET_MS_TEST : DEFAULT_TEST_DISCOVERY_BUDGET_MS
+  );
+  const timeBudgetMs = timeBudgetRaw <= 0 ? Number.POSITIVE_INFINITY : timeBudgetRaw;
+  const cacheTtlMs = Math.max(0, readEnvNumber('LIBRARIAN_TEST_DISCOVERY_CACHE_TTL_MS', DEFAULT_TEST_DISCOVERY_CACHE_TTL_MS));
+  const cacheEnabled = process.env.LIBRARIAN_TEST_DISCOVERY_CACHE_DISABLED !== '1' && cacheTtlMs > 0;
+  const maxCachedFileBytes = Math.max(
+    0,
+    readEnvNumber('LIBRARIAN_TEST_DISCOVERY_MAX_CACHED_BYTES', DEFAULT_TEST_DISCOVERY_MAX_CACHED_FILE_BYTES)
+  );
+  return { maxFiles, timeBudgetMs, cacheTtlMs, cacheEnabled, maxCachedFileBytes };
+}
+
+type TestFileListCacheEntry = { at: number; files: string[] };
+const testFileListCache = new Map<string, TestFileListCacheEntry>();
+const testFileContentCache = new Map<string, Map<string, string>>();
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -29,7 +80,7 @@ export interface TestDiscoveryResult {
   /** Coverage status based on number and type of tests found */
   coverageStatus: 'full' | 'partial' | 'none';
   /** How the tests were discovered */
-  discoveryMethod: 'naming_convention' | 'class_reference' | 'both';
+  discoveryMethod: 'naming_convention' | 'class_reference' | 'both' | 'none';
 }
 
 /**
@@ -137,6 +188,7 @@ export async function findTestsForClass(
   const results: Set<string> = new Set();
   let hasConventionMatches = false;
   let hasReferenceMatches = false;
+  const settings = getTestDiscoverySettings();
 
   // Strategy 1: Find test files by naming convention
   // Look for files like ClassName.test.ts or class_name.test.ts
@@ -171,41 +223,100 @@ export async function findTestsForClass(
   // Strategy 2: Search for class references in all test files
   // This catches tests that test the class but aren't named after it
   try {
-    const allTestFiles = await glob('**/*.test.ts', {
-      cwd: workspace,
-      ignore: ['node_modules/**', '**/node_modules/**'],
-      nodir: true,
-    });
+    const cacheKey = workspace;
+    const now = Date.now();
+    let allFiles: string[] = [];
+    const cachedList = settings.cacheEnabled ? testFileListCache.get(cacheKey) : undefined;
+    if (cachedList && now - cachedList.at < settings.cacheTtlMs) {
+      allFiles = cachedList.files;
+    } else {
+      const allTestFiles = await glob('**/*.test.ts', {
+        cwd: workspace,
+        ignore: ['node_modules/**', '**/node_modules/**'],
+        nodir: true,
+      });
 
-    // Also include spec files and __tests__ directories
-    const specFiles = await glob('**/*.spec.ts', {
-      cwd: workspace,
-      ignore: ['node_modules/**', '**/node_modules/**'],
-      nodir: true,
-    });
+      // Also include spec files and __tests__ directories
+      const specFiles = await glob('**/*.spec.ts', {
+        cwd: workspace,
+        ignore: ['node_modules/**', '**/node_modules/**'],
+        nodir: true,
+      });
 
-    const testDirFiles = await glob('**/__tests__/**/*.ts', {
-      cwd: workspace,
-      ignore: ['node_modules/**', '**/node_modules/**'],
-      nodir: true,
-    });
+      const testDirFiles = await glob('**/__tests__/**/*.ts', {
+        cwd: workspace,
+        ignore: ['node_modules/**', '**/node_modules/**'],
+        nodir: true,
+      });
 
-    const allFiles = Array.from(new Set([...allTestFiles, ...specFiles, ...testDirFiles]));
+      allFiles = Array.from(new Set([...allTestFiles, ...specFiles, ...testDirFiles])).sort();
+      if (settings.cacheEnabled) {
+        testFileListCache.set(cacheKey, { at: now, files: allFiles });
+        testFileContentCache.delete(cacheKey);
+      }
+    }
+
+    const contentCache = settings.cacheEnabled
+      ? (testFileContentCache.get(cacheKey) ?? new Map<string, string>())
+      : new Map<string, string>();
+    if (settings.cacheEnabled && !testFileContentCache.has(cacheKey)) {
+      testFileContentCache.set(cacheKey, contentCache);
+    }
+
+    const classPattern = new RegExp(`\\b${escapeRegExp(className)}\\b`);
+    const classTokens = new Set([
+      className.toLowerCase(),
+      toSnakeCase(className),
+      toKebabCase(className),
+      ...splitPascalCase(className).map((token) => token.toLowerCase()),
+    ].filter((token) => token.length >= 3));
+    const orderedFiles = allFiles
+      .map((file) => {
+        const lower = file.toLowerCase();
+        let score = 0;
+        for (const token of classTokens) {
+          if (lower.includes(token)) {
+            score += 1;
+          }
+        }
+        return { file, score };
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        return a.file.localeCompare(b.file);
+      })
+      .map((item) => item.file);
+    const scanStart = Date.now();
+    let scanned = 0;
 
     // Read each test file and check for class references
-    for (const testFile of allFiles) {
+    for (const testFile of orderedFiles) {
       // Skip if already found via convention
       if (results.has(testFile)) {
         continue;
       }
+      if (scanned >= settings.maxFiles) {
+        break;
+      }
+      if (Date.now() - scanStart > settings.timeBudgetMs) {
+        break;
+      }
+      scanned += 1;
 
       try {
         const fullPath = path.join(workspace, testFile);
-        const content = await fs.readFile(fullPath, 'utf-8');
+        let content = contentCache.get(testFile);
+        if (content === undefined) {
+          content = await fs.readFile(fullPath, 'utf-8');
+          if (settings.cacheEnabled && content.length <= settings.maxCachedFileBytes) {
+            contentCache.set(testFile, content);
+          }
+        }
 
         // Check if the file contains the class name
         // Use word boundary to avoid partial matches
-        const classPattern = new RegExp(`\\b${escapeRegExp(className)}\\b`);
         if (classPattern.test(content)) {
           results.add(testFile);
           hasReferenceMatches = true;
@@ -222,7 +333,7 @@ export async function findTestsForClass(
   const testFunctions = await extractTestFunctions(workspace, Array.from(results), className);
 
   // Determine discovery method
-  let discoveryMethod: TestDiscoveryResult['discoveryMethod'] = 'none' as any;
+  let discoveryMethod: TestDiscoveryResult['discoveryMethod'] = 'none';
   if (hasConventionMatches && hasReferenceMatches) {
     discoveryMethod = 'both';
   } else if (hasConventionMatches) {
@@ -331,4 +442,11 @@ function toKebabCase(str: string): string {
  */
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function splitPascalCase(str: string): string[] {
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[\s_-]+/)
+    .filter(Boolean);
 }

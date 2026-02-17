@@ -13,6 +13,7 @@
  */
 
 import * as path from 'path';
+import { getLanguageFromPath } from '../utils/language.js';
 import {
   detectComparisonIntent,
   shouldUseComparisonMode,
@@ -219,7 +220,7 @@ async function loadEntitySnippet(
       content: snippetContent,
       startLine,
       endLine: end,
-      language: getLanguageFromPath(filePath),
+      language: getLanguageFromPath(filePath, 'text'),
     };
   } catch {
     return null;
@@ -294,46 +295,6 @@ async function generateEntityPacks(
   packs.push(packB);
 
   return packs;
-}
-
-/**
- * Get language from file path.
- */
-function getLanguageFromPath(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  switch (ext) {
-    case '.ts':
-    case '.tsx':
-      return 'typescript';
-    case '.js':
-    case '.jsx':
-    case '.mjs':
-    case '.cjs':
-      return 'javascript';
-    case '.py':
-      return 'python';
-    case '.rs':
-      return 'rust';
-    case '.go':
-      return 'go';
-    case '.java':
-      return 'java';
-    case '.rb':
-      return 'ruby';
-    case '.php':
-      return 'php';
-    case '.c':
-    case '.h':
-      return 'c';
-    case '.cpp':
-    case '.hpp':
-    case '.cc':
-      return 'cpp';
-    case '.cs':
-      return 'csharp';
-    default:
-      return 'text';
-  }
 }
 
 // ============================================================================

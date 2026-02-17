@@ -3,7 +3,7 @@
  */
 
 import { readFile, readdir } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, resolve, isAbsolute, relative, sep } from 'node:path';
 import { computeCitationAccuracy, type CitationInput } from './citation_accuracy.js';
 import { computeRetrievalMetrics } from './metrics.js';
 import { computeSynthesisMetrics } from './synthesis_metrics.js';
@@ -127,6 +127,16 @@ export interface EvalOptions {
   parallel?: number;
   timeoutMs?: number;
   includeLatency?: boolean;
+  /**
+   * Optional cap on number of repos included in the run (after queryFilter).
+   * Useful for budgeted evaluation (e.g., Ralph loop).
+   */
+  maxRepos?: number;
+  /**
+   * Optional cap on number of queries evaluated (after queryFilter/maxRepos).
+   * Useful for budgeted evaluation (e.g., Ralph loop).
+   */
+  maxQueries?: number;
 }
 
 export interface QueryEvalResult {
@@ -162,8 +172,8 @@ export interface SynthesisEvalResult {
   hallucinationCount: number;
   hallucinationRate: number;
   groundingRate: number;
-  fabricationRate: number;
-  citationAccuracy: number;
+  fabricationRate: number | null;
+  citationAccuracy: number | null;
   missingFacts: string[];
   falseClaims: string[];
   structuralAccuracy?: number;
@@ -201,12 +211,12 @@ export interface EvalMetrics {
   hallucination: {
     hallucinationRate: number;
     groundingRate: number;
-    fabricationRate: number;
+    fabricationRate: number | null;
   };
   evidence: {
-    citationAccuracy: number;
-    citationCompleteness: number;
-    evidenceRelevance: number;
+    citationAccuracy: number | null;
+    citationCompleteness: number | null;
+    evidenceRelevance: number | null;
   };
   byCategory: Record<string, CategoryMetrics>;
   byCodebaseType: Record<string, CategoryMetrics>;
@@ -261,7 +271,20 @@ export class EvalRunner {
   async evaluate(options: EvalOptions): Promise<EvalReport> {
     const startedAt = this.clock();
     const corpus = await loadEvalCorpus(options.corpusPath, options.corpusPaths);
-    const filteredQueries = filterQueries(corpus.queries, options.queryFilter);
+    let filteredQueries = filterQueries(corpus.queries, options.queryFilter);
+
+    if (typeof options.maxRepos === 'number' && Number.isFinite(options.maxRepos) && options.maxRepos > 0) {
+      const allowed = new Set<string>();
+      for (const query of filteredQueries) {
+        if (allowed.size >= options.maxRepos) break;
+        allowed.add(query.repoId);
+      }
+      filteredQueries = filteredQueries.filter((query) => allowed.has(query.repoId));
+    }
+
+    if (typeof options.maxQueries === 'number' && Number.isFinite(options.maxQueries) && options.maxQueries > 0) {
+      filteredQueries = filteredQueries.slice(0, options.maxQueries);
+    }
 
     const queryResults = await runWithConcurrency(
       filteredQueries,
@@ -423,7 +446,7 @@ export class EvalRunner {
       errors.push(error instanceof Error ? error.message : String(error));
     }
 
-    const retrievalEval = evaluateRetrieval(query, retrieval, retrievalLatency);
+    const retrievalEval = evaluateRetrieval(query, repoRoot, retrieval, retrievalLatency);
 
     let synthesisEval: SynthesisEvalResult | undefined;
     if (retrieval && this.pipeline.synthesize) {
@@ -437,7 +460,7 @@ export class EvalRunner {
         const synthesisLatency = options.includeLatency
           ? synthesis.latencyMs ?? end.getTime() - start.getTime()
           : undefined;
-        synthesisEval = evaluateSynthesis(query, synthesis, synthesisLatency);
+        synthesisEval = evaluateSynthesis(query, synthesis, repoRoot, synthesisLatency);
       } catch (error) {
         errors.push(error instanceof Error ? error.message : String(error));
       }
@@ -577,12 +600,15 @@ function filterQueries(
 
 function evaluateRetrieval(
   query: GroundTruthQuery,
+  repoRoot: string,
   retrieval?: RetrievalResult,
   latencyMs?: number
 ): RetrievalEvalResult {
-  const retrievedDocs = retrieval?.docs ?? [];
-  const mustInclude = unique(query.correctAnswer.mustIncludeFiles ?? []);
-  const shouldInclude = unique(query.correctAnswer.shouldIncludeFiles ?? []);
+  const normalizeDoc = (docId: string): string => normalizeDocId(repoRoot, docId);
+
+  const retrievedDocs = (retrieval?.docs ?? []).map(normalizeDoc);
+  const mustInclude = unique((query.correctAnswer.mustIncludeFiles ?? []).map(normalizeDoc));
+  const shouldInclude = unique((query.correctAnswer.shouldIncludeFiles ?? []).map(normalizeDoc));
   const relevantTargets = unique([...mustInclude, ...shouldInclude]);
   const metrics = computeRetrievalMetrics({
     retrievedDocs,
@@ -609,11 +635,18 @@ function evaluateRetrieval(
 function evaluateSynthesis(
   query: GroundTruthQuery,
   synthesis: SynthesisResult,
+  repoRoot: string,
   latencyMs?: number
 ): SynthesisEvalResult {
   const claims = synthesis.claims && synthesis.claims.length > 0
     ? synthesis.claims
     : [];
+
+  const citationAccuracy = computeCitationAccuracy({
+    citations: synthesis.citations,
+    evidenceRefs: query.correctAnswer.evidenceRefs ?? [],
+    repoRoot,
+  });
 
   const metrics = computeSynthesisMetrics({
     answer: synthesis.answer,
@@ -624,17 +657,16 @@ function evaluateSynthesis(
     summary: query.correctAnswer.summary,
     acceptableVariations: query.correctAnswer.acceptableVariations,
     category: query.category,
-  });
-
-  const citationAccuracy = computeCitationAccuracy({
-    citations: synthesis.citations,
-    evidenceRefs: query.correctAnswer.evidenceRefs ?? [],
+    citationVerification: {
+      verifiedCitations: citationAccuracy.validCitations,
+      verifiableCitations: citationAccuracy.verifiableCitations,
+    },
   });
 
   return {
     answer: synthesis.answer,
     ...metrics,
-    citationAccuracy: citationAccuracy.accuracy,
+    citationAccuracy: citationAccuracy.verifiableCitations > 0 ? citationAccuracy.accuracy : null,
     latencyMs,
   };
 }
@@ -649,7 +681,7 @@ function computeQueryScore(
 }
 
 function buildErroredResult(query: GroundTruthQuery, message: string): QueryEvalResult {
-  const retrieval = evaluateRetrieval(query, { docs: [] }, undefined);
+  const retrieval = evaluateRetrieval(query, '', { docs: [] }, undefined);
   return {
     queryId: query.queryId,
     repoId: query.repoId,
@@ -661,6 +693,20 @@ function buildErroredResult(query: GroundTruthQuery, message: string): QueryEval
     score: 0,
     errors: [message],
   };
+}
+
+function normalizeDocId(repoRoot: string, docId: string): string {
+  const raw = String(docId ?? '');
+  if (raw.length === 0) return raw;
+
+  if (repoRoot && isAbsolute(raw)) {
+    const rel = relative(repoRoot, raw);
+    if (!rel.startsWith('..')) {
+      return rel.split(sep).join('/');
+    }
+  }
+
+  return raw.split(sep).join('/');
 }
 
 // ============================================================================
@@ -710,8 +756,12 @@ function aggregateMetrics(queryResults: QueryEvalResult[], repos: RepoManifest[]
       synthesisConsistency.push(result.synthesis.consistencyScore);
       hallucinationRates.push(result.synthesis.hallucinationRate);
       groundingRates.push(result.synthesis.groundingRate);
-      fabricationRates.push(result.synthesis.fabricationRate);
-      citationAccuracies.push(result.synthesis.citationAccuracy);
+      if (result.synthesis.fabricationRate !== null) {
+        fabricationRates.push(result.synthesis.fabricationRate);
+      }
+      if (result.synthesis.citationAccuracy !== null) {
+        citationAccuracies.push(result.synthesis.citationAccuracy);
+      }
       if (result.synthesis.structuralAccuracy !== undefined) {
         synthesisStructural.push(result.synthesis.structuralAccuracy);
       }
@@ -751,13 +801,13 @@ function aggregateMetrics(queryResults: QueryEvalResult[], repos: RepoManifest[]
   const hallucination = {
     hallucinationRate: mean(hallucinationRates),
     groundingRate: mean(groundingRates),
-    fabricationRate: mean(fabricationRates),
+    fabricationRate: meanOrNull(fabricationRates),
   };
 
   const evidence = {
-    citationAccuracy: mean(citationAccuracies),
-    citationCompleteness: 0,
-    evidenceRelevance: 0,
+    citationAccuracy: meanOrNull(citationAccuracies),
+    citationCompleteness: null,
+    evidenceRelevance: null,
   };
 
   const byCategory = aggregateByKey(queryResults, (result) => result.category);
@@ -838,6 +888,11 @@ async function runWithConcurrency<T, U>(
 function mean(values: number[]): number {
   if (!values || values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function meanOrNull(values: number[]): number | null {
+  if (!values || values.length === 0) return null;
+  return mean(values);
 }
 
 function confidenceInterval(values: number[]): [number, number] {

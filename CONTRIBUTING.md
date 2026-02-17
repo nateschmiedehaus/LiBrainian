@@ -153,6 +153,7 @@ Run these before requesting final review:
 ```bash
 npm run typecheck
 npm test -- --run
+npm run repo:audit
 npm run package:assert-identity
 npm run package:install-smoke
 npm run eval:publish-gate -- --json

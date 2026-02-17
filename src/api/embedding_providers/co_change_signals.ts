@@ -16,7 +16,9 @@
  */
 
 import { execSync } from 'child_process';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { logDebug } from '../../telemetry/logger.js';
 
 // ============================================================================
 // TYPES
@@ -69,6 +71,29 @@ export interface CoChangeOptions {
 // GIT HISTORY EXTRACTION
 // ============================================================================
 
+function isInsideGitWorkTree(repoPath: string): boolean {
+  // Fast path: if we're in the repo root, `.git` exists (dir or file in worktrees).
+  // This avoids spawning git on common paths.
+  try {
+    if (fs.existsSync(path.join(repoPath, '.git'))) return true;
+  } catch {
+    // ignore
+  }
+
+  // Robust path: support subdirectories inside a repo.
+  try {
+    const output = execSync('git rev-parse --is-inside-work-tree', {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 1024 * 1024,
+    });
+    return output.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Extract commit history from git.
  */
@@ -88,6 +113,8 @@ export function extractCommitHistory(
   const commits: CommitInfo[] = [];
 
   try {
+    if (!isInsideGitWorkTree(repoPath)) return commits;
+
     // Get commit hashes with timestamps
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - daysBack);
@@ -97,6 +124,7 @@ export function extractCommitHistory(
     const output = execSync(logCmd, {
       cwd: repoPath,
       encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 50 * 1024 * 1024,
     });
 
@@ -160,7 +188,11 @@ export function extractCommitHistory(
       commits.push(currentCommit);
     }
   } catch (error) {
-    console.warn('[co-change] Failed to extract git history:', error);
+    // Non-fatal: git history is an optional signal and many workspaces (extracted fixtures,
+    // vendored repos, CI sandboxes) are not git repositories.
+    logDebug('[co-change] Failed to extract git history; continuing without co-change signals', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   return commits;

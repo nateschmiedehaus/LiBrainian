@@ -25,6 +25,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
+import { spawnSync } from 'node:child_process';
 import {
   createASTFactExtractor,
   type ASTFact,
@@ -106,6 +107,52 @@ function reposExist(): boolean {
 function ensureResultsDir(): void {
   if (!fs.existsSync(EVAL_RESULTS_DIR)) {
     fs.mkdirSync(EVAL_RESULTS_DIR, { recursive: true });
+  }
+}
+
+type MemoryBenchmarkResult = {
+  locCount: number;
+  heapDeltaMB: number;
+  heapDeltaPerKLOC: number;
+};
+
+function runMemoryBenchmark(repoPath: string): MemoryBenchmarkResult | null {
+  const scriptPath = path.join(LIBRARIAN_ROOT, 'scripts', 'benchmark-memory-per-kloc.ts');
+  const result = spawnSync(
+    process.execPath,
+    ['--expose-gc', '--import', 'tsx', scriptPath, repoPath],
+    {
+      cwd: LIBRARIAN_ROOT,
+      encoding: 'utf-8',
+      env: process.env,
+    }
+  );
+
+  if (result.error || result.status !== 0) {
+    console.warn('[WARN] Memory benchmark failed', result.error ?? result.stderr?.trim());
+    return null;
+  }
+
+  const stdout = result.stdout.trim();
+  if (!stdout) {
+    console.warn('[WARN] Memory benchmark produced no output');
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stdout) as MemoryBenchmarkResult;
+    if (
+      typeof parsed.locCount !== 'number' ||
+      typeof parsed.heapDeltaMB !== 'number' ||
+      typeof parsed.heapDeltaPerKLOC !== 'number'
+    ) {
+      console.warn('[WARN] Memory benchmark output missing numeric fields');
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    console.warn('[WARN] Memory benchmark JSON parse failed', error);
+    return null;
   }
 }
 
@@ -998,6 +1045,7 @@ describe('Phase 21: Performance Benchmarking', () => {
   let latencies: number[] = [];
   let memoryUsageMB = 0;
   let locCount = 0;
+  let memoryBenchmark: MemoryBenchmarkResult | null = null;
 
   beforeAll(async () => {
     // Measure latency across multiple queries
@@ -1026,6 +1074,12 @@ describe('Phase 21: Performance Benchmarking', () => {
         };
 
         locCount = countLOC(repoPath);
+
+        memoryBenchmark = runMemoryBenchmark(repoPath);
+        if (memoryBenchmark) {
+          memoryUsageMB = memoryBenchmark.heapDeltaMB;
+          locCount = memoryBenchmark.locCount;
+        }
       }
     }
 
@@ -1048,10 +1102,6 @@ describe('Phase 21: Performance Benchmarking', () => {
       }
     }
 
-    // Measure memory usage (approximate)
-    if (typeof process !== 'undefined' && process.memoryUsage) {
-      memoryUsageMB = process.memoryUsage().heapUsed / (1024 * 1024);
-    }
   });
 
   afterAll(() => {
@@ -1121,7 +1171,7 @@ describe('Phase 21: Performance Benchmarking', () => {
       const memoryPerKLOC = locCount > 0 ? memoryUsageMB / (locCount / 1000) : 0;
 
       console.log(`\nMemory Usage:`);
-      console.log(`  Total memory: ${memoryUsageMB.toFixed(2)} MB`);
+      console.log(`  Heap peak delta: ${memoryUsageMB.toFixed(2)} MB`);
       console.log(`  Lines of code: ${locCount}`);
       console.log(`  Memory per 1K LOC: ${memoryPerKLOC.toFixed(2)} MB`);
 
@@ -1142,12 +1192,8 @@ describe('Phase 21: Performance Benchmarking', () => {
         return;
       }
 
-      // Report metric but don't fail - this measures Node.js process memory
-      // which includes test framework overhead and is not representative of
-      // the actual Librarian memory footprint
-      // The target applies to the indexing/retrieval system, not the test harness
-      expect(typeof memoryPerKLOC).toBe('number');
-      expect(memoryPerKLOC).toBeGreaterThanOrEqual(0);
+      expect(memoryBenchmark).not.toBeNull();
+      expect(memoryPerKLOC).toBeLessThan(TARGETS.phase21.memoryPerKLOC);
     });
   });
 

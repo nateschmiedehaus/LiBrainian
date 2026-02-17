@@ -82,12 +82,14 @@ export async function evalCommand(options: EvalOptions): Promise<void> {
     const context: EvaluationContext = {
       workspaceRoot: workspace,
       providerAvailable,
+      dbPath,
       budget: {
         maxTokens: 10000,
         maxEmbeddings: 100,
         maxProviderCalls: 10,
         maxDurationMs: 300000, // 5 minutes
       },
+      retrievalEval: { enabled: false },
     };
 
     // Run staged evaluation
@@ -145,8 +147,11 @@ export async function evalCommand(options: EvalOptions): Promise<void> {
       }
     }
 
-    // Exit code based on health
-    if (fitnessReport.fitness.overall < 0.5) {
+    // Exit code based on health and measured-reality integrity.
+    if (
+      fitnessReport.fitness.overall < 0.5
+      || fitnessReport.scoringIntegrity.status !== 'measured'
+    ) {
       process.exitCode = 1;
     }
   } finally {
@@ -164,6 +169,12 @@ function parseStageRange(stages: string): [number, number] {
 }
 
 function printFitnessReport(report: FitnessReport, verbose: boolean): void {
+  const isMeasured = (value: number): boolean => Number.isFinite(value) && value >= 0;
+  const formatPercent = (value: number): string => (value * 100).toFixed(1);
+  const formatPercentOrUnmeasured = (value: number): string => (
+    isMeasured(value) ? `${formatPercent(value)}%` : 'unmeasured'
+  );
+
   const statusEmoji = report.fitness.overall >= 0.7 ? '\u2705' :
                       report.fitness.overall >= 0.5 ? '\u26A0\uFE0F' : '\u274C';
 
@@ -197,11 +208,11 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
 
   // Fitness vector summary
   console.log('Fitness Vector:');
-  console.log(`  Overall: ${(report.fitness.overall * 100).toFixed(1)}%`);
-  console.log(`  Correctness (Tier-0 Pass): ${(report.fitness.correctness.tier0PassRate * 100).toFixed(1)}%`);
-  console.log(`  Retrieval Recall@5: ${(report.fitness.retrievalQuality.recallAt5 * 100).toFixed(1)}%`);
-  console.log(`  Epistemic (Evidence Coverage): ${(report.fitness.epistemicQuality.evidenceCoverage * 100).toFixed(1)}%`);
-  console.log(`  Operational (Cache Hit Rate): ${(report.fitness.operationalQuality.cacheHitRate * 100).toFixed(1)}%`);
+  console.log(`  Overall: ${formatPercent(report.fitness.overall)}%`);
+  console.log(`  Correctness (Tier-0 Pass): ${formatPercentOrUnmeasured(report.fitness.correctness.tier0PassRate)}`);
+  console.log(`  Retrieval Recall@5: ${formatPercentOrUnmeasured(report.fitness.retrievalQuality.recallAt5)}`);
+  console.log(`  Epistemic (Evidence Coverage): ${formatPercentOrUnmeasured(report.fitness.epistemicQuality.evidenceCoverage)}`);
+  console.log(`  Operational (Cache Hit Rate): ${formatPercentOrUnmeasured(report.fitness.operationalQuality.cacheHitRate)}`);
   console.log();
 
   // Behavior descriptors
@@ -212,6 +223,18 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
   console.log(`  Calibration: ${report.behaviorDescriptors.calibrationBucket}`);
   console.log(`  Retrieval Strategy: ${report.behaviorDescriptors.retrievalStrategy}`);
   console.log(`  Provider Reliance: ${report.behaviorDescriptors.providerReliance}`);
+  console.log();
+
+  // Measurement integrity
+  console.log('Scoring Integrity:');
+  console.log(`  Status: ${report.scoringIntegrity.status}`);
+  console.log(`  Measured Families: ${report.scoringIntegrity.measuredFamilies}/${report.scoringIntegrity.totalFamilies}`);
+  console.log(`  Coverage: ${(report.scoringIntegrity.coverageRatio * 100).toFixed(1)}%`);
+  if (report.scoringIntegrity.reasons.length > 0) {
+    for (const reason of report.scoringIntegrity.reasons) {
+      console.log(`  - ${reason}`);
+    }
+  }
   console.log();
 
   // Resource usage
@@ -226,14 +249,17 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
 
   // Warnings
   const warnings: string[] = [];
-  if (report.fitness.correctness.tier0PassRate < 0.8) {
+  if (isMeasured(report.fitness.correctness.tier0PassRate) && report.fitness.correctness.tier0PassRate < 0.8) {
     warnings.push('Low tier-0 pass rate - check test results');
   }
-  if (report.fitness.epistemicQuality.calibrationError > 0.2) {
+  if (isMeasured(report.fitness.epistemicQuality.calibrationError) && report.fitness.epistemicQuality.calibrationError > 0.2) {
     warnings.push('High calibration error - confidence scores may be unreliable');
   }
   if (report.behaviorDescriptors.providerReliance === 'heavy-llm') {
     warnings.push('Heavy LLM reliance - may fail when providers unavailable');
+  }
+  if (report.scoringIntegrity.status !== 'measured') {
+    warnings.push('Fitness scoring is unverified_by_trace - resolve missing measurement families before trusting the score');
   }
 
   if (warnings.length > 0) {

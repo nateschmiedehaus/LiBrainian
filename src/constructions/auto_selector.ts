@@ -17,6 +17,28 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
+import type {
+  ProjectType,
+  Language,
+  FrameworkCategory,
+  Framework,
+  ProjectPattern,
+  ConstructableId,
+} from './constructable_types.js';
+import {
+  listConstructableDefinitions,
+  getConstructableDefinition,
+  type ConstructableDefinition,
+} from './constructable_registry.js';
+
+export type {
+  ProjectType,
+  Language,
+  FrameworkCategory,
+  Framework,
+  ProjectPattern,
+  ConstructableId,
+} from './constructable_types.js';
 
 // ============================================================================
 // TYPES
@@ -147,181 +169,9 @@ export interface ManualOverrides {
 // ============================================================================
 
 /**
- * Supported project types.
+ * Project detection and constructable identifiers are defined in
+ * ./constructable_types.ts and re-exported from this module.
  */
-export type ProjectType =
-  | 'web-app'
-  | 'api-server'
-  | 'cli-tool'
-  | 'library'
-  | 'monorepo'
-  | 'microservices'
-  | 'full-stack'
-  | 'mobile-app'
-  | 'desktop-app'
-  | 'data-pipeline'
-  | 'ml-project'
-  | 'infrastructure'
-  | 'unknown';
-
-/**
- * Supported programming languages.
- */
-export type Language =
-  | 'typescript'
-  | 'javascript'
-  | 'python'
-  | 'rust'
-  | 'go'
-  | 'java'
-  | 'csharp'
-  | 'ruby'
-  | 'php'
-  | 'swift'
-  | 'kotlin'
-  | 'scala'
-  | 'elixir'
-  | 'cpp'
-  | 'c';
-
-/**
- * Framework categories.
- */
-export type FrameworkCategory =
-  | 'frontend'
-  | 'backend'
-  | 'testing'
-  | 'build'
-  | 'orm'
-  | 'state-management'
-  | 'styling'
-  | 'api'
-  | 'mobile'
-  | 'desktop';
-
-/**
- * Supported frameworks.
- */
-export type Framework =
-  // Frontend
-  | 'react'
-  | 'vue'
-  | 'angular'
-  | 'svelte'
-  | 'solid'
-  | 'next'
-  | 'nuxt'
-  | 'remix'
-  | 'gatsby'
-  | 'astro'
-  // Backend - Node
-  | 'express'
-  | 'fastify'
-  | 'nestjs'
-  | 'koa'
-  | 'hapi'
-  // Backend - Python
-  | 'django'
-  | 'flask'
-  | 'fastapi'
-  | 'starlette'
-  // Backend - Other
-  | 'rails'
-  | 'spring'
-  | 'actix'
-  | 'gin'
-  | 'echo'
-  | 'phoenix'
-  // Testing
-  | 'jest'
-  | 'vitest'
-  | 'mocha'
-  | 'pytest'
-  | 'cypress'
-  | 'playwright'
-  | 'testing-library'
-  // State Management
-  | 'redux'
-  | 'zustand'
-  | 'mobx'
-  | 'pinia'
-  | 'recoil'
-  // ORM
-  | 'prisma'
-  | 'typeorm'
-  | 'sequelize'
-  | 'drizzle'
-  | 'sqlalchemy'
-  | 'diesel'
-  // Mobile
-  | 'react-native'
-  | 'flutter'
-  | 'ionic'
-  | 'expo'
-  // Desktop
-  | 'electron'
-  | 'tauri';
-
-/**
- * Project patterns.
- */
-export type ProjectPattern =
-  | 'monorepo-turborepo'
-  | 'monorepo-nx'
-  | 'monorepo-lerna'
-  | 'monorepo-pnpm'
-  | 'microservices'
-  | 'serverless'
-  | 'containerized'
-  | 'ci-cd-github-actions'
-  | 'ci-cd-gitlab'
-  | 'ci-cd-circleci'
-  | 'infrastructure-as-code'
-  | 'feature-flags'
-  | 'event-driven'
-  | 'graphql-api'
-  | 'rest-api'
-  | 'grpc-api';
-
-/**
- * Available constructable identifiers.
- */
-export type ConstructableId =
-  // Core Constructions
-  | 'refactoring-safety-checker'
-  | 'bug-investigation-assistant'
-  | 'feature-location-advisor'
-  | 'code-quality-reporter'
-  | 'architecture-verifier'
-  | 'security-audit-helper'
-  | 'comprehensive-quality-construction'
-  // Strategic Constructions
-  | 'quality-standards'
-  | 'work-presets'
-  | 'architecture-decisions'
-  | 'testing-strategy'
-  | 'operational-excellence'
-  | 'developer-experience'
-  | 'technical-debt'
-  | 'knowledge-management'
-  // Language-specific
-  | 'typescript-patterns'
-  | 'python-patterns'
-  | 'rust-patterns'
-  | 'go-patterns'
-  // Framework-specific
-  | 'react-components'
-  | 'vue-components'
-  | 'angular-modules'
-  | 'express-routes'
-  | 'django-views'
-  | 'fastapi-endpoints'
-  // Testing-specific
-  | 'jest-testing'
-  | 'vitest-testing'
-  | 'pytest-testing'
-  | 'cypress-e2e'
-  | 'playwright-e2e';
 
 // ============================================================================
 // DETECTION RULES
@@ -673,230 +523,9 @@ const CONTENT_DETECTION_RULES: ContentDetectionRule[] = [
 // CONSTRUCTABLE MAPPINGS
 // ============================================================================
 
-interface ConstructableMapping {
-  id: ConstructableId;
-  /** Languages this constructable supports */
-  languages?: Language[];
-  /** Frameworks this constructable supports */
-  frameworks?: Framework[];
-  /** Patterns this constructable supports */
-  patterns?: ProjectPattern[];
-  /** Project types this constructable supports */
-  projectTypes?: ProjectType[];
-  /** Base priority (can be boosted by matches) */
-  basePriority: number;
-  /** Whether this is a core constructable (always considered) */
-  isCore: boolean;
-  /** Description */
-  description: string;
-}
+type ConstructableMapping = ConstructableDefinition;
 
-const CONSTRUCTABLE_MAPPINGS: ConstructableMapping[] = [
-  // Core Constructions - always evaluated
-  {
-    id: 'refactoring-safety-checker',
-    basePriority: 90,
-    isCore: true,
-    description: 'Ensures refactoring operations are safe across all languages',
-  },
-  {
-    id: 'bug-investigation-assistant',
-    basePriority: 85,
-    isCore: true,
-    description: 'Assists with bug investigation using code analysis',
-  },
-  {
-    id: 'feature-location-advisor',
-    basePriority: 80,
-    isCore: true,
-    description: 'Helps locate features in the codebase',
-  },
-  {
-    id: 'code-quality-reporter',
-    basePriority: 75,
-    isCore: true,
-    description: 'Reports on code quality metrics',
-  },
-  {
-    id: 'architecture-verifier',
-    basePriority: 70,
-    isCore: true,
-    description: 'Verifies architecture rules and boundaries',
-  },
-  {
-    id: 'security-audit-helper',
-    basePriority: 85,
-    isCore: true,
-    description: 'Assists with security audits and vulnerability detection',
-  },
-  {
-    id: 'comprehensive-quality-construction',
-    basePriority: 65,
-    isCore: true,
-    description: 'Comprehensive code quality assessment',
-  },
-
-  // Strategic Constructions
-  {
-    id: 'quality-standards',
-    basePriority: 60,
-    isCore: true,
-    description: 'Validates against quality standards',
-  },
-  {
-    id: 'work-presets',
-    basePriority: 55,
-    isCore: true,
-    description: 'Work preset validation',
-  },
-  {
-    id: 'architecture-decisions',
-    basePriority: 60,
-    isCore: true,
-    description: 'Architecture decision tracking',
-  },
-  {
-    id: 'testing-strategy',
-    basePriority: 65,
-    isCore: true,
-    description: 'Testing strategy assessment',
-  },
-  {
-    id: 'operational-excellence',
-    basePriority: 50,
-    isCore: true,
-    description: 'Operational excellence assessment',
-  },
-  {
-    id: 'developer-experience',
-    basePriority: 55,
-    isCore: true,
-    description: 'Developer experience assessment',
-  },
-  {
-    id: 'technical-debt',
-    basePriority: 60,
-    isCore: true,
-    description: 'Technical debt tracking',
-  },
-  {
-    id: 'knowledge-management',
-    basePriority: 50,
-    isCore: true,
-    description: 'Knowledge management assessment',
-  },
-
-  // Language-specific
-  {
-    id: 'typescript-patterns',
-    languages: ['typescript'],
-    basePriority: 70,
-    isCore: false,
-    description: 'TypeScript-specific patterns and best practices',
-  },
-  {
-    id: 'python-patterns',
-    languages: ['python'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Python-specific patterns and best practices',
-  },
-  {
-    id: 'rust-patterns',
-    languages: ['rust'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Rust-specific patterns and best practices',
-  },
-  {
-    id: 'go-patterns',
-    languages: ['go'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Go-specific patterns and best practices',
-  },
-
-  // Framework-specific
-  {
-    id: 'react-components',
-    frameworks: ['react', 'next', 'remix', 'gatsby'],
-    basePriority: 75,
-    isCore: false,
-    description: 'React component patterns and hooks',
-  },
-  {
-    id: 'vue-components',
-    frameworks: ['vue', 'nuxt'],
-    basePriority: 75,
-    isCore: false,
-    description: 'Vue component patterns and composition API',
-  },
-  {
-    id: 'angular-modules',
-    frameworks: ['angular'],
-    basePriority: 75,
-    isCore: false,
-    description: 'Angular module and service patterns',
-  },
-  {
-    id: 'express-routes',
-    frameworks: ['express'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Express.js routing and middleware patterns',
-  },
-  {
-    id: 'django-views',
-    frameworks: ['django'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Django views and model patterns',
-  },
-  {
-    id: 'fastapi-endpoints',
-    frameworks: ['fastapi'],
-    basePriority: 70,
-    isCore: false,
-    description: 'FastAPI endpoint patterns',
-  },
-
-  // Testing-specific
-  {
-    id: 'jest-testing',
-    frameworks: ['jest'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Jest testing patterns and mocking',
-  },
-  {
-    id: 'vitest-testing',
-    frameworks: ['vitest'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Vitest testing patterns',
-  },
-  {
-    id: 'pytest-testing',
-    frameworks: ['pytest'],
-    basePriority: 70,
-    isCore: false,
-    description: 'Pytest testing patterns and fixtures',
-  },
-  {
-    id: 'cypress-e2e',
-    frameworks: ['cypress'],
-    basePriority: 65,
-    isCore: false,
-    description: 'Cypress end-to-end testing patterns',
-  },
-  {
-    id: 'playwright-e2e',
-    frameworks: ['playwright'],
-    basePriority: 65,
-    isCore: false,
-    description: 'Playwright end-to-end testing patterns',
-  },
-];
+const CONSTRUCTABLE_MAPPINGS: ConstructableMapping[] = listConstructableDefinitions();
 
 // ============================================================================
 // DETECTOR CLASS
@@ -1502,14 +1131,14 @@ export async function analyzeProject(workspace: string): Promise<ProjectAnalysis
  * Get all available constructable IDs.
  */
 export function getAvailableConstructables(): ConstructableId[] {
-  return CONSTRUCTABLE_MAPPINGS.map(m => m.id);
+  return listConstructableDefinitions().map(m => m.id);
 }
 
 /**
  * Get constructable metadata.
  */
 export function getConstructableMetadata(id: ConstructableId): ConstructableMapping | undefined {
-  return CONSTRUCTABLE_MAPPINGS.find(m => m.id === id);
+  return getConstructableDefinition(id);
 }
 
 /**
@@ -1520,7 +1149,7 @@ export function validateConstructableConfig(config: OptimalConstructableConfig):
   errors: string[];
 } {
   const errors: string[] = [];
-  const allIds = new Set(CONSTRUCTABLE_MAPPINGS.map(m => m.id));
+  const allIds = new Set(listConstructableDefinitions().map(m => m.id));
 
   for (const id of config.enabled) {
     if (!allIds.has(id)) {

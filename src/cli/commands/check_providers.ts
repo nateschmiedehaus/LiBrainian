@@ -9,19 +9,42 @@ import { printKeyValue, printTable } from '../progress.js';
 
 export interface CheckProvidersCommandOptions {
   workspace: string;
+  format?: 'text' | 'json';
 }
 
 export async function checkProvidersCommand(options: CheckProvidersCommandOptions): Promise<void> {
-  const { workspace } = options;
+  const { workspace, format = 'text' } = options;
+
+  const gateResult = await runProviderReadinessGate(workspace, { emitReport: false });
+  const status = await checkAllProviders({ workspaceRoot: workspace });
+  const envVars = [
+    'WAVE0_LLM_PROVIDER',
+    'WAVE0_LLM_MODEL',
+    'LIBRARIAN_LLM_PROVIDER',
+    'LIBRARIAN_LLM_MODEL',
+    'LIBRARIAN_EMBED_MODEL',
+    'WAVE0_EMBED_MODEL',
+  ];
+
+  if (format === 'json') {
+    const payload = {
+      workspace,
+      status,
+      gate: gateResult,
+      env: envVars.reduce<Record<string, string | null>>((acc, name) => {
+        acc[name] = process.env[name] ?? null;
+        return acc;
+      }, {}),
+    };
+    console.log(JSON.stringify(payload));
+    return;
+  }
 
   console.log('Provider Availability Check');
   console.log('===========================\n');
 
   // Run the full provider readiness gate
-  const gateResult = await runProviderReadinessGate(workspace, { emitReport: false });
-
-  // Get simplified status
-  const status = await checkAllProviders({ workspaceRoot: workspace });
+  // (already computed above)
 
   // Output detailed results
   console.log('LLM Provider:');
@@ -85,15 +108,6 @@ export async function checkProvidersCommand(options: CheckProvidersCommandOption
 
   // Environment variables
   console.log('Environment Variables:');
-  const envVars = [
-    'WAVE0_LLM_PROVIDER',
-    'WAVE0_LLM_MODEL',
-    'LIBRARIAN_LLM_PROVIDER',
-    'LIBRARIAN_LLM_MODEL',
-    'WVO_EMBED_MODEL',
-    'WAVE0_EMBED_MODEL',
-  ];
-
   for (const varName of envVars) {
     const value = process.env[varName];
     const display = value ? (varName.includes('KEY') ? '[SET]' : value) : '[NOT SET]';

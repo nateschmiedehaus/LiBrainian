@@ -349,6 +349,40 @@ describe('gateSemanticIndexingZeroFilesCheck', () => {
     );
   });
 
+  it('PASS when patterns match only non-AST files', async () => {
+    await withTempWorkspace(
+      async (workspace) => {
+        const storage = createMockStorage({ fileCount: 0 });
+        const config = createMockConfig({
+          workspace,
+          include: ['**/*.sh'],
+          exclude: [],
+        });
+        const phaseResult = createMockPhaseResult({
+          phase: 'semantic_indexing' as BootstrapPhase,
+          itemsProcessed: 0,
+          metrics: {
+            totalFiles: 0, // Semantic indexing intentionally indexes only AST-eligible files
+          },
+        });
+
+        const ctx: ValidationGateContext = {
+          workspace,
+          storage,
+          config,
+          phaseResult,
+        };
+
+        const results = await runPostconditionGates('semantic_indexing', ctx);
+        const zeroFilesResult = results.find((r) => r.gateId === 'semantic_indexing_zero_files_check');
+
+        expect(zeroFilesResult).toBeDefined();
+        expect(zeroFilesResult!.passed).toBe(true);
+      },
+      ['deploy.sh', 'scripts/run.sh']
+    );
+  });
+
   it('PASS when files indexed > 0', async () => {
     const storage = createMockStorage({ fileCount: 5, totalFunctions: 10 });
     const config = createMockConfig();
@@ -378,6 +412,74 @@ describe('gateSemanticIndexingZeroFilesCheck', () => {
     expect(zeroFilesResult).toBeDefined();
     expect(zeroFilesResult!.passed).toBe(true);
     expect(zeroFilesResult!.message).toContain('5 files indexed');
+  });
+});
+
+// ============================================================================
+// TESTS: gateStructuralScanComplete diagnostics
+// ============================================================================
+
+describe('gateStructuralScanComplete diagnostics', () => {
+  it('suggests workspace root when running from a subdirectory', async () => {
+    await withTempWorkspace(async (workspace) => {
+      const subdir = path.join(workspace, 'docs');
+      await fs.mkdir(subdir, { recursive: true });
+
+      const storage = createMockStorage({ fileCount: 0 });
+      const config = createMockConfig({
+        workspace: subdir,
+        include: ['**/*.ts'],
+        exclude: ['node_modules/**'],
+      });
+      const phaseResult = createMockPhaseResult({
+        phase: 'structural_scan' as BootstrapPhase,
+        itemsProcessed: 0,
+        metrics: { filesDiscovered: 0 },
+      });
+
+      const ctx: ValidationGateContext = {
+        workspace: subdir,
+        storage,
+        config,
+        phaseResult,
+      };
+
+      const results = await runPostconditionGates('structural_scan', ctx);
+      const scanResult = results.find((result) => result.gateId === 'structural_scan_complete');
+
+      expect(scanResult?.passed).toBe(false);
+      expect(scanResult?.message).toContain(workspace);
+      expect(scanResult?.suggestedFix).toContain(workspace);
+    }, ['package.json', 'src/index.ts']);
+  });
+
+  it('calls out exclude patterns when files exist but are filtered', async () => {
+    await withTempWorkspace(async (workspace) => {
+      const storage = createMockStorage({ fileCount: 0 });
+      const config = createMockConfig({
+        workspace,
+        include: ['**/*.ts'],
+        exclude: ['**/*.ts'],
+      });
+      const phaseResult = createMockPhaseResult({
+        phase: 'structural_scan' as BootstrapPhase,
+        itemsProcessed: 0,
+        metrics: { filesDiscovered: 0 },
+      });
+
+      const ctx: ValidationGateContext = {
+        workspace,
+        storage,
+        config,
+        phaseResult,
+      };
+
+      const results = await runPostconditionGates('structural_scan', ctx);
+      const scanResult = results.find((result) => result.gateId === 'structural_scan_complete');
+
+      expect(scanResult?.passed).toBe(false);
+      expect(scanResult?.message).toMatch(/exclude|excluded/i);
+    }, ['src/app.ts']);
   });
 });
 
@@ -441,6 +543,23 @@ describe('runPreconditionGates', () => {
       expect(result.type).toBe('precondition');
       expect(result.phase).toBe('semantic_indexing');
     }
+  });
+
+  it('treats modules as entities for context_pack_generation (fast bootstrap)', async () => {
+    const storage = createMockStorage({ totalModules: 1, totalFunctions: 0, fileCount: 0 });
+    const config = createMockConfig({ bootstrapMode: 'fast' });
+
+    const ctx: ValidationGateContext = {
+      workspace: '/workspace',
+      storage,
+      config,
+    };
+
+    const results = await runPreconditionGates('context_pack_generation', ctx);
+    const gate = results.find((result) => result.gateId === 'context_pack_entities_exist');
+
+    expect(gate).toBeDefined();
+    expect(gate!.passed).toBe(true);
   });
 
   it('returns empty array for phase with no gates', async () => {

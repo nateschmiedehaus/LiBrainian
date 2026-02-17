@@ -12,6 +12,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { checkAllProviders, type AllProviderStatus } from '../api/provider_check.js';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
+import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
 
 // ============================================================================
 // TYPES
@@ -333,6 +334,32 @@ const checkWorkspaceDirectory: CheckFunction = async (options) => {
   }
 };
 
+const checkWorkspaceRootCandidate: CheckFunction = async (options) => {
+  const startTime = Date.now();
+  const resolution = resolveWorkspaceRoot(options.workspaceRoot);
+  if (resolution.changed) {
+    return {
+      checkId: 'workspace_root',
+      name: 'Workspace Root',
+      category: 'filesystem',
+      passed: false,
+      severity: 'warning',
+      message: `Workspace appears to be a subdirectory; detected project root at ${resolution.workspace}`,
+      suggestedFix: `Re-run with workspace root: ${resolution.workspace}`,
+      durationMs: Date.now() - startTime,
+    };
+  }
+  return {
+    checkId: 'workspace_root',
+    name: 'Workspace Root',
+    category: 'filesystem',
+    passed: true,
+    severity: 'info',
+    message: 'Workspace root appears correct',
+    durationMs: Date.now() - startTime,
+  };
+};
+
 /**
  * Check: Sufficient disk space
  */
@@ -608,6 +635,7 @@ const ALL_CHECKS: Map<string, CheckFunction> = new Map([
   ['llm_provider', checkLLMProvider],
   ['embedding_provider', checkEmbeddingProvider],
   ['workspace_dir', checkWorkspaceDirectory],
+  ['workspace_root', checkWorkspaceRootCandidate],
   ['disk_space', checkDiskSpace],
   ['database_access', checkDatabaseAccess],
   ['source_files', checkSourceFiles],

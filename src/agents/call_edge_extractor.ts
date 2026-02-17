@@ -27,7 +27,28 @@ type TreeSitterModule = { Parser: new () => TreeSitterParser };
 type TreeSitterLanguage = { name?: string };
 
 const require = createRequire(import.meta.url);
-const TREE_SITTER_ALLOWLIST = new Set(['tree-sitter-python', 'tree-sitter-go', 'tree-sitter-rust']);
+const TREE_SITTER_ALLOWLIST = new Set([
+  'tree-sitter-typescript',
+  'tree-sitter-javascript',
+  'tree-sitter-python',
+  'tree-sitter-go',
+  'tree-sitter-rust',
+  'tree-sitter-java',
+  'tree-sitter-c',
+  'tree-sitter-cpp',
+  'tree-sitter-ruby',
+  'tree-sitter-php',
+  'tree-sitter-c-sharp',
+  'tree-sitter-kotlin',
+  'tree-sitter-swift',
+  'tree-sitter-scala',
+  'tree-sitter-dart',
+  'tree-sitter-lua',
+  'tree-sitter-bash',
+  'tree-sitter-sql',
+  'tree-sitter-json',
+  'tree-sitter-yaml',
+]);
 const warned = new Set<string>();
 
 export function extractCallEdgesFromAst(

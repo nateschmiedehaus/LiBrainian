@@ -51,8 +51,49 @@ export interface FitnessReport {
   /** Resource usage */
   resources: ResourceUsage;
 
+  /**
+   * Explicit measurement completeness for dimensions that may be skipped due to
+   * budget constraints or missing measurement artifacts.
+   */
+  measurementCompleteness?: MeasurementCompleteness;
+
+  /**
+   * Measurement integrity of the fitness score itself.
+   * If status is unverified_by_trace, overall fitness is informational only.
+   */
+  scoringIntegrity: FitnessScoringIntegrity;
+
   /** Differential comparison to baseline (if applicable) */
   baselineDelta?: FitnessDelta;
+}
+
+/**
+ * Measurement completeness by fitness dimension family.
+ */
+export interface MeasurementCompleteness {
+  retrievalQuality: DimensionMeasurementCompleteness;
+  epistemicQuality: DimensionMeasurementCompleteness;
+  operationalQuality: DimensionMeasurementCompleteness;
+}
+
+/**
+ * Integrity metadata for fitness scoring.
+ */
+export interface FitnessScoringIntegrity {
+  status: 'measured' | 'unverified_by_trace';
+  measuredFamilies: number;
+  totalFamilies: number;
+  coverageRatio: number;
+  reasons: string[];
+}
+
+/**
+ * Completeness metadata for a single dimension family.
+ */
+export interface DimensionMeasurementCompleteness {
+  measured: boolean;
+  reason?: 'missing_or_budget_skipped' | 'zero_query_coverage' | 'missing_metrics';
+  queryCount?: number;
 }
 
 /**
@@ -184,6 +225,24 @@ export interface EvaluationContext {
   baselineReport?: FitnessReport;
   budget: EvaluationBudget;
   providerAvailable: boolean;
+  /**
+   * Optional override for workspace database path. When omitted, evaluators that
+   * need storage-level state should attempt to resolve it relative to workspaceRoot.
+   */
+  dbPath?: string;
+  /**
+   * Optional retrieval evaluation configuration used to generate measured
+   * retrieval metrics for fitness scoring.
+   */
+  retrievalEval?: {
+    enabled?: boolean;
+    corpusPath?: string;
+    corpusPaths?: string[];
+    maxRepos?: number;
+    maxQueries?: number;
+    parallel?: number;
+    timeoutMs?: number;
+  };
 }
 
 /**

@@ -10,6 +10,14 @@ import cliProgress from 'cli-progress';
 const SPINNER_FRAMES = ['|', '/', '-', '\\'];
 const SPINNER_INTERVAL_MS = 100;
 
+function isProgressEnabled(): boolean {
+  const disabled =
+    process.env.LIBRARIAN_NO_PROGRESS === '1' ||
+    process.env.LIBRARIAN_NO_PROGRESS === 'true';
+  if (disabled) return false;
+  return Boolean(process.stderr.isTTY);
+}
+
 export interface SpinnerHandle {
   update(message: string): void;
   succeed(message?: string): void;
@@ -18,21 +26,31 @@ export interface SpinnerHandle {
 }
 
 export function createSpinner(initialMessage: string): SpinnerHandle {
+  if (!isProgressEnabled()) {
+    return {
+      update(): void {},
+      succeed(): void {},
+      fail(): void {},
+      stop(): void {},
+    };
+  }
+
   let frameIndex = 0;
   let message = initialMessage;
   let running = true;
   let intervalId: NodeJS.Timeout | null = null;
+  const stream = process.stderr;
 
   const render = (): void => {
     if (!running) return;
     const frame = SPINNER_FRAMES[frameIndex % SPINNER_FRAMES.length];
-    process.stdout.write(`\r${frame} ${message}`);
+    stream.write(`\r${frame} ${message}`);
     frameIndex++;
   };
 
   // Clear current line
   const clearLine = (): void => {
-    process.stdout.write('\r' + ' '.repeat(message.length + 4) + '\r');
+    stream.write('\r' + ' '.repeat(message.length + 4) + '\r');
   };
 
   intervalId = setInterval(render, SPINNER_INTERVAL_MS);
@@ -49,14 +67,14 @@ export function createSpinner(initialMessage: string): SpinnerHandle {
       running = false;
       if (intervalId) clearInterval(intervalId);
       clearLine();
-      console.log(`[OK] ${finalMessage || message}`);
+      stream.write(`[OK] ${finalMessage || message}\n`);
     },
 
     fail(finalMessage?: string): void {
       running = false;
       if (intervalId) clearInterval(intervalId);
       clearLine();
-      console.log(`[FAIL] ${finalMessage || message}`);
+      stream.write(`[FAIL] ${finalMessage || message}\n`);
     },
 
     stop(): void {
@@ -82,6 +100,15 @@ export interface ProgressBarOptions {
 }
 
 export function createProgressBar(options: ProgressBarOptions): ProgressBarHandle {
+  if (!isProgressEnabled()) {
+    return {
+      update(): void {},
+      setTotal(): void {},
+      increment(): void {},
+      stop(): void {},
+    };
+  }
+
   const { total, showEta = true, etaBuffer = 10 } = options;
 
   const format = options.format || '{bar} {percentage}% | {value}/{total} | {task} | ETA: {eta_formatted}';
@@ -96,6 +123,7 @@ export function createProgressBar(options: ProgressBarOptions): ProgressBarHandl
       stopOnComplete: true,
       etaBuffer,
       forceRedraw: true,
+      stream: process.stderr,
     },
     cliProgress.Presets.shades_classic,
   );

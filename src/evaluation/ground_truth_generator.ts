@@ -519,18 +519,20 @@ export class GroundTruthGenerator {
     }
 
     // Group by caller
-    const byCaller: Record<string, ASTFact[]> = {};
+    const byCaller = new Map<string, ASTFact[]>();
     for (const fact of callFacts) {
       const details = fact.details as CallDetails;
       const caller = details.caller;
-      if (!byCaller[caller]) {
-        byCaller[caller] = [];
+      const existing = byCaller.get(caller);
+      if (existing) {
+        existing.push(fact);
+      } else {
+        byCaller.set(caller, [fact]);
       }
-      byCaller[caller].push(fact);
     }
 
     // Generate what-does-X-call queries
-    for (const [caller, callerFacts] of Object.entries(byCaller)) {
+    for (const [caller, callerFacts] of byCaller.entries()) {
       const callees = callerFacts.map((f) => (f.details as CallDetails).callee);
       const uniqueCallees = [...new Set(callees)];
 
@@ -564,18 +566,20 @@ export class GroundTruthGenerator {
     }
 
     // Group by callee to find callers
-    const byCallee: Record<string, ASTFact[]> = {};
+    const byCallee = new Map<string, ASTFact[]>();
     for (const fact of callFacts) {
       const details = fact.details as CallDetails;
       const callee = details.callee;
-      if (!byCallee[callee]) {
-        byCallee[callee] = [];
+      const existing = byCallee.get(callee);
+      if (existing) {
+        existing.push(fact);
+      } else {
+        byCallee.set(callee, [fact]);
       }
-      byCallee[callee].push(fact);
     }
 
     // Generate what-calls-X queries
-    for (const [callee, calleeFacts] of Object.entries(byCallee)) {
+    for (const [callee, calleeFacts] of byCallee.entries()) {
       const callers = calleeFacts.map((f) => (f.details as CallDetails).caller);
       const uniqueCallers = [...new Set(callers)];
 

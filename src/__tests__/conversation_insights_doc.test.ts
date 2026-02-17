@@ -61,7 +61,8 @@ describe('conversation insights doc', () => {
   it('is cross-linked from docs README and STATUS', () => {
     const readme = readFileSync(readmePath, 'utf8');
     const status = readFileSync(statusPath, 'utf8');
-    expect(readme).toContain('docs/LiBrainian/CONVERSATION_INSIGHTS.md');
-    expect(status).toContain('docs/LiBrainian/CONVERSATION_INSIGHTS.md');
+    const normalizedLinkPattern = /docs\/librarian\/CONVERSATION_INSIGHTS\.md/i;
+    expect(normalizedLinkPattern.test(readme)).toBe(true);
+    expect(normalizedLinkPattern.test(status)).toBe(true);
   });
 });

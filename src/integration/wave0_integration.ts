@@ -42,7 +42,7 @@ export interface LibrarianContext {
   scenario?: ScenarioGuidance;
 }
 
-const isDeterministicMode = (): boolean => process.env.WVO_DETERMINISTIC === '1' || process.env.WAVE0_TEST_MODE === 'true';
+const isDeterministicMode = (): boolean => process.env.LIBRARIAN_DETERMINISTIC === '1' || process.env.WAVE0_TEST_MODE === 'true';
 
 export async function enrichTaskContext(
   workspace: string,
@@ -55,6 +55,7 @@ export async function enrichTaskContext(
     ucRequirements?: string[];
     /** Enabled constructables from session config for routing */
     enabledConstructables?: string[];
+    embeddingRequirement?: 'required' | 'optional' | 'disabled';
   }
 ): Promise<LibrarianContext> {
   if (isDeterministicMode()) {
@@ -70,9 +71,9 @@ export async function enrichTaskContext(
   }
 
   try {
-    const waitRaw = query.waitForIndexMs ?? Number.parseInt(process.env.WVO_LIBRARIAN_WAIT_INDEX_MS ?? '', 10);
+    const waitRaw = query.waitForIndexMs ?? Number.parseInt(process.env.LIBRARIAN_LIBRARIAN_WAIT_INDEX_MS ?? '', 10);
     const waitForIndexMs = Number.isFinite(waitRaw) && waitRaw > 0 ? waitRaw : undefined;
-    const response = await librarian.query({
+    const response = await librarian.queryOptional({
       intent: query.intent,
       affectedFiles: query.affectedFiles,
       taskType: query.taskType,
@@ -80,6 +81,7 @@ export async function enrichTaskContext(
       waitForIndexMs,
       ucRequirements: query.ucRequirements ? { ucIds: query.ucRequirements } : undefined,
       enabledConstructables: query.enabledConstructables,
+      embeddingRequirement: query.embeddingRequirement ?? 'optional',
     });
 
     // Emit integration:context event when context is provided
@@ -383,7 +385,7 @@ export async function preOrchestrationHook(
   if (librarian) {
     await ensureTemporalGraph(librarian, workspace);
     const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
-    const debounceRaw = process.env.WVO_LIBRARIAN_WATCH_DEBOUNCE_MS;
+    const debounceRaw = process.env.LIBRARIAN_LIBRARIAN_WATCH_DEBOUNCE_MS;
     const debounceMs = debounceRaw ? Number.parseInt(debounceRaw, 10) : undefined;
     const resolvedDebounce = typeof debounceMs === 'number' && Number.isFinite(debounceMs) ? debounceMs : undefined;
     startFileWatcher({

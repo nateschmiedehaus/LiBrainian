@@ -35,6 +35,10 @@ export interface DocsIngestionOptions {
 
 const DEFAULT_DOC_GLOBS = ['**/*.md', '**/*.mdx'];
 const DEFAULT_MAX_BYTES = 512_000;
+const MAX_DOC_HEADINGS_STORED = 200;
+const MAX_DOC_LINKS_STORED = 200;
+const MAX_DOC_CODE_BLOCKS_STORED = 25;
+const MAX_DOC_CODE_BLOCK_PREVIEW_CHARS = 400;
 
 /**
  * High-relevance document patterns - these get priority in meta-queries.
@@ -200,12 +204,8 @@ class DocSummarizer {
   async summarize(relativePath: string, parse: DocParseResult, content: string): Promise<string> {
     const fallback = makeFallbackSummary(relativePath, parse, content);
     if (!this.llm || !this.provider || !this.modelId) {
-      // LLM is REQUIRED - no bypass allowed
-      throw new ProviderUnavailableError({
-        message: 'unverified_by_trace(provider_unavailable): Docs indexer requires live LLM providers. There is no non-agentic mode.',
-        missing: ['docs_indexer_llm_not_configured'],
-        suggestion: 'Authenticate via CLI (Claude: `claude setup-token` or run `claude`; Codex: `codex login`) and set LLM provider/model env vars. LLM providers are mandatory.',
-      });
+      // Offline / degraded mode: fall back to heuristic summary.
+      return fallback;
     }
 
     try {
@@ -239,16 +239,8 @@ class DocSummarizer {
       return cleaned.length <= 400 ? cleaned : cleaned.slice(0, 400).trim();
     } catch (error: unknown) {
       if (isBudgetExceeded(error)) throw error;
-      // LLM errors must propagate - no graceful degradation
-      const message = getErrorMessage(error);
-      if (message.includes('provider_unavailable') || message.includes('No LLM providers available')) {
-        throw new ProviderUnavailableError({
-          message: 'unverified_by_trace(provider_unavailable): Docs indexer requires live LLM providers. There is no non-agentic mode.',
-          missing: [message],
-          suggestion: 'Authenticate via CLI (Claude: `claude setup-token` or run `claude`; Codex: `codex login`). LLM providers are mandatory.',
-        });
-      }
-      throw error instanceof Error ? error : new Error(message);
+      // Graceful degradation: use heuristic fallback under provider errors / rate limits.
+      return fallback;
     }
   }
 }
@@ -272,12 +264,12 @@ export function createDocsIngestionSource(options: DocsIngestionOptions = {}): I
       const item = data as { payload?: { path?: string; summary?: string } };
       return typeof item.payload?.path === 'string' && typeof item.payload?.summary === 'string';
     },
-    ingest: async (ctx: IngestionContext): Promise<IngestionResult> => {
+	    ingest: async (ctx: IngestionContext): Promise<IngestionResult> => {
       const files = await glob(include, { cwd: ctx.workspace, ignore: exclude, absolute: true });
       const items: IngestionItem[] = [];
       const errors: string[] = [];
 
-      for (const filePath of files) {
+	      for (const filePath of files) {
         options.governorContext?.enterFile(filePath);
         let content: string;
         try {
@@ -289,18 +281,35 @@ export function createDocsIngestionSource(options: DocsIngestionOptions = {}): I
           continue;
         }
 
-        const parse = parseMarkdown(content);
-        const relativePath = path.relative(ctx.workspace, filePath);
-        const summary = await summarizer.summarize(relativePath, parse, content);
-        const graph = buildDocGraph(relativePath, parse);
-        const payload = {
-          path: relativePath,
-          summary,
-          headings: parse.headings,
-          links: parse.links,
-          code_blocks: parse.codeBlocks,
-          graph,
-        };
+	        const parse = parseMarkdown(content);
+	        const relativePath = path.relative(ctx.workspace, filePath);
+	        const summary = await summarizer.summarize(relativePath, parse, content);
+	        const graph = buildDocGraph(relativePath, parse);
+	        const codeBlocks = parse.codeBlocks.slice(0, MAX_DOC_CODE_BLOCKS_STORED).map((block) => {
+	          const raw = block.content ?? '';
+	          const trimmed = raw.length <= MAX_DOC_CODE_BLOCK_PREVIEW_CHARS
+	            ? raw
+	            : `${raw.slice(0, MAX_DOC_CODE_BLOCK_PREVIEW_CHARS)}\n[truncated]`;
+	          return {
+	            language: block.language,
+	            lineStart: block.lineStart,
+	            lineEnd: block.lineEnd,
+	            preview: trimmed,
+	          };
+	        });
+	        const payload = {
+	          path: relativePath,
+	          summary,
+	          headings: parse.headings.slice(0, MAX_DOC_HEADINGS_STORED),
+	          links: parse.links.slice(0, MAX_DOC_LINKS_STORED),
+	          code_blocks: codeBlocks,
+	          truncated: {
+	            headings: parse.headings.length > MAX_DOC_HEADINGS_STORED,
+	            links: parse.links.length > MAX_DOC_LINKS_STORED,
+	            code_blocks: parse.codeBlocks.length > MAX_DOC_CODE_BLOCKS_STORED,
+	          },
+	          graph,
+	        };
 
         items.push({
           id: `doc:${relativePath}`,

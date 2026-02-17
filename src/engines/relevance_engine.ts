@@ -54,6 +54,9 @@ export class RelevanceEngine {
         affectedFiles: request.hints,
         depth,
         taskType: undefined,
+        // Engines should be safe in offline/degraded mode and must not
+        // unexpectedly trigger LLM calls (cost, latency, provider failures).
+        llmRequirement: 'disabled',
       },
       this.storage,
       this.embeddingService ?? undefined,

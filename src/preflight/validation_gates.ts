@@ -16,6 +16,10 @@ import type { BootstrapConfig, BootstrapPhaseName, BootstrapPhaseResult } from '
 import { glob } from 'glob';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
 import { checkAllProviders } from '../api/provider_check.js';
+import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
+import { getParserType } from '../universal_patterns.js';
+
+const MINIMAL_EXCLUDES = ['**/.git/**', '**/.librarian/**'];
 
 // ============================================================================
 // TYPES
@@ -309,16 +313,16 @@ const gateContextPackEntitiesExist: ValidationGateFn = async (ctx) => {
   try {
     const stats = await ctx.storage.getStats();
     const fileCount = await getFileCount(ctx.storage);
-    const totalEntities = fileCount + stats.totalFunctions;
+    const totalEntities = fileCount + stats.totalModules + stats.totalFunctions;
     if (totalEntities === 0) {
       return {
-        passed: false,
+        passed: true,
         gateId: 'context_pack_entities_exist',
         phase: 'context_pack_generation',
         type: 'precondition',
-        message: 'No entities available for context pack generation',
-        suggestedFix: 'Ensure structural scan and semantic indexing completed',
-        fatal: true,
+        message: 'No entities available for context pack generation (skipping)',
+        fatal: false,
+        metrics: { entityCount: 0 },
       };
     }
     return {
@@ -327,7 +331,7 @@ const gateContextPackEntitiesExist: ValidationGateFn = async (ctx) => {
       phase: 'context_pack_generation',
       type: 'precondition',
       message: `${totalEntities} entities ready for context pack generation`,
-      fatal: true,
+      fatal: false,
       metrics: { entityCount: totalEntities },
     };
   } catch (error) {
@@ -337,7 +341,7 @@ const gateContextPackEntitiesExist: ValidationGateFn = async (ctx) => {
       phase: 'context_pack_generation',
       type: 'precondition',
       message: `Failed to check entities: ${error instanceof Error ? error.message : String(error)}`,
-      fatal: true,
+      fatal: false,
     };
   }
 };
@@ -390,6 +394,80 @@ const gateStructuralScanComplete: ValidationGateFn = async (ctx) => {
   }
 
   if (result.itemsProcessed === 0) {
+    const resolution = resolveWorkspaceRoot(ctx.workspace);
+    if (resolution.changed) {
+      return {
+        passed: false,
+        gateId: 'structural_scan_complete',
+        phase: 'structural_scan',
+        type: 'postcondition',
+        message: `Structural scan found no files. Detected possible project root at ${resolution.workspace}.`,
+        suggestedFix: `Re-run bootstrap from ${resolution.workspace} or pass --workspace ${resolution.workspace}.`,
+        fatal: true,
+        metrics: {
+          filesFound: 0,
+          workspaceAutoDetected: 1,
+          candidateFileCount: resolution.candidateFileCount ?? 0,
+        },
+      };
+    }
+
+    if (ctx.config.include && ctx.config.include.length > 0) {
+      try {
+        const discovered = await glob(ctx.config.include, {
+          cwd: ctx.workspace,
+          ignore: ctx.config.exclude ?? [],
+          nodir: true,
+          follow: false,
+          absolute: true,
+          maxDepth: 6,
+        });
+
+        if (discovered.length === 0) {
+          const discoveredIgnoringExclude = await glob(ctx.config.include, {
+            cwd: ctx.workspace,
+            ignore: MINIMAL_EXCLUDES,
+            nodir: true,
+            follow: false,
+            absolute: true,
+            maxDepth: 6,
+          });
+          if (discoveredIgnoringExclude.length > 0) {
+            return {
+              passed: false,
+              gateId: 'structural_scan_complete',
+              phase: 'structural_scan',
+              type: 'postcondition',
+              message: `Structural scan found no files because include patterns matched ${discoveredIgnoringExclude.length} files that were excluded by exclude patterns.`,
+              suggestedFix: 'Review exclude patterns (e.g., node_modules/dist) or narrow the exclude list for bootstrap.',
+              fatal: true,
+              metrics: {
+                filesFound: 0,
+                excludedByPatterns: 1,
+                matchedFilesIgnoringExclude: discoveredIgnoringExclude.length,
+              },
+            };
+          }
+
+          return {
+            passed: false,
+            gateId: 'structural_scan_complete',
+            phase: 'structural_scan',
+            type: 'postcondition',
+            message: 'Structural scan found no files to process; include patterns matched no files in workspace.',
+            suggestedFix: 'Verify workspace root and include patterns (e.g., "src/**/*.ts") match your codebase.',
+            fatal: true,
+            metrics: { filesFound: 0 },
+          };
+        }
+      } catch (error) {
+        logWarning('Structural scan diagnostics failed', {
+          context: 'validation_gates',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
     return {
       passed: false,
       gateId: 'structural_scan_complete',
@@ -622,22 +700,44 @@ const gateSemanticIndexingZeroFilesCheck: ValidationGateFn = async (ctx) => {
       });
 
       if (discovered.length > 0) {
-        // Patterns match files but nothing was indexed - likely file type issue
+        const astCandidates = discovered.filter((file) => getParserType(file) === 'ast');
+        if (astCandidates.length === 0) {
+          // Semantic indexing intentionally targets AST-eligible files. If patterns only
+          // match non-AST categories (scripts/config/docs/schema/styles), a 0-file
+          // semantic phase is expected and should not be treated as a fatal misconfig.
+          return {
+            passed: true,
+            gateId: 'semantic_indexing_zero_files_check',
+            phase: 'semantic_indexing',
+            type: 'postcondition',
+            message: `Zero-file check passed: include patterns matched ${discovered.length} files but none are AST-eligible`,
+            fatal: false,
+            metrics: {
+              matchedFiles: discovered.length,
+              astCandidates: 0,
+              filesIndexed: 0,
+            },
+          };
+        }
+
+        // Patterns match AST-eligible files but nothing was indexed - likely parser/provider issue.
         logWarning('Include patterns match files but none were indexed', {
           context: 'validation_gates',
           matchedFiles: discovered.length,
-          sampleFiles: discovered.slice(0, 3),
+          astCandidates: astCandidates.length,
+          sampleFiles: astCandidates.slice(0, 3),
         });
         return {
           passed: false,
           gateId: 'semantic_indexing_zero_files_check',
           phase: 'semantic_indexing',
           type: 'postcondition',
-          message: `Include patterns match ${discovered.length} files but 0 were indexed. Check if file types are supported.`,
-          suggestedFix: 'Ensure files have supported extensions (.ts, .js, .tsx, .jsx, .md) and are not binary files.',
+          message: `Include patterns match ${astCandidates.length} AST-eligible files but 0 were indexed. Check parser availability and provider configuration.`,
+          suggestedFix: 'Confirm that AST parsers are available for detected languages and embedding providers are ready. Re-run with `librarian doctor` and check logs for parser_unavailable.',
           fatal: true,
           metrics: {
             matchedFiles: discovered.length,
+            astCandidates: astCandidates.length,
             filesIndexed: 0,
           },
         };

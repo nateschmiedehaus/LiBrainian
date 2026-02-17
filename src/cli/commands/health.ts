@@ -16,6 +16,7 @@ import {
   exportPrometheusMetrics,
   type LibrarianStateReport,
 } from '../../measurement/observability.js';
+import { isBootstrapRequired } from '../../api/bootstrap.js';
 import {
   calculateIndexCompleteness,
   formatCompletenessReport,
@@ -33,12 +34,30 @@ interface HealthOptions {
 export async function healthCommand(options: HealthOptions): Promise<void> {
   const { workspace, verbose = false, format = 'text', completeness = false } = options;
 
-  // Initialize storage
-  const dbPath = await resolveDbPath(workspace);
-  const storage = createSqliteStorage(dbPath, workspace);
-  await storage.initialize();
+  let storage: Awaited<ReturnType<typeof createSqliteStorage>> | null = null;
 
   try {
+    // Initialize storage (fail-closed: never throw from healthCommand)
+    const dbPath = await resolveDbPath(workspace);
+    storage = createSqliteStorage(dbPath, workspace);
+    await storage.initialize();
+
+    const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: 'mvp' });
+    if (bootstrapCheck.required) {
+      outputHealthFailure(
+        format,
+        {
+          status: 'unhealthy',
+          reason: 'bootstrap_required',
+          message: bootstrapCheck.reason || 'Bootstrap required',
+          suggestion: 'Run `librarian bootstrap` to initialize the index',
+        },
+        verbose
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     // If completeness flag is set, show completeness report instead
     if (completeness) {
       const completenessReport = await calculateIndexCompleteness(workspace, storage);
@@ -74,8 +93,50 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
     if (report.health.status === 'unhealthy') {
       process.exitCode = 1;
     }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputHealthFailure(
+      format,
+      {
+        status: 'unhealthy',
+        reason: 'storage_unavailable',
+        message,
+        suggestion: 'Run `librarian doctor --heal` or `librarian bootstrap --force` to recover',
+      },
+      verbose
+    );
+    process.exitCode = 1;
   } finally {
-    await storage.close();
+    await storage?.close?.();
+  }
+}
+
+function outputHealthFailure(
+  format: 'text' | 'json' | 'prometheus',
+  payload: { status: 'unhealthy'; reason: string; message: string; suggestion?: string },
+  verbose: boolean
+): void {
+  const enriched = {
+    ...payload,
+    generatedAt: new Date().toISOString(),
+  };
+  switch (format) {
+    case 'json':
+      console.log(JSON.stringify(enriched, null, 2));
+      break;
+    case 'prometheus':
+      console.log(`librarian_health_ok 0\nlibrarian_health_failure_reason{reason="${payload.reason}"} 1`);
+      break;
+    case 'text':
+    default:
+      console.log('\n=== Librarian Health Report ===\n');
+      console.log(`Status: \u274C UNHEALTHY`);
+      console.log(`Reason: ${payload.reason}`);
+      console.log(`Message: ${payload.message}`);
+      if (payload.suggestion) console.log(`Suggestion: ${payload.suggestion}`);
+      if (verbose) console.log(`Generated: ${enriched.generatedAt}`);
+      console.log('');
+      break;
   }
 }
 
@@ -138,6 +199,12 @@ function printTextReport(report: LibrarianStateReport, verbose: boolean): void {
     for (const reason of report.health.degradationReasons) {
       console.log(`  - ${reason}`);
     }
+  }
+
+  if (!report.health.checks.indexFresh) {
+    console.log('\nSuggested Fixes:');
+    console.log('  - Run `librarian watch` to keep the index fresh.');
+    console.log('  - Or run `librarian bootstrap --mode fast` to refresh immediately.');
   }
 
   if (verbose) {

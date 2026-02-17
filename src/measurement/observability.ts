@@ -266,11 +266,15 @@ export async function collectIndexFreshness(
     // Storage access failed
   }
 
-  const stalenessMs = lastIndexTime
+  // "Freshness" should primarily reflect whether we are behind known changes.
+  // If there are no pending changes, treat the index as fresh (lag = 0) even if it
+  // hasn't been rebuilt recently.
+  const ageSinceIndexMs = lastIndexTime
     ? now.getTime() - new Date(lastIndexTime).getTime()
     : Infinity;
+  const stalenessMs = (pendingChanges === 0 && lastIndexTime) ? 0 : ageSinceIndexMs;
 
-  const isFresh = stalenessMs < SLO_THRESHOLDS.indexFreshnessMs;
+  const isFresh = Boolean(lastIndexTime) && pendingChanges === 0;
 
   return {
     lastIndexTime,
@@ -480,9 +484,9 @@ export function assessHealth(
   const allChecksPass =
     indexFresh && confidenceAcceptable && defeatersLow && latencyAcceptable && coverageAcceptable;
 
-  // "Unhealthy" should indicate operational failure, not "low epistemic confidence".
-  // Low confidence is a degraded state (we can still retrieve), while stale index is operationally critical.
-  const criticalFailures = !indexFresh || (!latencyAcceptable && queryPerformance.queryCount > 0);
+  // "Unhealthy" should indicate operational failure, not "low epistemic confidence" or freshness SLO misses.
+  // Stale index is important to surface, but it is typically recoverable and should not hard-fail the system.
+  const criticalFailures = !latencyAcceptable && queryPerformance.queryCount > 0;
   const status: LibrarianHealth['status'] = allChecksPass
     ? 'healthy'
     : criticalFailures

@@ -19,18 +19,6 @@ import { globalEventBus } from '../../../events.js';
 
 vi.mock('node:fs');
 vi.mock('../../../api/librarian.js');
-vi.mock('../../../api/provider_check.js', () => ({
-  requireProviders: vi.fn().mockResolvedValue(undefined),
-}));
-import { resolveLibrarianModelConfigWithDiscovery } from '../../../api/llm_env.js';
-
-// Mock that respects environment variables for testing
-vi.mock('../../../api/llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn().mockImplementation(async () => ({
-    provider: (process.env.LIBRARIAN_LLM_PROVIDER as 'claude' | 'codex') || 'claude',
-    modelId: process.env.LIBRARIAN_LLM_MODEL || 'claude-sonnet-4-20250514',
-  })),
-}));
 vi.mock('../../../events.js', async () => {
   const actual = await vi.importActual('../../../events.js');
   return {
@@ -287,6 +275,7 @@ describe('indexCommand', () => {
 
     it('should use environment variable for LLM provider', async () => {
       process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
+      process.env.LIBRARIAN_LLM_MODEL = 'gpt-5.1-codex-mini';
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -303,15 +292,12 @@ describe('indexCommand', () => {
       );
 
       delete process.env.LIBRARIAN_LLM_PROVIDER;
+      delete process.env.LIBRARIAN_LLM_MODEL;
     });
 
-    it('should throw CliError when provider env var not set', async () => {
+    it('should proceed without LLM config when env vars are missing', async () => {
       delete process.env.LIBRARIAN_LLM_PROVIDER;
-
-      // Mock provider discovery to fail for all calls in this test
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockRejectedValue(
-        new Error('unverified_by_trace(provider_unavailable): No LLM providers available.')
-      );
+      delete process.env.LIBRARIAN_LLM_MODEL;
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -319,17 +305,13 @@ describe('indexCommand', () => {
         force: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-      await expect(indexCommand(options)).rejects.toThrow('provider_unavailable');
-      await expect(indexCommand(options)).rejects.toMatchObject({
-        code: 'PROVIDER_UNAVAILABLE',
-      });
-
-      // Restore mock for subsequent tests
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockImplementation(async () => ({
-        provider: (process.env.LIBRARIAN_LLM_PROVIDER as 'claude' | 'codex') || 'claude',
-        modelId: process.env.LIBRARIAN_LLM_MODEL || 'claude-sonnet-4-20250514',
-      }));
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(Librarian).toHaveBeenCalledWith(
+        expect.objectContaining({
+          llmProvider: undefined,
+          llmModelId: undefined,
+        })
+      );
     });
 
     it('should use environment variable for LLM model ID', async () => {

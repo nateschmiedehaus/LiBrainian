@@ -10,7 +10,7 @@ export interface OrchestratorLibrarianGateOptions {
 }
 
 const isDeterministicMode = (): boolean =>
-  process.env.WVO_DETERMINISTIC === '1' || process.env.WAVE0_TEST_MODE === 'true';
+  process.env.LIBRARIAN_DETERMINISTIC === '1' || process.env.WAVE0_TEST_MODE === 'true';
 
 export async function ensureLibrarianReadyForOrchestrator(
   workspace: string,

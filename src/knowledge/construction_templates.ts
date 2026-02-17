@@ -5,6 +5,7 @@
  */
 
 import type { KnowledgeObjectKind } from './registry.js';
+import { createTemplateRegistry, type ConstructionTemplate as ApiConstructionTemplate } from '../api/template_registry.js';
 
 export type ConstructionTemplateId = `T${number}`;
 
@@ -48,84 +49,28 @@ export const DEFAULT_TEMPLATE_IDS: ConstructionTemplateId[] = [
   'T12',
 ];
 
-export const DEFAULT_CONSTRUCTION_TEMPLATES: ConstructionTemplate[] = [
-  {
-    id: 'T1',
-    name: 'RepoMap',
-    description: 'Token-budgeted repo-scale orientation with repo facts and maps.',
-    requiredObjects: ['repo_fact', 'map', 'pack'],
-  },
-  {
-    id: 'T2',
-    name: 'DeltaMap',
-    description: 'Change-focused map with freshness cursor and delta packs.',
-    requiredObjects: ['repo_fact', 'map', 'episode', 'pack'],
-  },
-  {
-    id: 'T3',
-    name: 'EditContext',
-    description: 'Minimal context for edits with explicit exclusions.',
-    requiredObjects: ['map', 'pack'],
-  },
-  {
-    id: 'T4',
-    name: 'VerificationPlan',
-    description: 'Definition-of-done verification plan with work objects.',
-    requiredObjects: ['map', 'pack'],
-    requiredArtifacts: ['work_objects'],
-  },
-  {
-    id: 'T5',
-    name: 'TestSelection',
-    description: 'Impacted tests with uncertainty disclosure.',
-    requiredObjects: ['map', 'pack'],
-  },
-  {
-    id: 'T6',
-    name: 'ReproAndBisect',
-    description: 'Repro steps and bisect workflows with episodes and packs.',
-    requiredObjects: ['episode', 'pack'],
-    requiredArtifacts: ['work_objects'],
-  },
-  {
-    id: 'T7',
-    name: 'SupplyChain',
-    description: 'SBOM, dependency risk, and license evidence packs.',
-    requiredObjects: ['repo_fact', 'map', 'pack'],
-  },
-  {
-    id: 'T8',
-    name: 'InfraMap',
-    description: 'Infrastructure map for services, owners, and risk.',
-    requiredObjects: ['map', 'pack'],
-  },
-  {
-    id: 'T9',
-    name: 'ObservabilityRunbooks',
-    description: 'Observability signals mapped to runbooks and instrumentation plans.',
-    requiredObjects: ['map', 'pack'],
-  },
-  {
-    id: 'T10',
-    name: 'ComplianceEvidence',
-    description: 'Compliance controls mapped to evidence packs.',
-    requiredObjects: ['map', 'pack'],
-  },
-  {
-    id: 'T11',
-    name: 'MultiAgentState',
-    description: 'Conflict-aware multi-agent state with explicit conflict claims.',
-    requiredObjects: ['claim'],
-    requiredArtifacts: ['work_objects'],
-  },
-  {
-    id: 'T12',
-    name: 'UncertaintyReduction',
-    description: 'Next-best questions and gap closure packs.',
-    requiredObjects: ['claim', 'pack'],
-    requiredArtifacts: ['adequacy_report', 'gap_model', 'defeaters'],
-  },
-];
+function mapFromApiTemplate(template: ApiConstructionTemplate): ConstructionTemplate {
+  return {
+    id: template.id as ConstructionTemplateId,
+    name: template.name,
+    description: template.description,
+    requiredObjects: template.requiredObjects,
+    optionalObjects: template.optionalObjects,
+    requiredArtifacts: template.requiredArtifacts,
+    requiredCapabilities: template.requiredCapabilities,
+  };
+}
+
+export const DEFAULT_CONSTRUCTION_TEMPLATES: ConstructionTemplate[] = (() => {
+  const registry = createTemplateRegistry();
+  return DEFAULT_TEMPLATE_IDS.map((id) => {
+    const template = registry.getConstructionTemplate(id);
+    if (!template) {
+      throw new Error(`unverified_by_trace(construction_template_missing): ${id}`);
+    }
+    return mapFromApiTemplate(template);
+  });
+})();
 
 export class ConstructionTemplateRegistry {
   private templates = new Map<ConstructionTemplateId, ConstructionTemplate>();

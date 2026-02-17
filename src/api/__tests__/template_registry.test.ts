@@ -22,14 +22,18 @@ function createMockTemplate(
     id,
     name: options.name ?? `Template ${id}`,
     description: options.description ?? `Description for ${id}`,
-    supportedUcs: options.supportedUcs ?? [],
-    requiredMaps: options.requiredMaps ?? [],
-    optionalMaps: options.optionalMaps ?? [],
-    outputEnvelope: options.outputEnvelope ?? {
-      packTypes: ['RepoMapPack'],
-      requiresAdequacy: true,
-      requiresVerificationPlan: true,
-    },
+      supportedUcs: options.supportedUcs ?? [],
+      requiredMaps: options.requiredMaps ?? [],
+      optionalMaps: options.optionalMaps ?? [],
+      requiredObjects: options.requiredObjects ?? ['map', 'pack'],
+      optionalObjects: options.optionalObjects,
+      requiredArtifacts: options.requiredArtifacts,
+      requiredCapabilities: options.requiredCapabilities,
+      outputEnvelope: options.outputEnvelope ?? {
+        packTypes: ['RepoMapPack'],
+        requiresAdequacy: true,
+        requiresVerificationPlan: true,
+      },
     execute: options.execute ?? (async () => ({
       success: true,
       packs: [],
@@ -222,6 +226,7 @@ describe('TemplateRegistry', () => {
         expect(info.description).toBeTruthy();
         expect(Array.isArray(info.supportedUcs)).toBe(true);
         expect(Array.isArray(info.requiredMaps)).toBe(true);
+        expect(Array.isArray(info.requiredObjects)).toBe(true);
       }
     });
   });

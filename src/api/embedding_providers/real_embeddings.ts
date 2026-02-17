@@ -21,6 +21,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { logInfo, logWarning } from '../../telemetry/logger.js';
 
 /**
  * Available embedding models with their properties.
@@ -137,7 +138,7 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
       // Dynamic import to avoid bundling issues
       const { pipeline: createPipeline } = await import('@xenova/transformers');
 
-      console.log(`[librarian] Loading embedding model (${modelId})...`);
+      logInfo(`[librarian] Loading embedding model (${modelId})...`);
 
       // Use feature-extraction pipeline for embeddings
       const pipe = await createPipeline('feature-extraction', model.xenovaId, {
@@ -145,11 +146,12 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
         quantized: modelId === 'all-MiniLM-L6-v2', // Only MiniLM has quantized version
       });
 
-      console.log(`[librarian] Embedding model ${modelId} loaded successfully`);
+      logInfo(`[librarian] Embedding model ${modelId} loaded successfully`);
       pipelines.set(cacheKey, pipe);
       return pipe;
     } catch (error) {
-      console.warn(`[librarian] Failed to load @xenova/transformers model ${modelId}:`, error);
+      const message = error instanceof Error ? error.message : String(error);
+      logWarning(`[librarian] Failed to load @xenova/transformers model ${modelId}`, { error: message });
       pipelineLoadings.delete(cacheKey);
       throw error;
     }
@@ -307,7 +309,8 @@ export async function generateRealEmbedding(
         model: modelId,
       };
     } catch (error) {
-      console.warn(`[librarian] Xenova embedding failed for ${modelId}, trying sentence-transformers:`, error);
+      const message = error instanceof Error ? error.message : String(error);
+      logWarning(`[librarian] Xenova embedding failed for ${modelId}; trying sentence-transformers`, { error: message });
     }
   }
 

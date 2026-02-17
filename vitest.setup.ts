@@ -11,6 +11,7 @@
 
 import os from 'os';
 import { vi, beforeAll, afterAll } from 'vitest';
+import { getAvailableMemoryBytes } from './src/api/system_memory.js';
 
 const LIBRARIAN_TEST_MODE = process.env.LIBRARIAN_TEST_MODE ?? 'unit';
 
@@ -79,10 +80,45 @@ if (LIBRARIAN_TEST_MODE === 'unit') {
   // 1. Mock provider_check.js (high-level) - which we do above
   // 2. Mock llm_env.js (discovery entry point) - which we do above
   // 3. Add their own specific mocks if they need different behavior
+
+  // Prevent unit tests from pulling the real Xenova model into memory.
+  // Tests that need real model loading should run under heavy/system tiers.
+  vi.mock('@xenova/transformers', () => ({
+    AutoTokenizer: {
+      from_pretrained: vi.fn(async () => {
+        // Callable tokenizer stub
+        return async () => ({
+          input_ids: { data: [1] },
+          attention_mask: { data: [1] },
+        });
+      }),
+    },
+    AutoModelForSequenceClassification: {
+      from_pretrained: vi.fn(async () => {
+        // Callable model stub
+        return async () => ({
+          logits: { data: [0] },
+        });
+      }),
+    },
+    pipeline: vi.fn(async () => {
+      // Return a cheap, already-normalized non-zero embedding to avoid triggering
+      // retry loops (e.g. embedding_zero_norm) while keeping behavior deterministic.
+      return async (_text: string) => {
+        const data = new Float32Array(384);
+        data[0] = 1;
+        return { data };
+      };
+    }),
+  }));
 }
 
 // Log test mode at startup
 beforeAll(() => {
+  const globalAny = globalThis as unknown as { __LIBRARIAN_VITEST_SETUP_LOGGED__?: boolean };
+  if (globalAny.__LIBRARIAN_VITEST_SETUP_LOGGED__) return;
+  globalAny.__LIBRARIAN_VITEST_SETUP_LOGGED__ = true;
+
   if (process.env.VITEST_QUIET !== 'true') {
     console.log(`[vitest.setup] Test mode: ${LIBRARIAN_TEST_MODE}`);
     if (LIBRARIAN_TEST_MODE === 'unit') {
@@ -97,8 +133,11 @@ beforeAll(() => {
     const cpuCores = os.cpus().length;
     const totalMemoryGB = (os.totalmem() / (1024 ** 3)).toFixed(1);
     const freeMemoryGB = (os.freemem() / (1024 ** 3)).toFixed(1);
+    const available = getAvailableMemoryBytes();
+    const availableMemoryGB = (available.bytes / (1024 ** 3)).toFixed(1);
     const loadAvg = os.loadavg()[0]?.toFixed(2) ?? 'N/A';
     console.log(`[vitest.setup] System: ${cpuCores} cores, ${freeMemoryGB}GB free / ${totalMemoryGB}GB total, load: ${loadAvg}`);
+    console.log(`[vitest.setup] Available memory: ${availableMemoryGB}GB (${available.source})`);
   }
 });
 

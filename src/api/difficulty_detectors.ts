@@ -982,19 +982,26 @@ function scoreDetector(
 }
 
 function inferTaskIntent(text: string, signals: RepositorySignals): string {
-  if (signals.hasModelCode || /model|ml|dataset|train|eval/.test(text)) {
+  if (signals.hasModelCode || /\b(model|ml|dataset|train|eval)\b/.test(text)) {
     return 'model_validity';
   }
-  if (/migration|schema|rollout|deploy|release/.test(text)) {
-    return /migration|schema/.test(text) ? 'migration' : 'release';
+  const hasSchema = /\bschema\b/.test(text);
+  const hasMigrationAction = /\b(migration|migrate|migrating|backfill|cutover)\b/.test(text);
+  const hasReleaseAction = /\b(rollout|deploy(?:ment|ed|ing)?|release|ship|launch)\b/.test(text);
+  const hasSchemaChangeAction = hasSchema && /\b(change|alter|modify|update|add|remove|drop|rename|evolv|version)\b/.test(text);
+  if (hasMigrationAction || hasSchemaChangeAction) {
+    return 'migration';
   }
-  if (/performance|latency|throughput|scale/.test(text)) {
+  if (hasReleaseAction) {
+    return 'release';
+  }
+  if (/\b(performance|latency|throughput|scale)\b/.test(text)) {
     return 'performance';
   }
-  if (/security|threat|audit/.test(text)) {
+  if (/\b(security|threat|audit)\b/.test(text)) {
     return 'security';
   }
-  if (/bug|fix|incident|regression/.test(text)) {
+  if (/\b(bug|fix|incident|regression)\b/.test(text)) {
     return 'bugfix';
   }
   return 'general';

@@ -21,6 +21,10 @@ export interface SynthesisMetricInput {
   summary?: string;
   acceptableVariations?: string[];
   category?: SynthesisCategory;
+  citationVerification?: {
+    verifiedCitations: number;
+    verifiableCitations: number;
+  };
 }
 
 export interface SynthesisMetricResult {
@@ -32,7 +36,7 @@ export interface SynthesisMetricResult {
   hallucinationCount: number;
   hallucinationRate: number;
   groundingRate: number;
-  fabricationRate: number;
+  fabricationRate: number | null;
   missingFacts: string[];
   falseClaims: string[];
   structuralAccuracy?: number;
@@ -83,7 +87,7 @@ export function computeSynthesisMetrics(input: SynthesisMetricInput): SynthesisM
     citations: input.citations ?? [],
   });
 
-  const fabricationRate = 0;
+  const fabricationRate = computeFabricationRate(input.citationVerification);
   const accuracyByCategory = computeCategoryAccuracy(input.category, {
     factRecall,
     summaryAccuracy,
@@ -132,6 +136,15 @@ function computeGroundingRate(options: { claims: string[]; citations: CitationIn
   if (!claims || claims.length === 0) return 0;
   const uniqueCitations = new Set(citations.map(normalizeCitationToken).filter(Boolean));
   return clamp(uniqueCitations.size / claims.length);
+}
+
+function computeFabricationRate(
+  verification?: { verifiedCitations: number; verifiableCitations: number }
+): number | null {
+  if (!verification) return null;
+  if (verification.verifiableCitations <= 0) return null;
+  const invalid = verification.verifiableCitations - verification.verifiedCitations;
+  return clamp(invalid / verification.verifiableCitations);
 }
 
 function computeCategoryAccuracy(

@@ -14,6 +14,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as ts from 'typescript';
 import type { Librarian } from '../api/librarian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
@@ -1165,11 +1166,50 @@ export function findFileRecursive(dir: string, baseName: string): string | null 
  * @returns The derived workspace root, or the directory containing the file if no markers found
  */
 export function deriveWorkspaceFromPath(filePath: string): string {
-  const markers = ['package.json', 'tsconfig.json', '.git', 'node_modules'];
+  // Project root markers, intentionally excluding noisy directories like
+  // `node_modules` which can exist high up the tree and cause false positives
+  // (e.g. accidentally treating a user home directory as the "workspace").
+  const markers = [
+    '.git',
+    // JS/TS
+    'package.json',
+    'tsconfig.json',
+    // Python
+    'pyproject.toml',
+    'setup.py',
+    'requirements.txt',
+    // Go / Rust
+    'go.mod',
+    'Cargo.toml',
+    // Java / Kotlin / Gradle / Maven
+    'pom.xml',
+    'build.gradle',
+    'build.gradle.kts',
+    // Ruby / PHP / Elixir / Dart / Swift
+    'Gemfile',
+    'composer.json',
+    'mix.exs',
+    'pubspec.yaml',
+    'Package.swift',
+    // C/C++ (best-effort)
+    'CMakeLists.txt',
+    'Makefile',
+    // JS runtime marker (kept for legacy behavior and tests)
+    'node_modules',
+  ];
   let currentDir = path.dirname(filePath);
+  const home = os.homedir();
+  const allowHomeRoot =
+    process.env.LIBRARIAN_ALLOW_HOME_WORKSPACE === '1' ||
+    process.env.LIBRARIAN_ALLOW_HOME_WORKSPACE === 'true';
 
   // Walk up the directory tree looking for project markers
   while (currentDir !== path.dirname(currentDir)) {
+    // Avoid snapping to a "project root" at the user's home directory.
+    // If someone genuinely wants that, they can opt in explicitly.
+    if (!allowHomeRoot && path.resolve(currentDir) === path.resolve(home)) {
+      break;
+    }
     for (const marker of markers) {
       const markerPath = path.join(currentDir, marker);
       try {

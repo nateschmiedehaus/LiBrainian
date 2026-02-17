@@ -293,7 +293,9 @@ export class UnifiedEmbeddingPipeline {
           model: this.config.purposeExtractionModel,
         });
         indexed.purpose = result.purpose;
-        llmPurpose = result.purpose.purpose;
+        if (result.purpose.source === 'llm') {
+          llmPurpose = result.purpose.purpose;
+        }
       } catch (error) {
         console.warn(`[pipeline] Purpose extraction failed for ${filePath}:`, error);
       }

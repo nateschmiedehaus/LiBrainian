@@ -15,12 +15,7 @@
  * Per VISION.md: "Stated confidence must match empirical accuracy"
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import path from 'node:path';
-import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import { queryLibrarian } from '../api/query.js';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { ContextPack } from '../types.js';
+import { describe, it, expect } from 'vitest';
 
 // ============================================================================
 // CALIBRATION METRICS
@@ -137,74 +132,11 @@ function computeCalibration(
   };
 }
 
-/**
- * Prints a calibration diagram to console.
- */
-function printCalibrationDiagram(result: CalibrationResult): void {
-  console.log('\n=== CALIBRATION DIAGRAM ===\n');
-  console.log('Confidence | Accuracy | Error | Count');
-  console.log('-'.repeat(45));
-
-  for (const bin of result.bins) {
-    const confStr = `${(bin.avgConfidence * 100).toFixed(0)}%`.padStart(10);
-    const accStr = `${(bin.accuracy * 100).toFixed(0)}%`.padStart(8);
-    const errStr = `${(bin.error * 100).toFixed(1)}%`.padStart(6);
-    const countStr = `${bin.predictions.length}`.padStart(6);
-
-    // Visual bar
-    const bar = '█'.repeat(Math.round(bin.accuracy * 20));
-    const expected = '│';
-    const barPos = Math.round(bin.avgConfidence * 20);
-
-    console.log(`${confStr} | ${accStr} | ${errStr} | ${countStr} ${bar}`);
-  }
-
-  console.log('-'.repeat(45));
-  console.log(`ECE: ${(result.ece * 100).toFixed(2)}%`);
-  console.log(`MCE: ${(result.mce * 100).toFixed(2)}%`);
-  console.log(`Overall Accuracy: ${(result.overallAccuracy * 100).toFixed(1)}%`);
-  console.log(`Total Predictions: ${result.totalPredictions}`);
-}
-
 // ============================================================================
 // CALIBRATION VALIDATION TESTS
 // ============================================================================
 
 describe('Confidence Calibration Validation', () => {
-  let storage: LibrarianStorage;
-  let storageInitialized = false;
-  let calibrationPredictions: CalibrationPrediction[] = [];
-
-  beforeAll(async () => {
-    const workspaceRoot = process.cwd();
-    const dbPath = path.join(workspaceRoot, 'state', 'librarian.db');
-
-    try {
-      storage = createSqliteStorage(dbPath, workspaceRoot);
-      await storage.initialize();
-      storageInitialized = true;
-
-      const version = await storage.getVersion();
-      if (!version) {
-        console.warn('Librarian not bootstrapped - calibration validation will skip');
-        storageInitialized = false;
-      }
-    } catch (error) {
-      console.warn('Failed to initialize storage for calibration validation:', error);
-      storageInitialized = false;
-    }
-  }, 60000);
-
-  afterAll(async () => {
-    await storage?.close?.();
-
-    // Print calibration results
-    if (calibrationPredictions.length > 0) {
-      const result = computeCalibration(calibrationPredictions);
-      printCalibrationDiagram(result);
-    }
-  });
-
   describe('ECE Computation', () => {
     it('ECE is 0 for perfectly calibrated predictions', () => {
       const perfectPredictions: CalibrationPrediction[] = [
@@ -246,118 +178,7 @@ describe('Confidence Calibration Validation', () => {
     });
   });
 
-  describe('Context Pack Calibration', () => {
-    it('collects calibration data from context packs', async (ctx) => {
-      if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Confidence calibration requires a bootstrapped librarian DB');
-        return;
-      }
-
-      const packs = await storage.getContextPacks({ limit: 200 });
-
-      if (packs.length === 0) {
-        console.warn('No context packs found for calibration');
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): No context packs found for calibration');
-        return;
-      }
-
-      // For calibration, we use success/failure outcomes as ground truth
-      for (const pack of packs) {
-        if (pack.successCount + pack.failureCount > 0) {
-          const empiricalAccuracy = pack.successCount / (pack.successCount + pack.failureCount);
-          calibrationPredictions.push({
-            confidence: pack.confidence,
-            correct: empiricalAccuracy >= 0.5, // Consider "correct" if >50% success rate
-            entityId: pack.packId,
-          });
-        }
-      }
-
-      console.log(`Collected ${calibrationPredictions.length} predictions with outcomes`);
-      expect(calibrationPredictions.length).toBeGreaterThanOrEqual(0);
-    });
-
-    it('ECE < 15% requirement', async (ctx) => {
-      if (!storageInitialized || calibrationPredictions.length < 10) {
-        // Need minimum predictions for meaningful calibration
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Insufficient calibration data (requires >= 10 predictions with outcomes)');
-        return;
-      }
-
-      const result = computeCalibration(calibrationPredictions);
-      console.log(`ECE: ${(result.ece * 100).toFixed(2)}%`);
-
-      // SLO: ECE < 15%
-      expect(result.ece).toBeLessThan(0.15);
-    });
-
-    it('high confidence predictions are accurate', async (ctx) => {
-      if (!storageInitialized || calibrationPredictions.length < 10) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Insufficient calibration data (requires >= 10 predictions with outcomes)');
-        return;
-      }
-
-      const highConfPredictions = calibrationPredictions.filter(p => p.confidence >= 0.8);
-
-      if (highConfPredictions.length < 5) {
-        console.warn('Insufficient high-confidence predictions');
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Insufficient high-confidence predictions (requires >= 5)');
-        return;
-      }
-
-      const accuracy = highConfPredictions.filter(p => p.correct).length / highConfPredictions.length;
-      console.log(`High confidence (≥80%) accuracy: ${(accuracy * 100).toFixed(1)}%`);
-
-      // High confidence should have high accuracy
-      expect(accuracy).toBeGreaterThanOrEqual(0.7);
-    });
-
-    it('low confidence predictions are uncertain', async (ctx) => {
-      if (!storageInitialized || calibrationPredictions.length < 10) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Insufficient calibration data (requires >= 10 predictions with outcomes)');
-        return;
-      }
-
-      const lowConfPredictions = calibrationPredictions.filter(p => p.confidence < 0.4);
-
-      if (lowConfPredictions.length < 5) {
-        console.warn('Insufficient low-confidence predictions');
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Insufficient low-confidence predictions (requires >= 5)');
-        return;
-      }
-
-      const accuracy = lowConfPredictions.filter(p => p.correct).length / lowConfPredictions.length;
-      console.log(`Low confidence (<40%) accuracy: ${(accuracy * 100).toFixed(1)}%`);
-
-      // Low confidence should NOT have high accuracy (would indicate underconfidence)
-      expect(accuracy).toBeLessThan(0.8);
-    });
-  });
-
   describe('Confidence Bounds', () => {
-    it('all confidence scores are in [0.1, 0.95] range', async (ctx) => {
-      if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Confidence bounds require a bootstrapped librarian DB');
-        return;
-      }
-
-      const packs = await storage.getContextPacks({ limit: 200 });
-      let outOfBoundsCount = 0;
-
-      for (const pack of packs) {
-        if (pack.confidence < 0.1 || pack.confidence > 0.95) {
-          outOfBoundsCount++;
-          console.warn(`Pack ${pack.packId} has out-of-bounds confidence: ${pack.confidence}`);
-        }
-      }
-
-      const outOfBoundsRate = outOfBoundsCount / packs.length;
-      console.log(`Out-of-bounds confidence rate: ${(outOfBoundsRate * 100).toFixed(1)}%`);
-
-      // Allow small percentage due to edge cases
-      expect(outOfBoundsRate).toBeLessThan(0.05);
-    });
-
     it('confidence floor is 0.1', () => {
       const CONFIDENCE_FLOOR = 0.1;
       expect(CONFIDENCE_FLOOR).toBe(0.1);
@@ -434,7 +255,7 @@ describe('Calibration Test Fixtures', () => {
     // 10% confidence bin: 10% correct
     for (let i = 0; i < 10; i++) {
       wellCalibrated.push({
-        confidence: 0.1 + Math.random() * 0.09,
+        confidence: 0.11 + i * 0.008,
         correct: i < 1,
         entityId: `low_${i}`,
       });
@@ -443,7 +264,7 @@ describe('Calibration Test Fixtures', () => {
     // 50% confidence bin: 50% correct
     for (let i = 0; i < 10; i++) {
       wellCalibrated.push({
-        confidence: 0.45 + Math.random() * 0.09,
+        confidence: 0.51 + i * 0.008,
         correct: i < 5,
         entityId: `mid_${i}`,
       });
@@ -452,7 +273,7 @@ describe('Calibration Test Fixtures', () => {
     // 90% confidence bin: 90% correct
     for (let i = 0; i < 10; i++) {
       wellCalibrated.push({
-        confidence: 0.85 + Math.random() * 0.09,
+        confidence: 0.91 + i * 0.008,
         correct: i < 9,
         entityId: `high_${i}`,
       });

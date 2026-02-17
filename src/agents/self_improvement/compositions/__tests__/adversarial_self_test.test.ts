@@ -369,7 +369,7 @@ describe('adversarialSelfTest', () => {
       expect(executionPhase?.status).toBe('skipped');
     });
 
-    it('executes tests when executeTests is true', async () => {
+    it('fails closed when executeTests is true and no executor is provided', async () => {
       (analyzeArchitecture as Mock).mockResolvedValue({
         modules: [],
         dependencies: [],
@@ -386,10 +386,13 @@ describe('adversarialSelfTest', () => {
         executeTests: true,
       });
 
-      expect(result.testsExecuted).toBeGreaterThanOrEqual(0);
+      expect(result.testsExecuted).toBe(0);
+      expect(result.errors.some((e) => e.includes('test_execution_unavailable'))).toBe(true);
+      const executionPhase = result.phaseReports.find((p) => p.phase === 'test_execution');
+      expect(executionPhase?.status).toBe('failed');
     });
 
-    it('reports test pass/fail counts', async () => {
+    it('executes tests when executeTests is true and executor is provided', async () => {
       (analyzeArchitecture as Mock).mockResolvedValue({
         modules: [],
         dependencies: [],
@@ -401,12 +404,30 @@ describe('adversarialSelfTest', () => {
         errors: [],
       });
 
+      const testExecutor = vi.fn(async (tests: Parameters<NonNullable<AdversarialSelfTestOptions['testExecutor']>>[0]) => ({
+        executed: tests.length,
+        passed: tests.length - 1,
+        failed: 1,
+        failedTests: tests.slice(0, 1),
+      }));
+
       const result = await adversarialSelfTest({
         ...defaultOptions,
         executeTests: true,
+        testExecutor,
       });
 
+      expect(testExecutor).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          rootDir: '/test/repo',
+          storage: mockStorage,
+        })
+      );
+      expect(result.testsExecuted).toBe(1);
       expect(result.testsPassed + result.testsFailed).toBe(result.testsExecuted);
+      const executionPhase = result.phaseReports.find((p) => p.phase === 'test_execution');
+      expect(executionPhase?.status).toBe('partial');
     });
   });
 
@@ -479,7 +500,7 @@ describe('adversarialSelfTest', () => {
   });
 
   describe('metrics calculation', () => {
-    it('calculates coverage improvement', async () => {
+    it('does not assume coverage improvement when tests are not executed', async () => {
       (analyzeArchitecture as Mock).mockResolvedValue({
         modules: [],
         dependencies: [],
@@ -493,15 +514,41 @@ describe('adversarialSelfTest', () => {
 
       const result = await adversarialSelfTest(defaultOptions);
 
-      expect(result.coverageImprovement).toBeGreaterThanOrEqual(0);
-      expect(result.coverageImprovement).toBeLessThanOrEqual(1);
+      expect(result.coverageImprovement).toBe(0);
     });
 
-    it('calculates robustness score', async () => {
+    it('does not assume robustness when tests are not executed', async () => {
       const result = await adversarialSelfTest(defaultOptions);
 
-      expect(result.robustnessScore).toBeGreaterThanOrEqual(0);
-      expect(result.robustnessScore).toBeLessThanOrEqual(1);
+      expect(result.robustnessScore).toBe(0);
+    });
+
+    it('calculates metrics from real execution results', async () => {
+      (analyzeArchitecture as Mock).mockResolvedValue({
+        modules: [],
+        dependencies: [],
+        cycles: [{ modules: ['src/a.ts', 'src/b.ts'], length: 2, severity: 'high' }],
+        layerViolations: [],
+        couplingMetrics: { averageAfferentCoupling: 0, averageEfferentCoupling: 0, averageInstability: 0, highCouplingCount: 0, mostCoupled: [] },
+        suggestions: [],
+        duration: 100,
+        errors: [],
+      });
+
+      const result = await adversarialSelfTest({
+        ...defaultOptions,
+        executeTests: true,
+        testExecutor: vi.fn(async (tests) => ({
+          executed: tests.length,
+          passed: tests.length,
+          failed: 0,
+          failedTests: [],
+        })),
+      });
+
+      expect(result.testsExecuted).toBe(1);
+      expect(result.coverageImprovement).toBe(0.01);
+      expect(result.robustnessScore).toBe(1);
     });
   });
 

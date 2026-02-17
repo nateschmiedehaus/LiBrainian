@@ -707,6 +707,8 @@ export function createReproAndBisectTemplate(): ReproAndBisectTemplate {
     supportedUcs: [],
     requiredMaps: [],
     optionalMaps: ['ChangeMap', 'TestMap'],
+    requiredObjects: ['episode', 'pack'],
+    requiredArtifacts: ['work_objects'],
     outputEnvelope,
 
     async execute(context: TemplateContext): Promise<TemplateResult> {

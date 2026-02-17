@@ -26,6 +26,27 @@ describe('difficulty detectors', () => {
     expect(report.missingEvidence.map((req) => req.id)).toEqual(expect.arrayContaining(['rollback_plan']));
   });
 
+  it('treats schema discovery intents as general adequacy', () => {
+    const signals = mergeSignals({
+      hasTests: true,
+      hasRollbackPlan: false,
+      hasObservability: false,
+      hasIntegrationTests: false,
+    });
+    const spec = buildAdequacySpec('identify data stores and schema locations', 'orientation', signals);
+    expect(spec.taskIntent).toBe('general');
+    expect(spec.requirements.map((req) => req.id)).toEqual(['tests']);
+  });
+
+  it('keeps schema migration intents on migration adequacy', () => {
+    const signals = mergeSignals({ hasTests: true, hasRollbackPlan: false, hasObservability: false });
+    const spec = buildAdequacySpec('plan schema migration rollout', 'migration', signals);
+    expect(spec.taskIntent).toBe('migration');
+    expect(spec.requirements.map((req) => req.id)).toEqual(
+      expect.arrayContaining(['tests', 'rollback_plan', 'observability', 'integration_tests'])
+    );
+  });
+
   it('detects missing datasets when model code exists', () => {
     const signals = mergeSignals({ hasModelCode: true, hasDatasetFiles: false });
     const findings = runDifficultyDetectors({ intent: 'train model', signals });

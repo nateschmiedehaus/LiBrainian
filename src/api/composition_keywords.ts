@@ -35,6 +35,9 @@ export const COMPOSITION_KEYWORDS: Record<string, string[]> = {
   tc_security_review: ['security', 'threat', 'abuse', 'vulnerability', 'audit'],
   tc_ux_discovery: ['ux', 'user journey', 'usability', 'onboarding', 'experience'],
   tc_scaling_readiness: ['scaling readiness', 'capacity', 'throughput', 'scale'],
+  tc_cross_repo_contract_drift: ['cross repo', 'cross-repo', 'contract drift', 'schema drift', 'api drift', 'dependency compatibility'],
+  tc_migration_safety_rollout: ['schema migration', 'data migration', 'rollback', 'migration safety', 'rollout safety'],
+  tc_incident_hotfix_governed: ['incident hotfix', 'hotfix', 'blast radius', 'audit trail', 'urgent fix'],
   tc_social_platform: ['social platform', 'social', 'community', 'feed', 'sharing'],
   tc_video_platform: ['video platform', 'video', 'streaming', 'media'],
   tc_industrial_backend: ['industrial', 'backend', 'logistics', 'operations', 'pipeline'],
@@ -46,6 +49,13 @@ export const COMPOSITION_KEYWORDS: Record<string, string[]> = {
   tc_search_system: ['search', 'query', 'indexing', 'ranking'],
   tc_notification: ['notification', 'email', 'sms', 'push'],
 };
+
+export interface CompositionKeywordSelection {
+  id: string;
+  score: number;
+  matchedKeywords: string[];
+  composition: TechniqueComposition;
+}
 
 function normalizeText(text: string): string {
   return text
@@ -110,6 +120,72 @@ function matchKeywords(
   return matches;
 }
 
+function scoreKeywordMatches(
+  normalizedIntent: string,
+  intentTokens: Set<string>,
+  matches: string[]
+): number {
+  let score = 0;
+  for (const match of matches) {
+    const normalizedKeyword = normalizeText(match);
+    if (!normalizedKeyword) continue;
+    if (normalizedKeyword.includes(' ')) {
+      const phraseLength = normalizedKeyword.split(/\s+/).filter(Boolean).length;
+      score += 4 + phraseLength;
+      if (normalizedIntent.startsWith(normalizedKeyword)) {
+        score += 1;
+      }
+      continue;
+    }
+    if (intentTokens.has(normalizedKeyword)) {
+      score += 2;
+    }
+  }
+  return score;
+}
+
+function specificityBoost(composition: TechniqueComposition, matchedKeywords: string[]): number {
+  if (matchedKeywords.length === 0) return 0;
+  const averageKeywordLength = matchedKeywords
+    .map((keyword) => normalizeText(keyword))
+    .filter(Boolean)
+    .reduce((sum, keyword) => sum + keyword.length, 0) / matchedKeywords.length;
+  const compositionNamePenalty = composition.id === 'tc_agentic_review_v1' ? -0.5 : 0;
+  return averageKeywordLength / 20 + compositionNamePenalty;
+}
+
+export function rankTechniqueCompositionsByKeyword(
+  intent: string,
+  compositions: TechniqueComposition[]
+): CompositionKeywordSelection[] {
+  const normalizedIntent = normalizeText(intent);
+  if (!normalizedIntent) return [];
+  const intentTokens = new Set(tokenize(normalizedIntent));
+
+  const ranked = compositions.map((composition) => {
+    const keywords = getCompositionKeywords(composition);
+    const matchedKeywords = matchKeywords(normalizedIntent, intentTokens, keywords);
+    const rawScore = scoreKeywordMatches(normalizedIntent, intentTokens, matchedKeywords);
+    const score = rawScore + specificityBoost(composition, matchedKeywords);
+    return {
+      id: composition.id,
+      score,
+      matchedKeywords,
+      composition,
+    };
+  }).filter((item) => item.matchedKeywords.length > 0);
+
+  ranked.sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    if (right.matchedKeywords.length !== left.matchedKeywords.length) {
+      return right.matchedKeywords.length - left.matchedKeywords.length;
+    }
+    return left.id.localeCompare(right.id);
+  });
+
+  return ranked;
+}
+
 export function matchCompositionKeywords(intent: string, composition: TechniqueComposition): string[] {
   const normalizedIntent = normalizeText(intent);
   if (!normalizedIntent) return [];
@@ -121,11 +197,6 @@ export function selectTechniqueCompositionsByKeyword(
   intent: string,
   compositions: TechniqueComposition[]
 ): TechniqueComposition[] {
-  const normalizedIntent = normalizeText(intent);
-  if (!normalizedIntent) return [];
-  const intentTokens = new Set(tokenize(normalizedIntent));
-  return compositions.filter((composition) => {
-    const keywords = getCompositionKeywords(composition);
-    return matchKeywords(normalizedIntent, intentTokens, keywords).length > 0;
-  });
+  return rankTechniqueCompositionsByKeyword(intent, compositions)
+    .map((selection) => selection.composition);
 }

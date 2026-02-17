@@ -8,10 +8,12 @@ import { ensureWave0AdapterRegistration } from '../adapters/wave0_adapter_wiring
 import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSuccessfulProvider, writeProviderStatusReport, type ProviderName } from './reporting.js';
 import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';
+import { logWarning } from '../telemetry/logger.js';
 import { resolveLibrarianProvider } from './llm_env.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
+import { getActiveProviderFailures } from '../utils/provider_failures.js';
 
 type AuthStatusSummary = Awaited<ReturnType<AuthChecker['checkAll']>>;
 const PROVIDER_FALLBACK_CHAIN: ProviderName[] = ['claude', 'codex'];
@@ -168,6 +170,38 @@ export async function runProviderReadinessGate(
     },
   ];
 
+  const recentFailures = await getActiveProviderFailures(workspaceRoot, now);
+  for (const [providerName, failure] of Object.entries(recentFailures)) {
+    const provider = providers.find((entry) => entry.provider === providerName);
+    if (!provider || !failure) continue;
+    if (provider.available && provider.authenticated) {
+      provider.available = false;
+      provider.error = `recent ${failure.reason}: ${failure.message}`;
+      switch (failure.reason) {
+        case 'rate_limit':
+          remediationSteps.push('LLM provider rate limited; wait before retrying or reduce request volume.');
+          break;
+        case 'quota_exceeded':
+          remediationSteps.push('LLM provider quota exceeded; check billing or wait for quota reset.');
+          break;
+        case 'auth_failed':
+          remediationSteps.push('LLM provider auth failed; re-authenticate CLI credentials.');
+          break;
+        case 'timeout':
+          remediationSteps.push('LLM provider timed out; retry after cooldown or improve connectivity.');
+          break;
+        case 'network_error':
+          remediationSteps.push('LLM provider network error; check connectivity before retrying.');
+          break;
+        case 'invalid_response':
+          remediationSteps.push('LLM provider returned invalid output; retry or switch provider.');
+          break;
+        default:
+          remediationSteps.push('LLM provider unavailable; retry after cooldown or switch provider.');
+      }
+    }
+  }
+
   const preferred = resolveLibrarianProvider();
   const isReady = (name: ProviderName | null | undefined) => Boolean(name && providers.some((p) => p.provider === name && p.available && p.authenticated));
   const pick = (name: ProviderName | null | undefined): ProviderName | null => (isReady(name) ? (name as ProviderName) : null);
@@ -182,7 +216,15 @@ export async function runProviderReadinessGate(
   const ready = llmReady && embeddingReady;
   const reason = ready ? undefined : buildReason(providers, guidance, embedding);
   if (ready && selectedProvider) {
-    await writeLastSuccessfulProvider(workspaceRoot, selectedProvider);
+    try {
+      await writeLastSuccessfulProvider(workspaceRoot, selectedProvider);
+    } catch (error) {
+      logWarning('[provider_gate] Failed to persist last successful provider', {
+        workspace: workspaceRoot,
+        provider: selectedProvider,
+        error: toErrorMessage(error),
+      });
+    }
     lastSuccessfulProvider = selectedProvider;
   }
 
@@ -206,7 +248,14 @@ export async function runProviderReadinessGate(
       fallbackChain,
       lastSuccessfulProvider,
     });
-    result.reportPath = await writeProviderStatusReport(workspaceRoot, report);
+    try {
+      result.reportPath = await writeProviderStatusReport(workspaceRoot, report);
+    } catch (error) {
+      logWarning('[provider_gate] Failed to write provider status report', {
+        workspace: workspaceRoot,
+        error: toErrorMessage(error),
+      });
+    }
   }
 
   if (options.ledger) {

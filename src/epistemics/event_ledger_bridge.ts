@@ -36,7 +36,7 @@ function coerceSessionId(value: unknown): SessionId | undefined {
 }
 
 function extractSessionId(event: LibrarianEvent): SessionId | undefined {
-  const data = event.data as Record<string, unknown>;
+  const data = (event.data ?? {}) as Record<string, unknown>;
   return coerceSessionId(
     event.sessionId ??
       event.correlationId ??
@@ -46,7 +46,7 @@ function extractSessionId(event: LibrarianEvent): SessionId | undefined {
 }
 
 function extractCorrelationKey(event: LibrarianEvent): string | null {
-  const data = event.data as Record<string, unknown>;
+  const data = (event.data ?? {}) as Record<string, unknown>;
   const taskId = typeof data.taskId === 'string' ? data.taskId : undefined;
   if (taskId) return `task:${taskId}`;
   const queryId = typeof data.queryId === 'string' ? data.queryId : undefined;

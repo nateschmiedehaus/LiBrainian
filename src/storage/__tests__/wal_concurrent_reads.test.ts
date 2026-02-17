@@ -12,7 +12,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
+import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
@@ -46,14 +47,11 @@ describe('SQLite WAL Mode Concurrent Reads', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), 'librarian-wal-test-' + Date.now());
-    if (!existsSync(testDir)) {
-      mkdirSync(testDir, { recursive: true });
-    }
-    dbPath = join(testDir, `test-${Date.now()}.db`);
+    testDir = await mkdtemp(join(tmpdir(), 'librarian-wal-test-'));
+    dbPath = join(testDir, 'test.db');
     storage = createSqliteStorage(dbPath, testDir);
     await storage.initialize();
-  });
+  }, 30000);
 
   afterEach(async () => {
     await storage.close();
@@ -62,7 +60,7 @@ describe('SQLite WAL Mode Concurrent Reads', () => {
     } catch {
       // Ignore cleanup errors
     }
-  });
+  }, 30000);
 
   it('should have WAL mode enabled on the database', async () => {
     // Open a read-only connection to verify WAL mode

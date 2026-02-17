@@ -8,15 +8,17 @@
  * - Search quality and performance characteristics
  */
 
+import os from 'node:os';
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   VectorIndex,
   HNSWIndex,
   HNSWConfig,
   DEFAULT_HNSW_CONFIG,
-  HNSW_AUTO_THRESHOLD,
   type VectorIndexItem,
 } from '../vector_index.js';
+
+const TEST_HNSW_AUTO_THRESHOLD = 1_000;
 
 // ============================================================================
 // TEST UTILITIES
@@ -99,6 +101,17 @@ function generateItems(
   }
 
   return items;
+}
+
+/**
+ * Returns a timing budget that scales when the host is under heavy load.
+ * Keeps strong perf expectations while avoiding false failures on busy CI/dev machines.
+ */
+function adaptiveSearchBudgetMs(baseMs: number): number {
+  const cpuCount = Math.max(1, os.cpus().length);
+  const normalizedLoad = os.loadavg()[0] / cpuCount;
+  const multiplier = normalizedLoad >= 1.0 ? 2.0 : normalizedLoad >= 0.75 ? 1.6 : 1.0;
+  return Math.round(baseMs * multiplier);
 }
 
 // ============================================================================
@@ -430,16 +443,16 @@ describe('VectorIndex', () => {
     });
 
     it('should auto-enable HNSW above threshold', () => {
-      const index = new VectorIndex({ useHNSW: 'auto' });
-      const items = generateItems(HNSW_AUTO_THRESHOLD + 100);
+      const index = new VectorIndex({ useHNSW: 'auto', hnswAutoThreshold: TEST_HNSW_AUTO_THRESHOLD });
+      const items = generateItems(TEST_HNSW_AUTO_THRESHOLD + 100);
       index.load(items);
 
       expect(index.isUsingHNSW()).toBe(true);
     });
 
     it('should not auto-enable HNSW below threshold', () => {
-      const index = new VectorIndex({ useHNSW: 'auto' });
-      const items = generateItems(HNSW_AUTO_THRESHOLD - 100);
+      const index = new VectorIndex({ useHNSW: 'auto', hnswAutoThreshold: TEST_HNSW_AUTO_THRESHOLD });
+      const items = generateItems(TEST_HNSW_AUTO_THRESHOLD - 100);
       index.load(items);
 
       expect(index.isUsingHNSW()).toBe(false);
@@ -528,8 +541,8 @@ describe('VectorIndex', () => {
     });
 
     it('should auto-upgrade to HNSW when threshold crossed', () => {
-      const index = new VectorIndex({ useHNSW: 'auto' });
-      const initialItems = generateItems(HNSW_AUTO_THRESHOLD - 10);
+      const index = new VectorIndex({ useHNSW: 'auto', hnswAutoThreshold: TEST_HNSW_AUTO_THRESHOLD });
+      const initialItems = generateItems(TEST_HNSW_AUTO_THRESHOLD - 10);
       index.load(initialItems);
 
       expect(index.isUsingHNSW()).toBe(false);
@@ -806,7 +819,7 @@ describe('Performance Characteristics', () => {
     }
     const elapsed = performance.now() - start;
 
-    // 100 searches should complete in under 1 second
-    expect(elapsed).toBeLessThan(1000);
+    // 100 searches should complete within baseline budget, adjusted for host pressure.
+    expect(elapsed).toBeLessThan(adaptiveSearchBudgetMs(1000));
   });
 });

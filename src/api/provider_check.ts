@@ -139,7 +139,7 @@ function summarizeProviderFailures(providers: ProviderGateStatus[]): string {
 function resolveModelId(provider: string, kind: 'llm' | 'embedding'): string {
   if (kind === 'embedding') {
     return (
-      process.env.WVO_EMBED_MODEL ??
+      process.env.LIBRARIAN_EMBED_MODEL ??
       process.env.WAVE0_EMBED_MODEL ??
       process.env.LIBRARIAN_EMBED_MODEL ??
       process.env.CLAUDE_MODEL ??

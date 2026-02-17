@@ -287,7 +287,7 @@ interface CategoryMetrics {
 // BENCHMARK TESTS
 // ============================================================================
 
-const IS_TIER0 = process.env.WVO_TIER0 === '1';
+const IS_TIER0 = process.env.LIBRARIAN_TIER0 === '1';
 const describeLive = IS_TIER0 ? describe.skip : describe;
 
 describeLive('Retrieval Quality Benchmarks', () => {

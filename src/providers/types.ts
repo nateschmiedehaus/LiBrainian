@@ -756,8 +756,18 @@ export class ProviderRegistry {
       }
     }
 
-    // Sort by latency (fastest first)
-    healthy.sort((a, b) => a.latencyMs - b.latencyMs);
+    // Sort by latency (fastest first), then by identity for deterministic ties.
+    healthy.sort((a, b) => {
+      const latencyDelta = a.latencyMs - b.latencyMs;
+      if (latencyDelta !== 0) {
+        return latencyDelta;
+      }
+      const idDelta = a.id.localeCompare(b.id);
+      if (idDelta !== 0) {
+        return idDelta;
+      }
+      return a.type.localeCompare(b.type);
+    });
 
     return healthy;
   }
@@ -781,7 +791,11 @@ export class ProviderRegistry {
       });
 
       const status = await Promise.race([statusPromise, timeoutPromise]);
-      const latencyMs = Date.now() - startTime;
+      const measuredLatencyMs = Date.now() - startTime;
+      const reportedLatencyMs = status.latencyMs;
+      const latencyMs = typeof reportedLatencyMs === 'number' && Number.isFinite(reportedLatencyMs)
+        ? reportedLatencyMs
+        : measuredLatencyMs;
 
       if (!status.available) {
         return null;

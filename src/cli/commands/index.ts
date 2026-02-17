@@ -18,8 +18,6 @@ import * as path from 'node:path';
 import { Librarian } from '../../api/librarian.js';
 import { CliError } from '../errors.js';
 import { globalEventBus, type LibrarianEvent } from '../../events.js';
-import { requireProviders } from '../../api/provider_check.js';
-import { resolveLibrarianModelConfigWithDiscovery } from '../../api/llm_env.js';
 
 export interface IndexCommandOptions {
   workspace?: string;
@@ -125,29 +123,13 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   }
   console.log('');
 
-  let llmProvider: 'claude' | 'codex';
-  let llmModelId: string;
-  try {
-    const resolved = await resolveLibrarianModelConfigWithDiscovery();
-    llmProvider = resolved.provider;
-    llmModelId = resolved.modelId;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Provider unavailable';
-    throw new CliError(message, 'PROVIDER_UNAVAILABLE');
-  }
-  if (!process.env.LIBRARIAN_LLM_PROVIDER) process.env.LIBRARIAN_LLM_PROVIDER = llmProvider;
-  if (!process.env.LIBRARIAN_LLM_MODEL) process.env.LIBRARIAN_LLM_MODEL = llmModelId;
-
-  // Verify provider is actually available and authenticated
-  try {
-    await requireProviders({ llm: true, embedding: false }, { workspaceRoot: workspace });
-  } catch (error) {
-    throw new CliError(
-      error instanceof Error
-        ? `Provider unavailable: ${error.message}`
-        : 'Provider unavailable',
-      'PROVIDER_UNAVAILABLE'
-    );
+  const envProvider = process.env.LIBRARIAN_LLM_PROVIDER;
+  const envModel = process.env.LIBRARIAN_LLM_MODEL;
+  const llmProvider = envProvider === 'claude' || envProvider === 'codex' ? envProvider : undefined;
+  const llmModelId = typeof envModel === 'string' && envModel.trim().length > 0 ? envModel : undefined;
+  const hasLlmConfig = Boolean(llmProvider && llmModelId);
+  if (verbose && !hasLlmConfig) {
+    console.log('\u26A0\uFE0F  LLM not configured - proceeding without LLM enrichment. Context packs will not be regenerated.');
   }
 
   // Initialize librarian with proper error handling
@@ -156,8 +138,8 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     workspace,
     autoBootstrap: false,
     autoWatch: false,
-    llmProvider: llmProvider as 'claude' | 'codex',
-    llmModelId,
+    llmProvider: hasLlmConfig ? llmProvider : undefined,
+    llmModelId: hasLlmConfig ? llmModelId : undefined,
   });
 
   try {

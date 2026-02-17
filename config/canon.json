@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "librarian",
+  "commands": {
+    "ci_test": "npm run test:tier0",
+    "qualification": "npm run test:agentic:strict",
+    "typecheck": "npm run typecheck",
+    "lint": "npm run lint",
+    "canon_guard": "node scripts/canon_guard.mjs",
+    "complexity_check": "npm run complexity:check",
+    "tier1_dogfood": "npm run tier1:dogfood"
+  },
+  "complexity": {
+    "threshold": 25,
+    "max_high_complexity": 140
+  }
+}

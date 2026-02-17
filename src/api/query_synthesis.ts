@@ -340,7 +340,7 @@ function parseSynthesisResponse(
   const trimmed = response.trim();
   const jsonMatch = response.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('unverified_by_trace(synthesis_invalid_response): LLM response contained no JSON');
+    return coerceUnstructuredSynthesis(trimmed, 'non_json_response', queryId);
   }
 
   let parsed: {
@@ -355,9 +355,7 @@ function parseSynthesisResponse(
 
   // Validate required fields
   if (!parsed.answer || typeof parsed.answer !== 'string') {
-    throw new Error(
-      'unverified_by_trace(synthesis_missing_answer): Synthesis response missing answer field'
-    );
+    return coerceUnstructuredSynthesis(trimmed, 'missing_answer_field', queryId);
   }
 
   // Build pack lookup for validation
@@ -387,7 +385,10 @@ function parseSynthesisResponse(
       ? parsed.keyInsights.filter((i): i is string => typeof i === 'string')
       : [],
     uncertainties: Array.isArray(parsed.uncertainties)
-      ? parsed.uncertainties.filter((u): u is string => typeof u === 'string')
+      ? parsed.uncertainties
+        .filter((u): u is string => typeof u === 'string')
+        .map((u) => sanitizeSynthesisIssue(u))
+        .filter((u) => u.length > 0)
       : [],
   };
 }
@@ -404,11 +405,50 @@ function parsePossiblyLooseJson(input: string): { answer?: string; keyInsights?:
   }
 }
 
-function coerceUnstructuredSynthesis(text: string, error: unknown, queryId: string): QuerySynthesisResult {
+function coerceUnstructuredSynthesis(text: string, issue: unknown, queryId: string): QuerySynthesisResult {
   const answer = String(text ?? '').trim();
-  if (!answer) throw error instanceof Error ? error : new Error(String(error));
-  const message = error instanceof Error ? error.message : String(error);
-  return { queryId, synthesized: true, answer, confidence: 0.25, citations: [], keyInsights: [], uncertainties: [`unverified_by_trace(synthesis_unstructured): ${message}`] };
+  if (!answer) throw issue instanceof Error ? issue : new Error(String(issue));
+  const normalizedIssue = sanitizeSynthesisIssue(issue);
+  const uncertainty = normalizedIssue.length > 0
+    ? `synthesis_format_non_json: ${normalizedIssue}`
+    : 'synthesis_format_non_json';
+  return {
+    queryId,
+    synthesized: true,
+    answer,
+    confidence: 0.35,
+    citations: [],
+    keyInsights: extractKeyInsights(answer),
+    uncertainties: [uncertainty],
+  };
+}
+
+function sanitizeSynthesisIssue(issue: unknown): string {
+  const message = issue instanceof Error ? issue.message : String(issue ?? '');
+  return message
+    .replace(/\bunverified_by_trace\([^)]*\):?\s*/gi, '')
+    .replace(/\bllm synthesis failed:\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractKeyInsights(answer: string): string[] {
+  const bulletInsights = answer
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s+/.test(line))
+    .map((line) => line.replace(/^[-*]\s+/, '').trim())
+    .filter((line) => line.length > 0);
+
+  if (bulletInsights.length > 0) {
+    return bulletInsights.slice(0, 5);
+  }
+
+  const sentenceInsights = answer
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+  return sentenceInsights.slice(0, 3);
 }
 
 /**

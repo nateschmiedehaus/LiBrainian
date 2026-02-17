@@ -8,6 +8,7 @@ import type {
   ContextPack,
   LibrarianVersion,
   LlmRequirement,
+  EmbeddingRequirement,
   StageName,
   StageReport,
   StageIssue,
@@ -69,6 +70,7 @@ import { recordQueryEpisode } from './query_episodes.js';
 import { logWarning } from '../telemetry/logger.js';
 import { configurable, resolveQuantifiedValue } from '../epistemics/quantification.js';
 import { buildConstructionPlan } from './construction_plan.js';
+import { getConstructableClassificationMap } from '../constructions/constructable_registry.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId, REPLAY_UNAVAILABLE_TRACE } from '../epistemics/evidence_ledger.js';
 import { analyzeResultCoherence, applyCoherenceAdjustment } from '../epistemics/result_coherence.js';
@@ -211,7 +213,7 @@ const SCORE_WEIGHTS = {
 };
 const MULTI_VECTOR_BLEND_WEIGHT = q(0.18, [0, 1], 'Blend weight for multi-vector reranking.');
 const MIN_SIMILARITY_MVP = q(0.35, [0, 1], 'Minimum semantic similarity for MVP retrieval.');
-const MIN_SIMILARITY_FULL = q(0.45, [0, 1], 'Minimum semantic similarity for full retrieval.');
+const MIN_SIMILARITY_FULL = q(0.35, [0, 1], 'Minimum semantic similarity for full retrieval.');
 const EMBEDDING_QUERY_MIN_SIMILARITY = q(
   0.35,
   [0, 1],
@@ -390,7 +392,6 @@ const ENTRY_POINT_QUERY_PATTERNS = [
   /\bentry\s*point/i,
   /\bmain\s*(file|module|entry|function)?/i,
   /\bstart(ing)?\s*(point|file)?/i,
-  /\bbootstrap/i,
   /\binitialize?\b/i,
   /\bwhere\s+(to\s+)?start/i,
   /\bhow\s+to\s+(use|start|run|begin)/i,
@@ -701,14 +702,8 @@ function extractCodeReviewFilePath(intent: string): string | undefined {
  * Mapping from construction IDs to their stage runner classifications.
  * This maps the ConstructableId from auto_selector.ts to the query classification flags.
  */
-const CONSTRUCTION_TO_CLASSIFICATION: Record<string, keyof QueryClassification> = {
-  'refactoring-safety-checker': 'isRefactoringSafetyQuery',
-  'bug-investigation-assistant': 'isBugInvestigationQuery',
-  'security-audit-helper': 'isSecurityAuditQuery',
-  'architecture-verifier': 'isArchitectureVerificationQuery',
-  'code-quality-reporter': 'isCodeQualityQuery',
-  'feature-location-advisor': 'isFeatureLocationQuery',
-};
+const CONSTRUCTION_TO_CLASSIFICATION: Record<string, keyof QueryClassification> =
+  getConstructableClassificationMap() as Record<string, keyof QueryClassification>;
 
 /**
  * Check if a construction is enabled for a query.
@@ -1524,6 +1519,7 @@ export async function queryLibrarian(
     const workspaceRoot = await resolveWorkspaceRoot(storage);
     const extractionSnapshot = await checkExtractionSnapshot({
       workspaceRoot,
+      discloseMissingMetadata: false,
       ledger: traceOptions.evidenceLedger,
       sessionId: traceSessionId,
     });
@@ -1537,9 +1533,14 @@ export async function queryLibrarian(
     const envDisableSynthesis =
       process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS === '1' ||
       process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS === 'true';
-    const llmRequirement: LlmRequirement = envDisableSynthesis ? 'disabled' : (query.llmRequirement ?? 'required');
+    // Default to optional LLM usage: retrieval should work without a live chat model,
+    // and synthesis should degrade gracefully when providers are unavailable.
+    const llmRequirement: LlmRequirement = envDisableSynthesis ? 'disabled' : (query.llmRequirement ?? 'optional');
+    const embeddingRequirementExplicit = query.embeddingRequirement !== undefined;
+    let embeddingRequirement: EmbeddingRequirement =
+      query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required');
     let llmAvailable = llmRequirement === 'required';
-    query = { ...query, llmRequirement };
+    query = { ...query, llmRequirement, embeddingRequirement };
     const capabilities = resolveStorageCapabilities(storage);
   const stageTracker = createStageTracker(stageObserver);
     const recordCoverageGap: RecordCoverageGap = (stage, message, severity = 'moderate', remediation) => {
@@ -1575,12 +1576,26 @@ export async function queryLibrarian(
     }
     const embeddingProviderReady = providerSnapshot.status.embedding.available;
     const llmProviderReady = providerSnapshot.status.llm.available;
+    let embeddingDisclosureAdded = false;
+    if (!embeddingProviderReady && !embeddingRequirementExplicit && embeddingRequirement === 'required') {
+      embeddingRequirement = 'optional';
+      query = { ...query, embeddingRequirement };
+      recordCoverageGap(
+        'semantic_retrieval',
+        'Embedding provider unavailable; running in degraded mode.',
+        'significant',
+        'Configure an embedding provider for full semantic retrieval.'
+      );
+      disclosures.push('unverified_by_trace(embedding_unavailable): Embedding provider unavailable; semantic retrieval degraded.');
+      embeddingDisclosureAdded = true;
+    }
     const structuralIntent = parseStructuralQueryIntent(query.intent ?? '');
     const shouldRunExhaustive = structuralIntent.isStructural
       && structuralIntent.confidence >= 0.6
       && shouldUseExhaustiveMode(query.intent ?? '');
     const hasDirectAnchors = Boolean(query.affectedFiles?.length);
-    const wantsSemanticRetrieval = Boolean(query.intent) && query.depth !== 'L0';
+    const wantsSemanticRetrieval =
+      Boolean(query.intent) && query.depth !== 'L0' && query.embeddingRequirement !== 'disabled';
     const embeddingsRequired = wantsSemanticRetrieval && !hasDirectAnchors && !shouldRunExhaustive;
 
     if (llmRequirement === 'required' && !llmProviderReady) {
@@ -1593,7 +1608,7 @@ export async function queryLibrarian(
           'Authenticate providers via CLI (Claude: `claude setup-token` or run `claude`; Codex: `codex login`).',
       });
     }
-    if (embeddingsRequired && !embeddingProviderReady) {
+    if (embeddingsRequired && !embeddingProviderReady && query.embeddingRequirement === 'required') {
       throw new ProviderUnavailableError({
         message: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
         missing: [`Embedding: ${providerSnapshot.status.embedding.error ?? 'unavailable'}`],
@@ -1623,13 +1638,21 @@ export async function queryLibrarian(
       disclosures.push('unverified_by_trace(llm_disabled): LLM synthesis disabled by request.');
     }
 
-    const embeddingsAvailable = embeddingProviderReady && capabilities.optional.embeddings;
+    if (query.embeddingRequirement === 'disabled') {
+      recordCoverageGap('semantic_retrieval', 'Embeddings disabled by request.', 'minor');
+      disclosures.push('unverified_by_trace(embedding_disabled): Embedding retrieval disabled by request.');
+    }
+
+    const embeddingsAvailable =
+      query.embeddingRequirement !== 'disabled' && embeddingProviderReady && capabilities.optional.embeddings;
     if (wantsSemanticRetrieval && !embeddingsAvailable && !shouldRunExhaustive) {
       const reason = capabilities.optional.embeddings
         ? providerSnapshot.status.embedding.error ?? 'Embedding provider unavailable'
         : 'Embedding retrieval unsupported by storage';
       recordCoverageGap('semantic_retrieval', reason, 'significant');
-      disclosures.push(`unverified_by_trace(embedding_unavailable): ${reason}`);
+      if (!embeddingDisclosureAdded) {
+        disclosures.push(`unverified_by_trace(embedding_unavailable): ${reason}`);
+      }
     }
 
     // Disable synthesis in deterministic mode for reproducible results
@@ -1665,7 +1688,7 @@ export async function queryLibrarian(
   if (query.waitForIndexMs && !isReadyPhase(indexState.phase)) {
     indexState = await waitForIndexReady(storage, { timeoutMs: query.waitForIndexMs });
   }
-  const allowCache = isReadyPhase(indexState.phase);
+  const allowCache = isReadyPhase(indexState.phase) && query.disableCache !== true;
   const cacheKey = allowCache ? buildQueryCacheKey(query, version, llmRequirement, synthesisEnabled) : '';
   if (allowCache) {
     const cache = getQueryCache(storage);
@@ -3355,6 +3378,15 @@ async function appendConstructionPlanEvidence(
           ucIds: plan.ucIds,
           domain: plan.domain ?? null,
           source: plan.source,
+          selectionReason: plan.selectionReason ?? null,
+          requiredMaps: plan.requiredMaps ?? [],
+          requiredCapabilities: plan.requiredCapabilities ?? [],
+          requiredArtifacts: plan.requiredArtifacts ?? [],
+          rankedCandidates: (plan.rankedCandidates ?? []).map((candidate) => ({
+            templateId: candidate.templateId,
+            score: candidate.score,
+            source: candidate.source,
+          })),
         },
         result: plan,
         success: true,
@@ -3437,8 +3469,7 @@ async function runSemanticRetrievalStage(options: {
     degradedReason: undefined as string | undefined,
   };
 
-  // Warn if model not preloaded - this indicates cold-start latency will occur
-  if (!isModelLoaded()) {
+  if (embeddingAvailable && !isModelLoaded()) {
     logWarning('Embedding model not preloaded - first query may experience cold-start latency. Ensure preloadEmbeddingModel() is called during bootstrap.', {
       stage: 'semantic_retrieval',
     });
@@ -5427,8 +5458,9 @@ async function runMethodGuidanceStage(options: {
   const resolveGuidance = resolveMethodGuidanceFn ?? resolveMethodGuidance;
   const readLlmConfig = resolveLlmConfig ?? resolveLibrarianModelConfigWithDiscovery;
   let methodGuidance: Awaited<ReturnType<typeof resolveMethodGuidance>> | null = null;
-  const methodGuidanceStage = stageTracker.start('method_guidance', synthesisEnabled ? 1 : 0);
-  if (synthesisEnabled) {
+  const methodGuidanceEnabled = synthesisEnabled && query.disableMethodGuidance !== true;
+  const methodGuidanceStage = stageTracker.start('method_guidance', methodGuidanceEnabled ? 1 : 0);
+  if (methodGuidanceEnabled) {
     try {
       const llmConfig = await readLlmConfig();
       if (llmConfig.provider?.trim() && llmConfig.modelId?.trim()) {
@@ -5502,17 +5534,45 @@ async function runSynthesisStage(options: {
       return undefined;
     }
     try {
+      const forceSummarySynthesis = query.forceSummarySynthesis === true;
       // Use quick synthesis for simple queries when possible
-      if (shouldQuickAnswer(query, finalPacks)) {
-        const quickAnswer = buildQuickAnswer(query, finalPacks);
-        synthesis = {
-          answer: quickAnswer.answer,
-          confidence: quickAnswer.confidence,
-          citations: quickAnswer.citations,
-          keyInsights: quickAnswer.keyInsights,
-          uncertainties: quickAnswer.uncertainties,
-        };
-        explanationParts.push('Quick synthesis from pack summaries.');
+      if (forceSummarySynthesis || shouldQuickAnswer(query, finalPacks)) {
+        try {
+          const quickAnswer = buildQuickAnswer(query, finalPacks);
+          synthesis = {
+            answer: quickAnswer.answer,
+            confidence: quickAnswer.confidence,
+            citations: quickAnswer.citations,
+            keyInsights: quickAnswer.keyInsights,
+            uncertainties: quickAnswer.uncertainties,
+          };
+          explanationParts.push('Quick synthesis from pack summaries.');
+        } catch (quickError) {
+          if (!forceSummarySynthesis) {
+            throw quickError;
+          }
+          const topPack = finalPacks
+            .slice()
+            .sort((left, right) => right.confidence - left.confidence)[0];
+          const summary = topPack?.summary?.trim().length
+            ? topPack.summary.trim()
+            : `Relevant context available for ${topPack?.targetId ?? 'this query'}.`;
+          synthesis = {
+            answer: summary,
+            confidence: Math.min(0.6, Math.max(0.2, topPack?.confidence ?? 0.3)),
+            citations: topPack
+              ? [{
+                  packId: topPack.packId,
+                  content: summary,
+                  relevance: Math.max(0.3, Math.min(1, topPack.confidence)),
+                  file: topPack.relatedFiles[0],
+                }]
+              : [],
+            keyInsights: topPack?.keyFacts?.slice(0, 3) ?? [],
+            uncertainties: ['Answer synthesized from retrieved context summaries (forced quick mode).'],
+          };
+          explanationParts.push('Forced quick synthesis from top retrieved context.');
+        }
       } else {
         // Full LLM synthesis
         const synthesisResult = await synthesizeAnswer({
@@ -5634,7 +5694,19 @@ function cacheEmbedding(cache: Map<string, Float32Array>, key: string, embedding
   }
 }
 
-function buildQueryCacheKey(query: LibrarianQuery, version: LibrarianVersion, llmRequirement: LlmRequirement, synthesisEnabled: boolean): string { const files = query.affectedFiles?.slice().sort().join('|') ?? ''; const versionKey = `${version.string}:${version.indexedAt?.getTime?.() ?? 0}`; return `${versionKey}|llm:${llmRequirement}|syn:${synthesisEnabled ? 1 : 0}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${query.intent}|${files}`; }
+function buildQueryCacheKey(
+  query: LibrarianQuery,
+  version: LibrarianVersion,
+  llmRequirement: LlmRequirement,
+  synthesisEnabled: boolean
+): string {
+  const files = query.affectedFiles?.slice().sort().join('|') ?? '';
+  const versionKey = `${version.string}:${version.indexedAt?.getTime?.() ?? 0}`;
+  const embeddingRequirement = query.embeddingRequirement ?? '';
+  const methodGuidanceFlag = query.disableMethodGuidance === true ? 1 : 0;
+  const forceSummarySynthesisFlag = query.forceSummarySynthesis === true ? 1 : 0;
+  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${query.intent}|${files}`;
+}
 function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResponse> {
   const existing = queryCacheByStorage.get(storage);
   if (existing) return existing;
@@ -6744,10 +6816,10 @@ function buildCrossEncoderDocument(pack: ContextPack): string {
   return joined.length > 1200 ? joined.slice(0, 1200) : joined;
 }
 function isCrossEncoderEnabled(): boolean {
-  if (process.env.NODE_ENV === 'test' || process.env.WAVE0_TEST_MODE === 'true' || process.env.WVO_DETERMINISTIC === '1') {
+  if (process.env.NODE_ENV === 'test' || process.env.WAVE0_TEST_MODE === 'true' || process.env.LIBRARIAN_DETERMINISTIC === '1') {
     return false;
   }
-  const flag = process.env.WVO_LIBRARIAN_CROSS_ENCODER;
+  const flag = process.env.LIBRARIAN_LIBRARIAN_CROSS_ENCODER;
   return flag !== '0' && flag !== 'false';
 }
 function dedupePacks(packs: ContextPack[]): ContextPack[] { const map = new Map<string, ContextPack>(); for (const pack of packs) if (!map.has(pack.packId)) map.set(pack.packId, pack); return Array.from(map.values()); }
@@ -6783,10 +6855,10 @@ async function buildWatchDisclosures(options: {
     health = deriveWatchHealth(state);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    disclosures.push(`unverified_by_trace(watch_state_unavailable): ${message}`);
+    disclosures.push(`watch_state_unavailable: ${message}`);
   }
   if (!state) {
-    disclosures.push('unverified_by_trace(watch_state_missing): watch state unavailable');
+    disclosures.push('watch_state_missing: watch state unavailable');
     return { disclosures, state: null, health: null };
   }
 

@@ -17,4 +17,7 @@ export {
   type ClassNode,
   type EditRange,
   type ParseOptions,
+  type TreeSitterLanguageConfig,
+  registerTreeSitterLanguage,
+  getTreeSitterLanguageConfigs,
 } from './tree_sitter_parser.js';

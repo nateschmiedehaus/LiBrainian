@@ -6,6 +6,7 @@
  */
 
 import * as os from 'os';
+import { getAvailableMemoryBytes } from './system_memory.js';
 
 /**
  * A point-in-time snapshot of system resource utilization.
@@ -21,6 +22,8 @@ export interface ResourceSnapshot {
   totalMemoryBytes: number;
   /** Free system memory in bytes */
   freeMemoryBytes: number;
+  /** Available system memory in bytes (best-effort, may be same as freeMemoryBytes) */
+  availableMemoryBytes: number;
   /** Node.js heap memory currently in use */
   heapUsedBytes: number;
   /** Total Node.js heap memory allocated */
@@ -183,6 +186,7 @@ export class ResourceMonitor {
     const memUsage = process.memoryUsage();
     const loadAvg = os.loadavg();
     const cpuUsagePercent = this.measureCpuUsage();
+    const available = getAvailableMemoryBytes();
 
     const snapshot: ResourceSnapshot = {
       timestamp: Date.now(),
@@ -190,6 +194,7 @@ export class ResourceMonitor {
       cpuUsagePercent,
       totalMemoryBytes: os.totalmem(),
       freeMemoryBytes: os.freemem(),
+      availableMemoryBytes: available.bytes,
       heapUsedBytes: memUsage.heapUsed,
       heapTotalBytes: memUsage.heapTotal,
       loadAverage1m: loadAvg[0],
@@ -248,11 +253,20 @@ export class ResourceMonitor {
   /**
    * Calculates current resource pressure levels and provides a recommendation.
    *
-   * Pressure thresholds:
-   * - nominal: memoryPressure < 0.6 AND cpuPressure < 0.7
-   * - elevated: memoryPressure < 0.8 OR cpuPressure < 0.85
-   * - critical: memoryPressure < 0.95 OR cpuPressure < 0.95
-   * - oom_imminent: otherwise
+   * Pressure policy:
+   * - Memory drives OOM classification (cpu saturation alone is not "OOM imminent").
+   * - CPU contributes up to "critical" to reduce concurrency, but never upgrades to OOM.
+   *
+   * Memory thresholds (pressure = used/total, using available memory when possible):
+   * - nominal:  < 0.70
+   * - elevated: < 0.85
+   * - critical: < 0.95
+   * - oom_imminent: >= 0.97 OR available memory < 512MB
+   *
+   * CPU thresholds (pressure = cpuUsagePercent/100):
+   * - nominal:  < 0.70
+   * - elevated: < 0.85
+   * - critical: >= 0.85
    *
    * @returns ResourcePressure with level and recommendation
    */
@@ -264,29 +278,47 @@ export class ResourceMonitor {
         : this.takeSnapshot();
 
     // Calculate memory pressure (0-1 scale)
-    const usedMemory = snapshot.totalMemoryBytes - snapshot.freeMemoryBytes;
+    // Prefer "available" memory when possible to avoid macOS reclaimable-memory pessimism.
+    const availableBytes = Number.isFinite(snapshot.availableMemoryBytes)
+      ? snapshot.availableMemoryBytes
+      : snapshot.freeMemoryBytes;
+    const usedMemory = snapshot.totalMemoryBytes - Math.max(0, Math.min(snapshot.totalMemoryBytes, availableBytes));
     const memoryPressure = usedMemory / snapshot.totalMemoryBytes;
 
     // Calculate CPU pressure (0-1 scale)
     const cpuPressure = snapshot.cpuUsagePercent / 100;
 
-    // Determine pressure level and recommendation
-    let level: ResourcePressure['level'];
-    let recommendation: ResourcePressure['recommendation'];
+    const levelRank: Record<ResourcePressure['level'], number> = {
+      nominal: 0,
+      elevated: 1,
+      critical: 2,
+      oom_imminent: 3,
+    };
 
-    if (memoryPressure < 0.6 && cpuPressure < 0.7) {
-      level = 'nominal';
-      recommendation = 'proceed';
-    } else if (memoryPressure < 0.8 && cpuPressure < 0.85) {
-      level = 'elevated';
-      recommendation = 'reduce_workers';
-    } else if (memoryPressure < 0.95 && cpuPressure < 0.95) {
-      level = 'critical';
-      recommendation = 'pause';
-    } else {
-      level = 'oom_imminent';
-      recommendation = 'abort';
-    }
+    const memoryLevel: ResourcePressure['level'] = (() => {
+      if (availableBytes < 512 * 1024 * 1024) return 'oom_imminent';
+      if (memoryPressure >= 0.97) return 'oom_imminent';
+      if (memoryPressure >= 0.85) return 'critical';
+      if (memoryPressure >= 0.70) return 'elevated';
+      return 'nominal';
+    })();
+
+    const cpuLevel: ResourcePressure['level'] = (() => {
+      if (cpuPressure >= 0.85) return 'critical';
+      if (cpuPressure >= 0.70) return 'elevated';
+      return 'nominal';
+    })();
+
+    const level: ResourcePressure['level'] =
+      levelRank[memoryLevel] >= levelRank[cpuLevel] ? memoryLevel : cpuLevel;
+
+    const recommendation: ResourcePressure['recommendation'] = level === 'nominal'
+      ? 'proceed'
+      : level === 'elevated'
+        ? 'reduce_workers'
+        : level === 'critical'
+          ? 'pause'
+          : 'abort';
 
     return {
       level,
@@ -345,8 +377,11 @@ export class ResourceMonitor {
     // Calculate available resources after reservations
     const reservedMemoryBytes =
       snapshot.totalMemoryBytes * (config.minReservedMemoryPercent / 100);
+    const snapshotAvailableBytes = Number.isFinite(snapshot.availableMemoryBytes)
+      ? snapshot.availableMemoryBytes
+      : snapshot.freeMemoryBytes;
     const availableMemoryBytes =
-      snapshot.freeMemoryBytes - reservedMemoryBytes;
+      snapshotAvailableBytes - reservedMemoryBytes;
 
     const availableCores = Math.max(
       1,
