@@ -186,7 +186,7 @@ function generateQueries(facts: ExtractedFacts): Query[] {
 
 ## Citation Verifier
 
-For any Librarian response, verify citations:
+For any LiBrainian response, verify citations:
 
 ```typescript
 interface CitationVerification {

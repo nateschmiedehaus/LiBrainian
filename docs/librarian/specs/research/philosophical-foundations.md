@@ -1,4 +1,4 @@
-# Philosophical Foundations for Librarian as the World's Greatest Epistemological Tool
+# Philosophical Foundations for LiBrainian as the World's Greatest Epistemological Tool
 
 > **Research Document**: Deep philosophical analysis for building world-class epistemological infrastructure for AI agents.
 >
@@ -9,9 +9,9 @@
 
 ## Executive Summary
 
-This document surveys the philosophical foundations necessary for Librarian to become the world's greatest epistemological tool for AI agents. We examine seven domains of formal epistemology and philosophy of mind, assess what Librarian currently has, identify gaps, and prioritize implementations.
+This document surveys the philosophical foundations necessary for LiBrainian to become the world's greatest epistemological tool for AI agents. We examine seven domains of formal epistemology and philosophy of mind, assess what LiBrainian currently has, identify gaps, and prioritize implementations.
 
-**Key Finding**: Librarian already possesses sophisticated epistemological infrastructure including a principled confidence type system, Pollock-style defeaters, calibration curves, and evidence graphs. However, significant theoretical gaps remain in non-monotonic reasoning, social epistemology for multi-agent systems, and alternative uncertainty representations beyond Bayesian probability.
+**Key Finding**: LiBrainian already possesses sophisticated epistemological infrastructure including a principled confidence type system, Pollock-style defeaters, calibration curves, and evidence graphs. However, significant theoretical gaps remain in non-monotonic reasoning, social epistemology for multi-agent systems, and alternative uncertainty representations beyond Bayesian probability.
 
 ---
 
@@ -46,7 +46,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Conditionalization gives rules for belief update
 - Foundation for decision theory under uncertainty
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `ConfidenceValue` type system with mandatory provenance (deterministic, derived, measured, bounded, absent)
 - Derivation rules for sequential (`min(steps)`) and parallel (`product(branches)`) composition
 - `MeasuredConfidence` with calibration data, sample sizes, and confidence intervals
@@ -80,7 +80,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Represents partial information naturally
 - Widely used in [AI decision support systems](https://www.appliedaicourse.com/blog/dempster-shafer-theory-in-artificial-intelligence/)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `AbsentConfidence` type for "uncalibrated", "insufficient_data", "not_applicable"
 - `BoundedConfidence` with low/high ranges
 - Evidence graph combines multiple sources
@@ -110,7 +110,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - More tractable than probability for many reasoning tasks
 - Provides measurement theory for belief
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Evidence graph edges with ordinal relationships (supports, opposes, defeats)
 - Staleness decay with time-based confidence reduction
 - Contradiction tracking with severity levels (blocking, significant, minor)
@@ -140,7 +140,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - [Central to AI reasoning systems](https://link.springer.com/chapter/10.1007/978-90-481-9609-8_1)
 - Handles consistency maintenance
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Claim status transitions: active -> defeated -> contradicted -> superseded -> stale
 - Defeater resolution actions: revalidate, reindex, retry_provider
 - Contradiction resolution with explicit tradeoff documentation
@@ -165,7 +165,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Coherentism**: Justification comes from coherence with other beliefs (no foundations)
 - **Infinitism**: Infinite chains of justification (each belief justified by another)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - **Implicit foundationalism**: AST parsing produces `DeterministicConfidence` (basic beliefs)
 - **Coherence elements**: Evidence graph with mutual support edges
 - Evidence chains with `CausalLink` tracking
@@ -193,7 +193,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Enables systematic improvement of knowledge acquisition
 - [Connects to naturalized epistemology](https://www.jstor.org/stable/43154371)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `ClaimSource` tracks type (llm, static_analysis, test, human, git, tool, inferred)
 - Process provenance in `EvidenceProvenance` with source, method, agent
 - Calibration per extraction type (AST, hybrid, semantic)
@@ -223,7 +223,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Calibration as a virtue (knowing what you don't know)
 - Knowledge-seeking behaviors as virtuous
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Uncertainty disclosure policy in `EpistemicPolicy`
 - Calibration feedback loops for honest self-assessment
 - `absent('uncalibrated')` as expression of epistemic humility
@@ -254,7 +254,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - [First studied in AI context by Pollock](https://content.iospress.com/articles/argument-and-computation/663409)
 - Foundation for defeasible reasoning systems
 
-**What Librarian Has** (COMPREHENSIVE):
+**What LiBrainian Has** (COMPREHENSIVE):
 - `ExtendedDefeaterType` with 12+ types including:
   - Rebutters: `contradiction`, `new_info`, `test_failure`
   - Undercutters: `staleness`, `coverage_gap`, `tool_failure`, `sandbox_mismatch`
@@ -276,7 +276,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Reinstatement**: Defeated claims can be reinstated when their defeaters are defeated
 - **Defeater chains**: A defeats B defeats C - does A reinstate C?
 
-**What Librarian Has** (WELL IMPLEMENTED):
+**What LiBrainian Has** (WELL IMPLEMENTED):
 - `defeatedBy?: string[]` field in `ExtendedDefeater` for meta-defeat chains
 - `isDefeaterActive()` with cycle detection using Tarjan-style traversal
 - `getEffectivelyActiveDefeaters()` considering full meta-defeat chains
@@ -296,7 +296,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Dependency types: `depends_on`, `assumes`, `supports`
 - Propagation depth and severity attenuation
 
-**What Librarian Has** (WELL IMPLEMENTED):
+**What LiBrainian Has** (WELL IMPLEMENTED):
 - `propagateDefeat()` with BFS traversal up to configurable maxDepth
 - `AffectedClaim` with reason, path, depth, and suggested action
 - `applyTransitiveDefeat()` marks affected claims as stale
@@ -311,14 +311,14 @@ This document surveys the philosophical foundations necessary for Librarian to b
 
 ### 3.4 Defeater-ConfidenceValue Integration
 
-**What Librarian Has** (EXCELLENT):
+**What LiBrainian Has** (EXCELLENT):
 - `applyDefeaterToConfidence()` produces `DerivedConfidence` with defeater in provenance
 - `applyDefeatersToConfidence()` handles multiple defeaters sequentially
 - `findDefeatersInConfidence()` extracts defeater IDs from provenance chain
 - `removeDefeaterFromConfidence()` for reinstatement
 - Bayesian defeat reduction (`computeDefeatedStrength`) with Beta-binomial model
 
-**Assessment**: Librarian's defeater implementation is among the most sophisticated in any code understanding system. It correctly implements Pollock's theory with extensions for higher-order defeat and transitive propagation.
+**Assessment**: LiBrainian's defeater implementation is among the most sophisticated in any code understanding system. It correctly implements Pollock's theory with extensions for higher-order defeat and transitive propagation.
 
 ---
 
@@ -329,7 +329,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Personal justification vs verification**: Different levels of justification strength
 - Key figure: Keith Lehrer
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `DeterministicConfidence` (value 1.0 or 0.0) is essentially irresistible
 - Full severity defeaters (`confidenceReduction: 1.0`) act as irresistible
 
@@ -348,7 +348,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - External no-defeater requirement
 - Key figure: Michael Bergmann
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Active defeater tracking in evidence graph
 - Graph health assessment includes unresolved defeater count
 
@@ -375,7 +375,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - LLM outputs are a form of testimony requiring validation
 - [Epistemic alignment](https://arxiv.org/html/2504.01205v1) between human and AI knowledge
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `ClaimSource` distinguishes human, llm, tool, git sources
 - `TestimonyValidation` in track-f-epistemology.md specification
 - Source reliability tracking concept
@@ -402,7 +402,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - How should confidence change when agents disagree?
 - Ensemble methods need principled disagreement handling
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Contradiction tracking with explicit status
 - Contradiction resolution methods: prefer_a, prefer_b, merge, both_valid
 - `ConsensusLevel` concept in track-f-epistemology.md
@@ -431,7 +431,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - "Best practices" reflect majority, not universal truth
 - [Generative algorithmic epistemic injustice](https://arxiv.org/html/2408.11441v1)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `NormativeClaimDetection` in track-f-epistemology.md (specification only)
 - `BiasRiskAssessment` concept (specification only)
 - `RepresentationAudit` concept (specification only)
@@ -462,7 +462,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Essential for commonsense reasoning
 - [Central to AI reasoning](https://www.cs.cornell.edu/selman/cs672/readings/reiter-1.pdf)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Defeater system enables conclusion retraction
 - Staleness triggers re-evaluation
 - Contradiction handling forces belief revision
@@ -485,7 +485,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Multiple extensions**: Same defaults may yield different valid conclusions
 - Key figure: Ray Reiter (1980)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Implicit defaults in pattern matching
 - Consistency checking through contradiction detection
 
@@ -506,7 +506,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Defeat accrual**: [Multiple defeaters interact non-additively](https://johnpollock.us/ftp/OSCAR-web-page/Degrees.pdf)
 - [Stanford Encyclopedia entry](https://plato.stanford.edu/entries/reasoning-defeasible/)
 
-**What Librarian Has** (GOOD):
+**What LiBrainian Has** (GOOD):
 - Claims start as active (prima facie)
 - Defeaters reduce or eliminate justification
 - `applyDefeatersToConfidence` handles multiple defeaters
@@ -531,7 +531,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - System should reason meaningfully despite local contradictions
 - Better than classical "explosion" where everything follows from contradiction
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Contradictions are tracked but not automatically resolved
 - `Contradiction` type with explicit status and severity
 - Claims can be marked `contradicted` without system failure
@@ -553,7 +553,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Acceptability**: Arguments defended by acceptable arguments
 - Key figure: Phan Minh Dung (1995)
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Evidence graph with support/oppose/defeat edges
 - Argumentation engine specification in track-f-epistemology.md (ASPIC+ framework)
 
@@ -580,7 +580,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - What makes a claim "about" a particular function?
 - Grounding problem for AI knowledge
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `ClaimSubject` with type, id, name, location
 - Claims have explicit `subject` linking to codebase entities
 - Entity IDs provide reference mechanism
@@ -601,7 +601,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Belief ascription**: Attributing beliefs to agents
 - **Closure principles**: If you believe P and P entails Q, do you believe Q?
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Claims represent beliefs (propositions held as true)
 - `ClaimType` distinguishes semantic, structural, behavioral, etc.
 - Evidence graph models relationships between beliefs
@@ -626,7 +626,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Should agent beliefs be tied to specific codebase (externalist)?
 - Or should same analysis apply across codebases (internalist)?
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - `EvidenceGraph` is workspace-specific (externalist tendency)
 - Claims tied to specific files and locations
 
@@ -653,7 +653,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - Prevents overconfident errors
 - Enables appropriate deference to humans
 
-**What Librarian Has** (GOOD):
+**What LiBrainian Has** (GOOD):
 - `AbsentConfidence` for genuine uncertainty
 - `uncertaintyDisclosure` policy setting
 - Calibration infrastructure to detect overconfidence
@@ -675,7 +675,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Brier score**: Proper scoring rule for calibration
 - **Reliability diagrams**: Visualize calibration quality
 
-**What Librarian Has** (EXCELLENT):
+**What LiBrainian Has** (EXCELLENT):
 - `CalibrationCurve` with buckets, ECE, MCE
 - `CalibrationReport` with adjustments
 - `buildCalibrationReport()` from outcome samples
@@ -693,7 +693,7 @@ This document surveys the philosophical foundations necessary for Librarian to b
 - **Inquiry**: Active investigation
 - **Question-driven**: Knowledge acquisition driven by questions
 
-**What Librarian Has**:
+**What LiBrainian Has**:
 - Query system for retrieval
 - Coverage gap detection
 - Re-indexing triggers
@@ -826,9 +826,9 @@ interface EpistemicVirtueMetrics {
 
 ---
 
-## Appendix A: Summary Comparison with Librarian
+## Appendix A: Summary Comparison with LiBrainian
 
-| Domain | Theory | Librarian Status | Gap |
+| Domain | Theory | LiBrainian Status | Gap |
 |--------|--------|------------------|-----|
 | **Formal Epistemology** | Bayesian credences | Excellent | Minor |
 | | Dempster-Shafer | Partial (`BoundedConfidence`) | Medium |
@@ -854,9 +854,9 @@ interface EpistemicVirtueMetrics {
 
 ---
 
-## Appendix B: Librarian's Theoretical Contributions
+## Appendix B: LiBrainian's Theoretical Contributions
 
-Librarian makes several significant theoretical contributions that should be documented and published:
+LiBrainian makes several significant theoretical contributions that should be documented and published:
 
 1. **Principled Confidence Type System**: The `ConfidenceValue` type with mandatory provenance (deterministic, derived, measured, bounded, absent) is a novel contribution to AI epistemology. It eliminates "arbitrary numbers" that plague most systems.
 
@@ -872,4 +872,4 @@ These contributions should be considered for publication in venues like *Artific
 
 ---
 
-*This document serves as a research foundation for Librarian's epistemological infrastructure. Implementation should proceed according to the priority rankings, with Essential features first.*
+*This document serves as a research foundation for LiBrainian's epistemological infrastructure. Implementation should proceed according to the priority rankings, with Essential features first.*

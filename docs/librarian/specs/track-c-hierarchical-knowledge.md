@@ -1,10 +1,10 @@
 # Track C: Hierarchical Knowledge System
 
-> **Extracted from**: `docs/librarian/THEORETICAL_CRITIQUE.md` (Part XVII.B)
+> **Extracted from**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md` (Part XVII.B)
 > **Source**: Von Neumann's stored-program insight + Kay's abstraction principle
 > **Status**: Specification complete, implementation pending
 >
-> **Librarian Story**: Chapter 5 (The Scaling) - Making Librarian work for ANY codebase size.
+> **LiBrainian Story**: Chapter 5 (The Scaling) - Making LiBrainian work for ANY codebase size.
 >
 > **Related Specifications**:
 > - [track-b-bootstrap.md](./track-b-bootstrap.md) - Zero-knowledge bootstrap that produces initial hierarchical knowledge
@@ -15,7 +15,7 @@
 
 ## Executive Summary
 
-Track C addresses the fundamental scaling problem of Librarian: **How does an intelligent system understand codebases larger than any context window?**
+Track C addresses the fundamental scaling problem of LiBrainian: **How does an intelligent system understand codebases larger than any context window?**
 
 This specification covers:
 - **Four-Level Hierarchy** - Structured knowledge from system overview to full source
@@ -43,7 +43,7 @@ Current retrieval systems return flat lists of entities:
 
 ```typescript
 // Current approach: flat retrieval
-const results = await librarian.query("How does authentication work?");
+const results = await LiBrainian.query("How does authentication work?");
 // Returns: [Function, Function, Function, Class, Function, ...]
 // Problems:
 // 1. No architectural context
@@ -1214,8 +1214,8 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/hierarchical_knowledge.ts (types)
-// - src/librarian/storage/hierarchy_storage.ts (persistence)
+// - src/LiBrainian/api/hierarchical_knowledge.ts (types)
+// - src/LiBrainian/storage/hierarchy_storage.ts (persistence)
 
 // Deliverables:
 // - All type definitions from this spec
@@ -1229,7 +1229,7 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/component_detection.ts
+// - src/LiBrainian/api/component_detection.ts
 
 // Deliverables:
 // - Louvain algorithm implementation
@@ -1244,7 +1244,7 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/entity_summarizer.ts
+// - src/LiBrainian/api/entity_summarizer.ts
 
 // Deliverables:
 // - Entity summarization prompts
@@ -1259,8 +1259,8 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/component_summarizer.ts
-// - src/librarian/api/system_summarizer.ts
+// - src/LiBrainian/api/component_summarizer.ts
+// - src/LiBrainian/api/system_summarizer.ts
 
 // Deliverables:
 // - Component summarization from entity summaries
@@ -1275,7 +1275,7 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/hierarchy_navigator.ts
+// - src/LiBrainian/api/hierarchy_navigator.ts
 
 // Deliverables:
 // - HierarchicalKnowledgeNavigator implementation
@@ -1290,7 +1290,7 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/hierarchy_updater.ts
+// - src/LiBrainian/api/hierarchy_updater.ts
 
 // Deliverables:
 // - Change impact analysis
@@ -1305,8 +1305,8 @@ interface HierarchicalQueryResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/__tests__/hierarchical_knowledge.test.ts
-// - src/librarian/api/__tests__/component_detection.test.ts
+// - src/LiBrainian/api/__tests__/hierarchical_knowledge.test.ts
+// - src/LiBrainian/api/__tests__/component_detection.test.ts
 
 // Deliverables:
 // - Bootstrap integration
@@ -1376,20 +1376,20 @@ interface HierarchicalQueryResult {
 
 ```bash
 # Run hierarchical knowledge tests
-cd packages/librarian && npx vitest run src/api/__tests__/hierarchical_knowledge.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/hierarchical_knowledge.test.ts
 
 # Run component detection tests
-cd packages/librarian && npx vitest run src/api/__tests__/component_detection.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/component_detection.test.ts
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Hierarchy'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Hierarchy'))))"
 
 # Build hierarchy for a real codebase (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts build-hierarchy /path/to/codebase
+cd packages/LiBrainian && npx tsx src/cli/index.ts build-hierarchy /path/to/codebase
 
 # Check implementation status
-ls -la packages/librarian/src/api/hierarchical_knowledge.ts
-ls -la packages/librarian/src/api/component_detection.ts
+ls -la packages/LiBrainian/src/api/hierarchical_knowledge.ts
+ls -la packages/LiBrainian/src/api/component_detection.ts
 ```
 
 ---

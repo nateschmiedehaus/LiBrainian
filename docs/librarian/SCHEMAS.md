@@ -1,12 +1,12 @@
-# Librarian Schema Definitions
+# LiBrainian Schema Definitions
 
 Status: authoritative
-Scope: All typed artifacts and shared primitives used by Librarian.
+Scope: All typed artifacts and shared primitives used by LiBrainian.
 Last Verified: 2026-01-26
 Owner: librarianship
 Version: 1.1.0
 
-This document defines the canonical schemas for all Librarian artifacts, shared
+This document defines the canonical schemas for all LiBrainian artifacts, shared
 primitives, and integration contracts. All implementations must conform to these
 schemas. Schema changes require version bumps and migration paths.
 
@@ -906,4 +906,4 @@ interface BootstrapReport {
 
 ---
 
-*This document is authoritative for all Librarian type definitions.*
+*This document is authoritative for all LiBrainian type definitions.*

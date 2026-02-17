@@ -10,14 +10,14 @@ This is the *single* spec-system home for “what a work object is” and how it
 
 ## Purpose (why this exists)
 
-Librarian becomes the world’s best knowledge tool only if its outputs can be *used to do work* reliably:
+LiBrainian becomes the world’s best knowledge tool only if its outputs can be *used to do work* reliably:
 - plans must compile into objects with explicit dependencies and acceptance criteria
 - execution must emit durable artifacts (not ephemeral summaries)
 - failures must be machine-classified (for retry, escalation, or honest stop)
 - every “done” claim must be backed by runnable evidence and trace references
 
 Work objects are the bridge between:
-- **Perception (Librarian)**: evidence-backed packs, defeaters, uncertainty disclosures
+- **Perception (LiBrainian)**: evidence-backed packs, defeaters, uncertainty disclosures
 - **Control (Agent / Orchestrator)**: decision-making, scheduling, verification
 - **Actuation (Tools)**: edits, commands, CI, audits
 
@@ -28,7 +28,7 @@ Work objects are the bridge between:
 The canonical schemas live in code (single registry).
 
 Target location (post extraction, required direction):
-- `packages/librarian/src/workgraph/artifacts.ts`
+- `packages/LiBrainian/src/workgraph/artifacts.ts`
 
 Current Wave0 host (temporary; extraction debt):
 - `src/workgraph/artifacts.ts`
@@ -67,7 +67,7 @@ All of the above are **artifacts** with envelopes + digests; they are meant to b
 ## Behavioral contract (what must happen)
 
 Work objects must define behavior under real conditions using the shared profile vocabulary:
-- `docs/librarian/specs/core/operational-profiles.md`
+- `docs/LiBrainian/specs/core/operational-profiles.md`
 
 ### Determinism + replay (no theater)
 
@@ -118,11 +118,11 @@ Tiering rule reminder:
 
 ---
 
-## Integration points (Librarian ↔ work objects)
+## Integration points (LiBrainian ↔ work objects)
 
-Work objects are how the agent consumes Librarian without “memory theater”:
+Work objects are how the agent consumes LiBrainian without “memory theater”:
 - tasks reference intents and expected evidence types
 - `WorkGraphTaskContextV1` must preserve *inspectable* evidence pointers (paths, snippet refs, trace refs), not just narrative summaries
 
 Until full convergence is complete:
-- numeric “confidence” values that exist in task context summaries are *ranking signals*, not epistemic claim confidence; epistemic confidence converges to `ConfidenceValue` elsewhere in Librarian (Track D).
+- numeric “confidence” values that exist in task context summaries are *ranking signals*, not epistemic claim confidence; epistemic confidence converges to `ConfidenceValue` elsewhere in LiBrainian (Track D).

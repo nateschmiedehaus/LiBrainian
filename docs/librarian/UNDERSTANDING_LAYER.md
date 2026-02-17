@@ -1,7 +1,7 @@
-# Librarian Understanding Layer
+# LiBrainian Understanding Layer
 
 Status: authoritative
-Scope: Knowledge ontology, mappings, constructions, methods, and schemas for Librarian understanding.
+Scope: Knowledge ontology, mappings, constructions, methods, and schemas for LiBrainian understanding.
 Last Verified: 2026-01-04
 Owner: librarianship
 Version: 1.1.0
@@ -433,7 +433,7 @@ Mapping rules:
 - Every map declares evidence sources and freshness thresholds.
 - Maps emit explicit confidence and defeaters, not just scores.
 - Maps are composable; scenarios combine multiple maps into one response.
-Map codes for use-case coverage live in `docs/librarian/USE_CASE_MATRIX.md`.
+Map codes for use-case coverage live in `docs/LiBrainian/USE_CASE_MATRIX.md`.
 
 ## Knowledge Constructions (How knowledge is built)
 
@@ -465,18 +465,17 @@ Responses are shaped for agent decisions, not just retrieval:
 - Proactive guidance: likely next steps and common mistakes.
 - Progressive disclosure: summary first, deep dives on demand.
 - Autonomy gates: block or defer actions below confidence thresholds.
-- Understanding generation requires live LLM agents; deterministic stand-ins
-  are invalid for semantic behavior.
+- Higher‑order cognition (semantic synthesis/claims, reasoning, critique, decision support) requires live LLM agents; deterministic stand‑ins are invalid for semantic behavior. Structural outputs must be labeled as non‑semantic when LLMs are unavailable.
 
 ### Method Knowledge Packs (Required)
-- For each method in `docs/librarian/USE_CASE_MATRIX.md`, Librarian builds
+- For each method in `docs/LiBrainian/USE_CASE_MATRIX.md`, LiBrainian builds
   a method pack: steps, prerequisites, evidence sources, pitfalls, and
   completion criteria.
 - Method packs are provided as hints when UC requirements imply their use.
 - Method packs are cached and preloaded when cheap and frequently used.
 - UCRequirementSet drives method selection and preloading.
 - Hints must be evidence-backed and updated when knowledge changes.
-- If packs are incomplete, Librarian emits a GapReport with required inputs.
+- If packs are incomplete, LiBrainian emits a GapReport with required inputs.
 
 ### Understanding Mandate (LLM-Required)
 When a response requires semantic understanding (purpose, mechanism, contract,
@@ -500,7 +499,7 @@ be presented as understanding.
 4. Violations surface as `SlopReviewReport.v1` entries with `reason: llm_mandate_violation`.
 
 **Current Gap**: Any semantic extractor entrypoint that can return semantic content
-without LLM evidence is a mandate violation. See `docs/librarian/STATUS.md` for tracking.
+without LLM evidence is a mandate violation. See `docs/LiBrainian/STATUS.md` for tracking.
 
 ## Method Catalog (How we infer knowledge)
 
@@ -528,7 +527,7 @@ Coverage requirement:
 - LLM synthesis must support the full scenario taxonomy, not a subset.
 
 ## Retrieval Method Stack (Required)
-Status for each element lives in `docs/librarian/STATUS.md`.
+Status for each element lives in `docs/LiBrainian/STATUS.md`.
 - [planned] Function-level chunking for precise semantic units.
 - [planned] Multi-vector embeddings (semantic, structural, dependency, usage).
 - [planned] Co-change signals from git history for behavioral similarity.
@@ -940,15 +939,15 @@ The understanding layer is complete when:
 5) Confidence and defeaters are visible and actionable
 
 ## Legacy Research Sources (Integrated)
-- `docs/librarian/legacy/architecture.md`
-- `docs/librarian/legacy/WORLD_CLASS_LIBRARIAN_PLAN.md`
-- `docs/librarian/legacy/implementation-requirements.md`
-- `docs/librarian/legacy/EMBEDDING_ROADMAP.md`
-- `docs/librarian/legacy/VISION.md`
+- `docs/LiBrainian/legacy/architecture.md`
+- `docs/LiBrainian/legacy/WORLD_CLASS_LIBRARIAN_PLAN.md`
+- `docs/LiBrainian/legacy/implementation-requirements.md`
+- `docs/LiBrainian/legacy/EMBEDDING_ROADMAP.md`
+- `docs/LiBrainian/legacy/VISION.md`
 
 ## Commitment
 
-Code is knowledge for humans, not just machines. Librarian must preserve,
+Code is knowledge for humans, not just machines. LiBrainian must preserve,
 transfer, and evolve that knowledge with traceable evidence and calibrated
 confidence.
 
@@ -962,4 +961,4 @@ confidence.
 
 ---
 
-*This document is authoritative for Librarian knowledge ontology and understanding semantics.*
+*This document is authoritative for LiBrainian knowledge ontology and understanding semantics.*

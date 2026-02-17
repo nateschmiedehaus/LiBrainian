@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-RESEARCH-002 established that Librarian already has strong code-level importance signals (PageRank, betweenness centrality, co-change). This research extends those findings to ALL knowledge objects Librarian manages across its four interconnected graphs:
+RESEARCH-002 established that LiBrainian already has strong code-level importance signals (PageRank, betweenness centrality, co-change). This research extends those findings to ALL knowledge objects LiBrainian manages across its four interconnected graphs:
 
 1. **Code Graph**: Functions, classes, modules with calls/imports/extends edges
 2. **Rationale Graph**: Decisions, justifications, tradeoffs, ADRs
@@ -19,7 +19,7 @@ RESEARCH-002 established that Librarian already has strong code-level importance
 
 Each graph has its own notion of "importance" or "centrality." A function might be rarely called but its rationale is foundational. An epistemic claim might be low-confidence but supports 10 other claims. A design decision might be old but supersedes nothing (still active).
 
-This document defines importance metrics for each graph type, proposes a cross-graph importance propagation algorithm, and provides integration guidance with Librarian's existing PageRank/centrality infrastructure.
+This document defines importance metrics for each graph type, proposes a cross-graph importance propagation algorithm, and provides integration guidance with LiBrainian's existing PageRank/centrality infrastructure.
 
 ---
 
@@ -64,7 +64,7 @@ What metrics exist for "argumentative centrality" or "epistemic load"?
 
 ### Code Graph Infrastructure
 
-Librarian already implements sophisticated code-level metrics:
+LiBrainian already implements sophisticated code-level metrics:
 
 **File**: `src/graphs/pagerank.ts`
 ```typescript
@@ -550,7 +550,7 @@ interface ImportanceProfile {
 
 ### Agent-Facing Signals
 
-When an agent queries Librarian, include importance signals in responses:
+When an agent queries LiBrainian, include importance signals in responses:
 
 ```typescript
 interface KnowledgeResponse {

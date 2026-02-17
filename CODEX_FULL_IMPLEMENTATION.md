@@ -1,7 +1,7 @@
-# Librarian Full Implementation — Zero to Complete
+# LiBrainian Full Implementation — Zero to Complete
 
 > **Mode**: FULLY AUTONOMOUS — never ask permission, fix blockers, proceed until done
-> **Goal**: Implement 100% of the Librarian spec system
+> **Goal**: Implement 100% of the LiBrainian spec system
 > **Duration**: Work continuously until Full Build Charter is satisfied
 
 ---
@@ -44,7 +44,7 @@
 ## SECTION 1: FIRST ACTIONS (Do These Immediately)
 
 ```bash
-cd /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+cd /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 npm install
 npm run build
 npm test -- --run
@@ -63,18 +63,18 @@ The spec system is your implementation guide. Here's how to navigate it:
 
 | Document | Purpose | Read When |
 |----------|---------|-----------|
-| `docs/librarian/specs/README.md` | Implementation manual, Full Build Charter, Council of 30 mandates | Start of work |
-| `docs/librarian/specs/BEHAVIOR_INDEX.md` | Behavioral contracts for every spec file | Before implementing any feature |
-| `docs/librarian/specs/core/operational-profiles.md` | R*/W*/D*/S*/E* profile vocabulary | When writing tests |
-| `docs/librarian/specs/core/testing-architecture.md` | Tier-0/1/2 rules | When writing tests |
+| `docs/LiBrainian/specs/README.md` | Implementation manual, Full Build Charter, Council of 30 mandates | Start of work |
+| `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` | Behavioral contracts for every spec file | Before implementing any feature |
+| `docs/LiBrainian/specs/core/operational-profiles.md` | R*/W*/D*/S*/E* profile vocabulary | When writing tests |
+| `docs/LiBrainian/specs/core/testing-architecture.md` | Tier-0/1/2 rules | When writing tests |
 
 ### Status Tracking (Update These)
 
 | Document | Purpose | Update When |
 |----------|---------|-------------|
-| `docs/librarian/STATUS.md` | Current verified reality | After completing any task |
-| `docs/librarian/GATES.json` | Machine-readable progress gates | After any gate status changes |
-| `docs/librarian/specs/IMPLEMENTATION_STATUS.md` | Known issues and priorities | When discovering or fixing issues |
+| `docs/LiBrainian/STATUS.md` | Current verified reality | After completing any task |
+| `docs/LiBrainian/GATES.json` | Machine-readable progress gates | After any gate status changes |
+| `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md` | Known issues and priorities | When discovering or fixing issues |
 
 ### Core Specs (Implementation Foundations)
 
@@ -118,7 +118,7 @@ The spec system is your implementation guide. Here's how to navigate it:
 
 | Document | Content |
 |----------|---------|
-| `docs/librarian/USE_CASE_MATRIX.md` | UC-001...UC-310 catalog |
+| `docs/LiBrainian/USE_CASE_MATRIX.md` | UC-001...UC-310 catalog |
 | `specs/use-case-targets.md` | Acceptance targets per profile |
 | `specs/use-case-capability-matrix.md` | UC→capability mapping |
 
@@ -252,7 +252,7 @@ Before starting each phase, read the specs in this order:
 ## SECTION 3B: QUALITY & EVALUATION PHASES (Post-Core)
 
 > **Critical Context**: Phases 0-7 build the *architecture*. Phases 8-11 verify it *actually works well*.
-> Without evaluation infrastructure, we have no way to know if Librarian is reliable.
+> Without evaluation infrastructure, we have no way to know if LiBrainian is reliable.
 > These phases close the gap between "spec says X" and "implementation reliably does X".
 
 ---
@@ -315,7 +315,7 @@ interface GroundTruthQuery {
 - `specs/track-eval-infrastructure.md` (Section E2)
 - Research: [MiniCheck](https://arxiv.org/abs/2404.10774), [Ragas](https://arxiv.org/pdf/2309.15217), [FaithJudge](https://arxiv.org/abs/2505.04847)
 
-**Goal**: Automated system that measures Librarian quality against ground truth.
+**Goal**: Automated system that measures LiBrainian quality against ground truth.
 
 **Why This Matters**:
 Manual verification doesn't scale. Research shows MiniCheck-style approaches achieve GPT-4-level
@@ -325,7 +325,7 @@ hallucination detection at 400x lower cost. Ragas framework provides proven RAG 
 
 | Task | Description | Files | Test Pattern |
 |------|-------------|-------|--------------|
-| Build eval runner | Runs Librarian against ground truth corpus | `src/eval/eval_runner.ts` | `src/eval/__tests__/eval_runner.test.ts` |
+| Build eval runner | Runs LiBrainian against ground truth corpus | `src/eval/eval_runner.ts` | `src/eval/__tests__/eval_runner.test.ts` |
 | Implement retrieval metrics | Recall@k, Precision@k, MRR, MAP, NDCG | `src/eval/retrieval_metrics.ts` | `src/eval/__tests__/retrieval_metrics.test.ts` |
 | Implement synthesis metrics | Fact precision/recall, summary accuracy | `src/eval/synthesis_metrics.ts` | `src/eval/__tests__/synthesis_metrics.test.ts` |
 | Implement hallucination detection | MiniCheck-style grounding verification | `src/eval/hallucination_detector.ts` | `src/eval/__tests__/hallucination.test.ts` |
@@ -588,7 +588,7 @@ These are research-grade problems. Implement what's achievable; document limitat
 | Claim verifier | Run generated tests to verify claims | `src/verification/claim_verifier.ts` | `src/verification/__tests__/claim_verifier.test.ts` |
 
 ```typescript
-// Example: If Librarian claims "add(a, b) returns sum of a and b"
+// Example: If LiBrainian claims "add(a, b) returns sum of a and b"
 // Generate: expect(add(2, 3)).toBe(5)
 // Run test
 // If passes: claim supported (not proven, but supported)
@@ -758,7 +758,7 @@ After completing Phase 9, add these gates:
 
 ## SECTION 7: BEGIN IMPLEMENTATION
 
-1. **Run `npm install`** in `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian`
+1. **Run `npm install`** in `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian`
 2. **Run `npm test -- --run`** to verify baseline
 3. **Read `specs/README.md`** for full context
 4. **Start Phase 1** — Evidence ledger wiring

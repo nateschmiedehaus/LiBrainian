@@ -10,14 +10,14 @@
 
 ## Executive Summary
 
-The Confidence Boundary enforces **type-level safety** for Librarian’s **epistemic claim confidence**. In user-facing outputs and persisted claim objects, raw numeric confidence values are not permitted — claim confidence must flow through the `ConfidenceValue` type system, ensuring:
+The Confidence Boundary enforces **type-level safety** for LiBrainian’s **epistemic claim confidence**. In user-facing outputs and persisted claim objects, raw numeric confidence values are not permitted — claim confidence must flow through the `ConfidenceValue` type system, ensuring:
 
 - **Provenance**: Every confidence value knows how it was derived
 - **Calibration**: All confidence can be tracked for calibration
 - **Honesty**: Uncertainty is explicit, not hidden behind numbers
 - **Composability**: Confidence values combine predictably
 
-**Important scope note**: Librarian currently uses many numeric 0–1 values for *ranking/scoring* (e.g. relevance scores, heuristics). Those must not be presented as “calibrated confidence”. The long-term migration is to rename these fields to `score`/`signalStrength` or wrap them in explicit “heuristic score” types — but the Confidence Boundary applies to **epistemic claims** first.
+**Important scope note**: LiBrainian currently uses many numeric 0–1 values for *ranking/scoring* (e.g. relevance scores, heuristics). Those must not be presented as “calibrated confidence”. The long-term migration is to rename these fields to `score`/`signalStrength` or wrap them in explicit “heuristic score” types — but the Confidence Boundary applies to **epistemic claims** first.
 
 ---
 
@@ -62,7 +62,7 @@ function goodAnalysis(): ConfidenceValue {
 
 ## 2. ConfidenceValue Type System
 
-**Canonical definition**: `packages/librarian/src/epistemics/confidence.ts` and `docs/librarian/specs/track-d-quantification.md`.
+**Canonical definition**: `packages/LiBrainian/src/epistemics/confidence.ts` and `docs/LiBrainian/specs/track-d-quantification.md`.
 
 This document must **not** redefine incompatible variants (e.g. `"present"`/`"deferred"`), because that creates spec-code divergence and breaks the D7 boundary.
 
@@ -267,7 +267,7 @@ function newGetConfidence(): ConfidenceValue {
 
 ```gherkin
 Feature: Confidence Boundary Enforcement
-  As a Librarian developer
+  As a LiBrainian developer
   I want all confidence to use ConfidenceValue
   So that confidence is always honest and traceable
 
@@ -298,7 +298,7 @@ Feature: Confidence Boundary Enforcement
 **Optional**: TypeScript types are the primary enforcement mechanism. A linter can be added later as a defense-in-depth measure, but it must not replace type-level boundaries.
 
 ```javascript
-// eslint-plugin-librarian/rules/no-raw-confidence.js
+// eslint-plugin-LiBrainian/rules/no-raw-confidence.js
 module.exports = {
   meta: {
     type: 'problem',
@@ -342,4 +342,4 @@ module.exports = {
 | Date | Change |
 |------|--------|
 | 2026-01-23 | Initial specification |
-| 2026-01-24 | Align ConfidenceValue definition + TDD section with Track D and `packages/librarian/src/epistemics/confidence.ts` |
+| 2026-01-24 | Align ConfidenceValue definition + TDD section with Track D and `packages/LiBrainian/src/epistemics/confidence.ts` |

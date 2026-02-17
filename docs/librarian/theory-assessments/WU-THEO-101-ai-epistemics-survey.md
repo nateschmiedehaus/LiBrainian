@@ -76,7 +76,7 @@ This seminal Anthropic paper (many authors now at OpenAI) established key findin
 - [arXiv:2207.05221](https://arxiv.org/abs/2207.05221)
 - [Semantic Scholar](https://www.semanticscholar.org/paper/Language-Models-(Mostly)-Know-What-They-Know-Kadavath-Conerly/142ebbf4760145f591166bde2564ac70c001e927)
 
-### 2.3 Key Insight for Librarian
+### 2.3 Key Insight for LiBrainian
 
 The gap between pre-training and post-training calibration suggests that **logprob-based uncertainty signals may be more reliable than verbalized confidence** in RLHF-trained models.
 
@@ -366,7 +366,7 @@ Regulatory framework mandates disclosure:
 
 ---
 
-## 8. Recommendations for Librarian
+## 8. Recommendations for LiBrainian
 
 ### 8.1 Immediate Implementation Priorities
 
@@ -509,7 +509,7 @@ The field of AI epistemics has matured significantly from 2022-2026:
 - Domain-specific calibration standards
 - Selective generation as default behavior
 
-For Librarian, the path forward is clear: **implement semantic entropy-style verification, integrate conformal prediction guarantees, and build explicit abstention pathways**. The research foundation exists; the gap is in engineering robust production systems.
+For LiBrainian, the path forward is clear: **implement semantic entropy-style verification, integrate conformal prediction guarantees, and build explicit abstention pathways**. The research foundation exists; the gap is in engineering robust production systems.
 
 ---
 

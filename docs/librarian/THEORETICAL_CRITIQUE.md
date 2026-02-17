@@ -15,9 +15,9 @@
 
 ---
 
-# Librarian: Theoretical Critique and Solutions
+# LiBrainian: Theoretical Critique and Solutions
 
-> A rigorous analysis of conceptual, computational, and philosophical errors in the Librarian architecture, with direct solutions and their propagating impacts.
+> A rigorous analysis of conceptual, computational, and philosophical errors in the LiBrainian architecture, with direct solutions and their propagating impacts.
 
 ---
 
@@ -37,88 +37,88 @@ This document stays single-file to preserve advanced theory and long-range featu
 - **Last completed checkpoint**: Standalone typecheck green after provider-discovery call-site updates (see Work Log).
 - **Next checkpoint**: Re-run `npm run build` and update Gate Snapshot (Tier-0 is now green; see below).
 - **Active blockers**: Repo build gate still red (complexity cap; last observed 2026-01-21).
-- **Files touched**: `packages/librarian/src/cli/commands/watch.ts`, `packages/librarian/src/cli/commands/index.ts`, `packages/librarian/src/cli/commands/diagnose.ts`, `packages/librarian/src/api/embedding_providers/llm_purpose_extractor.ts`, `docs/librarian/THEORETICAL_CRITIQUE.md`
+- **Files touched**: `packages/LiBrainian/src/cli/commands/watch.ts`, `packages/LiBrainian/src/cli/commands/index.ts`, `packages/LiBrainian/src/cli/commands/diagnose.ts`, `packages/LiBrainian/src/api/embedding_providers/llm_purpose_extractor.ts`, `docs/LiBrainian/THEORETICAL_CRITIQUE.md`
 
 ### [WHERE_AM_I] Where You Are / Where You’ve Been (redundant by design)
 
 - **You are here**: start at `#what-to-implement-next-for-codex` (execution order) or `#part-v-api-and-implementation-review` (audit).
-- **If you’re tempted to implement features first**: jump to `#wave0-extraction-gate-must-be-green-first` and make it green. If Librarian can’t stand alone, every other feature can become throwaway work.
-- **P0 priority (right now)**: complete **E5 Standalone Tests** and refresh Tier-0 evidence so Librarian remains portable.
+- **If you’re tempted to implement features first**: jump to `#wave0-extraction-gate-must-be-green-first` and make it green. If LiBrainian can’t stand alone, every other feature can become throwaway work.
+- **P0 priority (right now)**: complete **E5 Standalone Tests** and refresh Tier-0 evidence so LiBrainian remains portable.
 - **Progress trail**: append entries under `#work-log` whenever you change code or update priorities.
 - **Known holes**: record mismatches under `#hole-registry` and fix the spec slice immediately if it’s genuinely required.
-- **Path note**: unless explicitly stated, file references now point at `packages/librarian/src/**` (the package source); `src/librarian/**` is a compatibility shim.
+- **Path note**: unless explicitly stated, file references now point at `packages/LiBrainian/src/**` (the package source); `src/LiBrainian/**` is a compatibility shim.
 
 ### [GATES] Gate Snapshot (update when touched; do not guess)
 
 | Gate | Command | Last observed | Status | Notes |
 |------|---------|---------------|--------|------|
-| Standalone typecheck | `cd packages/librarian && npx tsc --noEmit` | 2026-01-24 | ✅ | Typecheck passes for package boundary. |
+| Standalone typecheck | `cd packages/LiBrainian && npx tsc --noEmit` | 2026-01-24 | ✅ | Typecheck passes for package boundary. |
 | Repo build | `npm run build` | 2026-01-21 | ❌ | Complexity gate: `repo_loc_total 444505 > max 396000` |
 | Tier-0 | `npm run test:tier0` | 2026-01-24 | ✅ | Tier-0 deterministic gate passes (rerun after the export fixes + Tier-0 stability changes). |
-| Wave0 extraction gate | `rg -n \"src/(wave0|orchestrator)/\" packages/librarian/src || true` | 2026-01-22 | ✅ | No wave0/orchestrator references remain under the package tree. |
-| Full extraction (Wave0 migration) | `rg -n \"from '\\.\\./librarian/|from \\\"\\.\\./librarian/\" src --glob '!src/librarian/**' || true` | 2026-01-22 | ✅ | No direct `src/librarian/**` imports outside the shim; package boundary enforced. |
+| Wave0 extraction gate | `rg -n \"src/(wave0|orchestrator)/\" packages/LiBrainian/src || true` | 2026-01-22 | ✅ | No wave0/orchestrator references remain under the package tree. |
+| Full extraction (Wave0 migration) | `rg -n \"from '\\.\\./LiBrainian/|from \\\"\\.\\./LiBrainian/\" src --glob '!src/LiBrainian/**' || true` | 2026-01-22 | ✅ | No direct `src/LiBrainian/**` imports outside the shim; package boundary enforced. |
 
 ### Wave0 Extraction Gate (must be green first)
 
-This is the single highest-leverage priority, because it makes Librarian usable in *any* repo (and forces a clean adapter boundary for providers, tools, and future harnesses).
+This is the single highest-leverage priority, because it makes LiBrainian usable in *any* repo (and forces a clean adapter boundary for providers, tools, and future harnesses).
 
-**Non-negotiable rule**: do not implement new Librarian features until this gate is green. If extraction is postponed, you will keep reintroducing wave0 coupling and repeating the same work.
+**Non-negotiable rule**: do not implement new LiBrainian features until this gate is green. If extraction is postponed, you will keep reintroducing wave0 coupling and repeating the same work.
 
 **Definition of “extracted enough to proceed”**
-- Librarian can be built/tested in isolation as a package (planned home: `packages/librarian/`), without importing wave0-specific modules.
+- LiBrainian can be built/tested in isolation as a package (planned home: `packages/LiBrainian/`), without importing wave0-specific modules.
 - Provider/tool access happens through explicit adapters (no hidden coupling to a particular runtime layout).
 - The public API surface is stable and documented via runnable evidence commands.
 
-**Definition of “fully extracted” (E6; required before claiming Librarian is portable)**
+**Definition of “fully extracted” (E6; required before claiming LiBrainian is portable)**
 
-Status: completed. Wave0 imports Librarian only through the package boundary; `src/librarian/**` is now a compatibility shim.
+Status: completed. Wave0 imports LiBrainian only through the package boundary; `src/LiBrainian/**` is now a compatibility shim.
 
-- Wave0 code imports Librarian only through a package boundary (e.g. `librarian`), never via `../librarian/**` or `src/librarian/**` paths.
-- There is exactly one source of truth for Librarian implementation:
-  - either **inside this repo** under `packages/librarian/src/**` (monorepo/workspace transitional strategy),
+- Wave0 code imports LiBrainian only through a package boundary (e.g. `LiBrainian`), never via `../LiBrainian/**` or `src/LiBrainian/**` paths.
+- There is exactly one source of truth for LiBrainian implementation:
+  - either **inside this repo** under `packages/LiBrainian/src/**` (monorepo/workspace transitional strategy),
   - or **outside this repo** as its own repository (preferred end-state).
-- The old in-repo tree `src/librarian/**` is either deleted or reduced to a tiny compatibility shim that re-exports from the package (and is slated for deletion).
-- Provider and tool access still happens only via adapters; Wave0 wires adapters at startup; Librarian remains harness-agnostic.
+- The old in-repo tree `src/LiBrainian/**` is either deleted or reduced to a tiny compatibility shim that re-exports from the package (and is slated for deletion).
+- Provider and tool access still happens only via adapters; Wave0 wires adapters at startup; LiBrainian remains harness-agnostic.
 
-**Why “move Librarian out of Wave0” is correct (theory, adjacent)**
+**Why “move LiBrainian out of Wave0” is correct (theory, adjacent)**
 
-Extraction is not “repo hygiene”; it is an epistemic constraint. If Librarian is coupled to Wave0’s runtime layout:
+Extraction is not “repo hygiene”; it is an epistemic constraint. If LiBrainian is coupled to Wave0’s runtime layout:
 - every “universal” claim becomes non-falsifiable outside Wave0,
 - tests become silently wave0-dependent,
 - portability to new harnesses (MCP, novel tools, new models, future providers) becomes accidental rather than designed.
 
-Full extraction forces the correct primitive boundary: Librarian must negotiate capabilities (providers, tools, file system, graph store) explicitly instead of assuming a monolith.
+Full extraction forces the correct primitive boundary: LiBrainian must negotiate capabilities (providers, tools, file system, graph store) explicitly instead of assuming a monolith.
 
 **Recommended extraction topology**
 
- - **Transitional (in-repo)**: treat `packages/librarian` as the one source of truth, and make Wave0 depend on it as a package (workspace/file dependency). This minimizes thrash while making the boundary real.
-- **Preferred end-state (out-of-repo)**: move Librarian to its own repository. Wave0 consumes it like any other dependency. This prevents coupling creep from returning.
+ - **Transitional (in-repo)**: treat `packages/LiBrainian` as the one source of truth, and make Wave0 depend on it as a package (workspace/file dependency). This minimizes thrash while making the boundary real.
+- **Preferred end-state (out-of-repo)**: move LiBrainian to its own repository. Wave0 consumes it like any other dependency. This prevents coupling creep from returning.
 
 **Evidence commands (copy/paste)**
 ```bash
 # 1) Typecheck must be green (prerequisite for any credible extraction)
-cd packages/librarian && npx tsc --noEmit
+cd packages/LiBrainian && npx tsc --noEmit
 
 # 2) Coupling audit: wave0/orchestrator imports must go to zero (or a named allowlist if you create one)
-rg -n "src/(wave0|orchestrator)/" packages/librarian/src || true
+rg -n "src/(wave0|orchestrator)/" packages/LiBrainian/src || true
 
 # 3) Identify cross-tree dependencies so they can become adapters
-rg -n "from '\\.\\./\\.+/(soma|models|tools|web|test)/" packages/librarian/src || true
+rg -n "from '\\.\\./\\.+/(soma|models|tools|web|test)/" packages/LiBrainian/src || true
 ```
 
 **E6 evidence commands (copy/paste)**
 ```bash
-# Show current state (target: ZERO outside packages/librarian)
-rg -n "from '\\.\\./librarian/|from \"\\.\\./librarian/" src --glob '!src/librarian/**' || true
+# Show current state (target: ZERO outside packages/LiBrainian)
+rg -n "from '\\.\\./LiBrainian/|from \"\\.\\./LiBrainian/" src --glob '!src/LiBrainian/**' || true
 
-# No src/librarian path usage outside the package tree (target: ZERO)
-rg -n "src/librarian/" src scripts bin config --glob '!src/librarian/**' || true
+# No src/LiBrainian path usage outside the package tree (target: ZERO)
+rg -n "src/LiBrainian/" src scripts bin config --glob '!src/LiBrainian/**' || true
 
 # Canon Guard boundary check (should be clean)
 node scripts/canon_guard.mjs
 
 # The package builds/tests on its own (run inside the package)
-cd packages/librarian && npm test
+cd packages/LiBrainian && npm test
 ```
 
 ### [DOC_MAINTENANCE] How to Update This Doc (hole-fixing protocol)
@@ -154,18 +154,18 @@ Goal: preserve *all* advanced features, but make them **constructable, configura
 
 **Where this already exists (partial)**
 
-- **Technique primitives (metadata + contracts)**: `src/librarian/api/technique_library.ts`, `src/librarian/api/technique_contracts.ts`
-- **Operators + interpreters**: `src/librarian/api/operator_registry.ts`, `src/librarian/api/operator_interpreters.ts`
-- **Execution engine (runnable DSL)**: `src/librarian/api/technique_execution.ts`
-- **Plan compilation (work templates/hierarchies)**: `src/librarian/api/plan_compiler.ts`
-- **Provider discovery / environment negotiation (LLM)**: `src/librarian/api/llm_provider_discovery.ts`, `src/librarian/api/llm_env.ts`, `src/librarian/api/provider_check.ts`
+- **Technique primitives (metadata + contracts)**: `src/LiBrainian/api/technique_library.ts`, `src/LiBrainian/api/technique_contracts.ts`
+- **Operators + interpreters**: `src/LiBrainian/api/operator_registry.ts`, `src/LiBrainian/api/operator_interpreters.ts`
+- **Execution engine (runnable DSL)**: `src/LiBrainian/api/technique_execution.ts`
+- **Plan compilation (work templates/hierarchies)**: `src/LiBrainian/api/plan_compiler.ts`
+- **Provider discovery / environment negotiation (LLM)**: `src/LiBrainian/api/llm_provider_discovery.ts`, `src/LiBrainian/api/llm_env.ts`, `src/LiBrainian/api/provider_check.ts`
 
 **Where it breaks today (must fix for portable “best-in-world” workflows)**
 
-- **Adapters are still incomplete**: LLM adapter is now wired across Librarian (search `resolveLlmServiceAdapter()`), but tool/MCP/CI adapters remain unbuilt.
-- **Capability negotiation is asymmetric**: query requires embeddings unconditionally (`src/librarian/api/query.ts`), so no “structural-only” retrieval mode exists even though it is feasible.
+- **Adapters are still incomplete**: LLM adapter is now wired across LiBrainian (search `resolveLlmServiceAdapter()`), but tool/MCP/CI adapters remain unbuilt.
+- **Capability negotiation is asymmetric**: query requires embeddings unconditionally (`src/LiBrainian/api/query.ts`), so no “structural-only” retrieval mode exists even though it is feasible.
 - **Evidence ledger is not unified**: there are audits/episodes/events, but no single replayable ledger for all non-determinism (LLM calls, tool calls, randomness, file reads).
-- **Claims are not verifiable end-to-end**: synthesis “citations” are not grounded to stored evidence (`src/librarian/api/query_synthesis.ts`).
+- **Claims are not verifiable end-to-end**: synthesis “citations” are not grounded to stored evidence (`src/LiBrainian/api/query_synthesis.ts`).
 
 **Minimal construct vocabulary (non-exhaustive; keep theory adjacent)**
 
@@ -174,7 +174,7 @@ Goal: preserve *all* advanced features, but make them **constructable, configura
   - Implementation hooks today: `checkAllProviders()` + storage capability detection; missing: a unified capability model that includes tools/harness constraints.
 - **[EVIDENCE_LEDGER] Evidence ledger**: append-only records of observations/actions used to justify claims (replayable, comparable across runs).
   - Theory: best-in-world outcomes require *auditability* and *debuggable epistemics*; without a ledger, you cannot prove improvement or detect regressions.
-  - Implementation hooks today: MCP audit log (`src/librarian/mcp/audit.ts`), episodes (`src/librarian/state/episodes_state.ts`), query stages (`src/librarian/api/query.ts`); missing: single ledger spanning all subsystems + deterministic replay.
+  - Implementation hooks today: MCP audit log (`src/LiBrainian/mcp/audit.ts`), episodes (`src/LiBrainian/state/episodes_state.ts`), query stages (`src/LiBrainian/api/query.ts`); missing: single ledger spanning all subsystems + deterministic replay.
 - **[CLAIMS] Claims with defeaters**: every surfaced statement is either (a) grounded by evidence refs, or (b) explicitly marked as unverified with enumerated defeaters and a “how to verify” path.
   - Theory: knowledge without defeasibility becomes brittle; defeaters are the mechanism for robustness under change and partial information.
   - Implementation hooks today: defeater system exists; missing: citations/claims that are machine-checkable against evidence store.
@@ -225,25 +225,25 @@ These invariants exist so an agent can always answer: “What evidence supports 
 
 ### [WORKLOG] Work Log (append-only; newest first)
 
-- **2026-01-22**: Aligned CLI watch/index/diagnose with provider discovery and auto-selection in LLM purpose extraction; rechecked package typecheck. Evidence commands: `cd packages/librarian && npx tsc --noEmit`.
-- **2026-01-22**: Removed LIB-S timeouts in `mvp_librarian.test.ts`, validated standalone typecheck, reran package-only live suites, and rechecked canon guard. Evidence commands: `cd packages/librarian && npx tsc --noEmit`, `cd packages/librarian && npx vitest run src/__tests__/librarian.test.ts`, `cd packages/librarian && npx vitest run src/__tests__/mvp_librarian.test.ts`, `node scripts/canon_guard.mjs`.
+- **2026-01-22**: Aligned CLI watch/index/diagnose with provider discovery and auto-selection in LLM purpose extraction; rechecked package typecheck. Evidence commands: `cd packages/LiBrainian && npx tsc --noEmit`.
+- **2026-01-22**: Removed LIB-S timeouts in `mvp_librarian.test.ts`, validated standalone typecheck, reran package-only live suites, and rechecked canon guard. Evidence commands: `cd packages/LiBrainian && npx tsc --noEmit`, `cd packages/LiBrainian && npx vitest run src/__tests__/LiBrainian.test.ts`, `cd packages/LiBrainian && npx vitest run src/__tests__/mvp_librarian.test.ts`, `node scripts/canon_guard.mjs`.
 - **2026-01-22**: Updated package test run instructions to use package-local paths for standalone execution. Evidence commands: not run (pending).
-- **2026-01-22**: Verified extraction gate commands (tsc + boundary searches). Evidence commands: `cd packages/librarian && npx tsc --noEmit`, `rg -n "src/(wave0|orchestrator)/" packages/librarian/src || true`, `rg -n "src/librarian/" src scripts bin config --glob '!src/librarian/**'`.
+- **2026-01-22**: Verified extraction gate commands (tsc + boundary searches). Evidence commands: `cd packages/LiBrainian && npx tsc --noEmit`, `rg -n "src/(wave0|orchestrator)/" packages/LiBrainian/src || true`, `rg -n "src/LiBrainian/" src scripts bin config --glob '!src/LiBrainian/**'`.
 - **2026-01-22**: Documented public package entrypoints for publishability (README). Evidence commands: not run (pending).
 - **2026-01-22**: Implemented difficulty detector catalog + adequacy scanning (query stage + verification/episode persistence), added adequacy gate nodes to plan compiler, and expanded domain-support tests to cover the 10 hypothetical domains. Evidence commands: not run (pending).
 - **2026-01-22**: Marked core query/coverage defaults as configurable (query, context assembly, embeddings, confidence calibration, technique execution, structure templates), added domain-bridging primitives with placeholder confidences + optional TechniquePrimitive confidence field, and scoped a quantified-value lint guard using `no-restricted-syntax`.
-- **2026-01-22**: Implemented quantification invariant helpers (QuantifiedValue + placeholder/configurable/calibrated/derived) and migrated pattern catalog confidences to placeholders; ran `cd packages/librarian && npx vitest src/api/__tests__/pattern_catalog.test.ts --run` (passed).
-- **2026-01-22**: Improved enhanced retrieval query expansion/keyword scoring and switched embedding use case validation to use enhanced retrieval; ran `cd packages/librarian && npx vitest src/__tests__/embedding_use_cases.test.ts src/api/__tests__/vector_redundancy.test.ts src/api/__tests__/technique_contracts.test.ts src/api/__tests__/zero_knowledge_bootstrap.test.ts src/mcp/__tests__/schema.test.ts src/state/__tests__/technique_primitives.test.ts --run` (embedding use cases passed; technique contracts + technique primitives fixed after initial failures).
-- **2026-01-22**: Added condition syntax validation for malformed pre/postconditions, capped contradictory-evidence confidence at 0.5, and narrowed redundancy detection to purpose/semantic; ran `cd packages/librarian && npx vitest src/api/__tests__/technique_contracts.test.ts src/state/__tests__/technique_primitives.test.ts --run` (passed).
+- **2026-01-22**: Implemented quantification invariant helpers (QuantifiedValue + placeholder/configurable/calibrated/derived) and migrated pattern catalog confidences to placeholders; ran `cd packages/LiBrainian && npx vitest src/api/__tests__/pattern_catalog.test.ts --run` (passed).
+- **2026-01-22**: Improved enhanced retrieval query expansion/keyword scoring and switched embedding use case validation to use enhanced retrieval; ran `cd packages/LiBrainian && npx vitest src/__tests__/embedding_use_cases.test.ts src/api/__tests__/vector_redundancy.test.ts src/api/__tests__/technique_contracts.test.ts src/api/__tests__/zero_knowledge_bootstrap.test.ts src/mcp/__tests__/schema.test.ts src/state/__tests__/technique_primitives.test.ts --run` (embedding use cases passed; technique contracts + technique primitives fixed after initial failures).
+- **2026-01-22**: Added condition syntax validation for malformed pre/postconditions, capped contradictory-evidence confidence at 0.5, and narrowed redundancy detection to purpose/semantic; ran `cd packages/LiBrainian && npx vitest src/api/__tests__/technique_contracts.test.ts src/state/__tests__/technique_primitives.test.ts --run` (passed).
 - **2026-01-22**: Ran `node scripts/canon_guard.mjs` after updating operator event ledger notes (OK).
-- **2026-01-22**: Added operator event emission (start/branch/retry/checkpoint/coverage gap/complete) to the execution engine and added operator-event tests; ran `cd packages/librarian && npx vitest src/api/__tests__/technique_execution.test.ts src/api/__tests__/operator_interpreters.test.ts --run` (passed; note: parallel operator truncation warning logged).
+- **2026-01-22**: Added operator event emission (start/branch/retry/checkpoint/coverage gap/complete) to the execution engine and added operator-event tests; ran `cd packages/LiBrainian && npx vitest src/api/__tests__/technique_execution.test.ts src/api/__tests__/operator_interpreters.test.ts --run` (passed; note: parallel operator truncation warning logged).
 - **2026-01-22**: Bootstrapping LLM config now uses provider discovery (async pack/phase config helpers + method pack preload); follow-up evidence pending.
-- **2026-01-22**: Routed query synthesis + knowledge summaries through provider discovery (LLM required) and updated method guidance to async config; ran `cd packages/librarian && npx vitest src/api/__tests__/query_pipeline.test.ts --run` (passed).
+- **2026-01-22**: Routed query synthesis + knowledge summaries through provider discovery (LLM required) and updated method guidance to async config; ran `cd packages/LiBrainian && npx vitest src/api/__tests__/query_pipeline.test.ts --run` (passed).
 - **2026-01-22**: Ran `node scripts/canon_guard.mjs` after doc updates (OK).
-- **2026-01-22**: Ran extraction gate searches (`rg -n "from '\\.\\./librarian/|from \\\"\\.\\./librarian/" src --glob '!src/librarian/**'` and `rg -n "src/librarian/" src scripts bin config --glob '!src/librarian/**'`); no matches → updated gate snapshot.
+- **2026-01-22**: Ran extraction gate searches (`rg -n "from '\\.\\./LiBrainian/|from \\\"\\.\\./LiBrainian/" src --glob '!src/LiBrainian/**'` and `rg -n "src/LiBrainian/" src scripts bin config --glob '!src/LiBrainian/**'`); no matches → updated gate snapshot.
 - **2026-01-22**: Autopilot promote deterministic suite stabilized by setting test-mode env defaults; ran `npx vitest src/autopilot/__tests__/autopilot_promote.test.ts --run` (passed).
-- **2026-01-22**: Hardened `TechniqueCompositionBuilder` merge/relationship validation and updated evidence commands to `packages/librarian` paths.
-- **2026-01-22**: Ran `npm run test:tier0`; build failed in `packages/librarian` due to missing telemetry/utils modules and mismatched exports (see Gate Snapshot).
+- **2026-01-22**: Hardened `TechniqueCompositionBuilder` merge/relationship validation and updated evidence commands to `packages/LiBrainian` paths.
+- **2026-01-22**: Ran `npm run test:tier0`; build failed in `packages/LiBrainian` due to missing telemetry/utils modules and mismatched exports (see Gate Snapshot).
 - **2026-01-22**: Implemented metacognitive monitor with strategy switching heuristics (P18 starter slice).
 - **2026-01-22**: Implemented bi-temporal knowledge store with time-travel queries (P17 starter slice).
 - **2026-01-22**: Implemented heuristic causal discovery with lift-based scoring (P16 starter slice).
@@ -255,16 +255,16 @@ These invariants exist so an agent can always answer: “What evidence supports 
 - **2026-01-22**: Added consolidation + tiered memory promotion to `ClosedLoopLearner` with tests to advance P13.
 - **2026-01-22**: Added prediction-weighted retrieval + anti-pattern warnings to `ClosedLoopLearner` (P13 partial) with coverage in `learning_loop.test.ts`.
 - **2026-01-22**: Wrapped bootstrap file/directory/assessment persistence in transactional batches and extended transaction contexts with file/directory/assessment upserts.
-- **2026-01-22**: Exposed `StorageSlices` via `Librarian.getStorageSlices()` and added coverage to advance P11 adoption.
+- **2026-01-22**: Exposed `StorageSlices` via `LiBrainian.getStorageSlices()` and added coverage to advance P11 adoption.
 - **2026-01-22**: Added the universal applicability selector + tests (P9) to map situation vectors to protocols and confidence requirements.
 - **2026-01-22**: Added the zero-knowledge bootstrapping protocol module + tests (P8) and exported it via the API surface.
 - **2026-01-22**: Restored missing package state modules/tests (execution traces, technique state, verification plans, watch state) to unblock P7 evolution and core API storage access.
 - **2026-01-22**: Updated Codebase Advisor domain→pattern mapping to reflect the expanded pattern catalog and aligned the spec snippet.
 - **2026-01-22**: Expanded the pattern catalog with eight new P5 patterns + tests and refreshed status blocks/paths in this doc for the package boundary.
 - **2026-01-22**: Implemented LCL core + preset storage, structure templates, and epistemic policy config in the package tree (tests added).
-- **2026-01-22**: Reduced `src/librarian/**` to compatibility shims, deleted the duplicated implementation tree + sync script, and retargeted root CLI/vitest configs to the package paths.
-- **2026-01-22**: Rewrote Wave0 imports to use `librarian`, expanded package exports to cover integration/tooling, and added a Canon Guard boundary check to prevent `src/librarian/**` imports outside the package tree.
-- **2026-01-22**: Wired `npm run test:tier0` to execute `packages/librarian` tests so the package surface is exercised directly.
+- **2026-01-22**: Reduced `src/LiBrainian/**` to compatibility shims, deleted the duplicated implementation tree + sync script, and retargeted root CLI/vitest configs to the package paths.
+- **2026-01-22**: Rewrote Wave0 imports to use `LiBrainian`, expanded package exports to cover integration/tooling, and added a Canon Guard boundary check to prevent `src/LiBrainian/**` imports outside the package tree.
+- **2026-01-22**: Wired `npm run test:tier0` to execute `packages/LiBrainian` tests so the package surface is exercised directly.
 - **2026-01-21**: Expanded wave0 adapter auto-registration to check dist paths in addition to src.
 - **2026-01-21**: Added wave0 adapter auto-registration (LLM + model policy) during provider gate checks to preserve wave0 behavior without static imports.
 - **2026-01-21**: Gated embedding validation/use-case/benchmark tests on Tier-0 and live embedding provider availability.
@@ -273,29 +273,29 @@ These invariants exist so an agent can always answer: “What evidence supports 
 - **2026-01-21**: Gated wave0-only test suites on fixture/git/LLM availability and added default LLM factory registration for live/agentic runs.
 - **2026-01-21**: Removed cross-tree LLM/model-policy default imports by requiring explicit adapter factories; updated adapter tests and wave0 indexing test gating for standalone runs.
 - **2026-01-21**: Added model-policy adapter and lazy LLM adapter loading to decouple package imports (E4 start).
-- **2026-01-21**: Synced `packages/librarian/src` with `src/librarian` and removed forbidden test patterns (live embeddings required).
-- **2026-01-21**: Added `scripts/sync_librarian_package.mjs` to surface drift between `src/librarian` and `packages/librarian/src` (dry-run by default).
+- **2026-01-21**: Synced `packages/LiBrainian/src` with `src/LiBrainian` and removed forbidden test patterns (live embeddings required).
+- **2026-01-21**: Added `scripts/sync_librarian_package.mjs` to surface drift between `src/LiBrainian` and `packages/LiBrainian/src` (dry-run by default).
 - **2026-01-21**: Routed LLM usage through the adapter resolver across API/ingest/knowledge/agents/tests; removed direct `LLMService` instantiation outside adapters.
 - **2026-01-21**: Wired provider gate to LLM adapter registry with fallback/validation and added precedence + error-path tests.
 - **2026-01-21**: Hardened LLM adapter registry with AsyncLocalStorage scoping + added default adapter delegation tests and error propagation tests.
 - **2026-01-21**: Started E2 interface abstraction by adding an LLM adapter registry (tests added; wiring pending).
 - **2026-01-21**: Marked Phase 0 E0/E1 as verified/completed after typecheck and wave0/orchestrator audit.
-- **2026-01-21**: Cleared Wave0 extraction gate by removing orchestrator path references in `src/librarian/__tests__/mvp_librarian.test.ts`; updated gate snapshot.
+- **2026-01-21**: Cleared Wave0 extraction gate by removing orchestrator path references in `src/LiBrainian/__tests__/mvp_librarian.test.ts`; updated gate snapshot.
 - **2026-01-21**: Revised Part VII and Part X to reflect that the execution engine exists but lacks end-to-end verification (replaced "no execution engine" framing).
 - **2026-01-21**: Added SPEC_SLICE stanzas for Parts XVIII–XX to formalize capability/evidence/degradation requirements.
 - **2026-01-21**: Added SPEC_SLICE stanzas for Parts XVII and XXI to enforce capability/evidence/degradation expectations.
 - **2026-01-21**: Added SPEC_SLICE stanzas for Parts XIV–XVI; clarified meta-critique to reflect implemented-but-unverified execution layer.
-- **2026-01-21**: Standalone typecheck now clean (`cd src/librarian && npx tsc --noEmit`). Remaining gates unchanged.
+- **2026-01-21**: Standalone typecheck now clean (`cd src/LiBrainian && npx tsc --noEmit`). Remaining gates unchanged.
 - **2026-01-21**: Gate snapshot recorded (typecheck/build/tier0 blockers). Status tables need evidence-backed reconciliation with code.
 
 ### [HOLE] Hole Registry (doc↔code mismatches that must not persist)
 
-- **H-006 (resolved 2026-01-22)**: Evidence commands in Parts XV–XVI and related sections still referenced `cd src/librarian` after the package boundary became canonical. Evidence: `rg -n "cd src/librarian" docs/librarian/THEORETICAL_CRITIQUE.md`. Resolution: updated evidence commands to `cd packages/librarian && npx vitest src/...`.
-- **H-003 (resolved 2026-01-21)**: `packages/librarian` diverged from `src/librarian`. Evidence: `diff -qr src/librarian packages/librarian/src`. Resolution: added a sync workflow to reconcile drift; retired the sync script once `src/librarian/**` was reduced to shims.
+- **H-006 (resolved 2026-01-22)**: Evidence commands in Parts XV–XVI and related sections still referenced `cd src/LiBrainian` after the package boundary became canonical. Evidence: `rg -n "cd src/LiBrainian" docs/LiBrainian/THEORETICAL_CRITIQUE.md`. Resolution: updated evidence commands to `cd packages/LiBrainian && npx vitest src/...`.
+- **H-003 (resolved 2026-01-21)**: `packages/LiBrainian` diverged from `src/LiBrainian`. Evidence: `diff -qr src/LiBrainian packages/LiBrainian/src`. Resolution: added a sync workflow to reconcile drift; retired the sync script once `src/LiBrainian/**` was reduced to shims.
 - **H-001 (resolved 2026-01-21)**: P0/P1 were marked both “completed” and “not started” (see `#implementation-status` vs `#what-to-implement-next-for-codex`). Resolution: status language was reconciled to “Implemented / Blocked / Not yet verified end-to-end”, and doc-supremacy phrasing was removed to satisfy Canon Guard.
-- **H-002 (resolved 2026-01-21)**: Typecheck gate note + late-doc execution-layer claims were stale. Evidence: `cd src/librarian && npx tsc --noEmit` now clean; execution layer exists but is explicitly labeled “implemented, not yet verified end-to-end” in Part XXI. Resolution: gate snapshot updated + Part XXI bottom-line revised.
-- **H-004 (resolved 2026-01-22)**: “Extraction” is not complete because Wave0 still consumes the in-repo implementation (`src/librarian/**`) directly, which keeps coupling risk high and prevents true portability. Evidence: `rg -n "from '\\.\\./librarian/|from \\\"\\.\\./librarian/\" src --glob '!src/librarian/**'` and `rg -n "src/librarian/" src scripts bin config --glob '!src/librarian/**'` return no results. Resolution: Wave0 now uses `librarian` exclusively and `src/librarian/**` is shim-only.
-- **H-005 (resolved 2026-01-22)**: `src/librarian/**` still exists as a duplicated tree (even though Wave0 imports are now package-bound). Evidence: `rg --files src/librarian` returns only the shim entrypoints + shim test. Resolution: removed the duplicate implementation tree, leaving the minimal compatibility shims.
+- **H-002 (resolved 2026-01-21)**: Typecheck gate note + late-doc execution-layer claims were stale. Evidence: `cd src/LiBrainian && npx tsc --noEmit` now clean; execution layer exists but is explicitly labeled “implemented, not yet verified end-to-end” in Part XXI. Resolution: gate snapshot updated + Part XXI bottom-line revised.
+- **H-004 (resolved 2026-01-22)**: “Extraction” is not complete because Wave0 still consumes the in-repo implementation (`src/LiBrainian/**`) directly, which keeps coupling risk high and prevents true portability. Evidence: `rg -n "from '\\.\\./LiBrainian/|from \\\"\\.\\./LiBrainian/\" src --glob '!src/LiBrainian/**'` and `rg -n "src/LiBrainian/" src scripts bin config --glob '!src/LiBrainian/**'` return no results. Resolution: Wave0 now uses `LiBrainian` exclusively and `src/LiBrainian/**` is shim-only.
+- **H-005 (resolved 2026-01-22)**: `src/LiBrainian/**` still exists as a duplicated tree (even though Wave0 imports are now package-bound). Evidence: `rg --files src/LiBrainian` returns only the shim entrypoints + shim test. Resolution: removed the duplicate implementation tree, leaving the minimal compatibility shims.
 
 ## Table of Contents
 
@@ -324,9 +324,9 @@ These invariants exist so an agent can always answer: “What evidence supports 
 14. [Part X: Summary of All Problems](#part-x-summary-of-all-problems)
 
 ### ⭐ Excellence & Theory (Parts XI-XIII)
-15. [Part XI: Making Librarian World-Class](#part-xi-making-librarian-a-top-github-repository-of-all-time)
+15. [Part XI: Making LiBrainian World-Class](#part-xi-making-LiBrainian-a-top-github-repository-of-all-time)
 16. [Part XII: Critical Gaps for Theorists](#part-xii-critical-gaps-for-cutting-edge-theorists-jan-2026)
-17. [Part XIII: Self-Improvement Guide](#part-xiii-using-librarian-to-perfect-librarian)
+17. [Part XIII: Self-Improvement Guide](#part-xiii-using-LiBrainian-to-perfect-LiBrainian)
 
 ### 🛠️ Implementation Specs (Parts XIV-XVI) — Read for specific features
 18. [Part XIV: Composition Discovery & Evolution](#part-xiv-composition-discovery-guidance-and-evolution)
@@ -359,19 +359,19 @@ These invariants exist so an agent can always answer: “What evidence supports 
 
 ### [API_MAP] API / Primitives / Constructions (what actually exists)
 
-This is the “surface map” an agent should use to understand Librarian quickly (with paths to jump into code). It is intentionally redundant with later Parts.
+This is the “surface map” an agent should use to understand LiBrainian quickly (with paths to jump into code). It is intentionally redundant with later Parts.
 
 | Surface | Where | Contract (what it guarantees) | Known failure modes / holes |
 |---------|-------|-------------------------------|-----------------------------|
-| Main facade | `packages/librarian/src/api/librarian.ts` | Orchestrates storage, bootstrap, index, query, and optional watcher | Default config can look “ready” while typecheck/build gates are red; provider gating is distributed (some call sites still bypass discovery) |
-| Provider gating | `packages/librarian/src/api/provider_check.ts`, `packages/librarian/src/api/provider_gate.ts` | Fail-closed when required providers are unavailable; emits remediation steps | Must be the *only* way call sites decide “LLM/embeddings are usable”; any ad-hoc env checks create drift |
-| LLM discovery | `packages/librarian/src/api/llm_provider_discovery.ts`, `packages/librarian/src/api/llm_env.ts` | Finds an authenticated provider/model without repo-specific config | If any subsystem instantiates `LLMService` directly without discovery/probe evidence, the system violates `[CAPABILITIES]` invariants |
-| Query pipeline | `packages/librarian/src/api/query.ts`, `packages/librarian/src/api/query_synthesis.ts` | Retrieves packs + reports stages; optionally synthesizes | Retrieval currently requires embeddings unconditionally; `query_synthesis.ts` still does env-only config and directly instantiates `LLMService` (adapter bypass) |
-| Embeddings | `packages/librarian/src/api/embeddings.ts`, `packages/librarian/src/api/embedding_providers/real_embeddings.ts` | Real semantic embeddings only; bounded retries; normalization checks | Docs/comments must not drift (dimension/model naming mismatches are an agent trap); degraded non-embedding retrieval mode is not implemented |
-| Technique primitives | `packages/librarian/src/api/technique_library.ts`, `packages/librarian/src/strategic/techniques.ts` | Declarative primitive records + contracts for planning/execution | Many primitives remain “spec-like” unless there is a mapped executor/handler; missing unified evidence ledger per primitive run |
-| Operators + execution | `packages/librarian/src/api/technique_execution.ts`, `packages/librarian/src/api/operator_registry.ts`, `packages/librarian/src/api/operator_interpreters.ts` | Executes compositions; supports checkpointing; interprets some operators | Many operators are implemented as explicit no-ops; execution claims must be gated by operator coverage evidence |
-| Planning / compilation | `packages/librarian/src/api/plan_compiler.ts`, `packages/librarian/src/api/composition_selector.ts`, `packages/librarian/src/api/pattern_catalog.ts` | Selects compositions and compiles plans/work nodes | Risk of “planner theater” if plans aren’t executable + replayable + outcome-linked |
-| Tools/resources (external) | `packages/librarian/src/mcp/*`, `packages/librarian/src/skills/*` | Expands what the agent can do via adapters; tool calls become evidence events | Without explicit capability/evidence integration, tools become “invisible work” that cannot support strong claims; requires an adapter registry and ledger linking |
+| Main facade | `packages/LiBrainian/src/api/LiBrainian.ts` | Orchestrates storage, bootstrap, index, query, and optional watcher | Default config can look “ready” while typecheck/build gates are red; provider gating is distributed (some call sites still bypass discovery) |
+| Provider gating | `packages/LiBrainian/src/api/provider_check.ts`, `packages/LiBrainian/src/api/provider_gate.ts` | Fail-closed when required providers are unavailable; emits remediation steps | Must be the *only* way call sites decide “LLM/embeddings are usable”; any ad-hoc env checks create drift |
+| LLM discovery | `packages/LiBrainian/src/api/llm_provider_discovery.ts`, `packages/LiBrainian/src/api/llm_env.ts` | Finds an authenticated provider/model without repo-specific config | If any subsystem instantiates `LLMService` directly without discovery/probe evidence, the system violates `[CAPABILITIES]` invariants |
+| Query pipeline | `packages/LiBrainian/src/api/query.ts`, `packages/LiBrainian/src/api/query_synthesis.ts` | Retrieves packs + reports stages; optionally synthesizes | Retrieval currently requires embeddings unconditionally; `query_synthesis.ts` still does env-only config and directly instantiates `LLMService` (adapter bypass) |
+| Embeddings | `packages/LiBrainian/src/api/embeddings.ts`, `packages/LiBrainian/src/api/embedding_providers/real_embeddings.ts` | Real semantic embeddings only; bounded retries; normalization checks | Docs/comments must not drift (dimension/model naming mismatches are an agent trap); degraded non-embedding retrieval mode is not implemented |
+| Technique primitives | `packages/LiBrainian/src/api/technique_library.ts`, `packages/LiBrainian/src/strategic/techniques.ts` | Declarative primitive records + contracts for planning/execution | Many primitives remain “spec-like” unless there is a mapped executor/handler; missing unified evidence ledger per primitive run |
+| Operators + execution | `packages/LiBrainian/src/api/technique_execution.ts`, `packages/LiBrainian/src/api/operator_registry.ts`, `packages/LiBrainian/src/api/operator_interpreters.ts` | Executes compositions; supports checkpointing; interprets some operators | Many operators are implemented as explicit no-ops; execution claims must be gated by operator coverage evidence |
+| Planning / compilation | `packages/LiBrainian/src/api/plan_compiler.ts`, `packages/LiBrainian/src/api/composition_selector.ts`, `packages/LiBrainian/src/api/pattern_catalog.ts` | Selects compositions and compiles plans/work nodes | Risk of “planner theater” if plans aren’t executable + replayable + outcome-linked |
+| Tools/resources (external) | `packages/LiBrainian/src/mcp/*`, `packages/LiBrainian/src/skills/*` | Expands what the agent can do via adapters; tool calls become evidence events | Without explicit capability/evidence integration, tools become “invisible work” that cannot support strong claims; requires an adapter registry and ledger linking |
 
 ### ✅ PRESENT IN CODEBASE (verify end-to-end)
 
@@ -442,7 +442,7 @@ None currently. See the next section for priorities that are not yet shipped or 
 | Episode Learning | Recording | Acting on learnings (P37) |
 | MCP Integration | Basic audit | Rate limiting, response versioning (P39, P42) |
 | Learning Loop | `ClosedLoopLearner` records outcomes + prediction-weighted retrieval + consolidation/tiering + shift detection | Selector wiring implemented; refresh evidence for prediction-oriented memory (B.1). |
-| Storage Interface Split | `StorageSlices`, `createStorageSlices`, `Librarian.getStorageSlices()` | Expand slice-first adoption across storage consumers. |
+| Storage Interface Split | `StorageSlices`, `createStorageSlices`, `LiBrainian.getStorageSlices()` | Expand slice-first adoption across storage consumers. |
 | Transaction Boundaries | `transaction()` + `withinTransaction()` helpers; bootstrap file/directory/assessment batches now wrapped | Inventory remaining multi-step flows (bootstrap ingest, graph writes) and ensure transactional wrapping; add transaction report if needed. |
 
 ---
@@ -468,7 +468,7 @@ None currently. See the next section for priorities that are not yet shipped or 
 | **Theoretical foundations** | Parts I-IV | Computational, epistemological, architectural analysis |
 | **Use case validation** | Part VI | 20 use cases with utility scores |
 | **Known problems** | Part X | Summary of all 56 problems |
-| **Making Librarian great** | Part XI | GitHub excellence strategies |
+| **Making LiBrainian great** | Part XI | GitHub excellence strategies |
 
 ### For Maintainers: System Health
 
@@ -476,7 +476,7 @@ None currently. See the next section for priorities that are not yet shipped or 
 |---------------|-------|-----|
 | **Subsystem issues** | Part IX | Per-subsystem problems and solutions |
 | **Critical usability gaps** | Part VII | Execution engine, learning loop, etc. |
-| **Self-improvement** | Part XIII | Using Librarian to improve Librarian |
+| **Self-improvement** | Part XIII | Using LiBrainian to improve LiBrainian |
 
 ---
 
@@ -486,32 +486,32 @@ None currently. See the next section for priorities that are not yet shipped or 
 
 ### Phase 0: Wave0 Extraction (Blocking)
 
-This is not “nice to have”. It is the prerequisite that prevents wasted work and makes Librarian portable to any repo/harness.
+This is not “nice to have”. It is the prerequisite that prevents wasted work and makes LiBrainian portable to any repo/harness.
 
 **Rule**: do not start P0+ feature work until **E6 Full Extraction (Wave0 Migration)** is complete and evidenced (see `#e6-full-extraction-wave0-migration--implementation-recipe-agent-executable`).
 
 | Priority | Feature | LOC | Description | Status |
 |----------|---------|-----|-------------|--------|
-| **E0** | Build Verification | ~0 | Verify Librarian builds/typechecks as its own unit | ✅ Verified (`npx tsc --noEmit`) |
+| **E0** | Build Verification | ~0 | Verify LiBrainian builds/typechecks as its own unit | ✅ Verified (`npx tsc --noEmit`) |
 | **E1** | Dependency Audit | ~0 | Identify all imports from wave0-specific modules | ✅ Completed (wave0/orchestrator refs cleared) |
-| **E2** | Interface Abstraction | ~200 | Abstract non-librarian dependencies behind adapters | ✅ Completed (LLM adapter wiring across Librarian + tests) |
-| **E3** | Package Structure | ~100 | Create `packages/librarian/` with its own package.json | ✅ Completed (package synced to `src/librarian`) |
+| **E2** | Interface Abstraction | ~200 | Abstract non-LiBrainian dependencies behind adapters | ✅ Completed (LLM adapter wiring across LiBrainian + tests) |
+| **E3** | Package Structure | ~100 | Create `packages/LiBrainian/` with its own package.json | ✅ Completed (package synced to `src/LiBrainian`) |
 | **E4** | Import Rewriting | ~0 | Update all imports to use package-local paths | ✅ Completed (adapter factories; no cross-tree imports) |
-| **E6** | Full Extraction (Wave0 Migration) | ~300–800 | Wave0 must consume Librarian via `librarian` (no `src/librarian/**` coupling; delete/shim old tree) | ✅ Completed (package boundary enforced; shims retained) |
-| **E5** | Standalone Tests | ~300 | Ensure tests run without wave0 context | 🚧 In Progress (package-only `librarian.test.ts` + `mvp_librarian.test.ts` ran; full `npm test`/Tier-0 pending) |
+| **E6** | Full Extraction (Wave0 Migration) | ~300–800 | Wave0 must consume LiBrainian via `LiBrainian` (no `src/LiBrainian/**` coupling; delete/shim old tree) | ✅ Completed (package boundary enforced; shims retained) |
+| **E5** | Standalone Tests | ~300 | Ensure tests run without wave0 context | 🚧 In Progress (package-only `LiBrainian.test.ts` + `mvp_librarian.test.ts` ran; full `npm test`/Tier-0 pending) |
 | **E7** | Publishability | ~50 | Package exports/docs for external use (after E6 makes the boundary real) | ✅ Implemented (public entrypoints documented) |
 
 **Evidence commands (copy/paste)**
 ```bash
-cd packages/librarian && npx tsc --noEmit
-rg -n "src/(wave0|orchestrator)/" packages/librarian/src || true
+cd packages/LiBrainian && npx tsc --noEmit
+rg -n "src/(wave0|orchestrator)/" packages/LiBrainian/src || true
 ```
 
 ### E6: Full Extraction (Wave0 Migration) — Implementation Recipe (agent-executable)
 
 This is the “make it real” step. It is intentionally concrete so an agent can execute it without reading the rest of the doc.
 
-**Goal**: Wave0 uses Librarian like a third-party dependency, so Librarian stays harness-agnostic by construction.
+**Goal**: Wave0 uses LiBrainian like a third-party dependency, so LiBrainian stays harness-agnostic by construction.
 
 **Hard constraints**
 - No fake embeddings. No provider-gate bypass. No API-key env checks in tests.
@@ -519,23 +519,23 @@ This is the “make it real” step. It is intentionally concrete so an agent ca
 
 **Step 1 — Choose the packaging topology (decision, then commit to it)**
 - **Option A (recommended now)**: Monorepo consumption.
-  - Wave0 depends on `packages/librarian` (workspace or `file:` dependency) and imports `librarian`.
-  - Single source: `packages/librarian/src/**`.
+  - Wave0 depends on `packages/LiBrainian` (workspace or `file:` dependency) and imports `LiBrainian`.
+  - Single source: `packages/LiBrainian/src/**`.
 - **Option B (preferred end-state)**: Separate repo.
-  - Move `packages/librarian` out (git subtree split or new repo), publish/install, then update Wave0 imports.
+  - Move `packages/LiBrainian` out (git subtree split or new repo), publish/install, then update Wave0 imports.
 
 **Step 2 — Make Wave0 import only via the package boundary**
-- Replace Wave0 imports like `../librarian/...` with `librarian` (or `librarian/api`, etc.).
-- Add a hard gate (grep-based) so `../librarian/**` never returns.
+- Replace Wave0 imports like `../LiBrainian/...` with `LiBrainian` (or `LiBrainian/api`, etc.).
+- Add a hard gate (grep-based) so `../LiBrainian/**` never returns.
 
 **Step 3 — Eliminate duplication**
-- Delete `src/librarian/**` OR convert it to a tiny shim that re-exports from `librarian` (temporary).
+- Delete `src/LiBrainian/**` OR convert it to a tiny shim that re-exports from `LiBrainian` (temporary).
 - Update build/test configs so Wave0 does not compile two copies.
 - Ensure `scripts/` and `bin/` paths follow the package boundary.
 
 **Step 4 — Prove it with evidence**
 - The “E6 evidence commands” under `#wave0-extraction-gate-must-be-green-first` must be green.
-- Tier-0 must run without relying on `src/librarian/**` being present as implementation.
+- Tier-0 must run without relying on `src/LiBrainian/**` being present as implementation.
 
 **Step 5 — Update this document**
 - Update `[GATES]` “Wave0 extraction gate” to reflect E6 completion criteria (package-boundary-only, no in-repo imports).
@@ -563,9 +563,9 @@ This merges priorities from Parts XIV-XX into one coherent sequence:
 
 **Quick Evidence Commands (copy/paste)**
 
-- **P0 (Provider discovery exists)**: `ls -la packages/librarian/src/api/llm_provider_discovery.ts packages/librarian/src/api/llm_env.ts`
-- **P1 (Operator layer exists; typecheck evidence)**: `nl -ba packages/librarian/src/api/operator_interpreters.ts | sed -n '1350,1385p'` then run `cd packages/librarian && npx tsc --noEmit`
-- **P2 (Semantic selector exists)**: `rg -n \"class SemanticCompositionSelector\" packages/librarian/src/api/composition_selector.ts`
+- **P0 (Provider discovery exists)**: `ls -la packages/LiBrainian/src/api/llm_provider_discovery.ts packages/LiBrainian/src/api/llm_env.ts`
+- **P1 (Operator layer exists; typecheck evidence)**: `nl -ba packages/LiBrainian/src/api/operator_interpreters.ts | sed -n '1350,1385p'` then run `cd packages/LiBrainian && npx tsc --noEmit`
+- **P2 (Semantic selector exists)**: `rg -n \"class SemanticCompositionSelector\" packages/LiBrainian/src/api/composition_selector.ts`
 
 ---
 
@@ -584,7 +584,7 @@ This merges priorities from Parts XIV-XX into one coherent sequence:
 
 ### 📊 Quantification Invariant (Epistemic Debt Resolution)
 
-> **CRITICAL**: All confidence values in Librarian are currently arbitrary. This section tracks the work required to achieve epistemic honesty.
+> **CRITICAL**: All confidence values in LiBrainian are currently arbitrary. This section tracks the work required to achieve epistemic honesty.
 
 **The Quantification Invariant**: No numeric value representing uncertainty may be introduced without being DERIVED, CALIBRATED, CONFIGURABLE, or explicitly marked as PLACEHOLDER. See Part XIX.N.5 for the full specification.
 
@@ -614,7 +614,7 @@ This merges priorities from Parts XIV-XX into one coherent sequence:
 
 ### 🌐 Universal Domain Support (Any Application, Any Scale)
 
-> **GUARANTEE**: Librarian will support ANY software domain through 14 composable primitives based on 9 fundamental computational aspects.
+> **GUARANTEE**: LiBrainian will support ANY software domain through 14 composable primitives based on 9 fundamental computational aspects.
 
 **The Completeness Claim**: 14 primitives cover all 9 fundamental aspects (DATA, STATE, TIME, SPACE, LOGIC, STRUCTURE, VALUE, AGENCY, MEDIA). Any domain decomposes into these aspects. See Part XIX Use Case Coverage Analysis for the full proof.
 
@@ -646,17 +646,17 @@ This merges priorities from Parts XIV-XX into one coherent sequence:
 
 ### 🔧 Tools, Skills, and Emergent Capabilities
 
-> **Librarian must support ANY capability agents develop—known and unknown.**
+> **LiBrainian must support ANY capability agents develop—known and unknown.**
 
 #### What Already Exists
 
 | Component | Location | Status |
 |-----------|----------|--------|
-| **Skills System** | `src/librarian/skills/types.ts` | ✅ 570 LOC types defined |
-| **Skill Loader** | `src/librarian/skills/loader.ts` | ✅ Implemented |
-| **Skill Validator** | `src/librarian/skills/validator.ts` | ✅ Implemented |
-| **MCP Tools** | `src/librarian/mcp/` | ✅ 20+ tools exposed |
-| **Method Packs** | `src/librarian/api/packs.ts` | ✅ Skill→MethodPack adapter |
+| **Skills System** | `src/LiBrainian/skills/types.ts` | ✅ 570 LOC types defined |
+| **Skill Loader** | `src/LiBrainian/skills/loader.ts` | ✅ Implemented |
+| **Skill Validator** | `src/LiBrainian/skills/validator.ts` | ✅ Implemented |
+| **MCP Tools** | `src/LiBrainian/mcp/` | ✅ 20+ tools exposed |
+| **Method Packs** | `src/LiBrainian/api/packs.ts` | ✅ Skill→MethodPack adapter |
 
 #### The Skills Architecture (Already Built)
 
@@ -688,7 +688,7 @@ interface AgentSkill {
 
 #### The Emergent Capability Protocol (New)
 
-> **Key insight**: We can't predict what capabilities agents will develop. Librarian must support capabilities that DON'T EXIST YET.
+> **Key insight**: We can't predict what capabilities agents will develop. LiBrainian must support capabilities that DON'T EXIST YET.
 
 ```typescript
 // Framework for unknown future capabilities
@@ -775,7 +775,7 @@ Add T1-T5 to the implementation plan AFTER P0-P7. The emergent capability protoc
 
 ### 🏛️ Architectural Principles (25 Greats' Foundation)
 
-> **These are NOT optional guidelines.** They are architectural invariants that MUST be maintained across all Librarian development. Derived from the 25 greats' analysis of what makes epistemological infrastructure world-class.
+> **These are NOT optional guidelines.** They are architectural invariants that MUST be maintained across all LiBrainian development. Derived from the 25 greats' analysis of what makes epistemological infrastructure world-class.
 
 #### The Six Invariants
 
@@ -805,7 +805,7 @@ Add T1-T5 to the implementation plan AFTER P0-P7. The emergent capability protoc
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      LIBRARIAN (Independent Core)                        │
+│                      LiBrainian (Independent Core)                        │
 │                                                                          │
 │  ┌────────────────────────────────────────────────────────────────────┐  │
 │  │ LAYER 1: PURE CORE (G1)                                            │  │
@@ -877,14 +877,14 @@ Add T1-T5 to the implementation plan AFTER P0-P7. The emergent capability protoc
 
 1. **P0-P1**: Agents must be able to RUN before we add features
 2. **P2**: Already done, just needs commit
-3. **E1-E7 (Extraction)**: After P0-P1, extract Librarian as standalone package — including full Wave0 migration to the package boundary
+3. **E1-E7 (Extraction)**: After P0-P1, extract LiBrainian as standalone package — including full Wave0 migration to the package boundary
 4. **P3-P4**: Configuration enables safe experimentation (designed for standalone package)
 5. **P5-P7**: Patterns make the system usable
 6. **P8-P10**: Epistemics make the system smart
 7. **P11-P13**: Infrastructure improvements
 8. **P14-P18**: Theoretical breakthroughs (require data from running system)
 
-**The extraction gate is critical**: Librarian must work as an independent GitHub package that anyone can `npm install`. Wave0-autopilot is ONE user of Librarian, not its only home.
+**The extraction gate is critical**: LiBrainian must work as an independent GitHub package that anyone can `npm install`. Wave0-autopilot is ONE user of LiBrainian, not its only home.
 
 ### What Already Exists (6,000+ LOC)
 
@@ -926,7 +926,7 @@ Add T1-T5 to the implementation plan AFTER P0-P7. The emergent capability protoc
 │                                                                     │
 │     Remove ALL wave0 dependencies → Standalone npm package          │
 │                                                                     │
-│  GATE: `npm install librarian` works in any repo             │
+│  GATE: `npm install librainian` works in any repo             │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -969,15 +969,15 @@ Add T1-T5 to the implementation plan AFTER P0-P7. The emergent capability protoc
 
 ```bash
 # Step 0: Verify the package boundary gate (blocking)
-cd packages/librarian && npx tsc --noEmit
-rg -n "src/(wave0|orchestrator)/" packages/librarian/src || true
+cd packages/LiBrainian && npx tsc --noEmit
+rg -n "src/(wave0|orchestrator)/" packages/LiBrainian/src || true
 
 # Step 1: Verify repo gates (Tier-0 is the non-negotiable baseline)
 npm run build && npm run test:tier0 && git status
 
 # Step 2: Refresh P13–P18 evidence + choose post-theory priorities
-# Review: packages/librarian/src/api/learning_loop.ts, packages/librarian/src/api/composition_selector.ts, packages/librarian/src/api/plan_compiler.ts, packages/librarian/src/api/proof_carrying_context.ts, packages/librarian/src/api/causal_discovery.ts, packages/librarian/src/api/bi_temporal_knowledge.ts, packages/librarian/src/api/metacognitive_architecture.ts
-# Draft: packages/librarian/src/state/prediction_memory.ts (new, if durable evaluation needed)
+# Review: packages/LiBrainian/src/api/learning_loop.ts, packages/LiBrainian/src/api/composition_selector.ts, packages/LiBrainian/src/api/plan_compiler.ts, packages/LiBrainian/src/api/proof_carrying_context.ts, packages/LiBrainian/src/api/causal_discovery.ts, packages/LiBrainian/src/api/bi_temporal_knowledge.ts, packages/LiBrainian/src/api/metacognitive_architecture.ts
+# Draft: packages/LiBrainian/src/state/prediction_memory.ts (new, if durable evaluation needed)
 ```
 
 ### What NOT to Do
@@ -997,41 +997,41 @@ npm run build && npm run test:tier0 && git status
 This section solves the problem: “An agent shouldn’t need to be a genius to notice hidden blockers (missing datasets, missing eval harness, migration hazards, perf cliffs, etc.) and to know the correct *class* of solutions.”
 
 The fundamental move is to make “hard problems” **detectable** and to make the response **constructable**:
-- Detectable: Librarian must fail-closed on unsupported claims and must surface *what evidence is missing*.
-- Constructable: For each detected difficulty, Librarian emits a **remediation protocol** built from primitives/operators, plus **evidence commands**.
+- Detectable: LiBrainian must fail-closed on unsupported claims and must surface *what evidence is missing*.
+- Constructable: For each detected difficulty, LiBrainian emits a **remediation protocol** built from primitives/operators, plus **evidence commands**.
 
 **Implementation hooks (where this must land in code)**
-- Preflight extension point: `src/librarian/preflight/checks.ts` (add “adequacy checks” for data/eval/rollbacks/observability per task type).
-- Query pipeline integration: `src/librarian/api/query.ts` (add an early stage that emits missing prerequisites as stage issues, and gates synthesis/claims accordingly).
-- Planning integration: `src/librarian/api/plan_compiler.ts` (prepend “adequacy gate nodes” so plans don’t skip prerequisites).
-- Evidence persistence: `src/librarian/state/verification_plans.ts`, `src/librarian/state/episodes_state.ts` (store adequacy specs, regime suites, outcomes, and make them queryable).
+- Preflight extension point: `src/LiBrainian/preflight/checks.ts` (add “adequacy checks” for data/eval/rollbacks/observability per task type).
+- Query pipeline integration: `src/LiBrainian/api/query.ts` (add an early stage that emits missing prerequisites as stage issues, and gates synthesis/claims accordingly).
+- Planning integration: `src/LiBrainian/api/plan_compiler.ts` (prepend “adequacy gate nodes” so plans don’t skip prerequisites).
+- Evidence persistence: `src/LiBrainian/state/verification_plans.ts`, `src/LiBrainian/state/episodes_state.ts` (store adequacy specs, regime suites, outcomes, and make them queryable).
 
 ### [DIFFICULTY_DETECTORS] Default Protocol: Run Before Doing Work
 
-This is the minimal protocol Librarian should run automatically at the start of: bootstrap, query, and plan compilation (and agents should run it manually if not yet wired).
+This is the minimal protocol LiBrainian should run automatically at the start of: bootstrap, query, and plan compilation (and agents should run it manually if not yet wired).
 
-1. **Preflight** (environment/providers/filesystem/config): use the existing preflight framework (`src/librarian/preflight/checks.ts`).
+1. **Preflight** (environment/providers/filesystem/config): use the existing preflight framework (`src/LiBrainian/preflight/checks.ts`).
 2. **Capability probe (tools/resources)**: if MCP (or any tool registry) is present, ingest its tool/resource descriptors into `[CAPABILITIES]` and record them as evidence (so “tool available” is a claimable fact).
 3. **Adequacy scan** (`[ADEQUACY]`): infer what evidence is required for the task type (build/test/data/metrics/rollbacks) and check whether the repo can supply it now (including via external devices like CI/telemetry/dataset registries if available).
 3. **Remediation emission**: produce a short remediation plan, expressed as compositions of primitives/operators with explicit gates.
-4. **Fail-closed on strong claims**: if adequacy is missing, Librarian must not allow “works / verified / safe” claims; it should return `unverified_by_trace(adequacy_missing)` with the exact missing items.
+4. **Fail-closed on strong claims**: if adequacy is missing, LiBrainian must not allow “works / verified / safe” claims; it should return `unverified_by_trace(adequacy_missing)` with the exact missing items.
 
 ### [ADEQUACY] Adequacy Spec (generic, portable)
 
-Every task type should map to an explicit “adequacy spec” that declares what must be observed before Librarian can claim success.
+Every task type should map to an explicit “adequacy spec” that declares what must be observed before LiBrainian can claim success.
 
 Minimum shape:
 - **Task intent**: what is being attempted (bugfix/feature/model validity/migration).
 - **Claim boundary**: what claims are disallowed without evidence (e.g., “model works”, “migration safe”).
 - **Evidence requirements**: concrete observations needed (tests, metrics, datasets, load tests, rollback plan).
 - **Evidence sources**: local runs vs CI vs telemetry vs dataset registries vs attestations (stronger evidence sources should upgrade claims; missing sources must downgrade/defeat claims).
-- **Degraded mode**: what Librarian can still do honestly when evidence is missing (e.g., “compile-only confidence”, “simulation-only risk bounds”).
+- **Degraded mode**: what LiBrainian can still do honestly when evidence is missing (e.g., “compile-only confidence”, “simulation-only risk bounds”).
 
 ### [SIMULATION] Preset (built from primitives): ML Model Validity Without Real Datasets (Weathervane-class)
 
-Goal: if datasets are unavailable, Librarian should *still* help an agent build a meaningful evaluation substrate by constructing simulated regimes and disclosing what remains unverified.
+Goal: if datasets are unavailable, LiBrainian should *still* help an agent build a meaningful evaluation substrate by constructing simulated regimes and disclosing what remains unverified.
 
-**Detection signals (what Librarian can observe)**
+**Detection signals (what LiBrainian can observe)**
 - Training/eval code references dataset paths/URLs that don’t exist or aren’t present in repo config.
 - Evaluation scripts exist but fail due to missing inputs.
 - No ground-truth labeled data found; no fixtures for model evaluation.
@@ -1045,11 +1045,11 @@ Goal: if datasets are unavailable, Librarian should *still* help an agent build 
 
 **Technique packaging (so agents don’t have to invent it)**
 - Add a technique package (e.g., “`ml_evaluation`”) that bundles these primitives and at least one default composition (e.g., `tc_simulation_regime_eval`) so the plan compiler can select it when a repo appears ML-shaped but data is missing.
-- Use `src/librarian/api/technique_packages.ts` to surface the package, and ensure it is selectable by triggers derived from repo signals (training scripts, model artifacts, eval configs).
+- Use `src/LiBrainian/api/technique_packages.ts` to surface the package, and ensure it is selectable by triggers derived from repo signals (training scripts, model artifacts, eval configs).
   - If a **dataset registry** adapter is available, the same package should add an optional “publish and compare” branch (publish simulated regime datasets, compare to real distributions when real data arrives).
 
 **Quality bar**
-- Librarian must not claim “model works” unless the adequacy spec includes either real data evidence or an explicit “simulation-only” bound with disclosed defeaters.
+- LiBrainian must not claim “model works” unless the adequacy spec includes either real data evidence or an explicit “simulation-only” bound with disclosed defeaters.
 
 ### [DIFFICULTY_DETECTORS] Catalog: 45 Common Hard Problems (cross-domain; no scenario hard-coding)
 
@@ -1058,7 +1058,7 @@ This catalog is intentionally scenario-agnostic: it enumerates *classes* of bloc
 How to read:
 - **Detection signals** must be repo-observable (code/tests/config/CI/errors), not “intuition”.
 - **Remediation** must be expressible as compositions of primitives/operators (so the plan compiler can emit it).
-- **Minimum evidence** is what allows Librarian to move from “helpful suggestion” to “strong claim”.
+- **Minimum evidence** is what allows LiBrainian to move from “helpful suggestion” to “strong claim”.
 
 #### Detector record (conceptual; implement as declarative data)
 
@@ -1151,9 +1151,9 @@ Keep scenario-agnostic by shipping a small number of **packs** (bundles of detec
 - `pack_provenance_attestation`: signed build/test/eval artifacts (when available) to upgrade evidence strength for “verified” claims.
 - `pack_replay_determinism`: record/replay substrate integration (when available) to upgrade reproducibility and regression falsifiability.
 
-Packs should be exposed via `src/librarian/api/technique_packages.ts` so agents can select them by repo signals, and each pack must include explicit adequacy gating (what it can/cannot claim without evidence).
+Packs should be exposed via `src/LiBrainian/api/technique_packages.ts` so agents can select them by repo signals, and each pack must include explicit adequacy gating (what it can/cannot claim without evidence).
 
-**Degradation rule (non-negotiable)**: if minimum evidence is missing, Librarian must output a *bounded* claim and the exact next evidence to collect.
+**Degradation rule (non-negotiable)**: if minimum evidence is missing, LiBrainian must output a *bounded* claim and the exact next evidence to collect.
 
 ## How Parts Relate (Dependency Graph)
 
@@ -1303,7 +1303,7 @@ Once semantics exist, build a **technique type-checker** that:
 
 **The Issue**
 
-Librarian is sophisticated RAG (Retrieval-Augmented Generation), but RAG has a fundamental information-theoretic limit: **retrieval is a lossy compression**.
+LiBrainian is sophisticated RAG (Retrieval-Augmented Generation), but RAG has a fundamental information-theoretic limit: **retrieval is a lossy compression**.
 
 If relevant context wasn't retrieved, synthesis cannot recover it. The system can only reason about what was retrieved. This creates:
 
@@ -1436,7 +1436,7 @@ Stratification enables:
 
 **The Issue**
 
-Librarian computes graph metrics (coupling, cohesion, cyclomatic complexity, etc.) and uses them for quality assessment. But:
+LiBrainian computes graph metrics (coupling, cohesion, cyclomatic complexity, etc.) and uses them for quality assessment. But:
 
 - These metrics are **domain-agnostic proxies**, not direct quality measures
 - High coupling isn't always bad (tight cohesion in a bounded context)
@@ -2791,7 +2791,7 @@ Based on dependencies, implement in this order:
 
 ### Epistemic Kernel Mapping (prevents “paper capability”)
 
-Theory thread (from the invariants above): Librarian becomes “10 ballparks ahead” only if there is a small, stable substrate whose properties can be relied on across unknown future agents/harnesses/providers. That substrate is the **epistemic kernel**:
+Theory thread (from the invariants above): LiBrainian becomes “10 ballparks ahead” only if there is a small, stable substrate whose properties can be relied on across unknown future agents/harnesses/providers. That substrate is the **epistemic kernel**:
 - **[CAPABILITIES]** negotiated capability lattice (what is available, what is missing, what is optional)
 - **[EVIDENCE_LEDGER]** unified append-only ledger (what was observed/done, with stable IDs and replay hooks)
 - **[CLAIMS]** machine-checkable claims (what can be asserted, what evidence supports it, what defeaters apply)
@@ -2799,9 +2799,9 @@ Theory thread (from the invariants above): Librarian becomes “10 ballparks ahe
 - **Replay** (deterministic or explicitly non-replayable with defeaters)
 
 Implementation mapping (today’s partial hooks):
-- Capability/provisioning: `src/librarian/api/provider_check.ts`, `src/librarian/api/llm_provider_discovery.ts`, storage capability detection in `src/librarian/api/librarian.ts`
-- Execution substrate: `src/librarian/api/technique_execution.ts`, `src/librarian/api/operator_registry.ts`, `src/librarian/api/operator_interpreters.ts`
-- Evidence fragments: query stage reports in `src/librarian/api/query.ts`, MCP audit in `src/librarian/mcp/audit.ts`, episodes in `src/librarian/state/episodes_state.ts`
+- Capability/provisioning: `src/LiBrainian/api/provider_check.ts`, `src/LiBrainian/api/llm_provider_discovery.ts`, storage capability detection in `src/LiBrainian/api/LiBrainian.ts`
+- Execution substrate: `src/LiBrainian/api/technique_execution.ts`, `src/LiBrainian/api/operator_registry.ts`, `src/LiBrainian/api/operator_interpreters.ts`
+- Evidence fragments: query stage reports in `src/LiBrainian/api/query.ts`, MCP audit in `src/LiBrainian/mcp/audit.ts`, episodes in `src/LiBrainian/state/episodes_state.ts`
 
 What’s missing (and therefore what S1/S6/S15 must converge into): a single ledger + claim/evidence algebra that ties together query, execution, provider probes, and learning outcomes without “citation theater”.
 
@@ -2844,7 +2844,7 @@ interface ConfidenceAdapter {
 
 ## Conclusion
 
-Librarian is an ambitious system attempting to formalize machine epistemology. The theoretical problems identified here are not fatal flaws but **growth edges**—places where the architecture can be strengthened through more rigorous foundations.
+LiBrainian is an ambitious system attempting to formalize machine epistemology. The theoretical problems identified here are not fatal flaws but **growth edges**—places where the architecture can be strengthened through more rigorous foundations.
 
 The key meta-insight: **formalism without foundations creates technical debt**. The system has elaborate types, confidence scores, and provenance chains, but lacks the formal semantics, empirical grounding, and principled composition rules to make these more than suggestive scaffolding.
 
@@ -2854,11 +2854,11 @@ The solutions proposed here aim to provide those foundations: formal semantics f
 
 ## Part V: API and Implementation Review
 
-This section provides a comprehensive review of the actual Librarian API surface, technique primitives, composition system, and plan compiler—identifying issues on philosophical, conceptual, technical, and theoretical grounds.
+This section provides a comprehensive review of the actual LiBrainian API surface, technique primitives, composition system, and plan compiler—identifying issues on philosophical, conceptual, technical, and theoretical grounds.
 
 ### API Surface Overview
 
-The Librarian exposes the following major API categories:
+The LiBrainian exposes the following major API categories:
 
 | Category | Key Functions | LOC | Complexity |
 |----------|--------------|-----|------------|
@@ -2965,10 +2965,10 @@ These are **instructions for a human or agent to interpret**, not executable spe
 
 **Direct Solution**
 
-Populate and enforce **executable contracts** (already present in the codebase as `TechniquePrimitive.contract` and `TechniquePrimitive.semantics` in `src/librarian/strategic/techniques.ts`).
+Populate and enforce **executable contracts** (already present in the codebase as `TechniquePrimitive.contract` and `TechniquePrimitive.semantics` in `src/LiBrainian/strategic/techniques.ts`).
 
 Implementation reality:
-- Contract validation utilities already exist: `src/librarian/api/technique_contracts.ts`
+- Contract validation utilities already exist: `src/LiBrainian/api/technique_contracts.ts`
 - The missing piece is *enforcement*: executors/handlers must validate input/output against the declared contract, and emit `[EVIDENCE_LEDGER]` events so claims about execution are checkable.
 
 ```typescript
@@ -3257,7 +3257,7 @@ Enriched plans enable:
 
 **The Issue**
 
-Multiple Librarian functions throw `ProviderUnavailableError` deep in their call stack when LLM is unavailable:
+Multiple LiBrainian functions throw `ProviderUnavailableError` deep in their call stack when LLM is unavailable:
 - `generateContextPacks()` requires LLM for summarization
 - `queryLibrarian()` synthesis requires LLM
 - Reindexing requires LLM for knowledge extraction
@@ -3292,13 +3292,13 @@ interface LibrarianApi {
 }
 
 // Before calling, check capability
-const capabilities = await librarian.getCapabilities();
+const capabilities = await LiBrainian.getCapabilities();
 if (capabilities.llm === 'unavailable') {
   // Use structural-only query
-  const result = await librarian.queryStructural(query);
+  const result = await LiBrainian.queryStructural(query);
 } else {
   // Full query available
-  const result = await librarian.query(query);
+  const result = await LiBrainian.query(query);
 }
 ```
 
@@ -3409,7 +3409,7 @@ Stage-aware reporting enables:
 
 **The Issue**
 
-Librarian depends on `LibrarianStorage` interface. If storage doesn't implement optional methods like `getGraphMetrics()` or `getMultiVectors()`:
+LiBrainian depends on `LibrarianStorage` interface. If storage doesn't implement optional methods like `getGraphMetrics()` or `getMultiVectors()`:
 - Fallbacks silently add to `coverageGaps`
 - Hard to debug why graph-based retrieval isn't working
 - No clear capability negotiation
@@ -3451,7 +3451,7 @@ interface LibrarianStorage {
 }
 
 // At initialization, validate capabilities
-function createLibrarian(storage: LibrarianStorage): Librarian {
+function createLibrarian(storage: LibrarianStorage): LiBrainian {
   const caps = storage.getCapabilities();
 
   if (!caps.optional.embeddings) {
@@ -3462,7 +3462,7 @@ function createLibrarian(storage: LibrarianStorage): Librarian {
     console.warn('Storage lacks graph metrics; PageRank scoring disabled');
   }
 
-  return new Librarian(storage, caps);
+  return new LiBrainian(storage, caps);
 }
 
 // In query, behavior depends on capabilities
@@ -3494,7 +3494,7 @@ Explicit capabilities enable:
 
 ## Part VI: Actual Utility Analysis (Expanded: 20 Use Cases)
 
-This section analyzes how an agentic system, single coding agent, or programmer would actually use Librarian—rating each use case and providing concrete solutions to achieve 10/10 utility.
+This section analyzes how an agentic system, single coding agent, or programmer would actually use LiBrainian—rating each use case and providing concrete solutions to achieve 10/10 utility.
 
 ---
 
@@ -4326,7 +4326,7 @@ This section identifies the most severe usability problems and provides comprehe
 
 **The Issue**
 
-Librarian now has an execution engine (`TechniqueExecutionEngine`) plus operator registry/interpreters, but **end-to-end execution is not yet verified with real traces and evidence**. Many primitives still rely on missing handlers, and some operator types are still no-op or partial.
+LiBrainian now has an execution engine (`TechniqueExecutionEngine`) plus operator registry/interpreters, but **end-to-end execution is not yet verified with real traces and evidence**. Many primitives still rely on missing handlers, and some operator types are still no-op or partial.
 
 This remains a fundamental gap: the system can plan and partially execute, but cannot yet **prove** that executions are complete, auditable, and replayable.
 
@@ -4363,7 +4363,7 @@ interface ExecutionContext {
   /** Available tools */
   tools: ToolRegistry;
 
-  /** Current knowledge from Librarian */
+  /** Current knowledge from LiBrainian */
   knowledge: LibrarianResponse;
 
   /** LLM for interpretation */
@@ -5120,7 +5120,7 @@ Based on the problems identified, here is the recommended implementation order:
 
 ## Part IX: Subsystem-Level Problems and Solutions
 
-This section provides a comprehensive review of all Librarian subsystems, identifying conceptual, theoretical, technical, and design problems with direct and propagating solutions.
+This section provides a comprehensive review of all LiBrainian subsystems, identifying conceptual, theoretical, technical, and design problems with direct and propagating solutions.
 
 ---
 
@@ -5506,7 +5506,7 @@ Bounded retries enable:
 
 **The Issue**
 
-Bootstrap recovery saves state to `.librarian/bootstrap_state.json`. If workspace changes between crash and resume:
+Bootstrap recovery saves state to `.LiBrainian/bootstrap_state.json`. If workspace changes between crash and resume:
 - Recovery resumes from stale state
 - May skip changed files
 - Index becomes inconsistent
@@ -5771,7 +5771,7 @@ class ProductionVectorOps implements SIMDVectorOps {
   constructor() {
     try {
       // Try to load native bindings
-      this.native = require('@librarian/simd-vectors');
+      this.native = require('@LiBrainian/simd-vectors');
     } catch {
       // Fallback to JS implementation
       this.native = null;
@@ -7369,7 +7369,7 @@ interface PaginatedPackResponse {
 }
 
 // Usage
-const response = await librarian.queryStreaming(query);
+const response = await LiBrainian.queryStreaming(query);
 
 console.log(`Found ${response.metadata.totalPackCount} packs`);
 
@@ -7735,9 +7735,9 @@ interface MigrationTest {
 
 ---
 
-## Part XI: Making Librarian a Top GitHub Repository of All Time
+## Part XI: Making LiBrainian a Top GitHub Repository of All Time
 
-This section synthesizes research on what makes the greatest GitHub repositories—both in terms of stars/popularity and in terms of genius, richness, and being beloved—and applies those lessons to Librarian.
+This section synthesizes research on what makes the greatest GitHub repositories—both in terms of stars/popularity and in terms of genius, richness, and being beloved—and applies those lessons to LiBrainian.
 
 ### Research: The Anatomy of GitHub Greatness
 
@@ -7842,7 +7842,7 @@ Some repositories are loved beyond their utility. Based on [open source communit
 
 ---
 
-### How to Make Librarian Great
+### How to Make LiBrainian Great
 
 Based on this research, here's a comprehensive strategy:
 
@@ -7850,13 +7850,13 @@ Based on this research, here's a comprehensive strategy:
 
 SQLite's genius is a single sentence: "SQLite competes with fopen(), not Oracle."
 
-**Librarian needs its "one insight"**:
+**LiBrainian needs its "one insight"**:
 
 Current framing (too complex):
 > "An agentic epistemological system for meaningful understanding of codebases"
 
 Proposed reframing options:
-- "Librarian competes with Ctrl+F, not with human understanding"
+- "LiBrainian competes with Ctrl+F, not with human understanding"
 - "Knowledge that knows when it's wrong"
 - "The codebase that explains itself"
 - "Machine epistemology for code: understanding you can verify"
@@ -7870,7 +7870,7 @@ Proposed reframing options:
 
 #### Strategy 2: The "5-Minute Magic" Principle
 
-Top repos deliver value in under 5 minutes. Currently, Librarian requires:
+Top repos deliver value in under 5 minutes. Currently, LiBrainian requires:
 - Provider setup
 - Bootstrap (30+ seconds)
 - Understanding complex APIs
@@ -7880,18 +7880,18 @@ Top repos deliver value in under 5 minutes. Currently, Librarian requires:
 
 ```bash
 # Install
-npm install -g librarian
+npm install -g librainian
 
 # Instant value (no bootstrap, no LLM)
-librarian explain src/auth/login.ts
+LiBrainian explain src/auth/login.ts
 # → Reads file, uses local heuristics, gives instant summary
 
 # Magic moment (with LLM)
-librarian understand "How does authentication work?"
+LiBrainian understand "How does authentication work?"
 # → Semantic search + LLM synthesis, works first time
 
 # Deep mode (after bootstrap)
-librarian bootstrap && librarian query --depth L3 "auth flow"
+LiBrainian bootstrap && LiBrainian query --depth L3 "auth flow"
 ```
 
 **Action Items**:
@@ -7904,12 +7904,12 @@ librarian bootstrap && librarian query --depth L3 "auth flow"
 
 #### Strategy 3: The "Build-Your-Own" Educational Model
 
-The top-starred repos are educational. Librarian should be **both a tool and a curriculum**.
+The top-starred repos are educational. LiBrainian should be **both a tool and a curriculum**.
 
 **Proposed Structure**:
 
 ```
-librarian/
+LiBrainian/
 ├── README.md           # 5-minute quick start
 ├── docs/
 │   ├── learn/
@@ -7931,7 +7931,7 @@ librarian/
 **Action Items**:
 - [ ] Create learning path documentation
 - [ ] Each concept with runnable examples
-- [ ] "Build your own mini-Librarian" tutorial
+- [ ] "Build your own mini-LiBrainian" tutorial
 - [ ] Video walkthroughs of architecture
 
 ---
@@ -7955,7 +7955,7 @@ confidence: 0.45 → "I'm not sure, but here's my best guess (45%)"
 confidence: 0.15 → "I really don't know, but if I had to guess..."
 
 // Easter eggs
-librarian explain --philosophical src/meaning-of-life.ts
+LiBrainian explain --philosophical src/meaning-of-life.ts
 → "42. But more specifically..."
 ```
 
@@ -7969,7 +7969,7 @@ librarian explain --philosophical src/meaning-of-life.ts
 
 #### Strategy 5: The "Radical Transparency" Model
 
-Rust is beloved because every decision is public. Librarian should document its own evolution.
+Rust is beloved because every decision is public. LiBrainian should document its own evolution.
 
 **Proposed Transparency Artifacts**:
 
@@ -7995,7 +7995,7 @@ docs/
 - [ ] Create ADR template and first 10 ADRs
 - [ ] Document every major design decision
 - [ ] Share experiments, including failures
-- [ ] Monthly "state of Librarian" posts
+- [ ] Monthly "state of LiBrainian" posts
 
 ---
 
@@ -8050,7 +8050,7 @@ Stage 5: Leader
 
 Great projects have consistent design language. Every API, every output, every error follows patterns.
 
-**Proposed Librarian Design Language**:
+**Proposed LiBrainian Design Language**:
 
 ```typescript
 // Principle 1: Confidence is always explicit
@@ -8067,9 +8067,9 @@ type Result<T> =
   | { success: false; degraded: false; error: Error };
 
 // Principle 3: Everything is queryable
-librarian.query("why is confidence 0.45?")
-librarian.query("what would increase confidence?")
-librarian.query("when was this last verified?")
+LiBrainian.query("why is confidence 0.45?")
+LiBrainian.query("what would increase confidence?")
+LiBrainian.query("when was this last verified?")
 
 // Principle 4: No magic numbers
 const SIMILARITY_THRESHOLD = 0.45;  // Never. Always named.
@@ -8086,9 +8086,9 @@ const config = {
   recovery: [
     "Check provider credentials",
     "Use --offline mode for structural-only queries",
-    "Run `librarian diagnose` for detailed status"
+    "Run `LiBrainian diagnose` for detailed status"
   ],
-  documentation: "https://librarian.dev/docs/providers"
+  documentation: "https://LiBrainian.dev/docs/providers"
 }
 ```
 
@@ -8102,7 +8102,7 @@ const config = {
 
 #### Strategy 8: The "Benchmark Everything" Principle
 
-TensorFlow and PyTorch compete on benchmarks. Librarian should have measurable claims.
+TensorFlow and PyTorch compete on benchmarks. LiBrainian should have measurable claims.
 
 **Proposed Benchmarks**:
 
@@ -8119,13 +8119,13 @@ TensorFlow and PyTorch compete on benchmarks. Librarian should have measurable c
 
 ```bash
 # Run benchmarks
-librarian benchmark --suite full
+LiBrainian benchmark --suite full
 
 # Compare versions
-librarian benchmark --compare v1.0.0 v2.0.0
+LiBrainian benchmark --compare v1.0.0 v2.0.0
 
 # Public dashboard
-https://librarian.dev/benchmarks
+https://LiBrainian.dev/benchmarks
 ```
 
 **Action Items**:
@@ -8144,36 +8144,36 @@ The best repos have ecosystems. Not one tool, but a family.
 
 ```
 Core:
-  librarian          - Core library
-  @librarian/cli     - Command-line interface
+  LiBrainian          - Core library
+  @LiBrainian/cli     - Command-line interface
 
 Integrations:
-  @librarian/vscode  - VS Code extension
-  @librarian/neovim  - Neovim plugin
-  @librarian/mcp     - Model Context Protocol server
-  @librarian/lsp     - Language Server Protocol
+  @LiBrainian/vscode  - VS Code extension
+  @LiBrainian/neovim  - Neovim plugin
+  @LiBrainian/mcp     - Model Context Protocol server
+  @LiBrainian/lsp     - Language Server Protocol
 
 Language Support:
-  @librarian/parser-typescript
-  @librarian/parser-python
-  @librarian/parser-rust
-  @librarian/parser-go
+  @LiBrainian/parser-typescript
+  @LiBrainian/parser-python
+  @LiBrainian/parser-rust
+  @LiBrainian/parser-go
 
 Extensions:
-  @librarian/engine-security   - Security-focused analysis
-  @librarian/engine-testing    - Test coverage insights
-  @librarian/engine-performance - Performance analysis
+  @LiBrainian/engine-security   - Security-focused analysis
+  @LiBrainian/engine-testing    - Test coverage insights
+  @LiBrainian/engine-performance - Performance analysis
 
 Community:
-  awesome-librarian  - Curated extensions and resources
-  librarian-examples - Example projects
+  awesome-LiBrainian  - Curated extensions and resources
+  LiBrainian-examples - Example projects
 ```
 
 **Action Items**:
 - [ ] Modular architecture enabling extensions
 - [ ] Plugin API documentation
 - [ ] Starter template for extensions
-- [ ] awesome-librarian list
+- [ ] awesome-LiBrainian list
 
 ---
 
@@ -8185,11 +8185,11 @@ Laravel and Rails succeed by making 80% of decisions for you, but letting you ov
 
 ```typescript
 // Zero config: sensible defaults
-const librarian = await createLibrarian();
+const LiBrainian = await createLibrarian();
 // Uses: local embeddings, L2 depth, standard engines, SQLite storage
 
 // But everything is configurable
-const librarian = await createLibrarian({
+const LiBrainian = await createLibrarian({
   embeddings: { provider: 'voyage-code-3', dimension: 1024 },
   storage: { type: 'postgres', connectionString: '...' },
   engines: {
@@ -8210,7 +8210,7 @@ const librarian = await createLibrarian({
 
 ---
 
-### The "10 Commandments" of Librarian Excellence
+### The "10 Commandments" of LiBrainian Excellence
 
 Based on all research, these are the guiding principles:
 
@@ -8239,7 +8239,7 @@ Based on all research, these are the guiding principles:
 - [ ] Learning path documentation
 - [ ] ADR retrospective (first 10 decisions)
 - [ ] Video architecture walkthrough
-- [ ] Build-your-own-librarian tutorial
+- [ ] Build-your-own-LiBrainian tutorial
 
 **Phase 3: Community Building (Month 3-4)**
 - [ ] Contribution guide with clear paths
@@ -8250,7 +8250,7 @@ Based on all research, these are the guiding principles:
 **Phase 4: Ecosystem (Month 4-6)**
 - [ ] VS Code extension
 - [ ] Plugin API stabilized
-- [ ] awesome-librarian list
+- [ ] awesome-LiBrainian list
 - [ ] First community extensions
 
 **Phase 5: Public Launch (Month 6+)**
@@ -8305,7 +8305,7 @@ The document treats knowledge as justified true belief—but since Gettier (1963
 - That belief can be true
 - Yet the justification can be accidentally correct (lucky coincidence)
 
-Librarian's confidence system tracks justification strength, not whether the justification actually explains the truth. A passing test might justify a belief that happens to be true for the wrong reason (the test is flawed, but the code happens to work).
+LiBrainian's confidence system tracks justification strength, not whether the justification actually explains the truth. A passing test might justify a belief that happens to be true for the wrong reason (the test is flawed, but the code happens to work).
 
 **Why This Matters**
 
@@ -8351,11 +8351,11 @@ The document treats knowledge as an individual phenomenon. But codebases are soc
 - Tribal knowledge that exists only in conversation
 - Political dynamics affecting what gets documented
 
-Librarian extracts individual artifacts but misses the **social epistemics** of how knowledge is created, contested, and legitimated in teams.
+LiBrainian extracts individual artifacts but misses the **social epistemics** of how knowledge is created, contested, and legitimated in teams.
 
 **Why This Matters**
 
-A function's "intent" might be contested among team members. Whose interpretation does Librarian privilege? The most recent committer? The original author? The architect? This is an epistemic justice question.
+A function's "intent" might be contested among team members. Whose interpretation does LiBrainian privilege? The most recent committer? The original author? The architect? This is an epistemic justice question.
 
 **Required Solution**
 
@@ -8411,7 +8411,7 @@ This is **testimonial injustice** (Miranda Fricker, 2007): systematic credibilit
 
 **Why This Matters**
 
-Librarian might confidently assert that a codebase's patterns are "unusual" or "anti-pattern" when they're actually valid for that domain—but underrepresented in LLM training data.
+LiBrainian might confidently assert that a codebase's patterns are "unusual" or "anti-pattern" when they're actually valid for that domain—but underrepresented in LLM training data.
 
 **Required Solution**
 
@@ -8565,7 +8565,7 @@ interface InformationTheoreticMetrics {
 
 **The Issue**
 
-Every Librarian output is an approximation:
+Every LiBrainian output is an approximation:
 - Embeddings approximate semantic similarity
 - Retrieval approximates relevance
 - Synthesis approximates understanding
@@ -8722,7 +8722,7 @@ const CLAIM_COMPLEXITY_MAP: Record<ClaimType, VerificationComplexity> = {
 
 **The Issue**
 
-Librarian serves multiple agents with potentially conflicting interests:
+LiBrainian serves multiple agents with potentially conflicting interests:
 - Agent A might want information that helps it, harms Agent B
 - Agents might strategically query to gain competitive advantage
 - The knowledge system can be gamed
@@ -8857,7 +8857,7 @@ function computeShapleyValues(
 
 **The Issue**
 
-Does Librarian-provided knowledge actually align agent behavior with human intent? The system optimizes for:
+Does LiBrainian-provided knowledge actually align agent behavior with human intent? The system optimizes for:
 - Retrieval relevance
 - Synthesis accuracy
 - Confidence calibration
@@ -9079,7 +9079,7 @@ function detectApproachingBifurcation(
 The document describes knowledge "emergence" (system-level understanding from component parts) but doesn't engage with **Integrated Information Theory** (IIT) or similar frameworks for measuring emergence.
 
 Questions unanswered:
-- Does Librarian's "understanding" have causal efficacy, or is it epiphenomenal?
+- Does LiBrainian's "understanding" have causal efficacy, or is it epiphenomenal?
 - Is the synthesis more than the sum of retrieved parts?
 - How do we measure the "integration" of knowledge?
 
@@ -9234,7 +9234,7 @@ async function testResilience(
 
 **The Issue**
 
-Every Librarian output is an approximation:
+Every LiBrainian output is an approximation:
 - Embeddings approximate semantic similarity
 - Retrieval approximates relevance
 - Synthesis approximates understanding
@@ -9251,7 +9251,7 @@ Yet the document provides no **formal approximation bounds**:
 /**
  * PAC-Style Approximation Framework
  *
- * For each Librarian component, we establish:
+ * For each LiBrainian component, we establish:
  * - What is being approximated (ground truth)
  * - What approximation ratio is achieved
  * - With what probability the bound holds
@@ -10188,7 +10188,7 @@ The preceding solutions address individual theoretical gaps. This section provid
 
 ```typescript
 /**
- * Librarian Theoretical Framework
+ * LiBrainian Theoretical Framework
  *
  * A coherent theoretical foundation that:
  * 1. Establishes epistemic guarantees (what we can know and with what certainty)
@@ -10240,14 +10240,14 @@ interface LibrarianTheoreticalFramework {
  * Instantiate the complete theoretical framework
  */
 async function createTheoreticalFramework(
-  librarian: Librarian
+  LiBrainian: LiBrainian
 ): Promise<LibrarianTheoreticalFramework> {
   // Initialize all subsystems
-  const epistemology = await createEpistemologySystem(librarian);
-  const informationTheory = await createInformationTheoreticFramework(librarian);
-  const learningTheory = await createLearningTheoreticFramework(librarian);
-  const dynamics = await createDynamicsFramework(librarian);
-  const gameTheory = await createGameTheoreticFramework(librarian);
+  const epistemology = await createEpistemologySystem(LiBrainian);
+  const informationTheory = await createInformationTheoreticFramework(LiBrainian);
+  const learningTheory = await createLearningTheoreticFramework(LiBrainian);
+  const dynamics = await createDynamicsFramework(LiBrainian);
+  const gameTheory = await createGameTheoreticFramework(LiBrainian);
 
   return {
     epistemology,
@@ -10300,11 +10300,11 @@ async function createTheoreticalFramework(
 
 ---
 
-## Part XIII: Using Librarian to Perfect Librarian
+## Part XIII: Using LiBrainian to Perfect LiBrainian
 
 **A Comprehensive Self-Improvement Guide**
 
-This section provides detailed strategies for using Librarian's own capabilities to identify, prioritize, and address gaps in Librarian itself—a form of **recursive self-improvement** bounded by the theoretical framework established above.
+This section provides detailed strategies for using LiBrainian's own capabilities to identify, prioritize, and address gaps in LiBrainian itself—a form of **recursive self-improvement** bounded by the theoretical framework established above.
 
 ---
 
@@ -10312,13 +10312,13 @@ This section provides detailed strategies for using Librarian's own capabilities
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    LIBRARIAN ON LIBRARIAN                    │
+│                    LiBrainian ON LiBrainian                    │
 │                                                             │
 │  ┌─────────────────┐      ┌─────────────────┐              │
 │  │ 1. SELF-INDEX   │───▶  │ 2. SELF-QUERY   │              │
 │  │                 │      │                 │              │
 │  │ Bootstrap on    │      │ Query gaps,     │              │
-│  │ Librarian code  │      │ inconsistencies │              │
+│  │ LiBrainian code  │      │ inconsistencies │              │
 │  └─────────────────┘      └────────┬────────┘              │
 │                                    │                        │
 │                                    ▼                        │
@@ -10334,7 +10334,7 @@ This section provides detailed strategies for using Librarian's own capabilities
 
 ### B. Self-Improvement Technique Primitives
 
-The self-improvement process uses Librarian's own technique primitive system. These primitives are specifically designed for recursive self-analysis.
+The self-improvement process uses LiBrainian's own technique primitive system. These primitives are specifically designed for recursive self-analysis.
 
 #### B.1 Self-Improvement Primitive Catalog
 
@@ -10356,16 +10356,16 @@ const tp_self_bootstrap: TechniquePrimitive = {
   id: 'tp_self_bootstrap',
   name: 'Self-Bootstrap',
   category: 'self_improvement',
-  description: 'Bootstrap Librarian knowledge index on Librarian source code itself',
+  description: 'Bootstrap LiBrainian knowledge index on LiBrainian source code itself',
 
   preconditions: [
-    'Librarian source code accessible at known path',
+    'LiBrainian source code accessible at known path',
     'Storage system initialized',
     'Embedding model available',
   ],
 
   inputs: {
-    sourceRoot: { type: 'path', description: 'Root of Librarian source' },
+    sourceRoot: { type: 'path', description: 'Root of LiBrainian source' },
     includeTests: { type: 'boolean', default: true },
     includeDocs: { type: 'boolean', default: true },
   },
@@ -10378,7 +10378,7 @@ const tp_self_bootstrap: TechniquePrimitive = {
   },
 
   postconditions: [
-    'All Librarian modules indexed',
+    'All LiBrainian modules indexed',
     'All public interfaces documented',
     'Dependency graph complete',
     'Embedding vectors generated',
@@ -10391,7 +10391,7 @@ const tp_self_refresh: TechniquePrimitive = {
   id: 'tp_self_refresh',
   name: 'Self-Refresh',
   category: 'self_improvement',
-  description: 'Incrementally update Librarian knowledge based on recent changes',
+  description: 'Incrementally update LiBrainian knowledge based on recent changes',
 
   preconditions: [
     'Prior self-bootstrap completed',
@@ -10427,7 +10427,7 @@ const tp_analyze_architecture: TechniquePrimitive = {
   id: 'tp_analyze_architecture',
   name: 'Analyze Architecture',
   category: 'self_improvement',
-  description: 'Analyze Librarian architecture for violations and improvements',
+  description: 'Analyze LiBrainian architecture for violations and improvements',
 
   preconditions: [
     'Self-index available',
@@ -10462,7 +10462,7 @@ const tp_analyze_theoretical_soundness: TechniquePrimitive = {
   id: 'tp_analyze_theoretical_soundness',
   name: 'Analyze Theoretical Soundness',
   category: 'self_improvement',
-  description: 'Check Librarian claims against theoretical foundations',
+  description: 'Check LiBrainian claims against theoretical foundations',
 
   preconditions: [
     'Self-index available',
@@ -10497,7 +10497,7 @@ const tp_analyze_consistency: TechniquePrimitive = {
   id: 'tp_analyze_consistency',
   name: 'Analyze Self-Consistency',
   category: 'self_improvement',
-  description: 'Check consistency between Librarian claims and implementation',
+  description: 'Check consistency between LiBrainian claims and implementation',
 
   preconditions: [
     'Self-index available',
@@ -10535,7 +10535,7 @@ const tp_verify_claim: TechniquePrimitive = {
   id: 'tp_verify_claim',
   name: 'Verify Self-Claim',
   category: 'self_improvement',
-  description: 'Verify a specific claim Librarian makes about itself',
+  description: 'Verify a specific claim LiBrainian makes about itself',
 
   preconditions: [
     'Claim identified',
@@ -10569,7 +10569,7 @@ const tp_verify_calibration: TechniquePrimitive = {
   id: 'tp_verify_calibration',
   name: 'Verify Calibration Quality',
   category: 'self_improvement',
-  description: 'Verify that Librarian confidence scores are well-calibrated',
+  description: 'Verify that LiBrainian confidence scores are well-calibrated',
 
   preconditions: [
     'Historical predictions available',
@@ -10705,7 +10705,7 @@ const tp_learn_from_outcome: TechniquePrimitive = {
   id: 'tp_learn_from_outcome',
   name: 'Learn From Outcome',
   category: 'self_improvement',
-  description: 'Update Librarian knowledge based on outcome feedback',
+  description: 'Update LiBrainian knowledge based on outcome feedback',
 
   preconditions: [
     'Outcome available',
@@ -10784,7 +10784,7 @@ const tp_learn_extract_pattern: TechniquePrimitive = {
 const tc_self_audit_full: TechniqueComposition = {
   id: 'tc_self_audit_full',
   name: 'Full Self-Audit',
-  description: 'Complete audit of Librarian health, theoretical soundness, and consistency',
+  description: 'Complete audit of LiBrainian health, theoretical soundness, and consistency',
 
   primitives: [
     'tp_self_bootstrap',
@@ -11271,7 +11271,7 @@ const tc_continuous_improvement: TechniqueComposition = {
  */
 class SelfImprovementExecutor {
   constructor(
-    private librarian: Librarian,
+    private LiBrainian: LiBrainian,
     private storage: LibrarianStorage,
     private episodeRecorder: EpisodeRecorder
   ) {}
@@ -11492,20 +11492,20 @@ class SelfImprovementExecutor {
 
 ### C. Step-by-Step Self-Improvement Protocol
 
-#### Step 1: Bootstrap Librarian on Itself
+#### Step 1: Bootstrap LiBrainian on Itself
 
 ```bash
-# Navigate to Librarian source
+# Navigate to LiBrainian source
 cd /path/to/wave0-autopilot
 
-# Bootstrap Librarian's knowledge about itself
+# Bootstrap LiBrainian's knowledge about itself
 node scripts/librarian_bootstrap.mjs \
-  --workspace ./src/librarian \
-  --config ./config/librarian.json \
-  --output-dir ./state/librarian-on-librarian
+  --workspace ./src/LiBrainian \
+  --config ./config/LiBrainian.json \
+  --output-dir ./state/LiBrainian-on-LiBrainian
 
 # Verify bootstrap completed
-cat ./state/librarian-on-librarian/bootstrap_report.json
+cat ./state/LiBrainian-on-LiBrainian/bootstrap_report.json
 ```
 
 **Expected Output:**
@@ -11529,9 +11529,9 @@ cat ./state/librarian-on-librarian/bootstrap_report.json
 #### Step 2: Query for Architectural Gaps
 
 ```typescript
-// Use Librarian to find its own architectural problems
-const architecturalGaps = await librarian.query({
-  intent: `Identify architectural inconsistencies in Librarian:
+// Use LiBrainian to find its own architectural problems
+const architecturalGaps = await LiBrainian.query({
+  intent: `Identify architectural inconsistencies in LiBrainian:
     1. Interfaces that are too large (>20 methods)
     2. Circular dependencies
     3. Modules with unclear single responsibility
@@ -11552,9 +11552,9 @@ for (const gap of architecturalGaps.synthesis.findings) {
 #### Step 3: Query for Theoretical Gaps
 
 ```typescript
-// Ask Librarian about its theoretical foundations
-const theoreticalAnalysis = await librarian.query({
-  intent: `Analyze Librarian's theoretical foundations:
+// Ask LiBrainian about its theoretical foundations
+const theoreticalAnalysis = await LiBrainian.query({
+  intent: `Analyze LiBrainian's theoretical foundations:
     1. Which claims are made without formal proofs?
     2. Which confidence calculations lack statistical backing?
     3. Which approximations lack error bounds?
@@ -11565,7 +11565,7 @@ const theoreticalAnalysis = await librarian.query({
 });
 
 // Generate theory improvement roadmap
-const roadmap = await librarian.planTechnique({
+const roadmap = await LiBrainian.planTechnique({
   composition: 'tc_theoretical_audit',
   context: theoreticalAnalysis,
   constraints: {
@@ -11575,12 +11575,12 @@ const roadmap = await librarian.planTechnique({
 });
 ```
 
-#### Step 4: Verify Librarian's Claims About Itself
+#### Step 4: Verify LiBrainian's Claims About Itself
 
 ```typescript
-// Meta-verification: Can Librarian verify its own claims?
-const selfClaims = await librarian.query({
-  intent: 'What claims does Librarian make about its own capabilities?',
+// Meta-verification: Can LiBrainian verify its own claims?
+const selfClaims = await LiBrainian.query({
+  intent: 'What claims does LiBrainian make about its own capabilities?',
   depth: 'L2',
 });
 
@@ -11613,9 +11613,9 @@ for (const gc of gettierCases) {
 #### Step 5: Detect Knowledge Decay
 
 ```typescript
-// Check for stale knowledge about Librarian itself
-const freshnessReport = await librarian.assessFreshness({
-  workspace: './src/librarian',
+// Check for stale knowledge about LiBrainian itself
+const freshnessReport = await LiBrainian.assessFreshness({
+  workspace: './src/LiBrainian',
   since: 'last_commit',
 });
 
@@ -11631,7 +11631,7 @@ for (const entity of staleKnowledge) {
 }
 
 // Trigger targeted refresh
-await librarian.refresh({
+await LiBrainian.refresh({
   entities: staleKnowledge.map(e => e.id),
   mode: 'incremental',
 });
@@ -11641,7 +11641,7 @@ await librarian.refresh({
 
 ```typescript
 /**
- * Automated Librarian Self-Improvement Pipeline
+ * Automated LiBrainian Self-Improvement Pipeline
  *
  * Runs periodically (e.g., after each commit) to:
  * 1. Re-index changed files
@@ -11736,7 +11736,7 @@ class LibrarianSelfImprovementPipeline {
   }
 
   /**
-   * Check for inconsistencies between Librarian's knowledge
+   * Check for inconsistencies between LiBrainian's knowledge
    * and its actual implementation
    */
   private async checkSelfConsistency(): Promise<ConsistencyResult> {
@@ -11744,7 +11744,7 @@ class LibrarianSelfImprovementPipeline {
 
     // Check: Do claimed interfaces match actual code?
     const claimedInterfaces = await this.query({
-      intent: 'List all public interfaces in Librarian',
+      intent: 'List all public interfaces in LiBrainian',
     });
 
     const actualInterfaces = await this.extractActualInterfaces();
@@ -11770,7 +11770,7 @@ class LibrarianSelfImprovementPipeline {
 
     // Check: Do claimed behaviors match test evidence?
     const claimedBehaviors = await this.query({
-      intent: 'List all behavioral claims about Librarian functions',
+      intent: 'List all behavioral claims about LiBrainian functions',
     });
 
     for (const behavior of claimedBehaviors.synthesis.behaviors) {
@@ -11847,12 +11847,12 @@ class LibrarianSelfImprovementPipeline {
 
 ```typescript
 /**
- * Use Librarian to improve Librarian's improvement process itself
+ * Use LiBrainian to improve LiBrainian's improvement process itself
  */
 async function metaImprovement() {
   // Query: How effective is the current improvement process?
-  const processAnalysis = await librarian.query({
-    intent: `Analyze the Librarian self-improvement pipeline:
+  const processAnalysis = await LiBrainian.query({
+    intent: `Analyze the LiBrainian self-improvement pipeline:
       1. What improvements were made in the last month?
       2. Which recommendations were acted upon vs ignored?
       3. What is the improvement velocity?
@@ -11861,7 +11861,7 @@ async function metaImprovement() {
   });
 
   // Use analysis to improve the improvement process
-  const metaRecommendations = await librarian.planTechnique({
+  const metaRecommendations = await LiBrainian.planTechnique({
     composition: 'tc_process_improvement',
     context: processAnalysis,
   });
@@ -11874,12 +11874,12 @@ async function metaImprovement() {
 
 ```typescript
 /**
- * Use Librarian to generate adversarial tests for itself
+ * Use LiBrainian to generate adversarial tests for itself
  */
 async function adversarialSelfTest() {
-  // Ask Librarian to identify its own weaknesses
-  const weaknesses = await librarian.query({
-    intent: `Identify queries that would expose Librarian's limitations:
+  // Ask LiBrainian to identify its own weaknesses
+  const weaknesses = await LiBrainian.query({
+    intent: `Identify queries that would expose LiBrainian's limitations:
       1. Edge cases in retrieval
       2. Ambiguous queries
       3. Multi-hop reasoning requirements
@@ -11888,7 +11888,7 @@ async function adversarialSelfTest() {
   });
 
   // Generate adversarial test cases
-  const adversarialTests = await librarian.generate({
+  const adversarialTests = await LiBrainian.generate({
     type: 'test_cases',
     constraints: {
       targetWeaknesses: weaknesses.synthesis.weaknesses,
@@ -11909,7 +11909,7 @@ async function adversarialSelfTest() {
 
   // Generate fixes for failures
   for (const failure of failures) {
-    const fix = await librarian.planFix({
+    const fix = await LiBrainian.planFix({
       failure,
       constraints: { mustPassAdversarialTest: true },
     });
@@ -11925,7 +11925,7 @@ async function adversarialSelfTest() {
 
 ```typescript
 /**
- * Compare Librarian versions to ensure improvement
+ * Compare LiBrainian versions to ensure improvement
  */
 async function crossVersionComparison(
   oldVersion: string,
@@ -11973,7 +11973,7 @@ async function crossVersionComparison(
 
 ```typescript
 /**
- * Real-time Librarian health monitoring
+ * Real-time LiBrainian health monitoring
  */
 interface LibrarianHealthDashboard {
   /** Overall health score (0-1) */
@@ -12025,7 +12025,7 @@ async function createHealthDashboard(): Promise<LibrarianHealthDashboard> {
 }
 ```
 
-### F. The Librarian Improvement Cycle
+### F. The LiBrainian Improvement Cycle
 
 ```
 Week 1: Audit
@@ -12059,7 +12059,7 @@ Week 4: Validate & Iterate
 
 **The Missing Layer: From "What Can I Build?" to "What Should I Build?"**
 
-The current Librarian provides powerful composition primitives but lacks the guidance layer that helps users (human or agent) understand:
+The current LiBrainian provides powerful composition primitives but lacks the guidance layer that helps users (human or agent) understand:
 - What compositions exist and when to use them
 - What compositions they *should* build for their specific codebase
 - How compositions should evolve based on outcomes
@@ -12076,7 +12076,7 @@ This section specifies the systems needed to close these gaps.
 - **[EVIDENCE_LEDGER] Events**: suggestion generated (inputs + rationale), suggestion accepted/declined, composition execution outcome, mutation proposal + approval/deny.
 - **[CLAIMS] Outputs**: “suggested composition” claims must cite evidence refs (files, outcomes, or similarity scores) and list defeaters (missing capabilities, low coverage).
 - **Degradation**: if embeddings/LLM unavailable → fall back to keyword + structural heuristics and mark results as `unverified_by_trace(provider_unavailable)` when semantic intent cannot be supported.
-- **Evidence commands**: `cd packages/librarian && npx vitest src/api/__tests__/technique_compositions.test.ts src/api/__tests__/technique_composition_builder.test.ts` and `npm run test:tier0`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/api/__tests__/technique_compositions.test.ts src/api/__tests__/technique_composition_builder.test.ts` and `npm run test:tier0`.
 
 ### Preamble: The Fundamental Problems (For Codex)
 
@@ -12117,7 +12117,7 @@ This section specifies the systems needed to close these gaps.
 
 #### Problem 2: Cold Start for New Codebases
 
-**What's broken**: When Librarian bootstraps on a new codebase, it doesn't know what compositions would be useful for *that specific codebase*. A codebase with auth needs security compositions; a codebase with APIs needs breaking-change detection; etc.
+**What's broken**: When LiBrainian bootstraps on a new codebase, it doesn't know what compositions would be useful for *that specific codebase*. A codebase with auth needs security compositions; a codebase with APIs needs breaking-change detection; etc.
 
 **Root cause**: Compositions are generic, not codebase-aware. There's no analysis that says "given what's in this repo, here's what you'll probably need."
 
@@ -12972,7 +12972,7 @@ const COMPOSITION_PATTERN_CATALOG: CompositionPattern[] = [
         context: ['meta', 'self', 'improve', 'evolve', 'learn'],
         confidence: 0.75,
         examples: [
-          'Improve Librarian\'s accuracy',
+          'Improve LiBrainian\'s accuracy',
           'Evolve the agent\'s strategies',
           'Learn from past failures',
           'Optimize the system itself',
@@ -13363,7 +13363,7 @@ class SemanticCompositionSelector {
   }
 
   private async loadIndex(): Promise<SemanticCompositionIndex | null> {
-    const raw = await this.storage.getState('librarian.semantic_composition_index.v1');
+    const raw = await this.storage.getState('LiBrainian.semantic_composition_index.v1');
     if (!raw) return null;
     const parsed = safeJsonParse<SemanticCompositionIndex>(raw);
     return parsed.ok ? parsed.value : null;
@@ -13372,7 +13372,7 @@ class SemanticCompositionSelector {
   private async persistIndex(): Promise<void> {
     if (this.index) {
       await this.storage.setState(
-        'librarian.semantic_composition_index.v1',
+        'LiBrainian.semantic_composition_index.v1',
         JSON.stringify(this.index)
       );
     }
@@ -13406,7 +13406,7 @@ function extractKeywords(composition: TechniqueComposition): string[] {
 
 ### C. Codebase-Aware Composition Suggestion
 
-**Problem**: Librarian doesn't suggest compositions based on what's in the codebase.
+**Problem**: LiBrainian doesn't suggest compositions based on what's in the codebase.
 
 **Solution**: Analyze the codebase and recommend compositions that would be useful.
 
@@ -13442,10 +13442,10 @@ interface CompositionSuggestion {
 }
 
 class CodebaseCompositionAdvisor {
-  private librarian: Librarian;
+  private LiBrainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(LiBrainian: LiBrainian) {
+    this.LiBrainian = LiBrainian;
   }
 
   /**
@@ -13473,7 +13473,7 @@ class CodebaseCompositionAdvisor {
   private async discoverFeatures(): Promise<CodebaseFeature[]> {
     const features: CodebaseFeature[] = [];
 
-    // Query Librarian for various domains
+    // Query LiBrainian for various domains
     const queries = [
       { intent: 'authentication and authorization code', domain: 'auth' },
       { intent: 'API endpoints and routes', domain: 'api' },
@@ -13488,7 +13488,7 @@ class CodebaseCompositionAdvisor {
     ];
 
     for (const query of queries) {
-      const response = await this.librarian.query({
+      const response = await this.LiBrainian.query({
         intent: query.intent,
         depth: 'L1',
         minConfidence: 0.5,
@@ -14053,7 +14053,7 @@ class CompositionEvolutionEngine {
   }
 
   private async loadExecutionTraces(): Promise<ExecutionTrace[]> {
-    const raw = await this.storage.getState('librarian.execution_traces.v1');
+    const raw = await this.storage.getState('LiBrainian.execution_traces.v1');
     if (!raw) return [];
     const parsed = safeJsonParse<{ traces: ExecutionTrace[] }>(raw);
     return parsed.ok ? parsed.value.traces : [];
@@ -14467,8 +14467,8 @@ interface Prophecy {
 4. Add pattern embeddings for semantic matching
 
 **Files to create:**
-- `src/librarian/api/composition_patterns.ts`
-- `src/librarian/strategic/pattern_catalog.ts`
+- `src/LiBrainian/api/composition_patterns.ts`
+- `src/LiBrainian/strategic/pattern_catalog.ts`
 
 **Estimated primitives/LOC:** ~400 lines
 
@@ -14479,8 +14479,8 @@ interface Prophecy {
 4. Integrate with existing learning loop
 
 **Files to modify:**
-- `src/librarian/api/plan_compiler.ts` (modify selection)
-- `src/librarian/api/semantic_selection.ts` (new)
+- `src/LiBrainian/api/plan_compiler.ts` (modify selection)
+- `src/LiBrainian/api/semantic_selection.ts` (new)
 
 **Estimated LOC:** ~300 lines
 
@@ -14491,7 +14491,7 @@ interface Prophecy {
 4. Add CLI/API for getting suggestions
 
 **Files to create:**
-- `src/librarian/api/composition_advisor.ts`
+- `src/LiBrainian/api/composition_advisor.ts`
 
 **Estimated LOC:** ~350 lines
 
@@ -14502,8 +14502,8 @@ interface Prophecy {
 4. Add proposal generation and mutation suggestion
 
 **Files to create:**
-- `packages/librarian/src/api/composition_evolution.ts`
-- `src/librarian/state/execution_traces.ts`
+- `packages/LiBrainian/src/api/composition_evolution.ts`
+- `src/LiBrainian/state/execution_traces.ts`
 
 **Estimated LOC:** ~500 lines
 
@@ -14513,7 +14513,7 @@ interface Prophecy {
 3. Document for community extension
 
 **Files to create:**
-- `src/librarian/experimental/composition_geneticist.ts`
+- `src/LiBrainian/experimental/composition_geneticist.ts`
 
 **Estimated LOC:** ~200 lines
 
@@ -14543,12 +14543,12 @@ After implementation, measure:
 | 2026-01-19 | 4.0.0 | Added GitHub greatness strategy (Part XI) |
 | 2026-01-20 | 5.0.0 | Added theoretical critiques (Part XII) |
 | 2026-01-20 | 6.0.0 | Expanded Part XII with elegant solutions for all 15 theoretical gaps including: Gettier-immune knowledge system, social epistemology with deliberation, epistemic justice framework, ASPIC+ argumentation, information-theoretic bounds with MINE/rate-distortion, PAC approximation guarantees, calibration sample complexity with SPRT, verification complexity hierarchy |
-| 2026-01-20 | 6.1.0 | Added Part XIII: Comprehensive self-improvement guide for using Librarian on Librarian |
+| 2026-01-20 | 6.1.0 | Added Part XIII: Comprehensive self-improvement guide for using LiBrainian on LiBrainian |
 | 2026-01-20 | 7.0.0 | Added Part XIV: Composition Discovery, Guidance, and Evolution - Pattern Catalog with 8 archetypes, Semantic Selection Engine, Codebase-Aware Suggestion, Evolution Engine with pattern mining/mutation/deprecation, Creative Agent Patterns (Sommelier, Geneticist, Archaeologist, Diplomat, Prophet), Implementation Roadmap for Codex |
 | 2026-01-20 | 7.1.0 | Added Preamble to Part XIV with 5 fundamental problems, success criteria, alternative approaches, and explicit guidance for Codex to propose better solutions |
 | 2026-01-20 | 8.0.0 | Added Implementation Status tracker, What to Implement Next for Codex, updated Part X with completion status |
 | 2026-01-20 | 9.0.0 | Added Part XV: Operator Execution Layer - comprehensive operator interpreters, execution semantics, and missing control-flow primitives |
-| 2026-01-20 | 10.0.0 | Added Part XVI: Extensible LLM Provider Discovery - pluggable provider registry for any LLM config; Librarian independence from wave0 |
+| 2026-01-20 | 10.0.0 | Added Part XVI: Extensible LLM Provider Discovery - pluggable provider registry for any LLM config; LiBrainian independence from wave0 |
 | 2026-01-20 | 10.1.0 | Added Critical B.1: Prediction-Oriented Memory - outcome-weighted retrieval with surprise priority, periodic consolidation, tiered patterns; enhances existing ClosedLoopLearner |
 | 2026-01-20 | 10.2.0 | Added anti-pattern detection to B.1, Model Qualification Gate to Part XVI |
 | 2026-01-20 | 10.3.0 | Interdisciplinary panel review: added Distribution Shift Detection (B.1), Concurrency Contract (Problem 25), Static Analysis Provider Interface (Problem 35) |
@@ -14566,11 +14566,11 @@ After implementation, measure:
 - **[EVIDENCE_LEDGER] Events**: operator start/finish, branch decision, retry, checkpoint save/restore, coverage gap (noop/unsupported).
 - **[CLAIMS] Outputs**: execution claims must cite operator events + checkpoint hashes; otherwise mark `unverified_by_trace(replay_unavailable)`.
 - **Degradation**: unsupported operator types fail-closed (or emit explicit coverage gap + degraded mode).
-- **Evidence commands**: `cd packages/librarian && npx vitest src/api/__tests__/technique_execution.test.ts src/api/__tests__/operator_interpreters.test.ts` and `npm run test:tier0`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/api/__tests__/technique_execution.test.ts src/api/__tests__/operator_interpreters.test.ts` and `npm run test:tier0`.
 
 ### The Gap: Operator Semantics Are Partially Real (Many Are Still No-ops)
 
-**Critical Reality**: The operator interpreter layer exists in code (`src/librarian/api/technique_execution.ts` + `src/librarian/api/operator_registry.ts` + `src/librarian/api/operator_interpreters.ts`), and *some* operator semantics are implemented (notably `parallel`, `conditional`, `loop`, `retry`, `checkpoint`, `timebox`, `budget_cap`, `quorum`, `consensus`, `circuit_breaker`).
+**Critical Reality**: The operator interpreter layer exists in code (`src/LiBrainian/api/technique_execution.ts` + `src/LiBrainian/api/operator_registry.ts` + `src/LiBrainian/api/operator_interpreters.ts`), and *some* operator semantics are implemented (notably `parallel`, `conditional`, `loop`, `retry`, `checkpoint`, `timebox`, `budget_cap`, `quorum`, `consensus`, `circuit_breaker`).
 
 However, a large subset of operator types are currently implemented as explicit **no-op interpreters** (e.g., `merge`, `fanout`, `fanin`, `backoff`, `monitor`, `replay`, `cache`, `reduce`). This produces a dangerous form of “paper capability”: compositions can compile and “run”, but the advertised control semantics may be absent.
 
@@ -15511,15 +15511,15 @@ const tp_merge_parallel_results: TechniquePrimitive = {
 **Total: ~2,550 lines**
 
 **Files (already present; verify + extend):**
-- `src/librarian/api/operator_interpreters.ts`
-- `src/librarian/api/operator_registry.ts`
-- `src/librarian/api/__tests__/operator_interpreters.test.ts`
-- `src/librarian/api/__tests__/operator_registry.test.ts`
+- `src/LiBrainian/api/operator_interpreters.ts`
+- `src/LiBrainian/api/operator_registry.ts`
+- `src/LiBrainian/api/__tests__/operator_interpreters.test.ts`
+- `src/LiBrainian/api/__tests__/operator_registry.test.ts`
 
 **Files to modify:**
-- `src/librarian/api/technique_execution.ts` (verify interpreter integration + semantics coverage)
-- `src/librarian/api/technique_library.ts` (add missing primitives)
-- `src/librarian/api/index.ts` (export new modules)
+- `src/LiBrainian/api/technique_execution.ts` (verify interpreter integration + semantics coverage)
+- `src/LiBrainian/api/technique_library.ts` (add missing primitives)
+- `src/LiBrainian/api/index.ts` (export new modules)
 
 ---
 
@@ -15554,13 +15554,13 @@ const tp_merge_parallel_results: TechniquePrimitive = {
 - **[EVIDENCE_LEDGER] Events**: provider check start/finish, model registry update, provider mismatch/unsupported warnings.
 - **[CLAIMS] Outputs**: “provider available / model supported” claims must cite provider checks + model registry evidence.
 - **Degradation**: if providers unavailable → fail with `unverified_by_trace(provider_unavailable)`; no API key fallbacks.
-- **Evidence commands**: `cd packages/librarian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts` and `./scripts/check_forbidden_patterns.sh`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts` and `./scripts/check_forbidden_patterns.sh`.
 
 > **Added**: 2026-01-20
 >
 > **Problem (re-scoped to code reality)**: Provider discovery exists, but it is not yet the *uniform* entrypoint. Any codepath that bypasses discovery (or instantiates `LLMService` directly) will still fail with `provider_unavailable` in environments where CLIs are authenticated but env vars are unset.
 >
-> **Architectural Requirement**: Librarian must be independent and separable from wave0-autopilot. It should work as a standalone GitHub package in ANY repository without requiring wave0-specific configuration.
+> **Architectural Requirement**: LiBrainian must be independent and separable from wave0-autopilot. It should work as a standalone GitHub package in ANY repository without requiring wave0-specific configuration.
 
 **[CAPABILITIES] Required**
 - Run fast, non-destructive provider probes (CLI/local HTTP) with strict timeouts and bounded retries.
@@ -15583,9 +15583,9 @@ const tp_merge_parallel_results: TechniquePrimitive = {
 Provider selection must be **capability-driven** (what’s available + authenticated), not “whatever env vars happen to be set”, and it must be **used everywhere**.
 
 Implementation reality (already present, but must be enforced as the only entrypoint):
-- `src/librarian/api/llm_provider_discovery.ts` (registry + probes + status)
-- `src/librarian/api/llm_env.ts` (`resolveLibrarianModelConfigWithDiscovery()` fallback)
-- `src/librarian/api/provider_check.ts` (`checkAllProviders()` / `requireProviders()`)
+- `src/LiBrainian/api/llm_provider_discovery.ts` (registry + probes + status)
+- `src/LiBrainian/api/llm_env.ts` (`resolveLibrarianModelConfigWithDiscovery()` fallback)
+- `src/LiBrainian/api/provider_check.ts` (`checkAllProviders()` / `requireProviders()`)
 
 This fails in multiple scenarios:
 
@@ -15915,7 +15915,7 @@ Third parties can register custom providers:
 
 ```typescript
 // In user code or a plugin
-import { llmProviderRegistry, type LlmProviderProbe } from 'librarian';
+import { llmProviderRegistry, type LlmProviderProbe } from 'librainian';
 
 const myCustomProbe: LlmProviderProbe = {
   descriptor: {
@@ -15939,9 +15939,9 @@ const myCustomProbe: LlmProviderProbe = {
 llmProviderRegistry.register(myCustomProbe);
 ```
 
-### I. Librarian Independence
+### I. LiBrainian Independence
 
-> **Critical**: Librarian must work as a standalone package without wave0-specific dependencies.
+> **Critical**: LiBrainian must work as a standalone package without wave0-specific dependencies.
 
 The provider discovery system ensures this by:
 
@@ -15980,13 +15980,13 @@ llmProviderRegistry.getProbe('claude')!.descriptor.priority = 20;
 **Total: ~950 lines** (+ optional external plugins)
 
 **Files (already present; verify wiring + tests):**
-- `src/librarian/api/llm_provider_discovery.ts`
-- `src/librarian/api/__tests__/llm_provider_discovery.test.ts`
+- `src/LiBrainian/api/llm_provider_discovery.ts`
+- `src/LiBrainian/api/__tests__/llm_provider_discovery.test.ts`
 
 **Files to modify:**
-- `src/librarian/api/llm_env.ts`
-- `src/librarian/api/technique_execution.ts`
-- `src/librarian/api/index.ts` (export new modules)
+- `src/LiBrainian/api/llm_env.ts`
+- `src/LiBrainian/api/technique_execution.ts`
+- `src/LiBrainian/api/index.ts` (export new modules)
 
 ### K. Success Criteria
 
@@ -16007,7 +16007,7 @@ llmProviderRegistry.getProbe('claude')!.descriptor.priority = 20;
 
 ### L. Model Qualification Gate
 
-Before accepting a new model (especially local models), verify it can actually perform Librarian's tasks:
+Before accepting a new model (especially local models), verify it can actually perform LiBrainian's tasks:
 
 ```typescript
 interface ModelQualificationResult {
@@ -16070,13 +16070,13 @@ async function qualifyModel(
 - **[EVIDENCE_LEDGER] Events**: new primitive registration; extraction run; learning update; deprecation/upgrade decisions.
 - **[CLAIMS] Outputs**: “universal understanding” claims must cite tiered language support evidence + coverage gaps.
 - **Degradation**: unsupported languages fall back to tiered semantic parsing with explicit confidence loss + defeaters.
-- **Evidence commands**: `cd packages/librarian && npx vitest src/strategic/__tests__/techniques.test.ts src/strategic/__tests__/technique_semantics.test.ts`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/strategic/__tests__/techniques.test.ts src/strategic/__tests__/technique_semantics.test.ts`.
 
 > **Added**: 2026-01-21
 >
 > **Source**: LIBRARIAN_DEFINITIVE.md - contributions from 20 of history's greatest minds in computing
 >
-> **Purpose**: Bridge the gap between the theoretical specification and what's already implemented. These items make Librarian world-best for ANY software role, task, project, or system.
+> **Purpose**: Bridge the gap between the theoretical specification and what's already implemented. These items make LiBrainian world-best for ANY software role, task, project, or system.
 
 ### Table of Contents - Part XVII
 
@@ -16095,7 +16095,7 @@ async function qualifyModel(
 
 ### A. Universal Code Understanding (Turing)
 
-**Problem**: Librarian currently only fully understands languages with tree-sitter parsers. Many codebases use languages without parser support (DSLs, config files, shell scripts, niche languages).
+**Problem**: LiBrainian currently only fully understands languages with tree-sitter parsers. Many codebases use languages without parser support (DSLs, config files, shell scripts, niche languages).
 
 **Turing's Insight**: If a human can understand it, a system with an oracle (LLM) can attempt understanding with explicit confidence.
 
@@ -16250,12 +16250,12 @@ Respond in JSON format.
 | **6** | Tests for each tier | ~300 |
 
 **Files to create:**
-- `src/librarian/agents/universal_language_support.ts`
-- `src/librarian/agents/__tests__/universal_language_support.test.ts`
+- `src/LiBrainian/agents/universal_language_support.ts`
+- `src/LiBrainian/agents/__tests__/universal_language_support.test.ts`
 
 **Files to modify:**
-- `src/librarian/agents/parser_registry.ts` (integrate tiers)
-- `src/librarian/agents/extraction/file_entity_extractor.ts`
+- `src/LiBrainian/agents/parser_registry.ts` (integrate tiers)
+- `src/LiBrainian/agents/extraction/file_entity_extractor.ts`
 
 #### A.4 Domain-Bridging Primitives (25 Greats' Extension)
 
@@ -16373,7 +16373,7 @@ export const tp_state_trace: TechniquePrimitive = {
 
 ### B. Hierarchical Knowledge System (Von Neumann/Kay)
 
-**Problem**: Agentic LLMs have limited context windows. A 1M LOC codebase cannot fit in any current context window. Current librarian retrieves flat entity lists, missing architectural context.
+**Problem**: Agentic LLMs have limited context windows. A 1M LOC codebase cannot fit in any current context window. Current LiBrainian retrieves flat entity lists, missing architectural context.
 
 **Von Neumann's Insight**: Knowledge should be hierarchical, like a stored program that can invoke sub-programs.
 
@@ -16521,8 +16521,8 @@ async function bootstrapHierarchy(
 | **6** | Tests | ~250 |
 
 **Files to create:**
-- `src/librarian/api/hierarchical_knowledge.ts`
-- `src/librarian/api/__tests__/hierarchical_knowledge.test.ts`
+- `src/LiBrainian/api/hierarchical_knowledge.ts`
+- `src/LiBrainian/api/__tests__/hierarchical_knowledge.test.ts`
 
 ---
 
@@ -16687,14 +16687,14 @@ async function calibrateFromHistory(
 | **7** | Tests | ~300 |
 
 **Files to create:**
-- `src/librarian/api/causal_reasoning.ts`
-- `src/librarian/api/__tests__/causal_reasoning.test.ts`
+- `src/LiBrainian/api/causal_reasoning.ts`
+- `src/LiBrainian/api/__tests__/causal_reasoning.test.ts`
 
 ---
 
 ### D. Fault-Tolerant Architecture (Armstrong)
 
-**Problem**: Current librarian can fail completely if any subsystem fails. No supervision, no isolation, no recovery.
+**Problem**: Current LiBrainian can fail completely if any subsystem fails. No supervision, no isolation, no recovery.
 
 **Armstrong's Insight**: Let it crash, but make crash recovery automatic and isolated.
 
@@ -16702,7 +16702,7 @@ async function calibrateFromHistory(
 
 ```typescript
 /**
- * Erlang-style supervision tree for librarian subsystems.
+ * Erlang-style supervision tree for LiBrainian subsystems.
  *
  * PHILOSOPHY: Crashing is a valid recovery mechanism.
  * Supervision trees ensure isolated failures and automatic recovery.
@@ -16735,7 +16735,7 @@ export interface Worker {
 }
 
 /**
- * The librarian supervision tree.
+ * The LiBrainian supervision tree.
  */
 export const LIBRARIAN_SUPERVISION_TREE: SupervisorConfig = {
   id: 'librarian_root',
@@ -16851,8 +16851,8 @@ async function executeWithSupervision<T>(
 | **6** | Tests | ~250 |
 
 **Files to create:**
-- `src/librarian/infrastructure/supervision.ts`
-- `src/librarian/infrastructure/__tests__/supervision.test.ts`
+- `src/LiBrainian/infrastructure/supervision.ts`
+- `src/LiBrainian/infrastructure/__tests__/supervision.test.ts`
 
 ---
 
@@ -16940,13 +16940,13 @@ async function selectByInformationGain(
 | **5** | Tests | ~150 |
 
 **Files to create:**
-- `src/librarian/api/information_theoretic_retrieval.ts`
+- `src/LiBrainian/api/information_theoretic_retrieval.ts`
 
 ---
 
 ### F. Cross-Language Contract Tracing (Liskov)
 
-**Problem**: Modern codebases are polyglot (Python backend, TypeScript frontend, Go services). Librarian cannot trace contracts across language boundaries.
+**Problem**: Modern codebases are polyglot (Python backend, TypeScript frontend, Go services). LiBrainian cannot trace contracts across language boundaries.
 
 **Liskov's Insight**: Contracts (types, schemas) must be substitutable across boundaries.
 
@@ -17030,8 +17030,8 @@ export class CrossLanguageContractTracer {
 | **6** | Tests | ~300 |
 
 **Files to create:**
-- `src/librarian/api/cross_language_contracts.ts`
-- `src/librarian/api/__tests__/cross_language_contracts.test.ts`
+- `src/LiBrainian/api/cross_language_contracts.ts`
+- `src/LiBrainian/api/__tests__/cross_language_contracts.test.ts`
 
 ---
 
@@ -17108,10 +17108,10 @@ export interface FailureAdvice {
 | **6** | Tests | ~200 |
 
 **Files to modify:**
-- `src/librarian/api/learning_loop.ts` (add predictive memory)
+- `src/LiBrainian/api/learning_loop.ts` (add predictive memory)
 
 **Files to create:**
-- `src/librarian/api/predictive_memory.ts`
+- `src/LiBrainian/api/predictive_memory.ts`
 
 ---
 
@@ -17320,7 +17320,7 @@ const PATTERN_DOCUMENTATION: CompositionPatternInput = {
 | **5** | Pattern selection tests | ~200 |
 
 **Files to modify:**
-- `src/librarian/api/pattern_catalog.ts` (add patterns)
+- `src/LiBrainian/api/pattern_catalog.ts` (add patterns)
 
 ---
 
@@ -17372,7 +17372,7 @@ const PATTERN_DOCUMENTATION: CompositionPatternInput = {
 
 > **Added**: 2026-01-21
 >
-> **Purpose**: Ideas that don't exist anywhere in the world yet. True theoretical breakthroughs that would make Librarian not just world-best, but world-first.
+> **Purpose**: Ideas that don't exist anywhere in the world yet. True theoretical breakthroughs that would make LiBrainian not just world-best, but world-first.
 >
 > **Also**: Protocols for operating under ANY epistemic condition, including complete ignorance.
 
@@ -17431,7 +17431,7 @@ export interface UndecidabilityClassification {
 }
 
 /**
- * The breakthrough: Librarian can explain its own limitations.
+ * The breakthrough: LiBrainian can explain its own limitations.
  *
  * Example:
  *   Q: "Will this function terminate on all inputs?"
@@ -17866,7 +17866,7 @@ export const REASONING_STRATEGIES: ReasoningStrategy[] = [
 
 ### J. Epistemic Bootstrapping Protocols
 
-**The Core Problem**: How does an agent using Librarian proceed when there is:
+**The Core Problem**: How does an agent using LiBrainian proceed when there is:
 - No documentation
 - No comments
 - No tests
@@ -18235,7 +18235,7 @@ export class EpistemicEscalationEngine {
 
 ### K. Universal Applicability Matrix
 
-**The Question**: How does Librarian serve ANY software role, task, project, or system?
+**The Question**: How does LiBrainian serve ANY software role, task, project, or system?
 
 **The Answer**: A mapping from situations to protocols.
 
@@ -18249,7 +18249,7 @@ export class EpistemicEscalationEngine {
  * - Project state (greenfield, legacy, maintained, abandoned, etc.)
  * - Knowledge state (full docs, some docs, no docs, obfuscated, etc.)
  *
- * Librarian provides the appropriate protocol.
+ * LiBrainian provides the appropriate protocol.
  */
 
 export interface SituationVector {
@@ -18308,7 +18308,7 @@ export type KnowledgeState =
  */
 export class UniversalProtocolSelector {
   /**
-   * Given a situation, return the appropriate Librarian protocol.
+   * Given a situation, return the appropriate LiBrainian protocol.
    */
   selectProtocol(situation: SituationVector): Protocol {
     const { role, task, projectState, knowledgeState } = situation;
@@ -18432,7 +18432,7 @@ export class UniversalProtocolSelector {
 
 7. **Universal Applicability**: No system provides a systematic mapping from arbitrary situations to appropriate protocols.
 
-**These are not incremental. These are theoretical advances that, if implemented, would make Librarian genuinely unprecedented.**
+**These are not incremental. These are theoretical advances that, if implemented, would make LiBrainian genuinely unprecedented.**
 
 ---
 
@@ -18448,13 +18448,13 @@ export class UniversalProtocolSelector {
 - **Degradation**: invalid config fails closed with explicit diagnostics; no silent defaults.
 - **Evidence commands**: `npm run test:tier0` + `npx vitest api/__tests__/` (config tests when added).
 
-> **CRITICAL FRAMING**: This section does NOT propose creating new code from scratch. It shows how to COMPOSE and CONFIGURE what Librarian ALREADY HAS. Every element below builds on existing primitives, operators, patterns, and compositions in the codebase.
+> **CRITICAL FRAMING**: This section does NOT propose creating new code from scratch. It shows how to COMPOSE and CONFIGURE what LiBrainian ALREADY HAS. Every element below builds on existing primitives, operators, patterns, and compositions in the codebase.
 
-### The Twenty Greats' Understanding of Existing Librarian Architecture
+### The Twenty Greats' Understanding of Existing LiBrainian Architecture
 
 Before proposing configuration, we must acknowledge what EXISTS:
 
-#### What Librarian Already Has (Verified in Codebase)
+#### What LiBrainian Already Has (Verified in Codebase)
 
 ```typescript
 // FROM technique_library.ts - 40+ EXISTING PRIMITIVES:
@@ -18486,11 +18486,11 @@ Before proposing configuration, we must acknowledge what EXISTS:
 
 ### The Independence Principle (25 Greats' Foundation)
 
-> **Librarian is INDEPENDENT epistemological infrastructure—not a tool for any specific harness.**
+> **LiBrainian is INDEPENDENT epistemological infrastructure—not a tool for any specific harness.**
 
-**Dijkstra**: "A pure function has no hidden dependencies. Librarian's core should be callable from anywhere."
+**Dijkstra**: "A pure function has no hidden dependencies. LiBrainian's core should be callable from anywhere."
 
-**Kay**: "Objects communicate via messages. Librarian should receive messages, not be intercepted by hooks."
+**Kay**: "Objects communicate via messages. LiBrainian should receive messages, not be intercepted by hooks."
 
 **Hickey**: "Complecting execution with observation with modification creates mud. Keep them separate."
 
@@ -18501,7 +18501,7 @@ The architecture serves ALL use cases equally:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      LIBRARIAN (Independent Core)                    │
+│                      LiBrainian (Independent Core)                    │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │    Pure Core: query() · search() · compose() · verify()     │   │
 │   └─────────────────────────────────────────────────────────────┘   │
@@ -18848,7 +18848,7 @@ const tc_payment_system: TechniqueComposition = {
 /**
  * Domain Construction Protocol
  *
- * Given a new domain D, construct its Librarian support:
+ * Given a new domain D, construct its LiBrainian support:
  */
 
 function constructDomainSupport(domain: DomainDescription): TechniqueComposition {
@@ -18916,23 +18916,23 @@ const ASPECT_TO_PRIMITIVES: Record<FundamentalAspect, string[]> = {
 
 **Kay**: "The test of a truly object-oriented system is whether new kinds of objects can be added without changing the system. The test of truly universal primitives is whether new domains can be supported without adding primitives."
 
-**Armstrong**: "Let the domain fail gracefully. If someone tries to use Librarian for a domain and finds it inadequate, the failure should clearly indicate which fundamental aspect is missing—then we can add a primitive."
+**Armstrong**: "Let the domain fail gracefully. If someone tries to use LiBrainian for a domain and finds it inadequate, the failure should clearly indicate which fundamental aspect is missing—then we can add a primitive."
 
 **The Guarantee**: For any domain D:
-1. If D can be fully supported by existing primitives, Librarian provides that support.
+1. If D can be fully supported by existing primitives, LiBrainian provides that support.
 2. If D reveals a missing fundamental aspect, that aspect becomes a new primitive.
 3. The protocol above provides the construction method.
 4. No domain is unsupportable—at worst, we learn what's missing.
 
-#### How Librarian's Existing Structures Enable Universal Domain Support
+#### How LiBrainian's Existing Structures Enable Universal Domain Support
 
 > **Kay**: "The structures are the system. If the structures are right, everything else follows."
 
-**Librarian's Architecture for Universal Domains**:
+**LiBrainian's Architecture for Universal Domains**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    LIBRARIAN UNIVERSAL DOMAIN ARCHITECTURE                   │
+│                    LiBrainian UNIVERSAL DOMAIN ARCHITECTURE                   │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │ LAYER 1: FUNDAMENTAL PRIMITIVES (14 domain-agnostic)                │    │
@@ -18991,7 +18991,7 @@ const ASPECT_TO_PRIMITIVES: Record<FundamentalAspect, string[]> = {
 │                                    │                                        │
 │                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │ LAYER 5: LCL (Librarian Configuration Language)                     │    │
+│  │ LAYER 5: LCL (LiBrainian Configuration Language)                     │    │
 │  │                                                                     │    │
 │  │  lcl.compose('my_domain')                                           │    │
 │  │     .use('tc_social_platform')                                      │    │
@@ -19005,9 +19005,9 @@ const ASPECT_TO_PRIMITIVES: Record<FundamentalAspect, string[]> = {
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**How Existing Librarian Files Map to Universal Support**:
+**How Existing LiBrainian Files Map to Universal Support**:
 
-| Librarian Structure | File | Role in Universal Support |
+| LiBrainian Structure | File | Role in Universal Support |
 |---------------------|------|--------------------------|
 | **TechniquePrimitive** | `technique_library.ts` | Defines the 14 fundamental primitives |
 | **TechniqueComposition** | `technique_compositions.ts` | Pre-built domain compositions |
@@ -19042,7 +19042,7 @@ const ASPECT_TO_PRIMITIVES: Record<FundamentalAspect, string[]> = {
 3. Handle authentication, rate limits, and errors
 4. Optimize API usage (batching, caching, retries)
 
-**Current State**: Librarian's `api_indexer.ts` indexes APIs the codebase **EXPOSES** (OpenAPI/GraphQL parsing). It does NOT help with APIs the codebase **CONSUMES**.
+**Current State**: LiBrainian's `api_indexer.ts` indexes APIs the codebase **EXPOSES** (OpenAPI/GraphQL parsing). It does NOT help with APIs the codebase **CONSUMES**.
 
 **The 25 Greats' Solution: External API Primitives**
 
@@ -19221,7 +19221,7 @@ const tc_external_api: TechniqueComposition = {
 
 ```typescript
 /**
- * For each external API, Librarian maintains:
+ * For each external API, LiBrainian maintains:
  */
 interface ExternalAPIKnowledge {
   // Identity
@@ -19284,7 +19284,7 @@ interface ExternalAPIKnowledge {
 
 **Total for External API Support: ~1,550 LOC**
 
-**Integration with Existing Librarian**:
+**Integration with Existing LiBrainian**:
 
 The external API primitives integrate with existing structures:
 
@@ -19729,7 +19729,7 @@ const tc_agentic_workflow: TechniqueComposition = {
 
 ---
 
-### L. The Librarian Configuration Language (LCL)
+### L. The LiBrainian Configuration Language (LCL)
 
 > **Turing**: "A configuration language is a restricted Turing machine—powerful enough to express any composition, constrained enough to guarantee termination."
 >
@@ -19769,7 +19769,7 @@ The LCL does NOT create new primitives or operators. It COMPOSES existing ones.
 #### L.3 Configuration Grammar (Grounded in Existing Types)
 
 ```typescript
-// File: packages/librarian/src/api/lcl.ts
+// File: packages/LiBrainian/src/api/lcl.ts
 // This is a THIN LAYER over existing builders—estimated ~200 LOC
 
 import { CompositionBuilder } from './technique_composition_builder.js';
@@ -19865,7 +19865,7 @@ Presets are JSON configurations that reference EXISTING elements:
 }
 ```
 
-**Implementation**: Presets are stored in `state/librarian/presets.json` and loaded by the existing storage layer. No new storage infrastructure needed.
+**Implementation**: Presets are stored in `state/LiBrainian/presets.json` and loaded by the existing storage layer. No new storage infrastructure needed.
 
 ---
 
@@ -19966,15 +19966,15 @@ export const STRUCTURE_TEMPLATES = {
 
 ---
 
-### N. The Epistemic Foundation (Clarifying What Librarian Is)
+### N. The Epistemic Foundation (Clarifying What LiBrainian Is)
 
-> **Pearl**: "Epistemology without causal structure is mere correlation. Librarian must know WHY it believes what it believes."
+> **Pearl**: "Epistemology without causal structure is mere correlation. LiBrainian must know WHY it believes what it believes."
 >
 > **McCarthy/Minsky**: "An epistemologically adequate system must distinguish between what it knows, what it believes, what it assumes, and what it doesn't know."
 
-#### N.1 The Librarian Epistemic Hierarchy (Conceptual, Not New Code)
+#### N.1 The LiBrainian Epistemic Hierarchy (Conceptual, Not New Code)
 
-This is DOCUMENTATION of Librarian's existing epistemic model:
+This is DOCUMENTATION of LiBrainian's existing epistemic model:
 
 ```
 Level 0: IGNORANCE
@@ -20030,7 +20030,7 @@ These map to EXISTING query types in the codebase:
 
 **Dijkstra**: "The competent programmer is fully aware of the strictly limited size of his own skull; therefore he approaches the programming task in full humility."
 
-Librarian MUST:
+LiBrainian MUST:
 1. **Never claim more than it knows**: If confidence < threshold, say "I don't know"
 2. **Track evidence chains**: Every claim traces to source (AST, LLM, inference)
 3. **Calibrate against outcomes**: Predicted confidence vs actual accuracy
@@ -20132,7 +20132,7 @@ interface CalibrationProtocol {
 
 #### N.5 The Quantification Invariant (Fundamental Resolution)
 
-> **ARCHITECTURAL INVARIANT**: This principle MUST be enforced across all Librarian development, past, present, and future.
+> **ARCHITECTURAL INVARIANT**: This principle MUST be enforced across all LiBrainian development, past, present, and future.
 
 **The Quantification Invariant (QI)**:
 
@@ -20141,7 +20141,7 @@ interface CalibrationProtocol {
  * THE QUANTIFICATION INVARIANT
  *
  * No numeric value representing uncertainty, confidence, weight, probability,
- * threshold, or similar epistemic quantity may be introduced into Librarian
+ * threshold, or similar epistemic quantity may be introduced into LiBrainian
  * code or documentation without satisfying ONE of these conditions:
  *
  * 1. DERIVED: The value is mathematically derived from other calibrated values
@@ -20234,7 +20234,7 @@ interface CalibrationDataset {
   examples: CalibrationExample[];
   // When collected
   collectedAt: string;
-  // Version of Librarian used
+  // Version of LiBrainian used
   librarianVersion: string;
 }
 
@@ -20268,7 +20268,7 @@ interface CalibrationReport {
 
 **Bootstrap Calibration Process**:
 
-1. **Collect Ground Truth**: Run Librarian on codebases where we KNOW the correct answers
+1. **Collect Ground Truth**: Run LiBrainian on codebases where we KNOW the correct answers
 2. **Record Claims**: Capture every confidence-bearing claim
 3. **Verify Outcomes**: Human or automated verification of correctness
 4. **Compute Calibration**: stated confidence vs actual accuracy
@@ -20299,8 +20299,8 @@ interface CalibrationReport {
 
 #### O.1 Phase 1: LCL Core (~200 LOC)
 
-**File**: `packages/librarian/src/api/lcl.ts`
-**Status**: Implemented (`10ad66bf`), tests in `packages/librarian/src/api/__tests__/lcl.test.ts` + `packages/librarian/src/api/__tests__/preset_storage.test.ts`.
+**File**: `packages/LiBrainian/src/api/lcl.ts`
+**Status**: Implemented (`10ad66bf`), tests in `packages/LiBrainian/src/api/__tests__/lcl.test.ts` + `packages/LiBrainian/src/api/__tests__/preset_storage.test.ts`.
 
 **What to implement**:
 1. `LCLExpression` interface (type definitions only, ~30 LOC)
@@ -20315,8 +20315,8 @@ interface CalibrationReport {
 
 #### O.2 Phase 2: Structure Templates (~100 LOC)
 
-**File**: `packages/librarian/src/api/structure_templates.ts`
-**Status**: Implemented (`51ff1fe3`), tests in `packages/librarian/src/api/__tests__/structure_templates.test.ts`.
+**File**: `packages/LiBrainian/src/api/structure_templates.ts`
+**Status**: Implemented (`51ff1fe3`), tests in `packages/LiBrainian/src/api/__tests__/structure_templates.test.ts`.
 
 **What to implement**:
 1. `STRUCTURE_TEMPLATES` constant with `pipeline`, `fanout`, `gated`, `iterative`, `quorum` (~80 LOC)
@@ -20328,8 +20328,8 @@ interface CalibrationReport {
 
 #### O.3 Phase 3: Preset Storage (~50 LOC)
 
-**File**: `packages/librarian/src/api/preset_storage.ts`
-**Status**: Implemented (`10ad66bf`), tests in `packages/librarian/src/api/__tests__/preset_storage.test.ts`.
+**File**: `packages/LiBrainian/src/api/preset_storage.ts`
+**Status**: Implemented (`10ad66bf`), tests in `packages/LiBrainian/src/api/__tests__/preset_storage.test.ts`.
 
 **What to implement**:
 1. `loadPresets(): Promise<Record<string, LCLExpression>>` (~20 LOC)
@@ -20342,8 +20342,8 @@ interface CalibrationReport {
 
 #### O.4 Phase 4: Epistemic Policy Config (~80 LOC)
 
-**File**: `packages/librarian/src/api/epistemic_policy.ts`
-**Status**: Implemented (`377f1b0a`), tests in `packages/librarian/src/api/__tests__/epistemic_policy.test.ts`.
+**File**: `packages/LiBrainian/src/api/epistemic_policy.ts`
+**Status**: Implemented (`377f1b0a`), tests in `packages/LiBrainian/src/api/__tests__/epistemic_policy.test.ts`.
 
 **What to implement**:
 1. `EpistemicPolicy` interface (~20 LOC)
@@ -20356,20 +20356,20 @@ interface CalibrationReport {
 
 ---
 
-### P. What The Twenty Greats Understand About Librarian
+### P. What The Twenty Greats Understand About LiBrainian
 
 This section ensures future implementers (human or AI) understand the PHILOSOPHICAL FOUNDATIONS:
 
 #### P.1 Turing's Contribution: Computability Boundaries
 
-Librarian operates in a world of UNDECIDABLE questions. Code behavior is undecidable in general (Rice's theorem). BUT:
+LiBrainian operates in a world of UNDECIDABLE questions. Code behavior is undecidable in general (Rice's theorem). BUT:
 - Many PRACTICAL questions are decidable for SPECIFIC codebases
-- Librarian should CLASSIFY questions by decidability before attempting
+- LiBrainian should CLASSIFY questions by decidability before attempting
 - Configuration: `decidability_classification.json` with known decidable/undecidable patterns
 
 #### P.2 Dijkstra's Contribution: Structured Reasoning
 
-Librarian MUST reason structurally:
+LiBrainian MUST reason structurally:
 - No goto-equivalent jumps in reasoning chains
 - Every conclusion follows from premises
 - Proofs can be checked mechanically
@@ -20377,7 +20377,7 @@ Librarian MUST reason structurally:
 
 #### P.3 Hoare's Contribution: Contracts and Invariants
 
-Every Librarian operation has:
+Every LiBrainian operation has:
 - PRECONDITIONS: What must be true before calling
 - POSTCONDITIONS: What will be true after
 - INVARIANTS: What remains true throughout
@@ -20393,7 +20393,7 @@ Primitives, patterns, and compositions are OBJECTS in Kay's sense:
 
 #### P.5 Pearl's Contribution: Causal Reasoning
 
-Librarian MUST distinguish:
+LiBrainian MUST distinguish:
 - OBSERVATIONAL: "When X is true, Y is usually true"
 - INTERVENTIONAL: "If I SET X to true, Y becomes true"
 - COUNTERFACTUAL: "If X HAD BEEN true, Y would have been true"
@@ -20401,7 +20401,7 @@ Librarian MUST distinguish:
 
 #### P.6 McCarthy/Minsky's Contribution: Knowledge Representation
 
-Librarian has MULTIPLE knowledge types:
+LiBrainian has MULTIPLE knowledge types:
 - DECLARATIVE: Facts about code (exists, depends-on)
 - PROCEDURAL: How to do things (techniques, compositions)
 - EPISODIC: What happened before (learning loop)
@@ -20410,7 +20410,7 @@ Librarian has MULTIPLE knowledge types:
 
 #### P.7 Armstrong's Contribution: Fault Tolerance
 
-Librarian MUST fail gracefully:
+LiBrainian MUST fail gracefully:
 - Let it crash: If LLM unavailable, throw `ProviderUnavailableError` (ALREADY DOES THIS)
 - Supervision: Higher-level components catch and handle errors
 - Isolation: One query failure doesn't corrupt shared state
@@ -20418,7 +20418,7 @@ Librarian MUST fail gracefully:
 
 #### P.8 Shannon's Contribution: Information Theory
 
-Librarian should OPTIMIZE information value:
+LiBrainian should OPTIMIZE information value:
 - Relevance: Context should be high-relevance (MMR scoring)
 - Diversity: Don't repeat same information (diversity term)
 - Efficiency: Minimum bits for maximum understanding (token budgeting)
@@ -20662,25 +20662,25 @@ git status             # What's uncommitted?
 #### Step 1: Commit What's Done
 If `composition_selector.ts` is working:
 ```bash
-git add src/librarian/api/composition_selector.ts
-git add src/librarian/api/plan_compiler.ts
-git commit -m "feat(librarian): add semantic composition selector"
+git add src/LiBrainian/api/composition_selector.ts
+git add src/LiBrainian/api/plan_compiler.ts
+git commit -m "feat(LiBrainian): add semantic composition selector"
 ```
 
 #### Step 2: Implement Part XVI (LLM Provider Discovery)
 **Read**: Part XVI in this document
-**Create**: `src/librarian/api/llm_provider_discovery.ts`
-**Modify**: `src/librarian/api/llm_env.ts`, `src/librarian/api/technique_execution.ts`
+**Create**: `src/LiBrainian/api/llm_provider_discovery.ts`
+**Modify**: `src/LiBrainian/api/llm_env.ts`, `src/LiBrainian/api/technique_execution.ts`
 **Test**: Technique execution works without hardcoded env vars
 
 #### Step 3: Implement Part XV (Operator Execution)
 **Read**: Part XV in this document
-**Modify**: `src/librarian/api/operator_interpreters.ts`
+**Modify**: `src/LiBrainian/api/operator_interpreters.ts`
 **Test**: Operators actually execute, not just compile
 
 #### Step 4: Implement Part XIX.L (LCL Core)
 **Read**: Part XIX.L in this document
-**Create**: `packages/librarian/src/api/lcl.ts`
+**Create**: `packages/LiBrainian/src/api/lcl.ts`
 **Test**: Can compose existing patterns declaratively
 
 ---
@@ -20705,7 +20705,7 @@ After this update, THEORETICAL_CRITIQUE.md is organized as:
 |-------|---------|----------|
 | I-III | Theoretical problems | Researchers, architects |
 | IV-X | Analysis and roadmaps | Planners |
-| XI-XIII | Making Librarian great | Maintainers |
+| XI-XIII | Making LiBrainian great | Maintainers |
 | XIV-XVI | Specific features needed | Implementers |
 | **XVII** | Twenty greats' implementation items | **Codex/AI agents** |
 | **XVIII** | Theoretical breakthroughs | **Codex/AI agents** |
@@ -20714,7 +20714,7 @@ After this update, THEORETICAL_CRITIQUE.md is organized as:
 
 ### The Philosophy in One Sentence
 
-**Librarian is an epistemological infrastructure that produces calibrated understanding through the composition of existing primitives, patterns, and operators—not through infinite new code.**
+**LiBrainian is an epistemological infrastructure that produces calibrated understanding through the composition of existing primitives, patterns, and operators—not through infinite new code.**
 
 ---
 
@@ -20741,11 +20741,11 @@ After this update, THEORETICAL_CRITIQUE.md is organized as:
 - **[EVIDENCE_LEDGER] Events**: doc fetch, doc parse, reference synthesis, freshness check.
 - **[CLAIMS] Outputs**: reference answers must cite doc sources + version/freshness evidence; otherwise mark `unverified_by_trace(doc_stale)`.
 - **Degradation**: if external docs unavailable → use cached/local docs and surface staleness warnings.
-- **Evidence commands**: `cd packages/librarian && npx vitest src/knowledge/__tests__/` (specific tests) + `npm run test:tier0`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/knowledge/__tests__/` (specific tests) + `npm run test:tier0`.
 
-> **"Every programmer, regardless of role, expertise, or domain, has knowledge needs that Librarian must serve."**
+> **"Every programmer, regardless of role, expertise, or domain, has knowledge needs that LiBrainian must serve."**
 
-This part ensures Librarian provides complete coverage for ALL programming knowledge needs—not just code understanding, but the full spectrum of what developers actually do and need.
+This part ensures LiBrainian provides complete coverage for ALL programming knowledge needs—not just code understanding, but the full spectrum of what developers actually do and need.
 
 ### XXI.A. API Documentation & Reference Support
 
@@ -20757,7 +20757,7 @@ This part ensures Librarian provides complete coverage for ALL programming knowl
 - Version compatibility
 - Deprecation notices
 
-Yet Librarian has no dedicated support for API documentation beyond parsing OpenAPI specs.
+Yet LiBrainian has no dedicated support for API documentation beyond parsing OpenAPI specs.
 
 **The Solution**: Comprehensive API Reference Primitives
 
@@ -21071,7 +21071,7 @@ interface BreakingChange {
 
 ### XXI.B. Role-Based Knowledge Needs
 
-Different developer roles have fundamentally different knowledge needs. Librarian must recognize and serve each role appropriately.
+Different developer roles have fundamentally different knowledge needs. LiBrainian must recognize and serve each role appropriately.
 
 #### XXI.B.1. Role-Based Primitives
 
@@ -21971,7 +21971,7 @@ Add to the master priority list:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    LIBRARIAN KNOWLEDGE SOURCES                       │
+│                    LiBrainian KNOWLEDGE SOURCES                       │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐     │
@@ -23103,7 +23103,7 @@ const tp_api_freshness_check: TechniquePrimitive = {
 ```
 
 **Reality check**: A `TechniquePrimitive` is a TypeScript interface definition. It has no code. It cannot be executed. It's documentation in code form.
-**Reality check (more precise)**: A `TechniquePrimitive` is a *data record* describing intent + contracts; execution happens only via separate executors/handlers (see `PrimitiveExecutionHandler` in `src/librarian/api/technique_execution.ts`). If a primitive has no handler, it is not runnable.
+**Reality check (more precise)**: A `TechniquePrimitive` is a *data record* describing intent + contracts; execution happens only via separate executors/handlers (see `PrimitiveExecutionHandler` in `src/LiBrainian/api/technique_execution.ts`). If a primitive has no handler, it is not runnable.
 
 #### What's Missing for This to Actually Work
 
@@ -23160,7 +23160,7 @@ But there's no **interpreter** that:
 4. Handles errors and retries
 5. Records observations for learning
 
-**Reality check**: An interpreter layer exists (`src/librarian/api/technique_execution.ts` + `src/librarian/api/operator_registry.ts` + `src/librarian/api/operator_interpreters.ts`), but it is not yet verified end-to-end (build/typecheck/test gates are not green), and many primitives described in this document still lack concrete executors + evidence-ledger instrumentation.
+**Reality check**: An interpreter layer exists (`src/LiBrainian/api/technique_execution.ts` + `src/LiBrainian/api/operator_registry.ts` + `src/LiBrainian/api/operator_interpreters.ts`), but it is not yet verified end-to-end (build/typecheck/test gates are not green), and many primitives described in this document still lack concrete executors + evidence-ledger instrumentation.
 
 #### The Learning System Reality Check
 

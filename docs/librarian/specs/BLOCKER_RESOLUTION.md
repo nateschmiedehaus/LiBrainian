@@ -293,7 +293,7 @@ await new Promise(r => setTimeout(r, delay));
 
 ### Spec file not found
 **Resolution**:
-1. Check `docs/librarian/specs/` for similar files
+1. Check `docs/LiBrainian/specs/` for similar files
 2. If truly missing, the spec may be in a different location
 3. Search: `find docs -name "*.md" | xargs grep "keyword"`
 
@@ -391,7 +391,7 @@ When you solve a new blocker, add it to this file:
 
 Then commit:
 ```bash
-git add docs/librarian/specs/BLOCKER_RESOLUTION.md
+git add docs/LiBrainian/specs/BLOCKER_RESOLUTION.md
 git commit -m "docs(specs): add resolution for [blocker type]"
 ```
 
@@ -406,7 +406,7 @@ git commit -m "docs(specs): add resolution for [blocker type]"
 3. Test execution for behavioral verification
 4. Consistency checking across query variants
 
-See: `docs/librarian/specs/track-eval-machine-verifiable.md`
+See: `docs/LiBrainian/specs/track-eval-machine-verifiable.md`
 
 ### "All eval repos are synthetic / created by model"
 **Resolution**: This is INVALID evaluation. Clone real external repos:

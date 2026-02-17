@@ -1,10 +1,10 @@
 # Track I: Multi-Repository Analysis
 
-> **Addresses**: UC20 from `docs/librarian/THEORETICAL_CRITIQUE.md` - Multi-Repository Analysis
+> **Addresses**: UC20 from `docs/LiBrainian/THEORETICAL_CRITIQUE.md` - Multi-Repository Analysis
 > **Scenario**: "Analyze dependencies and patterns across our 50 microservices"
 > **Current Maturity (subjective, not measured)**: very low (no multi-repo support, no cross-repo dependency analysis, no pattern consistency checking, no global view)
 >
-> **Librarian Story**: Chapter 9 (The Federation) - Making Librarian work across repository boundaries.
+> **LiBrainian Story**: Chapter 9 (The Federation) - Making LiBrainian work across repository boundaries.
 >
 > **Related Specifications**:
 > - [track-c-hierarchical-knowledge.md](./track-c-hierarchical-knowledge.md) - Hierarchy that can span repos
@@ -2028,8 +2028,8 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/multi_repo_index.ts (types)
-// - src/librarian/storage/federation_storage.ts (persistence)
+// - src/LiBrainian/api/multi_repo_index.ts (types)
+// - src/LiBrainian/storage/federation_storage.ts (persistence)
 
 // Deliverables:
 // - All type definitions from this spec
@@ -2044,7 +2044,7 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/cross_repo_entity_resolution.ts
+// - src/LiBrainian/api/cross_repo_entity_resolution.ts
 
 // Deliverables:
 // - CrossRepoEntityResolution implementation
@@ -2059,7 +2059,7 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/global_dependency_graph.ts
+// - src/LiBrainian/api/global_dependency_graph.ts
 
 // Deliverables:
 // - GlobalDependencyGraph construction
@@ -2074,7 +2074,7 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/cross_repo_primitives.ts
+// - src/LiBrainian/api/cross_repo_primitives.ts
 
 // Deliverables:
 // - tp_cross_repo_search implementation
@@ -2091,7 +2091,7 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/cross_repo_compositions.ts
+// - src/LiBrainian/api/cross_repo_compositions.ts
 
 // Deliverables:
 // - tc_cross_repo_change_verify implementation
@@ -2106,7 +2106,7 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/federation_layer.ts
+// - src/LiBrainian/api/federation_layer.ts
 
 // Deliverables:
 // - FederationQueryRouter implementation
@@ -2121,7 +2121,7 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/global_views.ts
+// - src/LiBrainian/api/global_views.ts
 
 // Deliverables:
 // - GlobalArchitectureDiagramGenerator implementation
@@ -2136,8 +2136,8 @@ interface EvidenceChainLink {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/__tests__/multi_repo.test.ts
-// - src/librarian/api/__tests__/cross_repo_primitives.test.ts
+// - src/LiBrainian/api/__tests__/multi_repo.test.ts
+// - src/LiBrainian/api/__tests__/cross_repo_primitives.test.ts
 
 // Deliverables:
 // - Track C hierarchical knowledge integration
@@ -2212,20 +2212,20 @@ interface EvidenceChainLink {
 
 ```bash
 # Run multi-repo tests
-cd packages/librarian && npx vitest run src/api/__tests__/multi_repo.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/multi_repo.test.ts
 
 # Run cross-repo primitive tests
-cd packages/librarian && npx vitest run src/api/__tests__/cross_repo_primitives.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/cross_repo_primitives.test.ts
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('MultiRepo') || k.includes('CrossRepo'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('MultiRepo') || k.includes('CrossRepo'))))"
 
 # Build federation for multiple repos (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts build-federation /path/to/repo1 /path/to/repo2 ...
+cd packages/LiBrainian && npx tsx src/cli/index.ts build-federation /path/to/repo1 /path/to/repo2 ...
 
 # Check implementation status
-ls -la packages/librarian/src/api/multi_repo_index.ts
-ls -la packages/librarian/src/api/cross_repo_primitives.ts
+ls -la packages/LiBrainian/src/api/multi_repo_index.ts
+ls -la packages/LiBrainian/src/api/cross_repo_primitives.ts
 ```
 
 ---

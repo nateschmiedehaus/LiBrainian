@@ -9,7 +9,7 @@
 
 **Verdict: SPEC-FIRST, EXTRACT LATER**
 
-The Librarian spec system has substantial implemented primitives (not just aspirational specs), but extraction NOW would be premature. The patterns are mature enough to document as a standalone conceptual framework, but the implementations need more real-world validation before being extracted as a reusable library.
+The LiBrainian spec system has substantial implemented primitives (not just aspirational specs), but extraction NOW would be premature. The patterns are mature enough to document as a standalone conceptual framework, but the implementations need more real-world validation before being extracted as a reusable library.
 
 ---
 
@@ -92,7 +92,7 @@ The Librarian spec system has substantial implemented primitives (not just aspir
 |--------|------|------|----------------|
 | **Extract Now** | Early feedback, forces clean boundaries | Premature, API churn risk, maintenance burden | NO |
 | **Spec-First** | Document patterns, validate in-place, iterate | Slower to market, but lower risk | YES |
-| **No Extract** | Focus on Librarian only | Miss opportunity for broader impact | NO |
+| **No Extract** | Focus on LiBrainian only | Miss opportunity for broader impact | NO |
 
 ---
 
@@ -108,7 +108,7 @@ Create a conceptual document (not a library) describing:
 
 This can be published as a paper/blog without code extraction.
 
-### Phase 2: Validate in Librarian (Next 2-4 weeks)
+### Phase 2: Validate in LiBrainian (Next 2-4 weeks)
 
 - Complete construction template wiring
 - Build calibration curve computation
@@ -151,9 +151,9 @@ Estimated: ~2,000 LOC extractable today, but limited utility without the full sy
 ## Risks
 
 1. **Premature Abstraction** - Extracting before patterns stabilize
-2. **API Churn** - Breaking changes as Librarian evolves
+2. **API Churn** - Breaking changes as LiBrainian evolves
 3. **Maintenance Burden** - Two packages to maintain
-4. **Lost Context** - Patterns lose meaning outside Librarian
+4. **Lost Context** - Patterns lose meaning outside LiBrainian
 
 ---
 
@@ -168,9 +168,9 @@ Estimated: ~2,000 LOC extractable today, but limited utility without the full sy
 
 ## References
 
-- `docs/librarian/specs/core/primitive-contracts.md`
-- `docs/librarian/specs/core/evidence-ledger.md`
-- `docs/librarian/specs/self-improvement-primitives.md`
-- `docs/librarian/specs/core/construction-templates.md`
-- `docs/librarian/specs/IMPLEMENTATION_STATUS.md`
+- `docs/LiBrainian/specs/core/primitive-contracts.md`
+- `docs/LiBrainian/specs/core/evidence-ledger.md`
+- `docs/LiBrainian/specs/self-improvement-primitives.md`
+- `docs/LiBrainian/specs/core/construction-templates.md`
+- `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md`
 - `src/epistemics/*.ts` (implementations)

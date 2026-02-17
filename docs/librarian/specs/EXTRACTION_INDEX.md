@@ -3,7 +3,7 @@
 > **Status**: DRAFT
 > **Created**: 2026-01-25
 >
-> **Purpose**: Provide a canonical, reviewable inventory of what is extracted from `docs/librarian/THEORETICAL_CRITIQUE.md` into `docs/librarian/specs/**`, what is still missing, and what is intentionally deferred.
+> **Purpose**: Provide a canonical, reviewable inventory of what is extracted from `docs/LiBrainian/THEORETICAL_CRITIQUE.md` into `docs/LiBrainian/specs/**`, what is still missing, and what is intentionally deferred.
 >
 > **Non-theater rule**: This index MUST NOT claim numeric “coverage %” unless backed by a reproducible script + committed artifact output.
 
@@ -27,10 +27,10 @@
    - the theory region it implements
    - whether it is extracted vs new synthesis
    - the verification command(s) (tests/gates) that make it executable
-   - the behavioral contract entry in `docs/librarian/specs/BEHAVIOR_INDEX.md` (required)
+   - the behavioral contract entry in `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` (required)
 2. Any “extracted” claim MUST have:
    - a stable pointer to theory anchors (chapter/part + topic)
    - at least one executable evidence hook where applicable (Tier‑0 test, gate, or audit artifact)
 3. Behavioral completeness is enforced mechanically:
-   - `docs/librarian/specs/BEHAVIOR_INDEX.md` must index every spec file (see `src/librarian/__tests__/librarian_spec_behavior_index.test.ts`)
-   - use the shared scenarios/load/outage vocabulary in `docs/librarian/specs/core/operational-profiles.md`
+   - `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` must index every spec file (see `src/LiBrainian/__tests__/librarian_spec_behavior_index.test.ts`)
+   - use the shared scenarios/load/outage vocabulary in `docs/LiBrainian/specs/core/operational-profiles.md`

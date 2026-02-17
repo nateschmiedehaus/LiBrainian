@@ -6,7 +6,7 @@
 **Analyst**: Adversarial Probe (tasked with DISPROVING universal constructability)
 **Input Files**:
 - `src/epistemics/universal_coherence.ts`
-- `docs/librarian/specs/research/universal-epistemic-primitives.md`
+- `docs/LiBrainian/specs/research/universal-epistemic-primitives.md`
 
 ---
 

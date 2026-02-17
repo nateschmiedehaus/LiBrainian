@@ -10,14 +10,14 @@
 
 ## Executive Summary
 
-This research investigates how Librarian can serve different perspectives on the same indexed codebase. The core insight is that **the same code entity has different relevance depending on who is asking and why**. A single function might be:
+This research investigates how LiBrainian can serve different perspectives on the same indexed codebase. The core insight is that **the same code entity has different relevance depending on who is asking and why**. A single function might be:
 - A bug hotspot (for debugging agents)
 - A security boundary (for security reviewers)
 - A performance bottleneck (for optimization work)
 - An API surface (for architects)
 - A test target (for quality assurance)
 
-The research concludes that perspectives should be implemented as **query-time filters with lightweight index-time annotations**, leveraging Librarian's existing T-pattern categories and query classification infrastructure.
+The research concludes that perspectives should be implemented as **query-time filters with lightweight index-time annotations**, leveraging LiBrainian's existing T-pattern categories and query classification infrastructure.
 
 ---
 
@@ -54,7 +54,7 @@ Facets:
 
 From [IEEE Software](https://arxiv.org/pdf/2006.04975) and [Kruchten's original paper](https://www.cs.ubc.ca/~gregor/teaching/papers/4+1view-architecture.pdf):
 
-| View | Stakeholder | Concerns | Librarian Equivalent |
+| View | Stakeholder | Concerns | LiBrainian Equivalent |
 |------|-------------|----------|---------------------|
 | **Logical** | End users, analysts | Functionality, features | Module purpose, API surface |
 | **Process** | System engineers | Concurrency, performance | Async patterns, data flow |
@@ -75,7 +75,7 @@ From [c4model.com](https://c4model.com/) and [Wikipedia](https://en.wikipedia.or
 | **Component** | Modules, services | Developers |
 | **Code** | Classes, functions | Developers |
 
-**Key insight**: Different zoom levels serve different audiences - Librarian already has `L0-L3` depth levels that map to this.
+**Key insight**: Different zoom levels serve different audiences - LiBrainian already has `L0-L3` depth levels that map to this.
 
 #### ISO/IEC/IEEE 42010
 
@@ -94,14 +94,14 @@ From research on [adaptive personalized retrieval](https://arxiv.org/html/2508.0
 2. **Adaptive approach**: First classify query's personalization needs, then apply appropriate bias
 3. **Multi-signal ranking**: Combine semantic similarity with context signals (user role, task type, history)
 
-**Application to Librarian:**
+**Application to LiBrainian:**
 - Query classification already exists (`classifyQueryIntent` in `src/api/query.ts`)
 - Task type is already a query parameter
 - Extension: Add `perspective` as a first-class query parameter
 
-### 1.4 Existing Librarian Infrastructure
+### 1.4 Existing LiBrainian Infrastructure
 
-Librarian already has significant infrastructure that supports perspective-aware retrieval:
+LiBrainian already has significant infrastructure that supports perspective-aware retrieval:
 
 **T-Pattern Categories** (from `src/knowledge/t_patterns.ts`):
 ```typescript
@@ -152,7 +152,7 @@ type AnalysisTaskType =
 
 ### 2.1 Proposed Perspective Taxonomy (7 Perspectives)
 
-Based on research findings and Librarian's existing categories:
+Based on research findings and LiBrainian's existing categories:
 
 | Perspective | Primary User | Key Questions | Priority Signals |
 |-------------|--------------|---------------|------------------|
@@ -207,7 +207,7 @@ UNDERSTANDING PERSPECTIVE
 
 ---
 
-## Part 3: Mapping to Existing Librarian Entities
+## Part 3: Mapping to Existing LiBrainian Entities
 
 ### 3.1 Entity Type Relevance by Perspective
 
@@ -221,7 +221,7 @@ UNDERSTANDING PERSPECTIVE
 
 ### 3.2 Existing Pattern/Extractor Mapping
 
-| Librarian Component | Primary Perspectives |
+| LiBrainian Component | Primary Perspectives |
 |---------------------|---------------------|
 | `SecurityExtractor` (CWE patterns) | security |
 | `T-19 to T-24` (Bug Investigation) | debugging |
@@ -301,21 +301,21 @@ const TASK_TYPE_TO_PERSPECTIVE: Record<string, Perspective> = {
 
 ```typescript
 // Explicit security perspective
-await librarian.query({
+await LiBrainian.query({
   intent: 'authentication flow',
   perspective: 'security',
   depth: 'L2',
 });
 
 // Inferred from taskType
-await librarian.query({
+await LiBrainian.query({
   intent: 'find memory leaks',
   taskType: 'performance_audit',  // implies performance perspective
   depth: 'L2',
 });
 
 // Multi-perspective (advanced)
-await librarian.query({
+await LiBrainian.query({
   intent: 'review payment processing',
   perspectives: ['security', 'architecture'],  // combined view
   depth: 'L3',
@@ -326,13 +326,13 @@ await librarian.query({
 
 ```bash
 # Explicit perspective
-librarian query "auth flow" --perspective=security
+LiBrainian query "auth flow" --perspective=security
 
 # Combined perspectives
-librarian query "payment module" --perspectives=security,architecture
+LiBrainian query "payment module" --perspectives=security,architecture
 
 # Perspective with task type
-librarian query "debug login failure" --task-type=debugging
+LiBrainian query "debug login failure" --task-type=debugging
 ```
 
 ---
@@ -584,7 +584,7 @@ interface LibrarianQuery {
 
 ---
 
-## Appendix: Librarian Code References
+## Appendix: LiBrainian Code References
 
 Key files for implementation:
 

@@ -1,9 +1,9 @@
 # Track G: Debugging Assistant with Executable Support
 
-> **Source**: Extracted from `docs/librarian/specs/use-case-targets.md` (UC4)
-> **Guarantee**: Librarian will support active, executable debugging workflows - not just passive code reading
+> **Source**: Extracted from `docs/LiBrainian/specs/use-case-targets.md` (UC4)
+> **Guarantee**: LiBrainian will support active, executable debugging workflows - not just passive code reading
 >
-> **Librarian Story**: Chapter 7 (The Diagnostician) - From symptom to root cause through systematic hypothesis testing.
+> **LiBrainian Story**: Chapter 7 (The Diagnostician) - From symptom to root cause through systematic hypothesis testing.
 >
 > **Theory Reference**: All confidence values MUST use `ConfidenceValue` from Track D. See [GLOSSARY.md](./GLOSSARY.md) and [CONFIDENCE_REDESIGN.md](./CONFIDENCE_REDESIGN.md).
 >
@@ -59,7 +59,7 @@ Current debugging assistance is largely **passive**:
 
 ```typescript
 // Current approach: read code, suggest fixes
-const suggestions = await librarian.analyzeBug({
+const suggestions = await LiBrainian.analyzeBug({
   error: "TypeError: Cannot read property 'user' of undefined",
   stackTrace: stackTrace
 });
@@ -1544,7 +1544,7 @@ const tc_performance_debug: TechniqueComposition = {
 
 ```typescript
 /**
- * Integration with Librarian's evidence ledger.
+ * Integration with LiBrainian's evidence ledger.
  *
  * All debugging evidence is recorded in the ledger for:
  * 1. Future reference (similar bugs)
@@ -1602,7 +1602,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/types.ts
+// - src/LiBrainian/api/debugging/types.ts
 
 // Deliverables:
 // - DebuggingSession, Hypothesis, HypothesisTest types
@@ -1617,7 +1617,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/session.ts
+// - src/LiBrainian/api/debugging/session.ts
 
 // Deliverables:
 // - createDebuggingSession()
@@ -1633,7 +1633,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/bisect.ts
+// - src/LiBrainian/api/debugging/bisect.ts
 
 // Deliverables:
 // - executeBisect() - automated bisect
@@ -1648,7 +1648,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/instrumentation.ts
+// - src/LiBrainian/api/debugging/instrumentation.ts
 
 // Deliverables:
 // - instrumentFile() - apply instrumentation
@@ -1663,7 +1663,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/trace.ts
+// - src/LiBrainian/api/debugging/trace.ts
 
 // Deliverables:
 // - traceExecution() - capture execution trace
@@ -1678,7 +1678,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/hypothesis.ts
+// - src/LiBrainian/api/debugging/hypothesis.ts
 
 // Deliverables:
 // - generateHypotheses() - from symptom + context
@@ -1693,8 +1693,8 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/primitives.ts
-// - src/librarian/api/debugging/compositions.ts
+// - src/LiBrainian/api/debugging/primitives.ts
+// - src/LiBrainian/api/debugging/compositions.ts
 
 // Deliverables:
 // - 6 debugging primitives registered
@@ -1708,7 +1708,7 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/integration.ts
+// - src/LiBrainian/api/debugging/integration.ts
 
 // Deliverables:
 // - Track C integration (causal hypotheses)
@@ -1722,10 +1722,10 @@ interface DebuggingOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/debugging/__tests__/session.test.ts
-// - src/librarian/api/debugging/__tests__/bisect.test.ts
-// - src/librarian/api/debugging/__tests__/instrumentation.test.ts
-// - src/librarian/api/debugging/__tests__/hypothesis.test.ts
+// - src/LiBrainian/api/debugging/__tests__/session.test.ts
+// - src/LiBrainian/api/debugging/__tests__/bisect.test.ts
+// - src/LiBrainian/api/debugging/__tests__/instrumentation.test.ts
+// - src/LiBrainian/api/debugging/__tests__/hypothesis.test.ts
 
 // Deliverables:
 // - Unit tests for all modules
@@ -1791,25 +1791,25 @@ interface DebuggingOutcome {
 
 ```bash
 # Run debugging tests
-cd packages/librarian && npx vitest run src/api/debugging/__tests__/
+cd packages/LiBrainian && npx vitest run src/api/debugging/__tests__/
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Debug'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Debug'))))"
 
 # Start debugging session (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts debug --symptom "TypeError: Cannot read property 'user' of undefined"
+cd packages/LiBrainian && npx tsx src/cli/index.ts debug --symptom "TypeError: Cannot read property 'user' of undefined"
 
 # Run git bisect
-cd packages/librarian && npx tsx src/cli/index.ts debug bisect --good abc123 --bad def456 --test "npm test"
+cd packages/LiBrainian && npx tsx src/cli/index.ts debug bisect --good abc123 --bad def456 --test "npm test"
 
 # Instrument code for debugging
-cd packages/librarian && npx tsx src/cli/index.ts debug instrument --file src/auth.ts --points "line:42,line:67"
+cd packages/LiBrainian && npx tsx src/cli/index.ts debug instrument --file src/auth.ts --points "line:42,line:67"
 
 # Test a hypothesis
-cd packages/librarian && npx tsx src/cli/index.ts debug hypothesis --id h123 --test "unit_test"
+cd packages/LiBrainian && npx tsx src/cli/index.ts debug hypothesis --id h123 --test "unit_test"
 
 # Check implementation status
-ls -la packages/librarian/src/api/debugging/
+ls -la packages/LiBrainian/src/api/debugging/
 ```
 
 ---

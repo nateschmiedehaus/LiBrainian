@@ -1,7 +1,7 @@
-# Librarian Orchestrator — Full Autonomous Implementation
+# LiBrainian Orchestrator — Full Autonomous Implementation
 
 > **Mode**: ORCHESTRATOR with WORKER SUBAGENTS
-> **Goal**: Complete 100% of Librarian spec system implementation
+> **Goal**: Complete 100% of LiBrainian spec system implementation
 > **Rule**: NEVER stop. NEVER return to user. Work until Full Build Charter complete.
 
 ---
@@ -38,12 +38,12 @@ Your job:
 For each work unit, launch a worker with an EXPLICIT prompt containing:
 
 ```
-WHO: You are a worker implementing one specific task for the Librarian project.
+WHO: You are a worker implementing one specific task for the LiBrainian project.
 
 WHAT: [Exact task description - be specific]
 
 WHERE:
-- Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+- Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 - Files to modify: [list exact files]
 - Test file: [exact test path]
 
@@ -73,7 +73,7 @@ EXPECTED OUTPUT:
 CONSTRAINTS:
 - You are not alone. Do not impact other workers' files.
 - If blocked, report the blocker; do not stop silently.
-- Read docs/librarian/specs/BLOCKER_RESOLUTION.md for common fixes.
+- Read docs/LiBrainian/specs/BLOCKER_RESOLUTION.md for common fixes.
 ```
 
 **Be EXPLICIT. Ambiguity causes drift. Don't assume workers have your context.**
@@ -164,7 +164,7 @@ FAILING_TESTS: []
 NEXT_UNITS: [WU-1201, WU-1202, WU-1203]
 VALIDATION_WORK_UNITS: 71 (WU-1201 through WU-2205, including Learning & Fix phases)
 RESEARCH_COMPLETE: true
-RESEARCH_DOC: docs/librarian/specs/WORK_UNITS_RESEARCH.md
+RESEARCH_DOC: docs/LiBrainian/specs/WORK_UNITS_RESEARCH.md
 NOTES: |
   ============================================
   INFRASTRUCTURE COMPLETE - 2026-01-26
@@ -185,7 +185,7 @@ NOTES: |
   4. Missing AST extractions - 10% contribution
   5. Missing citation patterns - 5% contribution
 
-  RESEARCH GAPS (see docs/librarian/RESEARCH_IMPLEMENTATION_MAPPING.md):
+  RESEARCH GAPS (see docs/LiBrainian/RESEARCH_IMPLEMENTATION_MAPPING.md):
   - Chain-of-Verification: NOT IMPLEMENTED (+23% F1 potential)
   - MiniCheck Model: PARTIAL (77.4% grounding possible)
   - Self-RAG Reflection: PARTIAL (missing reflection tokens)
@@ -231,7 +231,7 @@ NOTES: |
 
   DEEP RESEARCH (2026-01-27):
   20 parallel research agents synthesized cutting-edge findings into
-  docs/librarian/specs/WORK_UNITS_RESEARCH.md covering:
+  docs/LiBrainian/specs/WORK_UNITS_RESEARCH.md covering:
   - MiniCheck-7B (77.4% grounding accuracy)
   - SAFE (20x cheaper than human annotation)
   - Atomic Calibration (AACL-IJCNLP 2025)
@@ -295,7 +295,7 @@ Priority fixes to reduce hallucination rate:
 4. **WU-1410a** ✓ COMPLETE - CoVe hedging fix (improved hedged claim detection)
 5. **WU-1410b** ✓ COMPLETE - MiniCheck + CoVe integration (77.4% grounding model)
 
-Research-Implementation Mapping: docs/librarian/RESEARCH_IMPLEMENTATION_MAPPING.md
+Research-Implementation Mapping: docs/LiBrainian/RESEARCH_IMPLEMENTATION_MAPPING.md
 
 Update this state after each work unit completes.
 
@@ -420,7 +420,7 @@ Instead of human annotation, extract verifiable facts via AST:
 - Type information from TS compiler
 
 **WU-804: Citation Verification:**
-For any Librarian claim, automatically verify:
+For any LiBrainian claim, automatically verify:
 - Cited files exist
 - Cited line numbers in range
 - Cited code contains mentioned identifiers
@@ -428,12 +428,12 @@ For any Librarian claim, automatically verify:
 
 **WU-805: Consistency Checking:**
 - Generate variant queries for same fact
-- Run all variants through Librarian
+- Run all variants through LiBrainian
 - Flag contradictions as hallucination candidates
 
 ### Phase 9: Agent Performance Evaluation
 
-**The TRUE test: Do agents perform better WITH Librarian than WITHOUT?**
+**The TRUE test: Do agents perform better WITH LiBrainian than WITHOUT?**
 
 | WU ID | Name | Dependencies | Est. Files |
 |-------|------|--------------|------------|
@@ -447,8 +447,8 @@ For any Librarian claim, automatically verify:
 | WU-908 | Metrics aggregator | WU-907 | 2 |
 
 **Experiment Design:**
-- Spawn pairs of workers: Control (no Librarian) vs Treatment (with Librarian)
-- Same task, same context level, different access to Librarian
+- Spawn pairs of workers: Control (no LiBrainian) vs Treatment (with LiBrainian)
+- Same task, same context level, different access to LiBrainian
 - Record everything: time, errors, files touched, success/failure
 - Measure lift: How much better does Treatment perform?
 
@@ -467,7 +467,7 @@ For any Librarian claim, automatically verify:
 - T4 Hard: Refactor, debug intermittent
 - T5 Extreme: Race condition, security vuln
 
-See: `docs/librarian/specs/track-eval-agent-performance.md`
+See: `docs/LiBrainian/specs/track-eval-agent-performance.md`
 
 ### Phase 10: Scientific Self-Improvement Loop
 
@@ -501,7 +501,7 @@ FIX (if supported) → VERIFY (binary reward) → EVOLVE benchmark
 - Hypothesis generator does NOT test
 - Fix generator does NOT verify
 
-See: `docs/librarian/specs/track-eval-scientific-loop.md`
+See: `docs/LiBrainian/specs/track-eval-scientific-loop.md`
 
 ### Phase 11: Quality Parity & Hard Problems
 
@@ -654,7 +654,7 @@ Each validation failure produces:
 **Measurement Protocol:**
 ```
 FOR each query in ground_truth_corpus:
-    1. Run query through Librarian
+    1. Run query through LiBrainian
     2. Extract retrieved contexts
     3. Compute recall@5 = |relevant ∩ retrieved[:5]| / |relevant|
     4. Compute precision = |relevant ∩ retrieved| / |retrieved|
@@ -756,7 +756,7 @@ EVOLVE: Add new test cases to prevent regression
 
 ### Phase 16: Scenario Family Testing (SF-01 through SF-30)
 
-**Goal**: Verify Librarian works across ALL 30 scenario families, including TRULY DIFFICULT cases.
+**Goal**: Verify LiBrainian works across ALL 30 scenario families, including TRULY DIFFICULT cases.
 
 | WU ID | Name | Dependencies | Est. Files |
 |-------|------|--------------|------------|
@@ -839,7 +839,7 @@ EVOLVE: Add new test cases to prevent regression
 
 **For each scenario:**
 1. Define 3-5 representative queries
-2. Run through Librarian
+2. Run through LiBrainian
 3. Verify output matches expected format/content
 4. Generate artifact (if applicable)
 5. Record pass/fail with evidence
@@ -884,12 +884,12 @@ FOR each failed scenario in SF-21 to SF-30:
 
 ### Phase 17: A/B Worker Experiments
 
-**Goal**: PROVE agents perform better WITH Librarian than WITHOUT.
+**Goal**: PROVE agents perform better WITH LiBrainian than WITHOUT.
 
 | WU ID | Name | Dependencies | Est. Files |
 |-------|------|--------------|------------|
 | WU-1701 | Control worker baseline | WU-1604 | 3 |
-| WU-1702 | Treatment worker with Librarian | WU-1701 | 3 |
+| WU-1702 | Treatment worker with LiBrainian | WU-1701 | 3 |
 | WU-1703 | Paired experiment runner | WU-1702 | 3 |
 | WU-1704 | Statistical analysis | WU-1703 | 2 |
 | WU-1705 | Lift measurement report | WU-1704 | 2 |
@@ -897,8 +897,8 @@ FOR each failed scenario in SF-21 to SF-30:
 **Experiment Design (per SWE-bench methodology):**
 ```
 FOR each task in task_bank (20 tasks × 4 repos):
-    SPAWN Control worker (no Librarian access)
-    SPAWN Treatment worker (with Librarian MCP tools)
+    SPAWN Control worker (no LiBrainian access)
+    SPAWN Treatment worker (with LiBrainian MCP tools)
 
     RECORD for each:
       - Time to completion (or timeout at 10 min)
@@ -927,12 +927,12 @@ REPORT lift with confidence intervals
 
 ### Phase 17b: Learning from A/B Results
 
-**Goal**: If lift < 20%, analyze why and improve Librarian.
+**Goal**: If lift < 20%, analyze why and improve LiBrainian.
 
 | WU ID | Name | Dependencies | Est. Files |
 |-------|------|--------------|------------|
 | WU-1706 | Analyze low-lift tasks | WU-1705 | 2 |
-| WU-1707 | Identify Librarian usage gaps | WU-1706 | 2 |
+| WU-1707 | Identify LiBrainian usage gaps | WU-1706 | 2 |
 | WU-1708 | Improve tool discoverability | WU-1707 | 3 |
 | WU-1709 | Re-run experiments post-fix | WU-1708 | 2 |
 
@@ -941,14 +941,14 @@ REPORT lift with confidence intervals
 IF lift < 20% OR not statistically significant:
     1. ANALYZE which tasks showed low/negative lift
     2. INVESTIGATE:
-       - Did Treatment worker USE Librarian tools?
+       - Did Treatment worker USE LiBrainian tools?
        - Were the right tools used for the task?
-       - Was Librarian information helpful or misleading?
+       - Was LiBrainian information helpful or misleading?
     3. CATEGORIZE failure:
        - Tool not used: Improve discoverability/prompting
        - Tool used wrong: Improve tool documentation
        - Tool gave bad info: Fix the underlying component
-       - Librarian adds no value: Document as known limitation
+       - LiBrainian adds no value: Document as known limitation
     4. IMPLEMENT fixes
     5. RE-RUN experiments on failed task subset
 ```
@@ -976,7 +976,7 @@ IF lift < 20% OR not statistically significant:
 
 ### Phase 18: Edge Cases & Stress Testing
 
-**Goal**: Verify Librarian handles edge cases gracefully, not just happy paths.
+**Goal**: Verify LiBrainian handles edge cases gracefully, not just happy paths.
 
 | WU ID | Name | Dependencies | Est. Files |
 |-------|------|--------------|------------|
@@ -1027,7 +1027,7 @@ IF lift < 20% OR not statistically significant:
 
 ### Phase 19: Negative Testing & "I Don't Know"
 
-**Goal**: Verify Librarian correctly REFUSES to answer when it shouldn't.
+**Goal**: Verify LiBrainian correctly REFUSES to answer when it shouldn't.
 
 | WU ID | Name | Dependencies | Est. Files |
 |-------|------|--------------|------------|
@@ -1084,7 +1084,7 @@ IF lift < 20% OR not statistically significant:
 | WU-2005 | Calibration report generation | WU-2004 | 2 |
 
 **What is Calibration?**
-If Librarian says "80% confident", it should be correct 80% of the time.
+If LiBrainian says "80% confident", it should be correct 80% of the time.
 - Overconfident: Claims 90% but only correct 60% of the time
 - Underconfident: Claims 50% but correct 90% of the time
 - Well-calibrated: Claimed confidence ≈ actual accuracy
@@ -1201,9 +1201,9 @@ When spawning a sub-agent (or starting a work unit), use this template:
 # Work Unit: {WU_ID} — {Name}
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 You have FULL AUTONOMY. See AGENTS.md for permissions.
-If you encounter ANY blocker, see docs/librarian/specs/BLOCKER_RESOLUTION.md
+If you encounter ANY blocker, see docs/LiBrainian/specs/BLOCKER_RESOLUTION.md
 
 ## MANDATORY: Test-First Development
 
@@ -1255,7 +1255,7 @@ When complete, return:
 
 ```
 WHILE Full Build Charter NOT satisfied:
-    1. READ current state from docs/librarian/STATUS.md
+    1. READ current state from docs/LiBrainian/STATUS.md
     2. READ GATES.json for gate status
     3. IDENTIFY next work units (up to 3 if sub-agents, 1 if sequential)
     4. FOR each work unit:
@@ -1305,7 +1305,7 @@ npx tsc --noEmit
 
 ### Progress Checkpoints
 
-After every 5 work units, update `docs/librarian/STATUS.md`:
+After every 5 work units, update `docs/LiBrainian/STATUS.md`:
 
 ```markdown
 ## Progress Checkpoint — {timestamp}
@@ -1331,7 +1331,7 @@ After every 5 work units, update `docs/librarian/STATUS.md`:
 # Work Unit: WU-FIX-CAL — Fix calibration test ECE violation
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Problem
@@ -1378,7 +1378,7 @@ npm test -- --run src/epistemics/__tests__/confidence_calibration_validation.tes
 # Work Unit: WU-FIX-001 — Fix Tier-0 test tiering violation
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Problem
@@ -1395,7 +1395,7 @@ Fix the tiering violation by ONE of:
 - src/__tests__/semantic_composition_selector.test.ts
 
 ## Spec Reference
-- docs/librarian/specs/core/testing-architecture.md (Tier-0 rules)
+- docs/LiBrainian/specs/core/testing-architecture.md (Tier-0 rules)
 
 ## Verification
 npm test -- --run src/__tests__/test_tiering_guard.test.ts
@@ -1421,7 +1421,7 @@ npm test -- --run src/__tests__/test_tiering_guard.test.ts
 # Work Unit: WU-FIX-002 — Fix E2E execution step count assertion
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Problem
@@ -1468,7 +1468,7 @@ npm test -- --run src/api/__tests__/execution_engine_e2e.test.ts
 # Work Unit: WU-801 — Clone 5+ real external repos for evaluation
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 You have FULL AUTONOMY. See AGENTS.md.
 Dependencies: WU-FIX-CAL must be complete (all tests passing)
 
@@ -1485,7 +1485,7 @@ Clone 5+ real open-source repos from GitHub for evaluation.
 2. **Recent or obscure**: Post-2024 created OR low stars (<100) to reduce training contamination
 3. **Has tests**: Must have a test suite for verification
 4. **Meaningful size**: >1000 LOC, real functionality
-5. **TypeScript or Python**: Languages Librarian supports well
+5. **TypeScript or Python**: Languages LiBrainian supports well
 
 ## Commands to Find Repos
 ```bash
@@ -1551,7 +1551,7 @@ Create `eval-corpus/external-repos/manifest.json`:
 # Work Unit: WU-802 — Build AST fact extractor
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-801 must be complete
 
 ## Task
@@ -1597,13 +1597,13 @@ Run the extractor on one of the cloned repos and verify facts are correct.
 # Work Unit: WU-1201 — E2E Retrieval Pipeline Integration Test
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-1112 must be complete
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Task
 Create end-to-end integration test that runs REAL queries through the FULL
-Librarian pipeline (not mocked components) using external repos.
+LiBrainian pipeline (not mocked components) using external repos.
 
 ## What "E2E" Means Here
 - Real repo from eval-corpus/external-repos/
@@ -1631,7 +1631,7 @@ describe('E2E Retrieval Pipeline', () => {
     // Where X is a real function from facts
 
     const query = `What are the parameters of ${facts[0].identifier}?`;
-    // Run through Librarian pipeline
+    // Run through LiBrainian pipeline
     // Verify retrieved context contains the function
     // Verify answer matches AST-extracted ground truth
   });
@@ -1672,7 +1672,7 @@ describe('E2E Retrieval Pipeline', () => {
 # Work Unit: WU-1401 — Measure Retrieval Recall@5 Against Target
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-1306 must be complete (ground truth corpus)
 You have FULL AUTONOMY. See AGENTS.md.
 
@@ -1736,7 +1736,7 @@ interface RecallReport {
 # Work Unit: WU-1403 — Measure Hallucination Rate Against Target
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-1402 must be complete
 You have FULL AUTONOMY. See AGENTS.md.
 
@@ -1752,7 +1752,7 @@ A response is a hallucination if:
 
 ## Measurement Protocol
 FOR each query in ground_truth_corpus:
-    1. Generate Librarian response
+    1. Generate LiBrainian response
     2. Extract all claims from response
     3. For each claim:
        - Check entailment against retrieved context
@@ -1778,23 +1778,23 @@ Create: eval-results/hallucination_rate.json
 ### WU-1701: Control Worker Baseline
 
 ```
-# Work Unit: WU-1701 — A/B Experiment: Control Worker (No Librarian)
+# Work Unit: WU-1701 — A/B Experiment: Control Worker (No LiBrainian)
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-1604 must be complete
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Task
 Create the CONTROL worker template for A/B experiments.
-This worker has NO access to Librarian tools.
+This worker has NO access to LiBrainian tools.
 
 ## Control Worker Capabilities
 - Read files (standard file system)
 - Search files (grep/find)
 - Run tests (npm test)
 - NO MCP tools
-- NO Librarian knowledge base
+- NO LiBrainian knowledge base
 - NO semantic search
 - NO citation verification
 
@@ -1851,7 +1851,7 @@ interface WorkerResult {
 # Work Unit: WU-001 — npm install + verify
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Task
@@ -1859,7 +1859,7 @@ Install all dependencies and verify the installation succeeded.
 
 ## Commands
 ```bash
-cd /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+cd /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 npm install
 ```
 
@@ -1884,7 +1884,7 @@ npm install
 # Work Unit: WU-002 — npm build + fix errors
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-001 must be complete
 You have FULL AUTONOMY. See AGENTS.md.
 
@@ -1903,7 +1903,7 @@ If build fails:
 3. Retry build
 4. Repeat until build succeeds
 
-See docs/librarian/specs/BLOCKER_RESOLUTION.md for common TypeScript fixes.
+See docs/LiBrainian/specs/BLOCKER_RESOLUTION.md for common TypeScript fixes.
 
 ## Definition of Done
 - [ ] npm run build exits with code 0
@@ -1925,7 +1925,7 @@ See docs/librarian/specs/BLOCKER_RESOLUTION.md for common TypeScript fixes.
 # Work Unit: WU-003 — npm test baseline
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-002 must be complete
 You have FULL AUTONOMY. See AGENTS.md.
 
@@ -1965,14 +1965,14 @@ If tests fail:
 # Work Unit: WU-101 — Evidence ledger provider gate
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Dependencies: WU-003 must be complete
 You have FULL AUTONOMY. See AGENTS.md.
 
 ## Spec References
-- Primary: docs/librarian/specs/core/evidence-ledger.md (Section: "Provider events")
-- BEHAVIOR_INDEX: Search for "evidence-ledger" in docs/librarian/specs/BEHAVIOR_INDEX.md
-- Related: docs/librarian/specs/layer2-infrastructure.md
+- Primary: docs/LiBrainian/specs/core/evidence-ledger.md (Section: "Provider events")
+- BEHAVIOR_INDEX: Search for "evidence-ledger" in docs/LiBrainian/specs/BEHAVIOR_INDEX.md
+- Related: docs/LiBrainian/specs/layer2-infrastructure.md
 
 ## Task
 Implement provider gate events in the evidence ledger:
@@ -2212,26 +2212,26 @@ Implementation is COMPLETE when ALL of these are true:
 **Copy and paste this prompt to start a new orchestrator session for validation phases:**
 
 ```
-# Librarian Validation Orchestrator
+# LiBrainian Validation Orchestrator
 
-You are the ORCHESTRATOR for Librarian validation phases (12-22).
+You are the ORCHESTRATOR for LiBrainian validation phases (12-22).
 Your job is to COORDINATE sub-agents, NOT implement tasks yourself.
 
 ## Context
-Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Infrastructure: COMPLETE (Phases 0-11, ~3,500+ tests passing)
 Current Phase: 12 (Validation)
 Total Validation Work Units: 57+
 
 ## Your Mission
-Validate that Librarian ACTUALLY WORKS, not just that tests pass.
+Validate that LiBrainian ACTUALLY WORKS, not just that tests pass.
 Measure real metrics. Learn from failures. Fix issues. Re-measure.
 
 ## Critical Documents
 1. CODEX_ORCHESTRATOR.md — Full work unit definitions
-2. docs/librarian/STATUS.md — Current status
-3. docs/librarian/GATES.json — Gate status (Layer 7 = validation)
-4. docs/librarian/validation.md — Validation requirements
+2. docs/LiBrainian/STATUS.md — Current status
+3. docs/LiBrainian/GATES.json — Gate status (Layer 7 = validation)
+4. docs/LiBrainian/validation.md — Validation requirements
 
 ## Validation Loop
 ```
@@ -2271,12 +2271,12 @@ WHILE Full Build Charter NOT satisfied:
 ## Sub-Agent Launch Template
 For each work unit, launch with:
 ```
-WHO: You are a validation worker for the Librarian project.
+WHO: You are a validation worker for the LiBrainian project.
 
 WHAT: [Exact task from CODEX_ORCHESTRATOR.md]
 
 WHERE:
-- Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+- Repository: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 - Files to create/modify: [list from work unit definition]
 - Test file: [test path]
 

@@ -1,10 +1,10 @@
 # Track C: Fault-Tolerant Architecture (FT1-FT8)
 
-> **Extracted from**: `docs/librarian/THEORETICAL_CRITIQUE.md` Part XVII.D
+> **Extracted from**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md` Part XVII.D
 > **Source**: Fault-Tolerant Architecture (Armstrong)
 > **Purpose**: Never fail catastrophically - graceful degradation over total failure
 >
-> **Librarian Story**: Chapter 9 (The Resilient Foundation) - When components fail, the system adapts and recovers.
+> **LiBrainian Story**: Chapter 9 (The Resilient Foundation) - When components fail, the system adapts and recovers.
 >
 > **Armstrong's Verdict**: "Let it crash, but make crash recovery automatic and isolated. A system that can't fail gracefully isn't a system - it's a time bomb."
 
@@ -35,7 +35,7 @@ This specification defines the fault-tolerant architecture primitives required f
 
 ### The Problem
 
-**Current State**: Librarian can fail completely if any subsystem fails. No supervision, no isolation, no recovery.
+**Current State**: LiBrainian can fail completely if any subsystem fails. No supervision, no isolation, no recovery.
 
 - LLM provider times out: entire query fails
 - Storage writes fail: no fallback, no retry
@@ -163,7 +163,7 @@ export type FailureDecision =
 
 ```typescript
 /**
- * tp_supervision_tree: Erlang-style supervision for Librarian subsystems.
+ * tp_supervision_tree: Erlang-style supervision for LiBrainian subsystems.
  *
  * Creates a supervision hierarchy that monitors children and applies
  * restart strategies when failures occur.
@@ -187,7 +187,7 @@ export const tp_supervision_tree: TechniquePrimitive = {
 };
 
 /**
- * The Librarian supervision tree.
+ * The LiBrainian supervision tree.
  *
  * Structure:
  * - librarian_root (one_for_one)
@@ -541,7 +541,7 @@ export type DegradedBehavior =
   | { type: 'queue_for_retry'; timeout: number };
 
 /**
- * Librarian degradation policies.
+ * LiBrainian degradation policies.
  */
 export const LIBRARIAN_DEGRADATION_POLICIES: DegradationPolicy[] = [
   {
@@ -1774,7 +1774,7 @@ Track C Fault-Tolerant Architecture provides production-grade resilience:
 
 **Total estimated LOC**: ~1,250
 
-Without these capabilities, Librarian is "a time bomb waiting to fail catastrophically" (Armstrong). With them, failures become observable, recoverable, and educational.
+Without these capabilities, LiBrainian is "a time bomb waiting to fail catastrophically" (Armstrong). With them, failures become observable, recoverable, and educational.
 
 ---
 
@@ -1810,12 +1810,12 @@ Without these capabilities, Librarian is "a time bomb waiting to fail catastroph
 
 ```bash
 # Type check
-cd packages/librarian && npx tsc --noEmit
+cd packages/LiBrainian && npx tsc --noEmit
 
 # Tests (when implemented)
-cd packages/librarian && npx vitest src/infrastructure/__tests__/supervision.test.ts
-cd packages/librarian && npx vitest src/infrastructure/__tests__/circuit_breaker.test.ts
-cd packages/librarian && npx vitest src/infrastructure/__tests__/health_monitor.test.ts
+cd packages/LiBrainian && npx vitest src/infrastructure/__tests__/supervision.test.ts
+cd packages/LiBrainian && npx vitest src/infrastructure/__tests__/circuit_breaker.test.ts
+cd packages/LiBrainian && npx vitest src/infrastructure/__tests__/health_monitor.test.ts
 
 # Full Tier-0
 npm run test:tier0
@@ -1825,13 +1825,13 @@ npm run test:tier0
 
 ## Files to Create
 
-- `packages/librarian/src/infrastructure/supervision.ts`
-- `packages/librarian/src/infrastructure/failure_categories.ts`
-- `packages/librarian/src/infrastructure/degradation.ts`
-- `packages/librarian/src/infrastructure/recovery.ts`
-- `packages/librarian/src/infrastructure/health_monitor.ts`
-- `packages/librarian/src/infrastructure/fault_tolerance_primitives.ts`
-- `packages/librarian/src/infrastructure/circuit_breaker.ts`
-- `packages/librarian/src/infrastructure/failure_forensics.ts`
-- `packages/librarian/src/infrastructure/__tests__/supervision.test.ts`
-- `packages/librarian/src/infrastructure/__tests__/fault_tolerance.test.ts`
+- `packages/LiBrainian/src/infrastructure/supervision.ts`
+- `packages/LiBrainian/src/infrastructure/failure_categories.ts`
+- `packages/LiBrainian/src/infrastructure/degradation.ts`
+- `packages/LiBrainian/src/infrastructure/recovery.ts`
+- `packages/LiBrainian/src/infrastructure/health_monitor.ts`
+- `packages/LiBrainian/src/infrastructure/fault_tolerance_primitives.ts`
+- `packages/LiBrainian/src/infrastructure/circuit_breaker.ts`
+- `packages/LiBrainian/src/infrastructure/failure_forensics.ts`
+- `packages/LiBrainian/src/infrastructure/__tests__/supervision.test.ts`
+- `packages/LiBrainian/src/infrastructure/__tests__/fault_tolerance.test.ts`

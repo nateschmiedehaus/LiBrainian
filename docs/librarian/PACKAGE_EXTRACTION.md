@@ -1,23 +1,23 @@
-# Librarian Package Extraction Plan (Priority 0)
+# LiBrainian Package Extraction Plan (Priority 0)
 
 ## Goal
 
-Extract librarian into a standalone package (`librarian`) that can be used in **any agentic coding repository**, not just wave0-autopilot.
+Extract LiBrainian into a standalone package (`LiBrainian`) that can be used in **any agentic coding repository**, not just wave0-autopilot.
 
-This is a **stop-the-line** priority. If extraction is incomplete, do not grow Wave0’s internal librarian shim; implement changes in the Librarian package boundary.
+This is a **stop-the-line** priority. If extraction is incomplete, do not grow Wave0’s internal LiBrainian shim; implement changes in the LiBrainian package boundary.
 
 Spec-system policy source:
-- `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md` (Priority 0 section)
-- `docs/librarian/GATES.json` (`layer1.*` extraction gates)
+- `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md` (Priority 0 section)
+- `docs/LiBrainian/GATES.json` (`layer1.*` extraction gates)
 
 ## Package Structure
 
 ```
-librarian/
+LiBrainian/
 ├── package.json               # Standalone package
 ├── tsconfig.json
 ├── README.md
-├── AGENTS.md                  # How agents should use librarian
+├── AGENTS.md                  # How agents should use LiBrainian
 │
 ├── src/
 │   ├── index.ts               # Main entry point
@@ -29,7 +29,7 @@ librarian/
 │   │   └── events.ts          # Event system
 │   │
 │   ├── api/                   # Public API
-│   │   ├── librarian.ts       # Main Librarian class
+│   │   ├── LiBrainian.ts       # Main LiBrainian class
 │   │   ├── query.ts           # Query interface
 │   │   ├── bootstrap.ts       # Initialization
 │   │   └── context.ts         # Context assembly
@@ -73,9 +73,9 @@ librarian/
 │   │
 │   └── cli/                   # CLI commands
 │       ├── index.ts           # CLI entry
-│       ├── bootstrap.ts       # librarian bootstrap
-│       ├── query.ts           # librarian query
-│       └── quality.ts         # librarian quality
+│       ├── bootstrap.ts       # LiBrainian bootstrap
+│       ├── query.ts           # LiBrainian query
+│       └── quality.ts         # LiBrainian quality
 │
 ├── test/
 │   ├── fixtures/              # Test repos
@@ -85,7 +85,7 @@ librarian/
     └── .gitkeep
 ```
 
-## What Stays in Librarian (Standalone)
+## What Stays in LiBrainian (Standalone)
 
 Everything that's **universally useful** for any codebase:
 
@@ -103,11 +103,11 @@ Everything that's **universally useful** for any codebase:
 
 Wave0 policy reminder:
 - LLM access is via authenticated CLIs (`claude`, `codex`) and the provider gate (`checkAllProviders()` / `requireProviders()`).
-- Do not add API key / env key discovery to Librarian.
+- Do not add API key / env key discovery to LiBrainian.
 
 ## What Stays in Wave0 (Integration Layer)
 
-Wave0-specific integrations that use librarian:
+Wave0-specific integrations that use LiBrainian:
 
 | Module | Purpose | Location |
 |--------|---------|----------|
@@ -122,21 +122,21 @@ Wave0-specific integrations that use librarian:
 Default rule: **do not introduce a new shared package** (e.g. `@wave0/core`) just to make extraction “clean”.
 
 Prefer:
-- keeping Librarian self-contained (duplicate tiny types if needed),
-- using Wave0→Librarian adapter layers at the package boundary,
+- keeping LiBrainian self-contained (duplicate tiny types if needed),
+- using Wave0→LiBrainian adapter layers at the package boundary,
 - extracting shared utilities only when duplication is demonstrably worse (and with Tier‑0 gates proving the boundary stays stable).
 
 ## Package.json
 
 ```json
 {
-  "name": "librarian",
+  "name": "LiBrainian",
   "version": "0.1.0",
   "description": "Best-in-world code understanding for agentic software development",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "librarian": "dist/cli/index.js"
+    "LiBrainian": "dist/cli/index.js"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -172,22 +172,22 @@ Prefer:
 
 ```bash
 # Install
-npm install librarian
+npm install librainian
 
 # Bootstrap
-npx librarian bootstrap .
+npx librainian bootstrap .
 
 # Query
-npx librarian query "Where is authentication handled?"
+npx librainian query "Where is authentication handled?"
 
 # Quality check
-npx librarian quality --check=all
+npx librainian quality --check=all
 ```
 
 ### As a Library
 
 ```typescript
-import { createLibrarian, requireProviders } from 'librarian';
+import { createLibrarian, requireProviders } from 'librainian';
 
 // Ensure live providers are available (Wave0 policy: CLI auth only, no API keys).
 // If providers are unavailable, this MUST fail honestly.
@@ -221,7 +221,7 @@ const research = await lib.getComponentResearch('src/auth/handler.ts');
 ### For Agents (via MCP)
 
 ```typescript
-// MCP tools exposed by librarian
+// MCP tools exposed by LiBrainian
 const tools = [
   'librarian_query',           // Query for context
   'librarian_get_issues',      // Get quality issues
@@ -236,7 +236,7 @@ const tools = [
 
 ### Phase 0: Make the boundary true (now)
 
-Wave0 currently contains `packages/librarian/`. The immediate goal is to make the package boundary *real* and stable before any major feature work.
+Wave0 currently contains `packages/LiBrainian/`. The immediate goal is to make the package boundary *real* and stable before any major feature work.
 
 Required evidence gates (must be green and kept green):
 - `layer1.noWave0Imports`
@@ -245,7 +245,7 @@ Required evidence gates (must be green and kept green):
 
 ### Phase 1: Extract to a standalone repo (mechanical move, no refactors)
 
-1. Create the standalone repository with `packages/librarian/**` as the root contents.
+1. Create the standalone repository with `packages/LiBrainian/**` as the root contents.
 2. Keep the public API stable (`src/index.ts` exports) so Wave0 can consume it unchanged.
 3. Ensure Tier‑0 and Tier‑2 behavior remains honest:
    - CLI auth only (no API keys)
@@ -253,22 +253,22 @@ Required evidence gates (must be green and kept green):
    - provider-required behavior must fail closed with `unverified_by_trace(provider_unavailable)`
 4. Add CI in the standalone repo that runs deterministic Tier‑0 (`npm test -- --run`) and any non-provider gates that apply.
 
-### Phase 2: Wave0 becomes a consumer only (no internal librarian logic)
+### Phase 2: Wave0 becomes a consumer only (no internal LiBrainian logic)
 
-1. Replace any internal Wave0 imports of librarian internals with package API calls.
-2. Keep `src/librarian/**` as a compatibility shim only; do not add product logic there.
-3. All new Librarian functionality is implemented in the standalone Librarian repo first.
+1. Replace any internal Wave0 imports of LiBrainian internals with package API calls.
+2. Keep `src/LiBrainian/**` as a compatibility shim only; do not add product logic there.
+3. All new LiBrainian functionality is implemented in the standalone LiBrainian repo first.
 
 ## Backwards Compatibility
 
 For wave0-autopilot, maintain compatibility:
 
 ```typescript
-// wave0-autopilot/src/librarian/index.ts
+// wave0-autopilot/src/LiBrainian/index.ts
 // Re-export everything from the package for backwards compatibility
-export * from 'librarian';
-export * from 'librarian/api';
-export * from 'librarian/quality';
+export * from 'librainian';
+export * from 'LiBrainian/api';
+export * from 'LiBrainian/quality';
 
 // Add wave0-specific extensions
 export { ensureLibrarianReadyForOrchestrator } from './wave0_integration.js';
@@ -276,9 +276,9 @@ export { ensureLibrarianReadyForOrchestrator } from './wave0_integration.js';
 
 ## Success Criteria
 
-1. **Standalone**: `npm install librarian && npx librarian bootstrap .` works on any TypeScript repo
-2. **Zero wave0 deps**: Librarian has no imports from wave0-autopilot
-3. **Full functionality**: All current librarian features work
+1. **Standalone**: `npm install librainian && npx librainian bootstrap .` works on any TypeScript repo
+2. **Zero wave0 deps**: LiBrainian has no imports from wave0-autopilot
+3. **Full functionality**: All current LiBrainian features work
 4. **Easy adoption**: Single command to add to any repo
 5. **Agent-ready**: MCP server works out of the box
 
@@ -293,8 +293,8 @@ export { ensureLibrarianReadyForOrchestrator } from './wave0_integration.js';
 ## Open Questions
 
 1. **Monorepo or separate repo?**
-   - Option A: `wave0-autopilot/packages/librarian/` (monorepo)
-   - Option B: `wave0/librarian/` (separate repo)
+   - Option A: `wave0-autopilot/packages/LiBrainian/` (monorepo)
+   - Option B: `wave0/LiBrainian/` (separate repo)
    - Recommendation: Start with monorepo, extract later if needed
 
 2. **LLM provider handling?**

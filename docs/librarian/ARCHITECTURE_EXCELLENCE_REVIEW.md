@@ -2,7 +2,7 @@
 
 **Date**: January 28, 2026
 **Reviewer**: Senior Software Architect (Claude Opus 4.5)
-**Scope**: Full codebase analysis of Librarian v2.0.0
+**Scope**: Full codebase analysis of LiBrainian v2.0.0
 **Lines Analyzed**: 229,113 TypeScript (858 files)
 **Tests**: 350 test files
 
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Librarian is an ambitious and technically sophisticated project that aims to provide deep, evidence-backed understanding of codebases for AI agents. The architecture demonstrates **significant strengths** in its epistemic foundations, comprehensive type system, and modular decomposition. However, the project also exhibits **critical structural issues** that could impede its path to becoming a world-class open source project.
+LiBrainian is an ambitious and technically sophisticated project that aims to provide deep, evidence-backed understanding of codebases for AI agents. The architecture demonstrates **significant strengths** in its epistemic foundations, comprehensive type system, and modular decomposition. However, the project also exhibits **critical structural issues** that could impede its path to becoming a world-class open source project.
 
 **Top 3 Priorities:**
 
@@ -34,7 +34,7 @@ The `epistemics/` module is architecturally sophisticated, implementing:
 - **Calibration curves** for ensuring confidence scores are meaningful
 - **PAC-based thresholds** for statistically sound sample requirements
 
-This is genuinely advanced - most systems treat confidence as a magic number. Librarian treats it as a first-class epistemic primitive with proper semantics.
+This is genuinely advanced - most systems treat confidence as a magic number. LiBrainian treats it as a first-class epistemic primitive with proper semantics.
 
 #### 2. Comprehensive Error Hierarchy (Good)
 The `core/errors.ts` provides a well-structured error hierarchy:
@@ -66,7 +66,7 @@ The integration layer shows thoughtful agent lifecycle management:
 The codebase has **26 circular dependency chains**, including:
 
 ```
-index.ts -> api/librarian.ts -> storage/sqlite_storage.ts
+index.ts -> api/LiBrainian.ts -> storage/sqlite_storage.ts
 index.ts -> api/execution_pipeline.ts -> api/query.ts -> api/packs.ts
 api/template_registry.ts -> api/infra_map_template.ts (and 3 others)
 epistemics/confidence.ts -> epistemics/formula_ast.ts
@@ -134,7 +134,7 @@ The following modules have overlapping concerns:
 
 **Current State:**
 - Public API surface is extensive (600+ exports from `index.ts`)
-- Multiple ways to create the same thing (e.g., `createLibrarian`, `createLibrarianSync`, `Librarian` class)
+- Multiple ways to create the same thing (e.g., `createLibrarian`, `createLibrarianSync`, `LiBrainian` class)
 - Query interface supports depth levels (L0-L3) and various output modes
 
 **Gaps:**
@@ -144,7 +144,7 @@ The following modules have overlapping concerns:
 - Missing facade/simple API for common use cases
 
 **Recommendations:**
-1. Create a `librarian/simple` entry point with just 5-10 functions
+1. Create a `LiBrainian/simple` entry point with just 5-10 functions
 2. Adopt consistent naming: `create*` for factories, `*Options` for configs, `*Result` for outputs
 3. Use the module pattern to hide implementation details
 4. Consider fluent/builder APIs for complex operations
@@ -269,7 +269,7 @@ The following modules have overlapping concerns:
 
 ## Comparison to OSS Exemplars
 
-| Aspect | Librarian | React | Rust stdlib | PostgreSQL |
+| Aspect | LiBrainian | React | Rust stdlib | PostgreSQL |
 |--------|-----------|-------|-------------|------------|
 | **API Clarity** | Fair - 600+ exports, some overlap | Excellent - minimal core API | Excellent - clear module boundaries | Excellent - SQL is the API |
 | **Error Handling** | Good - typed hierarchy | Good - boundaries for user errors | Excellent - Result<T, E> everywhere | Excellent - SQLSTATE codes |
@@ -349,7 +349,7 @@ The following modules have overlapping concerns:
 
 ## Conclusion
 
-Librarian has the **intellectual foundations** to be a world-class project. The epistemic module is genuinely innovative - treating confidence as a first-class primitive with algebraic laws, calibration curves, and defeater calculus is rare in software.
+LiBrainian has the **intellectual foundations** to be a world-class project. The epistemic module is genuinely innovative - treating confidence as a first-class primitive with algebraic laws, calibration curves, and defeater calculus is rare in software.
 
 However, the **structural quality** doesn't match the theoretical sophistication:
 - Disabled strict mode undermines trustworthiness
@@ -363,7 +363,7 @@ The path forward is clear:
 3. **Extensibility**: Build plugin architecture for languages, detectors, providers
 4. **Verification**: Property-based tests for epistemic invariants
 
-If executed, these changes would position Librarian as the **reference implementation** for epistemic systems in software tooling - a system that not only helps agents understand code, but does so with principled, verifiable confidence.
+If executed, these changes would position LiBrainian as the **reference implementation** for epistemic systems in software tooling - a system that not only helps agents understand code, but does so with principled, verifiable confidence.
 
 ---
 
@@ -384,13 +384,13 @@ If executed, these changes would position Librarian as the **reference implement
 12) index.ts > api/execution_pipeline.ts > api/query.ts
 13) methods/method_guidance.ts > methods/method_pack_service.ts
 14) api/technique_execution.ts > api/operator_interpreters.ts
-15) agents/index_librarian.ts > index.ts > api/librarian.ts
-16) api/bootstrap.ts > agents/index_librarian.ts > index.ts > api/librarian.ts
-17) index.ts > api/librarian.ts > api/versioning.ts
+15) agents/index_librarian.ts > index.ts > api/LiBrainian.ts
+16) api/bootstrap.ts > agents/index_librarian.ts > index.ts > api/LiBrainian.ts
+17) index.ts > api/LiBrainian.ts > api/versioning.ts
 18) knowledge/quality_metrics.ts > knowledge/quality.ts
-19) api/librarian.ts > integration/file_watcher.ts
+19) api/LiBrainian.ts > integration/file_watcher.ts
 20) knowledge/evolution.ts > knowledge/evolution_metrics.ts
-21) index.ts > api/librarian.ts > storage/sqlite_storage.ts
+21) index.ts > api/LiBrainian.ts > storage/sqlite_storage.ts
 22) api/delta_map_template.ts > api/template_registry.ts
 23) api/template_registry.ts > api/infra_map_template.ts
 24) api/template_registry.ts > api/repro_bisect_template.ts
@@ -413,4 +413,4 @@ If executed, these changes would position Librarian as the **reference implement
 
 ---
 
-*Review conducted with focus on enabling Librarian to become a reference implementation for epistemic systems in software tooling.*
+*Review conducted with focus on enabling LiBrainian to become a reference implementation for epistemic systems in software tooling.*

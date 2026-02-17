@@ -1,10 +1,10 @@
 # Track B: Bootstrap Pipeline Specification (P8-P10)
 
-> **Extracted from**: `/docs/librarian/THEORETICAL_CRITIQUE.md` (Parts XVIII, XIX)
+> **Extracted from**: `/docs/LiBrainian/THEORETICAL_CRITIQUE.md` (Parts XVIII, XIX)
 > **Features**: P8: Zero-Knowledge Bootstrap, P9: Universal Applicability, P10: Epistemic Policy
-> **Status**: All three features implemented in `packages/librarian/src/api/`
+> **Status**: All three features implemented in `packages/LiBrainian/src/api/`
 >
-> **Librarian Story**: Chapter 4 (The Bootstrap) - Building knowledge from certainty to inference.
+> **LiBrainian Story**: Chapter 4 (The Bootstrap) - Building knowledge from certainty to inference.
 >
 > **Related Issues**: See [subsystem-problems.md](./subsystem-problems.md) Problems 27-28 for per-file timeout and LLM retry issues.
 
@@ -12,7 +12,7 @@
 
 ## Executive Summary
 
-Track B addresses the fundamental epistemic problem of Librarian: **How does an intelligent system build knowledge from nothing, apply it universally, and maintain honest confidence bounds?**
+Track B addresses the fundamental epistemic problem of LiBrainian: **How does an intelligent system build knowledge from nothing, apply it universally, and maintain honest confidence bounds?**
 
 This specification covers:
 - **P8: Zero-Knowledge Bootstrap** - Systematic protocols for building knowledge from complete ignorance
@@ -51,7 +51,7 @@ This creates a circular dependency that traditional systems cannot break.
 
 From the theoretical critique:
 
-> **Pearl**: "Epistemology without causal structure is mere correlation. Librarian must know WHY it believes what it believes."
+> **Pearl**: "Epistemology without causal structure is mere correlation. LiBrainian must know WHY it believes what it believes."
 >
 > **McCarthy/Minsky**: "An epistemologically adequate system must distinguish between what it knows, what it believes, what it assumes, and what it doesn't know."
 
@@ -102,7 +102,7 @@ Phase 6: VERIFICATION LOOP (confidence: varies)
 
 #### Core Types
 
-**File**: `packages/librarian/src/api/zero_knowledge_bootstrap.ts`
+**File**: `packages/LiBrainian/src/api/zero_knowledge_bootstrap.ts`
 
 ```typescript
 export type KnowledgeSource =
@@ -397,7 +397,7 @@ export class EpistemicEscalationEngine {
 
 The Universal Applicability Matrix provides a **systematic mapping from any situation to the appropriate protocol**.
 
-**The Question**: How does Librarian serve ANY software role, task, project, or system?
+**The Question**: How does LiBrainian serve ANY software role, task, project, or system?
 
 **The Answer**: A mapping from situations to protocols.
 
@@ -414,7 +414,7 @@ export interface SituationVector {
 
 ### Dimension Definitions
 
-#### Roles (WHO is using Librarian)
+#### Roles (WHO is using LiBrainian)
 
 ```typescript
 export type Role =
@@ -479,7 +479,7 @@ export type KnowledgeState =
 ```typescript
 export class UniversalProtocolSelector {
   /**
-   * Given a situation, return the appropriate Librarian protocol.
+   * Given a situation, return the appropriate LiBrainian protocol.
    */
   selectProtocol(situation: SituationVector): Protocol {
     const { role, task, projectState, knowledgeState } = situation;
@@ -672,7 +672,7 @@ export function applyEpistemicPolicy(
 
 ### Configuration Storage
 
-Policy files are stored at `.librarian/epistemic_policy.json`:
+Policy files are stored at `.LiBrainian/epistemic_policy.json`:
 
 ```json
 {
@@ -743,7 +743,7 @@ See [CONFIDENCE_REDESIGN.md](./CONFIDENCE_REDESIGN.md) and [track-d-quantificati
 ### P8 Exports
 
 ```typescript
-// From packages/librarian/src/api/zero_knowledge_bootstrap.ts
+// From packages/LiBrainian/src/api/zero_knowledge_bootstrap.ts
 
 export type KnowledgeSource;
 export interface KnowledgeClaim;
@@ -772,7 +772,7 @@ export class EpistemicEscalationEngine;
 ### P9 Exports
 
 ```typescript
-// From packages/librarian/src/api/universal_applicability.ts
+// From packages/LiBrainian/src/api/universal_applicability.ts
 
 export type Role;
 export type Task;
@@ -790,7 +790,7 @@ export class UniversalProtocolSelector {
 ### P10 Exports
 
 ```typescript
-// From packages/librarian/src/api/epistemic_policy.ts
+// From packages/LiBrainian/src/api/epistemic_policy.ts
 
 export interface EpistemicPolicy;
 export interface EpistemicClaim;
@@ -845,7 +845,7 @@ export function applyEpistemicPolicy(claim, confidence, policy): boolean;
 ### P10: Epistemic Policy
 
 - [ ] Default policy loads when no file exists
-- [ ] Custom policy loads from `.librarian/epistemic_policy.json`
+- [ ] Custom policy loads from `.LiBrainian/epistemic_policy.json`
 - [ ] `applyEpistemicPolicy()` enforces threshold and evidence requirements
 - [ ] Invalid policy files throw descriptive errors
 - [ ] Path sanitization prevents traversal attacks
@@ -856,17 +856,17 @@ export function applyEpistemicPolicy(claim, confidence, policy): boolean;
 
 ```bash
 # Run P8/P9/P10 tests
-cd packages/librarian && npx vitest run src/api/__tests__/zero_knowledge_bootstrap.test.ts
-cd packages/librarian && npx vitest run src/api/__tests__/universal_applicability.test.ts
-cd packages/librarian && npx vitest run src/api/__tests__/epistemic_policy.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/zero_knowledge_bootstrap.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/universal_applicability.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/epistemic_policy.test.ts
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m)))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m)))"
 
 # Check implementation exists
-ls -la packages/librarian/src/api/zero_knowledge_bootstrap.ts
-ls -la packages/librarian/src/api/universal_applicability.ts
-ls -la packages/librarian/src/api/epistemic_policy.ts
+ls -la packages/LiBrainian/src/api/zero_knowledge_bootstrap.ts
+ls -la packages/LiBrainian/src/api/universal_applicability.ts
+ls -la packages/LiBrainian/src/api/epistemic_policy.ts
 ```
 
 ---

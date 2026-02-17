@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian: Remaining Work
+# LiBrainian: Remaining Work
 
 > **FOR AGENTS**: This document contains ALL remaining implementation tasks. Each task is self-contained with clear instructions, file locations, and verification steps.
 >
@@ -17,15 +17,15 @@ Extract useful research into canonical docs; do not extend this file.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  TASK R0: PORT AUTH WIRING FROM WAVE0/CLAUDE/CODEX TO LIBRARIAN        │
+│  TASK R0: PORT AUTH WIRING FROM WAVE0/CLAUDE/CODEX TO LiBrainian        │
 │                                                                         │
-│  Problem: 15 tests skip because librarian doesn't use wave0's auth     │
+│  Problem: 15 tests skip because LiBrainian doesn't use wave0's auth     │
 │  Reality: Claude and Codex ARE authenticated on this system            │
-│  Fix: Make librarian use the same auth infrastructure as wave0         │
+│  Fix: Make LiBrainian use the same auth infrastructure as wave0         │
 │                                                                         │
 │  Jump to task: #r0-fix-provider-auth-wiring                            │
 │  Effort: Small (1-2 hours)                                             │
-│  Outcome: All 109 librarian tests pass (currently 94 pass, 15 skip)    │
+│  Outcome: All 109 LiBrainian tests pass (currently 94 pass, 15 skip)    │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -33,7 +33,7 @@ Extract useful research into canonical docs; do not extend this file.
 - Embedding tests can't verify real embeddings work
 - Bootstrap tests can't verify real indexing works
 - Integration tests can't verify real provider behavior
-- We can't know if librarian actually works until auth is fixed
+- We can't know if LiBrainian actually works until auth is fixed
 
 ---
 
@@ -53,7 +53,7 @@ Extract useful research into canonical docs; do not extend this file.
 
 | ID | Task | Effort | Status |
 |----|------|--------|--------|
-| [R0](#r0-fix-provider-auth-wiring) | **FIX: Wire librarian to wave0 auth** | Small | ✅ Complete |
+| [R0](#r0-fix-provider-auth-wiring) | **FIX: Wire LiBrainian to wave0 auth** | Small | ✅ Complete |
 | [R1](#r1-batch-embedding-concurrency) | Batch embedding concurrency | Medium | ✅ Complete |
 | [R2](#r2-wire-engines-to-query-api) | Wire engine toolkit to main query API | Small | ✅ Complete |
 
@@ -92,7 +92,7 @@ Extract useful research into canonical docs; do not extend this file.
 
 #### Problem
 
-Claude and Codex ARE authenticated on the system (`claude auth status` shows authenticated, `codex` CLI works). Librarian now uses the same auth infrastructure as Wave0 (AuthChecker + LLMService health checks), so provider readiness reflects CLI auth state.
+Claude and Codex ARE authenticated on the system (`claude auth status` shows authenticated, `codex` CLI works). LiBrainian now uses the same auth infrastructure as Wave0 (AuthChecker + LLMService health checks), so provider readiness reflects CLI auth state.
 - Wave0's provider infrastructure (`src/soma/providers/llm_service.ts`)
 - Claude Code's auth (`~/.claude/`)
 - Codex's auth (`~/.codex/`)
@@ -110,25 +110,25 @@ codex auth status
 # Check how wave0 providers work
 grep -r "checkClaudeHealth\|checkCodexHealth" src/soma/providers/
 
-# Check how librarian's provider gate works
-cat src/librarian/api/provider_gate.ts
+# Check how LiBrainian's provider gate works
+cat src/LiBrainian/api/provider_gate.ts
 
-# Check how librarian's provider_check works
-cat src/librarian/api/provider_check.ts
+# Check how LiBrainian's provider_check works
+cat src/LiBrainian/api/provider_check.ts
 ```
 
 #### Investigation Steps
 
 1. **Find the disconnect**:
 ```bash
-# What does librarian's provider check do?
-grep -A 20 "checkAllProviders" src/librarian/api/provider_check.ts
+# What does LiBrainian's provider check do?
+grep -A 20 "checkAllProviders" src/LiBrainian/api/provider_check.ts
 
 # What does wave0's LLM service do?
 grep -A 20 "checkClaudeHealth" src/soma/providers/llm_service.ts
 
 # Are they using the same auth sources?
-diff <(grep "claude\|codex\|auth" src/librarian/api/provider_check.ts) \
+diff <(grep "claude\|codex\|auth" src/LiBrainian/api/provider_check.ts) \
      <(grep "claude\|codex\|auth" src/soma/providers/llm_service.ts)
 ```
 
@@ -139,14 +139,14 @@ grep -r "ANTHROPIC_API_KEY\|CLAUDE_API_KEY\|claude auth" src/
 grep -r "credential\|auth" src/utils/credential_loader.ts
 ```
 
-3. **Wire librarian to use same auth**:
-The fix likely involves making `src/librarian/api/provider_check.ts` or `provider_gate.ts` use the same credential loading as wave0.
+3. **Wire LiBrainian to use same auth**:
+The fix likely involves making `src/LiBrainian/api/provider_check.ts` or `provider_gate.ts` use the same credential loading as wave0.
 
 #### Expected Fix Pattern
 
 ```typescript
-// In src/librarian/api/provider_check.ts or provider_gate.ts
-// WRONG: Librarian checking its own way
+// In src/LiBrainian/api/provider_check.ts or provider_gate.ts
+// WRONG: LiBrainian checking its own way
 const claudeAvailable = await someLibrarianSpecificCheck();
 
 // RIGHT: Use wave0's proven provider infrastructure
@@ -159,18 +159,18 @@ const claudeAvailable = claudeHealth.available;
 #### Verification
 ```bash
 # After fix, these tests should NOT skip:
-npm test -- src/librarian/__tests__/embedding_pipeline.test.ts
-npm test -- src/librarian/__tests__/mvp_librarian.test.ts
-npm test -- src/librarian/__tests__/librarian.test.ts
+npm test -- src/LiBrainian/__tests__/embedding_pipeline.test.ts
+npm test -- src/LiBrainian/__tests__/mvp_librarian.test.ts
+npm test -- src/LiBrainian/__tests__/LiBrainian.test.ts
 
 # All 15 previously-skipped tests should now run
-npm test -- src/librarian
+npm test -- src/LiBrainian
 # Expected: 109 tests, 0 skipped (was 94 passed, 15 skipped)
 ```
 
 #### Success Criteria
-- [ ] `npm test -- src/librarian` shows 0 skipped tests
-- [ ] Librarian uses wave0's credential loading
+- [ ] `npm test -- src/LiBrainian` shows 0 skipped tests
+- [ ] LiBrainian uses wave0's credential loading
 - [ ] Tests actually call live providers (not mocks)
 - [ ] Bootstrap works with real embeddings
 
@@ -180,7 +180,7 @@ npm test -- src/librarian
 
 **Priority**: P0 Critical
 **Effort**: Medium (2-4 hours)
-**File**: `src/librarian/api/embeddings.ts`
+**File**: `src/LiBrainian/api/embeddings.ts`
 **Status**: ✅ Complete (concurrent batch embedding + retry/backoff)
 
 #### Problem
@@ -189,10 +189,10 @@ Current embedding generation is sequential. For large codebases (1000+ files), b
 #### Before You Start
 ```bash
 # Check current implementation
-cat src/librarian/api/embeddings.ts | head -100
+cat src/LiBrainian/api/embeddings.ts | head -100
 
 # Understand the EmbeddingService interface
-grep -A 20 "class EmbeddingService" src/librarian/api/embeddings.ts
+grep -A 20 "class EmbeddingService" src/LiBrainian/api/embeddings.ts
 ```
 
 #### Implementation Steps
@@ -245,16 +245,16 @@ private async generateBatchWithRetry(
 ```
 
 3. **Wire into bootstrap**:
-Update `src/librarian/api/bootstrap.ts` to use `generateEmbeddingsBatch()` instead of sequential calls.
+Update `src/LiBrainian/api/bootstrap.ts` to use `generateEmbeddingsBatch()` instead of sequential calls.
 
 #### Verification
 ```bash
 # Run embedding tests
-npm test -- src/librarian/__tests__/embedding_pipeline.test.ts
+npm test -- src/LiBrainian/__tests__/embedding_pipeline.test.ts
 
 # Benchmark (manual)
 time node -e "
-  const { EmbeddingService } = require('./dist/librarian/api/embeddings.js');
+  const { EmbeddingService } = require('./dist/LiBrainian/api/embeddings.js');
   const svc = new EmbeddingService({ provider: 'test' });
   // Generate 100 embeddings
 "
@@ -272,18 +272,18 @@ time node -e "
 
 **Priority**: P0 Critical
 **Effort**: Small (1-2 hours)
-**Files**: `src/librarian/api/query.ts`, `src/librarian/engines/index.ts`
+**Files**: `src/LiBrainian/api/query.ts`, `src/LiBrainian/engines/index.ts`
 
 #### Problem
-The three engines (Relevance, Constraint, Meta-Knowledge) are implemented but not exposed through the main `librarian.query()` API.
+The three engines (Relevance, Constraint, Meta-Knowledge) are implemented but not exposed through the main `LiBrainian.query()` API.
 
 #### Before You Start
 ```bash
 # Check engine implementations exist
-ls -la src/librarian/engines/
+ls -la src/LiBrainian/engines/
 
 # Check current query API
-grep -A 30 "async query" src/librarian/api/query.ts
+grep -A 30 "async query" src/LiBrainian/api/query.ts
 ```
 
 #### Implementation Steps
@@ -345,11 +345,11 @@ async query(request: LibrarianQuery): Promise<LibrarianResponse> {
 #### Verification
 ```bash
 # Run query tests
-npm test -- src/librarian/__tests__/librarian.test.ts
+npm test -- src/LiBrainian/__tests__/LiBrainian.test.ts
 
 # Manual verification
 node -e "
-  const { createLibrarian } = require('./dist/librarian/index.js');
+  const { createLibrarian } = require('./dist/LiBrainian/index.js');
   const lib = await createLibrarian({ workspace: process.cwd() });
   const result = await lib.query({ intent: 'authentication', depth: 'L1' });
   console.log('Engines:', Object.keys(result.engines || {}));
@@ -357,9 +357,9 @@ node -e "
 ```
 
 #### Success Criteria
-- [ ] `librarian.query()` returns engine results
+- [ ] `LiBrainian.query()` returns engine results
 - [ ] Engine results include confidence, blind spots, constraints
-- [ ] Tests pass: `npm test -- librarian`
+- [ ] Tests pass: `npm test -- LiBrainian`
 
 ---
 
@@ -367,7 +367,7 @@ node -e "
 
 **Priority**: P1 High
 **Effort**: Small (1-2 hours)
-**File**: `src/librarian/storage/sqlite_storage.ts`
+**File**: `src/LiBrainian/storage/sqlite_storage.ts`
 **Status**: ✅ Complete (SQLite cache + TTL + L1/L2 hierarchical cache in query pipeline)
 
 #### Problem
@@ -376,10 +376,10 @@ Repeated queries for the same intent hit the embedding service every time. Need 
 #### Before You Start
 ```bash
 # Check if cache table exists
-sqlite3 .librarian/librarian.sqlite ".schema" | grep -i cache
+sqlite3 .LiBrainian/LiBrainian.sqlite ".schema" | grep -i cache
 
 # Check existing cache methods
-grep -n "cache" src/librarian/storage/sqlite_storage.ts
+grep -n "cache" src/LiBrainian/storage/sqlite_storage.ts
 ```
 
 #### Implementation Steps
@@ -471,14 +471,14 @@ async query(request: LibrarianQuery): Promise<LibrarianResponse> {
 #### Verification
 ```bash
 # Check table created
-sqlite3 .librarian/librarian.sqlite ".schema librarian_query_cache"
+sqlite3 .LiBrainian/LiBrainian.sqlite ".schema librarian_query_cache"
 
 # Run tests
-npm test -- src/librarian
+npm test -- src/LiBrainian
 
 # Manual test (query twice, second should be faster)
 node -e "
-  const { createLibrarian } = require('./dist/librarian/index.js');
+  const { createLibrarian } = require('./dist/LiBrainian/index.js');
   const lib = await createLibrarian({ workspace: process.cwd() });
 
   console.time('First query');
@@ -503,7 +503,7 @@ node -e "
 
 **Priority**: P1 High
 **Effort**: Small (1 hour)
-**File**: `src/librarian/knowledge/quality_metrics.ts`
+**File**: `src/LiBrainian/knowledge/quality_metrics.ts`
 **Status**: ✅ Complete (ts-morph cyclomatic complexity index + fallback heuristics)
 
 #### Problem
@@ -512,7 +512,7 @@ Quality metrics use line counts only. Need real cyclomatic complexity for better
 #### Before You Start
 ```bash
 # Check current quality metrics
-cat src/librarian/knowledge/quality_metrics.ts | head -100
+cat src/LiBrainian/knowledge/quality_metrics.ts | head -100
 
 # Check ts-morph is available
 grep "ts-morph" package.json
@@ -590,8 +590,8 @@ npm test -- quality_metrics
 
 # Manual test
 node -e "
-  const { calculateCyclomaticComplexity } = require('./dist/librarian/knowledge/quality_metrics.js');
-  console.log('Complexity:', calculateCyclomaticComplexity('src/librarian/storage/sqlite_storage.ts'));
+  const { calculateCyclomaticComplexity } = require('./dist/LiBrainian/knowledge/quality_metrics.js');
+  console.log('Complexity:', calculateCyclomaticComplexity('src/LiBrainian/storage/sqlite_storage.ts'));
 "
 ```
 
@@ -607,7 +607,7 @@ node -e "
 
 **Priority**: P1 High
 **Effort**: Medium (2-3 hours)
-**File**: `src/librarian/__tests__/agentic/`
+**File**: `src/LiBrainian/__tests__/agentic/`
 **Status**: ✅ Complete (engine_feedback.test.ts covers the 4 required tests)
 
 #### Problem
@@ -616,15 +616,15 @@ Engine implementations existed but needed 4 remaining agentic tests (as specifie
 #### Before You Start
 ```bash
 # Check existing agentic tests
-cat src/librarian/__tests__/agentic/qualification.test.ts | head -50
+cat src/LiBrainian/__tests__/agentic/qualification.test.ts | head -50
 
 # Check engine test requirements in docs
-grep -A 30 "Agentic Testing Requirements" docs/librarian/implementation-requirements.md
+grep -A 30 "Agentic Testing Requirements" docs/LiBrainian/implementation-requirements.md
 ```
 
 #### Implementation Steps
 
-Implemented these tests in `src/librarian/__tests__/agentic/engine_feedback.test.ts`:
+Implemented these tests in `src/LiBrainian/__tests__/agentic/engine_feedback.test.ts`:
 
 1. **Test: Relevance improves after feedback**
 2. **Test: Constraint suggestions are learned**
@@ -636,10 +636,10 @@ See [implementation-requirements.md#agentic-testing-requirements](./implementati
 #### Verification
 ```bash
 # Run agentic tests (requires live provider)
-npm test -- src/librarian/__tests__/agentic
+npm test -- src/LiBrainian/__tests__/agentic
 
 # Check coverage
-npm run test:coverage -- src/librarian
+npm run test:coverage -- src/LiBrainian
 ```
 
 #### Success Criteria
@@ -653,7 +653,7 @@ npm run test:coverage -- src/librarian
 
 **Priority**: P2 Medium
 **Effort**: Large (4-6 hours)
-**Files**: New `src/librarian/memory/hierarchical_memory.ts`
+**Files**: New `src/LiBrainian/memory/hierarchical_memory.ts`
 **Status**: ✅ Complete (HierarchicalMemory + query cache integration)
 
 #### Problem
@@ -687,7 +687,7 @@ interface HierarchicalMemory {
 
 **Priority**: P2 Medium
 **Effort**: Large (6-8 hours)
-**File**: `src/librarian/agents/ast_indexer.ts`
+**File**: `src/LiBrainian/agents/ast_indexer.ts`
 **Status**: ✅ Complete (tree-sitter parsers for Python/Go/Rust + fallback)
 
 #### Current State
@@ -712,7 +712,7 @@ Regex extraction misses nested constructs, complex patterns. Need real AST for P
 
 **Priority**: P2 Medium
 **Effort**: Medium (2-3 hours)
-**Files**: `src/librarian/engines/index.ts`, `src/librarian/integration/wave0_integration.ts`, `src/librarian/api/query.ts`, `src/orchestrator/activity_feed_writer.ts`
+**Files**: `src/LiBrainian/engines/index.ts`, `src/LiBrainian/integration/wave0_integration.ts`, `src/LiBrainian/api/query.ts`, `src/orchestrator/activity_feed_writer.ts`
 **Status**: ✅ Complete (lifecycle events emitted + engine bridge + activity feed logging)
 
 #### Problem
@@ -767,11 +767,11 @@ After completing any task, run these commands:
 # 1. Tier-0 tests must pass
 npm run test:tier0
 
-# 2. Librarian tests must pass
-npm test -- src/librarian
+# 2. LiBrainian tests must pass
+npm test -- src/LiBrainian
 
 # 3. Check database integrity
-sqlite3 .librarian/librarian.sqlite "PRAGMA integrity_check"
+sqlite3 .LiBrainian/LiBrainian.sqlite "PRAGMA integrity_check"
 
 # 4. Check no TypeScript errors
 npx tsc --noEmit
@@ -785,9 +785,9 @@ npm run test:agentic-review
 ## Questions?
 
 - **Architecture questions**: See [architecture.md](./architecture.md)
-- **Integration questions**: See [implementation-requirements.md#wave0-librarian-integration-contract](./implementation-requirements.md#wave0-librarian-integration-contract)
+- **Integration questions**: See [implementation-requirements.md#wave0-LiBrainian-integration-contract](./implementation-requirements.md#wave0-LiBrainian-integration-contract)
 - **Testing policy**: See [../TEST.md](../TEST.md)
-- **Engine specifications**: See [implementation-requirements.md#librarian-engine-toolkit](./implementation-requirements.md#librarian-engine-toolkit)
+- **Engine specifications**: See [implementation-requirements.md#LiBrainian-engine-toolkit](./implementation-requirements.md#LiBrainian-engine-toolkit)
 
 ---
 

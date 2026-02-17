@@ -6,13 +6,13 @@
 **Analyst**: Adversarial Analyst (tasked with DISPROVING universal constructability)
 **Input Files**:
 - `src/epistemics/universal_coherence.ts`
-- `docs/librarian/specs/research/universal-epistemic-primitives.md`
+- `docs/LiBrainian/specs/research/universal-epistemic-primitives.md`
 
 ---
 
 ## Executive Summary
 
-This document presents an adversarial analysis attempting to **disprove** the universal constructability claim of Librarian's epistemic primitives. The system claims that six primitives (Distinguishability, Content, Grounding, Attitude, Agent, Context) can construct ANY epistemic object.
+This document presents an adversarial analysis attempting to **disprove** the universal constructability claim of LiBrainian's epistemic primitives. The system claims that six primitives (Distinguishability, Content, Grounding, Attitude, Agent, Context) can construct ANY epistemic object.
 
 ### Verdict Summary
 

@@ -1,18 +1,18 @@
-# Librarian Diagnosis + Recovery Plan (Bootstrap + Effectiveness)
+# LiBrainian Diagnosis + Recovery Plan (Bootstrap + Effectiveness)
 
 Status: active
-Scope: diagnose why Librarian is currently inefficient/fragile vs its own docs, and provide a recovery plan with evidence gates.
+Scope: diagnose why LiBrainian is currently inefficient/fragile vs its own docs, and provide a recovery plan with evidence gates.
 Last Verified: 2026-01-11
 Owner: librarianship
-Evidence: code + local runs (Tier-0 + librarian bootstrap/status)
+Evidence: code + local runs (Tier-0 + LiBrainian bootstrap/status)
 
 ## Executive Summary (What’s Broken / Risky)
 
 1. **Bootstrap reliability is gated on live provider availability**.
    - If providers are rate/usage limited, bootstrap must fail fast with `unverified_by_trace(provider_unavailable)` (no “slow death” runs).
-   - This repo’s `--scope librarian` bootstrap has been completed successfully using a mini model (`gpt-5.1-codex-mini`).
+   - This repo’s `--scope LiBrainian` bootstrap has been completed successfully using a mini model (`gpt-5.1-codex-mini`).
 
-2. **Bootstrap is structurally too expensive** for the performance SLOs in `docs/librarian/validation.md`.
+2. **Bootstrap is structurally too expensive** for the performance SLOs in `docs/LiBrainian/validation.md`.
    - **Full** bootstrap mode is inherently expensive (LLM work across file knowledge, directory knowledge, context packs, and universal knowledge).
    - **Fast** bootstrap mode exists specifically to meet SLOs: avoid per-entity LLM enrichment while still producing usable semantic index + packs.
 
@@ -26,18 +26,18 @@ Evidence: code + local runs (Tier-0 + librarian bootstrap/status)
 
 These constraints come directly from canonical docs:
 - **No fake embeddings** and no bypass of semantic layers (`AGENTS.md`, `docs/LIVE_PROVIDERS_PLAYBOOK.md`).
-- **Fail closed** when providers are unavailable (`docs/librarian/README.md`, `docs/librarian/validation.md`).
-- **Waiting by default** for required LLM operations unless explicitly configured (`docs/librarian/README.md`).
-- **No theater**: any “pass” must observe real behavior (`docs/librarian/validation.md`).
+- **Fail closed** when providers are unavailable (`docs/LiBrainian/README.md`, `docs/LiBrainian/validation.md`).
+- **Waiting by default** for required LLM operations unless explicitly configured (`docs/LiBrainian/README.md`).
+- **No theater**: any “pass” must observe real behavior (`docs/LiBrainian/validation.md`).
 
 ## Concrete Diagnosis (Root Causes)
 
 ### D1) Unbounded LLM Work in Bootstrap
-- `src/librarian/api/bootstrap.ts` runs:
+- `src/LiBrainian/api/bootstrap.ts` runs:
   - file knowledge extraction for all discovered files (LLM per readable file)
   - directory knowledge extraction for all directories (LLM per directory)
   - context pack generation (LLM)
-  - universal knowledge generation for all functions + modules (`src/librarian/knowledge/generator.ts`)
+  - universal knowledge generation for all functions + modules (`src/LiBrainian/knowledge/generator.ts`)
 - This is incompatible with realistic subscription quotas for medium/large repos **unless explicitly run in `--mode full`**.
 
 ### D2) Weak “resume” story (rework on restart)
@@ -53,18 +53,18 @@ These constraints come directly from canonical docs:
 - Some reasoning presets are invalid for certain models (e.g., `minimal` rejected by `gpt-5-codex`).
 
 ### D5) Docs drift / broken pointers
-- Some doc sets referenced `docs/librarian/overview.md` (missing), breaking navigation.
-- Fixed by adding `docs/librarian/overview.md` as a compatibility entrypoint.
+- Some doc sets referenced `docs/LiBrainian/overview.md` (missing), breaking navigation.
+- Fixed by adding `docs/LiBrainian/overview.md` as a compatibility entrypoint.
 
 ### D6) Status / observability drift (misleading operator view)
-- `librarian status` previously relied on in-memory bootstrap state, which resets per process and can misreport reality.
+- `LiBrainian status` previously relied on in-memory bootstrap state, which resets per process and can misreport reality.
 - Some “SLO-ish” metrics (e.g. cache hit rate) exist in code but are not meaningfully reported across runs unless recorded explicitly.
 
 ## Recovery Plan (Actionable, Evidence-Gated)
 
 ### P0 (Immediate unblock): Finish bootstrap once providers reset
-- Run: `npm run librarian -- bootstrap --scope librarian --mode fast --llm-provider codex --llm-model gpt-5.1-codex-mini`
-- Evidence gate: produces a successful `BootstrapReport` in `.librarian` DB and `librarian status` shows “not required”.
+- Run: `npm run LiBrainian -- bootstrap --scope LiBrainian --mode fast --llm-provider codex --llm-model gpt-5.1-codex-mini`
+- Evidence gate: produces a successful `BootstrapReport` in `.LiBrainian` DB and `LiBrainian status` shows “not required”.
 - Stop condition: if providers still limited, fail with `unverified_by_trace(provider_unavailable)` and do not claim readiness.
  - Status: completed (this repo, 2026-01-11)
 
@@ -89,21 +89,21 @@ These constraints come directly from canonical docs:
 - Introduce an explicit “bootstrap budget” and cap:
   - number of entities per run (prioritize high-centrality / entrypoints / hot paths)
   - token budget per phase (already partially present via governor)
-- Evidence gate: bootstrap on `--scope librarian` completes under the `docs/librarian/validation.md` latency SLO targets on a normal subscription.
+- Evidence gate: bootstrap on `--scope LiBrainian` completes under the `docs/LiBrainian/validation.md` latency SLO targets on a normal subscription.
  - Status: complete for MVP path (default `--mode fast` disables per-entity LLM enrichment; `--mode full` remains intentionally expensive)
 
 ### P4 (Fix doc navigation drift)
-- Repair doc index references and add a short “Reality vs Docs” section in `docs/librarian/STATUS.md` for any known mismatches.
-- Evidence gate: every link in `docs/librarian/README.md` resolves to an existing file.
+- Repair doc index references and add a short “Reality vs Docs” section in `docs/LiBrainian/STATUS.md` for any known mismatches.
+- Evidence gate: every link in `docs/LiBrainian/README.md` resolves to an existing file.
  - Status: in progress (compat overview added; remaining doc link audits pending)
 
 ### P5 (Make status reporting truthy)
-- `librarian status` should surface “last successful run” from persistent storage (bootstrap history + metadata), not volatile process state.
-- Evidence gate: `librarian status` shows last bootstrap outcome and timestamps immediately after a new process starts.
+- `LiBrainian status` should surface “last successful run” from persistent storage (bootstrap history + metadata), not volatile process state.
+- Evidence gate: `LiBrainian status` shows last bootstrap outcome and timestamps immediately after a new process starts.
 
 ## Ralph Wiggum Loop (8 Rounds)
 
-Goal: iteratively sharpen the plan to be (a) more accurate to what’s actually failing, and (b) more effective at producing a working Librarian under real constraints.
+Goal: iteratively sharpen the plan to be (a) more accurate to what’s actually failing, and (b) more effective at producing a working LiBrainian under real constraints.
 
 ### Round 1
 - Ralph thought: “Just run bootstrap again. It’ll work this time.”
@@ -142,13 +142,13 @@ Goal: iteratively sharpen the plan to be (a) more accurate to what’s actually 
 
 ### Round 8 (Final tightening)
 - Ralph thought: “If bootstrap completes once, we’re done.”
-- Reality check: Librarian is a *system*; correctness is statistical + operational.
+- Reality check: LiBrainian is a *system*; correctness is statistical + operational.
 - Plan change: require (a) repeatability (two consecutive runs), (b) explicit `unverified_by_trace` on gaps, (c) Tier-0 gates still pass.
 
 ## Final Output of the Loop: The “Do This Next” Checklist
 
 1. Wait until at least one provider is usable (not rate/usage limited).
-2. Run `npm run librarian -- bootstrap --scope librarian --mode fast --llm-provider codex --llm-model gpt-5.1-codex-mini`.
-3. Confirm `librarian status` shows bootstrapped (fast/mvp) and `librarian query "…" ` returns packs with evidence.
+2. Run `npm run LiBrainian -- bootstrap --scope LiBrainian --mode fast --llm-provider codex --llm-model gpt-5.1-codex-mini`.
+3. Confirm `LiBrainian status` shows bootstrapped (fast/mvp) and `LiBrainian query "…" ` returns packs with evidence.
 4. Add Tier-0 coverage for “skip unchanged” behavior and provider-gate strict mode.
 5. Only then claim “working efficiently and effectively”, backed by an audit pack in `state/audits/`.

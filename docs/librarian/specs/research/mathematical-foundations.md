@@ -3,13 +3,13 @@
 **Status**: Research Document
 **Version**: 1.0.0
 **Date**: 2026-01-29
-**Purpose**: Survey mathematical frameworks applicable to Librarian's epistemic subsystem
+**Purpose**: Survey mathematical frameworks applicable to LiBrainian's epistemic subsystem
 
 ---
 
 ## Executive Summary
 
-This document surveys the mathematical foundations relevant to building principled epistemic systems for AI agents. Each area is analyzed for applicability to Librarian's existing architecture, which already implements:
+This document surveys the mathematical foundations relevant to building principled epistemic systems for AI agents. Each area is analyzed for applicability to LiBrainian's existing architecture, which already implements:
 
 - Bounded semilattice structure for confidence composition (calibration_laws.ts)
 - Proven formula AST with type-safe derivation (formula_ast.ts)
@@ -70,12 +70,12 @@ Cox's theorem provides the foundational justification for using probability to r
 - **Dutch Book Avoidance**: Non-probabilistic systems allow guaranteed losses
 - **Decision Theory**: Probability integrates naturally with utility theory
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
-Librarian already uses probabilistic confidence values. Cox's theorem validates this choice:
+LiBrainian already uses probabilistic confidence values. Cox's theorem validates this choice:
 
 ```typescript
-// Librarian's confidence is already Cox-compliant
+// LiBrainian's confidence is already Cox-compliant
 // Values in [0, 1] with probabilistic composition
 type ConfidenceValue =
   | DeterministicConfidence  // 0 or 1
@@ -112,9 +112,9 @@ Imprecise probabilities are valuable when:
 - Multiple sources disagree
 - Expressing genuine ignorance is important for safety
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian's `BoundedConfidence` partially captures this:
+LiBrainian's `BoundedConfidence` partially captures this:
 
 ```typescript
 interface BoundedConfidence {
@@ -126,7 +126,7 @@ interface BoundedConfidence {
 }
 ```
 
-**What Librarian Should Add**
+**What LiBrainian Should Add**
 
 1. **Credal Set Composition**: Rules for combining interval-valued beliefs
    - For AND: [P*(A) * P*(B), P*(A) * P*(B)] (assuming independence)
@@ -172,12 +172,12 @@ D-S theory excels at:
 - **Evidence combination**: Principled fusion from independent sources
 - **Conflict detection**: K measures source disagreement
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian tracks contradictions explicitly but lacks formal D-S structure:
+LiBrainian tracks contradictions explicitly but lacks formal D-S structure:
 
 ```typescript
-// Librarian has contradiction tracking
+// LiBrainian has contradiction tracking
 interface Contradiction {
   id: string;
   claimA: ClaimId;
@@ -188,7 +188,7 @@ interface Contradiction {
 }
 ```
 
-**What Librarian Should Add**
+**What LiBrainian Should Add**
 
 1. **Conflict Measure**: Compute K when combining evidence from multiple sources
 
@@ -229,7 +229,7 @@ Upper/lower probability bounds are useful for:
 - Robust decision-making under ambiguity
 - Safe AI systems that don't overcommit
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 Extend `BoundedConfidence` to track whether bounds are:
 - Statistical confidence intervals (frequentist)
@@ -259,7 +259,7 @@ Functors model structure-preserving transformations:
 - **Abstraction**: Detailed claims -> Summary claims
 - **Translation**: Claims in one domain -> Claims in another
 
-**Example for Librarian**:
+**Example for LiBrainian**:
 
 ```
 ClaimCategory: Objects = claims, Morphisms = derivation steps
@@ -271,7 +271,7 @@ ConfidenceFunctor: ClaimCategory -> ConfidenceCategory
 - Preserves composition: sequential derivation -> min composition
 ```
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Claim Transformation Functors**: Ensure transformations preserve epistemic structure
 
@@ -315,9 +315,9 @@ Monads model:
 - **Effect isolation**: Separating pure from uncertain operations
 - **Sequential composition**: bind operation (>>=)
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian's confidence derivation is implicitly monadic:
+LiBrainian's confidence derivation is implicitly monadic:
 
 ```typescript
 // Sequential composition is like monadic bind
@@ -331,7 +331,7 @@ function parallelAllConfidence(branches: ConfidenceValue[]): ConfidenceValue {
 }
 ```
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Explicit Monadic Interface**: Make the monad structure explicit
 
@@ -376,7 +376,7 @@ Sheaves model local-to-global reasoning:
 - **Global knowledge**: Consistent global understanding
 - **Consistency**: Local claims must agree on overlaps
 
-**Application to Librarian**:
+**Application to LiBrainian**:
 
 ```
 Codebase topology: Opens = directories/modules
@@ -385,7 +385,7 @@ Restriction: Claims about larger scope restrict to claims about subscope
 Gluing: Consistent local claims combine to global claims
 ```
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Consistency Checking**: Verify local claims agree on overlaps
 
@@ -422,7 +422,7 @@ interface LocalGlobalConsistency {
 
 ## 3. Order Theory and Lattices
 
-### 3.1 Semilattices (What Librarian Uses)
+### 3.1 Semilattices (What LiBrainian Uses)
 
 **Key Concepts**
 
@@ -434,9 +434,9 @@ A semilattice is a set with a binary operation that is:
 **Meet Semilattice**: Operation is meet (greatest lower bound, min)
 **Join Semilattice**: Operation is join (least upper bound, max)
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian explicitly implements a bounded semilattice for confidence:
+LiBrainian explicitly implements a bounded semilattice for confidence:
 
 ```typescript
 // From calibration_laws.ts
@@ -486,7 +486,7 @@ Complete lattices enable:
 - **Fixed-point theorems**: Knaster-Tarski applies
 - **Semantic domains**: Model meaning as lattice elements
 
-**What Librarian Should Add**
+**What LiBrainian Should Add**
 
 1. **N-ary Meet/Join**: Already have via array operations
 
@@ -531,7 +531,7 @@ Galois connections model abstraction-concretization pairs:
 - **Abstraction**: Lose detail, maintain safety (upper approximation)
 - **Concretization**: Add possible details
 
-**Application to Librarian**:
+**Application to LiBrainian**:
 
 ```
 Concrete: Individual function claims with per-function confidence
@@ -544,7 +544,7 @@ alpha(gamma(abs)) = abs  (abstraction of concretization is identity)
 conc <= gamma(alpha(conc))  (concretization expands)
 ```
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Claim Abstraction Hierarchy**: Define abstraction levels
 
@@ -585,7 +585,7 @@ Domain theory models:
 - **Information ordering**: More defined = more information
 - **Computation as refinement**: Start with bottom, iterate toward fixed point
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 For defeater resolution (see Section 7):
 
@@ -615,7 +615,7 @@ function moreInformative(a: ConfidenceValue, b: ConfidenceValue): boolean {
 | **Bounded Lattice** | Both operations | May create spurious values | Current choice |
 | **Complete Lattice** | Arbitrary aggregation | Complex | Ideal if needed |
 
-**Recommendation**: Bounded semilattice (what Librarian has) is appropriate:
+**Recommendation**: Bounded semilattice (what LiBrainian has) is appropriate:
 - Meet (min) is the natural pessimistic combination
 - Join (max) is useful for disjunctive evidence
 - Bounds (0, 1) are natural for probability
@@ -659,9 +659,9 @@ Sequent calculus provides:
 - **Structural rules**: Weakening, contraction, exchange
 - **Proof search**: Backward chaining through rules
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian's `DerivedConfidence` captures derivation structure:
+LiBrainian's `DerivedConfidence` captures derivation structure:
 
 ```typescript
 interface DerivedConfidence {
@@ -673,7 +673,7 @@ interface DerivedConfidence {
 }
 ```
 
-**What Librarian Should Add**
+**What LiBrainian Should Add**
 
 1. **Derivation Tree Visualization**: Show proof structure
 
@@ -715,9 +715,9 @@ Natural deduction connects to:
 - **Proof terms**: Lambda calculus terms as proof witnesses
 - **Constructive interpretation**: Proofs are evidence
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian's proven formula AST is a form of proof term:
+LiBrainian's proven formula AST is a form of proof term:
 
 ```typescript
 // From formula_ast.ts
@@ -760,7 +760,7 @@ Cut elimination ensures:
 - **Transparency**: All intermediate steps are explicit
 - **Acyclicity**: No circular justification
 
-**What Librarian Should Verify**
+**What LiBrainian Should Verify**
 
 Ensure derivation chains are acyclic (cut-free):
 
@@ -791,7 +791,7 @@ For epistemic claims:
 - **Claim consumer**: System verifies proof mechanically
 - **Trust**: Based on proof validity, not source trust
 
-**What Librarian Has**
+**What LiBrainian Has**
 
 Proven formulas are a form of proof-carrying claims:
 
@@ -810,7 +810,7 @@ function createProof<T extends ProofType>(proofType: T, validator: string): Proo
 }
 ```
 
-**What Librarian Should Add**
+**What LiBrainian Should Add**
 
 1. **Richer Proof Terms**: Carry more derivation information
 
@@ -852,7 +852,7 @@ Dependent types can express:
 - **Well-founded derivations**: Derivation(depth: Nat)
 - **Sample size requirements**: Measured(samples >= 30)
 
-**What Librarian Could Express**
+**What LiBrainian Could Express**
 
 If TypeScript had dependent types:
 
@@ -866,7 +866,7 @@ function measure<N extends Nat>(
 ): N >= 30 ? MeasuredConfidence : AbsentConfidence;
 ```
 
-**What Librarian Does Instead**
+**What LiBrainian Does Instead**
 
 Runtime validation with type narrowing:
 
@@ -902,7 +902,7 @@ Linear types could track:
 - **Confidence transfer**: Can't use same confidence twice
 - **Freshness**: Time-limited validity
 
-**What Librarian Could Track**
+**What LiBrainian Could Track**
 
 ```typescript
 // Hypothetical linear types
@@ -913,7 +913,7 @@ function deriveFromEvidence(e: FreshEvidence): Claim {
 }
 ```
 
-**What Librarian Does Instead**
+**What LiBrainian Does Instead**
 
 Timestamp-based freshness and unique derivation IDs:
 
@@ -951,7 +951,7 @@ Modal types express:
 - **Multi-agent**: What different agents know/believe
 - **Introspection**: K_a K_a A (positive) vs K_a not-K_a A (negative)
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Agent Attribution**: Track which agent holds which belief
 
@@ -974,7 +974,7 @@ interface AttributedClaim {
 
 **What TypeScript CAN Express**
 
-| Feature | TypeScript Support | Librarian Usage |
+| Feature | TypeScript Support | LiBrainian Usage |
 |---------|-------------------|-----------------|
 | Union types | Yes | ConfidenceValue union |
 | Branded types | Yes (with as) | ClaimId branding |
@@ -1026,7 +1026,7 @@ Information-theoretic measures for:
 - **Evidence value**: How informative is this evidence?
 - **Redundancy**: Do these sources provide redundant information?
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Query Information Value**: Score queries by expected information gain
 
@@ -1081,7 +1081,7 @@ MDL guides:
 - **Anomaly detection**: Data inconsistent with model requires more bits
 - **Compression as understanding**: Better model = better compression
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Claim Complexity Measure**: Simpler claims preferred
 
@@ -1123,7 +1123,7 @@ KL divergence measures:
 - **Calibration error**: Divergence between stated and true probabilities
 - **Model fit**: Divergence between model and data
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Belief Update Magnitude**: Track how much beliefs changed
 
@@ -1161,7 +1161,7 @@ function measureBeliefUpdate(
 | KL divergence | D_KL(posterior || prior) | Belief change magnitude |
 | Brier score improvement | Brier(before) - Brier(after) | Prediction improvement |
 
-**What Librarian Should Track**
+**What LiBrainian Should Track**
 
 1. **Session Epistemic Progress**: Metrics over a session
 
@@ -1222,7 +1222,7 @@ Fixed points model:
 
 **The Problem**
 
-Librarian has higher-order defeat: defeaters can defeat other defeaters. This creates potential cycles:
+LiBrainian has higher-order defeat: defeaters can defeat other defeaters. This creates potential cycles:
 - Defeater A defeats Claim C
 - Defeater B defeats Defeater A
 - If B is active, C is reinstated
@@ -1238,9 +1238,9 @@ f(state) = new state where each defeater is active iff:
   - It's not defeated by any active defeater
 ```
 
-**What Librarian Has**
+**What LiBrainian Has**
 
-Librarian already handles this with cycle detection:
+LiBrainian already handles this with cycle detection:
 
 ```typescript
 // From types.ts - higher-order defeat support
@@ -1262,7 +1262,7 @@ function isDefeaterActive(
 }
 ```
 
-**What Librarian Should Add**
+**What LiBrainian Should Add**
 
 1. **Explicit Fixed-Point Computation**: Make the algorithm explicit
 
@@ -1332,7 +1332,7 @@ g(S) = f(f(S))  // Double application is monotone
 - Iterate: S_{n+1} = f(f(S_n))
 - Grounded extension = lfp(g) = union of S_n
 
-**What This Means for Librarian**
+**What This Means for LiBrainian**
 
 The grounded extension gives the "skeptical" conclusion:
 - Only defeaters that must be active are active
@@ -1370,7 +1370,7 @@ For multi-agent AI systems:
 - When do agents' analyses converge?
 - How to handle strategic information revelation?
 
-**What Librarian Should Consider**
+**What LiBrainian Should Consider**
 
 For multi-agent code analysis:
 
@@ -1409,7 +1409,7 @@ Common knowledge enables:
 - **Shared assumptions**: What all agents take for granted
 - **Agreement theorems**: Rational agents can't "agree to disagree"
 
-**What Librarian Should Track**
+**What LiBrainian Should Track**
 
 1. **Shared Knowledge Base**: Claims all agents know
 
@@ -1441,7 +1441,7 @@ For multiple AI agents analyzing code:
 - How to resolve disagreements?
 - How to identify complementary expertise?
 
-**What Librarian Should Implement**
+**What LiBrainian Should Implement**
 
 1. **Agent Expertise Model**: Track what each agent is good at
 
@@ -1573,9 +1573,9 @@ interface DisagreementResolution {
 
 ---
 
-## Appendix A: Summary Comparison with Librarian
+## Appendix A: Summary Comparison with LiBrainian
 
-| Domain | Theory | Librarian Status | Gap | Priority |
+| Domain | Theory | LiBrainian Status | Gap | Priority |
 |--------|--------|------------------|-----|----------|
 | **Probability** | Cox's theorem | Implicit | None | N/A |
 | | Imprecise probability | BoundedConfidence | Medium | Important |
@@ -1604,9 +1604,9 @@ interface DisagreementResolution {
 
 ---
 
-## Appendix B: Librarian's Mathematical Contributions
+## Appendix B: LiBrainian's Mathematical Contributions
 
-Librarian makes several mathematically principled contributions:
+LiBrainian makes several mathematically principled contributions:
 
 1. **Bounded Semilattice for Confidence**: The explicit algebraic structure with law verification (calibration_laws.ts) is a rigorous foundation for confidence composition.
 
@@ -1618,8 +1618,8 @@ Librarian makes several mathematically principled contributions:
 
 5. **Calibration Status Tracking**: The propagation of calibration through derivations (confidence.ts) is a novel approach to tracking epistemic provenance.
 
-These contributions demonstrate that Librarian takes mathematical foundations seriously. The recommendations in this document extend this foundation in directions that maintain rigor while adding practical value.
+These contributions demonstrate that LiBrainian takes mathematical foundations seriously. The recommendations in this document extend this foundation in directions that maintain rigor while adding practical value.
 
 ---
 
-*This document serves as a mathematical foundation reference for Librarian's epistemic infrastructure. Implementation should proceed according to the priority rankings, with Essential features first.*
+*This document serves as a mathematical foundation reference for LiBrainian's epistemic infrastructure. Implementation should proceed according to the priority rankings, with Essential features first.*

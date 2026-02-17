@@ -4,11 +4,11 @@
 > **Purpose**: Address the most severe usability problems blocking real-world adoption
 > **Status**: These are CRITICAL - they must be addressed for the system to be usable
 >
-> **Librarian Story**: These problems explain WHY chapters 2-7 are necessary. Each problem maps to a specific track.
+> **LiBrainian Story**: These problems explain WHY chapters 2-7 are necessary. Each problem maps to a specific track.
 
 ---
 
-## How Critical Problems Map to the Librarian Story
+## How Critical Problems Map to the LiBrainian Story
 
 | Problem | Chapter | Track | Status |
 |---------|---------|-------|--------|
@@ -43,7 +43,7 @@
 
 ### The Issue
 
-Librarian has an execution engine (`TechniqueExecutionEngine`) plus operator registry/interpreters, but **end-to-end execution is not yet verified with real traces and evidence**. Many primitives still rely on missing handlers, and some operator types are still no-op or partial.
+LiBrainian has an execution engine (`TechniqueExecutionEngine`) plus operator registry/interpreters, but **end-to-end execution is not yet verified with real traces and evidence**. Many primitives still rely on missing handlers, and some operator types are still no-op or partial.
 
 **Severity**: Critical
 
@@ -76,7 +76,7 @@ interface ExecutionContext {
   /** Available tools */
   tools: ToolRegistry;
 
-  /** Current knowledge from Librarian */
+  /** Current knowledge from LiBrainian */
   knowledge: LibrarianResponse;
 
   /** LLM for interpretation */
@@ -161,7 +161,7 @@ async function executeClarifyGoal(
 - [ ] `TechniqueExecutionEngine.execute()` runs at least 5 primitives with real handlers
 - [ ] Evidence ledger captures all operator events
 - [ ] At least one composition can be run end-to-end with trace output
-- [ ] Test: `packages/librarian/src/api/__tests__/execution_engine_e2e.test.ts`
+- [ ] Test: `packages/LiBrainian/src/api/__tests__/execution_engine_e2e.test.ts`
 
 ---
 
@@ -277,7 +277,7 @@ class ClosedLoopLearner implements LearningLoop {
 - [ ] `ClosedLoopLearner.recordOutcome()` updates composition, primitive, and context source scores
 - [ ] `ClosedLoopLearner.getRecommendations()` returns ranked suggestions based on history
 - [ ] Composition selector uses learned scores in selection
-- [ ] Test: `packages/librarian/src/api/__tests__/learning_loop.test.ts`
+- [ ] Test: `packages/LiBrainian/src/api/__tests__/learning_loop.test.ts`
 
 ---
 
@@ -532,7 +532,7 @@ Composition customization enables:
 - [ ] `CompositionBuilder` implemented with `from()`, `add()`, `remove()`, `merge()`, `relate()`
 - [ ] `build()` validates composition before returning
 - [ ] At least 3 example customizations documented
-- [ ] Test: `packages/librarian/src/api/__tests__/composition_builder.test.ts`
+- [ ] Test: `packages/LiBrainian/src/api/__tests__/composition_builder.test.ts`
 
 ---
 
@@ -647,7 +647,7 @@ Checkpointing enables:
 - [ ] `CheckpointedExecution` implemented with `execute()`, `checkpoint()`, `resume()`
 - [ ] Checkpoints stored persistently (survive process restart)
 - [ ] Resume correctly skips completed primitives
-- [ ] Test: `packages/librarian/src/api/__tests__/checkpointed_execution.test.ts`
+- [ ] Test: `packages/LiBrainian/src/api/__tests__/checkpointed_execution.test.ts`
 
 ---
 
@@ -772,7 +772,7 @@ Conversational context enables:
 - [ ] `ContextAssemblySession` implemented with `start()`, `followUp()`, `drillDown()`, `summarize()`
 - [ ] Sessions persist accumulated context across queries
 - [ ] Follow-ups build on previous context (don't re-retrieve)
-- [ ] Test: `packages/librarian/src/api/__tests__/context_sessions.test.ts`
+- [ ] Test: `packages/LiBrainian/src/api/__tests__/context_sessions.test.ts`
 
 ---
 

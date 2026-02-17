@@ -16,7 +16,7 @@ Please do **not** open a public issue for security reports.
 Use one of these channels:
 
 1. GitHub Security Advisories (preferred): open a private report from the repository's **Security** tab.
-2. Email: `security@librarian-ai.dev`
+2. Email: `security@LiBrainian-ai.dev`
 
 Include:
 

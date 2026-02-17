@@ -718,7 +718,7 @@ function rateDistortionRetrieval(
 
 ```gherkin
 Feature: Information-Theoretic Retrieval
-  As a Librarian system
+  As a LiBrainian system
   I want to analyze retrieval through an information-theoretic lens
   So that I can detect gaps, adjust confidence, and suggest improvements
 

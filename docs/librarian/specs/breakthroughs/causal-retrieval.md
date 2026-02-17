@@ -401,7 +401,7 @@ Measurement:
 
 ```gherkin
 Feature: Causal Retrieval
-  As a Librarian system
+  As a LiBrainian system
   I want to retrieve causally relevant documents
   So that I can answer queries with actual causes, not just similar text
 

@@ -1,7 +1,7 @@
 # Debugging Scenarios Use Case Results
 
 **Test Date:** 2026-01-31
-**Purpose:** Evaluate Librarian's ability to assist with common debugging scenarios
+**Purpose:** Evaluate LiBrainian's ability to assist with common debugging scenarios
 
 ---
 
@@ -276,7 +276,7 @@
 
 4. **Type Safety Utilities**: Good collection of type guards and Result type utilities for safer error handling.
 
-5. **Cross-File Discovery**: Librarian successfully finds relevant code across multiple directories and modules.
+5. **Cross-File Discovery**: LiBrainian successfully finds relevant code across multiple directories and modules.
 
 ### Weaknesses
 
@@ -314,7 +314,7 @@
 
 **Overall Verdict: USEFUL FOR DEBUGGING**
 
-Librarian provides meaningful assistance for debugging scenarios, particularly for:
+LiBrainian provides meaningful assistance for debugging scenarios, particularly for:
 - Understanding how the codebase handles specific error types
 - Finding concurrency control and timeout patterns
 - Locating type safety utilities
@@ -324,4 +324,4 @@ The results are most helpful when developers need to understand existing pattern
 For best results, developers should:
 - Use specific error type keywords (e.g., "null", "undefined", "timeout")
 - Follow drill-down hints to explore related files
-- Combine Librarian results with grep/search for specific error messages
+- Combine LiBrainian results with grep/search for specific error messages

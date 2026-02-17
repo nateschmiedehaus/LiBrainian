@@ -1,13 +1,13 @@
-# Librarian Implementation + Integration Plan (Wave0-Ready)
+# LiBrainian Implementation + Integration Plan (Wave0-Ready)
 
 Status: partial
-Scope: meticulous plan for integrating Librarian into evolving Wave0 workflows and external projects.
+Scope: meticulous plan for integrating LiBrainian into evolving Wave0 workflows and external projects.
 Last Verified: 2026-01-04
 Owner: librarianship
 Evidence: plan only (implementation evidence must land in STATUS.md)
 
 ## Purpose
-Define a rigorous, integration-first execution plan that guarantees Librarian
+Define a rigorous, integration-first execution plan that guarantees LiBrainian
 can supply all knowledge and understanding needs for Wave0 agents, even as
 workflows evolve. This plan is a prerequisite to any implementation changes.
 
@@ -25,7 +25,7 @@ workflows evolve. This plan is a prerequisite to any implementation changes.
 - If evidence is missing, the phase is incomplete.
 
 ## Work Process Alignment Principles
-- Capability-first: Librarian is a knowledge service, not a fixed workflow.
+- Capability-first: LiBrainian is a knowledge service, not a fixed workflow.
 - Workflow-agnostic: do not bake in current Wave0 steps; support evolution.
 - UC-driven: tasks declare required UC IDs and constraints explicitly.
 - Evidence-first: every output is evidence-backed or marked as a gap.
@@ -46,16 +46,16 @@ After any implementation work in a phase:
 4) Commit changes with evidence references.
 
 ## Critical Gaps + Code-Level Fixes (Required)
-- LLM fallbacks in semantic extractors -> remove heuristic fallbacks and fail closed with `unverified_by_trace` (`src/librarian/knowledge/extractors/*.ts`).
-- Unknown-language parsing -> LLM fallback parsing in AST indexer + onboarding queue (`src/librarian/agents/ast_indexer.ts`, `src/librarian/agents/parser_registry.ts`).
-- Knowledge maps not surfaced -> inject knowledge sources into context assembly (`src/librarian/api/librarian.ts`, `src/librarian/api/context_assembly.ts`).
-- Knowledge source summaries not LLM-backed -> add LLM summarizer + evidence map codes (`src/librarian/api/librarian.ts`, `src/librarian/api/llm_env.ts`).
-- Method hints are static -> LLM method packs + cache + query wiring (`src/librarian/methods`, `src/librarian/api/query.ts`).
-- Method pack preloading missing -> preload method packs during bootstrap (`src/librarian/api/bootstrap.ts`).
-- Multi-vector pipeline un-wired -> persist multi-vector signals + query scoring integration (`src/librarian/storage`, `src/librarian/api/embedding_providers`).
-- Monorepo alias resolution missing -> workspace detection + alias resolver in ingest (`src/librarian/ingest/workspace_detector.ts`, `src/librarian/ingest/module_indexer.ts`).
-- Co-change edges missing in bootstrap -> compute during bootstrap, not only Wave0 integration (`src/librarian/api/bootstrap.ts`).
-- Provider unavailability errors lack `unverified_by_trace` -> fail closed in `requireProviders()` (`src/librarian/api/provider_check.ts`).
+- LLM fallbacks in semantic extractors -> remove heuristic fallbacks and fail closed with `unverified_by_trace` (`src/LiBrainian/knowledge/extractors/*.ts`).
+- Unknown-language parsing -> LLM fallback parsing in AST indexer + onboarding queue (`src/LiBrainian/agents/ast_indexer.ts`, `src/LiBrainian/agents/parser_registry.ts`).
+- Knowledge maps not surfaced -> inject knowledge sources into context assembly (`src/LiBrainian/api/LiBrainian.ts`, `src/LiBrainian/api/context_assembly.ts`).
+- Knowledge source summaries not LLM-backed -> add LLM summarizer + evidence map codes (`src/LiBrainian/api/LiBrainian.ts`, `src/LiBrainian/api/llm_env.ts`).
+- Method hints are static -> LLM method packs + cache + query wiring (`src/LiBrainian/methods`, `src/LiBrainian/api/query.ts`).
+- Method pack preloading missing -> preload method packs during bootstrap (`src/LiBrainian/api/bootstrap.ts`).
+- Multi-vector pipeline un-wired -> persist multi-vector signals + query scoring integration (`src/LiBrainian/storage`, `src/LiBrainian/api/embedding_providers`).
+- Monorepo alias resolution missing -> workspace detection + alias resolver in ingest (`src/LiBrainian/ingest/workspace_detector.ts`, `src/LiBrainian/ingest/module_indexer.ts`).
+- Co-change edges missing in bootstrap -> compute during bootstrap, not only Wave0 integration (`src/LiBrainian/api/bootstrap.ts`).
+- Provider unavailability errors lack `unverified_by_trace` -> fail closed in `requireProviders()` (`src/LiBrainian/api/provider_check.ts`).
 - Waiting policy not enforced -> default no-timeout for LLM-required steps unless configured (`src/soma/providers/llm_service.ts`, `src/models/model_policy.ts`).
 
 ## Implementation Map (File-Level Execution)
@@ -63,20 +63,20 @@ Each line is a concrete, code-facing change with explicit wiring targets.
 
 | Area | Primary Files | Required Changes | Evidence |
 | --- | --- | --- | --- |
-| Knowledge source injection | `src/librarian/api/librarian.ts`, `src/librarian/api/context_assembly.ts` | Build LLM summaries of knowledge-map outputs and inject into context assembly with evidence + map codes | Scenario outputs include knowledgeSources |
-| Method pack cache + preload | `src/librarian/methods/method_pack_service.ts`, `src/librarian/api/bootstrap.ts` | Preload top method families during bootstrap; enforce cache TTL and governor budgets | Bootstrap audit includes pack cache |
-| Multi-vector retrieval | `src/librarian/storage/sqlite_storage.ts`, `src/librarian/api/embedding_providers/multi_vector_representations.ts`, `src/librarian/api/query.ts` | Store per-entity vector kinds and integrate weighted scoring by intent | Retrieval quality audit |
-| Monorepo workspace mapping | `src/librarian/ingest/workspace_detector.ts`, `src/librarian/ingest/module_indexer.ts` | Detect workspace layouts and resolve package aliases into module graphs | Scenario S1/S22 pass |
-| Provider/model governance | `src/models/model_policy.ts`, `src/librarian/api/provider_check.ts` | Daily selection snapshots + fail-closed provider checks | Audit artifacts in state/audits |
+| Knowledge source injection | `src/LiBrainian/api/LiBrainian.ts`, `src/LiBrainian/api/context_assembly.ts` | Build LLM summaries of knowledge-map outputs and inject into context assembly with evidence + map codes | Scenario outputs include knowledgeSources |
+| Method pack cache + preload | `src/LiBrainian/methods/method_pack_service.ts`, `src/LiBrainian/api/bootstrap.ts` | Preload top method families during bootstrap; enforce cache TTL and governor budgets | Bootstrap audit includes pack cache |
+| Multi-vector retrieval | `src/LiBrainian/storage/sqlite_storage.ts`, `src/LiBrainian/api/embedding_providers/multi_vector_representations.ts`, `src/LiBrainian/api/query.ts` | Store per-entity vector kinds and integrate weighted scoring by intent | Retrieval quality audit |
+| Monorepo workspace mapping | `src/LiBrainian/ingest/workspace_detector.ts`, `src/LiBrainian/ingest/module_indexer.ts` | Detect workspace layouts and resolve package aliases into module graphs | Scenario S1/S22 pass |
+| Provider/model governance | `src/models/model_policy.ts`, `src/LiBrainian/api/provider_check.ts` | Daily selection snapshots + fail-closed provider checks | Audit artifacts in state/audits |
 
 ## Integration Model (Wave0 + External Projects)
-Librarian must integrate into any work process without assuming fixed steps.
-Wave0 workflows will evolve as Librarian exposes gaps; integration must be
+LiBrainian must integrate into any work process without assuming fixed steps.
+Wave0 workflows will evolve as LiBrainian exposes gaps; integration must be
 capability-driven, not process-driven.
 
 ### Workflow Integration Contract
-- Every agent workflow step can request Librarian context packs by intent.
-- Librarian returns: answer + evidence + confidence + defeaters + next actions.
+- Every agent workflow step can request LiBrainian context packs by intent.
+- LiBrainian returns: answer + evidence + confidence + defeaters + next actions.
 - Workflows can be standardized (checklists) or dynamic (agent-generated).
 - Each workflow step can attach a required UC ID list from the matrix.
 - Workflow steps can request evidence thresholds and freshness constraints.
@@ -92,7 +92,7 @@ capability-driven, not process-driven.
 
 ### Knowledge Supply Contract
 - All knowledge/understanding needs map to UC IDs in `USE_CASE_MATRIX.md`.
-- If Librarian cannot satisfy a UC, it must return gaps + required inputs.
+- If LiBrainian cannot satisfy a UC, it must return gaps + required inputs.
 - Gaps must be recorded as planning deltas (see Phase 4 and Phase 5).
 - Gap reports must be linked to WORKPLAN.md and STATUS.md updates.
 
@@ -130,7 +130,7 @@ Dependencies: Phase 0
 Deliverables:
 - Daily model selection via provider docs and recorded audit artifacts.
 - Provider checks enforced before any bootstrap, query, or indexing.
-- Haiku-class defaults for Librarian unless proven insufficient.
+- Haiku-class defaults for LiBrainian unless proven insufficient.
 Integration hooks:
 - Model policy is consumed by CLI, bootstrap, and query.
 - Provider gating blocks any workflow step that needs understanding.
@@ -170,7 +170,7 @@ Deliverables:
 - Query pipeline integrates semantic, graph, co-change, rerank signals.
 - Multi-vector and purpose-extraction signals are included in retrieval scoring.
 - Context packs assembled with evidence and confidence.
-- Agent context assembly uses Librarian outputs as primary source.
+- Agent context assembly uses LiBrainian outputs as primary source.
 - Method pack cache and hint injection wired to UCRequirementSet.
 Integration hooks:
 - Context assembly contract consumed by Wave0 orchestration hooks.
@@ -190,7 +190,7 @@ Integration hooks:
 - Validation outputs written to STATUS.md and audit artifacts.
 Evidence gates:
 - Tier-0: deterministic gate passes.
-- Tier-2: live bootstrap for Librarian repo.
+- Tier-2: live bootstrap for LiBrainian repo.
 - Tier-3: stress suite across representative external repos.
 
 ## Workflow Tooling Requirements
@@ -198,15 +198,15 @@ Evidence gates:
 ### Standardized Workflow Support
 - Library of canonical workflow templates mapped to UC clusters.
 - Each template declares required context packs and evidence thresholds.
-- Templates must be versioned and stored as Librarian knowledge artifacts.
+- Templates must be versioned and stored as LiBrainian knowledge artifacts.
 
 ### Dynamic Workflow Support
 - Agents can request ad-hoc context by intent + UC list.
-- Librarian returns structured context packs aligned to UC dependencies.
+- LiBrainian returns structured context packs aligned to UC dependencies.
 - Decisions and rationale are stored as knowledge updates.
 
 ### Work Process Integration Hooks
-- Pre-task hook: context assembly from Librarian.
+- Pre-task hook: context assembly from LiBrainian.
 - Mid-task hook: gap detection and re-query.
 - Post-task hook: feedback ingestion and knowledge update.
 
@@ -219,7 +219,7 @@ Evidence gates:
 - Generate a scenario diff report with missing evidence, confidence drift, and method coverage gaps.
 
 ## Failure Modes + Debugging Loop (Required)
-When Librarian fails to meet UC coverage or scenario expectations:
+When LiBrainian fails to meet UC coverage or scenario expectations:
 1) Capture the exact query, context pack, and evidence pack.
 2) Identify missing signals (ingest, map, method pack, provider output).
 3) Reproduce in a minimal fixture if possible.
@@ -238,7 +238,7 @@ When Librarian fails to meet UC coverage or scenario expectations:
 - Evidence updates go to STATUS.md with `unverified_by_trace` until verified.
 
 ## Operational Requirements
-- Daily model selection runs before any Librarian execution.
+- Daily model selection runs before any LiBrainian execution.
 - Provider checks (`checkAllProviders()`) gate bootstrap and query.
 - All semantic outputs include evidence + confidence + defeaters.
 - All long-running phases default to waiting until completion.
@@ -252,7 +252,7 @@ When Librarian fails to meet UC coverage or scenario expectations:
 - Documentation tone is professional, technical, and evidence-first (no AI fluff).
 
 ## Wave0 Integration Surfaces (Evolving)
-- Context assembly: Librarian is the primary source of knowledge for agents.
+- Context assembly: LiBrainian is the primary source of knowledge for agents.
 - Orchestrator hooks: pre-task, mid-task, post-task hooks are required.
 - Agent registry: tasks can declare needed UC coverage and constraints.
 - Workspace lock + file watcher: prevent stale reads and race conditions.
@@ -271,7 +271,7 @@ When Librarian fails to meet UC coverage or scenario expectations:
 
 ### Core Data Contracts (Required)
 All workflow integration must use these artifacts. Each artifact is stored
-as a Librarian knowledge object with evidence and timestamps.
+as a LiBrainian knowledge object with evidence and timestamps.
 
 - UCRequirementSet
   - Fields: ucIds[], priority, evidenceThreshold, freshnessMaxDays,
@@ -281,7 +281,7 @@ as a Librarian knowledge object with evidence and timestamps.
 - ContextPackRequest
   - Fields: intent, depth, ucRequirements (UCRequirementSet),
     targetRefs[] (paths/symbols), timeBudgetMs, requester, sessionId.
-  - Purpose: query Librarian with explicit constraints.
+  - Purpose: query LiBrainian with explicit constraints.
 
 - ContextPackBundle
   - Fields: packs[], evidencePackIds[], confidenceSummary, defeaters[],
@@ -324,7 +324,7 @@ as a Librarian knowledge object with evidence and timestamps.
 - Daily model selection is a preflight step for every run.
 - Provider checks are mandatory before any LLM or embedding call.
 - If a provider is unavailable, emit `unverified_by_trace(provider_unavailable)`.
-- Librarian defaults to Haiku-class for cost efficiency unless proven insufficient.
+- LiBrainian defaults to Haiku-class for cost efficiency unless proven insufficient.
 
 ## Pipeline Implementation Details (Required)
 
@@ -391,7 +391,7 @@ Sequence:
 5) Attach method hints to context packs or return as separate bundles.
 
 Requirements:
-- Hints must be grounded in Librarian knowledge and evidence.
+- Hints must be grounded in LiBrainian knowledge and evidence.
 - Preloading is opportunistic and budget-aware, not fixed.
 - Missing method support emits GapReport with required inputs.
 
@@ -414,13 +414,13 @@ Requirements:
 - Post-task: emit feedback + update knowledge + record WorkflowRunRecord.
 
 ### Agent Context Assembly
-- Agents must request context via Librarian, not ad-hoc search.
+- Agents must request context via LiBrainian, not ad-hoc search.
 - Responses must be evidence-backed; no freeform speculation.
 - If UC coverage is partial, agent must surface gaps explicitly.
 
 ### Orchestrator Integration
 - Orchestrator accepts UC requirements and enforces evidence thresholds.
-- Task scheduler uses Librarian signals (confidence, risk, freshness).
+- Task scheduler uses LiBrainian signals (confidence, risk, freshness).
 - Workspace lock + file watcher prevent stale reads and conflicting writes.
 
 ### External Project Integration
@@ -436,7 +436,7 @@ Requirements:
 - No provider bypass or fake embeddings.
 
 ### Tier-2 (Live Providers)
-- Live bootstrap for Librarian repo (Haiku-class).
+- Live bootstrap for LiBrainian repo (Haiku-class).
 - Scenario runs for onboarding, change impact, security, refactor.
 - Evidence pack completeness checks for semantic outputs.
 
@@ -492,7 +492,7 @@ Requirements:
   enforcement with explicit block reasons.
 - Performance/cost blowups -> token budgets + batch limits + dynamic preload
   throttling + partial execution with explicit gaps.
-- Workflow bypass (agents skipping Librarian) -> enforce pre-task hooks +
+- Workflow bypass (agents skipping LiBrainian) -> enforce pre-task hooks +
   context assembly contract + audit for bypass events.
 - Multi-vector drift or unused weights -> persist vector-kind metadata and
   wire weighted scoring by intent with explicit explanations.
@@ -502,7 +502,7 @@ Requirements:
 - Method pack cache staleness -> TTL + preloading + cache audit in bootstrap.
 
 ## Implementation Blockers (Immediate)
-These are known gaps that block full, reliable Librarian operation. They must
+These are known gaps that block full, reliable LiBrainian operation. They must
 be resolved in Phase 1-3 before proceeding to scenario coverage claims.
 
 - Knowledge map outputs not surfaced -> inject LLM summaries into context packs
@@ -564,6 +564,6 @@ be resolved in Phase 1-3 before proceeding to scenario coverage claims.
 
 ## Packaging and Injection Requirements
 - Packaging and onboarding follow `PACKAGING_AND_ONBOARDING.md`.
-- Librarian must be injectible without altering host repo structure.
+- LiBrainian must be injectible without altering host repo structure.
 - Minimal footprint with clean uninstall and no side effects.
 - Onboarding must pass Tier-2 live provider validation.

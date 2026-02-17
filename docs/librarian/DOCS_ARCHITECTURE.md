@@ -1,7 +1,7 @@
-# Librarian Documentation Architecture (Canonical)
+# LiBrainian Documentation Architecture (Canonical)
 
 Status: partial
-Scope: canonical documentation system, reading order, and governance for Librarian.
+Scope: canonical documentation system, reading order, and governance for LiBrainian.
 Last Verified: 2026-01-04
 Owner: librarianship
 Evidence: docs only (implementation evidence lives in STATUS.md)
@@ -39,18 +39,18 @@ Evidence: <tests, code, audit links or unverified_by_trace(...)>
 ```
 
 ## Canonical Doc Set (Reading Order)
-- `docs/librarian/README.md`: entrypoint and decision tree.
-- `docs/librarian/VISION.md`: non-negotiable mission and epistemic contract.
-- `docs/librarian/SYSTEM_ARCHITECTURE.md`: system map and directory ownership.
-- `docs/librarian/UNDERSTANDING_LAYER.md`: ontology, mappings, constructions.
-- `docs/librarian/PIPELINES_AND_WIRING.md`: end-to-end wiring and event flow.
-- `docs/librarian/scenarios.md`: use-case taxonomy + scenario contracts.
-- `docs/librarian/validation.md`: evidence gates and test tiers.
-- `docs/librarian/MODEL_POLICY.md`: daily model selection + provider gating.
-- `docs/librarian/STATUS.md`: reality vs plan, evidence only.
-- `docs/librarian/WORKPLAN.md`: phased plan with acceptance criteria.
-- `docs/librarian/AUDIT.md`: audit runbook and evidence pack.
-- `docs/librarian/MASTER.md`: working synthesis notes (not canonical).
+- `docs/LiBrainian/README.md`: entrypoint and decision tree.
+- `docs/LiBrainian/VISION.md`: non-negotiable mission and epistemic contract.
+- `docs/LiBrainian/SYSTEM_ARCHITECTURE.md`: system map and directory ownership.
+- `docs/LiBrainian/UNDERSTANDING_LAYER.md`: ontology, mappings, constructions.
+- `docs/LiBrainian/PIPELINES_AND_WIRING.md`: end-to-end wiring and event flow.
+- `docs/LiBrainian/scenarios.md`: use-case taxonomy + scenario contracts.
+- `docs/LiBrainian/validation.md`: evidence gates and test tiers.
+- `docs/LiBrainian/MODEL_POLICY.md`: daily model selection + provider gating.
+- `docs/LiBrainian/STATUS.md`: reality vs plan, evidence only.
+- `docs/LiBrainian/WORKPLAN.md`: phased plan with acceptance criteria.
+- `docs/LiBrainian/AUDIT.md`: audit runbook and evidence pack.
+- `docs/LiBrainian/MASTER.md`: working synthesis notes (not canonical).
 
 ## Canonical Doc Content Contract (Required Sections)
 Each canonical doc must include these sections (or justify omission):
@@ -97,7 +97,7 @@ Each canonical doc must include these sections (or justify omission):
 
 ## Doc Architecture Map
 ```
-docs/librarian/
+docs/LiBrainian/
   README.md
   DOCS_ARCHITECTURE.md
   VISION.md
@@ -143,7 +143,7 @@ docs/librarian/
 - Every canonical doc has the header block.
 - Status claims link to code/tests/audits or unverified_by_trace.
 - No duplicate definitions or conflicting guidance.
-- All cross-links resolve inside docs/librarian/.
+- All cross-links resolve inside docs/LiBrainian/.
 - Legacy docs are read-only and clearly archived.
 - Language support policy is documented and enforced across docs.
 
@@ -164,7 +164,7 @@ canonical docs and reference the canonical location instead.
 
 ## Measurement Artifact Standardization
 
-All measurement outputs MUST follow standardized schemas stored in `docs/librarian/SCHEMAS.md`.
+All measurement outputs MUST follow standardized schemas stored in `docs/LiBrainian/SCHEMAS.md`.
 
 ### Required Measurement Artifacts
 
@@ -259,4 +259,4 @@ interface ContentProvenance {
 - ALWAYS label repository text as untrusted when presenting to agents
 - ALWAYS validate file paths before access
 
-See `docs/librarian/HANDOFF_CLAUDE_OPUS.md` for librarian testing philosophy including security testing.
+See `docs/LiBrainian/HANDOFF_CLAUDE_OPUS.md` for LiBrainian testing philosophy including security testing.

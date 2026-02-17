@@ -19,8 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `.github/ISSUE_TEMPLATE/config.yml`
 
 ### Changed
-- npm package name from `librarian` to `librainian` to avoid npm registry collision.
-- Added backward-compatible CLI bin alias so both `librainian` and `librarian` commands resolve.
+- npm package name from `LiBrainian` to `librainian` to avoid npm registry collision.
+- Added backward-compatible CLI bin alias so both `librainian` and `LiBrainian` commands resolve.
 - Updated public docs and examples to use `librainian` install/import commands.
 - Replaced legacy Wave0-prefixed environment naming with `LIBRARIAN_` naming across active docs/scripts/tests.
 
@@ -63,14 +63,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Average branch coverage: ~88%
 
 ### Documentation
-- Added comprehensive `docs/librarian/EPISTEMICS.md` guide
-- Added `docs/librarian/test-verification-report.md` with detailed test analysis
+- Added comprehensive `docs/LiBrainian/EPISTEMICS.md` guide
+- Added `docs/LiBrainian/test-verification-report.md` with detailed test analysis
 - Updated architecture documentation with new modules
 
 ## [0.1.0] - 2026-01-15
 
 ### Added
-- Initial release of Librarian
+- Initial release of LiBrainian
 - Core indexing and semantic query
 - Quality issue detection with ROI ranking
 - Best practices database
@@ -92,6 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/nateschmiedehaus/librarian/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/nateschmiedehaus/librarian/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/nateschmiedehaus/librarian/releases/tag/v0.1.0
+[Unreleased]: https://github.com/nateschmiedehaus/LiBrainian/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nateschmiedehaus/LiBrainian/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/nateschmiedehaus/LiBrainian/releases/tag/v0.1.0

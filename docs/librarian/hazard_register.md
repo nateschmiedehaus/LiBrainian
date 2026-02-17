@@ -1,4 +1,4 @@
-# Librarian Hazard Register (Truth-First)
+# LiBrainian Hazard Register (Truth-First)
 
 Status: authoritative
 Scope: Known failure modes + preventive controls
@@ -9,7 +9,7 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 ---
 
 ## Purpose
-This register enumerates the critical ways Librarian can fail to meet its
+This register enumerates the critical ways LiBrainian can fail to meet its
 truth-first, fail-safe contract. Each hazard includes preventive controls
 and verification hooks. Any new feature must update this register.
 

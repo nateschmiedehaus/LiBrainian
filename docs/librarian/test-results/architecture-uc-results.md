@@ -2,13 +2,13 @@
 
 **Date:** 2026-01-31
 **Test Type:** ARCHITECTURE Use Cases
-**Librarian Version:** Current (main branch)
+**LiBrainian Version:** Current (main branch)
 
 ---
 
 ## Executive Summary
 
-The Librarian was tested against 5 architecture-focused queries to evaluate its ability to reveal system architecture, design patterns, and architectural decisions. Overall, the results show **moderate success** in finding architecture-related code, but significant gaps in providing high-level architectural understanding.
+The LiBrainian was tested against 5 architecture-focused queries to evaluate its ability to reveal system architecture, design patterns, and architectural decisions. Overall, the results show **moderate success** in finding architecture-related code, but significant gaps in providing high-level architectural understanding.
 
 ### Overall Score: 2.5/5 (Partial Success)
 
@@ -86,7 +86,7 @@ The Librarian was tested against 5 architecture-focused queries to evaluate its 
 - Successfully identified module graph and coupling detection functionality
 - These are TOOLS for analyzing coupling, not the actual module boundary documentation
 - Good that it found `architecture_advisor.ts` and `module_graph.ts`
-- Does not reveal actual module boundaries in the librarian codebase itself
+- Does not reveal actual module boundaries in the LiBrainian codebase itself
 
 ---
 
@@ -109,7 +109,7 @@ The Librarian was tested against 5 architecture-focused queries to evaluate its 
 - `inferLayer` and `detectLayerViolations` are directly relevant
 - However, these are again TOOLS for analyzing layered architecture, not documentation of the actual layers
 - The codebase appears to have layered architecture analysis capabilities
-- Does not explain what layers exist in the librarian system itself
+- Does not explain what layers exist in the LiBrainian system itself
 
 ---
 
@@ -144,7 +144,7 @@ The Librarian was tested against 5 architecture-focused queries to evaluate its 
 
 **NO - Not effectively**
 
-The librarian primarily returned function-level implementation details rather than high-level architectural documentation. While it found some architecture-related code (especially in `architecture_advisor.ts`), it failed to provide:
+The LiBrainian primarily returned function-level implementation details rather than high-level architectural documentation. While it found some architecture-related code (especially in `architecture_advisor.ts`), it failed to provide:
 - System component diagrams or descriptions
 - Module dependency maps
 - Data flow documentation
@@ -155,7 +155,7 @@ The librarian primarily returned function-level implementation details rather th
 
 **PARTIALLY**
 
-The ADR query found ADR management tools, but not the actual decisions themselves. The results suggest the codebase HAS infrastructure for managing architectural decisions (extraction, supersession, updates), but the librarian did not surface the actual decisions made.
+The ADR query found ADR management tools, but not the actual decisions themselves. The results suggest the codebase HAS infrastructure for managing architectural decisions (extraction, supersession, updates), but the LiBrainian did not surface the actual decisions made.
 
 ### 3. What architectural aspects were missed?
 
@@ -179,7 +179,7 @@ The ADR query found ADR management tools, but not the actual decisions themselve
 ### Why the poor results?
 
 1. **Semantic Gap**: The queries used abstract architectural terms that may not appear literally in function-level code
-2. **Function-Level Indexing**: The librarian indexes at function granularity, missing file-level and module-level documentation
+2. **Function-Level Indexing**: The LiBrainian indexes at function granularity, missing file-level and module-level documentation
 3. **No Architecture Documentation**: The codebase may lack explicit architecture documentation (README, ARCHITECTURE.md)
 4. **Fallback to General Packs**: For Query 1, the system fell back to general packs indicating poor semantic matching
 5. **Tools vs Documentation Confusion**: Found tools for analyzing architecture rather than architectural documentation itself

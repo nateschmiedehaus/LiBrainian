@@ -1,10 +1,10 @@
 # Track C: Causal Reasoning Engine
 
-> **Extracted from**: `docs/librarian/THEORETICAL_CRITIQUE.md` (Part XVII.C)
+> **Extracted from**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md` (Part XVII.C)
 > **Source**: Pearl's do-calculus, structural causal models, and counterfactual reasoning
 > **Status**: Specification complete, implementation pending
 >
-> **Librarian Story**: Chapter 6 (The Causality) - Understanding not just what IS, but what WOULD happen.
+> **LiBrainian Story**: Chapter 6 (The Causality) - Understanding not just what IS, but what WOULD happen.
 >
 > **Related Specifications**:
 > - [track-c-extended.md](./track-c-extended.md) - P16 Causal Discovery (observational data)
@@ -40,7 +40,7 @@ Current impact analysis uses dependency graph traversal:
 
 ```typescript
 // Current approach: graph traversal
-const affected = await librarian.getAffectedEntities('function:parseConfig');
+const affected = await LiBrainian.getAffectedEntities('function:parseConfig');
 // Returns: ['function:validateConfig', 'function:loadConfig', 'test:config.test.ts', ...]
 
 // Problems:
@@ -73,7 +73,7 @@ These three levels form the **Ladder of Causation**:
 2. **Intervention** (doing): Effects of actions
 3. **Counterfactual** (imagining): What-if reasoning
 
-Librarian needs all three levels to truly understand code impact.
+LiBrainian needs all three levels to truly understand code impact.
 
 ---
 
@@ -2012,7 +2012,7 @@ const CAUSAL_PRIMITIVES = {
 
 ```typescript
 /**
- * Integration with Librarian's evidence graph.
+ * Integration with LiBrainian's evidence graph.
  *
  * Claims in the evidence graph can have causal support:
  * "This function returns X BECAUSE it processes Y"
@@ -2173,7 +2173,7 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/types.ts
+// - src/LiBrainian/api/causal/types.ts
 
 // Deliverables:
 // - CausalModel, CausalEdge, CausalVariable types
@@ -2187,7 +2187,7 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/builder.ts
+// - src/LiBrainian/api/causal/builder.ts
 
 // Deliverables:
 // - CausalGraphBuilder implementation
@@ -2202,7 +2202,7 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/do_calculus.ts
+// - src/LiBrainian/api/causal/do_calculus.ts
 
 // Deliverables:
 // - intervene() implementation
@@ -2217,7 +2217,7 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/counterfactual.ts
+// - src/LiBrainian/api/causal/counterfactual.ts
 
 // Deliverables:
 // - Abduction-action-prediction procedure
@@ -2232,7 +2232,7 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/root_cause.ts
+// - src/LiBrainian/api/causal/root_cause.ts
 
 // Deliverables:
 // - rootCauseAnalysis() implementation
@@ -2247,8 +2247,8 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/primitives.ts
-// - src/librarian/api/causal/integration.ts
+// - src/LiBrainian/api/causal/primitives.ts
+// - src/LiBrainian/api/causal/integration.ts
 
 // Deliverables:
 // - Primitive implementations
@@ -2263,10 +2263,10 @@ interface TaskOutcome {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/causal/__tests__/builder.test.ts
-// - src/librarian/api/causal/__tests__/do_calculus.test.ts
-// - src/librarian/api/causal/__tests__/counterfactual.test.ts
-// - src/librarian/api/causal/__tests__/root_cause.test.ts
+// - src/LiBrainian/api/causal/__tests__/builder.test.ts
+// - src/LiBrainian/api/causal/__tests__/do_calculus.test.ts
+// - src/LiBrainian/api/causal/__tests__/counterfactual.test.ts
+// - src/LiBrainian/api/causal/__tests__/root_cause.test.ts
 
 // Deliverables:
 // - Unit tests for all modules
@@ -2340,25 +2340,25 @@ interface TaskOutcome {
 
 ```bash
 # Run causal reasoning tests
-cd packages/librarian && npx vitest run src/api/causal/__tests__/
+cd packages/LiBrainian && npx vitest run src/api/causal/__tests__/
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Causal'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Causal'))))"
 
 # Build causal model for a real codebase (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts causal-model /path/to/codebase
+cd packages/LiBrainian && npx tsx src/cli/index.ts causal-model /path/to/codebase
 
 # Analyze intervention effect
-cd packages/librarian && npx tsx src/cli/index.ts intervene --entity function:parseConfig --change "modify return type"
+cd packages/LiBrainian && npx tsx src/cli/index.ts intervene --entity function:parseConfig --change "modify return type"
 
 # Run counterfactual query
-cd packages/librarian && npx tsx src/cli/index.ts counterfactual --what-if "PR 123 not merged" --target tests_passing
+cd packages/LiBrainian && npx tsx src/cli/index.ts counterfactual --what-if "PR 123 not merged" --target tests_passing
 
 # Find root cause
-cd packages/librarian && npx tsx src/cli/index.ts root-cause --symptom "test:auth.test.ts failing"
+cd packages/LiBrainian && npx tsx src/cli/index.ts root-cause --symptom "test:auth.test.ts failing"
 
 # Check implementation status
-ls -la packages/librarian/src/api/causal/
+ls -la packages/LiBrainian/src/api/causal/
 ```
 
 ---

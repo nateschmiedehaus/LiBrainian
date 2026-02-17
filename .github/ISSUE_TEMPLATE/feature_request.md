@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a new feature for Librarian
+about: Suggest a new feature for LiBrainian
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''

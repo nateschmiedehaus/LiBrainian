@@ -91,7 +91,7 @@ The six epistemic primitives (Distinguishability, Content, Grounding, Attitude, 
 - Recommendation: Implement Quality Gates
 
 ### Part 8: [Limitations Acknowledgment](./08-limitations.md)
-- What Librarian CANNOT Do
+- What LiBrainian CANNOT Do
 - Where Human Judgment is Required
 - Computational Limits
 - Theoretical Impossibilities
@@ -127,7 +127,7 @@ This synthesis is based on analysis of:
 - `unconstructable-processes.md`
 - `paradoxes-edge-cases.md`
 - `src/epistemics/universal_coherence.ts`
-- `docs/librarian/specs/universal-coherence-design.md`
+- `docs/LiBrainian/specs/universal-coherence-design.md`
 
 ---
 

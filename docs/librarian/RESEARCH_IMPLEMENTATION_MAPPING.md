@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-The Librarian project has made significant progress implementing research-backed hallucination detection techniques. However, several high-impact research findings remain unimplemented. This document maps research techniques to current implementation status and prioritizes gaps.
+The LiBrainian project has made significant progress implementing research-backed hallucination detection techniques. However, several high-impact research findings remain unimplemented. This document maps research techniques to current implementation status and prioritizes gaps.
 
 ### Key Findings
 
@@ -34,7 +34,7 @@ The Librarian project has made significant progress implementing research-backed
 | Model Integration | MiniCheck-7B local model | No LLM integration - uses AST facts only | GAP |
 | NLI-based Checking | Natural language inference for entailment | Heuristic-based support checking | GAP |
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/entailment_checker.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/entailment_checker.ts`
 
 **Implementation Notes**:
 - The `EntailmentChecker` class uses pattern matching to extract claims (lines 109-224)
@@ -51,7 +51,7 @@ The Librarian project has made significant progress implementing research-backed
 | Multi-step Verification | Decompose-then-verify pipeline | Single-step verification against AST | GAP |
 | Cost Efficiency | Automated at scale | Fully automated local verification | IMPLEMENTED |
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/citation_verifier.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/citation_verifier.ts`
 
 **Implementation Notes**:
 - `CitationVerifier` extracts citations and verifies against AST facts (lines 107-232)
@@ -67,7 +67,7 @@ The Librarian project has made significant progress implementing research-backed
 | AUROC Target | >= 0.75 for inconsistency detection | Not measured | GAP |
 | Fact Extraction | Extract key facts for comparison | Pattern-based fact extraction (lines 166-188) | IMPLEMENTED |
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/consistency_checker.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/consistency_checker.ts`
 
 **Implementation Notes**:
 - `ConsistencyChecker` generates query variants and compares answers (lines 228-276)
@@ -96,7 +96,7 @@ The Librarian project has made significant progress implementing research-backed
 | Reflection Tokens | Self-evaluation of retrieval quality | Coverage estimation only | GAP |
 | CoT Integration | Chain-of-thought during retrieval | No reasoning chain | GAP |
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/iterative_retrieval.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/iterative_retrieval.ts`
 
 **Implementation Notes**:
 - `IterativeRetriever` performs multi-round retrieval (lines 149-262)
@@ -126,7 +126,7 @@ The Librarian project has made significant progress implementing research-backed
 | Stale References | References to non-existent code | Implemented (lines 390-460) | IMPLEMENTED |
 | Semantic Drift | Comment describes different behavior | Implemented (lines 803-839) | IMPLEMENTED |
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/comment_code_checker.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/comment_code_checker.ts`
 
 **Status**: WELL IMPLEMENTED - This is a strong implementation matching research goals
 
@@ -144,8 +144,8 @@ The Librarian project has made significant progress implementing research-backed
 | Self-Play | Bug injection/solving loops | Not implemented | GAP |
 
 **Files**:
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/agents/loop_orchestrator.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/agents/hypothesis_generator.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/agents/loop_orchestrator.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/agents/hypothesis_generator.ts`
 
 **Implementation Notes**:
 - Complete scientific loop with Problem -> Hypothesis -> Test -> Fix -> Verify cycle

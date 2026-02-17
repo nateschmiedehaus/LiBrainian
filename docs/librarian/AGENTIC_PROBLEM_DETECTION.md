@@ -26,8 +26,8 @@ Pre-mortem analysis anticipates failures *before* they occur. When planning chan
 ### 1.1 Pre-Mortem Query Template
 
 ```typescript
-// Use librarian to run pre-mortem analysis
-const premortem = await librarian.query({
+// Use LiBrainian to run pre-mortem analysis
+const premortem = await LiBrainian.query({
   intent: "What could cause [proposed change] to fail?",
   taskType: 'debugging',
   depth: 'L2',
@@ -41,7 +41,7 @@ const premortem = await librarian.query({
 
 ### 1.2 Failure Mode Categories
 
-| Category | Questions to Ask | Librarian Query Pattern |
+| Category | Questions to Ask | LiBrainian Query Pattern |
 |----------|------------------|------------------------|
 | **Data Flow** | Can data be null/undefined at any point? | `"null propagation paths for [function]"` |
 | **State** | Can state become inconsistent? | `"state mutation points in [module]"` |
@@ -88,35 +88,35 @@ Before any significant change:
 - [ ] Fallbacks for critical paths
 ```
 
-### 1.4 Automated Pre-Mortem via Librarian
+### 1.4 Automated Pre-Mortem via LiBrainian
 
 ```typescript
 // Comprehensive pre-mortem analysis
 async function runPreMortem(affectedFiles: string[]): Promise<PreMortemReport> {
   const analyses = await Promise.all([
     // Data flow analysis
-    librarian.query({
+    LiBrainian.query({
       intent: `Identify all places where data could be null or undefined in: ${affectedFiles.join(', ')}`,
       depth: 'L2',
       taskType: 'debugging'
     }),
 
     // State mutation analysis
-    librarian.query({
+    LiBrainian.query({
       intent: `Find state mutations that could leave the system inconsistent in: ${affectedFiles.join(', ')}`,
       depth: 'L2',
       taskType: 'debugging'
     }),
 
     // Error path analysis
-    librarian.query({
+    LiBrainian.query({
       intent: `Identify error handling gaps and unhandled rejection paths in: ${affectedFiles.join(', ')}`,
       depth: 'L2',
       taskType: 'debugging'
     }),
 
     // Resource leak analysis
-    librarian.query({
+    LiBrainian.query({
       intent: `Find resource acquisitions without corresponding releases in: ${affectedFiles.join(', ')}`,
       depth: 'L2',
       taskType: 'debugging'
@@ -168,7 +168,7 @@ async function runPreMortem(affectedFiles: string[]): Promise<PreMortemReport> {
 
 ```typescript
 // Comprehensive slop detection
-const slopAnalysis = await librarian.query({
+const slopAnalysis = await LiBrainian.query({
   intent: `Detect AI slop patterns in the codebase:
     1. Cargo cult code (copied without understanding)
     2. Over-abstraction (unnecessary complexity)
@@ -275,8 +275,8 @@ async function detectSlop(files: string[]): Promise<SlopDetectionResult[]> {
   const results: SlopDetectionResult[] = [];
 
   for (const file of files) {
-    // Query librarian for function analysis
-    const functions = await librarian.query({
+    // Query LiBrainian for function analysis
+    const functions = await LiBrainian.query({
       intent: `Analyze functions in ${file} for:
         - Empty catch blocks or generic error swallowing
         - Type assertions (as X) without validation
@@ -335,7 +335,7 @@ When generating code, agents should:
 
 ```typescript
 // Detection query
-const offByOne = await librarian.query({
+const offByOne = await LiBrainian.query({
   intent: "Find array/loop boundary conditions that might be off by one",
   depth: 'L2',
   taskType: 'debugging'
@@ -351,7 +351,7 @@ const offByOne = await librarian.query({
 
 ```typescript
 // Detection query
-const nullChains = await librarian.query({
+const nullChains = await LiBrainian.query({
   intent: "Find property access chains without null checks: a.b.c.d patterns",
   depth: 'L2',
   taskType: 'debugging'
@@ -366,7 +366,7 @@ const nullChains = await librarian.query({
 
 ```typescript
 // Detection query
-const raceConditions = await librarian.query({
+const raceConditions = await LiBrainian.query({
   intent: "Find check-then-act patterns that could have race conditions",
   depth: 'L2',
   taskType: 'debugging'
@@ -382,7 +382,7 @@ const raceConditions = await librarian.query({
 
 ```typescript
 // Detection query
-const stateMutation = await librarian.query({
+const stateMutation = await LiBrainian.query({
   intent: "Find places where shared state is mutated without synchronization",
   depth: 'L2',
   taskType: 'debugging'
@@ -398,7 +398,7 @@ const stateMutation = await librarian.query({
 
 ```typescript
 // Detection query
-const asyncIssues = await librarian.query({
+const asyncIssues = await LiBrainian.query({
   intent: "Find async/await anti-patterns: forgotten awaits, parallel vs sequential confusion",
   depth: 'L2',
   taskType: 'debugging'
@@ -419,25 +419,25 @@ const asyncIssues = await librarian.query({
 
 ```typescript
 // God Module Detection
-const godModules = await librarian.query({
+const godModules = await LiBrainian.query({
   intent: "Find modules with excessive responsibility (>20 exports or >1000 lines)",
   depth: 'L2'
 });
 
 // Circular Dependency Detection
-const circular = await librarian.query({
+const circular = await LiBrainian.query({
   intent: "Find circular import chains between modules",
   depth: 'L2'
 });
 
 // Leaky Abstraction Detection
-const leaky = await librarian.query({
+const leaky = await LiBrainian.query({
   intent: "Find internal implementation types exposed in public APIs",
   depth: 'L2'
 });
 
 // Shotgun Surgery Detection
-const shotgun = await librarian.query({
+const shotgun = await LiBrainian.query({
   intent: "Find changes that would require modifying many files (high coupling)",
   depth: 'L2'
 });
@@ -462,7 +462,7 @@ const shotgun = await librarian.query({
 
 ```typescript
 // Find functions with high cyclomatic complexity
-const highComplexity = await librarian.query({
+const highComplexity = await LiBrainian.query({
   intent: "Find functions with many conditional branches (>10 if/else/switch cases)",
   depth: 'L2',
   taskType: 'code_review'
@@ -484,11 +484,11 @@ const highComplexity = await librarian.query({
 ```typescript
 // Comprehensive debt analysis
 const debtAnalysis = await Promise.all([
-  librarian.query({ intent: "Find TODO and FIXME comments" }),
-  librarian.query({ intent: "Find @deprecated items still in use" }),
-  librarian.query({ intent: "Find functions without tests" }),
-  librarian.query({ intent: "Find copy-pasted code blocks" }),
-  librarian.query({ intent: "Find outdated dependencies" }),
+  LiBrainian.query({ intent: "Find TODO and FIXME comments" }),
+  LiBrainian.query({ intent: "Find @deprecated items still in use" }),
+  LiBrainian.query({ intent: "Find functions without tests" }),
+  LiBrainian.query({ intent: "Find copy-pasted code blocks" }),
+  LiBrainian.query({ intent: "Find outdated dependencies" }),
 ]);
 ```
 
@@ -499,7 +499,7 @@ const debtAnalysis = await Promise.all([
 ### 6.1 Memory Leak Indicators
 
 ```typescript
-const memoryLeaks = await librarian.query({
+const memoryLeaks = await LiBrainian.query({
   intent: `Find potential memory leaks:
     - Event listeners without removal
     - Closures capturing large objects
@@ -513,7 +513,7 @@ const memoryLeaks = await librarian.query({
 ### 6.2 Resource Exhaustion Patterns
 
 ```typescript
-const resourceExhaustion = await librarian.query({
+const resourceExhaustion = await LiBrainian.query({
   intent: `Find resource exhaustion risks:
     - Unbounded queues
     - Connection pools without limits
@@ -527,7 +527,7 @@ const resourceExhaustion = await librarian.query({
 ### 6.3 Deadlock Detection
 
 ```typescript
-const deadlocks = await librarian.query({
+const deadlocks = await LiBrainian.query({
   intent: `Find potential deadlock conditions:
     - Multiple locks acquired in different orders
     - Await inside synchronized blocks
@@ -544,7 +544,7 @@ const deadlocks = await librarian.query({
 ### 7.1 OWASP Top 10 Detection
 
 ```typescript
-const securityScan = await librarian.query({
+const securityScan = await LiBrainian.query({
   intent: `Scan for OWASP vulnerabilities:
     1. Injection (SQL, command, LDAP)
     2. Broken authentication
@@ -565,19 +565,19 @@ const securityScan = await librarian.query({
 
 ```typescript
 // Injection vulnerabilities
-const injection = await librarian.query({
+const injection = await LiBrainian.query({
   intent: "Find string concatenation in SQL queries or shell commands",
   taskType: 'code_review'
 });
 
 // Authentication issues
-const auth = await librarian.query({
+const auth = await LiBrainian.query({
   intent: "Find hardcoded credentials, weak password validation, or missing auth checks",
   taskType: 'code_review'
 });
 
 // Data exposure
-const dataExposure = await librarian.query({
+const dataExposure = await LiBrainian.query({
   intent: "Find sensitive data logged, returned in errors, or stored insecurely",
   taskType: 'code_review'
 });
@@ -590,7 +590,7 @@ const dataExposure = await librarian.query({
 ### 8.1 Coverage Gap Detection
 
 ```typescript
-const coverageGaps = await librarian.query({
+const coverageGaps = await LiBrainian.query({
   intent: `Find testing blind spots:
     - Public functions without test coverage
     - Error paths without test cases
@@ -604,7 +604,7 @@ const coverageGaps = await librarian.query({
 ### 8.2 Test Quality Issues
 
 ```typescript
-const testQuality = await librarian.query({
+const testQuality = await LiBrainian.query({
   intent: `Find test quality issues:
     - Tests without assertions
     - Flaky tests (timing-dependent)
@@ -622,7 +622,7 @@ const testQuality = await librarian.query({
 ### 9.1 API Contract Violations
 
 ```typescript
-const apiIssues = await librarian.query({
+const apiIssues = await LiBrainian.query({
   intent: `Find API integration risks:
     - Missing request validation
     - Response schema assumptions
@@ -636,7 +636,7 @@ const apiIssues = await librarian.query({
 ### 9.2 Database Integration Issues
 
 ```typescript
-const dbIssues = await librarian.query({
+const dbIssues = await LiBrainian.query({
   intent: `Find database integration issues:
     - N+1 query patterns
     - Missing transaction boundaries
@@ -688,7 +688,7 @@ const strategies: Record<string, RecoveryStrategy> = {
 
 ```typescript
 async function getRecoveryPlan(problemType: string): Promise<RecoveryPlan> {
-  const analysis = await librarian.query({
+  const analysis = await LiBrainian.query({
     intent: `Given problem: ${problemType}
       1. What is the root cause?
       2. What files need to change?
@@ -739,7 +739,7 @@ async function getRecoveryPlan(problemType: string): Promise<RecoveryPlan> {
 ### Health Check Query
 
 ```typescript
-const healthCheck = await librarian.query({
+const healthCheck = await LiBrainian.query({
   intent: `Comprehensive codebase health check:
     - Critical bugs: memory leaks, race conditions, security holes
     - High priority: error handling gaps, missing validation
@@ -760,31 +760,31 @@ Before completing any task, agents should run:
 async function agentSelfCheck(changedFiles: string[]): Promise<SelfCheckResult> {
   const checks = await Promise.all([
     // Did I introduce any obvious bugs?
-    librarian.query({
+    LiBrainian.query({
       intent: "Check for null reference, off-by-one, and type errors",
       affectedFiles: changedFiles
     }),
 
     // Did I handle errors properly?
-    librarian.query({
+    LiBrainian.query({
       intent: "Verify all async operations have error handling",
       affectedFiles: changedFiles
     }),
 
     // Did I introduce slop patterns?
-    librarian.query({
+    LiBrainian.query({
       intent: "Check for AI slop: empty catches, type assertion abuse, over-abstraction",
       affectedFiles: changedFiles
     }),
 
     // Did I break existing contracts?
-    librarian.query({
+    LiBrainian.query({
       intent: "Verify public API contracts are preserved",
       affectedFiles: changedFiles
     }),
 
     // Did I add proper tests?
-    librarian.query({
+    LiBrainian.query({
       intent: "Check test coverage for new/modified functions",
       affectedFiles: changedFiles
     })

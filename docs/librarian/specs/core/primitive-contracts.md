@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Primitive Contracts define **verifiable behavioral guarantees** for every technique primitive in Librarian. Each primitive declares:
+Primitive Contracts define **verifiable behavioral guarantees** for every technique primitive in LiBrainian. Each primitive declares:
 
 - **Preconditions**: What must be true before execution
 - **Postconditions**: What will be true after successful execution
@@ -510,7 +510,7 @@ class ContractViolation extends Error {
 
 ```gherkin
 Feature: Primitive Contracts
-  As a Librarian system
+  As a LiBrainian system
   I want all primitives to have contracts
   So that I can verify correctness and diagnose failures
 

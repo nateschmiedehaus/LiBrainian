@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The Librarian self-improvement specification defines 11 primitives and 5 compositions for recursive self-analysis and improvement. This assessment evaluates the theoretical soundness of this system against fixed-point theory, Lobian obstacles, Rice's theorem, and safe recursion principles.
+The LiBrainian self-improvement specification defines 11 primitives and 5 compositions for recursive self-analysis and improvement. This assessment evaluates the theoretical soundness of this system against fixed-point theory, Lobian obstacles, Rice's theorem, and safe recursion principles.
 
 **Overall Assessment**: PARTIALLY SOUND with SIGNIFICANT THEORETICAL GAPS
 
@@ -174,11 +174,11 @@ interface HealthDelta {
 ### 3.1 Self-Verification Claims
 
 **tp_verify_claim** (lines 387-476) claims to:
-> "Verify a specific claim Librarian makes about itself"
+> "Verify a specific claim LiBrainian makes about itself"
 
 **Theoretical Problem**: By Lob's theorem and Godel's incompleteness theorems:
-- Librarian cannot prove its own consistency
-- Librarian cannot verify all true claims about its behavior
+- LiBrainian cannot prove its own consistency
+- LiBrainian cannot verify all true claims about its behavior
 - Any verification is necessarily incomplete
 
 **Analysis of Verification Types**:
@@ -614,7 +614,7 @@ interface SampleComplexityAnalysis {
 
 ## 11. Conclusion
 
-The Librarian self-improvement specification represents a **thoughtful attempt** to bound recursive self-improvement within safe limits. The key strengths are:
+The LiBrainian self-improvement specification represents a **thoughtful attempt** to bound recursive self-improvement within safe limits. The key strengths are:
 
 **Strengths**:
 1. **Explicit iteration bounds** on all loops and compositions

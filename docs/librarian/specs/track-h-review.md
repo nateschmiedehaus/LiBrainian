@@ -1,10 +1,10 @@
 # Track H: Code Review with Diff-Aware Context
 
-> **Addresses**: UC6 from `docs/librarian/specs/use-case-targets.md` - Code Review
+> **Addresses**: UC6 from `docs/LiBrainian/specs/use-case-targets.md` - Code Review
 > **Scenario**: "Reviewer needs context for a PR with 15 changed files"
 > **Current Maturity (subjective, not measured)**: low (no diff-aware context, no "what could break" analysis, no reviewer checklist)
 >
-> **Librarian Story**: Chapter 8 (The Review) - Making code review intelligent through diff-aware context and impact analysis.
+> **LiBrainian Story**: Chapter 8 (The Review) - Making code review intelligent through diff-aware context and impact analysis.
 >
 > **Related Specifications**:
 > - [track-i-multi-repo.md](./track-i-multi-repo.md) - Cross-repo review capabilities
@@ -37,7 +37,7 @@ This specification covers:
 - **Intent Inference** - Understanding author's purpose
 - **Review Primitives** - Typed techniques for review operations
 - **Review Compositions** - Complex review workflows
-- **Integration Points** - Connecting with other Librarian capabilities
+- **Integration Points** - Connecting with other LiBrainian capabilities
 
 ---
 
@@ -2366,8 +2366,8 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/types.ts
-// - src/librarian/api/review/diff_parser.ts
+// - src/LiBrainian/api/review/types.ts
+// - src/LiBrainian/api/review/diff_parser.ts
 
 // Deliverables:
 // - All type definitions from this spec
@@ -2382,7 +2382,7 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/context.ts
+// - src/LiBrainian/api/review/context.ts
 
 // Deliverables:
 // - tp_change_context implementation
@@ -2397,7 +2397,7 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/impact.ts
+// - src/LiBrainian/api/review/impact.ts
 
 // Deliverables:
 // - tp_impact_analyze implementation
@@ -2412,8 +2412,8 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/intent.ts
-// - src/librarian/api/review/risk.ts
+// - src/LiBrainian/api/review/intent.ts
+// - src/LiBrainian/api/review/risk.ts
 
 // Deliverables:
 // - tp_intent_infer implementation
@@ -2428,8 +2428,8 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/checklist.ts
-// - src/librarian/api/review/comments.ts
+// - src/LiBrainian/api/review/checklist.ts
+// - src/LiBrainian/api/review/comments.ts
 
 // Deliverables:
 // - tp_review_checklist implementation
@@ -2444,7 +2444,7 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/compositions.ts
+// - src/LiBrainian/api/review/compositions.ts
 
 // Deliverables:
 // - tc_comprehensive_review implementation
@@ -2459,9 +2459,9 @@ interface DomainRule {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/review/__tests__/diff_parser.test.ts
-// - src/librarian/api/review/__tests__/impact.test.ts
-// - src/librarian/api/review/__tests__/compositions.test.ts
+// - src/LiBrainian/api/review/__tests__/diff_parser.test.ts
+// - src/LiBrainian/api/review/__tests__/impact.test.ts
+// - src/LiBrainian/api/review/__tests__/compositions.test.ts
 
 // Deliverables:
 // - Integration with track-i (multi-repo)
@@ -2549,22 +2549,22 @@ interface DomainRule {
 
 ```bash
 # Run review tests
-cd packages/librarian && npx vitest run src/api/review/__tests__/
+cd packages/LiBrainian && npx vitest run src/api/review/__tests__/
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Review') || k.includes('Diff'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Review') || k.includes('Diff'))))"
 
 # Parse a diff (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts review-diff --base main --head feature-branch
+cd packages/LiBrainian && npx tsx src/cli/index.ts review-diff --base main --head feature-branch
 
 # Get comprehensive review context (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts review --pr 123
+cd packages/LiBrainian && npx tsx src/cli/index.ts review --pr 123
 
 # Generate review checklist (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts review-checklist --diff /path/to/diff
+cd packages/LiBrainian && npx tsx src/cli/index.ts review-checklist --diff /path/to/diff
 
 # Check implementation status
-ls -la packages/librarian/src/api/review/
+ls -la packages/LiBrainian/src/api/review/
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-31
 **Test Environment**: macOS Darwin 24.6.0
-**Librarian Version**: Current main branch
+**LiBrainian Version**: Current main branch
 
 ## Summary
 
@@ -14,7 +14,7 @@
 | "contributor guidelines" | NO | 0.529 | No (fallback) |
 | "approval process" | NO | 0.529 | No (fallback) |
 
-**Overall Assessment**: MIXED - Librarian performs well on code-level ownership (git blame, CODEOWNERS parsing) but fails to find process-level ownership documentation (CONTRIBUTING.md, team responsibilities).
+**Overall Assessment**: MIXED - LiBrainian performs well on code-level ownership (git blame, CODEOWNERS parsing) but fails to find process-level ownership documentation (CONTRIBUTING.md, team responsibilities).
 
 ---
 
@@ -116,7 +116,7 @@ File: src/ingest/team_indexer.ts
 
 **Key Findings**:
 - Same fallback packs as "team responsibilities"
-- CONTRIBUTING.md exists at `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/CONTRIBUTING.md`
+- CONTRIBUTING.md exists at `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/CONTRIBUTING.md`
 - Contains 337 lines of detailed contributor guidelines
 - **NOT INDEXED** despite being a key project file
 
@@ -241,7 +241,7 @@ A better fallback might be:
 
 ## Conclusion
 
-Librarian's TEAM/OWNERSHIP use case support is **partially implemented**:
+LiBrainian's TEAM/OWNERSHIP use case support is **partially implemented**:
 
 - **Code-level ownership**: Works well (git blame, CODEOWNERS parsing code)
 - **Process-level ownership**: Not working (contributor guidelines, team responsibilities)

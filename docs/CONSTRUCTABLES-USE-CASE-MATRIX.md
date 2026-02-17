@@ -1,8 +1,8 @@
-# Librarian Constructables Use Case Matrix
+# LiBrainian Constructables Use Case Matrix
 
 ## Comprehensive Matrix: 50 Real-World Agent Use Cases on External Repositories
 
-This document maps Librarian's constructables to 50 real-world use cases for AI agents working on **external repositories** (codebases the agent has never seen before).
+This document maps LiBrainian's constructables to 50 real-world use cases for AI agents working on **external repositories** (codebases the agent has never seen before).
 
 ---
 
@@ -241,7 +241,7 @@ const result = await enumerateByCategory(storage, 'test_file', workspace);
 
 ### RefactoringSafetyChecker (RSC)
 ```typescript
-const checker = createRefactoringSafetyChecker(librarian);
+const checker = createRefactoringSafetyChecker(LiBrainian);
 const report = await checker.check({
   entityId: 'parseConfig',
   refactoringType: 'rename',
@@ -271,4 +271,4 @@ const report = tracker.getCalibration('RSC');
 
 ---
 
-*Document generated for Librarian v0.1.0 - Comprehensive Agent Use Case Matrix*
+*Document generated for LiBrainian v0.1.0 - Comprehensive Agent Use Case Matrix*

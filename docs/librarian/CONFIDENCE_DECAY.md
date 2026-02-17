@@ -10,7 +10,7 @@ Knowledge confidence is not static. It decays through:
 2. **External events** - File changes, dependency updates, model upgrades
 3. **Contradictions** - New information that conflicts with existing claims
 
-The decay model ensures that Librarian maintains honest uncertainty about its knowledge.
+The decay model ensures that LiBrainian maintains honest uncertainty about its knowledge.
 
 ## Decay Formula
 
@@ -333,4 +333,4 @@ function computeEffectiveConfidence(
 
 ---
 
-*This document is authoritative for confidence decay semantics in Librarian.*
+*This document is authoritative for confidence decay semantics in LiBrainian.*

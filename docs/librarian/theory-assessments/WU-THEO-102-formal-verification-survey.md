@@ -358,7 +358,7 @@ From research on limitations of AI safety verification:
 
 ---
 
-## 9. Recommendations for Librarian
+## 9. Recommendations for LiBrainian
 
 ### 9.1 What CAN Be Formally Verified
 
@@ -380,7 +380,7 @@ From research on limitations of AI safety verification:
 | **Code correctness** | Static analysis + tests | Bandit, Pylint, pytest |
 | **Safety** | Constitutional AI + monitoring | Runtime checks |
 
-### 9.3 Recommended Verification Strategy for Librarian
+### 9.3 Recommended Verification Strategy for LiBrainian
 
 **Tier 1: Formal Verification (Guaranteed)**
 1. **Constrained decoding** for structured outputs (JSON, code syntax)
@@ -421,7 +421,7 @@ From research on limitations of AI safety verification:
 
 ### 9.5 Honest Limitations to Document
 
-Librarian's verification strategy should explicitly acknowledge:
+LiBrainian's verification strategy should explicitly acknowledge:
 
 1. **No guarantee of semantic correctness** for natural language
 2. **Approximate, not formal, fact-checking** for most claims
@@ -507,7 +507,7 @@ Librarian's verification strategy should explicitly acknowledge:
 3. **Hybrid symbolic-neural verification** (LLM + SMT solver)
 4. **Runtime monitoring from specifications** (LLM-synthesized monitors)
 
-### Recommendation for Librarian
+### Recommendation for LiBrainian
 
 **Adopt a tiered verification strategy**:
 - **Tier 1**: Use formal methods where possible (structure, types, proofs)
@@ -515,7 +515,7 @@ Librarian's verification strategy should explicitly acknowledge:
 - **Tier 3**: Use heuristics and human review for remaining uncertainty
 - **Always**: Be explicit about what level of verification each claim has
 
-The key insight from this survey: **LLM outputs cannot be formally verified in general, but specific properties can be**. Design Librarian to maximize the proportion of outputs that fall into verifiable categories, and be honest about the rest.
+The key insight from this survey: **LLM outputs cannot be formally verified in general, but specific properties can be**. Design LiBrainian to maximize the proportion of outputs that fall into verifiable categories, and be honest about the rest.
 
 ---
 

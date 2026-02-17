@@ -1,10 +1,18 @@
 # Agent Integration Guide
 
-> **CONTROL_LOOP.md Alignment**: This document describes how agents consume Librarian services
-> using the Control Theory Model where Librarian = Perception, Agent = Controller, Tools = Actuators.
+> **CONTROL_LOOP.md Alignment**: This document describes how agents consume LiBrainian services
+> using the Control Theory Model where LiBrainian = Perception, Agent = Controller, Tools = Actuators.
 
 Status: design (integration contract; API names may drift until fully extracted/wired)
-Truth source for “what runs today”: `docs/librarian/STATUS.md` and `packages/librarian/src/**`
+Truth source for “what runs today”: `docs/LiBrainian/STATUS.md` and `packages/LiBrainian/src/**`
+
+## Release Qualification Rule
+
+- `REAL_AGENT_REAL_LIBRARIAN_ONLY`: launch qualification must be produced by real agents executing against the real LiBrainian repository.
+- `NO_SYNTHETIC_OR_REFERENCE_FOR_RELEASE`: simulations, mocks, and reference harness workers are for diagnostics, not release proof.
+- `NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE`: retry/fallback/degraded publish artifacts are treated as failures.
+- `PERFECT_RELEASE_EVIDENCE_ONLY`: release qualification only accepts 100% strict pass evidence.
+- Rationale: LiBrainian's value claim is agent cognition under real development conditions, so release proof must capture real agent loops (`diagnose -> hypothesize -> act -> verify`) with zero degraded shortcuts.
 
 ## Control Theory Model
 
@@ -13,7 +21,7 @@ Truth source for “what runs today”: `docs/librarian/STATUS.md` and `packages
 │                        CONTROL LOOP                                  │
 │                                                                      │
 │   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐       │
-│   │   LIBRARIAN  │────▶│    AGENT     │────▶│    TOOLS     │       │
+│   │   LiBrainian  │────▶│    AGENT     │────▶│    TOOLS     │       │
 │   │  (Perception)│     │ (Controller) │     │  (Actuators) │       │
 │   └──────────────┘     └──────────────┘     └──────────────┘       │
 │          │                    │                    │                │
@@ -32,7 +40,7 @@ Truth source for “what runs today”: `docs/librarian/STATUS.md` and `packages
 
 | Component | Role | Responsibilities |
 |-----------|------|------------------|
-| **Librarian** | Perception + State Estimation | Index code, answer queries, track confidence |
+| **LiBrainian** | Perception + State Estimation | Index code, answer queries, track confidence |
 | **Agent** | Controller | Make decisions, plan actions, evaluate results |
 | **Tools** | Actuators | Execute file changes, run tests, call APIs |
 | **Codebase** | Plant | The system being controlled |
@@ -41,16 +49,16 @@ Truth source for “what runs today”: `docs/librarian/STATUS.md` and `packages
 
 ### 1. Pre-Orchestration Hook
 
-Before any agent work begins, ensure Librarian is ready:
+Before any agent work begins, ensure LiBrainian is ready:
 
 ```typescript
-import { preOrchestrationHook, ensureLibrarianReady } from 'librarian';
+import { preOrchestrationHook, ensureLibrarianReady } from 'librainian';
 
 // Option 1: Simple hook (blocks until ready)
 await preOrchestrationHook(workspace);
 
 // Option 2: With options
-const { librarian, wasBootstrapped, report } = await ensureLibrarianReady({
+const { LiBrainian, wasBootstrapped, report } = await ensureLibrarianReady({
   workspace,
   maxWaitMs: 300_000,  // 5 minutes max
   onProgress: (phase, progress) => console.log(`${phase}: ${progress}%`),
@@ -62,9 +70,9 @@ const { librarian, wasBootstrapped, report } = await ensureLibrarianReady({
 When assembling task context for an agent:
 
 ```typescript
-import { enrichTaskContext, formatLibrarianContext } from 'librarian';
+import { enrichTaskContext, formatLibrarianContext } from 'librainian';
 
-// Get librarian context for a task
+// Get LiBrainian context for a task
 const librarianContext = await enrichTaskContext(workspace, {
   intent: task.description,
   affectedFiles: task.fileHints,
@@ -77,27 +85,27 @@ const formattedContext = formatLibrarianContext(librarianContext);
 
 ### 3. Query Interface
 
-Direct queries to the librarian:
+Direct queries to the LiBrainian:
 
 ```typescript
-import { queryLibrarian, createFunctionQuery, createRelatedQuery } from 'librarian';
+import { queryLibrarian, createFunctionQuery, createRelatedQuery } from 'librainian';
 
 // Intent-based query
-const results = await queryLibrarian(librarian, {
+const results = await queryLibrarian(LiBrainian, {
   intent: 'How does authentication work?',
   depth: 'L2',
   maxPacks: 5,
 });
 
 // Function-specific query
-const fnContext = await createFunctionQuery(librarian, {
+const fnContext = await createFunctionQuery(LiBrainian, {
   functionId: 'src/auth/login.ts:validateCredentials',
   includeCallees: true,
   includeCallers: true,
 });
 
 // Related code query
-const related = await createRelatedQuery(librarian, {
+const related = await createRelatedQuery(LiBrainian, {
   filePath: 'src/api/users.ts',
   relationTypes: ['imports', 'exports', 'calls'],
 });
@@ -106,7 +114,7 @@ const related = await createRelatedQuery(librarian, {
 ## Agent Feedback Loop
 
 Per CONTROL_LOOP.md §Feedback Loop Integration, agents should provide feedback
-to improve librarian accuracy over time.
+to improve LiBrainian accuracy over time.
 
 ### Feedback Interface
 
@@ -116,7 +124,7 @@ import {
   createTaskOutcomeFeedback,
   type AgentFeedback,
   type RelevanceRating
-} from 'librarian';
+} from 'librainian';
 
 // Create feedback from task outcome
 const feedback: AgentFeedback = {
@@ -152,7 +160,7 @@ console.log(result); // should include ledger entry IDs + any defeaters activate
 ### Automatic Feedback from Task Outcomes
 
 ```typescript
-import { createTaskOutcomeFeedback, processAgentFeedback } from 'librarian';
+import { createTaskOutcomeFeedback, processAgentFeedback } from 'librainian';
 
 // After task completion, create feedback automatically
 const feedback = createTaskOutcomeFeedback(
@@ -191,7 +199,7 @@ type QueryDepth = 'L0' | 'L1' | 'L2' | 'L3';
 ### Context Pack Structure
 
 ```typescript
-import type { ConfidenceValue } from 'librarian';
+import type { ConfidenceValue } from 'librainian';
 
 interface ContextPack {
   packId: string;
@@ -207,7 +215,7 @@ interface ContextPack {
 }
 ```
 
-Note: the current implementation still uses raw numeric `confidence` on some response types. The spec-system target is `ConfidenceValue` for epistemic/claim confidence; numeric scores are allowed only as ranking signals. See `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
+Note: the current implementation still uses raw numeric `confidence` on some response types. The spec-system target is `ConfidenceValue` for epistemic/claim confidence; numeric scores are allowed only as ranking signals. See `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`.
 
 ### Confidence Calibration
 
@@ -216,7 +224,7 @@ Otherwise, semantic confidence should be `absent('uncalibrated')` and the respon
 attach a VerificationPlan (how to prove/verify claims in this repo).
 
 ```typescript
-import { applyCalibrationToPacks, summarizeCalibration } from 'librarian';
+import { applyCalibrationToPacks, summarizeCalibration } from 'librainian';
 
 // Apply calibration to raw confidence scores
 const calibratedPacks = await applyCalibrationToPacks(packs, storage);
@@ -231,7 +239,7 @@ console.log(`Calibration error: ${summary.overallError}%`);
 ### Health Check
 
 ```typescript
-import { generateStateReport, assessHealth } from 'librarian';
+import { generateStateReport, assessHealth } from 'librainian';
 
 const report = await generateStateReport(storage);
 const health = assessHealth(report);
@@ -249,7 +257,7 @@ import {
   executeRecovery,
   getRecoveryStatus,
   DEFAULT_RECOVERY_BUDGET
-} from 'librarian';
+} from 'librainian';
 
 // Check recovery status
 const status = getRecoveryStatus();
@@ -274,7 +282,7 @@ Per CONTROL_LOOP.md, recovery has resource limits:
 
 ## Observable State Variables
 
-Agents can monitor librarian health via observable state:
+Agents can monitor LiBrainian health via observable state:
 
 ```typescript
 import {
@@ -283,7 +291,7 @@ import {
   collectConfidenceState,
   collectQueryPerformance,
   SLO_THRESHOLDS
-} from 'librarian';
+} from 'librainian';
 
 // Code graph health
 const graphHealth = await collectCodeGraphHealth(storage);
@@ -319,16 +327,16 @@ console.log(`P99 latency: ${performance.queryLatencyP99}ms`);
 
 ## File Change Notifications
 
-When the agent modifies files, notify the librarian:
+When the agent modifies files, notify the LiBrainian:
 
 ```typescript
-import { notifyFileChange, notifyFileChanges } from 'librarian';
+import { notifyFileChange, notifyFileChanges } from 'librainian';
 
 // Single file change
-await notifyFileChange(librarian, '/path/to/modified/file.ts');
+await notifyFileChange(LiBrainian, '/path/to/modified/file.ts');
 
 // Multiple file changes
-await notifyFileChanges(librarian, [
+await notifyFileChanges(LiBrainian, [
   '/path/to/file1.ts',
   '/path/to/file2.ts',
 ]);
@@ -339,10 +347,10 @@ await notifyFileChanges(librarian, [
 After agent work completes:
 
 ```typescript
-import { postOrchestrationHook, recordTaskOutcome } from 'librarian';
+import { postOrchestrationHook, recordTaskOutcome } from 'librainian';
 
 // Record task outcome for learning
-await recordTaskOutcome(librarian, {
+await recordTaskOutcome(LiBrainian, {
   taskId: 'task-123',
   outcome: 'success',
   filesModified: ['src/auth.ts', 'src/api.ts'],
@@ -355,11 +363,12 @@ await postOrchestrationHook(workspace);
 
 ## Error Handling
 
-All librarian operations follow the `unverified_by_trace` pattern:
+All LiBrainian operations follow the `unverified_by_trace` pattern.
+For release qualification, any recovery/retry/fallback episode is evidence of failure, not success.
 
 ```typescript
 try {
-  const result = await queryLibrarian(librarian, query);
+  const result = await queryLibrarian(LiBrainian, query);
   // Use result
 } catch (error) {
   if (error.code === 'PROVIDER_UNAVAILABLE') {
@@ -367,9 +376,9 @@ try {
     throw new Error('unverified_by_trace(provider_unavailable)');
   }
   if (error.code === 'INDEX_STALE') {
-    // Index too stale - trigger recovery
+    // Index too stale - trigger recovery for diagnostics only
     await executeRecovery(storage);
-    // Retry query
+    throw new Error('unverified_by_trace(index_stale_requires_recovery)');
   }
   throw error;
 }
@@ -382,7 +391,7 @@ try {
 ```typescript
 const report = await generateStateReport(storage);
 if (report.health === 'unhealthy') {
-  console.warn('Librarian unhealthy, results may be degraded');
+  console.warn('LiBrainian unhealthy; block release evidence and diagnose before proceeding');
 }
 ```
 
@@ -424,4 +433,4 @@ if (report.queryPerformance.queryLatencyP99 > SLO_THRESHOLDS.queryLatencyP99Ms) 
 
 ---
 
-*This document is authoritative for agent-librarian integration patterns.*
+*This document is authoritative for agent-LiBrainian integration patterns.*

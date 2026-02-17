@@ -1,12 +1,12 @@
 # Dependency Management Use Case Test Results
 
 **Test Date:** 2026-01-31
-**Librarian Version:** 0.2.0
+**LiBrainian Version:** 0.2.0
 **Test Type:** Dependency Management Queries
 
 ## Executive Summary
 
-Librarian demonstrates **weak capability** for dependency management use cases. The tool focuses on **internal code dependencies** (imports between modules) rather than **external package dependencies** (npm packages, third-party libraries). This is a significant gap for developers needing to assess dependency health.
+LiBrainian demonstrates **weak capability** for dependency management use cases. The tool focuses on **internal code dependencies** (imports between modules) rather than **external package dependencies** (npm packages, third-party libraries). This is a significant gap for developers needing to assess dependency health.
 
 **Overall Assessment: PARTIAL COVERAGE with SIGNIFICANT GAPS**
 
@@ -64,7 +64,7 @@ Librarian demonstrates **weak capability** for dependency management use cases. 
 | `technical_debt.ts` | `createOutdatedDependencyDetector()` | 0.785 |
 | `architecture_decisions.ts` | `createTradeoffAnalysis()` | 0.830 |
 
-**Assessment:** PARTIAL - Found internal versioning code but these are for Librarian's own version tracking, NOT npm package version constraints. However, `createOutdatedDependencyDetector()` is relevant.
+**Assessment:** PARTIAL - Found internal versioning code but these are for LiBrainian's own version tracking, NOT npm package version constraints. However, `createOutdatedDependencyDetector()` is relevant.
 
 ---
 
@@ -140,7 +140,7 @@ Librarian demonstrates **weak capability** for dependency management use cases. 
 
 **Answer: NO - Major Gap**
 
-Librarian does NOT index or understand:
+LiBrainian does NOT index or understand:
 - `package.json` dependencies, devDependencies, peerDependencies
 - npm/yarn/pnpm lock files
 - Import statements from external packages
@@ -148,20 +148,20 @@ Librarian does NOT index or understand:
 
 **What it found instead:**
 - Internal code that happens to have "dependency" or "version" in function names
-- Librarian's own internal versioning system
+- LiBrainian's own internal versioning system
 - Work hierarchy dependencies in the plan compiler
 
 ### 2. Could you assess dependency health?
 
 **Answer: LIMITED**
 
-**What Librarian CAN help with:**
+**What LiBrainian CAN help with:**
 - Internal module coupling via `analyzeT04DependencyGraph()`
 - Architectural layer violations via `detectLayerViolations()`
 - Supply chain awareness exists via `generateSBOM()` and `detectPackageManager()`
 - Outdated dependency detection concept exists in `createOutdatedDependencyDetector()`
 
-**What Librarian CANNOT do:**
+**What LiBrainian CANNOT do:**
 - List actual npm dependencies and their versions
 - Identify which external packages are imported where
 - Detect deprecated npm packages
@@ -182,7 +182,7 @@ Librarian does NOT index or understand:
 
 **Actual Project Dependencies Not Found:**
 
-From `package.json`, Librarian failed to identify:
+From `package.json`, LiBrainian failed to identify:
 - `@xenova/transformers` - AI embeddings
 - `better-sqlite3` - Database
 - `chalk` - Terminal colors
@@ -217,7 +217,7 @@ From `package.json`, Librarian failed to identify:
 
 ## Conclusion
 
-Librarian is **not suitable** for dependency management use cases in its current form. It excels at understanding internal code structure but lacks any meaningful capability to:
+LiBrainian is **not suitable** for dependency management use cases in its current form. It excels at understanding internal code structure but lacks any meaningful capability to:
 - Identify what external packages a project uses
 - Assess the health or currency of those dependencies
 - Track where external packages are imported

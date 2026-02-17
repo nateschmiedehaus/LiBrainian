@@ -2,7 +2,7 @@
 
 > **Source**: THEORETICAL_CRITIQUE.md Part VI (lines 3495-4320)
 > **Purpose**: Define the "10/10" ideal state for each use case
-> **Status**: These are TARGET INTERFACES - what Librarian should be able to do
+> **Status**: These are TARGET INTERFACES - what LiBrainian should be able to do
 > **Note**: Any “current utility” or “/10” ratings in this file are **subjective planning heuristics**, not measured evidence. Do not treat them as gates or proof.
 
 ---
@@ -11,8 +11,8 @@
 
 This file is a **human-readable set of exemplar target interfaces** (UC 1–20) extracted from Part VI.
 
-The canonical, exhaustive inventory of Librarian “know anything about anything” needs (with explicit dependencies and mechanisms) is:
-- `docs/librarian/USE_CASE_MATRIX.md`
+The canonical, exhaustive inventory of LiBrainian “know anything about anything” needs (with explicit dependencies and mechanisms) is:
+- `docs/LiBrainian/USE_CASE_MATRIX.md`
 
 **Spec-system contract (non-negotiable):**
 - The spec system MUST not drift into “interfaces-only”. Every use case must have **observable behavior**, including disclosures for missing capabilities and partial corpora.

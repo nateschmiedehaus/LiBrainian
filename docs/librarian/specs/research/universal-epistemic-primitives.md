@@ -1011,9 +1011,9 @@ Thm5. (Justification Relativity)
 
 ## 9. Implementation Implications
 
-### 9.1 For Librarian's Epistemic System
+### 9.1 For LiBrainian's Epistemic System
 
-The primitive analysis suggests Librarian should organize its epistemics around:
+The primitive analysis suggests LiBrainian should organize its epistemics around:
 
 **1. Distinguishability as Foundation**
 
@@ -1283,9 +1283,9 @@ Our primitives are compatible: Information flow = pattern of GROUNDS relations
 
 ---
 
-## Appendix C: Connection to Librarian's Existing Types
+## Appendix C: Connection to LiBrainian's Existing Types
 
-| Librarian Type | Primitive Correspondence |
+| LiBrainian Type | Primitive Correspondence |
 |----------------|-------------------------|
 | `Claim` | Content + assertive attitude |
 | `ClaimId` | Distinguishability identifier |
@@ -1297,7 +1297,7 @@ Our primitives are compatible: Information flow = pattern of GROUNDS relations
 | `ClaimSource` | Agent specification |
 | `ClaimStatus` | EVALUATE result |
 
-Librarian's existing architecture is compatible with and can be understood through these primitives.
+LiBrainian's existing architecture is compatible with and can be understood through these primitives.
 
 ---
 

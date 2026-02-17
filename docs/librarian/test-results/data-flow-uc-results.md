@@ -2,11 +2,11 @@
 
 **Date:** 2026-01-31
 **Test Type:** Data Flow Understanding
-**Librarian Version:** Current (from git)
+**LiBrainian Version:** Current (from git)
 
 ## Executive Summary
 
-The librarian demonstrates **partial capability** for data flow queries. It excels at finding sanitization and validation functions but struggles with holistic system data flow tracing and database schema discovery.
+The LiBrainian demonstrates **partial capability** for data flow queries. It excels at finding sanitization and validation functions but struggles with holistic system data flow tracing and database schema discovery.
 
 | Query | Confidence | Packs Found | Assessment |
 |-------|------------|-------------|------------|
@@ -34,7 +34,7 @@ The librarian demonstrates **partial capability** for data flow queries. It exce
 
 **Accuracy:** POOR
 
-The librarian only returned a single function (`findPath`) from `data_flow.ts` that is about finding paths in a data flow graph - it is not actually tracing how data flows through the Librarian system itself.
+The LiBrainian only returned a single function (`findPath`) from `data_flow.ts` that is about finding paths in a data flow graph - it is not actually tracing how data flows through the LiBrainian system itself.
 
 **What was missed:**
 1. **Bootstrap pipeline:** How code is ingested via `src/api/bootstrap.ts`
@@ -224,7 +224,7 @@ This query performed well, finding 10 relevant sanitization functions across mul
 
 ### 1. Did it trace data flow accurately?
 
-**NO** - The librarian failed to provide a holistic view of data flow. Key gaps:
+**NO** - The LiBrainian failed to provide a holistic view of data flow. Key gaps:
 
 - **Missing system-level flow understanding:** No recognition of the bootstrap -> ingest -> index -> store -> query pipeline
 - **Graph-based tracing not utilized:** Despite having a dedicated `data_flow.ts` module, it wasn't leveraged to trace actual system flow
@@ -266,7 +266,7 @@ This query performed well, finding 10 relevant sanitization functions across mul
 
 ## Recommendations
 
-### For Librarian Improvement
+### For LiBrainian Improvement
 
 1. **Add data flow graph queries:** Enable queries that trace actual code paths, not just semantic matches on "data flow"
 
@@ -289,13 +289,13 @@ This query performed well, finding 10 relevant sanitization functions across mul
 ## Test Artifacts
 
 ### Files Examined for Ground Truth
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/analysis/data_flow.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/types.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/sqlite_storage.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/security/sanitization.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/analysis/data_flow.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/types.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/sqlite_storage.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/security/sanitization.ts`
 
-### Coverage Gaps Reported by Librarian
+### Coverage Gaps Reported by LiBrainian
 - `unverified_by_trace(watch_state_missing)`: Watch state unavailable
 - `LLM disabled by request`: Synthesis disabled via `--no-synthesis`
 - `No semantic matches above similarity threshold (0.35)`: Query 2 fallback

@@ -21,7 +21,7 @@
 
 ### 1. Did it find observability code?
 
-**Partially Yes.** The librarian found some observability-related code but missed significant infrastructure:
+**Partially Yes.** The LiBrainian found some observability-related code but missed significant infrastructure:
 
 #### Found:
 - `src/mcp/audit.ts` - AuditLogger class with structured logging
@@ -82,7 +82,7 @@
 | Event Bridge | `src/debug/event_bridge.ts` | Event routing |
 
 #### Files with logging/observability (30+ files use console.log/logger):
-- `src/api/query.ts`, `src/api/bootstrap.ts`, `src/api/librarian.ts`
+- `src/api/query.ts`, `src/api/bootstrap.ts`, `src/api/LiBrainian.ts`
 - `src/integration/agent_hooks.ts`, `src/integration/feedback_loop.ts`
 - `src/homeostasis/daemon.ts`
 - `src/storage/sqlite_storage.ts`
@@ -109,7 +109,7 @@ src/debug/
 
 ## Root Cause Analysis
 
-### Why did librarian miss these files?
+### Why did LiBrainian miss these files?
 
 1. **Semantic gap:** Query "logging implementation" did not semantically match the module names `logger.ts` or `tracer.ts`
 
@@ -123,13 +123,13 @@ src/debug/
 
 ### Confidence Assessment
 
-The confidence scores (0.39-0.80) suggest the librarian was uncertain about results, which is appropriate given the gaps. The low confidence on "debug mode" (0.398) correctly reflects limited relevance.
+The confidence scores (0.39-0.80) suggest the LiBrainian was uncertain about results, which is appropriate given the gaps. The low confidence on "debug mode" (0.398) correctly reflects limited relevance.
 
 ---
 
 ## Recommendations
 
-### For Librarian Improvement:
+### For LiBrainian Improvement:
 
 1. **Index observability patterns explicitly:**
    - Files in `*/telemetry/`, `*/debug/`, `*/monitoring/` directories
@@ -142,7 +142,7 @@ The confidence scores (0.39-0.80) suggest the librarian was uncertain about resu
    - "observability" should be a meta-concept linking all these
 
 3. **Improve coverage signals:**
-   - The librarian correctly reported "unverified_by_trace" but didn't surface the missed files
+   - The LiBrainian correctly reported "unverified_by_trace" but didn't surface the missed files
 
 ### For Users:
 
@@ -211,6 +211,6 @@ Observability Stack:
 
 **Grade: C+**
 
-The librarian found some observability code (audit logging, health dashboard, debug CLI) but missed the core infrastructure (logger.ts, tracer.ts, events.ts). A developer relying solely on these query results would have an incomplete and potentially misleading picture of the logging/observability strategy.
+The LiBrainian found some observability code (audit logging, health dashboard, debug CLI) but missed the core infrastructure (logger.ts, tracer.ts, events.ts). A developer relying solely on these query results would have an incomplete and potentially misleading picture of the logging/observability strategy.
 
 The low pack count (1-10 packs) for infrastructure queries suggests the semantic index doesn't adequately cover cross-cutting concerns like observability that span many files but live in dedicated utility modules.

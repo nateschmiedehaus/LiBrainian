@@ -29,9 +29,9 @@ npm run start
 
 - `CODEX_HOME`: where Codex CLI auth/token cache lives (local-only; do not track).
 - `CLAUDE_CONFIG_DIR`: where Claude CLI config lives (local-only; do not track).
-- `WVO_CLAUDE_FULL_PERMS=1`: opt-in “no prompts + widest access” mode for Wave0’s Claude Code invocations (uses `--dangerously-skip-permissions`; combine with `WVO_CLAUDE_ADD_DIRS` as needed).
-- `WVO_CLAUDE_ADD_DIRS`: comma-separated extra directories to grant Claude tool access via repeated `--add-dir` (use sparingly; never point at credential directories).
-- `WVO_CLAUDE_SETTINGS`: optional Claude Code `--settings` value (path or JSON string) to control local session behavior.
+- `LIBRARIAN_CLAUDE_FULL_PERMS=1`: opt-in “no prompts + widest access” mode for Wave0’s Claude Code invocations (uses `--dangerously-skip-permissions`; combine with `LIBRARIAN_CLAUDE_ADD_DIRS` as needed).
+- `LIBRARIAN_CLAUDE_ADD_DIRS`: comma-separated extra directories to grant Claude tool access via repeated `--add-dir` (use sparingly; never point at credential directories).
+- `LIBRARIAN_CLAUDE_SETTINGS`: optional Claude Code `--settings` value (path or JSON string) to control local session behavior.
 
 ## CLI Commands Reference
 

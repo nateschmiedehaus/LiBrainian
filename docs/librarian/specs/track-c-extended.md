@@ -1,6 +1,6 @@
 # Track C Extended Features (P11-P18)
 
-> **Extracted from**: `docs/librarian/THEORETICAL_CRITIQUE.md`
+> **Extracted from**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md`
 > **Source Parts**: Part IX (Subsystem-Level Problems), Part XVII (Twenty Greats' Implementation Items), Part XVIII (Theoretical Breakthroughs and Epistemic Bootstrapping)
 >
 > **Theory References**:
@@ -8,7 +8,7 @@
 > - P11-P12 relates to [Subsystem Problems 24-25](./subsystem-problems.md#storage-subsystem) (storage interface, transactions)
 > - Use cases supported: UC 11 (Test Gaps), UC 15 (Tech Debt) - see [use-case-targets.md](./use-case-targets.md)
 
-> **Operational status**: `research_only` (reference material). Do not treat any “Implemented” labels inside as verified behavior; see `docs/librarian/specs/BEHAVIOR_INDEX.md` and `docs/librarian/specs/IMPLEMENTATION_STATUS.md`.
+> **Operational status**: `research_only` (reference material). Do not treat any “Implemented” labels inside as verified behavior; see `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` and `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md`.
 
 This document contains the complete specifications for Track C Extended Features, representing advanced theoretical capabilities that push the boundaries of what a code understanding system can achieve.
 
@@ -35,7 +35,7 @@ This document contains the complete specifications for Track C Extended Features
 
 ### Theoretical Foundation
 
-The storage layer serves as the epistemological foundation of Librarian - all knowledge, embeddings, relationships, and metrics flow through it. A monolithic interface creates several fundamental problems:
+The storage layer serves as the epistemological foundation of LiBrainian - all knowledge, embeddings, relationships, and metrics flow through it. A monolithic interface creates several fundamental problems:
 
 1. **Cognitive Overload**: 200+ methods make the interface incomprehensible
 2. **Testing Impedance**: Mocking requires implementing all methods even when testing narrow functionality
@@ -121,7 +121,7 @@ Split interfaces enable:
 ### Implementation Status
 
 - **Status**: Implemented
-- **API Surface**: `StorageSlices`, `createStorageSlices`, `Librarian.getStorageSlices()`
+- **API Surface**: `StorageSlices`, `createStorageSlices`, `LiBrainian.getStorageSlices()`
 - **Next Steps**: Expand slice-first adoption across storage consumers
 
 ### Estimated LOC
@@ -246,7 +246,7 @@ Transactions enable:
 
 **Source**: Part XVII Section G (McCarthy/Minsky)
 
-> **Librarian Story**: Chapter 7 (The Completion) - This closes the learning loop.
+> **LiBrainian Story**: Chapter 7 (The Completion) - This closes the learning loop.
 >
 > **Critical Problems**: This addresses [Critical Problem B](./critical-usability.md#critical-problem-b-no-learning-loop-closure) and [B.1](./critical-usability.md#critical-problem-b1-memory-not-prediction-oriented)
 
@@ -341,10 +341,10 @@ export interface FailureAdvice {
 ### Files
 
 **Files to modify:**
-- `src/librarian/api/learning_loop.ts` (add predictive memory)
+- `src/LiBrainian/api/learning_loop.ts` (add predictive memory)
 
 **Files to create:**
-- `src/librarian/api/predictive_memory.ts`
+- `src/LiBrainian/api/predictive_memory.ts`
 
 ### Implementation Status
 
@@ -417,7 +417,7 @@ export interface UndecidabilityClassification {
 
 ```typescript
 /**
- * The breakthrough: Librarian can explain its own limitations.
+ * The breakthrough: LiBrainian can explain its own limitations.
  *
  * Example:
  *   Q: "Will this function terminate on all inputs?"
@@ -998,7 +998,7 @@ P18 (Metacognitive Architecture) ──────> Meta Layer (reasoning about
 
 | Feature | Implementation | Commit |
 |---------|---------------|--------|
-| P11 | `StorageSlices`, `createStorageSlices`, `Librarian.getStorageSlices()` | 2026-01-22 |
+| P11 | `StorageSlices`, `createStorageSlices`, `LiBrainian.getStorageSlices()` | 2026-01-22 |
 | P12 | `transaction()` + `withinTransaction()` helpers; bootstrap file/directory/assessment batches wrapped | `5d4d73d4` |
 | P13 | `ClosedLoopLearner` with prediction-weighted retrieval, consolidation/tiering, shift detection | `6c4598c8`, `cdc3a148`, `41d00c0a` |
 | P14 | Heuristic classifier | Evidence refresh pending |

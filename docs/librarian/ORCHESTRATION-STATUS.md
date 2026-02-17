@@ -1,9 +1,9 @@
-# Librarian World-Class Initiative - Orchestration Status
+# LiBrainian World-Class Initiative - Orchestration Status
 
 > **Last Updated**: 2026-01-30 16:30 UTC
 > **Active Agents**: 1
 > **Completed**: 17/19 tasks
-> **Goal**: Make Librarian genuinely indispensable with zero-friction auto-configuration
+> **Goal**: Make LiBrainian genuinely indispensable with zero-friction auto-configuration
 
 ---
 
@@ -28,8 +28,8 @@
 
 ## Completed Work
 
-### WU-META-001: Librarian Utility Analysis ✅
-- **Output**: `docs/librarian/WU-META-001-LIBRARIAN-UTILITY-ANALYSIS.md`
+### WU-META-001: LiBrainian Utility Analysis ✅
+- **Output**: `docs/LiBrainian/WU-META-001-LiBrainian-UTILITY-ANALYSIS.md`
 - **Key Finding**: Infrastructure exists but agents don't use it
 
 ### WU-WORLD-001: Full Tier Upgrade ✅
@@ -45,7 +45,7 @@
 ### WU-WORLD-004: Intelligent Auto-Configuration ✅
 - `src/config/tier_selector.ts` - quality tier auto-detection
 - `src/constructions/auto_selector.ts` - project type detection
-- `docs/librarian/WU-WORLD-004-AUTO-CONFIG-PLAN.md`
+- `docs/LiBrainian/WU-WORLD-004-AUTO-CONFIG-PLAN.md`
 
 ### WU-WORLD-005: Pattern Library T-01 to T-30 ✅
 - `src/knowledge/t_patterns.ts` - complete T-series implementation
@@ -56,7 +56,7 @@
 
 ### WU-WORLD-007: Self-Healing Configuration ✅
 - `src/config/self_healing.ts` - diagnose, heal, rollback
-- CLI: `librarian config heal`
+- CLI: `LiBrainian config heal`
 
 ### WU-WORLD-008: Query Routing ✅
 - Meta-queries → docs, Implementation queries → code
@@ -192,10 +192,10 @@ const context = await lib.query(userIntent);
 - `src/knowledge/t_patterns.ts` - Complete T-series patterns
 
 ### Documentation
-- `docs/librarian/WU-META-001-LIBRARIAN-UTILITY-ANALYSIS.md`
-- `docs/librarian/WORLD-CLASS-LIBRARIAN-INITIATIVE.md`
-- `docs/librarian/WU-WORLD-004-AUTO-CONFIG-PLAN.md`
-- `docs/librarian/ORCHESTRATION-STATUS.md` (this file)
+- `docs/LiBrainian/WU-META-001-LiBrainian-UTILITY-ANALYSIS.md`
+- `docs/LiBrainian/WORLD-CLASS-LiBrainian-INITIATIVE.md`
+- `docs/LiBrainian/WU-WORLD-004-AUTO-CONFIG-PLAN.md`
+- `docs/LiBrainian/ORCHESTRATION-STATUS.md` (this file)
 
 ### Tests
 - `src/config/__tests__/tier_selector.test.ts` (23 tests)

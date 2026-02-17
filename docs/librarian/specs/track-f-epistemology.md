@@ -4,7 +4,7 @@
 > **Part References**: XII.A.43, XII.A.44, XII.A.45, XII.A.46
 > **Purpose**: Address deep epistemological gaps: Gettier immunity, social epistemology, epistemic justice, and principled defeasibility
 >
-> **Librarian Story**: Chapter 7 (The Knowledge) - Beyond justified true belief to genuine understanding.
+> **LiBrainian Story**: Chapter 7 (The Knowledge) - Beyond justified true belief to genuine understanding.
 >
 > **Dependency**: Requires Track D (ConfidenceValue types) and Track F Calibration (C1-C4). Uses evidence from epistemics module.
 
@@ -12,7 +12,7 @@
 
 ## Overview
 
-This specification addresses four foundational epistemological problems that undermine Librarian's claim to produce genuine knowledge:
+This specification addresses four foundational epistemological problems that undermine LiBrainian's claim to produce genuine knowledge:
 
 | Problem | Name | Core Issue |
 |---------|------|------------|
@@ -40,13 +40,13 @@ This specification addresses four foundational epistemological problems that und
 
 > **Gettier (1963)**: Justified true belief is not sufficient for knowledge.
 
-Librarian treats knowledge as justified true belief - but this is epistemologically naive. An agent can have:
+LiBrainian treats knowledge as justified true belief - but this is epistemologically naive. An agent can have:
 - A **justified** belief ("this function returns a string" - based on type annotation)
 - That belief can be **true** (the function does return a string)
 - Yet the justification can be **accidentally correct** (the annotation is stale, but the implementation happens to match)
 
-**Example Gettier Case in Librarian**:
-1. Librarian claims: "Function `parseConfig` returns `Config` type" (confidence: 0.9)
+**Example Gettier Case in LiBrainian**:
+1. LiBrainian claims: "Function `parseConfig` returns `Config` type" (confidence: 0.9)
 2. Evidence: TypeScript annotation says `Config`
 3. Reality: The annotation is wrong, but the function happens to return a `Config`-compatible object by coincidence
 4. Status: **Justified, True, but NOT Knowledge** - the justification doesn't explain the truth
@@ -373,7 +373,7 @@ function computeGettierRisk(
 
 > Knowledge is a social phenomenon, not just individual belief.
 
-Librarian treats knowledge as an individual phenomenon. But codebases are **social artifacts**:
+LiBrainian treats knowledge as an individual phenomenon. But codebases are **social artifacts**:
 - Multiple developers with different expertise
 - Different stakeholders (authors, reviewers, maintainers, users)
 - Consensus and disagreement about design decisions
@@ -436,7 +436,7 @@ type StakeholderType =
   | 'maintainer'    // Maintains the module
   | 'user'          // Uses the API/component
   | 'documentor'    // Wrote documentation
-  | 'llm'           // LLM synthesis (Librarian itself)
+  | 'llm'           // LLM synthesis (LiBrainian itself)
   | 'test';         // Test suite (implicit stakeholder)
 
 type Stance =
@@ -1155,7 +1155,7 @@ function recalibrateForBias(
 
 > The current defeater system is shallow.
 
-Librarian's defeater system distinguishes rebutting and undercutting defeaters, but doesn't implement:
+LiBrainian's defeater system distinguishes rebutting and undercutting defeaters, but doesn't implement:
 - **Defeater hierarchies**: Some defeaters defeat other defeaters
 - **Priority semantics**: When defeaters conflict, which wins?
 - **Loop detection**: Defeater chains can be cyclic
@@ -1911,22 +1911,22 @@ calibrationProtocol.recordOutcome(claimId, wasActuallyGettierCase);
 
 ```bash
 # Verify Gettier risk types
-rg "CausalJustification|GettierRiskScore" packages/librarian/src
+rg "CausalJustification|GettierRiskScore" packages/LiBrainian/src
 
 # Verify social epistemology types
-rg "StakeholderPerspective|ConsensusLevel|EpistemicAuthorityStructure" packages/librarian/src
+rg "StakeholderPerspective|ConsensusLevel|EpistemicAuthorityStructure" packages/LiBrainian/src
 
 # Verify epistemic injustice types
-rg "RepresentationAudit|NormativeClaimDetection|BiasAwareCalibration" packages/librarian/src
+rg "RepresentationAudit|NormativeClaimDetection|BiasAwareCalibration" packages/LiBrainian/src
 
 # Verify argumentation framework
-rg "ArgumentationEngine|DefeatGraph|AcceptanceSemantics" packages/librarian/src
+rg "ArgumentationEngine|DefeatGraph|AcceptanceSemantics" packages/LiBrainian/src
 
 # Run epistemology tests
 npm run test -- --grep "epistemology"
 
 # Verify no raw confidence numbers
-rg "confidence:\s*0\.\d" packages/librarian/src --glob '*.ts' | wc -l
+rg "confidence:\s*0\.\d" packages/LiBrainian/src --glob '*.ts' | wc -l
 # Should return 0
 ```
 
@@ -1962,4 +1962,4 @@ Track F Epistemology Infrastructure addresses four foundational epistemological 
 
 **Total estimated LOC**: ~1,100
 
-Without these epistemological foundations, Librarian's "knowledge" is philosophically naive. With them, Librarian produces genuine understanding that agents can act on with appropriate confidence.
+Without these epistemological foundations, LiBrainian's "knowledge" is philosophically naive. With them, LiBrainian produces genuine understanding that agents can act on with appropriate confidence.

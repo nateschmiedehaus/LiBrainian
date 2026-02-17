@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian System Wiring & Feedback Loops
+# LiBrainian System Wiring & Feedback Loops
 
 > **FOR AGENTS**: This doc maps ALL 45 technical wires and feedback loops in Wave0. Read this to understand data flow.
 > **Navigation**: [README.md](./README.md) | [implementation-phases.md](./implementation-phases.md) | [fixes-critical.md](./fixes-critical.md)
@@ -16,7 +16,7 @@ Extract useful research into canonical docs; do not extend this file.
 | Core Data Flow | Main orchestration loop diagram | [#core-data-flow-loop](#11-core-data-flow-loop) |
 | Quality Feedback | Test results, metrics → confidence | [#quality-feedback-loops](#12-quality-feedback-loops) |
 | Learning Feedback | Episodic memory, anti-patterns | [#learning-feedback-loops](#13-learning-feedback-loops) |
-| Librarian Feedback | Knowledge updates, reindexing | [#librarian-feedback-loops](#14-librarian-feedback-loops) |
+| LiBrainian Feedback | Knowledge updates, reindexing | [#LiBrainian-feedback-loops](#14-LiBrainian-feedback-loops) |
 | All 45 Wires | Complete wire table | [#complete-wire-reference](#complete-wire-reference) |
 
 ---
@@ -51,7 +51,7 @@ Extract useful research into canonical docs; do not extend this file.
 │         │                      │       │                         │                          │
 │         │                      │       ▼                         │                          │
 │         │                      │  ┌─────────────────────────┐    │                          │
-│         │                      │  │       LIBRARIAN         │    │                          │
+│         │                      │  │       LiBrainian         │    │                          │
 │         │                      │  │  Semantic Knowledge DB   │    │                          │
 │         │                      │  │  - File embeddings       │    │                          │
 │         │                      │  │  - Call graphs          │    │                          │
@@ -94,14 +94,14 @@ Extract useful research into canonical docs; do not extend this file.
 | 8 | `LibrarianBootstrap` | `SQLiteStorage` | Store | Embeddings, metadata | Per file |
 | 9 | `WorkGraph` | Task source | Intake | New tasks | Per task |
 | 10 | `WorkGraph` | `SemanticScheduler` | Schedule | Task list | Per batch |
-| 11 | `SemanticScheduler` | `Librarian.getSemanticSimilarity()` | Query | File paths | Per task pair |
+| 11 | `SemanticScheduler` | `LiBrainian.getSemanticSimilarity()` | Query | File paths | Per task pair |
 | 12 | `SemanticScheduler` | `AgentPool` | Assign | Scheduled tasks | Per task |
 | 13 | `AgentPool` | `AgentRegistry` | Lookup | Capability query | Per assignment |
 | 14 | `AgentRegistry` | Agent instance | Acquire | Agent lock | Per assignment |
 | 15 | Agent instance | `ContextAssembler` | Request | Task + files | Per task |
-| 16 | `ContextAssembler` | `Librarian.assembleContext()` | Query | File paths, task type | Per task |
-| 17 | `Librarian` | `SQLiteStorage` | Query | Embedding lookup | Per query |
-| 18 | `Librarian` | `SQLiteStorage` | Query | Call graph lookup | Per query |
+| 16 | `ContextAssembler` | `LiBrainian.assembleContext()` | Query | File paths, task type | Per task |
+| 17 | `LiBrainian` | `SQLiteStorage` | Query | Embedding lookup | Per query |
+| 18 | `LiBrainian` | `SQLiteStorage` | Query | Call graph lookup | Per query |
 | 19 | `ContextAssembler` | Agent instance | Response | Enriched context | Per task |
 | 20 | Agent instance | LLM API | Inference | Prompt + context | Per action |
 | 21 | LLM API | Agent instance | Response | Generated text | Per action |
@@ -112,8 +112,8 @@ Extract useful research into canonical docs; do not extend this file.
 | 26 | `ExecutionBackend` | Agent instance | Result | Exit code, stdout | Per execution |
 | 27 | Agent instance | `CheckpointManager` | Save | State snapshot | Per phase |
 | 28 | `CheckpointManager` | File system | Write | Checkpoint JSON | Per phase |
-| 29 | Agent instance | `Librarian` | Report | Action trajectory | Per task |
-| 30 | `Librarian` | `EpisodicMemory` | Store | Episode record | Per task |
+| 29 | Agent instance | `LiBrainian` | Report | Action trajectory | Per task |
+| 30 | `LiBrainian` | `EpisodicMemory` | Store | Episode record | Per task |
 | 31 | Agent instance | `QualityGate` | Submit | Patch/output | Per task |
 | 32 | `QualityGate` | LLM API | Review | Code for slop check | Per submission |
 | 33 | `QualityGate` | `DomainExpertRouter` | Route | Approval request | If needed |
@@ -175,7 +175,7 @@ Extract useful research into canonical docs; do not extend this file.
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐    │
 │  │                          LOOP D: KNOWLEDGE ENRICHMENT                                │    │
 │  │                                                                                      │    │
-│  │   Code change   ──▶ Librarian   ──▶ Re-index    ──▶ New          ──▶ Better context │    │
+│  │   Code change   ──▶ LiBrainian   ──▶ Re-index    ──▶ New          ──▶ Better context │    │
 │  │   committed         detects         affected        embeddings       for agents      │    │
 │  │       ▲             change          files           stored              │            │    │
 │  │       │                                                                 │            │    │
@@ -282,7 +282,7 @@ These loops emerge from the interaction of components, not from explicit design:
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐    │
 │  │  EMERGENT LOOP K: CODEBASE COHERENCE                                                │    │
 │  │                                                                                      │    │
-│  │  Librarian learns patterns → Agents follow learned patterns → New code matches →    │    │
+│  │  LiBrainian learns patterns → Agents follow learned patterns → New code matches →    │    │
 │  │  Patterns reinforce → Codebase becomes increasingly consistent                      │    │
 │  │                                                                                      │    │
 │  │  [Pattern extraction] ──▶ [Context provision] ──▶ [Code generation] ──▶ [Learning] │    │
@@ -426,7 +426,7 @@ Every connection in Wave0, organized by layer:
 |---------|------|-----|---------|
 | W030 | Workgraph | Task queue | Manage tasks |
 | W031 | Task queue | Scheduler | Order tasks |
-| W032 | Scheduler | Librarian | Get similarity |
+| W032 | Scheduler | LiBrainian | Get similarity |
 | W033 | Scheduler | Agent pool | Request agent |
 | W034 | Agent pool | Agent registry | Find capable agent |
 | W035 | Agent registry | Agent instance | Lock agent |
@@ -540,7 +540,7 @@ Wave0 consists of the following subsystems, each with specific responsibilities:
 │  │   KNOWLEDGE LAYER   │  │           AGENT LAYER                   │  │      EXECUTION LAYER        │   │
 │  │                     │  │                                         │  │                             │   │
 │  │  ┌───────────────┐  │  │  ┌─────────────────────────────────┐   │  │  ┌───────────────────────┐  │   │
-│  │  │   LIBRARIAN   │  │  │  │        AGENT REGISTRY           │   │  │  │   EXECUTION BACKEND  │  │   │
+│  │  │   LiBrainian   │  │  │  │        AGENT REGISTRY           │   │  │  │   EXECUTION BACKEND  │  │   │
 │  │  │               │  │  │  │                                 │   │  │  │                      │  │   │
 │  │  │ index.ts      │  │  │  │  agent_registry.ts              │   │  │  │  local_backend.ts    │  │   │
 │  │  │ api/          │  │  │  │  - Register agents              │   │  │  │  docker_backend.ts   │  │   │
@@ -608,7 +608,7 @@ Wave0 consists of the following subsystems, each with specific responsibilities:
 │  │  │provider_    │  │sqlite_      │  │logger.ts    │  │canon.json   │  │git_sanit.ts │            │    │
 │  │  │ check.ts    │  │ storage.ts  │  │             │  │wave0.ts     │  │             │            │    │
 │  │  │             │  │             │  │             │  │             │  │             │            │    │
-│  │  │- LLM health │  │- .librarian/│  │- Console    │  │- Settings   │  │- Input val  │            │    │
+│  │  │- LLM health │  │- .LiBrainian/│  │- Console    │  │- Settings   │  │- Input val  │            │    │
 │  │  │- Embed API  │  │- state/     │  │- File logs  │  │- Env vars   │  │- Sandboxing │            │    │
 │  │  │- Fallback   │  │- checkpts   │  │- Traces     │  │- Defaults   │  │- Policies   │            │    │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘            │    │
@@ -627,12 +627,12 @@ Wave0 consists of the following subsystems, each with specific responsibilities:
 | **S03** | **Scheduler** | `src/workgraph/scheduler.ts` | Task ordering, semantic grouping | P6 | In-memory |
 | **S04** | **Agent Pool** | `src/orchestrator/agent_pool.ts` | Agent lifecycle, acquire/release | P9, P27 | In-memory |
 | **S05** | **Agent Registry** | `src/orchestrator/agent_registry.ts` | Agent catalog, capability matching | P13, P27 | In-memory |
-| **S06** | **Context Assembler** | `src/orchestrator/context_assembler.ts` | Build TaskContext from Librarian | P5 | None |
-| **S07** | **Librarian Core** | `src/librarian/index.ts` | Knowledge backbone, embeddings | P1, P14, P15 | `.librarian/` |
-| **S08** | **Librarian Storage** | `src/librarian/storage/sqlite_storage.ts` | SQLite + vector storage | P11 | `.librarian/librarian.sqlite` |
-| **S09** | **Librarian Agents** | `src/librarian/agents/` | AST indexer, semantic analyzer | P1 | `.librarian/` |
-| **S10** | **Librarian API** | `src/librarian/api/` | Query, bootstrap, versioning, knowledge queries | P15 | None |
-| **S11** | **Episodic Memory** | `src/memory/episodic_memory.ts` | Experience storage, recall | G2 | `.librarian/episodes.sqlite` |
+| **S06** | **Context Assembler** | `src/orchestrator/context_assembler.ts` | Build TaskContext from LiBrainian | P5 | None |
+| **S07** | **LiBrainian Core** | `src/LiBrainian/index.ts` | Knowledge backbone, embeddings | P1, P14, P15 | `.LiBrainian/` |
+| **S08** | **LiBrainian Storage** | `src/LiBrainian/storage/sqlite_storage.ts` | SQLite + vector storage | P11 | `.LiBrainian/LiBrainian.sqlite` |
+| **S09** | **LiBrainian Agents** | `src/LiBrainian/agents/` | AST indexer, semantic analyzer | P1 | `.LiBrainian/` |
+| **S10** | **LiBrainian API** | `src/LiBrainian/api/` | Query, bootstrap, versioning, knowledge queries | P15 | None |
+| **S11** | **Episodic Memory** | `src/memory/episodic_memory.ts` | Experience storage, recall | G2 | `.LiBrainian/episodes.sqlite` |
 | **S12** | **Execution Backends** | `src/spine/execution_backends/` | Local, Docker execution | P24, P10 | None |
 | **S13** | **Policy Engine** | `src/spine/policy_engine.ts` | Security rules, approval gates | P25 | `config/policies.json` |
 | **S14** | **Git Sanitizer** | `src/spine/git_sanitizer.ts` | Input validation for git commands | P16 | None |
@@ -642,7 +642,7 @@ Wave0 consists of the following subsystems, each with specific responsibilities:
 | **S18** | **Evolution Coordinator** | `src/self_evolution/evolution_coordinator.ts` | Outcome recording, evolution trigger | P28 | `state/evolution/` |
 | **S19** | **Policy Optimizer** | `src/self_evolution/policy_optimizer.ts` | Weight updates, gradient descent | P28 | `state/policies/weights.json` |
 | **S20** | **Gene Pool Manager** | `src/brain/evolution/gene_pool_manager.ts` | Agent genome evolution | P28 | `state/evolution/genomes.json` |
-| **S21** | **Provider Check** | `src/librarian/api/provider_check.ts` | LLM/embedding health | P7 | None |
+| **S21** | **Provider Check** | `src/LiBrainian/api/provider_check.ts` | LLM/embedding health | P7 | None |
 | **S22** | **Config Loader** | `src/spine/evolvable_artifacts.ts` | Settings, environment | - | `config/` |
 | **S23** | **Logger** | `src/telemetry/logger.ts` | Logging infrastructure | A6 | `logs/` |
 | **S24** | **TUI** | `src/interface/tui/` | Terminal user interface | G8 | In-memory |
@@ -696,7 +696,7 @@ Provides ↓  │                                                               
 | **DP05** | Human review | S17 → S15 → filesystem → S15 → S17 | Approval flow | YES |
 | **DP06** | Checkpoint/resume | S16 → filesystem → S16 | State persistence | YES |
 | **DP07** | Evolution feedback | S01 → S18 → S19 + S20 → S05 | Fitness updates | NO |
-| **DP08** | Librarian bootstrap | S21 → S07 → S09 → S08 → S10 | Knowledge init | YES |
+| **DP08** | LiBrainian bootstrap | S21 → S07 → S09 → S08 → S10 | Knowledge init | YES |
 | **DP09** | Semantic scheduling | S03 → S10 → S08 → S03 | Similarity scores | NO |
 | **DP10** | Policy enforcement | S12 → S13 → S12 | Allow/deny | YES |
 
@@ -705,9 +705,9 @@ Provides ↓  │                                                               
 | Subsystem | Persistent State | Location | Format |
 |-----------|-----------------|----------|--------|
 | S02 Workgraph | Task DAG, status | `.wave0/workgraph.json` | JSON |
-| S07 Librarian | Embeddings, call graphs | `.librarian/librarian.sqlite` | SQLite |
-| S08 Storage | All librarian data | `.librarian/` | SQLite + files |
-| S11 Episodic | Episode records | `.librarian/episodes.sqlite` | SQLite |
+| S07 LiBrainian | Embeddings, call graphs | `.LiBrainian/LiBrainian.sqlite` | SQLite |
+| S08 Storage | All LiBrainian data | `.LiBrainian/` | SQLite + files |
+| S11 Episodic | Episode records | `.LiBrainian/episodes.sqlite` | SQLite |
 | S13 Policy | Custom rules | `config/policies.json` | JSON |
 | S15 HITL | Review requests/responses | `state/audits/hitl/*.json` | JSON |
 | S16 Checkpoint | Task checkpoints | `.wave0/checkpoints/*.json` | JSON |
@@ -763,7 +763,7 @@ interface ContextAssemblerInterface {
   assemble(task: Task): Promise<TaskContext>;
 }
 
-// S07: Librarian
+// S07: LiBrainian
 interface LibrarianInterface {
   preOrchestrationHook(options: BootstrapOptions): Promise<BootstrapResult>;
   isReady(): boolean;
@@ -826,8 +826,8 @@ STARTUP SEQUENCE (strict order required):
 2. S23 (Logger)      → Initialize logging
 3. S21 (Providers)   → Check LLM/embedding availability
 4. S08 (Storage)     → Open database connections
-5. S07 (Librarian)   → Bootstrap knowledge base
-6. S10 (Librarian API) → Initialize query interfaces
+5. S07 (LiBrainian)   → Bootstrap knowledge base
+6. S10 (LiBrainian API) → Initialize query interfaces
 7. S11 (Episodic)    → Load episode store
 8. S13 (Policy)      → Load policy rules
 9. S12 (Backends)    → Initialize execution backends

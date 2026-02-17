@@ -1,23 +1,23 @@
-# Librarian Test Suite
+# LiBrainian Test Suite
 
-> **Test the librarian like instrumentation: calibration, drift, noise sensitivity, and provenance.**
+> **Test the LiBrainian like instrumentation: calibration, drift, noise sensitivity, and provenance.**
 
-## Test Categories (Per docs/librarian/validation.md)
+## Test Categories (Per docs/LiBrainian/validation.md)
 
 ### Category 1: Fidelity Tests (Calibration)
 
-Tests that verify the librarian correctly represents the codebase.
+Tests that verify the LiBrainian correctly represents the codebase.
 
 | Test File | What It Tests |
 |-----------|---------------|
-| `librarian.test.ts` | Deterministic core (storage, migrations, utilities) |
+| `LiBrainian.test.ts` | Deterministic core (storage, migrations, utilities) |
 | `librarian_live.system.test.ts` | Live-provider indexing + API smoke |
 | `ingestion_framework.test.ts` | Entity extraction |
 | `embedding_pipeline.test.ts` | Embedding generation |
 
 ### Category 2: Retrieval Quality Tests
 
-Tests that verify the librarian surfaces the right evidence.
+Tests that verify the LiBrainian surfaces the right evidence.
 
 | Test File | What It Tests |
 |-----------|---------------|
@@ -39,7 +39,7 @@ Tests that verify claims are traceable to evidence.
 
 ### Category 4: Robustness Tests
 
-Tests that verify the librarian handles adversarial inputs safely.
+Tests that verify the LiBrainian handles adversarial inputs safely.
 
 | Test File | What It Tests |
 |-----------|---------------|
@@ -57,7 +57,7 @@ LIBRARIAN_TEST_MODE=unit npm test -- --run
 ```
 
 **Tier-0 tests include:**
-- `librarian.test.ts` - Core storage/indexing (embedding vectors treated as opaque arrays; no provider calls)
+- `LiBrainian.test.ts` - Core storage/indexing (embedding vectors treated as opaque arrays; no provider calls)
 - `ingestion_framework.test.ts` - Entity extraction
 - `provider_gate.test.ts` - Gate logic (not actual providers)
 
@@ -80,7 +80,7 @@ LIBRARIAN_TEST_MODE=system npm test -- --run
 
 ## Agentic Tests (`agentic/`)
 
-The `agentic/` subdirectory contains tests that evaluate librarian behavior in realistic scenarios.
+The `agentic/` subdirectory contains tests that evaluate LiBrainian behavior in realistic scenarios.
 
 | Test | Purpose |
 |------|---------|
@@ -103,7 +103,7 @@ LIBRARIAN_TEST_MODE=system npm test -- --run
 
 ### Specific test file
 ```bash
-LIBRARIAN_TEST_MODE=unit npm test -- --run src/__tests__/librarian.test.ts
+LIBRARIAN_TEST_MODE=unit npm test -- --run src/__tests__/LiBrainian.test.ts
 ```
 
 ## Test Patterns
@@ -120,7 +120,7 @@ it('finds semantically related functions', async () => {
     throw new Error('unverified_by_trace(provider_unavailable)');
   }
 
-  const results = await librarian.query({
+  const results = await LiBrainian.query({
     intent: 'authentication logic',
   });
 
@@ -149,7 +149,7 @@ Verify behavior quality, not just outcomes:
 
 ```typescript
 it('indexes without hallucinating entities', async () => {
-  const result = await librarian.index(testRepo);
+  const result = await LiBrainian.index(testRepo);
 
   // Outcome check
   expect(result.success).toBe(true);
@@ -193,7 +193,7 @@ it('achieves acceptable recall@5', async () => {
 
 ## References
 
-- `docs/librarian/validation.md` - Librarian validation policy
-- `docs/librarian/HANDOFF_CLAUDE_OPUS.md` - Librarian testing philosophy
+- `docs/LiBrainian/validation.md` - LiBrainian validation policy
+- `docs/LiBrainian/HANDOFF_CLAUDE_OPUS.md` - LiBrainian testing philosophy
 - `docs/TEST.md` - Wave0 testing policy
 - `docs/LIVE_PROVIDERS_PLAYBOOK.md` - Provider requirements

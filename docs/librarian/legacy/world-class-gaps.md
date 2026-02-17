@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian World-Class Knowledge Gaps
+# LiBrainian World-Class Knowledge Gaps
 
 > **FOR AGENTS**: Deep dive into G13-G25. For implementation specs, see [implementation-requirements.md](./implementation-requirements.md).
 > **Navigation**: [README.md](./README.md) | [overview.md](./overview.md) | [implementation-requirements.md](./implementation-requirements.md)
@@ -49,12 +49,12 @@ Before understanding gaps, understand the current integration:
 │     └── ensureTemporalGraph() → build co-change edges           │
 │                                                                 │
 │  2. chooseNextTask() [scheduler.ts]                             │
-│     └── librarian.query(intent) → get related files             │
+│     └── LiBrainian.query(intent) → get related files             │
 │     └── scoreSemantic() → Jaccard similarity on file overlap    │
 │     └── DECISION: which task to run next                        │
 │                                                                 │
 │  3. enrichTaskContext() [wave0_integration.ts]                  │
-│     └── librarian.query(intent, affectedFiles)                  │
+│     └── LiBrainian.query(intent, affectedFiles)                  │
 │     └── RETURNS: summary, keyFacts, snippets, relatedFiles      │
 │     └── INJECTED INTO: agent prompt as context                  │
 │                                                                 │
@@ -63,7 +63,7 @@ Before understanding gaps, understand the current integration:
 │  5. recordTaskOutcome() [wave0_integration.ts]                  │
 │     └── storage.recordContextPackAccess(packId, outcome)        │
 │     └── storage.updateConfidence(entityId, delta)               │
-│     └── librarian.reindexFiles(filesModified)                   │
+│     └── LiBrainian.reindexFiles(filesModified)                   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -76,19 +76,19 @@ Before understanding gaps, understand the current integration:
 
 ### G13: Complete Knowledge Query Implementations
 
-**Real Process**: When an agent asks "what do I need to know about this function?", the librarian should provide architecture context, not just file contents.
+**Real Process**: When an agent asks "what do I need to know about this function?", the LiBrainian should provide architecture context, not just file contents.
 
 **Current State**: Implemented. Architecture + impact queries return dependency graphs, cycles, blast radius, and fitness context.
 
-**Integration Point**: `enrichTaskContext()` → `librarian.query()` → knowledge modules
+**Integration Point**: `enrichTaskContext()` → `LiBrainian.query()` → knowledge modules
 
 **How to Test**:
 ```bash
 # Create a circular dependency in test fixture
-# Query librarian for blast radius
+# Query LiBrainian for blast radius
 # Verify it returns ALL affected files, not just direct imports
 node -e "
-  const lib = require('./src/librarian');
+  const lib = require('./src/LiBrainian');
   const ctx = await lib.enrichTaskContext('.', { intent: 'refactor auth module' });
   assert(ctx.relatedFiles.length > 0, 'Should find related files');
   assert(ctx.keyFacts.some(f => f.includes('dependency')), 'Should mention deps');
@@ -126,7 +126,7 @@ CREATE TABLE call_edges (
 # Verify edge count > 0
 # Query for function X's callers
 # Verify correct callers returned
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM call_edges"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM call_edges"
 ```
 
 **Why This Matters**: Without persistent graphs, every query recomputes from scratch (slow) or returns incomplete data.
@@ -288,10 +288,10 @@ git blame --line-porcelain src/auth/login.ts | grep "author " | sort | uniq -c |
 ```markdown
 # In docs/adr/001-use-sqlite.md
 Status: accepted
-Context: Need local storage for librarian index
+Context: Need local storage for LiBrainian index
 Decision: Use SQLite over PostgreSQL
 Consequences: No multi-user support, but simpler deployment
-Related files: src/librarian/storage/sqlite_storage.ts
+Related files: src/LiBrainian/storage/sqlite_storage.ts
 ```
 
 **How to Test**:
@@ -319,9 +319,9 @@ Related files: src/librarian/storage/sqlite_storage.ts
 4. What would break if I change the signature? (consumers)
 5. Is there an ADR explaining why it's structured this way?
 
-**Integration Point**: New query type in `librarian.query()`:
+**Integration Point**: New query type in `LiBrainian.query()`:
 ```typescript
-const ctx = await librarian.query({
+const ctx = await LiBrainian.query({
   intent: 'refactor auth module',
   queryType: 'refactoring_safety',
   targetFiles: ['src/auth/'],
@@ -355,7 +355,7 @@ const ctx = await librarian.query({
 
 **What Should Happen**:
 1. Task fails with error message
-2. Librarian analyzes: which context packs were used?
+2. LiBrainian analyzes: which context packs were used?
 3. Compare failed task to successful similar tasks
 4. Attribute: "Tasks using PackID X fail 70% of the time"
 5. Update confidence scores for implicated entities
@@ -436,13 +436,13 @@ export async function chooseNextTaskBatch(
 **Where It Would Integrate**:
 - Agent registry (who has what skills)
 - `scheduler.ts` → match `required_specialty` to agent capabilities
-- `expertise_matcher.ts` exists but needs librarian integration
+- `expertise_matcher.ts` exists but needs LiBrainian integration
 
 **What Should Happen**:
 ```typescript
 // In scheduler:
 const agents = await agentRegistry.getAvailableAgents();
-const taskExpertise = await librarian.inferExpertise(task.intent, task.affectedFiles);
+const taskExpertise = await LiBrainian.inferExpertise(task.intent, task.affectedFiles);
 const matchedAgent = agents.find(a =>
   a.capabilities.some(c => taskExpertise.required.includes(c))
 );
@@ -542,10 +542,10 @@ Each gap should have:
 Example for G15 (Test Mapping):
 ```bash
 # Unit: testMapping returns correct mappings
-npm test -- src/librarian/__tests__/test_mapping.test.ts
+npm test -- src/LiBrainian/__tests__/test_mapping.test.ts
 
 # Integration: enrichTaskContext includes testMapping
-npm test -- src/librarian/__tests__/context_assembly.test.ts
+npm test -- src/LiBrainian/__tests__/context_assembly.test.ts
 
 # E2E: Agent warned about untested code
 node scripts/probe_dogfood_runner.mjs --scenario untested_code_warning

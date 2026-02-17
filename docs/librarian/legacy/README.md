@@ -1,11 +1,11 @@
-# Legacy Librarian Docs (Archived)
+# Legacy LiBrainian Docs (Archived)
 
-This folder is **historical**. It is retained for reference, but it may contain **outdated guidance** that conflicts with current Wave0 rules and the active Librarian spec set.
+This folder is **historical**. It is retained for reference, but it may contain **outdated guidance** that conflicts with current Wave0 rules and the active LiBrainian spec set.
 
-If you are implementing Librarian today, start with:
-- `docs/librarian/AGENT_INSTRUCTIONS.md` (authoritative implementation workflow)
-- `docs/librarian/STATUS.md` (target vs reality with evidence links)
-- `docs/librarian/specs/` (future spec system)
+If you are implementing LiBrainian today, start with:
+- `docs/LiBrainian/AGENT_INSTRUCTIONS.md` (authoritative implementation workflow)
+- `docs/LiBrainian/STATUS.md` (target vs reality with evidence links)
+- `docs/LiBrainian/specs/` (future spec system)
 - `docs/TEST.md`, `docs/LIVE_PROVIDERS_PLAYBOOK.md`, `src/EMBEDDING_RULES.md` (non-negotiable testing/provider rules)
 
 ## Known Outdated Patterns in Legacy Docs

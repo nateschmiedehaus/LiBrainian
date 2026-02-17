@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Implementation Requirements
+# LiBrainian Implementation Requirements
 
 > **FOR AGENTS**: This is the primary implementation reference. Use the table of contents below to jump to your section.
 > **Navigation**: [README.md](./README.md) | [architecture.md](./architecture.md) | [overview.md](./overview.md) | [scenarios.md](./scenarios.md) | [Back to docs](../)
@@ -18,10 +18,10 @@ Extract useful research into canonical docs; do not extend this file.
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  BEFORE IMPLEMENTING ANYTHING IN THIS DOC:                              │
-│  Port auth wiring from wave0/Claude/Codex to librarian                 │
+│  Port auth wiring from wave0/Claude/Codex to LiBrainian                 │
 │                                                                         │
 │  See: REMAINING_WORK.md#r0-fix-provider-auth-wiring                    │
-│  Problem: 15 tests skip (auth exists but librarian doesn't use it)     │
+│  Problem: 15 tests skip (auth exists but LiBrainian doesn't use it)     │
 │  DO NOT proceed with other tasks until this is fixed                   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -35,8 +35,8 @@ Extract useful research into canonical docs; do not extend this file.
 | Section | What It Contains | State | Jump Link |
 |---------|------------------|-------|-----------|
 | **Real-World Scenarios** | 30 scenarios showing actual behavior | 📋 REFERENCE | [scenarios.md](./scenarios.md) |
-| **Engine Toolkit** | Three core engines with full specs | ✅ IMPLEMENTED | [#librarian-engine-toolkit](#librarian-engine-toolkit) |
-| **Wave0 Integration** | How Wave0 uses librarian | ✅ IMPLEMENTED | [#wave0-librarian-integration-contract](#wave0-librarian-integration-contract) |
+| **Engine Toolkit** | Three core engines with full specs | ✅ IMPLEMENTED | [#LiBrainian-engine-toolkit](#LiBrainian-engine-toolkit) |
+| **Wave0 Integration** | How Wave0 uses LiBrainian | ✅ IMPLEMENTED | [#wave0-LiBrainian-integration-contract](#wave0-LiBrainian-integration-contract) |
 | **Agent Guide** | Priority order, checklists | 📋 REFERENCE | [#agent-implementation-guide](#agent-implementation-guide) |
 
 ### State Legend
@@ -65,9 +65,9 @@ Extract useful research into canonical docs; do not extend this file.
    - [Cross-Cutting Concerns](#cross-cutting-concerns) 📋
    - [Testing Verification Matrix](#testing-verification-matrix) 📋
 5. **Wave0 Integration**
-   - [Wave0-Librarian Integration Contract](#wave0-librarian-integration-contract) ✅ Wired
+   - [Wave0-LiBrainian Integration Contract](#wave0-LiBrainian-integration-contract) ✅ Wired
 6. **Engine Toolkit** (NEW - Specs ready for implementation)
-   - [Librarian Engine Toolkit](#librarian-engine-toolkit) ✅ Implemented
+   - [LiBrainian Engine Toolkit](#LiBrainian-engine-toolkit) ✅ Implemented
    - [Engine 1: Relevance Engine](#engine-1-relevance-engine) ✅ Implemented
    - [Engine 2: Constraint Engine](#engine-2-constraint-engine) ✅ Implemented
    - [Engine 3: Meta-Knowledge Engine](#engine-3-meta-knowledge-engine) ✅ Implemented
@@ -83,7 +83,7 @@ Extract useful research into canonical docs; do not extend this file.
 
 ## Implementation Status Summary
 
-**AUDIT RESULT**: The librarian is more complete than the gap analysis suggested. Here's the actual state:
+**AUDIT RESULT**: The LiBrainian is more complete than the gap analysis suggested. Here's the actual state:
 
 | Gap | Claimed State | Actual State | Work Needed |
 |-----|---------------|--------------|-------------|
@@ -103,20 +103,20 @@ Extract useful research into canonical docs; do not extend this file.
 
 ### Files with Real Implementations (Read Before Implementing)
 ```
-src/librarian/knowledge/architecture.ts    # 585 lines - dependency analysis, cycles, coupling
-src/librarian/knowledge/impact.ts          # 489 lines - blast radius, test impact, risk
-src/librarian/knowledge/module_graph.ts    # Graph building from module data
-src/librarian/graphs/pagerank.ts           # PageRank computation
-src/librarian/graphs/centrality.ts         # Betweenness centrality
-src/librarian/graphs/temporal_graph.ts     # Co-change edge computation
-src/librarian/storage/sqlite_storage.ts    # 1500+ lines - all storage operations
+src/LiBrainian/knowledge/architecture.ts    # 585 lines - dependency analysis, cycles, coupling
+src/LiBrainian/knowledge/impact.ts          # 489 lines - blast radius, test impact, risk
+src/LiBrainian/knowledge/module_graph.ts    # Graph building from module data
+src/LiBrainian/graphs/pagerank.ts           # PageRank computation
+src/LiBrainian/graphs/centrality.ts         # Betweenness centrality
+src/LiBrainian/graphs/temporal_graph.ts     # Co-change edge computation
+src/LiBrainian/storage/sqlite_storage.ts    # 1500+ lines - all storage operations
 ```
 
 ---
 
 ## Executive Summary
 
-This document translates research on code intelligence systems into specific implementation requirements for Wave0's librarian. Each section covers:
+This document translates research on code intelligence systems into specific implementation requirements for Wave0's LiBrainian. Each section covers:
 - **Algorithm to use** (proven, researched)
 - **Data structures required** (with schemas)
 - **Integration points** (where in Wave0)
@@ -131,7 +131,7 @@ This document translates research on code intelligence systems into specific imp
 
 **Actual State**: 85% complete. `architecture.ts` and `impact.ts` have real implementations.
 
-### What Already Works (in `src/librarian/knowledge/architecture.ts`)
+### What Already Works (in `src/LiBrainian/knowledge/architecture.ts`)
 
 ```typescript
 // EXISTING: Tarjan's SCC algorithm for cycle detection (lines 299-369)
@@ -159,7 +159,7 @@ private async identifyCoreModules(): Promise<ArchitectureResult> {
 }
 ```
 
-### What Already Works (in `src/librarian/knowledge/impact.ts`)
+### What Already Works (in `src/LiBrainian/knowledge/impact.ts`)
 
 ```typescript
 // EXISTING: Blast radius analysis (lines 145-205)
@@ -188,7 +188,7 @@ private async assessRisk(query): Promise<ImpactResult> {
 Current `quality_metrics.ts` uses line counts. Add real complexity:
 
 ```typescript
-// In src/librarian/knowledge/quality_metrics.ts
+// In src/LiBrainian/knowledge/quality_metrics.ts
 import { Project } from 'ts-morph';
 
 export function calculateCyclomaticComplexity(filePath: string): number {
@@ -220,17 +220,17 @@ export function calculateCyclomaticComplexity(filePath: string): number {
 
 **2. Expose knowledge modules in main query API**
 
-Wire `ArchitectureKnowledge` and `ImpactKnowledge` into the main `librarian.query()` response.
+Wire `ArchitectureKnowledge` and `ImpactKnowledge` into the main `LiBrainian.query()` response.
 
 ### Testing Strategy
 
 ```bash
 # Unit tests already exist
-npm test -- src/librarian/__tests__/librarian.test.ts
+npm test -- src/LiBrainian/__tests__/LiBrainian.test.ts
 
 # Verify architecture queries work
 node -e "
-  import { ArchitectureKnowledge } from './src/librarian/knowledge/architecture.js';
+  import { ArchitectureKnowledge } from './src/LiBrainian/knowledge/architecture.js';
   // Test with real storage
 "
 ```
@@ -264,7 +264,7 @@ CREATE TABLE librarian_modules (
 The `buildModuleGraphs()` function in `module_graph.ts` builds bidirectional adjacency maps from this data:
 
 ```typescript
-// EXISTING in src/librarian/knowledge/module_graph.ts
+// EXISTING in src/LiBrainian/knowledge/module_graph.ts
 export function buildModuleGraphs(modules: ModuleKnowledge[]): {
   graph: Map<string, Set<string>>;    // Forward edges (what X depends on)
   reverse: Map<string, Set<string>>;  // Reverse edges (what depends on X)
@@ -344,7 +344,7 @@ Only implement fine-grained `call_edges` if you need:
 
 **Actual State**: `impact.ts:analyzeTestImpact()` finds tests by naming convention but doesn't persist results.
 
-### What Already Works (in `src/librarian/knowledge/impact.ts` lines 207-286)
+### What Already Works (in `src/LiBrainian/knowledge/impact.ts` lines 207-286)
 
 ```typescript
 // EXISTING: Heuristic test finding
@@ -415,7 +415,7 @@ async getUntestedFiles(): Promise<string[]> {
 }
 ```
 
-**Indexer** (create `src/librarian/ingest/test_mapping_indexer.ts`):
+**Indexer** (create `src/LiBrainian/ingest/test_mapping_indexer.ts`):
 
 ```typescript
 import * as fs from 'fs';
@@ -490,10 +490,10 @@ async function indexCoverageMapping(coverageDir: string): Promise<TestMapping[]>
 
 ```bash
 # Verify table exists after migration
-sqlite3 .librarian/librarian.db ".schema librarian_test_mapping"
+sqlite3 .LiBrainian/LiBrainian.db ".schema librarian_test_mapping"
 
 # Verify mappings populated
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM librarian_test_mapping"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM librarian_test_mapping"
 
 # Test untested file detection
 node -e "
@@ -530,7 +530,7 @@ async invalidateContextPacks(triggerPath: string): Promise<number> {
 
 ### Implementation Notes: File Watcher with Debouncing
 
-**Implemented in `src/librarian/integration/file_watcher.ts`**:
+**Implemented in `src/LiBrainian/integration/file_watcher.ts`**:
 
 ```typescript
 import * as fs from 'fs';
@@ -657,7 +657,7 @@ if (args.includes('--incremental')) {
 time node scripts/bootstrap_librarian.mjs --workspace .
 # Record T1
 
-echo "// comment" >> src/librarian/index.ts
+echo "// comment" >> src/LiBrainian/index.ts
 time node scripts/bootstrap_librarian.mjs --workspace . --incremental
 # Record T2
 
@@ -758,7 +758,7 @@ function calculateRiskScore(commit: CommitData): number {
 node scripts/bootstrap_librarian.mjs --index-git-history --depth 100
 
 # Verify commit data
-sqlite3 .librarian/librarian.db "SELECT semantic_category, COUNT(*) FROM librarian_commits GROUP BY semantic_category"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT semantic_category, COUNT(*) FROM librarian_commits GROUP BY semantic_category"
 
 # Query recent changes for a file
 node -e "
@@ -896,7 +896,7 @@ node -e "
 
 ### ✅ IMPLEMENTED - SBFL Attribution
 
-**Actual State**: Ochiai-based SBFL implemented in `src/librarian/integration/causal_attribution.ts` with
+**Actual State**: Ochiai-based SBFL implemented in `src/LiBrainian/integration/causal_attribution.ts` with
 success/failure counts per context pack and suspicious pack scoring.
 
 ### Implementation (SBFL Overview)
@@ -914,7 +914,7 @@ ALTER TABLE librarian_context_packs ADD COLUMN failure_count INTEGER DEFAULT 0;
 **2. Replace `causal_attribution.ts` with real SBFL**
 
 ```typescript
-// src/librarian/integration/causal_attribution.ts
+// src/LiBrainian/integration/causal_attribution.ts
 
 import type { LibrarianStorage } from '../storage/types.js';
 
@@ -1167,9 +1167,9 @@ try {
 
 All operations should emit metrics:
 ```typescript
-metrics.increment('librarian.query.count');
-metrics.timing('librarian.query.latency', duration);
-metrics.gauge('librarian.cache.size', cache.size);
+metrics.increment('LiBrainian.query.count');
+metrics.timing('LiBrainian.query.latency', duration);
+metrics.gauge('LiBrainian.cache.size', cache.size);
 ```
 
 ---
@@ -1207,51 +1207,51 @@ metrics.gauge('librarian.cache.size', cache.size);
 
 ---
 
-## Wave0-Librarian Integration Contract
+## Wave0-LiBrainian Integration Contract
 
-> **Principle**: Librarian is the primary reference for codebase knowledge. Wave0 orchestration should NEVER duplicate analysis that librarian provides.
+> **Principle**: LiBrainian is the primary reference for codebase knowledge. Wave0 orchestration should NEVER duplicate analysis that LiBrainian provides.
 
 ### The Golden Rule
 
 ```
 IF Wave0 needs to know something about the codebase
-THEN it MUST ask librarian
+THEN it MUST ask LiBrainian
 NEVER implement parallel analysis
 ```
 
 ### Current Integration Points (Working)
 
-| Wave0 Component | Librarian API | Purpose |
+| Wave0 Component | LiBrainian API | Purpose |
 |-----------------|---------------|---------|
 | `context_assembler.ts` | `enrichTaskContext()` | Get semantic context for tasks |
-| `scheduler.ts` | `librarian.query()` | Rank tasks by semantic similarity |
-| `unified_orchestrator.ts` | `preOrchestrationHook()` | Ensure librarian ready before work |
+| `scheduler.ts` | `LiBrainian.query()` | Rank tasks by semantic similarity |
+| `unified_orchestrator.ts` | `preOrchestrationHook()` | Ensure LiBrainian ready before work |
 | `unified_orchestrator.ts` | `postOrchestrationHook()` | Record outcomes, update confidence |
 | `unified_orchestrator.ts` | `validateAgentOutput()` | Check agent work against knowledge |
 
 ### Duplication to REMOVE from Wave0
 
-These Wave0 implementations duplicate librarian capabilities and should be replaced:
+These Wave0 implementations duplicate LiBrainian capabilities and should be replaced:
 
 | Wave0 Code | Location | Replace With |
 |------------|----------|--------------|
-| `inferFilesToRead()` | `context_assembler.ts:1246-1306` | `librarian.query({ intent }).relatedFiles` |
-| `CodeSearchIndex` | `utils/code_search.ts` | `librarian.findSimilarByEmbedding()` |
-| `calculateRelevance()` | `context_assembler.ts:1414-1437` | Librarian's multi-signal ranking |
+| `inferFilesToRead()` | `context_assembler.ts:1246-1306` | `LiBrainian.query({ intent }).relatedFiles` |
+| `CodeSearchIndex` | `utils/code_search.ts` | `LiBrainian.findSimilarByEmbedding()` |
+| `calculateRelevance()` | `context_assembler.ts:1414-1437` | LiBrainian's multi-signal ranking |
 | `getQualityIssuesInArea()` | `context_assembler.ts:1139-1165` | `knowledge.coverage.gaps` |
 
 ### Integration Gaps to FILL
 
-Wave0 should start using these librarian capabilities:
+Wave0 should start using these LiBrainian capabilities:
 
 #### 1. Change Impact Before Execution
 
 **Current**: Wave0 tracks consequences AFTER execution via `ConsequenceRingBuffer`
-**Should**: Ask librarian for blast radius BEFORE assigning task
+**Should**: Ask LiBrainian for blast radius BEFORE assigning task
 
 ```typescript
 // In task assignment logic
-const impact = await librarian.query({
+const impact = await LiBrainian.query({
   type: 'change_impact',
   target: task.affectedFiles[0],
 });
@@ -1268,7 +1268,7 @@ if (impact.risk.level === 'critical') {
 
 ```typescript
 // In quality gate validation
-const testMapping = await librarian.getTestsForSource(changedFile);
+const testMapping = await LiBrainian.getTestsForSource(changedFile);
 if (testMapping.length === 0) {
   return {
     passed: false,
@@ -1285,7 +1285,7 @@ if (testMapping.length === 0) {
 
 ```typescript
 // In expertise_matcher.ts
-const owners = await librarian.getOwners(task.affectedFiles[0]);
+const owners = await LiBrainian.getOwners(task.affectedFiles[0]);
 const ownerExpertise = owners.find(o => o.author === agent.id);
 if (ownerExpertise?.expertiseScore > 0.7) {
   score += 0.2; // Boost for ownership
@@ -1294,35 +1294,35 @@ if (ownerExpertise?.expertiseScore > 0.7) {
 
 #### 4. Failure Attribution Feedback Loop
 
-**Current**: Task failures don't update librarian confidence
+**Current**: Task failures don't update LiBrainian confidence
 **Should**: Feed failure data back to improve knowledge quality
 
 ```typescript
 // In postOrchestrationHook or task completion
 if (!task.success) {
-  const attribution = await librarian.attributeFailure(outcome, context);
+  const attribution = await LiBrainian.attributeFailure(outcome, context);
 
   if (attribution.knowledgeCaused) {
     // Trigger reindexing of suspicious packs
     for (const pack of attribution.suspiciousPacks) {
-      await librarian.invalidateContextPack(pack.packId);
+      await LiBrainian.invalidateContextPack(pack.packId);
     }
   }
 }
 ```
 
-### Decision Matrix: When to Use Librarian
+### Decision Matrix: When to Use LiBrainian
 
 | Question | Answer | Action |
 |----------|--------|--------|
-| "What files are related to this task?" | Always librarian | `enrichTaskContext()` |
-| "What depends on this file?" | Always librarian | `architecture.query({ type: 'dependents' })` |
-| "Is this change risky?" | Always librarian | `impact.query({ type: 'risk_assessment' })` |
-| "Who owns this code?" | Always librarian | `getOwners()` (after G18 implemented) |
-| "What tests cover this?" | Always librarian | `getTestsForSource()` (after G15 implemented) |
-| "Why did this task fail?" | Always librarian | `attributeFailure()` (after G21 implemented) |
-| "What's the semantic similarity?" | Always librarian | `findSimilarByEmbedding()` |
-| "What patterns apply here?" | Always librarian | `patterns.query()` |
+| "What files are related to this task?" | Always LiBrainian | `enrichTaskContext()` |
+| "What depends on this file?" | Always LiBrainian | `architecture.query({ type: 'dependents' })` |
+| "Is this change risky?" | Always LiBrainian | `impact.query({ type: 'risk_assessment' })` |
+| "Who owns this code?" | Always LiBrainian | `getOwners()` (after G18 implemented) |
+| "What tests cover this?" | Always LiBrainian | `getTestsForSource()` (after G15 implemented) |
+| "Why did this task fail?" | Always LiBrainian | `attributeFailure()` (after G21 implemented) |
+| "What's the semantic similarity?" | Always LiBrainian | `findSimilarByEmbedding()` |
+| "What patterns apply here?" | Always LiBrainian | `patterns.query()` |
 
 ### Anti-Patterns to Avoid
 
@@ -1334,9 +1334,9 @@ function inferFilesToRead(task: Task): string[] {
   return matches || [];
 }
 
-// ✅ RIGHT: Delegate to librarian
+// ✅ RIGHT: Delegate to LiBrainian
 async function getRelevantFiles(task: Task): Promise<string[]> {
-  const context = await librarian.enrichTaskContext(workspace, {
+  const context = await LiBrainian.enrichTaskContext(workspace, {
     intent: task.description,
     affectedFiles: task.knownFiles,
   });
@@ -1348,13 +1348,13 @@ async function getRelevantFiles(task: Task): Promise<string[]> {
 // ❌ WRONG: Maintaining separate code index
 class CodeSearchIndex {
   private index: Map<string, FileEntry>;
-  // ... duplicates librarian's indexing
+  // ... duplicates LiBrainian's indexing
 }
 
-// ✅ RIGHT: Use librarian's semantic search
+// ✅ RIGHT: Use LiBrainian's semantic search
 async function searchCode(query: string): Promise<SearchResult[]> {
-  const embedding = await librarian.getQueryEmbedding(query);
-  return librarian.findSimilarByEmbedding(embedding, { limit: 10 });
+  const embedding = await LiBrainian.getQueryEmbedding(query);
+  return LiBrainian.findSimilarByEmbedding(embedding, { limit: 10 });
 }
 ```
 
@@ -1362,18 +1362,18 @@ async function searchCode(query: string): Promise<SearchResult[]> {
 
 When building new Wave0 features, ask:
 
-- [ ] Does this need codebase knowledge? → Use librarian
-- [ ] Does this analyze file relationships? → Use librarian's graph
-- [ ] Does this assess risk/impact? → Use librarian's impact analysis
-- [ ] Does this track outcomes? → Feed back to librarian confidence
-- [ ] Does this search code? → Use librarian's semantic search
-- [ ] Am I about to write file-matching regexes? → STOP, use librarian
+- [ ] Does this need codebase knowledge? → Use LiBrainian
+- [ ] Does this analyze file relationships? → Use LiBrainian's graph
+- [ ] Does this assess risk/impact? → Use LiBrainian's impact analysis
+- [ ] Does this track outcomes? → Feed back to LiBrainian confidence
+- [ ] Does this search code? → Use LiBrainian's semantic search
+- [ ] Am I about to write file-matching regexes? → STOP, use LiBrainian
 
-### Librarian API Quick Reference
+### LiBrainian API Quick Reference
 
 ```typescript
 // Context for a task
-const ctx = await librarian.enrichTaskContext(workspace, { intent, affectedFiles });
+const ctx = await LiBrainian.enrichTaskContext(workspace, { intent, affectedFiles });
 // Returns: { summary, keyFacts, relatedFiles, codeSnippets, confidence }
 
 // Architecture queries
@@ -1387,32 +1387,32 @@ const risk = await impact.query({ type: 'risk_assessment', target: filePath });
 const tests = await impact.query({ type: 'test_impact', target: filePath });
 
 // Semantic search
-const similar = await librarian.findSimilarByEmbedding(queryEmbedding, { limit: 10 });
+const similar = await LiBrainian.findSimilarByEmbedding(queryEmbedding, { limit: 10 });
 
 // Confidence updates (after task completion)
-await librarian.recordTaskOutcome(packIds, success);
-await librarian.updateConfidence(entityId, entityType, delta, reason);
+await LiBrainian.recordTaskOutcome(packIds, success);
+await LiBrainian.updateConfidence(entityId, entityType, delta, reason);
 ```
 
 ---
 
-## Librarian Engine Toolkit
+## LiBrainian Engine Toolkit
 
-> **Purpose**: Three core engines that transform librarian from a knowledge store into a reasoning system for autonomous agents.
+> **Purpose**: Three core engines that transform LiBrainian from a knowledge store into a reasoning system for autonomous agents.
 > **Design Principle**: Agents are not passive - they actively query engines for reasoning support.
 
 **Implementation**:
-- `src/librarian/engines/relevance.ts`
-- `src/librarian/engines/constraint.ts`
-- `src/librarian/engines/meta.ts`
-- `src/librarian/engines/agent_interface.ts`
-- `src/librarian/engines/index.ts`
+- `src/LiBrainian/engines/relevance.ts`
+- `src/LiBrainian/engines/constraint.ts`
+- `src/LiBrainian/engines/meta.ts`
+- `src/LiBrainian/engines/agent_interface.ts`
+- `src/LiBrainian/engines/index.ts`
 
 ### Overview: Three Engines + One Foundation
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         LIBRARIAN ENGINE TOOLKIT                         │
+│                         LiBrainian ENGINE TOOLKIT                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌───────────────┐   ┌───────────────────┐   ┌───────────────────────┐  │
@@ -1779,7 +1779,7 @@ interface Violation {
 interface ConstraintSources {
   // Source 1: Explicit config (works for any project)
   explicit: {
-    file: '.librarian/constraints.yaml',
+    file: '.LiBrainian/constraints.yaml',
     schema: `
       constraints:
         - rule: "Controllers don't import other controllers"
@@ -2398,7 +2398,7 @@ interface RecoveryProcedure {
 #### Phase 2: Constraint Engine
 
 ```markdown
-- [ ] Implement `.librarian/constraints.yaml` parser
+- [ ] Implement `.LiBrainian/constraints.yaml` parser
 - [ ] Add inferred constraint detection
 - [ ] Implement `previewChange()` validation
 - [ ] Add historical boundary tracking
@@ -2443,7 +2443,7 @@ This section provides a clear, prioritized checklist for AI agents implementing 
 | Task | File to Modify | Effort | Test Command |
 |------|----------------|--------|--------------|
 | **A1**: Add cyclomatic complexity | `knowledge/quality_metrics.ts` | Small | `npm test -- quality_metrics` |
-| **A2**: Add test_mapping table | `storage/sqlite_storage.ts` | Small | `sqlite3 .librarian/*.db ".tables"` |
+| **A2**: Add test_mapping table | `storage/sqlite_storage.ts` | Small | `sqlite3 .LiBrainian/*.db ".tables"` |
 | **A3**: Add test mapping indexer | Create `ingest/test_mapping_indexer.ts` | Small | `npm test -- test_mapping` |
 | **A4**: Wire knowledge modules to query | `api/query.ts` | Small | `npm test -- query` |
 
@@ -2452,15 +2452,15 @@ This section provides a clear, prioritized checklist for AI agents implementing 
 | Task | File to Modify | Effort | Test Command |
 |------|----------------|--------|--------------|
 | **B1**: Real SBFL attribution | Replace `integration/causal_attribution.ts` | Medium | `npm test -- causal` |
-| **B2**: Add pack success/failure tracking | `storage/sqlite_storage.ts` | Medium | `sqlite3 .librarian/*.db "SELECT * FROM librarian_context_packs"` |
+| **B2**: Add pack success/failure tracking | `storage/sqlite_storage.ts` | Medium | `sqlite3 .LiBrainian/*.db "SELECT * FROM librarian_context_packs"` |
 | **B3**: Incremental indexer with debouncing | Create `integration/file_watcher.ts` | Medium | Manual test with file changes |
-| **B4**: Commit indexer | Create `ingest/commit_indexer.ts` | Medium | `sqlite3 .librarian/*.db "SELECT * FROM librarian_commits"` |
+| **B4**: Commit indexer | Create `ingest/commit_indexer.ts` | Medium | `sqlite3 .LiBrainian/*.db "SELECT * FROM librarian_commits"` |
 
 ### Phase C: Larger Features (5+ tasks each)
 
 | Task | Files | Effort | Test Command |
 |------|-------|--------|--------------|
-| **C1**: Ownership matrix | `ingest/ownership_indexer.ts` + storage | Large | `sqlite3 .librarian/*.db "SELECT * FROM librarian_ownership"` |
+| **C1**: Ownership matrix | `ingest/ownership_indexer.ts` + storage | Large | `sqlite3 .LiBrainian/*.db "SELECT * FROM librarian_ownership"` |
 | **C2**: Batch embedding generation | `graphs/embeddings.ts` | Large | Benchmark embedding time |
 
 ### Implementation Checklist Template
@@ -2571,13 +2571,13 @@ After implementing any feature:
 npm run test:tier0
 
 # Check database schema
-sqlite3 .librarian/librarian.db ".schema"
+sqlite3 .LiBrainian/LiBrainian.db ".schema"
 
 # Check data populated
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM librarian_modules"
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM librarian_functions"
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM librarian_context_packs"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM librarian_modules"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM librarian_functions"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM librarian_context_packs"
 
-# Run librarian tests
-npm test -- src/librarian
+# Run LiBrainian tests
+npm test -- src/LiBrainian
 ```

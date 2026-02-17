@@ -2,12 +2,12 @@
 
 Status: Research Analysis
 Last Updated: 2026-01-27
-Owner: Librarian Core Team
+Owner: LiBrainian Core Team
 Evidence: Source code analysis of `src/agents/ast_indexer.ts`, `src/agents/parser_registry.ts`, `src/evaluation/codebase_profiler.ts`
 
 ## Executive Summary
 
-Librarian currently supports **4 languages with full AST parsing** (TypeScript, JavaScript, Python, Go, Rust) and has **LLM fallback** for all other languages. This analysis evaluates coverage across 15 project types and identifies gaps requiring attention.
+LiBrainian currently supports **4 languages with full AST parsing** (TypeScript, JavaScript, Python, Go, Rust) and has **LLM fallback** for all other languages. This analysis evaluates coverage across 15 project types and identifies gaps requiring attention.
 
 **Current Coverage:**
 - Full AST Support: TypeScript/JavaScript (ts-morph), Python, Go, Rust (tree-sitter)
@@ -72,7 +72,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Routing configurations
 - Build tool configurations (Vite, Webpack, Rollup)
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - ts-morph parser: Full support for .ts, .tsx, .js, .jsx
 - File extension detection: YES in codebase_profiler.ts
 - Component detection: PARTIAL (functions/classes, not component-specific)
@@ -110,7 +110,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - API contracts (OpenAPI, GraphQL schemas)
 - Dependency injection
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Node.js: FULL (ts-morph)
 - Python: FULL (tree-sitter-python)
 - Go: FULL (tree-sitter-go)
@@ -148,7 +148,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Navigation patterns
 - Platform configuration (Info.plist, AndroidManifest.xml)
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - React Native: FULL (ts-morph for TS/JS)
 - iOS (Swift): LLM FALLBACK
 - iOS (Objective-C): LLM FALLBACK
@@ -188,7 +188,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - System tray integration
 - Auto-update mechanisms
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Electron: FULL (ts-morph)
 - Tauri: FULL (ts-morph + tree-sitter-rust)
 - C++: LLM FALLBACK
@@ -223,7 +223,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Output formatting (JSON, YAML, table)
 - Exit codes and error handling
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Go: FULL
 - Rust: FULL
 - Python: FULL
@@ -254,7 +254,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Type definitions (.d.ts, .pyi stubs)
 - Documentation annotations
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Export detection: YES (via parser_registry module extraction)
 - Public API extraction: PARTIAL (exports only, no visibility analysis)
 - Type stub detection: NO
@@ -286,7 +286,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Distributed tracing instrumentation
 - Container/orchestration configs (Dockerfile, k8s manifests)
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Language support: Varies (see per-language analysis)
 - Dependency detection: YES (module imports)
 - Service boundary detection: NO
@@ -317,7 +317,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Database migrations
 - Background job definitions
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Size detection: YES (totalLines, totalFiles in CodebaseProfile)
 - Complexity metrics: YES (averageFunctionsPerFile, deepestNesting)
 - Large file detection: YES (largeFiles in RiskIndicators)
@@ -349,7 +349,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Build caching configurations
 - Change detection scopes
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Monorepo detection: YES (hasWorkspaces, isMonorepo in StructureIndicators)
 - Workspace config detection: YES (pnpm-workspace.yaml, lerna.json, rush.json, nx.json, turbo.json)
 - Package.json workspaces: YES
@@ -382,7 +382,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Scheduling configurations
 - Idempotency patterns
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Python: FULL
 - Scala: LLM FALLBACK
 - SQL: Detected but not parsed (.sql in EXTENSION_TO_LANGUAGE)
@@ -416,7 +416,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Experiment tracking
 - Model versioning
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Python: FULL (tree-sitter-python)
 - Jupyter notebooks: NOT DIRECTLY (JSON format)
 - YAML/JSON: Detected but not semantically parsed
@@ -450,7 +450,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Boot sequences
 - Device tree configurations
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Rust: FULL
 - C: LLM FALLBACK
 - C++: LLM FALLBACK
@@ -486,7 +486,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Scene/level definitions
 - Shader code
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - C#: LLM FALLBACK
 - C++: LLM FALLBACK
 - GDScript: LLM FALLBACK
@@ -522,7 +522,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - State management
 - Provider configurations
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Pulumi (TS/Python/Go): FULL for language, no IaC semantics
 - HCL: LLM FALLBACK
 - YAML: Detected, not semantically parsed
@@ -558,7 +558,7 @@ Librarian currently supports **4 languages with full AST parsing** (TypeScript, 
 - Gas optimization patterns
 - Security vulnerability patterns
 
-**Current Librarian Support:**
+**Current LiBrainian Support:**
 - Rust (Solana): FULL (tree-sitter-rust)
 - Solidity: LLM FALLBACK
 - Vyper: LLM FALLBACK
@@ -696,7 +696,7 @@ LLM fallback is NOT suitable for:
 
 ## 7. Conclusion
 
-Librarian's current architecture is **sound and extensible**, with the ParserRegistry pattern allowing easy addition of new tree-sitter parsers. The critical path to universal project type support is:
+LiBrainian's current architecture is **sound and extensible**, with the ParserRegistry pattern allowing easy addition of new tree-sitter parsers. The critical path to universal project type support is:
 
 1. **Add 4 high-priority tree-sitter parsers** (Java, C, C++, C#) to cover 80% of enterprise codebases
 2. **Add 3 mobile parsers** (Swift, Kotlin, Dart) to cover mobile development

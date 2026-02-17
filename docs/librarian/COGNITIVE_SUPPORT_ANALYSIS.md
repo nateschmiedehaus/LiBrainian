@@ -1,14 +1,14 @@
-# Cognitive Support Analysis for Librarian
+# Cognitive Support Analysis for LiBrainian
 
 > **Analysis Date**: 2026-01-27
 > **Analyst Perspective**: Cognitive Science Researcher
-> **Repository**: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+> **Repository**: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 
 ## Executive Summary
 
-This report analyzes how Librarian supports the cognitive processes software engineers use when working with codebases. The analysis evaluates 10 key cognitive processes against Librarian's feature set, identifies gaps, and proposes UX improvements.
+This report analyzes how LiBrainian supports the cognitive processes software engineers use when working with codebases. The analysis evaluates 10 key cognitive processes against LiBrainian's feature set, identifies gaps, and proposes UX improvements.
 
-**Overall Assessment**: Librarian provides **strong support** for Working Memory, Long-term Memory, and Pattern Recognition. It has **moderate support** for Attention, Mental Models, and Metacognition. It has **gaps** in Problem Decomposition, Analogical Transfer, Decision Making, and Cognitive Load management.
+**Overall Assessment**: LiBrainian provides **strong support** for Working Memory, Long-term Memory, and Pattern Recognition. It has **moderate support** for Attention, Mental Models, and Metacognition. It has **gaps** in Problem Decomposition, Analogical Transfer, Decision Making, and Cognitive Load management.
 
 ---
 
@@ -33,9 +33,9 @@ This report analyzes how Librarian supports the cognitive processes software eng
 
 ### 2.1 Working Memory
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
-Librarian directly addresses working memory constraints through its context assembly system:
+LiBrainian directly addresses working memory constraints through its context assembly system:
 
 ```typescript
 // From src/api/context_levels.ts
@@ -71,9 +71,9 @@ export const CONTEXT_LEVELS: Record<ContextLevel, ContextLevelDefinition> = {
 
 ### 2.2 Long-term Memory
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
-Librarian has a sophisticated persistent knowledge system:
+LiBrainian has a sophisticated persistent knowledge system:
 
 ```typescript
 // From src/knowledge/index.ts - Knowledge categories
@@ -110,7 +110,7 @@ export type KnowledgeCategory =
 
 ### 2.3 Attention
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Relevance filtering and confidence-based prioritization:
 
@@ -147,7 +147,7 @@ const LOW_CONFIDENCE_THRESHOLD = configurable(
 
 ### 2.4 Pattern Recognition
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Comprehensive pattern detection system:
 
@@ -191,7 +191,7 @@ export interface PatternQuery {
 
 ### 2.5 Problem Decomposition
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Limited explicit support - mostly through structure knowledge:
 
@@ -228,7 +228,7 @@ export interface StructureQuery {
 
 ### 2.6 Analogical Transfer
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Limited to similar task retrieval:
 
@@ -263,7 +263,7 @@ supplementary: {
 
 ### 2.7 Mental Models
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Visualization capabilities:
 
@@ -300,7 +300,7 @@ export function generateHealthSummary(knowledge: UniversalKnowledge[]): ASCIIRes
 
 ### 2.8 Decision Making
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Minimal direct support - recommendations only:
 
@@ -341,7 +341,7 @@ export interface ArchitectureRecommendation {
 
 ### 2.9 Metacognition
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Partial support through coverage and confidence:
 
@@ -370,7 +370,7 @@ coverage: {
 3. No metacognitive prompts ("are you sure this is right?")
 
 **UX Improvements Needed:**
-1. **Knowledge Boundaries**: Explicitly show what Librarian doesn't know
+1. **Knowledge Boundaries**: Explicitly show what LiBrainian doesn't know
 2. **Uncertainty Explanation**: Why is confidence low?
 3. **Self-Assessment Prompts**: "This area has low coverage, consider verifying"
 
@@ -378,7 +378,7 @@ coverage: {
 
 ### 2.10 Cognitive Load
 
-**How Librarian Supports This:**
+**How LiBrainian Supports This:**
 
 Implicit through progressive depth:
 
@@ -445,7 +445,7 @@ recommendStrategy(): BudgetCheckResult {
 
 ### Priority 1: Problem Decomposition Support
 
-**Rationale**: Engineers constantly decompose problems; Librarian provides zero scaffolding.
+**Rationale**: Engineers constantly decompose problems; LiBrainian provides zero scaffolding.
 
 **Implementation**:
 1. Add `DecompositionQuery` type to LibrarianQuery
@@ -513,7 +513,7 @@ recommendStrategy(): BudgetCheckResult {
 
 ## 5. Conclusion
 
-Librarian demonstrates sophisticated support for memory-related cognitive processes (Working Memory, Long-term Memory) and pattern recognition. However, it lacks explicit support for higher-order cognitive processes that engineers rely on daily:
+LiBrainian demonstrates sophisticated support for memory-related cognitive processes (Working Memory, Long-term Memory) and pattern recognition. However, it lacks explicit support for higher-order cognitive processes that engineers rely on daily:
 
 1. **Problem Decomposition**: Engineers must decompose complex tasks manually
 2. **Decision Making**: No trade-off analysis or consequence prediction
@@ -525,7 +525,7 @@ The proposed priority fixes address these gaps by adding:
 - Decision comparison tools using existing impact analysis
 - Interactive exploration of existing visualizations
 
-These additions would transform Librarian from a sophisticated knowledge retrieval system into a true cognitive partner that augments all major engineering thought processes.
+These additions would transform LiBrainian from a sophisticated knowledge retrieval system into a true cognitive partner that augments all major engineering thought processes.
 
 ---
 

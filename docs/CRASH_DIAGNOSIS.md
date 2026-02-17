@@ -33,7 +33,7 @@ The load average should be roughly equal to or less than the CPU count (8). Valu
 
 Breakdown by project:
   wave0-autopilot:    82,285 session directories (2.1 GB) <-- PRIMARY CULPRIT
-  librarian:          ~20 sessions (reasonable)
+  LiBrainian:          ~20 sessions (reasonable)
   Other projects:     ~3,700 sessions
 ```
 
@@ -173,18 +173,18 @@ Claude Code should implement:
 - Session archival instead of deletion
 - `.claudeignore` support for Spotlight exclusion
 
-#### 7. Librarian Project: Add Resource Guards
+#### 7. LiBrainian Project: Add Resource Guards
 
-The Librarian's `SwarmRunner` should have:
+The LiBrainian's `SwarmRunner` should have:
 - Maximum concurrent workers based on system load
 - Adaptive throttling when load exceeds CPU count
 - Memory pressure detection and backoff
 
 ---
 
-## Librarian-Specific Analysis
+## LiBrainian-Specific Analysis
 
-The Librarian codebase itself does **not** appear to have resource leaks:
+The LiBrainian codebase itself does **not** appear to have resource leaks:
 
 1. **SwarmRunner**: Uses configurable `maxWorkers` (line 99-100, 144)
 2. **While loops**: All `while(true)` loops have proper break conditions
@@ -225,4 +225,4 @@ mdutil -s /Volumes/BigSSD4
 | No auto-cleanup | Create cleanup script | MEDIUM |
 | Resource monitoring | Add load check alias | MEDIUM |
 
-The crashes are **not** caused by bugs in the Librarian code but by accumulated Claude Code session data overwhelming filesystem operations.
+The crashes are **not** caused by bugs in the LiBrainian code but by accumulated Claude Code session data overwhelming filesystem operations.

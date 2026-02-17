@@ -2,7 +2,7 @@
 
 **Test Date:** 2026-01-31
 **Tester:** Claude Opus 4.5
-**Librarian Version:** Current development branch
+**LiBrainian Version:** Current development branch
 
 ---
 
@@ -10,7 +10,7 @@
 
 **Overall Grade: D+ (Poor)**
 
-The librarian demonstrates significant weaknesses in performance-related use cases. Only 1 out of 5 queries returned genuinely relevant results. The system frequently falls back to generic packs rather than identifying actual performance-critical code. High confidence scores (0.82-0.91) mask fundamentally irrelevant results.
+The LiBrainian demonstrates significant weaknesses in performance-related use cases. Only 1 out of 5 queries returned genuinely relevant results. The system frequently falls back to generic packs rather than identifying actual performance-critical code. High confidence scores (0.82-0.91) mask fundamentally irrelevant results.
 
 ---
 
@@ -137,7 +137,7 @@ The codebase contains substantial performance-critical code that should have bee
 
 4. **`proper-lockfile` usage** - File-level locking for concurrent database access
 
-**Critical Gap:** The word "query" triggered matches to the librarian's own query system rather than database query optimization.
+**Critical Gap:** The word "query" triggered matches to the LiBrainian's own query system rather than database query optimization.
 
 ---
 
@@ -242,7 +242,7 @@ Evidence: 3/5 queries fell back to "general packs (semantic match unavailable)" 
 
 ### Root Cause 2: Over-Reliance on Term Matching
 
-The word "query" triggered matches to the librarian's internal query system rather than database queries. This suggests lexical matching is overriding semantic understanding.
+The word "query" triggered matches to the LiBrainian's internal query system rather than database queries. This suggests lexical matching is overriding semantic understanding.
 
 ### Root Cause 3: High Confidence Despite Poor Results
 
@@ -317,11 +317,11 @@ These should be discoverable via performance queries.
 
 For future improvement, these files contain performance-critical code:
 
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/vector_index.ts` - O(n) similarity search
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/sqlite_storage.ts` - Database operations
-3. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/adaptive_pool.ts` - Resource management
-4. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/utils/query_batcher.ts` - Concurrency control
-5. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/content_cache.ts` - Caching with LRU
-6. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/resource_monitor.ts` - Resource monitoring
-7. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/measurement/observability.ts` - SLO tracking
-8. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/__tests__/performance_regression.test.ts` - Performance tests
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/vector_index.ts` - O(n) similarity search
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/sqlite_storage.ts` - Database operations
+3. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/adaptive_pool.ts` - Resource management
+4. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/utils/query_batcher.ts` - Concurrency control
+5. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/content_cache.ts` - Caching with LRU
+6. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/resource_monitor.ts` - Resource monitoring
+7. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/measurement/observability.ts` - SLO tracking
+8. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/__tests__/performance_regression.test.ts` - Performance tests

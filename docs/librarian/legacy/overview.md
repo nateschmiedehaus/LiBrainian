@@ -1,19 +1,19 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Overview
+# LiBrainian Overview
 
 > **FOR AGENTS**: Start here for the big picture. See [README.md](./README.md) for navigation.
 > **Navigation**: [README.md](./README.md) | [architecture.md](./architecture.md) | [implementation-requirements.md](./implementation-requirements.md) | [scenarios.md](./scenarios.md) | [Back to docs](../)
 
-**Goal**: Make wave0 the world's best autonomous multi-agent orchestration and software development tool, with librarian as its knowledge backbone.
+**Goal**: Make wave0 the world's best autonomous multi-agent orchestration and software development tool, with LiBrainian as its knowledge backbone.
 
 ---
 
 ## ✅ AUTH WIRING VERIFIED
 
-Librarian now uses Wave0's CLI-only auth checks (AuthChecker + LLMService health probes).
+LiBrainian now uses Wave0's CLI-only auth checks (AuthChecker + LLMService health probes).
 See [REMAINING_WORK.md#r0](./REMAINING_WORK.md#r0-fix-provider-auth-wiring) for verification steps.
 
 ---
@@ -41,7 +41,7 @@ See [REMAINING_WORK.md#r0](./REMAINING_WORK.md#r0-fix-provider-auth-wiring) for 
 | Problem Matrix (P1-P31) | [#problem-matrix](#problem-matrix) |
 | Phase 9 Gaps (G1-G12) | [#phase-9-gaps-g1-g12---original](#phase-9-gaps-g1-g12---original) |
 | Phase 10 Gaps (G13-G25) | [#phase-10-gaps-g13-g25---world-class-knowledge](#phase-10-gaps-g13-g25---world-class-knowledge) |
-| Engine Toolkit Summary | [#librarian-engine-toolkit](#librarian-engine-toolkit) |
+| Engine Toolkit Summary | [#LiBrainian-engine-toolkit](#LiBrainian-engine-toolkit) |
 | Next Steps | [#next-steps](#next-steps) |
 
 ---
@@ -66,11 +66,11 @@ Updated: 2025-12-30
 
 ## EXECUTIVE SUMMARY
 
-Wave0 is a world-class autonomous software engineering system with librarian as its knowledge backbone. This document series:
+Wave0 is a world-class autonomous software engineering system with LiBrainian as its knowledge backbone. This document series:
 
 1. **Diagnoses all problems** (31 issues across P1-P31) - All resolved
 2. **Provides fix instructions** for each problem with code examples
-3. **Integrates librarian naturally** as the knowledge layer
+3. **Integrates LiBrainian naturally** as the knowledge layer
 4. **Aligns with industry best practices** from leading systems
 5. **Defines verification checklists** for each phase
 
@@ -79,7 +79,7 @@ Wave0 is a world-class autonomous software engineering system with librarian as 
 | Aspect | Current State | Target State |
 |--------|---------------|--------------|
 | Orchestrator | 13 orchestrator classes (specialized handlers) | Single unified orchestrator with specialized handlers |
-| Librarian | AST+LLM indexing wired; universal file coverage | Knowledge backbone for all agent decisions |
+| LiBrainian | AST+LLM indexing wired; universal file coverage | Knowledge backbone for all agent decisions |
 | Type Safety | **0 `any` in src** | Zero `any`, full type inference |
 | Security | Git command injection mitigated (P16 fixed) | Zero-trust, input validation, sandboxed |
 | Agent Execution | Working execution backends | Sandboxed parallel execution with checkpoints |
@@ -97,22 +97,22 @@ All problems are marked **[x] Resolved**:
 | ID | Problem | Severity | Status |
 |----|---------|----------|--------|
 | **P16** | Command injection (security) | P0 CRITICAL | Resolved |
-| P1 | Librarian initialized at startup | CRITICAL | Resolved |
+| P1 | LiBrainian initialized at startup | CRITICAL | Resolved |
 | P2 | UnifiedOrchestrator canonical entrypoint | HIGH | Resolved |
 | P3 | `any` sweep complete (zero `any` in src) | CRITICAL | Resolved |
 | P4 | Workgraph quality gates configurable | CRITICAL | Resolved |
-| P5 | Context assembly uses librarian knowledge | CRITICAL | Resolved |
-| P6 | Workgraph uses librarian signals | CRITICAL | Resolved |
+| P5 | Context assembly uses LiBrainian knowledge | CRITICAL | Resolved |
+| P6 | Workgraph uses LiBrainian signals | CRITICAL | Resolved |
 | P7 | Provider availability enforced at startup | HIGH | Resolved |
 | P8 | Checkpoint/resume for long tasks | HIGH | Resolved |
 | P9 | Agent pool implementation | HIGH | Resolved |
 | P10 | Sandbox enabled by default | HIGH | Resolved |
 | P11 | SQLite concurrent access controlled | MEDIUM | Resolved |
 | P12 | Disabled tests re-enabled | MEDIUM | Resolved |
-| P13 | Expertise matching via librarian | MEDIUM | Resolved |
+| P13 | Expertise matching via LiBrainian | MEDIUM | Resolved |
 | P14 | Bootstrap timeout recovery | MEDIUM | Resolved |
 | P15 | Query API documented | MEDIUM | Resolved |
-| P17 | Librarian failure hard-stops | CRITICAL | Resolved |
+| P17 | LiBrainian failure hard-stops | CRITICAL | Resolved |
 | P18 | Mock orchestrator fallbacks removed | CRITICAL | Resolved |
 | P19 | Safe JSON.parse wrappers complete | HIGH | Resolved |
 | P20 | TODO/FIXME/HACK debt cleared | HIGH | Resolved |
@@ -190,7 +190,7 @@ See [implementation-requirements.md](./implementation-requirements.md) for **AUD
 |-----|--------|--------------|
 | G17 | **Implemented** | Commit indexer + semantic summaries |
 | G20 | **Mostly Done** | Refactoring context - impact.ts has blast radius |
-| G22 | **Implemented** | Semantic task batching via librarian embeddings |
+| G22 | **Implemented** | Semantic task batching via LiBrainian embeddings |
 
 ### P3: Team Features
 
@@ -209,9 +209,9 @@ See [implementation-requirements.md](./implementation-requirements.md) for **AUD
 
 ---
 
-## LIBRARIAN ENGINE TOOLKIT
+## LiBrainian ENGINE TOOLKIT
 
-The librarian provides three core engines that transform it from a knowledge store into a reasoning system:
+The LiBrainian provides three core engines that transform it from a knowledge store into a reasoning system:
 
 | Engine | Question Answered | Agent Use |
 |--------|-------------------|-----------|
@@ -221,7 +221,7 @@ The librarian provides three core engines that transform it from a knowledge sto
 
 **Key Design Principle**: Engines support both **event-driven** (automatic) and **agent-initiated** (active query) modes.
 
-See [implementation-requirements.md#librarian-engine-toolkit](./implementation-requirements.md#librarian-engine-toolkit) for:
+See [implementation-requirements.md#LiBrainian-engine-toolkit](./implementation-requirements.md#LiBrainian-engine-toolkit) for:
 - Complete TypeScript interfaces
 - Trigger matrices (when engines fire)
 - Agent query examples
@@ -236,5 +236,5 @@ See [implementation-requirements.md#librarian-engine-toolkit](./implementation-r
 2. **For understanding data flow**: See [system-wiring.md](./system-wiring.md)
 3. **For specific fixes**: See [fixes-critical.md](./fixes-critical.md) or [fixes-remaining.md](./fixes-remaining.md)
 4. **For verification**: See [validation.md](./validation.md)
-5. **For Wave0 integration**: See [Wave0-Librarian Integration Contract](./implementation-requirements.md#wave0-librarian-integration-contract) - **CRITICAL**: defines what Wave0 must delegate to librarian
-6. **For engine toolkit**: See [Librarian Engine Toolkit](./implementation-requirements.md#librarian-engine-toolkit) - **NEW**: Relevance, Constraint, and Meta-Knowledge engines
+5. **For Wave0 integration**: See [Wave0-LiBrainian Integration Contract](./implementation-requirements.md#wave0-LiBrainian-integration-contract) - **CRITICAL**: defines what Wave0 must delegate to LiBrainian
+6. **For engine toolkit**: See [LiBrainian Engine Toolkit](./implementation-requirements.md#LiBrainian-engine-toolkit) - **NEW**: Relevance, Constraint, and Meta-Knowledge engines

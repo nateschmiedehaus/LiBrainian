@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-When you optimize a foundational function called 1000x/day, benefits cascade to everything that depends on it. When you break something foundational, damage cascades. This research defines **computationally tractable algorithms** for quantifying these cascading effects across Librarian's multi-graph knowledge system.
+When you optimize a foundational function called 1000x/day, benefits cascade to everything that depends on it. When you break something foundational, damage cascades. This research defines **computationally tractable algorithms** for quantifying these cascading effects across LiBrainian's multi-graph knowledge system.
 
 **Key Contributions:**
 
@@ -385,7 +385,7 @@ def random_walk_with_restart_impact(
 | Gradual impact assessment | Heat Kernel | Smooth decay, less sensitive to exact structure |
 | Very large graphs (>1M nodes) | Random Walk with Restart | Sampling-based, parallelizable |
 
-**Primary Recommendation for Librarian**: **Spreading Activation** with edge-type-specific decay factors. Reasons:
+**Primary Recommendation for LiBrainian**: **Spreading Activation** with edge-type-specific decay factors. Reasons:
 1. Threshold pruning prevents exponential blowup
 2. Edge weights map naturally to coupling strength
 3. Can use different decay factors for benefits vs risks
@@ -748,7 +748,7 @@ function calculatePropagationFactor(
 
 ## Cross-Graph Propagation Rules
 
-### Graph Types in Librarian
+### Graph Types in LiBrainian
 
 From RESEARCH-003:
 1. **Code Graph**: Functions, modules, files with calls/imports/extends edges

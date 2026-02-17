@@ -1,8 +1,8 @@
-# Librarian Epistemics Framework
+# LiBrainian Epistemics Framework
 
 > **A principled approach to confidence and reasoning for AI agents**
 
-The Epistemics module is the heart of Librarian's approach to trustworthy AI assistance. Rather than treating confidence as a magic number, Librarian implements a rigorous epistemic framework grounded in formal epistemology, probability theory, and belief revision.
+The Epistemics module is the heart of LiBrainian's approach to trustworthy AI assistance. Rather than treating confidence as a magic number, LiBrainian implements a rigorous epistemic framework grounded in formal epistemology, probability theory, and belief revision.
 
 ---
 
@@ -33,7 +33,7 @@ The Epistemics module is the heart of Librarian's approach to trustworthy AI ass
 
 ## Overview
 
-Librarian's epistemics layer addresses a fundamental problem in AI-assisted development: **How can an agent communicate what it knows, what it doesn't know, and how certain it is?**
+LiBrainian's epistemics layer addresses a fundamental problem in AI-assisted development: **How can an agent communicate what it knows, what it doesn't know, and how certain it is?**
 
 ### Design Principles
 
@@ -62,7 +62,7 @@ import {
   parallelAnyConfidence,
   getNumericValue,
   meetsThreshold,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Deterministic confidence (known exactly)
 const certain = deterministic(0.95);
@@ -109,9 +109,9 @@ import {
   createEvidenceLedger,
   createEvidenceId,
   createSessionId,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
-const ledger = await createEvidenceLedger('./librarian.db');
+const ledger = await createEvidenceLedger('./LiBrainian.db');
 const sessionId = createSessionId();
 
 // Append extraction evidence
@@ -122,7 +122,7 @@ await ledger.append({
   kind: 'extraction',
   provenance: {
     source: 'ast_parser',
-    agentId: 'librarian-indexer',
+    agentId: 'LiBrainian-indexer',
   },
   payload: {
     kind: 'extraction',
@@ -141,7 +141,7 @@ const entries = await ledger.query({
 });
 
 // Export to W3C PROV format
-import { exportToPROVJSON } from 'librarian/epistemics';
+import { exportToPROVJSON } from 'LiBrainian/epistemics';
 const provDocument = await exportToPROVJSON(entries);
 ```
 
@@ -155,7 +155,7 @@ import {
   applyDefeaters,
   buildDefeaterGraph,
   computeGroundedExtension,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Detect defeaters for a claim
 const result = await detectDefeaters({
@@ -196,7 +196,7 @@ import {
   computeBrierScore,
   isotonicCalibration,
   computeMinSamplesForCalibration,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Track claim outcomes
 const tracker = new ClaimOutcomeTracker(storage);
@@ -249,7 +249,7 @@ import {
   createBDIAgentState,
   evaluatePracticalCoherence,
   deriveIntentionFromGoal,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create an intention
 const intention = createIntention({
@@ -312,7 +312,7 @@ import {
   detectStaleGroundings,
   refreshGrounding,
   TEMPORAL_PRESETS,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create temporal grounding with preset
 const grounding = constructTemporalGrounding({
@@ -371,7 +371,7 @@ import {
   getArticulabilityScore,
   detectPattern,
   analogyFromPrior,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create intuitive grounding
 const intuition = createIntuitiveGrounding({
@@ -429,7 +429,7 @@ import {
   suggestFix,
   InferenceFallacy,
   FALLACY_DESCRIPTIONS,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create inference steps
 const step1 = createInferenceStep({
@@ -479,7 +479,7 @@ import {
   evaluateGate,
   createGateChain,
   getStandardGates,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create a quality gate
 const confidenceGate = createQualityGate({
@@ -536,7 +536,7 @@ import {
   findGroundingChain,
   applyPreset,
   PRESETS,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create a coherence network with preset
 const network = constructCoherenceNetwork({
@@ -599,7 +599,7 @@ import {
   combineDempster,
   analyzeConflict,
   toBoundedConfidence,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create belief mass function
 const mass = createBeliefMass({
@@ -642,7 +642,7 @@ import {
   revise,
   checkAGMPostulates,
   computeEntrenchmentFromConfidence,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create belief base
 const beliefs = createBeliefBase({
@@ -686,7 +686,7 @@ import {
   parallelIntervalsAnd,
   composeConfidenceCredal,
   trackImprecisionPropagation,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create intervals
 const interval1 = createInterval(0.6, 0.8);
@@ -734,7 +734,7 @@ import {
   evaluateTestimony,
   computeGroupConsensus,
   isCommonKnowledge,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Create agent profiles
 const agent1 = createAgentProfile({
@@ -803,13 +803,13 @@ const isCommon = isCommonKnowledge({
 ### Example 1: Confident Code Analysis
 
 ```typescript
-import { createLibrarian } from 'librarian';
-import { getNumericValue, meetsThreshold } from 'librarian/epistemics';
+import { createLibrarian } from 'librainian';
+import { getNumericValue, meetsThreshold } from 'LiBrainian/epistemics';
 
-const librarian = await createLibrarian({ workspace: '.' });
-await librarian.initialize();
+const LiBrainian = await createLibrarian({ workspace: '.' });
+await LiBrainian.initialize();
 
-const result = await librarian.query({
+const result = await LiBrainian.query({
   intent: 'How does authentication work?',
   depth: 'L2',
 });
@@ -826,7 +826,7 @@ if (meetsThreshold(result.confidence, 0.8)) {
 ### Example 2: Learning from Feedback
 
 ```typescript
-import { ClaimOutcomeTracker, buildCalibrationReport } from 'librarian/epistemics';
+import { ClaimOutcomeTracker, buildCalibrationReport } from 'LiBrainian/epistemics';
 
 const tracker = new ClaimOutcomeTracker(storage);
 
@@ -859,7 +859,7 @@ import {
   detectStaleGroundings,
   refreshGrounding,
   TEMPORAL_PRESETS,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 
 // Check for stale knowledge before using it
 const stale = detectStaleGroundings(context.groundings, {
@@ -907,7 +907,7 @@ For complete API documentation, see the inline TypeScript documentation in:
 
 ## Further Reading
 
-- [API Reference](./API.md) - Full Librarian API documentation
+- [API Reference](./API.md) - Full LiBrainian API documentation
 - [Architecture Excellence Review](./ARCHITECTURE_EXCELLENCE_REVIEW.md) - System architecture analysis
 - [Theoretical Critique](./THEORETICAL_CRITIQUE.md) - Epistemological foundations
 - [Confidence Decay](./CONFIDENCE_DECAY.md) - Temporal confidence dynamics

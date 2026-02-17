@@ -16,7 +16,7 @@
 
 ## Executive Summary
 
-This document presents an adversarial analysis testing whether Librarian's epistemic system can **represent** and **handle** classic epistemic paradoxes and edge cases. The goal is to identify where the system crashes, produces incoherent results, or silently fails.
+This document presents an adversarial analysis testing whether LiBrainian's epistemic system can **represent** and **handle** classic epistemic paradoxes and edge cases. The goal is to identify where the system crashes, produces incoherent results, or silently fails.
 
 ### Verdict Summary
 

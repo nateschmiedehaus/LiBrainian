@@ -1,4 +1,4 @@
-# Librarian Capability Gap Analysis
+# LiBrainian Capability Gap Analysis
 
 **Date**: 2026-01-30
 **Purpose**: Assess current capabilities vs. planned enhancements
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Librarian has **substantial existing infrastructure** that serves as a strong foundation for the planned enhancements. The gap analysis reveals that most planned features have partial implementations or clear integration points. The largest gaps are in **argumentative edge types** (new concept) and **explicit multi-perspective filtering** (infrastructure exists but not surfaced).
+LiBrainian has **substantial existing infrastructure** that serves as a strong foundation for the planned enhancements. The gap analysis reveals that most planned features have partial implementations or clear integration points. The largest gaps are in **argumentative edge types** (new concept) and **explicit multi-perspective filtering** (infrastructure exists but not surfaced).
 
 **Overall Assessment**: 60-70% of required infrastructure exists. Remaining work is primarily integration and enhancement, not greenfield development.
 
@@ -159,7 +159,7 @@ scorer.registerComputer(new MyCustomSignalComputer());
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         LIBRARIAN INTEGRATION MAP                            │
+│                         LiBrainian INTEGRATION MAP                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐     │
@@ -284,7 +284,7 @@ scorer.registerComputer(new MyCustomSignalComputer());
 
 ## 6. Conclusion
 
-Librarian's codebase is **well-architected for extension**. The planned enhancements align naturally with existing:
+LiBrainian's codebase is **well-architected for extension**. The planned enhancements align naturally with existing:
 
 - **Graph infrastructure**: Full centrality, community detection, knowledge graph builder
 - **Extraction pipeline**: Rationale already captured, just needs edge conversion

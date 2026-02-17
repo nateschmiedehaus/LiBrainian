@@ -13,7 +13,7 @@
 | npm scripts and package scripts | 10 | 0.534 | PARTIAL |
 | release process and versioning | 3 | 0.593 | PARTIAL |
 
-**Overall Assessment: POOR** - Librarian failed to surface actual build/deploy infrastructure files.
+**Overall Assessment: POOR** - LiBrainian failed to surface actual build/deploy infrastructure files.
 
 ---
 
@@ -166,7 +166,7 @@
 ## Root Cause Analysis
 
 ### 1. Configuration Files Not Indexed
-The librarian appears to not index or properly weight:
+The LiBrainian appears to not index or properly weight:
 - `package.json`
 - `tsconfig.json`
 - `.yml`/`.yaml` files (GitHub Actions)
@@ -178,7 +178,7 @@ The librarian appears to not index or properly weight:
 - "configuration" matched internal app config, not build/deploy config
 
 ### 3. Missing Domain Knowledge
-The librarian lacks understanding that:
+The LiBrainian lacks understanding that:
 - Build/deploy queries should prioritize root config files
 - `package.json` is the primary source for npm scripts
 - `.github/workflows/` contains CI/CD definitions

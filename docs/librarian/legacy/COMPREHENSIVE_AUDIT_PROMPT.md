@@ -1,10 +1,10 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Universal Knowledge Layer: Comprehensive System Audit
+# LiBrainian Universal Knowledge Layer: Comprehensive System Audit
 
-> **Audit Scope**: Complete evaluation of the Librarian system against documented vision, architecture, and implementation specifications.
+> **Audit Scope**: Complete evaluation of the LiBrainian system against documented vision, architecture, and implementation specifications.
 > **Version**: 2.0.0 (FULL tier - no MVP shortcuts)
 > **Generated**: 2026-01-01
 
@@ -12,11 +12,11 @@ Extract useful research into canonical docs; do not extend this file.
 
 ## Executive Summary & Audit Objectives
 
-You are tasked with conducting the most thorough audit possible of the **Librarian Universal Knowledge Layer** - a semantic code understanding system designed to provide AI agents with rich, confidence-rated context about codebases. This audit must evaluate whether reality matches intention across every documented dimension.
+You are tasked with conducting the most thorough audit possible of the **LiBrainian Universal Knowledge Layer** - a semantic code understanding system designed to provide AI agents with rich, confidence-rated context about codebases. This audit must evaluate whether reality matches intention across every documented dimension.
 
 ### Core Questions This Audit Must Answer
 
-1. **Does Librarian deliver on its VISION.md promises?**
+1. **Does LiBrainian deliver on its VISION.md promises?**
 2. **Is the documented architecture actually implemented?**
 3. **Are the 25 world-class knowledge gaps (G1-G25) truly addressed?**
 4. **Do the three core engines (Relevance, Constraint, Meta-Knowledge) actually function?**
@@ -33,27 +33,27 @@ Read these documents IN ORDER to establish the baseline of what SHOULD exist:
 
 | Document | Purpose | Key Questions to Answer |
 |----------|---------|------------------------|
-| `docs/librarian/VISION.md` | Aspirational goals | What was promised? What's the "north star"? |
-| `docs/librarian/UNDERSTANDING_LAYER.md` | Universal understanding philosophy | How should code understanding flow? |
-| `docs/librarian/overview.md` | Implementation summary | What's the claimed status? |
+| `docs/LiBrainian/VISION.md` | Aspirational goals | What was promised? What's the "north star"? |
+| `docs/LiBrainian/UNDERSTANDING_LAYER.md` | Universal understanding philosophy | How should code understanding flow? |
+| `docs/LiBrainian/overview.md` | Implementation summary | What's the claimed status? |
 
 ### 1.2 Architecture & Design
 
 | Document | Purpose | Key Questions to Answer |
 |----------|---------|------------------------|
-| `docs/librarian/architecture.md` | Unified architecture spec | Are shared primitives (Entity, Confidence, Scope) actually used? |
-| `docs/librarian/implementation-requirements.md` | Detailed specs | Are the 2,500+ lines of specs implemented? |
-| `docs/librarian/world-class-gaps.md` | G13-G25 deep dive | What's the real status vs claimed? |
-| `docs/librarian/REMAINING_WORK.md` | Actionable tasks (R0-R10) | Are "complete" items actually complete? |
+| `docs/LiBrainian/architecture.md` | Unified architecture spec | Are shared primitives (Entity, Confidence, Scope) actually used? |
+| `docs/LiBrainian/implementation-requirements.md` | Detailed specs | Are the 2,500+ lines of specs implemented? |
+| `docs/LiBrainian/world-class-gaps.md` | G13-G25 deep dive | What's the real status vs claimed? |
+| `docs/LiBrainian/REMAINING_WORK.md` | Actionable tasks (R0-R10) | Are "complete" items actually complete? |
 
 ### 1.3 Integration & Validation
 
 | Document | Purpose | Key Questions to Answer |
 |----------|---------|------------------------|
-| `docs/librarian/validation.md` | Verification checklists | Do the validation tests actually pass? |
-| `docs/librarian/scenarios.md` | 30 real-world scenarios | Can Librarian handle these cases? |
+| `docs/LiBrainian/validation.md` | Verification checklists | Do the validation tests actually pass? |
+| `docs/LiBrainian/scenarios.md` | 30 real-world scenarios | Can LiBrainian handle these cases? |
 | `docs/policies/MODEL_SELECTION_POLICY.md` | LLM provider requirements | Is Opus 4.5 actually being used? |
-| `docs/CLAUDE.md` | Project-wide context | How does Librarian fit? |
+| `docs/CLAUDE.md` | Project-wide context | How does LiBrainian fit? |
 
 ---
 
@@ -61,7 +61,7 @@ Read these documents IN ORDER to establish the baseline of what SHOULD exist:
 
 ### 2.1 Public API Surface Audit
 
-**File**: `src/librarian/index.ts`
+**File**: `src/LiBrainian/index.ts`
 
 Trace every export and determine:
 
@@ -83,7 +83,7 @@ Trace every export and determine:
 
 | Category | Exports | Critical Questions |
 |----------|---------|-------------------|
-| **Core Interface** | `Librarian`, `createLibrarian`, `createLibrarianSync` | Does `createLibrarian()` actually initialize a working system? |
+| **Core Interface** | `LiBrainian`, `createLibrarian`, `createLibrarianSync` | Does `createLibrarian()` actually initialize a working system? |
 | **Query System** | `queryLibrarian`, `createFunctionQuery`, `createFileQuery`, `createRelatedQuery` | Do queries return meaningful results? |
 | **Bootstrap** | `bootstrapProject`, `isBootstrapRequired`, `getBootstrapStatus` | Does bootstrap complete all 5 phases? |
 | **Versioning** | `detectLibrarianVersion`, `upgradeRequired`, `runUpgrade` | Does version detection work? |
@@ -99,9 +99,9 @@ Trace every export and determine:
 
 ### 2.2 Storage Layer Deep Dive
 
-**Files**: `src/librarian/storage/sqlite_storage.ts`, `src/librarian/storage/types.ts`
+**Files**: `src/LiBrainian/storage/sqlite_storage.ts`, `src/LiBrainian/storage/types.ts`
 
-Run these diagnostic queries against `.librarian/librarian.db`:
+Run these diagnostic queries against `.LiBrainian/LiBrainian.db`:
 
 ```sql
 -- 1. Schema inventory
@@ -171,7 +171,7 @@ WHERE type='table'
 
 ### 2.3 Ingestion Pipeline Audit
 
-**Directory**: `src/librarian/ingest/`
+**Directory**: `src/LiBrainian/ingest/`
 
 There are 16 documented indexers. For EACH indexer:
 
@@ -198,24 +198,24 @@ There are 16 documented indexers. For EACH indexer:
 
 ```bash
 # Check which indexers actually run during bootstrap
-grep -r "registerIndexer\|addIndexer" src/librarian/ingest/
+grep -r "registerIndexer\|addIndexer" src/LiBrainian/ingest/
 
 # Check bootstrap phases
-grep -A 50 "BOOTSTRAP_PHASES" src/librarian/types.ts
+grep -A 50 "BOOTSTRAP_PHASES" src/LiBrainian/types.ts
 
 # Verify indexer output
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM librarian_test_mappings"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM librarian_test_mappings"
 ```
 
 ### 2.4 Engine Toolkit Audit
 
-**Directory**: `src/librarian/engines/`
+**Directory**: `src/LiBrainian/engines/`
 
 The documentation claims three core engines with specific capabilities:
 
 #### Engine 1: Relevance Engine
 
-**File**: `src/librarian/engines/relevance_engine.ts`
+**File**: `src/LiBrainian/engines/relevance_engine.ts`
 
 | Claimed Feature | Method | Verify |
 |-----------------|--------|--------|
@@ -226,7 +226,7 @@ The documentation claims three core engines with specific capabilities:
 
 #### Engine 2: Constraint Engine
 
-**File**: `src/librarian/engines/constraint_engine.ts`
+**File**: `src/LiBrainian/engines/constraint_engine.ts`
 
 | Claimed Feature | Method | Verify |
 |-----------------|--------|--------|
@@ -237,7 +237,7 @@ The documentation claims three core engines with specific capabilities:
 
 #### Engine 3: Meta-Knowledge Engine
 
-**File**: `src/librarian/engines/meta_engine.ts`
+**File**: `src/LiBrainian/engines/meta_engine.ts`
 
 | Claimed Feature | Method | Verify |
 |-----------------|--------|--------|
@@ -253,8 +253,8 @@ The documentation claims three core engines with specific capabilities:
 const toolkit = createLibrarianEngineToolkit({ workspace: '.' });
 
 // 1. Query with and without engines
-const withEngines = await librarian.query({ intent: 'auth', includeEngines: true });
-const withoutEngines = await librarian.query({ intent: 'auth', includeEngines: false });
+const withEngines = await LiBrainian.query({ intent: 'auth', includeEngines: true });
+const withoutEngines = await LiBrainian.query({ intent: 'auth', includeEngines: false });
 
 // 2. Verify engine data is present
 assert(withEngines.engines?.relevance?.blindSpots !== undefined);
@@ -269,7 +269,7 @@ assert(['proceed', 'caution', 'block'].includes(proceed.decision));
 ### 2.5 Wave0 Integration Audit
 
 **Files**:
-- `src/librarian/integration/wave0_integration.ts`
+- `src/LiBrainian/integration/wave0_integration.ts`
 - `src/orchestrator/context_assembler.ts`
 - `src/orchestrator/unified_orchestrator.ts`
 
@@ -301,9 +301,9 @@ Trace the ACTUAL integration points:
 
 **Critical Integration Questions**:
 
-1. **Is librarian context making it into agent prompts?**
+1. **Is LiBrainian context making it into agent prompts?**
    - Find where agent prompts are assembled
-   - Verify librarian data is included
+   - Verify LiBrainian data is included
    - Check if confidence scores are surfaced
 
 2. **Are task outcomes feeding back to update confidence?**
@@ -318,7 +318,7 @@ Trace the ACTUAL integration points:
 
 ### 2.6 Event Bus Audit
 
-**File**: `src/librarian/events.ts`
+**File**: `src/LiBrainian/events.ts`
 
 List ALL event types and find their listeners:
 
@@ -344,10 +344,10 @@ List ALL event types and find their listeners:
 
 ```bash
 # Find all event emissions
-grep -rn "emit\|\.emit(" src/librarian/ --include="*.ts"
+grep -rn "emit\|\.emit(" src/LiBrainian/ --include="*.ts"
 
 # Find all event listeners
-grep -rn "on\|subscribe\|addEventListener" src/librarian/ --include="*.ts"
+grep -rn "on\|subscribe\|addEventListener" src/LiBrainian/ --include="*.ts"
 
 # Check if activity feed captures events
 grep -r "LibrarianEvent" src/orchestrator/
@@ -391,7 +391,7 @@ All items marked "Complete" in REMAINING_WORK.md. Verify each:
 
 | Task | Claimed Status | Verification |
 |------|----------------|--------------|
-| **R0: Provider Auth** | Complete | Run: `npm test -- src/librarian`, expect 0 skipped |
+| **R0: Provider Auth** | Complete | Run: `npm test -- src/LiBrainian`, expect 0 skipped |
 | **R1: Batch Embedding Concurrency** | Complete | Check `generateEmbeddingsBatch()` exists with retry logic |
 | **R2: Engine-Query Wiring** | Complete | Check `query()` returns `engines` object |
 | **R3: Persistent Query Cache** | Complete | Check `librarian_query_cache` table has data |
@@ -423,7 +423,7 @@ node scripts/bootstrap_librarian.ts --workspace . --verbose
 # Phase 5: Index optimization
 
 # Verify completion
-sqlite3 .librarian/librarian.db "SELECT * FROM librarian_bootstrap_history ORDER BY completed_at DESC LIMIT 1"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT * FROM librarian_bootstrap_history ORDER BY completed_at DESC LIMIT 1"
 ```
 
 ### 4.2 Query Path Verification
@@ -432,7 +432,7 @@ Trace a query from API to response:
 
 ```typescript
 // Test query
-const response = await librarian.query({
+const response = await LiBrainian.query({
   intent: 'How does authentication work?',
   depth: 'L1',
   affectedFiles: ['src/auth/'],
@@ -456,7 +456,7 @@ Verify confidence updates on task outcomes:
 
 ```typescript
 // Get initial confidence
-const before = await librarian.storage.getEntityConfidence('src/auth/login.ts');
+const before = await LiBrainian.storage.getEntityConfidence('src/auth/login.ts');
 
 // Record a failure outcome
 await recordTaskOutcome('task-123', {
@@ -467,7 +467,7 @@ await recordTaskOutcome('task-123', {
 });
 
 // Get updated confidence
-const after = await librarian.storage.getEntityConfidence('src/auth/login.ts');
+const after = await LiBrainian.storage.getEntityConfidence('src/auth/login.ts');
 
 // Verify confidence decreased
 assert(after.confidence < before.confidence, 'Confidence should decrease on failure');
@@ -500,11 +500,11 @@ assert(result.triggered.some(d => d.type === 'staleness'),
 
 ### 5.1 Export Analysis
 
-For every export in `src/librarian/index.ts`, find callers:
+For every export in `src/LiBrainian/index.ts`, find callers:
 
 ```bash
 # Create caller report
-for export in $(grep "^export " src/librarian/index.ts | sed 's/.*{\([^}]*\)}.*/\1/' | tr ',' '\n'); do
+for export in $(grep "^export " src/LiBrainian/index.ts | sed 's/.*{\([^}]*\)}.*/\1/' | tr ',' '\n'); do
   count=$(grep -r "$export" src/ --include="*.ts" | grep -v "index.ts" | grep -v "\.test\.ts" | wc -l)
   echo "$export: $count production callers"
 done
@@ -516,7 +516,7 @@ Find modules with no integration:
 
 ```bash
 # Find files with no imports from outside their directory
-for file in src/librarian/**/*.ts; do
+for file in src/LiBrainian/**/*.ts; do
   dir=$(dirname $file)
   importers=$(grep -r "$(basename $file .ts)" src/ --include="*.ts" | grep -v "$dir" | wc -l)
   if [ $importers -eq 0 ]; then
@@ -543,7 +543,7 @@ For dead code, recommend action:
 ## Executive Summary
 
 ### Overall Assessment
-- [ ] Librarian achieves its VISION.md promises: YES / PARTIAL / NO
+- [ ] LiBrainian achieves its VISION.md promises: YES / PARTIAL / NO
 - [ ] Architecture is implemented as documented: YES / PARTIAL / NO
 - [ ] Wave0 integration is functional: YES / PARTIAL / NO
 - [ ] Engine toolkit is operational: YES / PARTIAL / NO
@@ -674,7 +674,7 @@ For each integration point:
 - Distinguish between "not implemented" vs "implemented but not wired" vs "wired but broken"
 
 ### Provide Evidence
-- File paths with line numbers: `src/librarian/api/query.ts:42`
+- File paths with line numbers: `src/LiBrainian/api/query.ts:42`
 - Database query results
 - Test output
 - grep/find command results
@@ -691,7 +691,7 @@ For each integration point:
 
 ### Check Auth Wiring First
 - Per REMAINING_WORK.md, auth wiring is the prerequisite
-- Run `npm test -- src/librarian` and count skipped tests
+- Run `npm test -- src/LiBrainian` and count skipped tests
 - If >0 skipped, auth wiring is still broken
 
 ---
@@ -699,36 +699,36 @@ For each integration point:
 ## Appendix A: Quick Diagnostic Commands
 
 ```bash
-# A1. Check librarian directory exists and has content
-ls -la .librarian/
-du -sh .librarian/
+# A1. Check LiBrainian directory exists and has content
+ls -la .LiBrainian/
+du -sh .LiBrainian/
 
 # A2. Check database schema
-sqlite3 .librarian/librarian.db ".schema" | head -100
+sqlite3 .LiBrainian/LiBrainian.db ".schema" | head -100
 
 # A3. Check database stats
-sqlite3 .librarian/librarian.db "SELECT name, (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=m.name) FROM sqlite_master m WHERE type='table' AND name LIKE 'librarian_%'"
+sqlite3 .LiBrainian/LiBrainian.db "SELECT name, (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=m.name) FROM sqlite_master m WHERE type='table' AND name LIKE 'librarian_%'"
 
-# A4. Run librarian tests
-npm test -- src/librarian --reporter=verbose 2>&1 | tail -50
+# A4. Run LiBrainian tests
+npm test -- src/LiBrainian --reporter=verbose 2>&1 | tail -50
 
 # A5. Check for skipped tests
-npm test -- src/librarian 2>&1 | grep -E "skip|SKIP"
+npm test -- src/LiBrainian 2>&1 | grep -E "skip|SKIP"
 
 # A6. Check exports have callers
-grep -r "from.*librarian" src/ --include="*.ts" | grep -v test | wc -l
+grep -r "from.*LiBrainian" src/ --include="*.ts" | grep -v test | wc -l
 
 # A7. Check engine files exist and have content
-wc -l src/librarian/engines/*.ts
+wc -l src/LiBrainian/engines/*.ts
 
 # A8. Check event listeners
 grep -rn "globalEventBus\|onLibrarianEvent" src/ --include="*.ts"
 
 # A9. Check Wave0 integration calls
-grep -rn "enrichTaskContext\|recordTaskOutcome\|preOrchestrationHook" src/ --include="*.ts" | grep -v librarian/
+grep -rn "enrichTaskContext\|recordTaskOutcome\|preOrchestrationHook" src/ --include="*.ts" | grep -v LiBrainian/
 
 # A10. Check model usage
-grep -r "claude-opus-4-5\|claude-sonnet-4-5" src/librarian/ --include="*.ts"
+grep -r "claude-opus-4-5\|claude-sonnet-4-5" src/LiBrainian/ --include="*.ts"
 ```
 
 ---
@@ -737,20 +737,20 @@ grep -r "claude-opus-4-5\|claude-sonnet-4-5" src/librarian/ --include="*.ts"
 
 | Component | Primary File | Secondary Files |
 |-----------|--------------|-----------------|
-| **Public API** | `src/librarian/index.ts` | |
-| **Core Librarian** | `src/librarian/api/librarian.ts` | `api/query.ts`, `api/bootstrap.ts` |
-| **Storage** | `src/librarian/storage/sqlite_storage.ts` | `storage/types.ts` |
-| **Engines** | `src/librarian/engines/index.ts` | `relevance_engine.ts`, `constraint_engine.ts`, `meta_engine.ts` |
-| **Integration** | `src/librarian/integration/wave0_integration.ts` | `first_run_gate.ts`, `file_watcher.ts` |
-| **Events** | `src/librarian/events.ts` | |
-| **Knowledge** | `src/librarian/knowledge/index.ts` | `architecture.ts`, `impact.ts`, `confidence_updater.ts` |
-| **Indexers** | `src/librarian/ingest/framework.ts` | All `*_indexer.ts` files |
-| **Memory** | `src/librarian/memory/hierarchical_memory.ts` | |
-| **Debug** | `src/librarian/debug/tracer.ts` | `inspector.ts` |
-| **Views** | `src/librarian/views/persona_views.ts` | |
-| **Visualization** | `src/librarian/visualization/mermaid_generator.ts` | `ascii_diagrams.ts` |
-| **Recommendations** | `src/librarian/recommendations/refactoring_advisor.ts` | `architecture_advisor.ts` |
-| **CLI** | `src/librarian/cli/` | All CLI command files |
+| **Public API** | `src/LiBrainian/index.ts` | |
+| **Core LiBrainian** | `src/LiBrainian/api/LiBrainian.ts` | `api/query.ts`, `api/bootstrap.ts` |
+| **Storage** | `src/LiBrainian/storage/sqlite_storage.ts` | `storage/types.ts` |
+| **Engines** | `src/LiBrainian/engines/index.ts` | `relevance_engine.ts`, `constraint_engine.ts`, `meta_engine.ts` |
+| **Integration** | `src/LiBrainian/integration/wave0_integration.ts` | `first_run_gate.ts`, `file_watcher.ts` |
+| **Events** | `src/LiBrainian/events.ts` | |
+| **Knowledge** | `src/LiBrainian/knowledge/index.ts` | `architecture.ts`, `impact.ts`, `confidence_updater.ts` |
+| **Indexers** | `src/LiBrainian/ingest/framework.ts` | All `*_indexer.ts` files |
+| **Memory** | `src/LiBrainian/memory/hierarchical_memory.ts` | |
+| **Debug** | `src/LiBrainian/debug/tracer.ts` | `inspector.ts` |
+| **Views** | `src/LiBrainian/views/persona_views.ts` | |
+| **Visualization** | `src/LiBrainian/visualization/mermaid_generator.ts` | `ascii_diagrams.ts` |
+| **Recommendations** | `src/LiBrainian/recommendations/refactoring_advisor.ts` | `architecture_advisor.ts` |
+| **CLI** | `src/LiBrainian/cli/` | All CLI command files |
 
 ---
 
@@ -758,8 +758,8 @@ grep -r "claude-opus-4-5\|claude-sonnet-4-5" src/librarian/ --include="*.ts"
 
 | Component | Test File | Test Count | Status |
 |-----------|-----------|------------|--------|
-| Librarian Core | `__tests__/librarian.test.ts` | ? | ? |
-| MVP Librarian | `__tests__/mvp_librarian.test.ts` | ? | ? |
+| LiBrainian Core | `__tests__/LiBrainian.test.ts` | ? | ? |
+| MVP LiBrainian | `__tests__/mvp_librarian.test.ts` | ? | ? |
 | Embedding Pipeline | `__tests__/embedding_pipeline.test.ts` | ? | ? |
 | Graph Metrics | `__tests__/graph_metrics.test.ts` | ? | ? |
 | Ingestion Framework | `__tests__/ingestion_framework.test.ts` | ? | ? |
@@ -772,7 +772,7 @@ grep -r "claude-opus-4-5\|claude-sonnet-4-5" src/librarian/ --include="*.ts"
 
 ---
 
-**Document Status**: Comprehensive audit prompt ready for execution. This prompt should enable a thorough evaluation of whether the Librarian Universal Knowledge Layer matches its documented vision and specifications.
+**Document Status**: Comprehensive audit prompt ready for execution. This prompt should enable a thorough evaluation of whether the LiBrainian Universal Knowledge Layer matches its documented vision and specifications.
 
 ---
 

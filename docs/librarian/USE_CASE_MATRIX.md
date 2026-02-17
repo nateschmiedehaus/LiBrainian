@@ -1,4 +1,4 @@
-# Librarian Use-Case Matrix (Canonical)
+# LiBrainian Use-Case Matrix (Canonical)
 
 Status: authoritative
 Scope: Exhaustive UC-to-method coverage map for knowledge and understanding needs.
@@ -20,7 +20,7 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 ## Purpose
 Provide a comprehensive, dependency-aware map of knowledge and understanding needs
 for any codebase, project, or problem-solving context, and map each need to the
-Librarian architecture and pipelines that satisfy it. This matrix is a core
+LiBrainian architecture and pipelines that satisfy it. This matrix is a core
 contract: every row must be backed by LLM-derived understanding or explicitly
 marked as planned.
 
@@ -31,10 +31,10 @@ marked as planned.
 - Status must be accurate (verified, partial, planned) with evidence.
 - Language support is immediate: new languages trigger onboarding flow.
 - Method catalog is integrated below and must stay aligned with UC coverage.
-- Librarian must supply method-ready knowledge and hints for all listed methods.
+- LiBrainian must supply method-ready knowledge and hints for all listed methods.
 - Each UC inherits domain defaults (maps, methods, evidence, scenarios) unless explicitly overridden.
 - UC coverage must be audit-ready against UC x Method x Scenario (see Coverage Audit Checklist).
-- **Constructability rule**: each UC must be satisfiable by one or more **construction templates** (not bespoke endpoints). The mapping lives in the construction registry described in `docs/librarian/specs/core/knowledge-construction.md`.
+- **Constructability rule**: each UC must be satisfiable by one or more **construction templates** (not bespoke endpoints). The mapping lives in the construction registry described in `docs/LiBrainian/specs/core/knowledge-construction.md`.
 
 ## Dependency Layers (Required)
 Use-case coverage is layered. Dependencies flow from lower layers to higher layers.
@@ -48,7 +48,7 @@ Use-case coverage is layered. Dependencies flow from lower layers to higher laye
 | L4 (Context + Execution) | UC-261-310 | Token-budgeted repo maps, executable verification workflows, supply-chain/infra extensions |
 
 ## Knowledge Map Codes (Required)
-Map codes reference the knowledge mappings in `docs/librarian/UNDERSTANDING_LAYER.md`.
+Map codes reference the knowledge mappings in `docs/LiBrainian/UNDERSTANDING_LAYER.md`.
 
 | Code | Map |
 | --- | --- |
@@ -117,30 +117,30 @@ Each UC inherits these defaults unless explicitly overridden in the row's Proces
 ## Reference Legend (Architecture Citations)
 Use these short codes in the matrix under the "Mechanisms" column.
 
-- SYS.A = docs/librarian/SYSTEM_ARCHITECTURE.md#System-Boundaries
-- SYS.B = docs/librarian/SYSTEM_ARCHITECTURE.md#Subsystem-Ownership-Map-Implementation-Targets
-- SYS.C = docs/librarian/SYSTEM_ARCHITECTURE.md#Language-Support-Architecture-Target
-- SYS.D = docs/librarian/SYSTEM_ARCHITECTURE.md#Engine-Toolkit-Canonical
-- SYS.E = docs/librarian/SYSTEM_ARCHITECTURE.md#Directory-Architecture-Current---Target
-- PIPE.A = docs/librarian/PIPELINES_AND_WIRING.md#1-ingestion-pipeline
-- PIPE.B = docs/librarian/PIPELINES_AND_WIRING.md#2-understanding-pipeline
-- PIPE.C = docs/librarian/PIPELINES_AND_WIRING.md#3-query-pipeline
-- PIPE.D = docs/librarian/PIPELINES_AND_WIRING.md#4-feedback-and-learning-pipeline
-- UNDER.A = docs/librarian/UNDERSTANDING_LAYER.md#universal-knowledge-schema-composed-domains
-- UNDER.B = docs/librarian/UNDERSTANDING_LAYER.md#understanding-mandate-llm-required
-- UNDER.C = docs/librarian/UNDERSTANDING_LAYER.md#evidence-and-defeaters
-- SCEN.A = docs/librarian/scenarios.md#scenario-card-schema-required
-- VALID.A = docs/librarian/validation.md#evidence-gates
-- MODEL.A = docs/librarian/MODEL_POLICY.md#daily-selection-procedure-required
-- WORK.A = docs/librarian/WORKPLAN.md#cross-phase-deliverables
-- STATUS.A = docs/librarian/STATUS.md#status
+- SYS.A = docs/LiBrainian/SYSTEM_ARCHITECTURE.md#System-Boundaries
+- SYS.B = docs/LiBrainian/SYSTEM_ARCHITECTURE.md#Subsystem-Ownership-Map-Implementation-Targets
+- SYS.C = docs/LiBrainian/SYSTEM_ARCHITECTURE.md#Language-Support-Architecture-Target
+- SYS.D = docs/LiBrainian/SYSTEM_ARCHITECTURE.md#Engine-Toolkit-Canonical
+- SYS.E = docs/LiBrainian/SYSTEM_ARCHITECTURE.md#Directory-Architecture-Current---Target
+- PIPE.A = docs/LiBrainian/PIPELINES_AND_WIRING.md#1-ingestion-pipeline
+- PIPE.B = docs/LiBrainian/PIPELINES_AND_WIRING.md#2-understanding-pipeline
+- PIPE.C = docs/LiBrainian/PIPELINES_AND_WIRING.md#3-query-pipeline
+- PIPE.D = docs/LiBrainian/PIPELINES_AND_WIRING.md#4-feedback-and-learning-pipeline
+- UNDER.A = docs/LiBrainian/UNDERSTANDING_LAYER.md#universal-knowledge-schema-composed-domains
+- UNDER.B = docs/LiBrainian/UNDERSTANDING_LAYER.md#understanding-mandate-llm-required
+- UNDER.C = docs/LiBrainian/UNDERSTANDING_LAYER.md#evidence-and-defeaters
+- SCEN.A = docs/LiBrainian/scenarios.md#scenario-card-schema-required
+- VALID.A = docs/LiBrainian/validation.md#evidence-gates
+- MODEL.A = docs/LiBrainian/MODEL_POLICY.md#daily-selection-procedure-required
+- WORK.A = docs/LiBrainian/WORKPLAN.md#cross-phase-deliverables
+- STATUS.A = docs/LiBrainian/STATUS.md#status
 
 ## Matrix Columns
 - ID: Stable identifier (UC-###).
 - Domain: Use-case domain.
 - Need: The knowledge/understanding requirement.
 - Dependencies: Other UC IDs required first.
-- Process: How Librarian produces the knowledge (LLM + signals). Domain defaults apply.
+- Process: How LiBrainian produces the knowledge (LLM + signals). Domain defaults apply.
 - Mechanisms: Architecture references (legend codes).
 - Status: verified | partial | planned.
 
@@ -406,7 +406,7 @@ Use these short codes in the matrix under the "Mechanisms" column.
 | UC-257 | Synthesis | Optimize retrieval and context assembly policies | UC-211 | LLM tunes retrieval with feedback | PIPE.D UNDER.C | planned |
 | UC-258 | Synthesis | Build open-source contribution strategy | UC-140, UC-181 | LLM maps contribution surfaces and roadmap | WORK.A UNDER.B | planned |
 | UC-259 | Synthesis | Evaluate model cost/performance tradeoffs | UC-091, UC-257 | LLM compares model policy to task needs | MODEL.A UNDER.C | planned |
-| UC-260 | Synthesis | Benchmark Librarian against external systems | UC-238 | LLM compares quality metrics and gaps | VALID.A UNDER.C | planned |
+| UC-260 | Synthesis | Benchmark LiBrainian against external systems | UC-238 | LLM compares quality metrics and gaps | VALID.A UNDER.C | planned |
 | UC-261 | Agentic | Produce token-budgeted RepoMap pack (paths + key symbols) | UC-001, UC-011 | Deterministic structure inventory + token-budgeted map pack; disclose gaps/staleness | PIPE.A PIPE.C UNDER.A UNDER.C | planned |
 | UC-262 | Agentic | Produce delta RepoMap since last run (what changed + why it matters) | UC-261, UC-061 | Compare git cursor/index snapshots; summarize deltas with evidence | PIPE.D UNDER.C VALID.A | planned |
 | UC-263 | Agentic | Generate minimal edit context for a specific patch (edit-anchored pack) | UC-261, UC-032 | Assemble smallest sufficient context around target symbols + invariants | PIPE.C UNDER.B UNDER.C | planned |
@@ -463,16 +463,16 @@ The method catalog is part of this file so use-case coverage and methods
 remain aligned. Methods use the same mechanism codes as the UC matrix.
 
 ### Method Support Contract (Required)
-- Librarian must provide the knowledge inputs needed to apply each method
+- LiBrainian must provide the knowledge inputs needed to apply each method
   in any relevant scenario (evidence, constraints, risks, alternatives).
-- Librarian must provide fast method hints and reminders to agents based on
+- LiBrainian must provide fast method hints and reminders to agents based on
   UC requirements and task context.
 - Method hints should be preloaded when cheap and cached dynamically when
   usage frequency or workflow templates indicate value.
 - If a method cannot be supported fully, emit a GapReport and mark coverage
   as partial with required inputs.
 
-| ID | Method | Description | Librarian Support |
+| ID | Method | Description | LiBrainian Support |
 | --- | --- | --- | --- |
 | M-001 | Problem framing | Define the problem boundary and desired outcome | UNDER.B PIPE.B |
 | M-002 | Goal decomposition | Break objectives into sub-goals | UNDER.A WORK.A |
@@ -753,7 +753,7 @@ the method families of its cluster unless explicitly overridden.
 
 Every UC must be covered by at least one method family and one scenario.
 This checklist is the human-readable companion to the formal audit in
-`docs/librarian/validation.md`.
+`docs/LiBrainian/validation.md`.
 
 Checklist:
 - UC -> Method coverage exists (UC inherits a method family via its domain).
@@ -847,7 +847,7 @@ interface ClusterMeasurement {
 | Synthesis (L3) | Weekly | Scheduled audit |
 
 Audit artifact requirement:
-- `state/audits/librarian/coverage/uc_method_scenario_matrix.json`
+- `state/audits/LiBrainian/coverage/uc_method_scenario_matrix.json`
 - PASS/FAIL for every UC x method family x scenario mapping, with evidence links.
 
 ## PASS/FAIL Criteria (Required)
@@ -858,8 +858,8 @@ Each cell in the UC x Method x Scenario matrix must be evaluated using these cri
 
 A UC x Method x Scenario cell is marked PASS when ALL of the following are true:
 
-1. **Knowledge Available**: Librarian can produce the knowledge required by the UC
-2. **Method Supported**: Librarian provides inputs needed to apply the method
+1. **Knowledge Available**: LiBrainian can produce the knowledge required by the UC
+2. **Method Supported**: LiBrainian provides inputs needed to apply the method
 3. **Scenario Executed**: The scenario has been executed with real providers
 4. **Evidence Captured**: EvidencePack.v1 artifact exists with:
    - `provider` and `modelId` fields populated
@@ -980,7 +980,7 @@ Run before any coverage audit:
 
 ```bash
 # Validate all dependencies respect layer ordering
-npm run librarian -- validate-deps --strict
+npm run LiBrainian -- validate-deps --strict
 
 # Output: DependencyValidationReport.v1 in state/audits/
 ```
@@ -996,4 +996,4 @@ npm run librarian -- validate-deps --strict
 
 ---
 
-*This document is authoritative for Librarian use-case and method coverage.*
+*This document is authoritative for LiBrainian use-case and method coverage.*

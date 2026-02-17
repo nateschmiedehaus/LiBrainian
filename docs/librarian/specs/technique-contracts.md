@@ -1427,9 +1427,9 @@ export class ContractAwareExecutionEngine extends TechniqueExecutionEngine {
 | **Phase 1 Total** | **~600** |
 
 **Deliverables**:
-- `packages/librarian/src/contracts/types.ts`
-- `packages/librarian/src/contracts/validation.ts`
-- `packages/librarian/src/contracts/checkers.ts`
+- `packages/LiBrainian/src/contracts/types.ts`
+- `packages/LiBrainian/src/contracts/validation.ts`
+- `packages/LiBrainian/src/contracts/checkers.ts`
 - Unit tests for all validators
 
 ### Phase 2: Contract Registry (Week 2-3)
@@ -1444,7 +1444,7 @@ export class ContractAwareExecutionEngine extends TechniqueExecutionEngine {
 | **Phase 2 Total** | **~230** |
 
 **Deliverables**:
-- `packages/librarian/src/contracts/registry.ts`
+- `packages/LiBrainian/src/contracts/registry.ts`
 - Database schema for contracts
 - Migration scripts
 
@@ -1531,16 +1531,16 @@ export class ContractAwareExecutionEngine extends TechniqueExecutionEngine {
 
 ```bash
 # Contract type tests
-cd packages/librarian && npx vitest src/contracts/__tests__/types.test.ts
+cd packages/LiBrainian && npx vitest src/contracts/__tests__/types.test.ts
 
 # Validation utility tests
-cd packages/librarian && npx vitest src/contracts/__tests__/validation.test.ts
+cd packages/LiBrainian && npx vitest src/contracts/__tests__/validation.test.ts
 
 # Pilot contract tests
-cd packages/librarian && npx vitest src/contracts/__tests__/pilot_contracts.test.ts
+cd packages/LiBrainian && npx vitest src/contracts/__tests__/pilot_contracts.test.ts
 
 # Integration tests
-cd packages/librarian && npx vitest src/contracts/__tests__/execution_integration.test.ts
+cd packages/LiBrainian && npx vitest src/contracts/__tests__/execution_integration.test.ts
 
 # Full contract suite
 npm run test:contracts

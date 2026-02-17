@@ -1,8 +1,8 @@
 # Impact Analysis Use Case Test Results
 
 **Test Date:** 2026-01-31
-**Test Environment:** Librarian CLI with `--no-synthesis` flag
-**Purpose:** Evaluate Librarian's ability to predict code change impact
+**Test Environment:** LiBrainian CLI with `--no-synthesis` flag
+**Purpose:** Evaluate LiBrainian's ability to predict code change impact
 
 ## Executive Summary
 
@@ -16,7 +16,7 @@
 
 **Overall Assessment: INADEQUATE for impact analysis use cases**
 
-The Librarian system demonstrates fundamental limitations in performing accurate impact analysis. While it successfully identifies semantically related code, it fails to trace actual dependency chains, call hierarchies, and interface implementations that constitute true "impact" analysis.
+The LiBrainian system demonstrates fundamental limitations in performing accurate impact analysis. While it successfully identifies semantically related code, it fails to trace actual dependency chains, call hierarchies, and interface implementations that constitute true "impact" analysis.
 
 ---
 
@@ -26,16 +26,16 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 **Query:** `npx tsx src/cli/index.ts query "what would break if I change bootstrap.ts" --no-synthesis`
 
-**Librarian Results:**
+**LiBrainian Results:**
 - Confidence: 0.795
 - Latency: 2110ms
 - Packs Found: 10
 
 **Key Findings Returned:**
 1. `createBootstrapConfig()` - bootstrap.ts (correct - self-reference)
-2. `forceRebootstrap()` - librarian.ts (correct consumer)
-3. `ensureReady()` - librarian.ts (related but not direct consumer)
-4. `isReady()` - librarian.ts (related but not direct consumer)
+2. `forceRebootstrap()` - LiBrainian.ts (correct consumer)
+3. `ensureReady()` - LiBrainian.ts (related but not direct consumer)
+4. `isReady()` - LiBrainian.ts (related but not direct consumer)
 5. `createMockConfig()` - validation_gates.test.ts (test file)
 6. Various test helper functions
 
@@ -62,15 +62,15 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 **Query:** `npx tsx src/cli/index.ts query "impact of modifying LibrarianStorage interface" --no-synthesis`
 
-**Librarian Results:**
+**LiBrainian Results:**
 - Confidence: 0.789
 - Latency: 1586ms
 - Packs Found: 10
 
 **Key Findings Returned:**
-1. `getStorage()` - librarian.ts (accessor, not implementing)
+1. `getStorage()` - LiBrainian.ts (accessor, not implementing)
 2. `resolveQueryCacheTier()` - query.ts (unrelated)
-3. `createLibrarianSync()` - librarian.ts (factory, not interface consumer)
+3. `createLibrarianSync()` - LiBrainian.ts (factory, not interface consumer)
 4. `createSelfImprovementReportGenerator()` - self_improvement_report.ts (uses storage)
 5. `createSqliteStorage()` - sqlite_storage.ts (implementation - correct)
 6. `setStorage()` - self_index_validator.ts (injection point)
@@ -100,7 +100,7 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 **Query:** `npx tsx src/cli/index.ts query "blast radius of changes to query.ts" --no-synthesis`
 
-**Librarian Results:**
+**LiBrainian Results:**
 - Confidence: 0.799
 - Latency: 1842ms
 - Packs Found: 10
@@ -137,7 +137,7 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 **Query:** `npx tsx src/cli/index.ts query "downstream effects of changing embeddings" --no-synthesis`
 
-**Librarian Results:**
+**LiBrainian Results:**
 - Confidence: 0.637 (low - appropriate uncertainty)
 - Latency: 2705ms
 - Packs Found: 10
@@ -177,7 +177,7 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 **Query:** `npx tsx src/cli/index.ts query "ripple effects of modifying types.ts" --no-synthesis`
 
-**Librarian Results:**
+**LiBrainian Results:**
 - Confidence: 0.522 (appropriately low)
 - Latency: 785ms
 - Packs Found: 9
@@ -194,7 +194,7 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 9. `generateDomainName()` - domain_registry.ts (unrelated)
 
 **Actual Impact (from grep analysis):**
-- **239 files** import from types.ts (within librarian codebase)
+- **239 files** import from types.ts (within LiBrainian codebase)
 - This is the MOST impactful file in the entire codebase
 - Key consumers NOT identified:
   - Every API module
@@ -217,7 +217,7 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 ### Why Impact Analysis Fails
 
-1. **Semantic Over Structural:** Librarian prioritizes semantic similarity (vector embeddings) over structural relationships (import graphs, call hierarchies). "Blast radius" returns functions about blast radius, not files affected by changes.
+1. **Semantic Over Structural:** LiBrainian prioritizes semantic similarity (vector embeddings) over structural relationships (import graphs, call hierarchies). "Blast radius" returns functions about blast radius, not files affected by changes.
 
 2. **No Import Graph Traversal:** The system does not systematically traverse import/export relationships to identify true dependencies.
 
@@ -231,7 +231,7 @@ The Librarian system demonstrates fundamental limitations in performing accurate
 
 ### Comparison with Actual Dependencies
 
-| File | Librarian Identified | Actual Dependents | Recall |
+| File | LiBrainian Identified | Actual Dependents | Recall |
 |------|---------------------|-------------------|--------|
 | bootstrap.ts | ~5 | 34 | 15% |
 | LibrarianStorage | ~6 | 240 | 2.5% |
@@ -273,7 +273,7 @@ dependents --file X --depth 3 --include-tests
 
 ## Conclusion
 
-Librarian demonstrates adequate capability for semantic code search and conceptual queries but fails at true impact analysis. The fundamental architecture prioritizes "what is similar" over "what depends on what", making it unsuitable for change impact prediction without significant enhancements to dependency tracking.
+LiBrainian demonstrates adequate capability for semantic code search and conceptual queries but fails at true impact analysis. The fundamental architecture prioritizes "what is similar" over "what depends on what", making it unsuitable for change impact prediction without significant enhancements to dependency tracking.
 
 **Overall Grade: D (Inadequate)**
 

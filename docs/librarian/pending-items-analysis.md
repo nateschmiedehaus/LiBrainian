@@ -1,14 +1,14 @@
 # Pending Items Analysis Report
 
 **Generated**: 2026-01-29
-**Repository**: Librarian
+**Repository**: LiBrainian
 **Scope**: TODOs, FIXMEs, unchecked roadmap items, and unimplemented features
 
 ---
 
 ## Executive Summary
 
-This document catalogs all pending items in the Librarian repository, analyzing their relevance against recently implemented features including:
+This document catalogs all pending items in the LiBrainian repository, analyzing their relevance against recently implemented features including:
 
 - **Conative attitudes** (intentions, preferences, goals)
 - **Temporal grounding** (decay, validity)
@@ -103,7 +103,7 @@ These are TODOs that exist as part of the codebase's TODO/FIXME detection logic 
 
 ## 3. GATES.json Not Implemented Items
 
-**Location**: `/docs/librarian/GATES.json`
+**Location**: `/docs/LiBrainian/GATES.json`
 
 ### Layer 3 (Not Implemented)
 
@@ -166,7 +166,7 @@ These are TODOs that exist as part of the codebase's TODO/FIXME detection logic 
 
 ### 4.4 Use-Case Capability Matrix Gaps
 
-**Location**: `/docs/librarian/specs/use-case-capability-matrix.md`
+**Location**: `/docs/LiBrainian/specs/use-case-capability-matrix.md`
 
 Major unimplemented capabilities across domains:
 
@@ -184,7 +184,7 @@ Major unimplemented capabilities across domains:
 
 ## 5. Research Implementation Gaps
 
-**Location**: `/docs/librarian/RESEARCH_IMPLEMENTATION_MAPPING.md`
+**Location**: `/docs/LiBrainian/RESEARCH_IMPLEMENTATION_MAPPING.md`
 
 ### High Priority Gaps
 
@@ -287,11 +287,11 @@ src/evaluation/adversarial_patterns.ts:567 - implement
 
 ## Appendix B: Reference Documents
 
-- `/docs/librarian/GATES.json` - Gate status tracking
-- `/docs/librarian/STATUS.md` - Implementation status
-- `/docs/librarian/specs/IMPLEMENTATION_STATUS.md` - Detailed implementation tracking
-- `/docs/librarian/RESEARCH_IMPLEMENTATION_MAPPING.md` - Research gap analysis
-- `/docs/librarian/specs/use-case-capability-matrix.md` - Capability gaps
+- `/docs/LiBrainian/GATES.json` - Gate status tracking
+- `/docs/LiBrainian/STATUS.md` - Implementation status
+- `/docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md` - Detailed implementation tracking
+- `/docs/LiBrainian/RESEARCH_IMPLEMENTATION_MAPPING.md` - Research gap analysis
+- `/docs/LiBrainian/specs/use-case-capability-matrix.md` - Capability gaps
 - `/README.md` - Public roadmap
 
 ---

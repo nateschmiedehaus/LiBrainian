@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This document presents an **adversarial analysis** attempting to find epistemic attitudes that cannot be constructed from Librarian's five primitive attitude types:
+This document presents an **adversarial analysis** attempting to find epistemic attitudes that cannot be constructed from LiBrainian's five primitive attitude types:
 
 1. **Entertaining** - C is before the mind
 2. **Accepting** - C is taken to hold
@@ -101,7 +101,7 @@ const hopingEpistemic = {
 
 ### Verdict: PARTIALLY_CONSTRUCTABLE
 
-**Acceptable loss?** YES for epistemic purposes. Hoping's epistemic component (uncertainty about P) is captured. The conative component is outside epistemology's scope. Librarian is not a desire/motivation system.
+**Acceptable loss?** YES for epistemic purposes. Hoping's epistemic component (uncertainty about P) is captured. The conative component is outside epistemology's scope. LiBrainian is not a desire/motivation system.
 
 ---
 
@@ -317,7 +317,7 @@ The current system forces numerification. Comparative confidence without cardina
 
 ### The Fundamental Issue
 
-Non-cognitive attitudes are NOT epistemic attitudes in the traditional sense. They don't have truth conditions in the way beliefs do. Librarian's system is designed for **knowledge representation**, not **value representation**.
+Non-cognitive attitudes are NOT epistemic attitudes in the traditional sense. They don't have truth conditions in the way beliefs do. LiBrainian's system is designed for **knowledge representation**, not **value representation**.
 
 ### Attempted Construction
 
@@ -339,9 +339,9 @@ const moralAttitude = constructEpistemicObject(
 
 ### Verdict: NOT_CONSTRUCTABLE
 
-**Acceptable loss?** YES for an epistemic system. Non-cognitive attitudes are outside the scope of epistemology. Librarian tracks **knowledge about code**, not **preferences about code quality**.
+**Acceptable loss?** YES for an epistemic system. Non-cognitive attitudes are outside the scope of epistemology. LiBrainian tracks **knowledge about code**, not **preferences about code quality**.
 
-However, this means Librarian **cannot** represent:
+However, this means LiBrainian **cannot** represent:
 - "This is bad code" (evaluative)
 - "You should refactor this" (normative)
 - "This API design is elegant" (aesthetic)
@@ -544,7 +544,7 @@ The system already handles contradictions explicitly (never silently reconciled)
 
 ### 12.2 The Epistemic Boundary
 
-Librarian's attitude system is designed for **epistemic attitudes** - attitudes related to truth and knowledge. It is NOT designed for:
+LiBrainian's attitude system is designed for **epistemic attitudes** - attitudes related to truth and knowledge. It is NOT designed for:
 
 1. **Conative attitudes**: Directed at action/outcome, not truth
 2. **Affective attitudes**: Involve emotional valence orthogonal to truth
@@ -611,7 +611,7 @@ This would be a **general propositional attitude system**, not an epistemic syst
 3. Non-cognitive attitudes (moral, aesthetic)
 4. Some meta-level conditional attitudes
 
-**Is this acceptable?** YES for Librarian's purpose. The system is designed for **epistemic knowledge management of codebases**, not general-purpose psychology or action theory.
+**Is this acceptable?** YES for LiBrainian's purpose. The system is designed for **epistemic knowledge management of codebases**, not general-purpose psychology or action theory.
 
 ### 13.3 Recommendations
 
@@ -646,7 +646,7 @@ The universal coherence system is **fit for purpose** as an epistemic knowledge 
 ## References
 
 - `src/epistemics/universal_coherence.ts` - The implementation under test
-- `docs/librarian/specs/research/universal-epistemic-primitives.md` - Theoretical foundations
+- `docs/LiBrainian/specs/research/universal-epistemic-primitives.md` - Theoretical foundations
 - `src/epistemics/credal_sets.ts` - Imprecise probability support
 - `src/epistemics/belief_functions.ts` - Dempster-Shafer support
 - Hintikka, J. (1962). *Knowledge and Belief*. Cornell University Press.

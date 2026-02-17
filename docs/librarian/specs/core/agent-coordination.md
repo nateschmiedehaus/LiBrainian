@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Librarian supports a **hierarchical multi-agent architecture** where:
+LiBrainian supports a **hierarchical multi-agent architecture** where:
 - A **main agent** orchestrates work
 - **2-3 sub-agents** execute specific tasks with **fresh context windows**
 - Only **2 layers deep** (main → sub-agents, no deeper nesting)
@@ -741,7 +741,7 @@ interface ConcurrencyController {
 
 ```gherkin
 Feature: Agent Coordination
-  As a Librarian system
+  As a LiBrainian system
   I want to coordinate multiple sub-agents
   So that I can parallelize work and maintain fresh context
 

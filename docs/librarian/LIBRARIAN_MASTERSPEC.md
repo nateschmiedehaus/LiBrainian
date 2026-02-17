@@ -1,4 +1,4 @@
-# LIBRARIAN: THE MASTER SPECIFICATION
+# LiBrainian: THE MASTER SPECIFICATION
 
 ## The Greatest Agentic Coding Building Blocks Ever Conceived
 
@@ -13,11 +13,11 @@
 
 ## Part I: The Core Innovation
 
-### What Makes Librarian Categorically Different
+### What Makes LiBrainian Categorically Different
 
 Every other code understanding tool answers: *"Here's information about your code."*
 
-Librarian answers: *"Here's what I KNOW, here's how CONFIDENT I am, here's WHY, here's what could make me WRONG, and here's how to VERIFY my claims."*
+LiBrainian answers: *"Here's what I KNOW, here's how CONFIDENT I am, here's WHY, here's what could make me WRONG, and here's how to VERIFY my claims."*
 
 **This is the difference between a search engine and an epistemologist.**
 
@@ -25,7 +25,7 @@ Librarian answers: *"Here's what I KNOW, here's how CONFIDENT I am, here's WHY, 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     THE EPISTEMIC CONTRACT                                  │
 │                                                                             │
-│  Every answer from Librarian includes:                                      │
+│  Every answer from LiBrainian includes:                                      │
 │                                                                             │
 │  1. CLAIM        - What I believe to be true                               │
 │  2. CONFIDENCE   - Calibrated probability (verified accurate over time)    │
@@ -41,7 +41,7 @@ Librarian answers: *"Here's what I KNOW, here's how CONFIDENT I am, here's WHY, 
 
 ### The Simple Model
 
-**Everything in Librarian derives from four concepts:**
+**Everything in LiBrainian derives from four concepts:**
 
 ```
 KNOWLEDGE  →  Things we know about code (patterns, facts, claims)
@@ -58,7 +58,7 @@ Every feature, interface, and component exists to serve these four concepts. If 
 
 ### Design Principle: Composable Primitives
 
-Librarian is not a monolithic system. It is a collection of **composable primitives** that agents can assemble in any combination. Like Lego blocks, each piece:
+LiBrainian is not a monolithic system. It is a collection of **composable primitives** that agents can assemble in any combination. Like Lego blocks, each piece:
 
 1. **Has a standard interface** - Blocks connect in predictable ways
 2. **Is independently useful** - Each block works alone
@@ -109,7 +109,7 @@ Librarian is not a monolithic system. It is a collection of **composable primiti
 /**
  * THE 12 OPERATORS
  *
- * These are the "instruction set" of Librarian.
+ * These are the "instruction set" of LiBrainian.
  * Any agentic coding task can be expressed as a composition of these.
  *
  * Design principles (Thompson, Pike):
@@ -947,7 +947,7 @@ function bayesianUpdate(
  * Every commit, revert, merge conflict, and code review encodes
  * developer beliefs and corrections.
  *
- * Librarian uses git as the PRIMARY source for confidence calibration.
+ * LiBrainian uses git as the PRIMARY source for confidence calibration.
  */
 
 interface GitEpistemics {
@@ -1510,11 +1510,11 @@ class Supervisor {
 /**
  * SUPERVISION TREE
  *
- * Librarian's component hierarchy with supervision.
+ * LiBrainian's component hierarchy with supervision.
  */
 const supervisionTree: SupervisionTree = {
   root: {
-    id: 'librarian',
+    id: 'LiBrainian',
     strategy: { maxRestarts: 3, windowMs: 60000, onMaxRestartsExceeded: 'shutdown' },
     children: [
       {
@@ -1932,7 +1932,7 @@ ${this.summarize(pattern.content, 200)}
 /**
  * INTROSPECTION
  *
- * Librarian can answer questions about itself:
+ * LiBrainian can answer questions about itself:
  * - What do I know?
  * - What don't I know?
  * - Why am I confident/uncertain?
@@ -2174,17 +2174,17 @@ interface Strength {
 
 ### One Obvious Way (Hopper, van Rossum, Kernighan)
 
-> "If users need to understand TechniqueComposition to use Librarian, we've failed."
+> "If users need to understand TechniqueComposition to use LiBrainian, we've failed."
 
 ```typescript
 /**
- * THE LIBRARIAN INTERFACE
+ * THE LiBrainian INTERFACE
  *
  * This is ALL users need to know.
  * Everything else is internal implementation.
  */
 
-interface Librarian {
+interface LiBrainian {
   // ═══════════════════════════════════════════════════════════════════════
   // CORE OPERATIONS (95% of usage)
   // ═══════════════════════════════════════════════════════════════════════
@@ -2193,7 +2193,7 @@ interface Librarian {
    * Index a codebase
    *
    * @example
-   * await librarian.index('./my-project');
+   * await LiBrainian.index('./my-project');
    * // Indexing... found 1,234 functions, 89 classes
    * // Done in 12s
    */
@@ -2203,7 +2203,7 @@ interface Librarian {
    * Ask a question about the code
    *
    * @example
-   * const answer = await librarian.ask("What does authenticate do?");
+   * const answer = await LiBrainian.ask("What does authenticate do?");
    * console.log(answer.content);
    * // The authenticate function in src/auth/service.ts validates
    * // user credentials against the database...
@@ -2216,9 +2216,9 @@ interface Librarian {
    * Provide feedback on an answer
    *
    * @example
-   * await librarian.feedback(answer.id, { correct: true });
+   * await LiBrainian.feedback(answer.id, { correct: true });
    * // or
-   * await librarian.feedback(answer.id, {
+   * await LiBrainian.feedback(answer.id, {
    *   correct: false,
    *   correction: "It actually uses bcrypt, not SHA256"
    * });
@@ -2230,10 +2230,10 @@ interface Librarian {
   // ═══════════════════════════════════════════════════════════════════════
 
   /**
-   * Ask Librarian about itself
+   * Ask LiBrainian about itself
    *
    * @example
-   * const insight = await librarian.introspect("What areas am I weakest on?");
+   * const insight = await LiBrainian.introspect("What areas am I weakest on?");
    * console.log(insight.content);
    * // I struggle most with:
    * // - Database queries (65% accuracy)
@@ -2242,10 +2242,10 @@ interface Librarian {
   introspect(question: string): Promise<EpistemicAnswer>;
 
   /**
-   * Teach Librarian something new
+   * Teach LiBrainian something new
    *
    * @example
-   * await librarian.teach({
+   * await LiBrainian.teach({
    *   fact: "The deprecated/ folder contains old code",
    *   confidence: 1.0,
    * });
@@ -2298,14 +2298,14 @@ interface SimpleKnowledge {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Create a Librarian instance
+ * Create a LiBrainian instance
  *
  * @example
- * const librarian = await createLibrarian();
- * await librarian.index('.');
- * const answer = await librarian.ask('How does auth work?');
+ * const LiBrainian = await createLibrarian();
+ * await LiBrainian.index('.');
+ * const answer = await LiBrainian.ask('How does auth work?');
  */
-async function createLibrarian(config?: LibrarianConfig): Promise<Librarian> {
+async function createLibrarian(config?: LibrarianConfig): Promise<LiBrainian> {
   // All complexity is hidden here
   const storage = await initStorage(config?.storagePath);
   const provider = await discoverProvider(config?.provider);
@@ -2324,18 +2324,18 @@ async function createLibrarian(config?: LibrarianConfig): Promise<Librarian> {
 
 ```bash
 # Install
-$ npm install -g @librarian/cli
+$ npm install -g @LiBrainian/cli
 
 # Index (one command)
 $ cd my-project
-$ librarian index
+$ LiBrainian index
 Scanning... found 1,234 functions, 89 classes, 45 modules
 Computing embeddings... ████████████████████ 100%
 Building index... done
 Ready! Indexed 1,234 patterns in 23s
 
 # Ask (one command)
-$ librarian ask "What does the authentication system do?"
+$ LiBrainian ask "What does the authentication system do?"
 
 The authentication system in src/auth/ handles user login:
 
@@ -2362,11 +2362,11 @@ The authentication system in src/auth/ handles user login:
 - src/auth/__tests__/service.test.ts:10-89
 
 # Feedback (one command)
-$ librarian feedback --correct
+$ LiBrainian feedback --correct
 Thanks! This helps me improve.
 
 # Introspect (one command)
-$ librarian introspect "What am I worst at?"
+$ LiBrainian introspect "What am I worst at?"
 
 Areas I struggle with:
 - Database queries: 65% accuracy (12 questions)
@@ -2379,14 +2379,14 @@ To improve, you could:
 - Give me feedback on incorrect answers
 
 # Help (one command)
-$ librarian --help
-Usage: librarian <command> [options]
+$ LiBrainian --help
+Usage: LiBrainian <command> [options]
 
 Commands:
   index              Index the current project
   ask <question>     Ask about the code
   feedback           Provide feedback on last answer
-  introspect         Ask about Librarian itself
+  introspect         Ask about LiBrainian itself
   status             Show index status
 
 Options:
@@ -2665,11 +2665,11 @@ async function verifyLaunchReadiness(): Promise<LaunchReport> {
 
 ## Part XI: Summary
 
-### What Makes Librarian Best-in-World
+### What Makes LiBrainian Best-in-World
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    WHY LIBRARIAN IS CATEGORICALLY DIFFERENT                 │
+│                    WHY LiBrainian IS CATEGORICALLY DIFFERENT                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  1. EPISTEMIC ANSWERS                                                       │
@@ -2703,7 +2703,7 @@ async function verifyLaunchReadiness(): Promise<LaunchReport> {
 │     memory-mapped storage, token budget management.                        │
 │                                                                             │
 │  8. ONE OBVIOUS INTERFACE                                                   │
-│     librarian.ask(question) → That's it.                                   │
+│     LiBrainian.ask(question) → That's it.                                   │
 │     Five methods total. Works in 5 minutes.                                │
 │                                                                             │
 │  9. MEASURED, NOT CLAIMED                                                   │
@@ -2755,7 +2755,7 @@ async function verifyLaunchReadiness(): Promise<LaunchReport> {
 
 ---
 
-**This is Librarian. The greatest agentic coding building blocks ever conceived.**
+**This is LiBrainian. The greatest agentic coding building blocks ever conceived.**
 
 **Build it. Measure it. Ship it.**
 

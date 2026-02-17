@@ -15,7 +15,7 @@
 | Entailment Rate | 62.1% | >=85% | 22.9 pp |
 | Contradiction Rate | 0.0% | 0% | Met |
 
-**Note**: STATUS.md reports 2.3% hallucination rate, but this reflects the live Librarian pipeline with full grounding. The E2E test uses simulated responses with intentional hallucinations (10% hallucinated, 20% mixed) to validate detection capabilities. The 9.5% measured rate reflects the test corpus composition.
+**Note**: STATUS.md reports 2.3% hallucination rate, but this reflects the live LiBrainian pipeline with full grounding. The E2E test uses simulated responses with intentional hallucinations (10% hallucinated, 20% mixed) to validate detection capabilities. The 9.5% measured rate reflects the test corpus composition.
 
 ---
 
@@ -273,4 +273,4 @@ for (let i = 0; i < 2; i++) {
 responses.push(generateHallucinatedResponse(typedriverFacts, TYPEDRIVER_REPO));
 ```
 
-This test composition intentionally includes hallucinations to validate detection capabilities. The measured 9.5% rate reflects this corpus design, not production Librarian output quality.
+This test composition intentionally includes hallucinations to validate detection capabilities. The measured 9.5% rate reflects this corpus design, not production LiBrainian output quality.

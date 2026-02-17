@@ -1,6 +1,6 @@
-# Librarian Master Notes (Working)
+# LiBrainian Master Notes (Working)
 
-This document captures distilled notes while auditing librarian docs. It is
+This document captures distilled notes while auditing LiBrainian docs. It is
 not canonical and must not override `STATUS.md` or `WORKPLAN.md`.
 
 ## DOCS_ARCHITECTURE.md
@@ -20,7 +20,7 @@ not canonical and must not override `STATUS.md` or `WORKPLAN.md`.
 
 ## SYSTEM_ARCHITECTURE.md
 - Layered system model with unified pipeline + event bus.
-- Directory architecture for `src/librarian` and docs/librarian.
+- Directory architecture for `src/LiBrainian` and docs/LiBrainian.
 - Knowledge domain modules listed; wiring status deferred to STATUS.md.
 - Language onboarding architecture and open-source extension points added.
 - Resilient core contracts documented (result/error/health).
@@ -38,7 +38,7 @@ not canonical and must not override `STATUS.md` or `WORKPLAN.md`.
 ## PIPELINES_AND_WIRING.md
 - Bootstrap/incremental flows, core pipelines, wiring inventory.
 - Startup sequence requires provider checks + daily model selection.
-- Full Wave0 + Librarian wiring inventory documented.
+- Full Wave0 + LiBrainian wiring inventory documented.
 - Language onboarding pipeline and events added.
 - Understanding pipeline forbids non-LLM semantic shortcuts.
 - Method pack caching and hint injection called out in pipelines.
@@ -57,12 +57,12 @@ not canonical and must not override `STATUS.md` or `WORKPLAN.md`.
 
 ## MODEL_POLICY.md
 - Daily model selection with provider doc fetch and audit logs.
-- Haiku-class default for Librarian unless proven insufficient.
+- Haiku-class default for LiBrainian unless proven insufficient.
 - Date fetch + provider snapshot requirements clarified.
 
 ## validation.md
 - Tiered gates with full bootstrap and live provider requirement.
-- Librarian directory bootstrap explicitly required.
+- LiBrainian directory bootstrap explicitly required.
 - Language onboarding validation added.
 - LLM understanding validation added.
 
@@ -138,4 +138,4 @@ not canonical and must not override `STATUS.md` or `WORKPLAN.md`.
 | Index freshness | < 5 minutes after commit | Staleness |
 | Cache hit rate | > 60% | Counter |
 
-See `docs/librarian/validation.md` for full SLO definitions and `docs/librarian/CONTROL_LOOP.md` for measurement infrastructure.
+See `docs/LiBrainian/validation.md` for full SLO definitions and `docs/LiBrainian/CONTROL_LOOP.md` for measurement infrastructure.

@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-The librarian's listing query capability shows **significant limitations** for exhaustive enumeration use cases. The system is optimized for semantic similarity search, not for complete enumeration of codebase artifacts.
+The LiBrainian's listing query capability shows **significant limitations** for exhaustive enumeration use cases. The system is optimized for semantic similarity search, not for complete enumeration of codebase artifacts.
 
 | Query | Expected Items | Items Returned | Completeness | Grade |
 |-------|---------------|----------------|--------------|-------|
@@ -15,7 +15,7 @@ The librarian's listing query capability shows **significant limitations** for e
 | List all TypeScript interfaces | Many hundreds | 7 functions | <1% | FAIL |
 | List all configuration options | Unknown (many) | 9 functions | Incomplete | FAIL |
 
-**Overall Assessment:** The librarian does NOT provide complete lists for enumeration queries. Instead, it returns semantically related function contexts that may help *find* list-related functionality, but not the lists themselves.
+**Overall Assessment:** The LiBrainian does NOT provide complete lists for enumeration queries. Instead, it returns semantically related function contexts that may help *find* list-related functionality, but not the lists themselves.
 
 ---
 
@@ -31,7 +31,7 @@ The librarian's listing query capability shows **significant limitations** for e
   - `index.ts`, `inspect.ts`, `query.ts`, `replay.ts`, `status.ts`
   - `validate.ts`, `visualize.ts`, `watch.ts`
 
-**Librarian Response:**
+**LiBrainian Response:**
 - **Confidence:** 0.753
 - **Packs Found:** 4
 - **Results:**
@@ -53,10 +53,10 @@ The librarian's listing query capability shows **significant limitations** for e
 **Ground Truth:**
 - The `src/api/index.ts` file exports ~150+ items including:
   - Functions: `createLibrarian`, `cosineSimilarity`, `redactText`, `compileLCL`, `queryLibrarian`, etc.
-  - Classes: `Librarian`, `EmbeddingService`, `TechniqueExecutionEngine`, etc.
+  - Classes: `LiBrainian`, `EmbeddingService`, `TechniqueExecutionEngine`, etc.
   - Types: 100+ type exports
 
-**Librarian Response:**
+**LiBrainian Response:**
 - **Confidence:** 0.805
 - **Packs Found:** 10
 - **Results:**
@@ -84,7 +84,7 @@ The librarian's listing query capability shows **significant limitations** for e
 **Ground Truth:**
 - **417 test files** exist in the codebase (files matching `*.test.ts`)
 
-**Librarian Response:**
+**LiBrainian Response:**
 - **Confidence:** 0.525 (lowest of all queries)
 - **Packs Found:** 10
 - **Results:**
@@ -113,7 +113,7 @@ The librarian's listing query capability shows **significant limitations** for e
 - The codebase contains hundreds of TypeScript interfaces across all modules
 - Just `src/api/index.ts` exports 100+ type definitions
 
-**Librarian Response:**
+**LiBrainian Response:**
 - **Confidence:** 0.563
 - **Packs Found:** 7
 - **Results:**
@@ -141,7 +141,7 @@ The librarian's listing query capability shows **significant limitations** for e
   - Various `*Config` interfaces and types
   - Environment variables, preset configurations
 
-**Librarian Response:**
+**LiBrainian Response:**
 - **Confidence:** 0.704
 - **Packs Found:** 9
 - **Results:**
@@ -168,7 +168,7 @@ The librarian's listing query capability shows **significant limitations** for e
 ### Why Listing Queries Fail
 
 1. **Semantic vs. Structural Mismatch**
-   - The librarian uses semantic embeddings optimized for "what code does this relate to?"
+   - The LiBrainian uses semantic embeddings optimized for "what code does this relate to?"
    - Listing queries require structural traversal: "enumerate all items of type X"
 
 2. **Pack-Based Architecture**
@@ -205,16 +205,16 @@ The librarian's listing query capability shows **significant limitations** for e
    - Instead of: "list all CLI commands"
    - Use: "how does the CLI command system work?"
 
-### For Librarian Development
+### For LiBrainian Development
 
 1. **Add Intent Classification for Enumeration**
    - Detect "list all X" queries and route to exhaustive search
    - Use glob patterns or AST queries for structural enumeration
 
 2. **Create Dedicated List Endpoints**
-   - `librarian list --type=commands`
-   - `librarian list --type=interfaces`
-   - `librarian list --type=tests`
+   - `LiBrainian list --type=commands`
+   - `LiBrainian list --type=interfaces`
+   - `LiBrainian list --type=tests`
 
 3. **Enhance Response for List Queries**
    - When enumeration intent detected, warn that semantic search may not be exhaustive
@@ -236,4 +236,4 @@ The librarian's listing query capability shows **significant limitations** for e
 | Average Latency | 1.8s |
 | Overall Completeness | <10% |
 
-**Conclusion:** The librarian in its current form is **not suitable for exhaustive listing queries**. It excels at semantic similarity search but fails to provide complete enumerations. Users needing comprehensive lists should use traditional CLI tools or file system queries.
+**Conclusion:** The LiBrainian in its current form is **not suitable for exhaustive listing queries**. It excels at semantic similarity search but fails to provide complete enumerations. Users needing comprehensive lists should use traditional CLI tools or file system queries.

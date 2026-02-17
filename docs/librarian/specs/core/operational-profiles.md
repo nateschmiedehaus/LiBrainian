@@ -16,7 +16,7 @@ Every behavior statement should specify **at least**:
 - **Workload profile** (interactive vs batch vs continuous)
 - **Dependency profile** (providers/storage availability)
 - **Degradation policy** (fail-closed vs skip vs degraded-mode-with-disclosure)
-- **Budget behavior** (what is timeboxed vs fail-closed; see `docs/librarian/specs/core/performance-budgets.md`)
+- **Budget behavior** (what is timeboxed vs fail-closed; see `docs/LiBrainian/specs/core/performance-budgets.md`)
 
 ---
 
@@ -65,6 +65,8 @@ Every behavior statement should specify **at least**:
 ---
 
 ## 3) Dependency Profiles (Providers / Storage)
+
+**Higher‑order cognition (LLM‑required)** = any semantic synthesis/claims, reasoning, critique, decision support, or narrative explanation. Structural outputs (AST facts, counts, dependency lists, pack inventories) are non‑semantic and may run without LLMs **only with explicit disclosure**.
 
 ### D0: Providers Available (LLM + Embeddings)
 - Expected: semantic behaviors are allowed; Tier‑2 validations are meaningful.

@@ -13,7 +13,7 @@
 **Current RAG systems**: "Here's answer X. [cites A, B, C]"
 **Constructive Proofs**: "Here's answer X with verifiable logical chain."
 
-Instead of citation-style evidence, Librarian produces **proofs**: structured arguments where each step can be independently verified. This transforms Librarian from "retrieval and synthesis" to "understanding and justification."
+Instead of citation-style evidence, LiBrainian produces **proofs**: structured arguments where each step can be independently verified. This transforms LiBrainian from "retrieval and synthesis" to "understanding and justification."
 
 ---
 
@@ -520,7 +520,7 @@ function renderProof(proof: ConstructiveProof): string {
 
 ```gherkin
 Feature: Constructive Proofs
-  As a Librarian system
+  As a LiBrainian system
   I want to produce proofs, not just citations
   So that claims can be independently verified
 

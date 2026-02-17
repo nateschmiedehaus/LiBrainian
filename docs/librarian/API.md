@@ -1,8 +1,8 @@
-# Librarian API Reference
+# LiBrainian API Reference
 
-> **Comprehensive guide for agents to use the Librarian API**
+> **Comprehensive guide for agents to use the LiBrainian API**
 >
-> The Librarian provides epistemological infrastructure for agentic code understanding.
+> The LiBrainian provides epistemological infrastructure for agentic code understanding.
 > This document covers all API methods, data structures, and usage patterns.
 
 ---
@@ -30,20 +30,20 @@
 ## Quick Start
 
 ```typescript
-import { Librarian } from 'librarian';
+import { LiBrainian } from 'librainian';
 
-// Initialize the librarian
-const librarian = new Librarian({
+// Initialize the LiBrainian
+const LiBrainian = new LiBrainian({
   workspace: '/path/to/codebase',
   autoBootstrap: true,
   llmProvider: 'claude',
   llmModelId: 'claude-opus-4-5-20251101'
 });
 
-await librarian.initialize();
+await LiBrainian.initialize();
 
 // Query for understanding
-const response = await librarian.query({
+const response = await LiBrainian.query({
   intent: "How does the authentication module work?",
   depth: 'L2'
 });
@@ -76,15 +76,15 @@ interface LibrarianOptions {
 
 ```typescript
 // Full initialization (runs bootstrap if needed)
-await librarian.initialize();
+await LiBrainian.initialize();
 
 // Check if ready
-if (librarian.isReady()) {
-  // Librarian is bootstrapped and ready for queries
+if (LiBrainian.isReady()) {
+  // LiBrainian is bootstrapped and ready for queries
 }
 
 // Get detailed status
-const status = librarian.getStatus();
+const status = LiBrainian.getStatus();
 // Returns: { initialized, bootstrapped, version, stats, watching, errors }
 ```
 
@@ -114,7 +114,7 @@ interface LibrarianStatus {
 ### Primary Query Method
 
 ```typescript
-const response = await librarian.query(query: LibrarianQuery): Promise<LibrarianResponse>;
+const response = await LiBrainian.query(query: LibrarianQuery): Promise<LibrarianResponse>;
 ```
 
 ### Query Structure
@@ -160,20 +160,20 @@ interface LibrarianResponse {
 
 ```typescript
 // Pre-built query creators
-import { createFunctionQuery, createFileQuery, createRelatedQuery } from 'librarian';
+import { createFunctionQuery, createFileQuery, createRelatedQuery } from 'librainian';
 
 // Query about a specific function
-const response = await librarian.query(
+const response = await LiBrainian.query(
   createFunctionQuery('validateEmail', 'src/utils/validators.ts')
 );
 
 // Query about a file
-const response = await librarian.query(
+const response = await LiBrainian.query(
   createFileQuery('src/auth/authenticate.ts')
 );
 
 // Query with related context
-const response = await librarian.query(
+const response = await LiBrainian.query(
   createRelatedQuery('authentication flow', ['src/auth/', 'src/user/'])
 );
 ```
@@ -187,7 +187,7 @@ const response = await librarian.query(
 For agents that need raw knowledge graphs before synthesis:
 
 ```typescript
-const context = await librarian.assembleContext(
+const context = await LiBrainian.assembleContext(
   query: LibrarianQuery,
   options?: { level?: DepthLevel; workspace?: string }
 ): Promise<AgentKnowledgeContext>;
@@ -235,7 +235,7 @@ context.query.search(query: string, options?: SearchOptions): Promise<SearchResu
 ### Direct Knowledge Query
 
 ```typescript
-const knowledge = await librarian.queryKnowledge({
+const knowledge = await LiBrainian.queryKnowledge({
   entityId: string;
   kind: 'function' | 'module' | 'file' | 'directory';
 }): Promise<EntityKnowledge>;
@@ -248,7 +248,7 @@ const knowledge = await librarian.queryKnowledge({
 ### Check Bootstrap Status
 
 ```typescript
-import { isBootstrapRequired } from 'librarian';
+import { isBootstrapRequired } from 'librainian';
 
 const { required, reason } = await isBootstrapRequired(
   workspace: string,
@@ -317,7 +317,7 @@ interface BootstrapReport {
 ### Manual Bootstrap
 
 ```typescript
-import { bootstrapProject } from 'librarian';
+import { bootstrapProject } from 'librainian';
 
 const report = await bootstrapProject(config, storage);
 
@@ -375,7 +375,7 @@ interface CodeSnippet {
 ### Fetch Specific Pack
 
 ```typescript
-const pack = await librarian.getContextPack(
+const pack = await LiBrainian.getContextPack(
   entityId: string,
   packType: ContextPackType
 ): Promise<ContextPack | null>;
@@ -384,7 +384,7 @@ const pack = await librarian.getContextPack(
 ### Search Packs
 
 ```typescript
-const packs = await librarian.searchPacks({
+const packs = await LiBrainian.searchPacks({
   query?: string;
   packTypes?: ContextPackType[];
   minConfidence?: number;
@@ -399,11 +399,11 @@ const packs = await librarian.searchPacks({
 
 ### Record Query Outcome
 
-The Librarian learns from agent feedback using Bayesian confidence updates.
+The LiBrainian learns from agent feedback using Bayesian confidence updates.
 
 ```typescript
 // After using a pack, report the outcome
-await librarian.recordOutcome(
+await LiBrainian.recordOutcome(
   packId: string,
   outcome: 'success' | 'failure'
 );
@@ -420,20 +420,20 @@ await librarian.recordOutcome(
 
 ```typescript
 // 1. Make a query
-const response = await librarian.query({ intent: "..." });
+const response = await LiBrainian.query({ intent: "..." });
 
 // 2. Use the response in your task
 const result = await performTask(response);
 
 // 3. Record outcome with token
-await librarian.recordOutcome(response.feedbackToken, result.success ? 'success' : 'failure');
+await LiBrainian.recordOutcome(response.feedbackToken, result.success ? 'success' : 'failure');
 ```
 
 ### Query Staleness Validation
 
 ```typescript
 // Check if knowledge is still valid
-const validation = await librarian.validateKnowledge(entityId: string);
+const validation = await LiBrainian.validateKnowledge(entityId: string);
 
 // Returns:
 // - activeDefeaters: number of triggered invalidations
@@ -449,20 +449,20 @@ const validation = await librarian.validateKnowledge(entityId: string);
 
 ```typescript
 // Start watching for changes
-librarian.startWatching();
+LiBrainian.startWatching();
 
 // Stop watching
-librarian.stopWatching();
+LiBrainian.stopWatching();
 
 // Check status
-const isWatching = librarian.isWatching();
+const isWatching = LiBrainian.isWatching();
 ```
 
 ### Manual Re-indexing
 
 ```typescript
 // Re-index specific files
-await librarian.reindexFiles([
+await LiBrainian.reindexFiles([
   'src/modified_file.ts',
   'src/affected_module.ts'
 ]);
@@ -472,7 +472,7 @@ await librarian.reindexFiles([
 
 ```typescript
 // Update after git pull or branch switch
-await librarian.incrementalUpdate({
+await LiBrainian.incrementalUpdate({
   changedFiles: ['src/a.ts', 'src/b.ts'],
   deletedFiles: ['src/old.ts'],
   newFiles: ['src/new.ts']
@@ -486,7 +486,7 @@ await librarian.incrementalUpdate({
 ### Mermaid Diagrams
 
 ```typescript
-const diagram = await librarian.visualize({
+const diagram = await LiBrainian.visualize({
   type: 'call_graph' | 'import_graph' | 'architecture';
   focusPath?: string;
   depth?: number;
@@ -497,7 +497,7 @@ const diagram = await librarian.visualize({
 ### ASCII Visualization
 
 ```typescript
-const ascii = await librarian.visualizeASCII(
+const ascii = await LiBrainian.visualizeASCII(
   type: 'tree' | 'health_summary' | 'dependency_matrix',
   focusPath?: string
 ): Promise<string>;
@@ -507,14 +507,14 @@ const ascii = await librarian.visualizeASCII(
 
 ```typescript
 // Call graph for a function
-const callGraph = await librarian.visualize({
+const callGraph = await LiBrainian.visualize({
   type: 'call_graph',
   focusPath: 'src/auth/authenticate.ts',
   depth: 2
 });
 
 // Import graph for a module
-const imports = await librarian.visualize({
+const imports = await LiBrainian.visualize({
   type: 'import_graph',
   focusPath: 'src/utils/',
   depth: 3
@@ -530,7 +530,7 @@ const imports = await librarian.visualize({
 ```typescript
 async function understandBeforeModify(filePath: string) {
   // 1. Get comprehensive context
-  const context = await librarian.assembleContext({
+  const context = await LiBrainian.assembleContext({
     intent: `Understand ${filePath} before modification`,
     affectedFiles: [filePath],
     depth: 'L2'
@@ -557,7 +557,7 @@ async function understandBeforeModify(filePath: string) {
 ```typescript
 async function planRefactor(target: string, change: string) {
   // 1. Deep context for impact analysis
-  const response = await librarian.query({
+  const response = await LiBrainian.query({
     intent: `Plan refactoring: ${change}`,
     affectedFiles: [target],
     taskType: 'refactor',
@@ -584,7 +584,7 @@ async function planRefactor(target: string, change: string) {
 ```typescript
 async function investigateBug(errorLocation: string, errorMessage: string) {
   // 1. Query with debug context
-  const response = await librarian.query({
+  const response = await LiBrainian.query({
     intent: `Why might "${errorMessage}" occur at ${errorLocation}?`,
     affectedFiles: [errorLocation],
     taskType: 'debug',
@@ -592,13 +592,13 @@ async function investigateBug(errorLocation: string, errorMessage: string) {
   });
 
   // 2. Find similar past issues
-  const similarTasks = await librarian.searchPacks({
+  const similarTasks = await LiBrainian.searchPacks({
     query: errorMessage,
     packTypes: ['similar_tasks']
   });
 
   // 3. Check recent changes in area
-  const context = await librarian.assembleContext({
+  const context = await LiBrainian.assembleContext({
     intent: 'Recent changes near error',
     affectedFiles: [errorLocation],
     depth: 'L1'
@@ -619,7 +619,7 @@ async function investigateBug(errorLocation: string, errorMessage: string) {
 async function reviewChanges(changedFiles: string[]) {
   const reviews = await Promise.all(
     changedFiles.map(async (file) => {
-      const response = await librarian.query({
+      const response = await LiBrainian.query({
         intent: `Review changes to ${file}`,
         affectedFiles: [file],
         taskType: 'review',
@@ -648,19 +648,19 @@ async function reviewChanges(changedFiles: string[]) {
 ```typescript
 async function discoverArchitecture() {
   // 1. Get high-level overview
-  const diagram = await librarian.visualize({
+  const diagram = await LiBrainian.visualize({
     type: 'architecture',
     depth: 1
   });
 
   // 2. Identify key modules
-  const response = await librarian.query({
+  const response = await LiBrainian.query({
     intent: 'What are the main architectural components and their responsibilities?',
     depth: 'L3'
   });
 
   // 3. Get decision history
-  const decisions = await librarian.searchPacks({
+  const decisions = await LiBrainian.searchPacks({
     packTypes: ['decision_context'],
     limit: 20
   });
@@ -679,10 +679,10 @@ async function discoverArchitecture() {
 ```typescript
 async function findSimilarCode(codeSnippet: string) {
   // 1. Generate embedding for the snippet
-  const embedding = await librarian.embedIntent(codeSnippet);
+  const embedding = await LiBrainian.embedIntent(codeSnippet);
 
   // 2. Find semantically similar code
-  const context = await librarian.assembleContext({
+  const context = await LiBrainian.assembleContext({
     intent: codeSnippet,
     depth: 'L1'
   });
@@ -703,7 +703,7 @@ async function findSimilarCode(codeSnippet: string) {
 ```typescript
 async function deepUnderstanding(topic: string) {
   // 1. Initial broad query
-  const initial = await librarian.query({
+  const initial = await LiBrainian.query({
     intent: topic,
     depth: 'L1'
   });
@@ -711,7 +711,7 @@ async function deepUnderstanding(topic: string) {
   // 2. Follow drill-down hints
   const drillDownResults = await Promise.all(
     initial.drillDownHints.slice(0, 3).map(hint =>
-      librarian.query({ intent: hint, depth: 'L1' })
+      LiBrainian.query({ intent: hint, depth: 'L1' })
     )
   );
 
@@ -719,7 +719,7 @@ async function deepUnderstanding(topic: string) {
   const mostRelevant = drillDownResults
     .sort((a, b) => b.totalConfidence - a.totalConfidence)[0];
 
-  const deepDive = await librarian.query({
+  const deepDive = await LiBrainian.query({
     intent: `Explain in detail: ${mostRelevant?.synthesis?.answer?.slice(0, 100)}`,
     affectedFiles: mostRelevant?.packs.flatMap(p => p.relatedFiles).slice(0, 5),
     depth: 'L3'
@@ -749,7 +749,7 @@ import {
   DEFAULT_TECHNIQUE_COMPOSITIONS,
   listTechniquePackages,
   compileTechniquePackageBundleById,
-} from 'librarian';
+} from 'librainian';
 
 const primitives = DEFAULT_TECHNIQUE_PRIMITIVES;
 const compositions = DEFAULT_TECHNIQUE_COMPOSITIONS;
@@ -770,7 +770,7 @@ import {
   getRelationshipSemantics,
   registerOperatorSemantics,
   lockTechniqueSemanticsRegistry,
-} from 'librarian';
+} from 'librainian';
 
 const profile = getTechniqueSemanticProfile('verification');
 const operatorSemantics = getOperatorSemantics('gate');
@@ -791,7 +791,7 @@ lockTechniqueSemanticsRegistry();
 ### Plan Compilation
 
 ```typescript
-const plans = await librarian.planWork('prepare a release readiness assessment');
+const plans = await LiBrainian.planWork('prepare a release readiness assessment');
 const plan = plans[0];
 console.log(plan.workHierarchy.root.title);
 ```
@@ -884,17 +884,17 @@ interface LibrarianEngineResults {
 ```typescript
 // Bootstrap required
 try {
-  await librarian.query({ intent: "..." });
+  await LiBrainian.query({ intent: "..." });
 } catch (error) {
   if (error.message.includes('not bootstrapped')) {
-    await librarian.initialize();
+    await LiBrainian.initialize();
     // Retry query
   }
 }
 
 // Provider unavailable
 try {
-  await librarian.query({ intent: "..." });
+  await LiBrainian.query({ intent: "..." });
 } catch (error) {
   if (error.message.includes('ProviderUnavailableError')) {
     // LLM provider is down - synthesis unavailable
@@ -903,7 +903,7 @@ try {
 }
 
 // Low confidence
-const response = await librarian.query({ intent: "...", minConfidence: 0.7 });
+const response = await LiBrainian.query({ intent: "...", minConfidence: 0.7 });
 if (response.packs.length === 0) {
   // No packs meet confidence threshold
   // Try with lower threshold or deeper query
@@ -949,7 +949,7 @@ interface LibrarianVersion {
 }
 
 // Check version
-const status = librarian.getStatus();
+const status = LiBrainian.getStatus();
 console.log(`Version: ${status.version.string}`);
 ```
 
@@ -964,7 +964,7 @@ For small projects, use lightweight queries with minimal depth:
 ```typescript
 async function smallProjectWorkflow(task: string) {
   // Simple L1 queries are sufficient
-  const response = await librarian.query({
+  const response = await LiBrainian.query({
     intent: task,
     depth: 'L1'  // Don't over-query small codebases
   });
@@ -987,7 +987,7 @@ Standard workflow with balanced depth:
 ```typescript
 async function mediumProjectWorkflow(task: string, focusArea?: string) {
   // L2 depth captures most dependencies
-  const response = await librarian.query({
+  const response = await LiBrainian.query({
     intent: task,
     affectedFiles: focusArea ? [focusArea] : undefined,
     depth: 'L2',
@@ -995,7 +995,7 @@ async function mediumProjectWorkflow(task: string, focusArea?: string) {
   });
 
   // Use test mapping for confidence
-  const context = await librarian.assembleContext({
+  const context = await LiBrainian.assembleContext({
     intent: task,
     depth: 'L1'
   });
@@ -1015,7 +1015,7 @@ Focused queries with strategic depth escalation:
 ```typescript
 async function largeProjectWorkflow(task: string, knownScope?: string[]) {
   // Start narrow, expand only if needed
-  let response = await librarian.query({
+  let response = await LiBrainian.query({
     intent: task,
     affectedFiles: knownScope,
     depth: 'L1',
@@ -1024,7 +1024,7 @@ async function largeProjectWorkflow(task: string, knownScope?: string[]) {
 
   // Check if we need deeper analysis
   if (response.totalConfidence < 0.7 || response.packs.length < 2) {
-    response = await librarian.query({
+    response = await LiBrainian.query({
       intent: task,
       affectedFiles: knownScope,
       depth: 'L2',
@@ -1034,7 +1034,7 @@ async function largeProjectWorkflow(task: string, knownScope?: string[]) {
 
   // For cross-cutting concerns, go L3
   if (task.includes('architecture') || task.includes('refactor')) {
-    const deepContext = await librarian.assembleContext({
+    const deepContext = await LiBrainian.assembleContext({
       intent: task,
       depth: 'L3'
     });
@@ -1053,7 +1053,7 @@ Handle package boundaries explicitly:
 async function monorepoWorkflow(task: string, packages: string[]) {
   // Query each package separately first
   const packageResults = await Promise.all(
-    packages.map(pkg => librarian.query({
+    packages.map(pkg => LiBrainian.query({
       intent: task,
       affectedFiles: [`${pkg}/`],
       depth: 'L2'
@@ -1061,7 +1061,7 @@ async function monorepoWorkflow(task: string, packages: string[]) {
   );
 
   // Find cross-package dependencies
-  const crossPackageContext = await librarian.assembleContext({
+  const crossPackageContext = await LiBrainian.assembleContext({
     intent: `Cross-package dependencies for: ${task}`,
     affectedFiles: packages.map(p => `${p}/`),
     depth: 'L3'
@@ -1092,14 +1092,14 @@ Query service boundaries and contracts:
 async function microservicesWorkflow(task: string, services: string[]) {
   // Map service to directory
   const serviceQueries = services.map(async (service) => {
-    const response = await librarian.query({
+    const response = await LiBrainian.query({
       intent: `${task} in ${service} service`,
       affectedFiles: [`services/${service}/`],
       depth: 'L2'
     });
 
     // Get API contracts
-    const apiPacks = await librarian.searchPacks({
+    const apiPacks = await LiBrainian.searchPacks({
       query: `${service} API contract interface`,
       packTypes: ['pattern_context', 'module_context']
     });
@@ -1110,7 +1110,7 @@ async function microservicesWorkflow(task: string, services: string[]) {
   const results = await Promise.all(serviceQueries);
 
   // Find inter-service communication
-  const interServiceContext = await librarian.query({
+  const interServiceContext = await LiBrainian.query({
     intent: 'Inter-service communication patterns and dependencies',
     depth: 'L3'
   });
@@ -1134,19 +1134,19 @@ When starting fresh, discover patterns and establish conventions:
 ```typescript
 async function greenfieldSetup(projectDescription: string) {
   // Analyze similar existing patterns
-  const patterns = await librarian.query({
+  const patterns = await LiBrainian.query({
     intent: `Best patterns for: ${projectDescription}`,
     depth: 'L2'
   });
 
   // Get architectural templates
-  const architecture = await librarian.searchPacks({
+  const architecture = await LiBrainian.searchPacks({
     packTypes: ['pattern_context', 'decision_context'],
     limit: 20
   });
 
   // Identify reusable utilities
-  const utilities = await librarian.query({
+  const utilities = await LiBrainian.query({
     intent: 'Reusable utilities and shared code',
     depth: 'L1'
   });
@@ -1170,21 +1170,21 @@ Focus on stability and understanding existing behavior:
 ```typescript
 async function maintenanceWorkflow(bugReport: string, affectedArea: string) {
   // 1. Understand current behavior
-  const currentBehavior = await librarian.query({
+  const currentBehavior = await LiBrainian.query({
     intent: `How does ${affectedArea} currently work?`,
     affectedFiles: [affectedArea],
     depth: 'L2'
   });
 
   // 2. Find related bugs and fixes
-  const similarIssues = await librarian.searchPacks({
+  const similarIssues = await LiBrainian.searchPacks({
     query: bugReport,
     packTypes: ['similar_tasks'],
     limit: 10
   });
 
   // 3. Identify regression risks
-  const regressionRisks = await librarian.query({
+  const regressionRisks = await LiBrainian.query({
     intent: `What could break if ${affectedArea} is modified?`,
     affectedFiles: [affectedArea],
     taskType: 'refactor',
@@ -1192,7 +1192,7 @@ async function maintenanceWorkflow(bugReport: string, affectedArea: string) {
   });
 
   // 4. Get test requirements
-  const testContext = await librarian.assembleContext({
+  const testContext = await LiBrainian.assembleContext({
     intent: bugReport,
     affectedFiles: [affectedArea],
     depth: 'L1'
@@ -1216,7 +1216,7 @@ Understand and safely transform legacy code:
 ```typescript
 async function legacyModernizationWorkflow(legacyModule: string) {
   // 1. Deep understanding of legacy code
-  const legacyUnderstanding = await librarian.assembleContext({
+  const legacyUnderstanding = await LiBrainian.assembleContext({
     intent: `Comprehensive understanding of ${legacyModule}`,
     affectedFiles: [legacyModule],
     depth: 'L3'
@@ -1231,7 +1231,7 @@ async function legacyModernizationWorkflow(legacyModule: string) {
   };
 
   // 3. Find anti-patterns and technical debt
-  const techDebt = await librarian.query({
+  const techDebt = await LiBrainian.query({
     intent: `Technical debt and anti-patterns in ${legacyModule}`,
     affectedFiles: [legacyModule],
     includeEngines: true,
@@ -1239,7 +1239,7 @@ async function legacyModernizationWorkflow(legacyModule: string) {
   });
 
   // 4. Plan incremental migration
-  const migrationPlan = await librarian.query({
+  const migrationPlan = await LiBrainian.query({
     intent: `How to safely modernize ${legacyModule} incrementally?`,
     affectedFiles: [legacyModule, ...dependencyAnalysis.dependedOnBy.slice(0, 5)],
     taskType: 'refactor',
@@ -1272,13 +1272,13 @@ Complete workflow from planning to implementation:
 ```typescript
 async function featureDevelopmentWorkflow(featureSpec: string) {
   // Phase 1: Discovery
-  const discovery = await librarian.query({
+  const discovery = await LiBrainian.query({
     intent: `Where and how to implement: ${featureSpec}`,
     depth: 'L2'
   });
 
   // Phase 2: Find similar implementations
-  const similar = await librarian.searchPacks({
+  const similar = await LiBrainian.searchPacks({
     query: featureSpec,
     packTypes: ['similar_tasks', 'pattern_context'],
     limit: 10
@@ -1290,21 +1290,21 @@ async function featureDevelopmentWorkflow(featureSpec: string) {
     .flatMap(p => p.relatedFiles);
 
   // Phase 4: Get patterns to follow
-  const patterns = await librarian.query({
+  const patterns = await LiBrainian.query({
     intent: `Patterns and conventions to follow for: ${featureSpec}`,
     affectedFiles: integrationPoints.slice(0, 5),
     depth: 'L1'
   });
 
   // Phase 5: Impact analysis
-  const impact = await librarian.assembleContext({
+  const impact = await LiBrainian.assembleContext({
     intent: featureSpec,
     affectedFiles: integrationPoints,
     depth: 'L2'
   });
 
   // Phase 6: Test strategy
-  const testStrategy = await librarian.query({
+  const testStrategy = await LiBrainian.query({
     intent: `Test strategy for: ${featureSpec}`,
     affectedFiles: integrationPoints,
     taskType: 'review',
@@ -1338,7 +1338,7 @@ async function bugInvestigationWorkflow(
     : [];
 
   // Step 2: Understand error context
-  const errorContext = await librarian.query({
+  const errorContext = await LiBrainian.query({
     intent: `Why might this error occur: ${errorMessage}`,
     affectedFiles: errorLocations,
     taskType: 'debug',
@@ -1346,14 +1346,14 @@ async function bugInvestigationWorkflow(
   });
 
   // Step 3: Find similar past bugs
-  const pastBugs = await librarian.searchPacks({
+  const pastBugs = await LiBrainian.searchPacks({
     query: errorMessage,
     packTypes: ['similar_tasks'],
     limit: 15
   });
 
   // Step 4: Trace data flow
-  const dataFlow = await librarian.assembleContext({
+  const dataFlow = await LiBrainian.assembleContext({
     intent: `Data flow leading to: ${errorMessage}`,
     affectedFiles: errorLocations,
     depth: 'L3'
@@ -1364,7 +1364,7 @@ async function bugInvestigationWorkflow(
     .filter(c => errorLocations.some(loc => c.files.includes(loc)));
 
   // Step 6: Find edge cases
-  const edgeCases = await librarian.query({
+  const edgeCases = await LiBrainian.query({
     intent: `Edge cases and boundary conditions for ${errorLocations[0]}`,
     affectedFiles: errorLocations,
     depth: 'L1'
@@ -1407,14 +1407,14 @@ async function performanceOptimizationWorkflow(
   metrics?: { p50?: number; p99?: number; throughput?: number }
 ) {
   // Step 1: Understand the hot path
-  const hotPath = await librarian.assembleContext({
+  const hotPath = await LiBrainian.assembleContext({
     intent: `Performance critical path in ${slowArea}`,
     affectedFiles: [slowArea],
     depth: 'L3'
   });
 
   // Step 2: Find computational complexity
-  const complexity = await librarian.query({
+  const complexity = await LiBrainian.query({
     intent: `Algorithmic complexity and expensive operations in ${slowArea}`,
     affectedFiles: [slowArea],
     taskType: 'optimize',
@@ -1431,21 +1431,21 @@ async function performanceOptimizationWorkflow(
     );
 
   // Step 4: Find caching opportunities
-  const cachingOpportunities = await librarian.query({
+  const cachingOpportunities = await LiBrainian.query({
     intent: `Where can caching improve performance in ${slowArea}?`,
     affectedFiles: [slowArea],
     depth: 'L2'
   });
 
   // Step 5: Check for known anti-patterns
-  const antiPatterns = await librarian.searchPacks({
+  const antiPatterns = await LiBrainian.searchPacks({
     query: 'performance anti-pattern N+1 memory leak blocking',
     packTypes: ['pattern_context'],
     limit: 10
   });
 
   // Step 6: Find similar optimizations in codebase
-  const similarOptimizations = await librarian.searchPacks({
+  const similarOptimizations = await LiBrainian.searchPacks({
     query: 'performance optimization cache memoize batch',
     packTypes: ['similar_tasks'],
     limit: 10
@@ -1474,14 +1474,14 @@ Comprehensive security analysis:
 ```typescript
 async function securityAuditWorkflow(scope?: string[]) {
   // Step 1: Find all security-sensitive areas
-  const securityAreas = await librarian.searchPacks({
+  const securityAreas = await LiBrainian.searchPacks({
     query: 'authentication authorization encryption password secret token',
     packTypes: ['security_context', 'function_context'],
     limit: 50
   });
 
   // Step 2: Check input validation
-  const inputHandling = await librarian.query({
+  const inputHandling = await LiBrainian.query({
     intent: 'Input validation, sanitization, and injection prevention',
     affectedFiles: scope,
     depth: 'L2',
@@ -1489,33 +1489,33 @@ async function securityAuditWorkflow(scope?: string[]) {
   });
 
   // Step 3: Analyze authentication flow
-  const authFlow = await librarian.assembleContext({
+  const authFlow = await LiBrainian.assembleContext({
     intent: 'Authentication and authorization flow',
     affectedFiles: scope?.filter(f => f.includes('auth')) || ['src/auth/'],
     depth: 'L3'
   });
 
   // Step 4: Find sensitive data handling
-  const sensitiveData = await librarian.query({
+  const sensitiveData = await LiBrainian.query({
     intent: 'How is sensitive data (PII, credentials, tokens) handled?',
     depth: 'L2'
   });
 
   // Step 5: Check cryptography usage
-  const crypto = await librarian.query({
+  const crypto = await LiBrainian.query({
     intent: 'Cryptography, hashing, and encryption implementations',
     depth: 'L2'
   });
 
   // Step 6: Find exposed APIs and endpoints
-  const apis = await librarian.searchPacks({
+  const apis = await LiBrainian.searchPacks({
     query: 'API endpoint route handler controller',
     packTypes: ['module_context', 'function_context'],
     limit: 30
   });
 
   // Step 7: Check dependencies for known vulnerabilities
-  const deps = await librarian.query({
+  const deps = await LiBrainian.query({
     intent: 'External dependencies and their security implications',
     depth: 'L1'
   });
@@ -1542,34 +1542,34 @@ Check accessibility compliance:
 ```typescript
 async function accessibilityAuditWorkflow(uiScope?: string[]) {
   // Step 1: Find all UI components
-  const uiComponents = await librarian.searchPacks({
+  const uiComponents = await LiBrainian.searchPacks({
     query: 'component button form input modal dialog',
     packTypes: ['function_context', 'module_context'],
     limit: 50
   });
 
   // Step 2: Check ARIA usage
-  const ariaUsage = await librarian.query({
+  const ariaUsage = await LiBrainian.query({
     intent: 'ARIA attributes, roles, and accessibility labels',
     affectedFiles: uiScope || uiComponents.map(p => p.relatedFiles[0]).filter(Boolean),
     depth: 'L1'
   });
 
   // Step 3: Find keyboard navigation
-  const keyboardNav = await librarian.query({
+  const keyboardNav = await LiBrainian.query({
     intent: 'Keyboard navigation, focus management, and tab order',
     affectedFiles: uiScope,
     depth: 'L2'
   });
 
   // Step 4: Color and contrast handling
-  const visualA11y = await librarian.query({
+  const visualA11y = await LiBrainian.query({
     intent: 'Color contrast, visual indicators, and non-color-dependent cues',
     depth: 'L1'
   });
 
   // Step 5: Screen reader support
-  const screenReader = await librarian.query({
+  const screenReader = await LiBrainian.query({
     intent: 'Screen reader support, live regions, and announcements',
     depth: 'L1'
   });
@@ -1599,31 +1599,31 @@ Help new team members understand the codebase:
 ```typescript
 async function developerOnboardingWorkflow(focusAreas?: string[]) {
   // Step 1: Architecture overview
-  const architecture = await librarian.visualize({
+  const architecture = await LiBrainian.visualize({
     type: 'architecture',
     depth: 2
   });
 
   // Step 2: Key modules and their purposes
-  const keyModules = await librarian.query({
+  const keyModules = await LiBrainian.query({
     intent: 'Main modules, their responsibilities, and how they interact',
     depth: 'L2'
   });
 
   // Step 3: Entry points
-  const entryPoints = await librarian.query({
+  const entryPoints = await LiBrainian.query({
     intent: 'Application entry points, main flows, and bootstrapping',
     depth: 'L1'
   });
 
   // Step 4: Coding conventions and patterns
-  const conventions = await librarian.searchPacks({
+  const conventions = await LiBrainian.searchPacks({
     packTypes: ['pattern_context', 'decision_context'],
     limit: 20
   });
 
   // Step 5: Common pitfalls
-  const pitfalls = await librarian.query({
+  const pitfalls = await LiBrainian.query({
     intent: 'Common mistakes, gotchas, and things to avoid',
     depth: 'L1',
     includeEngines: true
@@ -1632,7 +1632,7 @@ async function developerOnboardingWorkflow(focusAreas?: string[]) {
   // Step 6: Focus area deep dive (if specified)
   const focusAreaDives = focusAreas
     ? await Promise.all(focusAreas.map(area =>
-        librarian.query({
+        LiBrainian.query({
           intent: `Deep understanding of ${area}`,
           affectedFiles: [area],
           depth: 'L2'
@@ -1673,42 +1673,42 @@ async function knowledgeTransferWorkflow(
   };
 
   // Step 1: Core concepts
-  const concepts = await librarian.query({
+  const concepts = await LiBrainian.query({
     intent: `Core concepts and mental model for ${expertiseArea}`,
     affectedFiles: [expertiseArea],
     depth: depths[detailLevel]
   });
 
   // Step 2: Historical context
-  const history = await librarian.searchPacks({
+  const history = await LiBrainian.searchPacks({
     query: `${expertiseArea} decision history rationale`,
     packTypes: ['decision_context'],
     limit: 15
   });
 
   // Step 3: Dependencies and relationships
-  const dependencies = await librarian.assembleContext({
+  const dependencies = await LiBrainian.assembleContext({
     intent: `Dependencies and relationships for ${expertiseArea}`,
     affectedFiles: [expertiseArea],
     depth: 'L2'
   });
 
   // Step 4: Common operations
-  const operations = await librarian.query({
+  const operations = await LiBrainian.query({
     intent: `Common operations and workflows in ${expertiseArea}`,
     affectedFiles: [expertiseArea],
     depth: 'L1'
   });
 
   // Step 5: Troubleshooting guide
-  const troubleshooting = await librarian.searchPacks({
+  const troubleshooting = await LiBrainian.searchPacks({
     query: `${expertiseArea} error fix debug troubleshoot`,
     packTypes: ['similar_tasks'],
     limit: 10
   });
 
   // Step 6: Future considerations
-  const future = await librarian.query({
+  const future = await LiBrainian.query({
     intent: `Known limitations and future improvements for ${expertiseArea}`,
     affectedFiles: [expertiseArea],
     depth: 'L1'
@@ -1741,7 +1741,7 @@ async function codeReviewWorkflow(
   prDescription?: string
 ) {
   // Step 1: Understand the change intent
-  const changeIntent = await librarian.query({
+  const changeIntent = await LiBrainian.query({
     intent: prDescription || `Understanding changes to: ${changedFiles.join(', ')}`,
     affectedFiles: changedFiles,
     taskType: 'review',
@@ -1751,7 +1751,7 @@ async function codeReviewWorkflow(
   // Step 2: Check each file for issues
   const fileReviews = await Promise.all(
     changedFiles.map(async (file) => {
-      const review = await librarian.query({
+      const review = await LiBrainian.query({
         intent: `Review ${file} for issues, patterns, and improvements`,
         affectedFiles: [file],
         taskType: 'review',
@@ -1769,7 +1769,7 @@ async function codeReviewWorkflow(
   );
 
   // Step 3: Impact analysis
-  const impactAnalysis = await librarian.assembleContext({
+  const impactAnalysis = await LiBrainian.assembleContext({
     intent: 'Impact of these changes',
     affectedFiles: changedFiles,
     depth: 'L3'
@@ -1785,14 +1785,14 @@ async function codeReviewWorkflow(
   );
 
   // Step 5: Security implications
-  const securityCheck = await librarian.query({
+  const securityCheck = await LiBrainian.query({
     intent: 'Security implications of these changes',
     affectedFiles: changedFiles,
     depth: 'L2'
   });
 
   // Step 6: Breaking change detection
-  const breakingChanges = await librarian.query({
+  const breakingChanges = await LiBrainian.query({
     intent: 'Potential breaking changes and backwards compatibility',
     affectedFiles: changedFiles,
     depth: 'L2'
@@ -1826,7 +1826,7 @@ Run before commits to catch issues early:
 ```typescript
 async function preCommitValidation(stagedFiles: string[]) {
   // Quick checks only - must be fast
-  const quickCheck = await librarian.query({
+  const quickCheck = await LiBrainian.query({
     intent: 'Quick validation of staged changes',
     affectedFiles: stagedFiles,
     depth: 'L0',  // Fastest possible
@@ -1858,14 +1858,14 @@ async function prAnalysis(
   changedFiles: string[]
 ) {
   // Full analysis - can take longer
-  const analysis = await librarian.assembleContext({
+  const analysis = await LiBrainian.assembleContext({
     intent: 'PR impact analysis',
     affectedFiles: changedFiles,
     depth: 'L3'
   });
 
   // Generate PR summary
-  const summary = await librarian.query({
+  const summary = await LiBrainian.query({
     intent: `Summarize changes in ${changedFiles.length} files`,
     affectedFiles: changedFiles,
     depth: 'L1'
@@ -1913,21 +1913,21 @@ Validate after deployment:
 ```typescript
 async function postDeploymentValidation(deployedChanges: string[]) {
   // Check for known issues patterns
-  const knownIssues = await librarian.searchPacks({
+  const knownIssues = await LiBrainian.searchPacks({
     query: 'deployment issue rollback hotfix',
     packTypes: ['similar_tasks'],
     limit: 10
   });
 
   // Get monitoring recommendations
-  const monitoring = await librarian.query({
+  const monitoring = await LiBrainian.query({
     intent: `What to monitor after deploying changes to: ${deployedChanges.join(', ')}`,
     affectedFiles: deployedChanges,
     depth: 'L1'
   });
 
   // Identify rollback strategy
-  const rollback = await librarian.query({
+  const rollback = await LiBrainian.query({
     intent: 'Rollback strategy and dependencies',
     affectedFiles: deployedChanges,
     depth: 'L2'
@@ -1961,7 +1961,7 @@ async function emergencyDebugWorkflow(
   // FAST - prioritize speed over completeness
 
   // Step 1: Quick context (L0 only)
-  const quickContext = await librarian.query({
+  const quickContext = await LiBrainian.query({
     intent: incidentDescription,
     affectedFiles: affectedService ? [affectedService] : undefined,
     depth: 'L0',  // Fastest
@@ -1969,7 +1969,7 @@ async function emergencyDebugWorkflow(
   });
 
   // Step 2: Search for similar incidents
-  const pastIncidents = await librarian.searchPacks({
+  const pastIncidents = await LiBrainian.searchPacks({
     query: incidentDescription,
     packTypes: ['similar_tasks'],
     limit: 5
@@ -1977,7 +1977,7 @@ async function emergencyDebugWorkflow(
 
   // Step 3: Get rollback info immediately
   const rollbackInfo = affectedService
-    ? await librarian.query({
+    ? await LiBrainian.query({
         intent: `How to rollback ${affectedService}`,
         affectedFiles: [affectedService],
         depth: 'L0'
@@ -2010,21 +2010,21 @@ async function postMortemAnalysis(
   rootCause?: string
 ) {
   // Step 1: Full system context
-  const systemContext = await librarian.assembleContext({
+  const systemContext = await LiBrainian.assembleContext({
     intent: 'Full system understanding for post-mortem',
     affectedFiles: affectedSystems,
     depth: 'L3'
   });
 
   // Step 2: Historical patterns
-  const historicalPatterns = await librarian.searchPacks({
+  const historicalPatterns = await LiBrainian.searchPacks({
     query: rootCause || 'incident failure error',
     packTypes: ['similar_tasks', 'pattern_context'],
     limit: 20
   });
 
   // Step 3: Architectural weaknesses
-  const weaknesses = await librarian.query({
+  const weaknesses = await LiBrainian.query({
     intent: 'Architectural weaknesses and single points of failure',
     affectedFiles: affectedSystems,
     depth: 'L3',
@@ -2044,7 +2044,7 @@ async function postMortemAnalysis(
     );
 
   // Step 6: Prevention recommendations
-  const prevention = await librarian.query({
+  const prevention = await LiBrainian.query({
     intent: `How to prevent similar incidents in ${affectedSystems.join(', ')}`,
     affectedFiles: affectedSystems,
     depth: 'L2'
@@ -2079,7 +2079,7 @@ Chain queries for complex understanding:
 ```typescript
 async function multiStepReasoning(complexQuestion: string) {
   // Step 1: Break down the question
-  const breakdown = await librarian.query({
+  const breakdown = await LiBrainian.query({
     intent: `Break down this question into sub-questions: ${complexQuestion}`,
     depth: 'L1'
   });
@@ -2088,14 +2088,14 @@ async function multiStepReasoning(complexQuestion: string) {
 
   // Step 2: Answer each sub-question
   const subAnswers = await Promise.all(
-    subQuestions.map(q => librarian.query({
+    subQuestions.map(q => LiBrainian.query({
       intent: q,
       depth: 'L2'
     }))
   );
 
   // Step 3: Synthesize final answer
-  const synthesis = await librarian.query({
+  const synthesis = await LiBrainian.query({
     intent: `Synthesize answer to: ${complexQuestion}. Sub-answers: ${
       subAnswers.map((a, i) => `${subQuestions[i]}: ${a.synthesis?.answer}`).join('; ')
     }`,
@@ -2124,7 +2124,7 @@ async function parallelInvestigation(hypotheses: string[], context?: string[]) {
   // Run all investigations in parallel
   const investigations = await Promise.all(
     hypotheses.map(async (hypothesis) => {
-      const result = await librarian.query({
+      const result = await LiBrainian.query({
         intent: `Investigate: ${hypothesis}`,
         affectedFiles: context,
         depth: 'L2'
@@ -2171,7 +2171,7 @@ async function iterativeRefinement(
 ) {
   let currentQuery = initialQuery;
   let iteration = 0;
-  let bestResult = await librarian.query({
+  let bestResult = await LiBrainian.query({
     intent: currentQuery,
     depth: 'L1'
   });
@@ -2201,7 +2201,7 @@ async function iterativeRefinement(
     currentQuery = `${initialQuery}. Also address: ${gaps[0]}`;
 
     // Deepen search
-    const refinedResult = await librarian.query({
+    const refinedResult = await LiBrainian.query({
       intent: currentQuery,
       depth: iteration < 2 ? 'L2' : 'L3',
       affectedFiles: bestResult.packs.flatMap(p => p.relatedFiles).slice(0, 10)
@@ -2239,14 +2239,14 @@ async function complianceAuditWorkflow(
   const audits = await Promise.all(
     regulations.map(async (regulation) => {
       // Find relevant code
-      const relevantCode = await librarian.searchPacks({
+      const relevantCode = await LiBrainian.searchPacks({
         query: `${regulation} compliance data privacy security`,
         packTypes: ['security_context', 'function_context'],
         limit: 30
       });
 
       // Deep analysis
-      const analysis = await librarian.query({
+      const analysis = await LiBrainian.query({
         intent: `${regulation} compliance analysis`,
         affectedFiles: scope,
         depth: 'L3'
@@ -2281,14 +2281,14 @@ Quantify and prioritize technical debt:
 ```typescript
 async function technicalDebtAssessment() {
   // Find all anti-patterns
-  const antiPatterns = await librarian.query({
+  const antiPatterns = await LiBrainian.query({
     intent: 'All technical debt, anti-patterns, and code smells',
     depth: 'L3',
     includeEngines: true
   });
 
   // Get complexity hotspots
-  const complexity = await librarian.searchPacks({
+  const complexity = await LiBrainian.searchPacks({
     query: 'complex complicated large function module',
     packTypes: ['function_context', 'module_context'],
     minConfidence: 0.3,  // Include low-confidence = potentially problematic
@@ -2296,7 +2296,7 @@ async function technicalDebtAssessment() {
   });
 
   // Find outdated patterns
-  const outdated = await librarian.query({
+  const outdated = await LiBrainian.query({
     intent: 'Outdated patterns, deprecated APIs, legacy code',
     depth: 'L2'
   });
@@ -2331,13 +2331,13 @@ Generate API documentation from code:
 async function generateApiDocumentation(apiPaths: string[]) {
   const endpoints = await Promise.all(
     apiPaths.map(async (path) => {
-      const context = await librarian.assembleContext({
+      const context = await LiBrainian.assembleContext({
         intent: `API documentation for ${path}`,
         affectedFiles: [path],
         depth: 'L2'
       });
 
-      const pack = await librarian.getContextPack(path, 'function_context');
+      const pack = await LiBrainian.getContextPack(path, 'function_context');
 
       return {
         path,
@@ -2358,7 +2358,7 @@ async function generateApiDocumentation(apiPaths: string[]) {
   return {
     endpoints,
     generatedAt: new Date().toISOString(),
-    version: (await librarian.getStatus()).version.string
+    version: (await LiBrainian.getStatus()).version.string
   };
 }
 
@@ -2384,10 +2384,10 @@ Pre-mortem analysis anticipates failures *before* they occur. Use this when plan
 ### Pre-Mortem Query API
 
 ```typescript
-import type { PreMortemRequest, PreMortemResult, PreMortemCategory } from 'librarian';
+import type { PreMortemRequest, PreMortemResult, PreMortemCategory } from 'librainian';
 
 // Basic pre-mortem for a set of files
-const premortem = await librarian.query({
+const premortem = await LiBrainian.query({
   intent: `Pre-mortem analysis: What could cause changes to ${files.join(', ')} to fail?`,
   taskType: 'premortem',
   depth: 'L2',
@@ -2409,7 +2409,7 @@ async function runPreMortem(
   // Run parallel analysis for each failure category
   const analyses = await Promise.all([
     // Data flow: null propagation, type coercion
-    librarian.query({
+    LiBrainian.query({
       intent: `Data flow analysis for ${changeDescription}:
         - Where can data be null/undefined?
         - What type coercions occur?
@@ -2420,7 +2420,7 @@ async function runPreMortem(
     }),
 
     // State: consistency, atomicity
-    librarian.query({
+    LiBrainian.query({
       intent: `State analysis for ${changeDescription}:
         - What state mutations occur?
         - Are updates atomic?
@@ -2431,7 +2431,7 @@ async function runPreMortem(
     }),
 
     // Concurrency: race conditions, deadlocks
-    librarian.query({
+    LiBrainian.query({
       intent: `Concurrency analysis for ${changeDescription}:
         - Check-then-act patterns?
         - Shared state without locks?
@@ -2442,7 +2442,7 @@ async function runPreMortem(
     }),
 
     // Resources: leaks, exhaustion
-    librarian.query({
+    LiBrainian.query({
       intent: `Resource analysis for ${changeDescription}:
         - Acquired resources without cleanup?
         - Unbounded growth (caches, queues)?
@@ -2453,7 +2453,7 @@ async function runPreMortem(
     }),
 
     // Error handling: unhandled cases
-    librarian.query({
+    LiBrainian.query({
       intent: `Error handling analysis for ${changeDescription}:
         - Empty catch blocks?
         - Missing error propagation?
@@ -2562,10 +2562,10 @@ const PRE_MORTEM_CHECKLIST: Record<PreMortemCategory, ChecklistItem[]> = {
 ### Slop Detection Query API
 
 ```typescript
-import type { SlopDetectionRequest, SlopDetectionResult, SlopPattern } from 'librarian';
+import type { SlopDetectionRequest, SlopDetectionResult, SlopPattern } from 'librainian';
 
 // Basic slop detection
-const slopAnalysis = await librarian.query({
+const slopAnalysis = await LiBrainian.query({
   intent: `Detect AI slop patterns in ${files.join(', ')}:
     - Cargo cult code
     - Over-abstraction
@@ -2588,7 +2588,7 @@ async function detectSlop(files: string[]): Promise<SlopDetectionResult> {
   // Run pattern-specific queries in parallel
   const [structural, logic, integration] = await Promise.all([
     // Structural slop
-    librarian.query({
+    LiBrainian.query({
       intent: `Structural slop detection in ${files.join(', ')}:
         1. Cargo cult: patterns copied without understanding (unused params, redundant code)
         2. Over-abstraction: interfaces with single implementations, factories for single types
@@ -2601,7 +2601,7 @@ async function detectSlop(files: string[]): Promise<SlopDetectionResult> {
     }),
 
     // Logic slop
-    librarian.query({
+    LiBrainian.query({
       intent: `Logic slop detection in ${files.join(', ')}:
         1. Optimistic happy path: try/catch that swallows errors, missing failure cases
         2. Boolean blindness: functions returning only boolean without error context
@@ -2614,7 +2614,7 @@ async function detectSlop(files: string[]): Promise<SlopDetectionResult> {
     }),
 
     // Integration slop
-    librarian.query({
+    LiBrainian.query({
       intent: `Integration slop detection in ${files.join(', ')}:
         1. Leaky abstraction: internal implementation types in public API
         2. Circular dependency: import cycles between modules
@@ -2654,7 +2654,7 @@ async function detectSlop(files: string[]): Promise<SlopDetectionResult> {
 // Specific pattern detection queries for common slop types
 
 // 1. Empty catch blocks (optimistic_happy_path)
-const emptyCatches = await librarian.query({
+const emptyCatches = await LiBrainian.query({
   intent: 'Find empty catch blocks or catch blocks that only log without rethrowing',
   taskType: 'slop_detection',
   depth: 'L2',
@@ -2662,7 +2662,7 @@ const emptyCatches = await librarian.query({
 });
 
 // 2. Type assertion abuse
-const unsafeCasts = await librarian.query({
+const unsafeCasts = await LiBrainian.query({
   intent: 'Find "as X" type assertions without runtime validation nearby',
   taskType: 'slop_detection',
   depth: 'L2',
@@ -2670,7 +2670,7 @@ const unsafeCasts = await librarian.query({
 });
 
 // 3. Over-defensive code
-const overDefensive = await librarian.query({
+const overDefensive = await LiBrainian.query({
   intent: 'Find checks for impossible conditions (e.g., checking if typed array is null)',
   taskType: 'slop_detection',
   depth: 'L2',
@@ -2678,7 +2678,7 @@ const overDefensive = await librarian.query({
 });
 
 // 4. Unused abstractions
-const unusedAbstractions = await librarian.query({
+const unusedAbstractions = await LiBrainian.query({
   intent: 'Find interfaces with only one implementation, or factories that create only one type',
   taskType: 'slop_detection',
   depth: 'L2',
@@ -2686,7 +2686,7 @@ const unusedAbstractions = await librarian.query({
 });
 
 // 5. Fire-and-forget promises
-const unawaitedPromises = await librarian.query({
+const unawaitedPromises = await LiBrainian.query({
   intent: 'Find async function calls without await that could silently fail',
   taskType: 'slop_detection',
   depth: 'L2',
@@ -2736,17 +2736,17 @@ import type {
   ProblemDetectionResult,
   ProblemCategory,
   DetectedProblem
-} from 'librarian';
+} from 'librainian';
 
 // Quick health check
-const health = await librarian.query({
+const health = await LiBrainian.query({
   intent: 'Comprehensive codebase health check: bugs, anti-patterns, complexity debt',
   taskType: 'code_review',
   depth: 'L3'
 });
 
 // Targeted analysis
-const issues = await librarian.query({
+const issues = await LiBrainian.query({
   intent: `Problem detection for ${files.join(', ')}:
     - Logic errors (off-by-one, null chains, race conditions)
     - Architectural issues (god modules, circular deps)
@@ -2776,7 +2776,7 @@ async function detectProblems(
   const analyses = await Promise.all(
     categories.map(async (category) => {
       const query = buildCategoryQuery(category, files);
-      const response = await librarian.query(query);
+      const response = await LiBrainian.query(query);
       return { category, response };
     })
   );
@@ -2890,57 +2890,57 @@ function buildCategoryQuery(
 // One-liner problem detection queries
 
 // Memory issues
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find closures capturing large objects or arrays',
   taskType: 'debugging', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find event listeners without removeEventListener',
   taskType: 'debugging', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find setInterval without clearInterval',
   taskType: 'debugging', depth: 'L2'
 });
 
 // Logic issues
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find == comparisons that should be ===',
   taskType: 'code_review', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find array index access without bounds check',
   taskType: 'code_review', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find await inside forEach (should use for...of)',
   taskType: 'code_review', depth: 'L2'
 });
 
 // Security issues
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find eval() or Function() constructor usage',
   taskType: 'security_audit', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find innerHTML assignments with user data',
   taskType: 'security_audit', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find password or secret in variable names',
   taskType: 'security_audit', depth: 'L2'
 });
 
 // Quality issues
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find functions with more than 5 parameters',
   taskType: 'complexity_audit', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find nested callbacks deeper than 3 levels',
   taskType: 'complexity_audit', depth: 'L2'
 });
-await librarian.query({
+await LiBrainian.query({
   intent: 'Find switch statements without default case',
   taskType: 'code_review', depth: 'L2'
 });
@@ -2961,7 +2961,7 @@ async function agentSelfCheck(changedFiles: string[]): Promise<{
 
   const checks = await Promise.all([
     // 1. Did I introduce obvious bugs?
-    librarian.query({
+    LiBrainian.query({
       intent: 'Check for null reference, off-by-one, and type errors',
       taskType: 'debugging',
       depth: 'L2',
@@ -2969,7 +2969,7 @@ async function agentSelfCheck(changedFiles: string[]): Promise<{
     }),
 
     // 2. Did I handle errors properly?
-    librarian.query({
+    LiBrainian.query({
       intent: 'Verify all async operations have error handling',
       taskType: 'code_review',
       depth: 'L2',
@@ -2977,7 +2977,7 @@ async function agentSelfCheck(changedFiles: string[]): Promise<{
     }),
 
     // 3. Did I introduce slop patterns?
-    librarian.query({
+    LiBrainian.query({
       intent: 'Check for AI slop: empty catches, type assertion abuse, over-abstraction',
       taskType: 'slop_detection',
       depth: 'L2',
@@ -2985,7 +2985,7 @@ async function agentSelfCheck(changedFiles: string[]): Promise<{
     }),
 
     // 4. Did I break existing contracts?
-    librarian.query({
+    LiBrainian.query({
       intent: 'Verify public API contracts are preserved',
       taskType: 'code_review',
       depth: 'L2',
@@ -2993,7 +2993,7 @@ async function agentSelfCheck(changedFiles: string[]): Promise<{
     }),
 
     // 5. Did I add proper tests?
-    librarian.query({
+    LiBrainian.query({
       intent: 'Check test coverage for new/modified functions',
       taskType: 'test_coverage',
       depth: 'L2',
@@ -3044,7 +3044,7 @@ async function preCommitCheck(): Promise<void> {
 When problems are detected, use these strategies to recover:
 
 ```typescript
-import type { RecoveryStrategy, ProblemCategory } from 'librarian';
+import type { RecoveryStrategy, ProblemCategory } from 'librainian';
 
 const RECOVERY_STRATEGIES: Record<string, RecoveryStrategy> = {
   memory_leak: {
@@ -3109,7 +3109,7 @@ async function getRecoveryPlan(problemType: string): Promise<RecoveryStrategy | 
   }
 
   // Generate custom recovery plan via LLM
-  const response = await librarian.query({
+  const response = await LiBrainian.query({
     intent: `Recovery plan for problem: ${problemType}
       1. What is the root cause?
       2. What files need to change?
@@ -3180,7 +3180,7 @@ import {
   createQualityGate,
   evaluateGate,
   getStandardGates,
-} from 'librarian/epistemics';
+} from 'LiBrainian/epistemics';
 ```
 
 ### Confidence System
@@ -3206,7 +3206,7 @@ if (meetsThreshold(result.confidence, 0.8)) {
 ### Evidence Ledger
 
 ```typescript
-const ledger = await createEvidenceLedger('./librarian.db');
+const ledger = await createEvidenceLedger('./LiBrainian.db');
 
 // Track evidence
 await ledger.append({
@@ -3214,7 +3214,7 @@ await ledger.append({
   sessionId,
   timestamp: new Date(),
   kind: 'claim',
-  provenance: { source: 'analysis', agentId: 'librarian' },
+  provenance: { source: 'analysis', agentId: 'LiBrainian' },
   payload: { /* ... */ },
 });
 
@@ -3244,7 +3244,7 @@ if (!result.allPassed) {
 ### Temporal Grounding
 
 ```typescript
-import { constructTemporalGrounding, TEMPORAL_PRESETS } from 'librarian/epistemics';
+import { constructTemporalGrounding, TEMPORAL_PRESETS } from 'LiBrainian/epistemics';
 
 // Create grounding with preset
 const grounding = constructTemporalGrounding({
@@ -3277,12 +3277,12 @@ For complete API documentation and examples, see [EPISTEMICS.md](./EPISTEMICS.md
 
 ## Resource Management API
 
-Librarian includes resource monitoring and adaptive pool management for production deployments.
+LiBrainian includes resource monitoring and adaptive pool management for production deployments.
 
 ### Resource Monitor
 
 ```typescript
-import { createResourceMonitor, ResourceMonitor } from 'librarian/api';
+import { createResourceMonitor, ResourceMonitor } from 'LiBrainian/api';
 
 const monitor = createResourceMonitor({
   checkIntervalMs: 1000,
@@ -3312,7 +3312,7 @@ monitor.stop();
 ### Adaptive Pool
 
 ```typescript
-import { createAdaptivePool } from 'librarian/api';
+import { createAdaptivePool } from 'LiBrainian/api';
 
 const pool = createAdaptivePool({
   minSize: 2,

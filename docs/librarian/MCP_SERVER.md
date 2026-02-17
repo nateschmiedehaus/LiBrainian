@@ -1,17 +1,17 @@
-# Librarian MCP Server Documentation
+# LiBrainian MCP Server Documentation
 
 ## Overview
 
-The Librarian MCP (Model Context Protocol) Server provides a standardized interface for AI agents to access repository knowledge. It implements the MCP specification with tools, resources, and comprehensive security controls.
+The LiBrainian MCP (Model Context Protocol) Server provides a standardized interface for AI agents to access repository knowledge. It implements the MCP specification with tools, resources, and comprehensive security controls.
 
 ## Quick Start
 
 ```typescript
-import { createLibrarianMCPServer, startStdioServer } from 'librarian/mcp';
+import { createLibrarianMCPServer, startStdioServer } from 'LiBrainian/mcp';
 
 // Create and start server
 const server = await createLibrarianMCPServer({
-  name: 'librarian',
+  name: 'LiBrainian',
   version: '1.0.0',
 });
 
@@ -93,7 +93,7 @@ Query the knowledge index for relevant context.
 
 **Confidence note (no-theater)**:
 - v1 surfaces numeric `confidence` values. Treat them as *ranking signals*, not epistemic claim confidence.
-- The spec-system target is `ConfidenceValue` for claim confidence. Until migrated, Librarian must disclose calibration absence (see `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`).
+- The spec-system target is `ConfidenceValue` for claim confidence. Until migrated, LiBrainian must disclose calibration absence (see `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`).
 
 ### verify_claim
 
@@ -193,27 +193,27 @@ Get a bundle of context packs for a specific topic.
 
 ## Resources
 
-### librarian://workspace/file-tree
+### LiBrainian://workspace/file-tree
 
 Returns the file tree structure of the indexed workspace.
 
-### librarian://workspace/symbols
+### LiBrainian://workspace/symbols
 
 Returns all indexed symbols (functions, classes, interfaces).
 
-### librarian://workspace/knowledge-maps
+### LiBrainian://workspace/knowledge-maps
 
 Returns knowledge aggregations and relationships.
 
-### librarian://workspace/method-packs
+### LiBrainian://workspace/method-packs
 
 Returns method-level context packs.
 
-### librarian://workspace/provenance
+### LiBrainian://workspace/provenance
 
 Returns indexing provenance and history.
 
-### librarian://workspace/identity
+### LiBrainian://workspace/identity
 
 Returns workspace identity and configuration.
 
@@ -303,7 +303,7 @@ All inputs are sanitized before processing:
 - Query validation
 
 ```typescript
-import { sanitizePath, sanitizeQuery } from 'librarian/security';
+import { sanitizePath, sanitizeQuery } from 'LiBrainian/security';
 
 const pathResult = sanitizePath(userPath, {
   baseDir: workspace,
@@ -320,7 +320,7 @@ if (!pathResult.valid) {
 Built-in rate limiting with circuit breaker:
 
 ```typescript
-import { createDefaultRateLimiter } from 'librarian/security';
+import { createDefaultRateLimiter } from 'LiBrainian/security';
 
 const rateLimiter = createDefaultRateLimiter();
 
@@ -335,7 +335,7 @@ if (!result.allowed) {
 Safe error handling with no sensitive data leakage:
 
 ```typescript
-import { withErrorBoundary, normalizeError } from 'librarian/security';
+import { withErrorBoundary, normalizeError } from 'LiBrainian/security';
 
 const result = await withErrorBoundary(
   async () => await operation(),
@@ -366,7 +366,7 @@ The evaluation harness measures:
 ### Running Evaluations
 
 ```typescript
-import { createEvaluationHarness } from 'librarian/evaluation';
+import { createEvaluationHarness } from 'LiBrainian/evaluation';
 
 const harness = createEvaluationHarness({
   cutoffK: 10,
@@ -376,7 +376,7 @@ const harness = createEvaluationHarness({
 });
 
 const report = await harness.runBatch(queries, async (query) => {
-  const result = await librarian.query({ intent: query.intent });
+  const result = await LiBrainian.query({ intent: query.intent });
   return {
     docs: result.packs.map(p => p.id),
     confidence: result.packs[0]?.confidence,
@@ -399,7 +399,7 @@ console.log(report.summary);
 
 ```typescript
 const config: LibrarianMCPServerConfig = {
-  name: 'librarian',
+  name: 'LiBrainian',
   version: '1.0.0',
   capabilities: {
     tools: {},
@@ -425,7 +425,7 @@ const secureConfig = createSecureConfig({
 All tool inputs are validated against Zod schemas:
 
 ```typescript
-import { validateToolInput, getToolJsonSchema } from 'librarian/mcp';
+import { validateToolInput, getToolJsonSchema } from 'LiBrainian/mcp';
 
 // Get JSON Schema for documentation
 const schema = getToolJsonSchema('query');
@@ -446,9 +446,9 @@ if (!validation.valid) {
 // Configure in .claude/settings.json
 {
   "mcpServers": {
-    "librarian": {
+    "LiBrainian": {
       "command": "node",
-      "args": ["./dist/librarian/mcp/server.js"],
+      "args": ["./dist/LiBrainian/mcp/server.js"],
       "env": {}
     }
   }
@@ -458,13 +458,13 @@ if (!validation.valid) {
 ### Programmatic Usage
 
 ```typescript
-import { Librarian, createLibrarianMCPServer } from 'librarian';
+import { LiBrainian, createLibrarianMCPServer } from 'librainian';
 
-// Initialize librarian
-const librarian = await Librarian.create({ workspace: '/path' });
-await librarian.bootstrap();
+// Initialize LiBrainian
+const LiBrainian = await LiBrainian.create({ workspace: '/path' });
+await LiBrainian.bootstrap();
 
-// Create MCP server connected to librarian
+// Create MCP server connected to LiBrainian
 const server = await createLibrarianMCPServer();
 
 // Query via MCP

@@ -7,7 +7,9 @@
 
 ## Executive Summary
 
-**Wave0 is an agentic system. Agentic systems can ONLY be validated with live providers.**
+**Wave0 is an agentic system. Agentic cognition can ONLY be validated with live providers.**
+
+Structural/deterministic outputs (AST maps, indices, counts) may run in degraded modes, but **semantic claims, reasoning, and synthesis are invalid without live LLMs** and must fail closed with explicit `unverified_by_trace(...)` disclosure.
 
 This is not a preference. This is not a best practice. This is a logical necessity derived from first principles. This document explains WHY and provides the definitive playbook for correct testing.
 
@@ -19,7 +21,7 @@ This is not a preference. This is not a best practice. This is a logical necessi
 
 Wave0 is a **semantic agentic system**. Its value propositions are:
 
-1. **Semantic Understanding**: The Librarian understands what code MEANS, not just what it says
+1. **Semantic Understanding**: The LiBrainian understands what code MEANS, not just what it says
 2. **Intelligent Reasoning**: Agents make decisions based on understanding, not pattern matching
 3. **Emergent Behavior**: The system exhibits behaviors that emerge from intelligence, not scripted responses
 
@@ -92,7 +94,7 @@ This is **syntactic hashing** - the function produces consistent garbage.
 ### 2.3 The Logical Proof
 
 ```
-Premise 1: The Librarian's value is semantic retrieval
+Premise 1: The LiBrainian's value is semantic retrieval
            (finding code that is MEANINGFULLY related to a query)
 
 Premise 2: Semantic retrieval requires semantic understanding
@@ -104,10 +106,10 @@ Premise 3: Fake embeddings have no semantic understanding
 Premise 4: Tests with fake embeddings test fake semantic retrieval
            (the retrieval is based on hash collisions, not meaning)
 
-Conclusion: Tests with fake embeddings DO NOT test the Librarian
+Conclusion: Tests with fake embeddings DO NOT test the LiBrainian
             (they test a different system that happens to share some code)
 
-Therefore:  Any claim that "the Librarian works" based on fake embedding
+Therefore:  Any claim that "the LiBrainian works" based on fake embedding
             tests is LOGICALLY INVALID
 ```
 
@@ -158,13 +160,13 @@ function createDeterministicEmbeddingService(dimension: number = 768): Embedding
 }
 ```
 
-**Why it's forbidden**: This produces vectors where semantically identical concepts (e.g., "error" and "exception") map to completely unrelated positions. The Librarian cannot find related code because there is no "relatedness" in these vectors.
+**Why it's forbidden**: This produces vectors where semantically identical concepts (e.g., "error" and "exception") map to completely unrelated positions. The LiBrainian cannot find related code because there is no "relatedness" in these vectors.
 
 ### 3.2 Pattern: Disabling Embeddings
 
 ```typescript
 // ❌ FORBIDDEN - DO NOT DISABLE EMBEDDINGS
-const librarian = await createLibrarian({
+const LiBrainian = await createLibrarian({
   workspace,
   bootstrapConfig: {
     generateEmbeddings: false, // ← FORBIDDEN
@@ -177,7 +179,7 @@ const indexer = createIndexLibrarian({
 });
 ```
 
-**Why it's forbidden**: Without embeddings, the Librarian is reduced to keyword matching. It cannot understand that a query about "authentication" should return code about "login". You're testing a grep wrapper, not a semantic index.
+**Why it's forbidden**: Without embeddings, the LiBrainian is reduced to keyword matching. It cannot understand that a query about "authentication" should return code about "login". You're testing a grep wrapper, not a semantic index.
 
 ### 3.3 Pattern: Bypassing Provider Gate
 
@@ -227,7 +229,7 @@ const testEmbeddings = {
 ```typescript
 // ✅ CORRECT - Use provider gate to get available provider (CLI auth, NOT API keys)
 // Authentication is via Claude Code (`claude setup-token` or run `claude`) and Codex CLI (`codex login`)
-import { checkAllProviders } from '../librarian/api/provider_check.js';
+import { checkAllProviders } from '../LiBrainian/api/provider_check.js';
 
 const status = await checkAllProviders({ workspaceRoot: process.cwd() });
 if (!status.embedding.available) {
@@ -263,7 +265,7 @@ async function testSemanticRetrieval() {
   }
 
   // Proceed with real test
-  const results = await librarian.query({
+  const results = await LiBrainian.query({
     intent: 'find authentication code',
     depth: 'L1',
   });
@@ -300,10 +302,10 @@ describe('Tier-2: Semantic Retrieval', () => {
     }
 
     // Index code about authentication
-    await librarian.index('src/auth/login.ts');
+    await LiBrainian.index('src/auth/login.ts');
 
     // Query with related but different terms
-    const results = await librarian.query({
+    const results = await LiBrainian.query({
       intent: 'user credential verification',
     });
 
@@ -395,7 +397,7 @@ If your test description contains any of these words, it REQUIRES live providers
 | "SQLite stores embeddings" | 0 | No (tests storage) |
 | "Parser extracts functions" | 0 | No (tests parsing) |
 | "Query finds related code" | 2 | **YES** (semantic) |
-| "Librarian understands intent" | 2 | **YES** (semantic) |
+| "LiBrainian understands intent" | 2 | **YES** (semantic) |
 | "Context assembly works" | 2 | **YES** (semantic context) |
 | "File indexing completes" | 0 | No (tests mechanics) |
 | "Returns semantically similar results" | 2 | **YES** (semantic) |

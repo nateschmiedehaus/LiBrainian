@@ -1,6 +1,6 @@
-# WU-META-001: Librarian Utility Analysis
+# WU-META-001: LiBrainian Utility Analysis
 
-> **Purpose**: Analyze whether Librarian is actually useful for agents working on codebases
+> **Purpose**: Analyze whether LiBrainian is actually useful for agents working on codebases
 > **Date**: 2026-01-30
 > **Status**: Analysis Complete - Recommendations Pending Implementation
 
@@ -8,18 +8,18 @@
 
 ## Executive Summary
 
-**Finding**: Librarian has sophisticated infrastructure but **significant utility gaps** prevent it from being genuinely useful for agent work today.
+**Finding**: LiBrainian has sophisticated infrastructure but **significant utility gaps** prevent it from being genuinely useful for agent work today.
 
-The fundamental question: *If a repo has been bootstrapped with Librarian, but agents don't use it to significantly improve their epistemic, cognitive, and organizational foundations, then Librarian provides no value.*
+The fundamental question: *If a repo has been bootstrapped with LiBrainian, but agents don't use it to significantly improve their epistemic, cognitive, and organizational foundations, then LiBrainian provides no value.*
 
 **Current State**:
 - ✅ Rich infrastructure: 7,381 functions indexed, 5,000 context packs, 8,608 embeddings
 - ✅ Comprehensive APIs: Query, bootstrap, context enrichment
-- ⚠️ **Gap**: Agents don't automatically use Librarian (no integration with Claude Code, Codex, etc.)
+- ⚠️ **Gap**: Agents don't automatically use LiBrainian (no integration with Claude Code, Codex, etc.)
 - ⚠️ **Gap**: Meta-queries return code, not guidance (see Section 3)
 - ⚠️ **Gap**: Documentation not indexed as first-class knowledge
 - ⚠️ **Gap**: No "agent onboarding" flow that happens automatically
-- ❌ **Critical**: Librarian doesn't improve THIS session's work (circular failure)
+- ❌ **Critical**: LiBrainian doesn't improve THIS session's work (circular failure)
 
 ---
 
@@ -42,10 +42,10 @@ The fundamental question: *If a repo has been bootstrapped with Librarian, but a
 
 | Integration | Status | Notes |
 |-------------|--------|-------|
-| Claude Code using Librarian | ❌ None | This session doesn't query Librarian |
-| Codex using Librarian | ❌ None | No automatic integration |
+| Claude Code using LiBrainian | ❌ None | This session doesn't query LiBrainian |
+| Codex using LiBrainian | ❌ None | No automatic integration |
 | Agent Instructions | ⚠️ Passive | AGENTS.md exists but isn't enforced |
-| Automatic bootstrap check | ❌ None | Agents start cold without Librarian context |
+| Automatic bootstrap check | ❌ None | Agents start cold without LiBrainian context |
 | Feedback loop | ❌ None | No `recordTaskOutcome` calls happen |
 
 ---
@@ -54,22 +54,22 @@ The fundamental question: *If a repo has been bootstrapped with Librarian, but a
 
 ### The Core Problem
 
-Librarian is designed as a **perception layer** for agents, but agents don't perceive through it:
+LiBrainian is designed as a **perception layer** for agents, but agents don't perceive through it:
 
 ```
 INTENDED FLOW:
-Agent → Query Librarian → Get Context → Make Decision → Record Outcome
+Agent → Query LiBrainian → Get Context → Make Decision → Record Outcome
          ↑                                                      ↓
          ←←←←←←←←←←←←←← Feedback Loop ←←←←←←←←←←←←←←←←←←←←←←←←
 
 ACTUAL FLOW:
 Agent → Read Files Directly → Make Decision → No Feedback
-(Librarian sits unused)
+(LiBrainian sits unused)
 ```
 
 ### Why This Matters
 
-Without Librarian integration:
+Without LiBrainian integration:
 1. **Epistemic Loss**: Agent lacks calibrated confidence scores
 2. **Cognitive Loss**: Agent re-discovers patterns already indexed
 3. **Organizational Loss**: Agent doesn't benefit from ADRs, ownership data
@@ -77,7 +77,7 @@ Without Librarian integration:
 
 ### Evidence: Live Query Test
 
-Query: `"How should an agent use Librarian?"`
+Query: `"How should an agent use LiBrainian?"`
 
 **Expected**: Integration documentation, `ensureLibrarianReady` API, workflow guidance
 
@@ -104,7 +104,7 @@ Query: `"How should an agent use Librarian?"`
 
 ### Gap 1: No Automatic Agent Onboarding
 
-**Problem**: When an agent (Claude Code, Codex) starts a session, Librarian isn't consulted.
+**Problem**: When an agent (Claude Code, Codex) starts a session, LiBrainian isn't consulted.
 
 **Impact**: Agent works "cold" without:
 - Codebase architecture understanding
@@ -125,12 +125,12 @@ const context = await enrichTaskContext(workspace, {
 
 ### Gap 2: Documentation Not Indexed as Knowledge
 
-**Problem**: Librarian indexes code but treats docs as secondary.
+**Problem**: LiBrainian indexes code but treats docs as secondary.
 
-**Evidence**: Query for "How should an agent use Librarian?" didn't return:
+**Evidence**: Query for "How should an agent use LiBrainian?" didn't return:
 - `AGENTS.md` (agent instructions)
-- `docs/librarian/AGENT_INTEGRATION.md` (integration guide)
-- `docs/librarian/AGENT_INSTRUCTIONS.md` (implementation guide)
+- `docs/LiBrainian/AGENT_INTEGRATION.md` (integration guide)
+- `docs/LiBrainian/AGENT_INSTRUCTIONS.md` (implementation guide)
 
 **Recommendation**: Treat markdown docs as first-class entities:
 ```typescript
@@ -154,7 +154,7 @@ await indexDocumentation({
 **Recommendation**: Instrument agent tool calls:
 ```typescript
 // After every tool call that modifies code
-await recordTaskOutcome(librarian, {
+await recordTaskOutcome(LiBrainian, {
   taskId: toolCall.id,
   outcome: toolCall.success ? 'success' : 'failure',
   filesModified: toolCall.affectedFiles,
@@ -166,7 +166,7 @@ await recordTaskOutcome(librarian, {
 
 **Problem**: 41.7 seconds for a simple query.
 
-**Impact**: Agents can't use Librarian interactively.
+**Impact**: Agents can't use LiBrainian interactively.
 
 **Analysis**:
 - Embedding model load: ~2-3s
@@ -178,22 +178,22 @@ await recordTaskOutcome(librarian, {
 2. Cache synthesis results aggressively
 3. Offer "fast" mode without LLM synthesis:
 ```bash
-librarian query "intent" --fast  # Skip LLM, return raw packs
+LiBrainian query "intent" --fast  # Skip LLM, return raw packs
 ```
 
-### Gap 5: No "Librarian Awareness" in Agent Prompts
+### Gap 5: No "LiBrainian Awareness" in Agent Prompts
 
-**Problem**: Even when Librarian is available, agent prompts don't mention it.
+**Problem**: Even when LiBrainian is available, agent prompts don't mention it.
 
-**Evidence**: AGENTS.md includes Librarian docs, but:
-- Claude Code's system prompt doesn't include Librarian usage
+**Evidence**: AGENTS.md includes LiBrainian docs, but:
+- Claude Code's system prompt doesn't include LiBrainian usage
 - No automatic context injection happens
 - Agent must manually decide to query
 
 **Recommendation**: Add to agent system prompts:
 ```
-This repository has Librarian available. Before implementing:
-1. Query: librarian query "<your intent>" --depth L1
+This repository has LiBrainian available. Before implementing:
+1. Query: LiBrainian query "<your intent>" --depth L1
 2. Use the context packs in your implementation
 3. Check confidence scores before making claims
 ```
@@ -204,15 +204,15 @@ This repository has Librarian available. Before implementing:
 
 ### Immediate (This Session)
 
-1. **Add Librarian query to my workflow**: Before implementing tasks, query Librarian first
-2. **Index documentation**: Run `librarian index docs/**/*.md --force`
-3. **Enable watch mode**: `librarian watch` for continuous updates
+1. **Add LiBrainian query to my workflow**: Before implementing tasks, query LiBrainian first
+2. **Index documentation**: Run `LiBrainian index docs/**/*.md --force`
+3. **Enable watch mode**: `LiBrainian watch` for continuous updates
 
 ### Short-Term (Next Sprint)
 
 1. **Create agent integration package**:
-   - `@librarian/claude-code` - Auto-inject context into Claude Code
-   - `@librarian/codex` - Codex integration
+   - `@LiBrainian/claude-code` - Auto-inject context into Claude Code
+   - `@LiBrainian/codex` - Codex integration
 
 2. **Add fast query mode**:
    - Skip LLM synthesis for speed
@@ -228,7 +228,7 @@ This repository has Librarian available. Before implementing:
 
 1. **Measure actual agent lift**:
    - Control vs Treatment comparison
-   - Track success rate with/without Librarian
+   - Track success rate with/without LiBrainian
    - Validate >25% lift target
 
 2. **Auto-evolve knowledge**:
@@ -245,11 +245,11 @@ This repository has Librarian available. Before implementing:
 
 ## 5. Success Criteria
 
-Librarian is **actually useful** when:
+LiBrainian is **actually useful** when:
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Agent queries Librarian before work | 100% | 0% |
+| Agent queries LiBrainian before work | 100% | 0% |
 | Query latency (fast mode) | <1s | 41s |
 | Context pack usage rate | >80% | 0% |
 | Feedback outcomes recorded | >90% | 0% |
@@ -260,16 +260,16 @@ Librarian is **actually useful** when:
 
 ## 6. Meta-Observation
 
-This analysis was conducted **without using Librarian effectively**, proving the point:
+This analysis was conducted **without using LiBrainian effectively**, proving the point:
 
 1. I manually explored the codebase with Grep/Read
-2. I ran Librarian queries but they returned low-utility results
-3. No Librarian context was injected into my decision-making
+2. I ran LiBrainian queries but they returned low-utility results
+3. No LiBrainian context was injected into my decision-making
 4. No feedback was recorded from this session
 
 **The fix is not more features—it's integration**.
 
-Librarian has the infrastructure. What's missing is the **automatic activation** that makes agents use it without thinking about it.
+LiBrainian has the infrastructure. What's missing is the **automatic activation** that makes agents use it without thinking about it.
 
 ---
 
@@ -279,7 +279,7 @@ Librarian has the infrastructure. What's missing is the **automatic activation**
 2. [ ] Create `WU-QUERY-PERF-001`: Fast query mode (<1s)
 3. [ ] Create `WU-DOCS-INDEX-001`: Index docs as first-class knowledge
 4. [ ] Create `WU-FEEDBACK-001`: Automatic outcome recording
-5. [ ] Update AGENTS.md with mandatory Librarian usage
+5. [ ] Update AGENTS.md with mandatory LiBrainian usage
 
 ---
 

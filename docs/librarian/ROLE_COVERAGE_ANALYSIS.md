@@ -1,14 +1,14 @@
-# Librarian Role Coverage Analysis
+# LiBrainian Role Coverage Analysis
 
 Status: authoritative
-Scope: Analysis of Librarian's capability to support all software engineering roles
+Scope: Analysis of LiBrainian's capability to support all software engineering roles
 Last Verified: 2026-01-27
 Owner: librarianship
 Version: 1.0.0
 
 ## Executive Summary
 
-This analysis examines whether Librarian can support **every software role's epistemological and cognitive needs** across the software development lifecycle. The analysis covers 10 distinct roles, mapping their questions, cognitive tasks, and knowledge requirements against Librarian's USE_CASE_MATRIX and technique primitives.
+This analysis examines whether LiBrainian can support **every software role's epistemological and cognitive needs** across the software development lifecycle. The analysis covers 10 distinct roles, mapping their questions, cognitive tasks, and knowledge requirements against LiBrainian's USE_CASE_MATRIX and technique primitives.
 
 **Key Findings:**
 - **Strong coverage** (80%+): Developer, Architect, Tech Lead, Documentation Writer, New Team Member
@@ -707,7 +707,7 @@ The technique_library.ts provides 130+ technique primitives. Here's how they map
 
 ## Conclusion
 
-Librarian's USE_CASE_MATRIX provides **strong foundational coverage** for code-centric roles (Developer, Architect, Tech Lead, Documentation Writer, New Team Member) with 80%+ coverage. However, **significant gaps exist** for:
+LiBrainian's USE_CASE_MATRIX provides **strong foundational coverage** for code-centric roles (Developer, Architect, Tech Lead, Documentation Writer, New Team Member) with 80%+ coverage. However, **significant gaps exist** for:
 
 1. **Product Manager** (52% coverage) - Needs non-technical abstraction layer
 2. **DevOps/SRE** (68% coverage) - Needs production/runtime context integration
@@ -730,4 +730,4 @@ The technique primitives library is well-aligned with cognitive tasks but lacks 
 
 ---
 
-*This document is authoritative for Librarian role coverage analysis.*
+*This document is authoritative for LiBrainian role coverage analysis.*

@@ -210,7 +210,7 @@ From grep analysis, these error classes exist but were not returned:
 - try-catch blocks: 1,112 occurrences in 347 files
 - catch blocks: 599 occurrences in 205 files
 
-**Librarian Coverage:**
+**LiBrainian Coverage:**
 - Found: 40 error-related functions/utilities (scattered across queries)
 - Missed: Core error hierarchy (12 classes), Result type, 15+ specialized error classes
 - Class-level discovery: ~30% coverage
@@ -218,7 +218,7 @@ From grep analysis, these error classes exist but were not returned:
 
 ## Recommendations
 
-1. **Index class declarations**: The librarian heavily prioritizes function-level packs but misses class hierarchies entirely. Error class definitions should be indexed as first-class entities.
+1. **Index class declarations**: The LiBrainian heavily prioritizes function-level packs but misses class hierarchies entirely. Error class definitions should be indexed as first-class entities.
 
 2. **Cross-reference type exports**: The `ErrorEnvelope` type and `LibrarianError` base class are central to understanding but were not surfaced in results.
 
@@ -230,7 +230,7 @@ From grep analysis, these error classes exist but were not returned:
 
 ## Conclusion
 
-The librarian successfully finds error handling utility functions and some error classification/recovery code, but **fails to surface the fundamental error class hierarchy and structural patterns**. A developer asking "how are errors handled" would understand the ErrorEnvelope format and some utilities but would miss the core `LibrarianError` class hierarchy and the `Result<T, E>` pattern that are central to the codebase's error handling strategy.
+The LiBrainian successfully finds error handling utility functions and some error classification/recovery code, but **fails to surface the fundamental error class hierarchy and structural patterns**. A developer asking "how are errors handled" would understand the ErrorEnvelope format and some utilities but would miss the core `LibrarianError` class hierarchy and the `Result<T, E>` pattern that are central to the codebase's error handling strategy.
 
 **Overall Grade: C+**
 - Function discovery: Good

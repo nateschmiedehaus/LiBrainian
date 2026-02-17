@@ -2,7 +2,7 @@
 
 **Version**: 1.0.0
 **Status**: Published
-**Authors**: Librarian Project
+**Authors**: LiBrainian Project
 
 ---
 
@@ -17,7 +17,7 @@ This paper presents four composable epistemic primitives that address these ques
 3. **Defeater** - A mechanism for tracking what could invalidate claims
 4. **Causal Graph** - A structure for reasoning about cause and effect
 
-These patterns emerged from building Librarian, a system for AI-assisted code understanding. They are language-agnostic and applicable to any system that needs to make claims with provenance.
+These patterns emerged from building LiBrainian, a system for AI-assisted code understanding. They are language-agnostic and applicable to any system that needs to make claims with provenance.
 
 The core insight: **confidence without provenance is theater**. A system that outputs "0.85 confidence" without explaining how that number was derived provides false precision. These patterns force honesty about what we know and what could prove us wrong.
 
@@ -1119,7 +1119,7 @@ response = {
 
 ## 6. Implementation Notes
 
-### Lessons Learned from Librarian
+### Lessons Learned from LiBrainian
 
 **1. Start with absent confidence everywhere**
 

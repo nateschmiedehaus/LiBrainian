@@ -1,8 +1,8 @@
-# Offline-First Architecture for Librarian
+# Offline-First Architecture for LiBrainian
 
 ## Executive Summary
 
-This document presents a comprehensive architecture for making Librarian work 100% offline, while gracefully enhancing the index when network connectivity is available. The design prioritizes local-first embeddings using `@xenova/transformers`, graceful degradation when LLM enrichment is unavailable, cached provider responses for reuse, and background synchronization when online.
+This document presents a comprehensive architecture for making LiBrainian work offline for **structural retrieval and deterministic outputs**, while gracefully enhancing the index when LLM-backed cognition is available. The design prioritizes local-first embeddings using `@xenova/transformers`, clear disclosure when LLM enrichment is unavailable, cached provider responses for reuse, and background synchronization when online. Semantic synthesis remains LLM‑required and must fail closed when providers are unavailable.
 
 ## Current State Analysis
 
@@ -27,29 +27,29 @@ This document presents a comprehensive architecture for making Librarian work 10
 
 1. **Provider Readiness Gate** (`src/api/provider_gate.ts`)
    - Blocks bootstrap if LLM not available (line 182: `ready = llmReady && embeddingReady`)
-   - Should allow embedding-only mode
+   - Should allow embedding-only *structural indexing* while keeping LLM‑required phases fail‑closed
 
 2. **Bootstrap Requires LLM** (`src/api/bootstrap.ts`)
    - Line 829: `await requireProviders({ llm: true, embedding: true })`
-   - Knowledge generation phase requires LLM
-   - Should have offline fallback path
+   - Knowledge generation phase requires LLM (correct)
+   - Structural/AST/embedding phases should run without LLM when embeddings exist, with explicit disclosures
 
 3. **LLM Purpose Extraction** (`src/api/embedding_providers/llm_purpose_extractor.ts`)
    - Uses LLM for semantic enrichment
    - Line 236: Throws on provider unavailable unless `allowHeuristics: true`
-   - Has heuristic fallback but not used by default
+   - Heuristic fallback must be constrained to **structural** descriptors only, never semantic claims
 
 4. **Query Synthesis** (`src/api/query_synthesis.ts`)
    - Requires LLM for answer synthesis
-   - Should fall back to returning raw context packs
+   - Should fall back to returning raw context packs and verification plan (no semantic narrative)
 
 ## Design Requirements
 
 | Requirement | Priority | Description |
 |-------------|----------|-------------|
 | R1 | P0 | Local embeddings by default using @xenova/transformers |
-| R2 | P0 | All queries work without network |
-| R3 | P1 | Graceful degradation: skip LLM enrichment but complete indexing |
+| R2 | P0 | Structural retrieval works without network; semantic synthesis requires LLM and must fail closed |
+| R3 | P1 | Graceful degradation: skip LLM enrichment but complete indexing without semantic claims |
 | R4 | P1 | Cache LLM responses for reuse across sessions |
 | R5 | P2 | Background sync to enhance index when network returns |
 
@@ -685,7 +685,7 @@ export class BackgroundSyncService {
 
 #### File: `src/api/query.ts`
 
-Ensure queries work without LLM:
+Ensure queries return **structural outputs** without LLM (no semantic narrative):
 
 ```typescript
 // In queryLibrarian():
@@ -696,11 +696,11 @@ const llmAvailable = await isLlmAvailable(storage);
 // Determine if synthesis should be attempted
 const canSynthesize = llmAvailable && !offlineMode.skipLlmEnrichment;
 
-// If synthesis not available, return with raw context packs
+// If synthesis not available, return with raw context packs + disclosure
 if (!canSynthesize && query.synthesize) {
   const response = buildResponseWithoutSynthesis(contextPacks, query);
   response.warnings = response.warnings ?? [];
-  response.warnings.push('LLM synthesis unavailable in offline mode. Returning raw context packs.');
+  response.warnings.push('unverified_by_trace(llm_required): LLM synthesis unavailable. Returning structural packs only.');
   return response;
 }
 ```
@@ -933,7 +933,7 @@ export const offlineCommand = {
 export LIBRARIAN_NETWORK_MODE=offline
 export LIBRARIAN_SKIP_LLM=true
 
-librarian bootstrap --mode fast
+LiBrainian bootstrap --mode fast
 ```
 
 ### Opportunistic Mode (Default)
@@ -943,7 +943,7 @@ librarian bootstrap --mode fast
 export LIBRARIAN_NETWORK_MODE=opportunistic
 export LIBRARIAN_DEFER_LLM=true
 
-librarian bootstrap
+LiBrainian bootstrap
 ```
 
 ### Force Online Mode
@@ -952,7 +952,7 @@ librarian bootstrap
 export LIBRARIAN_NETWORK_MODE=online
 
 # This will fail if LLM is unavailable
-librarian bootstrap
+LiBrainian bootstrap
 ```
 
 ---
@@ -1035,4 +1035,4 @@ The offline-first design aligns with the existing zero-knowledge bootstrap proto
 5. **semantic_extraction** - **Deferred when offline**
 6. **verification_loop** - Partially offline (cross-check available data)
 
-The offline architecture ensures levels 1-3 of understanding are always achievable, with semantic understanding (level 4) available when LLM access is restored.
+The offline architecture ensures **structural levels 1–3** are always achievable; semantic understanding (level 4) is **LLM‑required** and must be deferred with explicit disclosure until providers are available.

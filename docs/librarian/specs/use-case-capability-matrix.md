@@ -1,4 +1,4 @@
-# Use Case Capability Matrix: Reverse-Engineering Librarian Requirements
+# Use Case Capability Matrix: Reverse-Engineering LiBrainian Requirements
 
 > **Purpose**: This document reverse-engineers the actual knowledge and thinking capabilities required to effectively support each use case category. It maps capability requirements to existing specs, implementation status, and identifies gaps.
 >
@@ -1375,10 +1375,10 @@ tc_code_review_assistant: {
 
 ```bash
 # Check which primitives are spec-only vs implemented
-cd packages/librarian && rg "tp_[a-z_]+:" src/technique/ --glob '*.ts'
+cd packages/LiBrainian && rg "tp_[a-z_]+:" src/technique/ --glob '*.ts'
 
 # Check composition execution evidence
-cd packages/librarian && npx vitest src/api/__tests__/technique_validation.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/technique_validation.test.ts
 
 # Verify external integration readiness
 ./scripts/check_forbidden_patterns.sh

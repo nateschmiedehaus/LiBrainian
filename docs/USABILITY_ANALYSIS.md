@@ -1,4 +1,4 @@
-# Librarian Usability Analysis: Non-Obvious Improvements for Agent-Facing Tools
+# LiBrainian Usability Analysis: Non-Obvious Improvements for Agent-Facing Tools
 
 > **Purpose**: Identify friction that agents specifically suffer from, drawing lessons from beloved CLI tools (ripgrep, fd, jq, fzf, gh).
 >
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-After analyzing Librarian's codebase, I identified **9 non-obvious usability improvements** that would significantly improve the agent experience. The top 3 improvements should become implementation work units:
+After analyzing LiBrainian's codebase, I identified **9 non-obvious usability improvements** that would significantly improve the agent experience. The top 3 improvements should become implementation work units:
 
 1. **Token-Aware Response Budgeting** - Agents waste context window on verbose responses
 2. **Structured Error Contracts** - Error recovery requires parsing human-readable text
@@ -227,7 +227,7 @@ interface LibrarianResponse {
 }
 ```
 
-CLI addition: `librarian cache status`, `librarian cache clear`
+CLI addition: `LiBrainian cache status`, `LiBrainian cache clear`
 
 **World-Class Precedent**: GitHub CLI has `gh cache list` and `gh cache delete`.
 
@@ -236,7 +236,7 @@ CLI addition: `librarian cache status`, `librarian cache clear`
 ### 6. Command Aliasing and Shortcuts (PRIORITY: MEDIUM)
 
 **The Problem**
-Commands are verbose: `librarian check-providers`, `librarian config heal --diagnose-only`. No short forms exist.
+Commands are verbose: `LiBrainian check-providers`, `LiBrainian config heal --diagnose-only`. No short forms exist.
 
 **Why Agents Suffer**
 - Every character costs context
@@ -256,16 +256,16 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
 **Proposed Solution**
 Add natural aliases:
 ```
-librarian q        -> librarian query
-librarian b        -> librarian bootstrap
-librarian s        -> librarian status
-librarian h        -> librarian health
-librarian chk      -> librarian check-providers
+LiBrainian q        -> LiBrainian query
+LiBrainian b        -> LiBrainian bootstrap
+LiBrainian s        -> LiBrainian status
+LiBrainian h        -> LiBrainian health
+LiBrainian chk      -> LiBrainian check-providers
 ```
 
 And compound shortcuts:
 ```
-librarian qq "intent"  -> librarian query "intent" --json --no-synthesis
+LiBrainian qq "intent"  -> LiBrainian query "intent" --json --no-synthesis
 ```
 
 **World-Class Precedent**: Git has dozens of aliases (`git co` = `git checkout`). kubectl has `k` alias.
@@ -313,7 +313,7 @@ Auto-detect: if stdout is not a TTY, default to `--output json`.
 ### 8. Latency Budget Declarations (PRIORITY: LOW)
 
 **The Problem**
-No way to tell Librarian "I need an answer in 500ms, give me the best you can." The timeout is binary (either completes or fails).
+No way to tell LiBrainian "I need an answer in 500ms, give me the best you can." The timeout is binary (either completes or fails).
 
 **Why Agents Suffer**
 - Can't trade quality for speed
@@ -374,13 +374,13 @@ export interface LibrarianResponse {
 Add response schema versioning:
 ```typescript
 interface LibrarianResponse {
-  $schema: 'librarian-response/v1';  // Immutable schema identifier
+  $schema: 'LiBrainian-response/v1';  // Immutable schema identifier
   $version: '2.1.0';  // Current response version
   $deprecated?: string[];  // Fields that will be removed
 }
 ```
 
-CLI: `librarian --schema-version 1` to get v1-compatible responses.
+CLI: `LiBrainian --schema-version 1` to get v1-compatible responses.
 
 **World-Class Precedent**: OpenAPI/JSON Schema use `$schema`. AWS API versions are explicit.
 
@@ -404,10 +404,10 @@ Based on agent impact and implementation feasibility:
 **Estimated Effort**: 2-3 days
 
 **Files to Modify**:
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/token_budget.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/commands/query.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/token_budget.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/commands/query.ts`
 
 ---
 
@@ -423,9 +423,9 @@ Based on agent impact and implementation feasibility:
 **Estimated Effort**: 1-2 days
 
 **Files to Modify**:
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/errors.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/index.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/provider_check.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/errors.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/index.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/provider_check.ts`
 
 ---
 
@@ -444,9 +444,9 @@ Based on agent impact and implementation feasibility:
 **Estimated Effort**: 1 day
 
 **Files to Modify**:
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/commands/query.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/commands/query.ts`
 
 ---
 
@@ -477,7 +477,7 @@ Based on agent impact and implementation feasibility:
 
 ## Conclusion
 
-Librarian has a solid foundation but optimizes for human developers over agent consumers. The key insight is that **agents have different constraints than humans**:
+LiBrainian has a solid foundation but optimizes for human developers over agent consumers. The key insight is that **agents have different constraints than humans**:
 
 | Dimension | Human | Agent |
 |-----------|-------|-------|

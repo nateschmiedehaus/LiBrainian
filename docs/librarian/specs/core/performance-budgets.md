@@ -5,7 +5,7 @@
 >
 > **Purpose**: Define explicit performance/resource budgets so “behavior under load” is specified, observable, and testable (Tier‑2), instead of being implicit or guessed.
 >
-> **Shared vocabulary**: `docs/librarian/specs/core/operational-profiles.md` (R*/W*/D*/S* + E1–E8).
+> **Shared vocabulary**: `docs/LiBrainian/specs/core/operational-profiles.md` (R*/W*/D*/S* + E1–E8).
 >
 > **Non-theater rule**: Budgets are *requirements*, but any claim that a budget is “met” must be backed by a runnable measurement hook (system test + audit artifact).
 
@@ -107,11 +107,11 @@ Applies to: R2–R4, S1.
 Add a Tier‑2 system test suite that:
 - runs representative scenarios per profile (R1/R2/R3 at minimum),
 - records stage durations and resource usage,
-- writes `state/audits/librarian/performance/PerformanceReport.v1.json`.
+- writes `state/audits/LiBrainian/performance/PerformanceReport.v1.json`.
 
 ### 3.2 Gate integration
 
-`docs/librarian/GATES.json` must include a Tier‑2 “performance budgets” task once the suite exists.
+`docs/LiBrainian/GATES.json` must include a Tier‑2 “performance budgets” task once the suite exists.
 
 Status rule:
 - `pass|partial` requires `lastRun` + evidence summary (p50/p95/p99) and the report path.

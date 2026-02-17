@@ -14,7 +14,7 @@
 | precondition vs postcondition gates | 5 | 0.681 | Partial | PARTIAL |
 | structural scan vs semantic indexing phases | 6 | 0.559 | No | FAIL |
 
-**Overall Assessment:** The librarian fails to adequately handle comparison queries. It retrieves relevant functions but does not present comparative information.
+**Overall Assessment:** The LiBrainian fails to adequately handle comparison queries. It retrieves relevant functions but does not present comparative information.
 
 ---
 
@@ -226,4 +226,4 @@ npx tsx src/cli/index.ts query "structural scan vs semantic indexing phases" --n
 | Average Packs Found | 3.6 |
 | Average Latency | 1951ms |
 
-**Conclusion:** Comparison queries are a significant weakness of the current retrieval system. The librarian needs dedicated comparison handling logic to provide meaningful answers to "X vs Y" queries.
+**Conclusion:** Comparison queries are a significant weakness of the current retrieval system. The LiBrainian needs dedicated comparison handling logic to provide meaningful answers to "X vs Y" queries.

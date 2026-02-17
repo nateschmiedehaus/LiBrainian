@@ -1,10 +1,10 @@
 # Track D: Cross-Language Contract Tracing (Polyglot Contracts)
 
-> **Addresses**: Part XVII.F from `docs/librarian/THEORETICAL_CRITIQUE.md` - Cross-Language Contract Tracing
-> **Problem**: Modern codebases are polyglot (Python backend, TypeScript frontend, Go services). Librarian cannot trace contracts across language boundaries.
+> **Addresses**: Part XVII.F from `docs/LiBrainian/THEORETICAL_CRITIQUE.md` - Cross-Language Contract Tracing
+> **Problem**: Modern codebases are polyglot (Python backend, TypeScript frontend, Go services). LiBrainian cannot trace contracts across language boundaries.
 > **Current Rating**: Limited (Single-language contract analysis only)
 >
-> **Librarian Story**: Chapter 10 (The Polyglot) - Making Librarian understand contracts that span language boundaries.
+> **LiBrainian Story**: Chapter 10 (The Polyglot) - Making LiBrainian understand contracts that span language boundaries.
 >
 > **Related Specifications**:
 > - [track-e-domain.md](./track-e-domain.md) - API design primitives for universal domain support
@@ -1404,8 +1404,8 @@ interface GateResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/polyglot_contracts.ts (types)
-// - src/librarian/storage/contract_registry_storage.ts (persistence)
+// - src/LiBrainian/api/polyglot_contracts.ts (types)
+// - src/LiBrainian/storage/contract_registry_storage.ts (persistence)
 
 // Deliverables:
 // - All type definitions from this spec
@@ -1420,7 +1420,7 @@ interface GateResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/contract_detection.ts
+// - src/LiBrainian/api/contract_detection.ts
 
 // Deliverables:
 // - tp_contract_detect implementation
@@ -1435,7 +1435,7 @@ interface GateResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/contract_matching.ts
+// - src/LiBrainian/api/contract_matching.ts
 
 // Deliverables:
 // - tp_contract_match implementation
@@ -1450,7 +1450,7 @@ interface GateResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/contract_validation.ts
+// - src/LiBrainian/api/contract_validation.ts
 
 // Deliverables:
 // - tp_contract_validate implementation
@@ -1465,8 +1465,8 @@ interface GateResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/contract_drift.ts
-// - src/librarian/api/contract_sync.ts
+// - src/LiBrainian/api/contract_drift.ts
+// - src/LiBrainian/api/contract_sync.ts
 
 // Deliverables:
 // - tp_contract_drift_detect implementation
@@ -1481,7 +1481,7 @@ interface GateResult {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/__tests__/polyglot_contracts.test.ts
+// - src/LiBrainian/api/__tests__/polyglot_contracts.test.ts
 
 // Deliverables:
 // - Track E integration (domain primitives)
@@ -1561,24 +1561,24 @@ interface GateResult {
 
 ```bash
 # Run polyglot contract tests
-cd packages/librarian && npx vitest run src/api/__tests__/polyglot_contracts.test.ts
+cd packages/LiBrainian && npx vitest run src/api/__tests__/polyglot_contracts.test.ts
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Contract') || k.includes('Polyglot'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Contract') || k.includes('Polyglot'))))"
 
 # Detect contracts in a polyglot codebase (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts contracts detect /path/to/codebase
+cd packages/LiBrainian && npx tsx src/cli/index.ts contracts detect /path/to/codebase
 
 # Validate contracts
-cd packages/librarian && npx tsx src/cli/index.ts contracts validate /path/to/codebase
+cd packages/LiBrainian && npx tsx src/cli/index.ts contracts validate /path/to/codebase
 
 # Check for drift
-cd packages/librarian && npx tsx src/cli/index.ts contracts drift /path/to/codebase
+cd packages/LiBrainian && npx tsx src/cli/index.ts contracts drift /path/to/codebase
 
 # Check implementation status
-ls -la packages/librarian/src/api/polyglot_contracts.ts
-ls -la packages/librarian/src/api/contract_detection.ts
-ls -la packages/librarian/src/api/contract_validation.ts
+ls -la packages/LiBrainian/src/api/polyglot_contracts.ts
+ls -la packages/LiBrainian/src/api/contract_detection.ts
+ls -la packages/LiBrainian/src/api/contract_validation.ts
 ```
 
 ---

@@ -12,7 +12,7 @@
 
 **Honest Recommendation: Do NOT implement the full "self-aware indexing" system as designed.**
 
-After critical analysis, the proposed self-aware indexing system where Librarian uses `computeImportanceProfile`, `estimateBlastRadius`, and `findEpistemicRisks` to guide its own re-indexing is **over-engineered** for the actual problem being solved.
+After critical analysis, the proposed self-aware indexing system where LiBrainian uses `computeImportanceProfile`, `estimateBlastRadius`, and `findEpistemicRisks` to guide its own re-indexing is **over-engineered** for the actual problem being solved.
 
 The current codebase already has a **working, simpler solution**: the `IncrementalFileWatcher` with cascade reindex, git-based change detection, and freshness decay models. This achieves approximately **85-95% of the theoretical value** of the sophisticated approach with **10-20% of the complexity**.
 
@@ -145,12 +145,12 @@ The existing `CascadeReindexQueue` has a limit (`MAX_CASCADE_DEPENDENTS = 50`), 
 **This is the fundamental barrier to true self-awareness.**
 
 ```
-To index Librarian's code intelligently, Librarian needs:
+To index LiBrainian's code intelligently, LiBrainian needs:
   - Importance profiles (requires indexed code graph)
   - Blast radius estimates (requires indexed dependency graph)
   - Epistemic risks (requires indexed claims and evidence)
 
-But to have these, Librarian must already be indexed.
+But to have these, LiBrainian must already be indexed.
 
 Chicken-and-egg: The system can only be "self-aware" AFTER naive indexing.
 ```
@@ -432,7 +432,7 @@ This is literally one line, already in the codebase, and provides 90% of the ski
 5. **If self-improvement is needed**, use simpler approaches:
    - Scheduled full re-index (weekly, off-hours)
    - Git-hook triggered incremental (on commit)
-   - Manual "librarian refresh" command
+   - Manual "LiBrainian refresh" command
 
 ### What NOT to Do
 
@@ -472,7 +472,7 @@ If, despite this analysis, the team decides to proceed with self-aware indexing,
 
 5. **Testing Strategy**
    - How to test recursive self-analysis without infinite loops?
-   - How to verify importance calculations are correct for Librarian's own code?
+   - How to verify importance calculations are correct for LiBrainian's own code?
    - Property-based testing for oscillation detection
 
 ### Strong Recommendations
@@ -522,16 +522,16 @@ The importance, blast radius, and epistemic risk tools are valuable - but for qu
 
 ### Current Working Implementation
 
-- **File Watcher**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/integration/file_watcher.ts`
-- **Self Refresh**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/agents/self_improvement/self_refresh.ts`
-- **Freshness Detector**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/agents/self_improvement/freshness_detector.ts`
-- **Homeostasis Daemon**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/homeostasis/daemon.ts`
+- **File Watcher**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/integration/file_watcher.ts`
+- **Self Refresh**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/agents/self_improvement/self_refresh.ts`
+- **Freshness Detector**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/agents/self_improvement/freshness_detector.ts`
+- **Homeostasis Daemon**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/homeostasis/daemon.ts`
 
 ### Intelligence Tools (Use for Queries, Not Indexing)
 
-- **Importance Metrics**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/importance_metrics.ts`
-- **Cascading Impact**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/cascading_impact.ts`
-- **Cross-Graph Propagation**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/cross_graph_propagation.ts`
+- **Importance Metrics**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/importance_metrics.ts`
+- **Cascading Impact**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/cascading_impact.ts`
+- **Cross-Graph Propagation**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/cross_graph_propagation.ts`
 
 ---
 

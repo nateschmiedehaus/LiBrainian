@@ -1,6 +1,6 @@
-# Librarian End-to-End Validation Plan
+# LiBrainian End-to-End Validation Plan
 
-**Purpose**: Prove librarian works as a complete system, not just isolated components.
+**Purpose**: Prove LiBrainian works as a complete system, not just isolated components.
 
 **Status**: PLANNING
 **Created**: 2026-01-15
@@ -18,9 +18,9 @@ Current state:
 - No proof bootstrap produces useful knowledge
 
 Required proof:
-- Librarian can bootstrap a codebase
-- Librarian can answer questions accurately
-- Librarian learns from feedback
+- LiBrainian can bootstrap a codebase
+- LiBrainian can answer questions accurately
+- LiBrainian learns from feedback
 - Confidence scores correlate with actual accuracy
 
 ---
@@ -57,7 +57,7 @@ Required proof:
 
 ### Calculator Module (Already Created)
 ```typescript
-// /tmp/librarian-e2e-test/src/calculator.ts
+// /tmp/LiBrainian-e2e-test/src/calculator.ts
 /**
  * Simple calculator module for testing.
  */
@@ -83,7 +83,7 @@ export function divide(a: number, b: number): number {
 
 **File 2: Math utilities with dependencies**
 ```typescript
-// /tmp/librarian-e2e-test/src/math_utils.ts
+// /tmp/LiBrainian-e2e-test/src/math_utils.ts
 import { add, multiply } from './calculator.js';
 
 /**
@@ -107,7 +107,7 @@ export function factorial(n: number): number {
 
 **File 3: API endpoint using math**
 ```typescript
-// /tmp/librarian-e2e-test/src/api/calculate.ts
+// /tmp/LiBrainian-e2e-test/src/api/calculate.ts
 import { add, subtract, multiply, divide } from '../calculator.js';
 
 type Operation = 'add' | 'subtract' | 'multiply' | 'divide';
@@ -199,10 +199,10 @@ for (const fn of functions) {
 **Test**: `answers questions accurately about specific functions`
 
 ```typescript
-const librarian = await createLibrarian({ storage, llmProvider: 'claude' });
+const LiBrainian = await createLibrarian({ storage, llmProvider: 'claude' });
 
 // Query about divide function
-const divideResult = await librarian.query({
+const divideResult = await LiBrainian.query({
   question: 'What does the divide function do and what errors can it throw?',
 });
 
@@ -217,7 +217,7 @@ expect(divideResult.sources[0].file).toContain('calculator');
 **Test**: `answers questions about relationships`
 
 ```typescript
-const relationResult = await librarian.query({
+const relationResult = await LiBrainian.query({
   question: 'Which functions does average() depend on?',
 });
 
@@ -228,7 +228,7 @@ expect(relationResult.sources.some(s => s.file.includes('math_utils'))).toBe(tru
 **Test**: `answers questions about API usage`
 
 ```typescript
-const apiResult = await librarian.query({
+const apiResult = await LiBrainian.query({
   question: 'How do I use the calculate API to add two numbers?',
 });
 
@@ -250,7 +250,7 @@ expect(apiResult.answer).toContain('operation');
 
 ```typescript
 // Get initial query result
-const initial = await librarian.query({ question: 'What does add do?' });
+const initial = await LiBrainian.query({ question: 'What does add do?' });
 const initialConfidence = initial.confidence;
 const packId = initial.sources[0].packId;
 
@@ -259,7 +259,7 @@ const packBefore = await storage.getContextPack(packId);
 const confidenceBefore = packBefore.confidence;
 
 // Submit negative feedback
-await librarian.submitFeedback({
+await LiBrainian.submitFeedback({
   queryId: initial.queryId,
   packIds: [packId],
   outcome: 'failure',
@@ -272,7 +272,7 @@ expect(packAfter.confidence).toBeLessThan(confidenceBefore);
 expect(packAfter.confidence).toBe(confidenceBefore - 0.1); // Current implementation
 
 // Query again - should reflect lower confidence
-const subsequent = await librarian.query({ question: 'What does add do?' });
+const subsequent = await LiBrainian.query({ question: 'What does add do?' });
 // Confidence in response should be lower or ranking should change
 ```
 
@@ -280,7 +280,7 @@ const subsequent = await librarian.query({ question: 'What does add do?' });
 
 ```typescript
 // Submit positive feedback
-await librarian.submitFeedback({
+await LiBrainian.submitFeedback({
   queryId: initial.queryId,
   packIds: [packId],
   outcome: 'success',
@@ -303,12 +303,12 @@ expect(packAfterPositive.confidence).toBeGreaterThan(packAfter.confidence);
 
 ```typescript
 // Query with good answer expected
-const goodQuery = await librarian.query({
+const goodQuery = await LiBrainian.query({
   question: 'What does the divide function do?',
 });
 
 // Query with vague/uncertain answer expected
-const vagueQuery = await librarian.query({
+const vagueQuery = await LiBrainian.query({
   question: 'What is the architectural philosophy of this codebase?',
 });
 
@@ -396,7 +396,7 @@ expect(stale.confidence).toBeLessThan(freshConfidence);
 ## Test File Location
 
 ```
-src/librarian/__tests__/e2e_validation.test.ts
+src/LiBrainian/__tests__/e2e_validation.test.ts
 ```
 
 This test file contains all four phases as separate describe blocks.

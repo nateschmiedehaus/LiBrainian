@@ -6,7 +6,7 @@
 
 ## 6.1 Design Principle: Positively Productive at Any Stage
 
-The Librarian system must help agents correct course regardless of progress:
+The LiBrainian system must help agents correct course regardless of progress:
 - NOT: "You're wrong, start over"
 - YES: "Here's what's salvageable and how to proceed"
 

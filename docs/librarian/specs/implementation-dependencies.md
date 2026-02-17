@@ -361,50 +361,50 @@ If a solution breaks downstream consumers:
 
 ```bash
 # S1: DSL Semantics - grammar defined
-rg "type.*Composition.*=" packages/librarian/src/types/
+rg "type.*Composition.*=" packages/LiBrainian/src/types/
 
 # S6: No raw confidence numbers
-rg "confidence:\s*0\.\d" packages/librarian/src --glob '*.ts' | wc -l
+rg "confidence:\s*0\.\d" packages/LiBrainian/src --glob '*.ts' | wc -l
 # Target: 0
 
 # S12: Unified evidence ledger
-rg "EvidenceEntry" packages/librarian/src --glob '*.ts' | wc -l
+rg "EvidenceEntry" packages/LiBrainian/src --glob '*.ts' | wc -l
 # Target: Single definition, multiple usages
 
 # S3: Stratification defined
-rg "stratum|Stratum" packages/librarian/src --glob '*.ts'
+rg "stratum|Stratum" packages/LiBrainian/src --glob '*.ts'
 ```
 
 ### Layer 2 Verification
 
 ```bash
 # S5: Change-based decay
-rg "decayOnChange|changeBasedDecay" packages/librarian/src
+rg "decayOnChange|changeBasedDecay" packages/LiBrainian/src
 
 # S7: Empirical bounds
-rg "calibrationBounds|empiricalBounds" packages/librarian/src
+rg "calibrationBounds|empiricalBounds" packages/LiBrainian/src
 
 # S11: Calibration loops
-rg "CalibrationLoop|feedbackLoop" packages/librarian/src
+rg "CalibrationLoop|feedbackLoop" packages/LiBrainian/src
 
 # S15/S16: Unified invalidation
-rg "InvalidationTrigger|causalAttribution" packages/librarian/src
+rg "InvalidationTrigger|causalAttribution" packages/LiBrainian/src
 ```
 
 ### Layer 3-5 Verification
 
 ```bash
 # S2: Retrieval uncertainty
-rg "retrievalUncertainty|uncertaintyBounds" packages/librarian/src
+rg "retrievalUncertainty|uncertaintyBounds" packages/LiBrainian/src
 
 # S9: Multi-modal similarity
-rg "multiModalSimilarity|hybridSimilarity" packages/librarian/src
+rg "multiModalSimilarity|hybridSimilarity" packages/LiBrainian/src
 
 # S10: Verification stratification
-rg "verificationStrategy|stratifiedVerification" packages/librarian/src
+rg "verificationStrategy|stratifiedVerification" packages/LiBrainian/src
 
 # S4/S8: Domain metrics
-rg "domainMetrics|graphHeuristic" packages/librarian/src
+rg "domainMetrics|graphHeuristic" packages/LiBrainian/src
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-31
 **Test Type:** API Design Discovery Assessment
-**Codebase:** librarian
+**Codebase:** LiBrainian
 
 ---
 
@@ -10,7 +10,7 @@
 
 **Overall Grade: D (Poor for API Design Use Cases)**
 
-The librarian system performed poorly at helping developers understand its own public API surface. While it successfully found versioning-related functions, it largely failed to identify the actual public API exports, API contracts, or documentation patterns. Most queries returned generic internal functions rather than the documented public interface.
+The LiBrainian system performed poorly at helping developers understand its own public API surface. While it successfully found versioning-related functions, it largely failed to identify the actual public API exports, API contracts, or documentation patterns. Most queries returned generic internal functions rather than the documented public interface.
 
 ---
 
@@ -36,7 +36,7 @@ The librarian system performed poorly at helping developers understand its own p
 - `parseYamlDocument()` - YAML parser utility
 
 **What should have been returned:**
-- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/index.ts` - The main public API file with 800+ lines of documented exports
+- `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/index.ts` - The main public API file with 800+ lines of documented exports
 - `initializeLibrarian`, `createLibrarian`, `queryLibrarian` - Primary entry points
 - `preOrchestrationHook`, `enrichTaskContext` - Integration hooks
 - `bootstrapProject`, `isBootstrapRequired` - Bootstrap API
@@ -69,7 +69,7 @@ The query completely missed the main `src/index.ts` file which explicitly docume
 - `wrapVersioned()` - Schema versioning wrapper
 - `getMajorVersion()` - Major version extraction
 
-**Assessment:** This query worked well. The results correctly identified the versioning module (`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/versioning.ts`) and related functions. The semantic matching was effective here.
+**Assessment:** This query worked well. The results correctly identified the versioning module (`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/versioning.ts`) and related functions. The semantic matching was effective here.
 
 ---
 
@@ -87,7 +87,7 @@ The query completely missed the main `src/index.ts` file which explicitly docume
 **What was returned:**
 - Same generic internal functions as Query 1
 
-**Assessment:** The query returned high-confidence results but they were completely irrelevant. This is a **false negative detection** - the system should have recognized that librarian has no REST endpoints or HTTP handlers and returned empty results with appropriate messaging. Instead, it returned unrelated functions with 0.91 confidence.
+**Assessment:** The query returned high-confidence results but they were completely irrelevant. This is a **false negative detection** - the system should have recognized that LiBrainian has no REST endpoints or HTTP handlers and returned empty results with appropriate messaging. Instead, it returned unrelated functions with 0.91 confidence.
 
 **What was missed:**
 - The system does not have REST endpoints - this is a CLI/library tool
@@ -242,7 +242,7 @@ There appears to be no special handling for:
 
 ## Conclusion
 
-For API Design use cases, librarian is **not yet production-ready**. The system's strength in versioning queries suggests the underlying technology works, but critical gaps in export tracking and API surface detection make it unsuitable for:
+For API Design use cases, LiBrainian is **not yet production-ready**. The system's strength in versioning queries suggests the underlying technology works, but critical gaps in export tracking and API surface detection make it unsuitable for:
 
 - API documentation generation
 - Breaking change analysis

@@ -1,8 +1,8 @@
-# Librarian Architecture Diagram
+# LiBrainian Architecture Diagram
 
 ## System Overview
 
-Librarian is an epistemic knowledge layer for AI coding agents. It provides calibrated, evidence-backed understanding of any codebase through a sophisticated multi-layered architecture.
+LiBrainian is an epistemic knowledge layer for AI coding agents. It provides calibrated, evidence-backed understanding of any codebase through a sophisticated multi-layered architecture.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -12,7 +12,7 @@ Librarian is an epistemic knowledge layer for AI coding agents. It provides cali
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      LIBRARIAN SYSTEM (CORE)                                  │
+│                      LiBrainian SYSTEM (CORE)                                  │
 │                                                                               │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                    CLI LAYER (Developer UX)                            │ │
@@ -126,7 +126,7 @@ Librarian is an epistemic knowledge layer for AI coding agents. It provides cali
 │  │ │      src/knowledge/      │   │   │                            │   │ │
 │  │ └──────────────────────────┘   │   │ API Surface                │   │ │
 │  │                                 │   │ - queryLibrarian()         │   │ │
-│  │                                 │   │ - Librarian class          │   │ │
+│  │                                 │   │ - LiBrainian class          │   │ │
 │  │                                 │   │ - Perspective support      │   │ │
 │  │                                 │   │                            │   │ │
 │  │                                 │   │      src/api/              │   │ │
@@ -259,7 +259,7 @@ Librarian is an epistemic knowledge layer for AI coding agents. It provides cali
 
 ## Core Subsystems Detail
 
-### 1. Epistemics Layer (Heart of Librarian)
+### 1. Epistemics Layer (Heart of LiBrainian)
 
 The epistemics layer is the most sophisticated component, providing formal epistemological foundations for confidence and belief management.
 
@@ -479,7 +479,7 @@ Query Pipeline (src/api/query.ts)
     │  ├─ Calibration (calibration.ts)
     │  └─ Evidence ledger (evidence_ledger.ts)
     │
-    ├─ Synthesis (api/librarian.ts)
+    ├─ Synthesis (api/LiBrainian.ts)
     │  └─> Format for agent consumption
     │
     └─ Response with:
@@ -494,7 +494,7 @@ Query Pipeline (src/api/query.ts)
 ### Bootstrap Data Flow
 
 ```
-$ librarian bootstrap
+$ LiBrainian bootstrap
     │
     ▼
 CLI Bootstrap Command (src/cli/commands/bootstrap.ts)
@@ -537,7 +537,7 @@ Tiered Bootstrap (src/bootstrap/index.ts)
 ```typescript
 // Before agent starts working on a task
 await preOrchestrationHook(workspace);
-// - Ensures Librarian is bootstrapped
+// - Ensures LiBrainian is bootstrapped
 // - Checks providers are available
 // - Sets up file watching
 ```
@@ -546,7 +546,7 @@ await preOrchestrationHook(workspace);
 
 ```typescript
 // During agent work
-const context = await librarian.query(intent);
+const context = await LiBrainian.query(intent);
 // - Semantic search
 // - Confidence-aware results
 // - Evidence citations
@@ -572,7 +572,7 @@ await recordTaskOutcome({
 ```
 src/
 ├── api/                    # Query API, bootstrap, embeddings
-│   ├── librarian.ts       # Main Librarian class
+│   ├── LiBrainian.ts       # Main LiBrainian class
 │   ├── query.ts           # Query execution
 │   ├── bootstrap.ts       # Bootstrap orchestration
 │   ├── embeddings.ts      # Semantic embeddings
@@ -662,7 +662,7 @@ Enhanced (Tier 2)
 ├─ Decision tracking
 └─ Improved ranking
 
-Full (Tier 3) ← LIBRARIAN USES THIS
+Full (Tier 3) ← LiBrainian USES THIS
 ├─ Hierarchical summaries
 ├─ Cross-project learning
 ├─ Epistemics framework
@@ -674,7 +674,7 @@ Full (Tier 3) ← LIBRARIAN USES THIS
 ### Configuration Sources
 
 ```
-1. librarian.json (workspace config)
+1. LiBrainian.json (workspace config)
 2. Environment variables
 3. Provider registry (LLM, embeddings)
 4. Auto-detection (language, patterns)
@@ -684,7 +684,7 @@ Full (Tier 3) ← LIBRARIAN USES THIS
 ## Version & Upgrade Path
 
 ```
-Librarian Version
+LiBrainian Version
 ├─ Major: Breaking changes requiring full re-index
 ├─ Minor: Backward-compatible additions
 └─ Patch: Bug fixes
@@ -707,7 +707,7 @@ Current: 2.0.0
 ```
 Agent Code
   ↓
-import { initializeLibrarian } from 'librarian'
+import { initializeLibrarian } from 'librainian'
   ↓
 const session = await initializeLibrarian(workspace)
   ↓
@@ -716,16 +716,16 @@ const context = await session.query(intent)
 
 ### 2. CLI Interface
 ```
-$ librarian bootstrap
-$ librarian query "intent"
-$ librarian status
+$ LiBrainian bootstrap
+$ LiBrainian query "intent"
+$ LiBrainian status
 ```
 
 ### 3. MCP Server (IDE Integration)
 ```
 IDE (VS Code, etc.)
   ↓
-librarian serve
+LiBrainian serve
   ↓
 MCP Server
   ↓
@@ -736,7 +736,7 @@ Tools: librarian_query, librarian_get_issues, etc.
 ```
 Custom Tool
   ↓
-import { queryLibrarian, Librarian } from 'librarian'
+import { queryLibrarian, LiBrainian } from 'librainian'
   ↓
 Direct API access
 ```
@@ -784,7 +784,7 @@ Coverage: 95%+
 |----------|------------|------|
 | Agent embedding | `import { initializeLibrarian }` | src/orchestrator/index.ts |
 | Direct query API | `import { queryLibrarian }` | src/api/query.ts |
-| CLI usage | `npx librarian <cmd>` | src/cli/index.ts |
+| CLI usage | `npx librainian <cmd>` | src/cli/index.ts |
 | Storage access | `import { createSqliteStorage }` | src/storage/sqlite_storage.ts |
 | Epistemics | `import { computeConfidence, ... }` | src/epistemics/index.ts |
 | Integration hooks | `import { preOrchestrationHook, ... }` | src/integration/wave0_integration.ts |

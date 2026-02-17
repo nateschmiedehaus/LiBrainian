@@ -1,10 +1,10 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Real-World Scenarios
+# LiBrainian Real-World Scenarios
 
-> **FOR AGENTS**: This document describes 30 realistic scenarios showing what librarian ACTUALLY does vs what it SHOULD do. Each scenario identifies problems and proposes elegant solutions. Use this to understand the gap between current and target state.
+> **FOR AGENTS**: This document describes 30 realistic scenarios showing what LiBrainian ACTUALLY does vs what it SHOULD do. Each scenario identifies problems and proposes elegant solutions. Use this to understand the gap between current and target state.
 
 > **Navigation**: [README.md](./README.md) | [architecture.md](./architecture.md) | [implementation-requirements.md](./implementation-requirements.md) | [Back to docs](../)
 
@@ -16,7 +16,7 @@ Extract useful research into canonical docs; do not extend this file.
 
 This document serves three functions:
 
-1. **Gap Identification**: Shows exactly where librarian falls short in real scenarios
+1. **Gap Identification**: Shows exactly where LiBrainian falls short in real scenarios
 2. **Solution Design**: Proposes elegant, coherent solutions (not band-aids)
 3. **Implementation Guide**: Groups solutions by subsystem for efficient implementation
 
@@ -99,7 +99,7 @@ This document serves three functions:
 #### Elegant Solution: Package-Aware Bootstrap
 
 ```typescript
-// NEW: src/librarian/ingest/workspace_detector.ts
+// NEW: src/LiBrainian/ingest/workspace_detector.ts
 
 interface WorkspaceConfig {
   type: 'npm' | 'yarn' | 'pnpm' | 'turborepo' | 'nx' | 'lerna';
@@ -149,7 +149,7 @@ function resolveWorkspaceImport(
 
 **Integration with existing code**:
 ```typescript
-// Modify: src/librarian/ingest/module_indexer.ts
+// Modify: src/LiBrainian/ingest/module_indexer.ts
 
 async function extractDependencies(
   filePath: string,
@@ -245,10 +245,10 @@ async function extractDependencies(
 #### Elegant Solution: Index State Machine
 
 ```typescript
-// NEW: src/librarian/state/index_state.ts
+// NEW: src/LiBrainian/state/index_state.ts
 
 type IndexPhase =
-  | 'uninitialized'      // No .librarian/ directory
+  | 'uninitialized'      // No .LiBrainian/ directory
   | 'discovering'        // Finding files
   | 'indexing'           // Processing files (has progress)
   | 'computing_graph'    // Building relationships
@@ -291,7 +291,7 @@ async function setIndexState(
 
 **Integration with enrichTaskContext**:
 ```typescript
-// Modify: src/librarian/integration/wave0_integration.ts
+// Modify: src/LiBrainian/integration/wave0_integration.ts
 
 async function enrichTaskContext(
   workspace: string,
@@ -302,7 +302,7 @@ async function enrichTaskContext(
   // Handle non-ready states
   if (state.phase === 'uninitialized') {
     return {
-      summary: 'Librarian not initialized. Run bootstrap first.',
+      summary: 'LiBrainian not initialized. Run bootstrap first.',
       confidence: 0,
       warning: 'INDEX_NOT_INITIALIZED',
       suggestion: 'Run: node scripts/bootstrap_librarian.mjs --workspace .',
@@ -381,9 +381,9 @@ async function enrichTaskContext(
 │ 4. Agent proceeds blind                                                  │
 │    No context provided                                                   │
 │    Agent must discover codebase from scratch                             │
-│    Librarian provides no value                                           │
+│    LiBrainian provides no value                                           │
 │                                                                          │
-│ IMPACT: Librarian silently useless for non-TypeScript projects.          │
+│ IMPACT: LiBrainian silently useless for non-TypeScript projects.          │
 │         No error, no warning, just empty results.                        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -399,7 +399,7 @@ async function enrichTaskContext(
 #### Elegant Solution: Universal Language Adapter
 
 ```typescript
-// NEW: src/librarian/adapters/language_adapter.ts
+// NEW: src/LiBrainian/adapters/language_adapter.ts
 
 interface LanguageAdapter {
   // Identity
@@ -455,7 +455,7 @@ async function detectProjectLanguages(root: string): Promise<LanguageAdapter[]> 
 
 **Go adapter implementation**:
 ```typescript
-// NEW: src/librarian/adapters/go_adapter.ts
+// NEW: src/LiBrainian/adapters/go_adapter.ts
 
 class GoAdapter implements LanguageAdapter {
   id = 'go';
@@ -536,7 +536,7 @@ class GoAdapter implements LanguageAdapter {
 
 **Generic fallback adapter**:
 ```typescript
-// NEW: src/librarian/adapters/generic_adapter.ts
+// NEW: src/LiBrainian/adapters/generic_adapter.ts
 
 class GenericTextAdapter implements LanguageAdapter {
   id = 'generic';
@@ -582,7 +582,7 @@ async function bootstrap(workspace) {
 
   if (adapters.length === 1 && adapters[0].id === 'generic') {
     console.warn('WARNING: No recognized project type.');
-    console.warn('Librarian will use embedding-only mode with reduced accuracy.');
+    console.warn('LiBrainian will use embedding-only mode with reduced accuracy.');
     console.warn('Supported: TypeScript, Go, Python, Rust, Java');
   }
 
@@ -683,7 +683,7 @@ async function bootstrap(workspace) {
 #### Elegant Solution: Tiered Query Architecture
 
 ```typescript
-// NEW: src/librarian/query/tiered_query.ts
+// NEW: src/LiBrainian/query/tiered_query.ts
 
 interface QueryTier {
   name: string;
@@ -753,7 +753,7 @@ CREATE INDEX idx_modules_deps ON librarian_modules(dependencies);
 
 **Precomputed graph for O(1) lookups**:
 ```typescript
-// NEW: src/librarian/query/precomputed_graph.ts
+// NEW: src/LiBrainian/query/precomputed_graph.ts
 
 interface PrecomputedGraph {
   // Direct edges (what X depends on)
@@ -901,7 +901,7 @@ export const graphCache = new GraphCache();
 #### Elegant Solution: Precomputed Core Module Stats
 
 ```typescript
-// NEW: src/librarian/analysis/core_module_stats.ts
+// NEW: src/LiBrainian/analysis/core_module_stats.ts
 
 interface CoreModuleStats {
   moduleId: string;
@@ -961,7 +961,7 @@ function classifyRisk(transitiveDeps: number, totalModules: number): RiskLevel {
 
 **Query-time optimization**:
 ```typescript
-// Modify: src/librarian/knowledge/impact.ts
+// Modify: src/LiBrainian/knowledge/impact.ts
 
 async function analyzeBlastRadius(
   storage: LibrarianStorage,
@@ -1055,7 +1055,7 @@ async function analyzeBlastRadius(
 #### Elegant Solution: Streaming Pipeline with Checkpoints
 
 ```typescript
-// NEW: src/librarian/ingest/streaming_pipeline.ts
+// NEW: src/LiBrainian/ingest/streaming_pipeline.ts
 
 interface PipelineConfig {
   batchSize: number;           // Files per batch (default: 50)
@@ -1178,7 +1178,7 @@ async function processBatch(
 
 **Batch embedding with rate limiting**:
 ```typescript
-// NEW: src/librarian/ingest/batch_embeddings.ts
+// NEW: src/LiBrainian/ingest/batch_embeddings.ts
 
 import pLimit from 'p-limit';
 
@@ -1272,7 +1272,7 @@ async function generateEmbeddingsBatch(
 #### Elegant Solution: Freshness Scoring System
 
 ```typescript
-// NEW: src/librarian/freshness/freshness_engine.ts
+// NEW: src/LiBrainian/freshness/freshness_engine.ts
 
 interface FreshnessScore {
   overall: number;           // 0-1, weighted combination
@@ -1377,7 +1377,7 @@ async function assessFreshness(
 
 **Integration with query pipeline**:
 ```typescript
-// Modify: src/librarian/api/query.ts
+// Modify: src/LiBrainian/api/query.ts
 
 async function query(request: QueryRequest): Promise<QueryResult> {
   // Check freshness for queried scope
@@ -1461,7 +1461,7 @@ async function query(request: QueryRequest): Promise<QueryResult> {
 │    Other modules still list "src/utils.ts" as dependency                 │
 │    Graph traversal hits dead end                                         │
 │                                                                          │
-│ IMPACT: Refactors break librarian until full reindex.                    │
+│ IMPACT: Refactors break LiBrainian until full reindex.                    │
 │         No rename detection.                                             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1469,7 +1469,7 @@ async function query(request: QueryRequest): Promise<QueryResult> {
 #### Elegant Solution: Content-Based Identity + Git Tracking
 
 ```typescript
-// NEW: src/librarian/identity/content_identity.ts
+// NEW: src/LiBrainian/identity/content_identity.ts
 
 interface FileIdentity {
   // Multiple identity strategies
@@ -1593,7 +1593,7 @@ async function detectGitRenames(workspace: string): Promise<GitRename[]> {
 
 **Apply renames to index**:
 ```typescript
-// NEW: src/librarian/identity/apply_renames.ts
+// NEW: src/LiBrainian/identity/apply_renames.ts
 
 async function applyDetectedRenames(
   storage: LibrarianStorage,
@@ -1676,7 +1676,7 @@ async function applyDetectedRenames(
 #### Elegant Solution: Branch-Aware Indexing
 
 ```typescript
-// NEW: src/librarian/branches/branch_aware_storage.ts
+// NEW: src/LiBrainian/branches/branch_aware_storage.ts
 
 interface BranchIndexStrategy {
   // Option 1: Separate database per branch (disk heavy, fast switch)
@@ -1784,7 +1784,7 @@ async function handleBranchSwitch(
 
 **Integration with query**:
 ```typescript
-// Modify: src/librarian/api/query.ts
+// Modify: src/LiBrainian/api/query.ts
 
 async function query(request: QueryRequest): Promise<QueryResult> {
   // Check for branch switch
@@ -1879,7 +1879,7 @@ async function query(request: QueryRequest): Promise<QueryResult> {
 #### Elegant Solution: Failure Pattern Recognition
 
 ```typescript
-// NEW: src/librarian/learning/failure_patterns.ts
+// NEW: src/LiBrainian/learning/failure_patterns.ts
 
 interface FailurePattern {
   patternId: string;
@@ -2026,7 +2026,7 @@ async function handleFailurePattern(
 
 **Integration with outcome recording**:
 ```typescript
-// Modify: src/librarian/integration/wave0_integration.ts
+// Modify: src/LiBrainian/integration/wave0_integration.ts
 
 async function recordTaskOutcome(
   storage: LibrarianStorage,
@@ -2057,7 +2057,7 @@ async function recordTaskOutcome(
 
 ### S14: Success After Failed Context (Negative Signal)
 
-**Scenario**: Task fails with librarian context. Agent ignores context, reads files directly, and succeeds.
+**Scenario**: Task fails with LiBrainian context. Agent ignores context, reads files directly, and succeeds.
 
 #### What Actually Happens Now
 
@@ -2102,7 +2102,7 @@ async function recordTaskOutcome(
 #### Elegant Solution: Context Usage Tracking
 
 ```typescript
-// NEW: src/librarian/learning/context_usage_tracker.ts
+// NEW: src/LiBrainian/learning/context_usage_tracker.ts
 
 interface ContextUsage {
   taskId: string;
@@ -2212,7 +2212,7 @@ async function learnFromUsage(
 
 **Improve future context assembly using learned patterns**:
 ```typescript
-// Modify: src/librarian/api/context_assembly.ts
+// Modify: src/LiBrainian/api/context_assembly.ts
 
 async function assembleContext(
   storage: LibrarianStorage,
@@ -2258,7 +2258,7 @@ async function assembleContext(
 
 ### S15: No Learning from Human Corrections
 
-**Scenario**: Agent's change is rejected in code review. Human makes different change. No feedback to librarian.
+**Scenario**: Agent's change is rejected in code review. Human makes different change. No feedback to LiBrainian.
 
 #### What Actually Happens Now
 
@@ -2274,7 +2274,7 @@ async function assembleContext(
 │ 4. Human makes different change (adds SSO check)                         │
 │ 5. PR merged with human's version                                        │
 │                                                                          │
-│ What librarian knows:                                                    │
+│ What LiBrainian knows:                                                    │
 │                                                                          │
 │ ❌ NOTHING                                                               │
 │    - No record of agent's rejected approach                              │
@@ -2288,7 +2288,7 @@ async function assembleContext(
 │ Same mistake likely                                                      │
 │ Agent doesn't know about SSO requirement                                 │
 │                                                                          │
-│ IMPACT: Human knowledge doesn't flow back to librarian.                  │
+│ IMPACT: Human knowledge doesn't flow back to LiBrainian.                  │
 │         Each human correction is one-time, not systemic.                 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -2296,7 +2296,7 @@ async function assembleContext(
 #### Elegant Solution: Human Feedback Integration
 
 ```typescript
-// NEW: src/librarian/learning/human_feedback.ts
+// NEW: src/LiBrainian/learning/human_feedback.ts
 
 interface HumanCorrection {
   source: 'pr_review' | 'commit_amend' | 'manual_edit' | 'explicit_feedback';
@@ -2491,7 +2491,7 @@ function extractMissingContextFromReview(comment: string): MissingContext[] {
 
 **Periodic learning job**:
 ```typescript
-// NEW: src/librarian/jobs/human_learning_job.ts
+// NEW: src/LiBrainian/jobs/human_learning_job.ts
 
 async function runHumanLearningJob(
   storage: LibrarianStorage,
@@ -2584,7 +2584,7 @@ async function runHumanLearningJob(
 #### Elegant Solution: Pattern Inference with Recency Weighting
 
 ```typescript
-// NEW: src/librarian/analysis/pattern_inference.ts
+// NEW: src/LiBrainian/analysis/pattern_inference.ts
 
 interface CodePattern {
   patternId: string;
@@ -2731,7 +2731,7 @@ function detectPatternsInFile(content: string, filePath: string): DetectedPatter
 
 **Integrate with context assembly**:
 ```typescript
-// Modify: src/librarian/api/context_assembly.ts
+// Modify: src/LiBrainian/api/context_assembly.ts
 
 async function assembleContext(
   storage: LibrarianStorage,
@@ -2781,7 +2781,7 @@ The 30 scenarios reveal the need for **6 coherent subsystems**, each solving mul
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                    LIBRARIAN SUBSYSTEM ARCHITECTURE                         │
+│                    LiBrainian SUBSYSTEM ARCHITECTURE                         │
 ├────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │

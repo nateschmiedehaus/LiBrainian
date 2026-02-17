@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Validation & Appendices
+# LiBrainian Validation & Appendices
 
 > **FOR AGENTS**: This doc contains validation checklists, test commands, and industry alignment. Use after implementing.
 > **Navigation**: [README.md](./README.md) | [fixes-remaining.md](./fixes-remaining.md) | [implementation-requirements.md](./implementation-requirements.md)
@@ -13,7 +13,7 @@ Extract useful research into canonical docs; do not extend this file.
 
 | Section | What It Contains | Jump Link |
 |---------|------------------|-----------|
-| Integration Points | How librarian wires into Wave0 | [#part-3-librarian-integration](#part-3-librarian-integration) |
+| Integration Points | How LiBrainian wires into Wave0 | [#part-3-LiBrainian-integration](#part-3-LiBrainian-integration) |
 | Industry Alignment | Comparison to Kythe, Glean, etc. | [#part-4-industry-alignment](#part-4-industry-alignment) |
 | Implementation Checklist | Per-phase verification | [#part-5-implementation-checklist](#part-5-implementation-checklist) |
 | Validation Tests | Specific test commands | [#part-6-validation-tests](#part-6-validation-tests) |
@@ -22,7 +22,7 @@ Extract useful research into canonical docs; do not extend this file.
 ---
 
 This document contains:
-- Part 3: Librarian Integration Points
+- Part 3: LiBrainian Integration Points
 - Part 4: Industry Alignment
 - Part 5: Implementation Checklist
 - Part 6: Validation Tests
@@ -31,9 +31,9 @@ This document contains:
 
 ---
 
-## PART 3: LIBRARIAN INTEGRATION
+## PART 3: LiBrainian INTEGRATION
 
-With the above fixes in place, librarian integrates naturally:
+With the above fixes in place, LiBrainian integrates naturally:
 
 ### Integration Points
 
@@ -43,32 +43,32 @@ With the above fixes in place, librarian integrates naturally:
 │                                                                      │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │                    1. STARTUP                                │    │
-│  │  preOrchestrationHook() ──▶ Librarian Bootstrap             │    │
+│  │  preOrchestrationHook() ──▶ LiBrainian Bootstrap             │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                              │                                       │
 │                              ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │                    2. TASK INTAKE                            │    │
-│  │  WorkGraph ──▶ SemanticScheduler ──▶ Librarian Similarity   │    │
+│  │  WorkGraph ──▶ SemanticScheduler ──▶ LiBrainian Similarity   │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                              │                                       │
 │                              ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │                    3. CONTEXT ASSEMBLY                       │    │
-│  │  Task ──▶ ContextAssembler ──▶ Librarian Knowledge          │    │
+│  │  Task ──▶ ContextAssembler ──▶ LiBrainian Knowledge          │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                              │                                       │
 │                              ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │                    4. AGENT EXECUTION                        │    │
-│  │  Agent receives context + query tool ──▶ Librarian Queries  │    │
-│  │  File reads intercepted ──▶ Librarian Policy                │    │
+│  │  Agent receives context + query tool ──▶ LiBrainian Queries  │    │
+│  │  File reads intercepted ──▶ LiBrainian Policy                │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                              │                                       │
 │                              ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │                    5. OUTCOME FEEDBACK                       │    │
-│  │  Result ──▶ Causal Attribution ──▶ Librarian Confidence     │    │
+│  │  Result ──▶ Causal Attribution ──▶ LiBrainian Confidence     │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -102,7 +102,7 @@ Based on research into leading systems ([OpenAI Codex](https://openai.com/index/
 | Sandboxed execution | Yes (isolated containers) | Yes (permission controls) | Fix P10 |
 | Checkpoint/resume | Yes (automatic) | Yes (compact feature) | Fix P8 |
 | Parallel multi-agent | Yes (cloud tasks) | Yes (subagents) | Fix P2, P9 |
-| Knowledge grounding | Yes (codebase context) | Yes (CLAUDE.md) | Librarian |
+| Knowledge grounding | Yes (codebase context) | Yes (CLAUDE.md) | LiBrainian |
 | Observability | Yes (citations, logs) | Yes (OpenTelemetry) | Add tracing |
 | Human oversight | Yes (PR review) | Yes (hooks) | Quality gates |
 
@@ -163,16 +163,16 @@ Based on research into leading systems ([OpenAI Codex](https://openai.com/index/
 - [x] **P2**: Consolidate to single orchestrator
 - [x] **P3**: Fix 20 highest-impact `any` types
 - [x] **P4**: Make quality gates configurable
-- [x] **P5**: Wire context assembly to librarian
+- [x] **P5**: Wire context assembly to LiBrainian
 
 ### Phase 1: Core Integration
 
 - [x] Provider availability enforced at startup (P7)
-- [x] Librarian hard-stops on failure (P17)
+- [x] LiBrainian hard-stops on failure (P17)
 - [x] Mock orchestrator fallbacks removed (P18)
 - [x] Execution backends in place (P24)
 - [x] Policy engine enforced (P25)
-- [x] Context assembly uses librarian (P5 complete)
+- [x] Context assembly uses LiBrainian (P5 complete)
 - [x] Scheduler uses semantic similarity (P6)
 - [x] Agent pool is functional (P9)
 - [x] Checkpoint system works (P8)
@@ -206,18 +206,18 @@ Based on research into leading systems ([OpenAI Codex](https://openai.com/index/
 
 ```typescript
 describe('Wave0 Basic Functionality', () => {
-  test('librarian initializes at startup', async () => {
+  test('LiBrainian initializes at startup', async () => {
     const orchestrator = new UnifiedOrchestrator(config);
     await orchestrator.initialize();
     expect(isLibrarianReady()).toBe(true);
-    expect(existsSync('.librarian/librarian.sqlite')).toBe(true);
+    expect(existsSync('.LiBrainian/LiBrainian.sqlite')).toBe(true);
   });
 
   test('context assembly includes knowledge', async () => {
     const context = await assembleTaskContext({
       id: 'test',
       type: 'bug_fix',
-      targetFiles: ['src/librarian/api/query.ts']
+      targetFiles: ['src/LiBrainian/api/query.ts']
     });
     expect(context.required.targetFiles.length).toBeGreaterThan(0);
     expect(context.required.targetFiles[0].functions.length).toBeGreaterThan(0);
@@ -225,7 +225,7 @@ describe('Wave0 Basic Functionality', () => {
 
   test('agent receives working query interface', async () => {
     const context = await assembleTaskContext(testTask);
-    const result = await context.query.queryFile('src/librarian/api/query.ts');
+    const result = await context.query.queryFile('src/LiBrainian/api/query.ts');
     expect(result.purpose).toBeDefined();
   });
 
@@ -234,7 +234,7 @@ describe('Wave0 Basic Functionality', () => {
       id: 'e2e-test',
       type: 'investigation',
       description: 'What does the query function do?',
-      targetFiles: ['src/librarian/api/query.ts']
+      targetFiles: ['src/LiBrainian/api/query.ts']
     });
     expect(result.success).toBe(true);
   });
@@ -244,11 +244,11 @@ describe('Wave0 Basic Functionality', () => {
 ### Integration Test (Run After Phase 1)
 
 ```typescript
-describe('Wave0 + Librarian Integration', () => {
+describe('Wave0 + LiBrainian Integration', () => {
   test('semantic scheduling groups related tasks', async () => {
     const tasks = [
-      { targetFiles: ['src/librarian/api/query.ts'] },
-      { targetFiles: ['src/librarian/api/librarian.ts'] },  // Similar
+      { targetFiles: ['src/LiBrainian/api/query.ts'] },
+      { targetFiles: ['src/LiBrainian/api/LiBrainian.ts'] },  // Similar
       { targetFiles: ['src/workgraph/runner.ts'] }       // Different
     ];
     const scheduled = await scheduler.schedule(tasks);
@@ -281,8 +281,8 @@ describe('Wave0 + Librarian Integration', () => {
 ```typescript
 // Programmatic configuration (no config/wave0.ts file).
 import type { UnifiedOrchestratorConfig } from 'src/orchestrator/unified/orchestrator_types.js';
-import { createBootstrapConfig } from 'src/librarian/api/bootstrap.js';
-import { INCLUDE_PATTERNS, EXCLUDE_PATTERNS } from 'src/librarian/universal_patterns.js';
+import { createBootstrapConfig } from 'src/LiBrainian/api/bootstrap.js';
+import { INCLUDE_PATTERNS, EXCLUDE_PATTERNS } from 'src/LiBrainian/universal_patterns.js';
 
 const orchestratorConfig: UnifiedOrchestratorConfig = {
   agentCount: 4,
@@ -312,7 +312,7 @@ const librarianBootstrap = createBootstrapConfig(process.cwd(), {
 
 ---
 
-**Document Status**: Comprehensive diagnosis complete. P16 command-injection fix landed. P1-P5 implemented (startup hook, orchestrator entrypoint cleanup, configurable workgraph gates, librarian-backed context assembly). P6 semantic scheduling, P8 checkpointing, P10 sandbox default, P11 SQLite locking, and P14 bootstrap recovery implemented. P7 provider gate, P17 hard-stop, P18 mock fallback removal, P24 execution backends, P25 policy engine, P9 agent pool, P13 expertise matching, P26 HITL routing, and P27 agent registry are implemented. P3 any sweep, P15 query API docs, P19 safe JSON.parse, P21 type-safe error handling, and P22 @ts-ignore removal complete. P20 TODO comment cleanup complete (remaining TODO strings are semantic signal tags/tests). P29 promote_operator split complete (phase modules + run_autopilot <400 lines). P28 evolution coordinator wired (policy optimization + gene pool updates + persisted artifacts). P12/P23 re-enable complete (0 disabled; `state/audits/disabled_tests.json` updated). P30 archived OrchestratorLoop + legacy workflow core (workflow_orchestrator now used by TaskExecutionRouter). P31 modularization expanded (init/start/agent spawn/entropy extracted; unified_orchestrator.ts reduced). Agent protocol compliance reports are now emitted (AgentComplianceReport.v1). Phase 9 progress: G1 HTN planner + formal planning integration, G2 episodic memory (SQLite + semantic recall), G3 bench harness + real scoreboard execution.
+**Document Status**: Comprehensive diagnosis complete. P16 command-injection fix landed. P1-P5 implemented (startup hook, orchestrator entrypoint cleanup, configurable workgraph gates, LiBrainian-backed context assembly). P6 semantic scheduling, P8 checkpointing, P10 sandbox default, P11 SQLite locking, and P14 bootstrap recovery implemented. P7 provider gate, P17 hard-stop, P18 mock fallback removal, P24 execution backends, P25 policy engine, P9 agent pool, P13 expertise matching, P26 HITL routing, and P27 agent registry are implemented. P3 any sweep, P15 query API docs, P19 safe JSON.parse, P21 type-safe error handling, and P22 @ts-ignore removal complete. P20 TODO comment cleanup complete (remaining TODO strings are semantic signal tags/tests). P29 promote_operator split complete (phase modules + run_autopilot <400 lines). P28 evolution coordinator wired (policy optimization + gene pool updates + persisted artifacts). P12/P23 re-enable complete (0 disabled; `state/audits/disabled_tests.json` updated). P30 archived OrchestratorLoop + legacy workflow core (workflow_orchestrator now used by TaskExecutionRouter). P31 modularization expanded (init/start/agent spawn/entropy extracted; unified_orchestrator.ts reduced). Agent protocol compliance reports are now emitted (AgentComplianceReport.v1). Phase 9 progress: G1 HTN planner + formal planning integration, G2 episodic memory (SQLite + semantic recall), G3 bench harness + real scoreboard execution.
 
 ---
 
@@ -326,7 +326,7 @@ const librarianBootstrap = createBootstrapConfig(process.cwd(), {
 │                                                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐    │
 │  │                                   THIS DOCUMENT                                                  │    │
-│  │                          librarian-wave0-integration.md                                          │    │
+│  │                          LiBrainian-wave0-integration.md                                          │    │
 │  │                                                                                                  │    │
 │  │  Contains:                                                                                       │    │
 │  │  • P1-P31: All problems with detailed fix instructions                                           │    │
@@ -435,7 +435,7 @@ LAYER 4: World-Class UI (UI_SPECIFICATION)
 | S04 Agent Pool | P9, P27 | G2 (memory) |
 | S05 Agent Registry | P13, P27 | A10 (evolution) |
 | S06 Context Assembler | P5 | - |
-| S07 Librarian | P1, P14, P15 | G2 (memory) |
+| S07 LiBrainian | P1, P14, P15 | G2 (memory) |
 | S08 Storage | P11 | - |
 | S11 Episodic Memory | (exists, needs G2) | G2 (real memory) |
 | S12 Backends | P24, P10 | - |
@@ -469,7 +469,7 @@ LAYER 4: World-Class UI (UI_SPECIFICATION)
 |-----------|---------|-------|-------------------|
 | UnifiedOrchestrator | ✓ Yes | Modularized (init/start/agent spawn/entropy extracted) | P31 complete |
 | Workgraph | ✓ Yes | Functional | P4, P8 enhance |
-| Librarian | ✓ Yes | 84 files, working | P1, P14, P15 integrate |
+| LiBrainian | ✓ Yes | 84 files, working | P1, P14, P15 integrate |
 | Agent Pool | ✓ Yes | Queueing + execution bridge | P9 complete |
 | Agent Registry | ✓ Yes | Capability matching | P27 complete |
 | Context Assembler | ✗ Missing | Not called | P5 creates |
@@ -503,18 +503,18 @@ LAYER 4: World-Class UI (UI_SPECIFICATION)
 
 | File | P-Fix | Change |
 |------|-------|--------|
-| `src/orchestrator/unified_orchestrator.ts` | P1, P2, P31 | Add librarian init, split |
+| `src/orchestrator/unified_orchestrator.ts` | P1, P2, P31 | Add LiBrainian init, split |
 | `src/spine/external_project_operator.ts` | P16 | Use git_sanitizer |
-| `src/librarian/integration/wave0_integration.ts` | P17 | Hard fail on error |
+| `src/LiBrainian/integration/wave0_integration.ts` | P17 | Hard fail on error |
 | `src/workgraph/runner.ts` | P6, P8 | Add semantic scheduling + checkpointing |
-| `src/orchestrator/context_assembler.ts` | P5 | Wire librarian |
+| `src/orchestrator/context_assembler.ts` | P5 | Wire LiBrainian |
 | All files with `any` | P3 | Add proper types |
 | All files with `JSON.parse` | P19 | Use safeJsonParse |
 | All catch blocks | P21 | Type-safe error handling |
 
 ---
 
-**Document Status**: Comprehensive diagnosis complete. P16 command-injection fix landed. P1-P5 implemented (startup hook, orchestrator entrypoint cleanup, configurable workgraph gates, librarian-backed context assembly). P6 semantic scheduling, P8 checkpointing, P10 sandbox default, P11 SQLite locking, and P14 bootstrap recovery implemented. P7 provider gate, P17 hard-stop, P18 mock fallback removal, P24 execution backends, P25 policy engine, P9 agent pool, P13 expertise matching, P26 HITL routing, and P27 agent registry are implemented. P3 any sweep, P15 query API docs, P19 safe JSON.parse, P21 type-safe error handling, and P22 @ts-ignore removal complete. P20 TODO comment cleanup complete (remaining TODO strings are semantic signal tags/tests). P29 promote_operator split complete (phase modules + run_autopilot <400 lines). P28 evolution coordinator wired (policy optimization + gene pool updates + persisted artifacts). P12/P23 re-enable complete (0 disabled; `state/audits/disabled_tests.json` updated). P30 archived OrchestratorLoop + legacy workflow core (workflow_orchestrator now used by TaskExecutionRouter). P31 modularization expanded (init/start/agent spawn/entropy extracted; unified_orchestrator.ts reduced).
+**Document Status**: Comprehensive diagnosis complete. P16 command-injection fix landed. P1-P5 implemented (startup hook, orchestrator entrypoint cleanup, configurable workgraph gates, LiBrainian-backed context assembly). P6 semantic scheduling, P8 checkpointing, P10 sandbox default, P11 SQLite locking, and P14 bootstrap recovery implemented. P7 provider gate, P17 hard-stop, P18 mock fallback removal, P24 execution backends, P25 policy engine, P9 agent pool, P13 expertise matching, P26 HITL routing, and P27 agent registry are implemented. P3 any sweep, P15 query API docs, P19 safe JSON.parse, P21 type-safe error handling, and P22 @ts-ignore removal complete. P20 TODO comment cleanup complete (remaining TODO strings are semantic signal tags/tests). P29 promote_operator split complete (phase modules + run_autopilot <400 lines). P28 evolution coordinator wired (policy optimization + gene pool updates + persisted artifacts). P12/P23 re-enable complete (0 disabled; `state/audits/disabled_tests.json` updated). P30 archived OrchestratorLoop + legacy workflow core (workflow_orchestrator now used by TaskExecutionRouter). P31 modularization expanded (init/start/agent spawn/entropy extracted; unified_orchestrator.ts reduced).
 
 ---
 

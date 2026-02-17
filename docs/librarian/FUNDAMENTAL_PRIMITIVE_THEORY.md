@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-A truly revolutionary primitive/composition system for agentic coding would unite three currently separate concerns: **epistemic honesty** (knowing what you don't know), **resource awareness** (token/time/cost budgets), and **verifiable composition** (proving properties without execution). Librarian already has sophisticated foundations in the first area (ConfidenceValue types, defeaters, evidence ledger), but significant opportunities exist in the latter two.
+A truly revolutionary primitive/composition system for agentic coding would unite three currently separate concerns: **epistemic honesty** (knowing what you don't know), **resource awareness** (token/time/cost budgets), and **verifiable composition** (proving properties without execution). LiBrainian already has sophisticated foundations in the first area (ConfidenceValue types, defeaters, evidence ledger), but significant opportunities exist in the latter two.
 
 The ideal system would be a **graded monad with effect tracking**, where:
 1. Each primitive carries its uncertainty through dependent types that prevent hallucination at compile time
@@ -23,7 +23,7 @@ This investigation identifies **7 transformative improvements** ranging from low
 
 #### Current State
 
-Librarian's `ConfidenceValue` type is a discriminated union with five variants:
+LiBrainian's `ConfidenceValue` type is a discriminated union with five variants:
 
 ```typescript
 type ConfidenceValue =
@@ -80,7 +80,7 @@ This would enable:
 
 Context windows and API calls are **linear resources** - they can't be duplicated (calling an LLM twice costs twice as much) and shouldn't be silently discarded (unused context is waste).
 
-Rust's ownership model and languages like [Koka](https://koka-lang.github.io/koka/doc/book.html) demonstrate that linear types can be practical. For Librarian:
+Rust's ownership model and languages like [Koka](https://koka-lang.github.io/koka/doc/book.html) demonstrate that linear types can be practical. For LiBrainian:
 
 ```typescript
 // Hypothetical linear token budget type
@@ -155,7 +155,7 @@ type Agent a = ReaderT AgentConfig
              (ResourceT IO))) a
 ```
 
-Librarian's current architecture implicitly does this, but making it explicit enables:
+LiBrainian's current architecture implicitly does this, but making it explicit enables:
 - Cleaner composition (monad laws guarantee associativity)
 - Effect isolation (inner layers don't know about outer effects)
 - Principled error handling (ExceptT provides short-circuiting)
@@ -164,7 +164,7 @@ Librarian's current architecture implicitly does this, but making it explicit en
 
 #### Confidence as a Semilattice
 
-Librarian's confidence combining operations form algebraic structures:
+LiBrainian's confidence combining operations form algebraic structures:
 
 - `min(a, b)` for sequential composition: This is a **meet** operation on confidence values
 - `max(a, b)` for OR composition: This is a **join** operation
@@ -181,7 +181,7 @@ This structure guarantees:
 - Commutativity: `a ∧ b = b ∧ a`
 - Idempotence: `a ∧ a = a`
 
-These laws are **implicitly assumed** in Librarian but not proven. A proper algebraic treatment would:
+These laws are **implicitly assumed** in LiBrainian but not proven. A proper algebraic treatment would:
 - Add property-based tests verifying the laws
 - Enable algebraic simplification of compositions
 - Prove that confidence propagation is well-founded
@@ -192,7 +192,7 @@ These laws are **implicitly assumed** in Librarian but not proven. A proper alge
 
 #### TLA+ for Distributed Agent Verification
 
-[TLA+](https://en.wikipedia.org/wiki/TLA+) is used extensively for distributed systems verification at AWS, Azure, and other cloud providers. It could apply to multi-agent Librarian scenarios:
+[TLA+](https://en.wikipedia.org/wiki/TLA+) is used extensively for distributed systems verification at AWS, Azure, and other cloud providers. It could apply to multi-agent LiBrainian scenarios:
 
 ```tla
 ---- MODULE EvidenceChainVerification ----
@@ -217,7 +217,7 @@ Recent work on ["Genefication" - Generative AI + Formal Verification](https://ww
 
 #### Session Types for Agent Communication
 
-[Session types](https://dl.acm.org/doi/abs/10.1145/3586031) provide a type-theoretic approach to verifying communication protocols. For multi-agent Librarian scenarios:
+[Session types](https://dl.acm.org/doi/abs/10.1145/3586031) provide a type-theoretic approach to verifying communication protocols. For multi-agent LiBrainian scenarios:
 
 ```typescript
 // Hypothetical session-typed agent communication
@@ -253,13 +253,13 @@ This would enable:
 3. **Composable modules**: Modules can be nested and combined
 4. **Separating what from how**: Signatures specify intent, optimizers handle implementation
 
-**What DSPy Gets Wrong** (from Librarian's perspective):
+**What DSPy Gets Wrong** (from LiBrainian's perspective):
 1. **No epistemic tracking**: DSPy doesn't distinguish calibrated from uncalibrated outputs
 2. **No defeater awareness**: DSPy can't express "this answer might be wrong because..."
 3. **Opaque optimization**: The optimizer's choices aren't auditable
 4. **No formal composition laws**: Composing modules doesn't guarantee any properties
 
-**Librarian's Advantage**: The evidence ledger and defeater system provide auditability that DSPy lacks. The opportunity is to add DSPy-style optimization while preserving epistemic honesty.
+**LiBrainian's Advantage**: The evidence ledger and defeater system provide auditability that DSPy lacks. The opportunity is to add DSPy-style optimization while preserving epistemic honesty.
 
 **Reference**: [DSPy: Compiling Declarative Language Model Calls into State-of-the-Art Pipelines](https://hai.stanford.edu/research/dspy-compiling-declarative-language-model-calls-into-state-of-the-art-pipelines) (Stanford HAI).
 
@@ -267,7 +267,7 @@ This would enable:
 
 Analyzing [LangGraph](https://latenode.com/blog/ai-frameworks-technical-infrastructure/langgraph-multi-agent-orchestration/langgraph-multi-agent-orchestration-complete-framework-guide-architecture-analysis-2025), [AutoGen](https://research.aimultiple.com/agentic-orchestration/), [CrewAI](https://www.getmaxim.ai/articles/top-5-ai-agent-frameworks-in-2025-a-practical-guide-for-ai-builders/), and others:
 
-| Gap | Description | Librarian Status |
+| Gap | Description | LiBrainian Status |
 |-----|-------------|------------------|
 | **Uncertainty Propagation** | How does confidence flow through agent graphs? | Partial (D2-D4 rules) |
 | **Calibration Tracking** | Are output confidences empirically calibrated? | Good (MeasuredConfidence) |
@@ -427,7 +427,7 @@ type ComposedEffects<E1 extends Effect, E2 extends Effect> = E1 | E2;
 ### Improvement 4: Session Types for Multi-Agent Communication
 
 **Current State**:
-Multi-agent scenarios in Librarian use ad-hoc message passing. There's no protocol verification.
+Multi-agent scenarios in LiBrainian use ad-hoc message passing. There's no protocol verification.
 
 **Theoretical Basis**:
 Session types encode communication protocols in types, providing deadlock freedom and protocol compliance guarantees at compile time.
@@ -558,7 +558,7 @@ interface VerifiableContract<I, O> {
 ### Improvement 7: DSPy-Style Optimization with Epistemic Constraints
 
 **Current State**:
-Librarian has `LearningLoop` for outcome-based improvement, but no automatic prompt optimization.
+LiBrainian has `LearningLoop` for outcome-based improvement, but no automatic prompt optimization.
 
 **Theoretical Basis**:
 DSPy's optimizers (SIMBA, GEPA, BootstrapFinetune) automatically find good prompts. We can extend this with epistemic constraints.
@@ -603,7 +603,7 @@ interface OptimizedComposition {
 
 **Expected Impact**:
 - **Game-changing** for usability: Automatic improvement with guarantees
-- Combines DSPy's power with Librarian's epistemic rigor
+- Combines DSPy's power with LiBrainian's epistemic rigor
 - Enables "optimize but stay honest"
 
 **Implementation Complexity**: High
@@ -633,7 +633,7 @@ These improvements provide substantial benefits but require more investment:
 | 3 | **Linear Resource Tracking for Token Budgets** | 3-4 weeks | High |
 | 4 | **Effect Tracking for Primitive Side Effects** | 3-4 weeks | High |
 
-**Rationale**: Resource and effect awareness are increasingly important as agent systems scale. These improvements position Librarian for production use cases with strict cost and security requirements.
+**Rationale**: Resource and effect awareness are increasingly important as agent systems scale. These improvements position LiBrainian for production use cases with strict cost and security requirements.
 
 ### Tier 3: Nice-to-Haves (Could Do)
 
@@ -645,7 +645,7 @@ These improvements are ambitious and high-reward but also high-effort:
 | 6 | **Verifiable Pre/Post Conditions with SMT Solving** | 8-12 weeks | High |
 | 7 | **DSPy-Style Optimization with Epistemic Constraints** | 12+ weeks | Very High |
 
-**Rationale**: These are research-grade improvements that could differentiate Librarian significantly but require substantial investment. Consider as longer-term roadmap items.
+**Rationale**: These are research-grade improvements that could differentiate LiBrainian significantly but require substantial investment. Consider as longer-term roadmap items.
 
 ## Proposed Work Units
 
@@ -668,7 +668,7 @@ These improvements are ambitious and high-reward but also high-effort:
 
 ## Conclusion
 
-Librarian already has a more principled epistemic foundation than any other agent framework surveyed. The `ConfidenceValue` type system, evidence ledger, and defeater mechanisms represent genuine innovations in agentic reliability.
+LiBrainian already has a more principled epistemic foundation than any other agent framework surveyed. The `ConfidenceValue` type system, evidence ledger, and defeater mechanisms represent genuine innovations in agentic reliability.
 
 The proposed improvements build on this foundation to address the remaining gaps:
 
@@ -682,7 +682,7 @@ The recommended path is:
 2. **Near-term**: WU-THEORY-005 through WU-THEORY-008 (resource and effect tracking)
 3. **Longer-term**: WU-THEORY-009 through WU-THEORY-014 (session types, SMT verification, optimization)
 
-These improvements would make Librarian the first agentic coding system with **formal correctness guarantees** - a significant competitive advantage as the field matures.
+These improvements would make LiBrainian the first agentic coding system with **formal correctness guarantees** - a significant competitive advantage as the field matures.
 
 ---
 

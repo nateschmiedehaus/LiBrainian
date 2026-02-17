@@ -1,10 +1,10 @@
 # Self-Improvement Primitives Specification
 
-> **Source**: Extracted from THEORETICAL_CRITIQUE.md Part XIII: Using Librarian to Perfect Librarian
+> **Source**: Extracted from THEORETICAL_CRITIQUE.md Part XIII: Using LiBrainian to Perfect LiBrainian
 >
-> **Problem Statement**: Librarian needs structured mechanisms for recursive self-improvement bounded by theoretical constraints
+> **Problem Statement**: LiBrainian needs structured mechanisms for recursive self-improvement bounded by theoretical constraints
 >
-> **Purpose**: Define the 11 self-improvement primitives, 5 compositions, and supporting infrastructure for Librarian to analyze, verify, and improve itself
+> **Purpose**: Define the 11 self-improvement primitives, 5 compositions, and supporting infrastructure for LiBrainian to analyze, verify, and improve itself
 
 ---
 
@@ -19,7 +19,7 @@
 | [Knowledge Freshness Detection](#knowledge-freshness-detection) | Staleness tracking and refresh |
 | [Distribution Shift Warning](#distribution-shift-warning) | Detecting when assumptions no longer hold |
 | [Health Dashboard Interface](#health-dashboard-interface) | Monitoring and visualization |
-| [Meta-Improvement Loop](#meta-improvement-loop) | Using Librarian to improve Librarian |
+| [Meta-Improvement Loop](#meta-improvement-loop) | Using LiBrainian to improve LiBrainian |
 | [Implementation Roadmap](#implementation-roadmap) | Phased delivery plan |
 
 ---
@@ -30,13 +30,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    LIBRARIAN ON LIBRARIAN                    │
+│                    LiBrainian ON LiBrainian                    │
 │                                                             │
 │  ┌─────────────────┐      ┌─────────────────┐              │
 │  │ 1. SELF-INDEX   │───▶  │ 2. SELF-QUERY   │              │
 │  │                 │      │                 │              │
 │  │ Bootstrap on    │      │ Query gaps,     │              │
-│  │ Librarian code  │      │ inconsistencies │              │
+│  │ LiBrainian code  │      │ inconsistencies │              │
 │  └─────────────────┘      └────────┬────────┘              │
 │                                    │                        │
 │                                    ▼                        │
@@ -66,7 +66,7 @@
 
 | Category | Prefix | Purpose |
 |----------|--------|---------|
-| **Self-Indexing** | `tp_self_*` | Bootstrap and refresh Librarian's knowledge about itself |
+| **Self-Indexing** | `tp_self_*` | Bootstrap and refresh LiBrainian's knowledge about itself |
 | **Self-Analysis** | `tp_analyze_*` | Analyze architecture, soundness, and consistency |
 | **Self-Verification** | `tp_verify_*` | Verify claims and calibration quality |
 | **Self-Improvement** | `tp_improve_*` | Generate recommendations, plan fixes, create tests |
@@ -76,7 +76,7 @@
 
 ### 1. tp_self_bootstrap
 
-Bootstrap Librarian knowledge index on Librarian source code itself.
+Bootstrap LiBrainian knowledge index on LiBrainian source code itself.
 
 ```typescript
 import type { ConfidenceValue } from '../epistemics/confidence.js';
@@ -85,10 +85,10 @@ interface TpSelfBootstrap {
   id: 'tp_self_bootstrap';
   name: 'Self-Bootstrap';
   category: 'self_improvement';
-  description: 'Bootstrap Librarian knowledge index on Librarian source code itself';
+  description: 'Bootstrap LiBrainian knowledge index on LiBrainian source code itself';
 
   preconditions: [
-    'Librarian source code accessible at known path',
+    'LiBrainian source code accessible at known path',
     'Storage system initialized',
     'Embedding model available',
   ];
@@ -96,7 +96,7 @@ interface TpSelfBootstrap {
   inputs: {
     sourceRoot: {
       type: 'path';
-      description: 'Root of Librarian source';
+      description: 'Root of LiBrainian source';
       required: true;
     };
     includeTests: {
@@ -119,7 +119,7 @@ interface TpSelfBootstrap {
   };
 
   postconditions: [
-    'All Librarian modules indexed',
+    'All LiBrainian modules indexed',
     'All public interfaces documented',
     'Dependency graph complete',
     'Embedding vectors generated',
@@ -156,14 +156,14 @@ interface CoverageMetrics {
 
 ### 2. tp_self_refresh
 
-Incrementally update Librarian knowledge based on recent changes.
+Incrementally update LiBrainian knowledge based on recent changes.
 
 ```typescript
 interface TpSelfRefresh {
   id: 'tp_self_refresh';
   name: 'Self-Refresh';
   category: 'self_improvement';
-  description: 'Incrementally update Librarian knowledge based on recent changes';
+  description: 'Incrementally update LiBrainian knowledge based on recent changes';
 
   preconditions: [
     'Prior self-bootstrap completed',
@@ -222,14 +222,14 @@ interface StalenessReport {
 
 ### 3. tp_analyze_architecture
 
-Analyze Librarian architecture for violations and improvements.
+Analyze LiBrainian architecture for violations and improvements.
 
 ```typescript
 interface TpAnalyzeArchitecture {
   id: 'tp_analyze_architecture';
   name: 'Analyze Architecture';
   category: 'self_improvement';
-  description: 'Analyze Librarian architecture for violations and improvements';
+  description: 'Analyze LiBrainian architecture for violations and improvements';
 
   preconditions: ['Self-index available'];
 
@@ -301,14 +301,14 @@ interface ArchitectureMetrics {
 
 ### 4. tp_analyze_consistency
 
-Check consistency between Librarian claims and implementation.
+Check consistency between LiBrainian claims and implementation.
 
 ```typescript
 interface TpAnalyzeConsistency {
   id: 'tp_analyze_consistency';
   name: 'Analyze Self-Consistency';
   category: 'self_improvement';
-  description: 'Check consistency between Librarian claims and implementation';
+  description: 'Check consistency between LiBrainian claims and implementation';
 
   preconditions: [
     'Self-index available',
@@ -386,14 +386,14 @@ interface DocDrift {
 
 ### 5. tp_verify_claim
 
-Verify a specific claim Librarian makes about itself.
+Verify a specific claim LiBrainian makes about itself.
 
 ```typescript
 interface TpVerifyClaim {
   id: 'tp_verify_claim';
   name: 'Verify Self-Claim';
   category: 'self_improvement';
-  description: 'Verify a specific claim Librarian makes about itself';
+  description: 'Verify a specific claim LiBrainian makes about itself';
 
   preconditions: [
     'Claim identified',
@@ -479,14 +479,14 @@ interface Evidence {
 
 ### 6. tp_verify_calibration
 
-Verify that Librarian confidence scores are well-calibrated.
+Verify that LiBrainian confidence scores are well-calibrated.
 
 ```typescript
 interface TpVerifyCalibration {
   id: 'tp_verify_calibration';
   name: 'Verify Calibration Quality';
   category: 'self_improvement';
-  description: 'Verify that Librarian confidence scores are well-calibrated';
+  description: 'Verify that LiBrainian confidence scores are well-calibrated';
 
   preconditions: [
     'Historical predictions available',
@@ -845,14 +845,14 @@ interface WeaknessCoverage {
 
 ### 10. tp_learn_from_outcome
 
-Update Librarian knowledge based on outcome feedback.
+Update LiBrainian knowledge based on outcome feedback.
 
 ```typescript
 interface TpLearnFromOutcome {
   id: 'tp_learn_from_outcome';
   name: 'Learn From Outcome';
   category: 'self_improvement';
-  description: 'Update Librarian knowledge based on outcome feedback';
+  description: 'Update LiBrainian knowledge based on outcome feedback';
 
   preconditions: [
     'Outcome available',
@@ -1039,13 +1039,13 @@ interface ExpectedBenefit {
 
 ### Composition 1: tc_self_audit_full
 
-Complete audit of Librarian health, theoretical soundness, and consistency.
+Complete audit of LiBrainian health, theoretical soundness, and consistency.
 
 ```typescript
 interface TcSelfAuditFull {
   id: 'tc_self_audit_full';
   name: 'Full Self-Audit';
-  description: 'Complete audit of Librarian health, theoretical soundness, and consistency';
+  description: 'Complete audit of LiBrainian health, theoretical soundness, and consistency';
 
   primitives: [
     'tp_self_bootstrap',
@@ -1659,7 +1659,7 @@ import type { ConfidenceValue } from '../epistemics/confidence.js';
  */
 class SelfImprovementExecutor {
   constructor(
-    private readonly librarian: Librarian,
+    private readonly LiBrainian: LiBrainian,
     private readonly storage: LibrarianStorage,
     private readonly episodeRecorder: EpisodeRecorder,
     private readonly config: ExecutorConfig
@@ -2238,7 +2238,7 @@ const PSI_THRESHOLDS = {
 
 ## Health Dashboard Interface
 
-Interface for monitoring Librarian's self-improvement health.
+Interface for monitoring LiBrainian's self-improvement health.
 
 ```typescript
 interface HealthDashboard {
@@ -2515,13 +2515,13 @@ interface HealthEvent {
 
 ## Meta-Improvement Loop
 
-Using Librarian to improve Librarian - the recursive self-improvement protocol.
+Using LiBrainian to improve LiBrainian - the recursive self-improvement protocol.
 
 ```typescript
 /**
  * Meta-Improvement Protocol
  *
- * Orchestrates the use of Librarian to improve Librarian itself,
+ * Orchestrates the use of LiBrainian to improve LiBrainian itself,
  * with safeguards against unbounded recursion and theoretical violations.
  */
 interface MetaImprovementLoop {
@@ -2663,7 +2663,7 @@ interface MetaImprovementHistory {
  * Safety bounds for meta-improvement
  */
 const META_IMPROVEMENT_BOUNDS = {
-  /** Maximum recursion depth (Librarian improving Librarian improving...) */
+  /** Maximum recursion depth (LiBrainian improving LiBrainian improving...) */
   MAX_RECURSION_DEPTH: 1,
 
   /** Minimum time between cycles */
@@ -2686,7 +2686,7 @@ const META_IMPROVEMENT_BOUNDS = {
 
 ### Lob's Theorem and Self-Verification Bounds
 
-Lob's theorem (a strengthening of Godel's incompleteness theorems) establishes fundamental limits on what a formal system can prove about itself. For Librarian's self-improvement primitives, this has concrete implications:
+Lob's theorem (a strengthening of Godel's incompleteness theorems) establishes fundamental limits on what a formal system can prove about itself. For LiBrainian's self-improvement primitives, this has concrete implications:
 
 **What Lob's Theorem Says:**
 If a system can prove "if I can prove P, then P is true" for any statement P, then the system can already prove P. Contrapositively: a consistent system cannot prove its own consistency.
@@ -2704,7 +2704,7 @@ If a system can prove "if I can prove P, then P is true" for any statement P, th
 
 ### Breaking the Lobian Loop with External Outcomes
 
-The self-verification primitives (`tp_verify_claim`, `tp_verify_calibration`) appear to create a problematic loop: Librarian verifying Librarian's claims. This would be epistemically vacuous if the verification were purely internal.
+The self-verification primitives (`tp_verify_claim`, `tp_verify_calibration`) appear to create a problematic loop: LiBrainian verifying LiBrainian's claims. This would be epistemically vacuous if the verification were purely internal.
 
 **How External Outcomes Break the Loop:**
 
@@ -3167,7 +3167,7 @@ const DEFAULT_ESCALATION_CONFIG: EscalationConfig = {
 | Distribution shift warning | ~250 |
 | Health dashboard interface | ~350 |
 | Meta-improvement loop | ~300 |
-| Integration with existing Librarian | ~200 |
+| Integration with existing LiBrainian | ~200 |
 | **Phase 4 Total** | **~1,400** |
 
 ### Total Estimated LOC: ~5,750

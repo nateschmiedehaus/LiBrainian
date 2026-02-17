@@ -1,4 +1,4 @@
-# Librarian Epistemological Analysis
+# LiBrainian Epistemological Analysis
 
 **Status:** Research Report
 **Date:** 2026-01-27
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Librarian implements a sophisticated epistemological framework grounded in academic research (Pollock's defeaters, Dung's argumentation theory, KDD 2025 UQ survey). The system provides strong coverage for **propositional knowledge**, **uncertainty handling**, and **provenance tracking**, but has significant gaps in **counterfactual reasoning**, **causal reasoning**, and **analogical reasoning**. This analysis maps the ten epistemological dimensions against Librarian's current implementation and identifies research-backed improvements.
+LiBrainian implements a sophisticated epistemological framework grounded in academic research (Pollock's defeaters, Dung's argumentation theory, KDD 2025 UQ survey). The system provides strong coverage for **propositional knowledge**, **uncertainty handling**, and **provenance tracking**, but has significant gaps in **counterfactual reasoning**, **causal reasoning**, and **analogical reasoning**. This analysis maps the ten epistemological dimensions against LiBrainian's current implementation and identifies research-backed improvements.
 
 ---
 
@@ -33,13 +33,13 @@ Librarian implements a sophisticated epistemological framework grounded in acade
 
 ### 2.1 Propositional Knowledge (Facts about code - what IS)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 - `UniversalKnowledge` interface with 150+ structured fields organized into 13 domains:
   - Identity, Semantics, Contract, Relationships, Quality, Security, Runtime, Testing, History, Ownership, Rationale, Context, Traceability
 - Claims (`Claim` type) with typed propositions: semantic, structural, behavioral, quality, security, contractual, relational, temporal, ownership, provenance
 - `KNOWLEDGE_QUESTION_MAP` explicitly maps questions to answering fields
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Evidence graph with supports/opposes/assumes edges
 - Claims validated via AST parsing, test results, git history, LLM synthesis
 - Contradictions tracked explicitly (never silently reconciled)
@@ -54,7 +54,7 @@ Librarian implements a sophisticated epistemological framework grounded in acade
 
 ### 2.2 Procedural Knowledge (How things work - HOW)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface SemanticMechanism {
   explanation: string;        // Plain English how it works
@@ -68,7 +68,7 @@ interface SemanticMechanism {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - LLM synthesis with evidence grounding (mandated for semantic content)
 - Pattern detection via `PatternKnowledge.queryWithLLM()`
 - Algorithm complexity analysis (time/space Big-O)
@@ -84,7 +84,7 @@ interface SemanticMechanism {
 
 ### 2.3 Declarative Knowledge (Rules and constraints - MUST/SHOULD)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface ContractBehavior {
   preconditions: Condition[];   // Must be true before call
@@ -102,7 +102,7 @@ interface PrimitiveContract {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Design-by-contract execution via `ContractExecutor`
 - Precondition/postcondition verification
 - ContractViolation exceptions with detailed context
@@ -120,7 +120,7 @@ interface PrimitiveContract {
 
 ### 2.4 Tacit Knowledge (Implicit conventions - ASSUMED)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface TribalKnowledgeInfo {
   tribal: TribalKnowledge[];
@@ -136,7 +136,7 @@ interface Gotcha {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Manual entry with importance classification (critical/important/nice-to-know)
 - LLM synthesis for discovering undocumented conventions
 - NamingConvention analysis for implicit style rules
@@ -154,7 +154,7 @@ interface Gotcha {
 
 ### 2.5 Uncertainty Handling (Confidence and calibration)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 type ConfidenceValue =
   | DeterministicConfidence  // 1.0 or 0.0 (certain)
@@ -172,7 +172,7 @@ interface UncertaintyProfile {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Derivation rules D1-D7:
   - D1: Syntactic operations -> Deterministic (1.0 or 0.0)
   - D2: Sequential composition -> min(steps)
@@ -196,7 +196,7 @@ interface UncertaintyProfile {
 
 ### 2.6 Provenance Tracking (Source of knowledge)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface EvidenceEntry {
   id: EvidenceId;
@@ -218,7 +218,7 @@ interface EvidenceProvenance {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Append-only evidence ledger (never modified or deleted)
 - Evidence chains for any claim
 - LLM mandate audit: all semantic outputs require provider/modelId/promptDigest/timestamp
@@ -235,7 +235,7 @@ interface EvidenceProvenance {
 
 ### 2.7 Temporal Knowledge (Changes over time)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface EntityHistory {
   created: HistoryEvent;
@@ -252,7 +252,7 @@ function computeFreshness(generatedAt, now, halfLifeMs) {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Staleness thresholds per domain (Identity: 0, Relationships: 1min, Semantics: 1hr, Quality: 1day)
 - Freshness decay with exponential half-life
 - Staleness defeaters auto-activated
@@ -271,7 +271,7 @@ function computeFreshness(generatedAt, now, halfLifeMs) {
 
 ### 2.8 Counterfactual Reasoning (What-if analysis)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface ImpactQuery {
   type: 'change_impact' | 'blast_radius' | 'test_impact' | 'risk_assessment' | 'safe_changes' | 'breaking_changes';
@@ -281,7 +281,7 @@ interface ImpactQuery {
 }
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Static dependency traversal (BFS through import graph)
 - Blast radius calculation (% of codebase affected)
 - Risk factors aggregation (centrality, test coverage, exports)
@@ -302,14 +302,14 @@ interface ImpactQuery {
 
 ### 2.9 Causal Reasoning (Why things happen)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 - **Not explicitly implemented**
 - Partial support through:
   - SBFL (Ochiai) mentioned for failure attribution
   - `Rationale` type with decisions/constraints/tradeoffs
   - Commit messages for "why" of changes
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - LLM synthesis for rationale extraction (opportunistic)
 - Manual ADR linking
 - No systematic causal model
@@ -329,7 +329,7 @@ interface ImpactQuery {
 
 ### 2.10 Analogical Reasoning (Pattern matching across domains)
 
-**How Librarian Represents This:**
+**How LiBrainian Represents This:**
 ```typescript
 interface SimilarEntity extends Reference {
   similarity: number;  // Cosine similarity 0-1
@@ -340,7 +340,7 @@ interface SimilarEntity extends Reference {
 embedding?: Float32Array;  // Semantic vector (384-dim)
 ```
 
-**How Librarian Reasons About This:**
+**How LiBrainian Reasons About This:**
 - Cosine similarity via embeddings
 - Pattern detection (Factory, Singleton, Observer, etc.)
 - Community detection in dependency graphs
@@ -596,7 +596,7 @@ interface TacitKnowledgeMiner {
 
 ## 7. Conclusion
 
-Librarian's epistemological foundation is strong for **propositional knowledge**, **uncertainty handling**, and **provenance tracking**, with principled approaches rooted in academic research (Pollock, Dung, KDD 2025). However, the system lacks capabilities for **causal reasoning**, **counterfactual simulation**, and **analogical reasoning** that are essential for advanced software understanding.
+LiBrainian's epistemological foundation is strong for **propositional knowledge**, **uncertainty handling**, and **provenance tracking**, with principled approaches rooted in academic research (Pollock, Dung, KDD 2025). However, the system lacks capabilities for **causal reasoning**, **counterfactual simulation**, and **analogical reasoning** that are essential for advanced software understanding.
 
 The recommended improvements follow established research in:
 - Causal inference (Pearl's do-calculus)
@@ -605,7 +605,7 @@ The recommended improvements follow established research in:
 - Temporal logic verification
 - Mining software repositories
 
-Implementing these capabilities would elevate Librarian from a knowledge repository to a true reasoning system capable of answering "why", "what-if", and "what's similar" questions with calibrated confidence.
+Implementing these capabilities would elevate LiBrainian from a knowledge repository to a true reasoning system capable of answering "why", "what-if", and "what's similar" questions with calibrated confidence.
 
 ---
 

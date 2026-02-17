@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The Librarian calibration system implements a **reasonable but incomplete** approach to confidence calibration. The core ECE/MCE computation is mathematically correct, and the bucket-based calibration curve methodology follows standard practices. However, the implementation has significant gaps when assessed against proper scoring rule theory, modern ECE alternatives, and calibration best practices.
+The LiBrainian calibration system implements a **reasonable but incomplete** approach to confidence calibration. The core ECE/MCE computation is mathematically correct, and the bucket-based calibration curve methodology follows standard practices. However, the implementation has significant gaps when assessed against proper scoring rule theory, modern ECE alternatives, and calibration best practices.
 
 **Overall Assessment**: PARTIAL ALIGNMENT with SIGNIFICANT GAPS
 
@@ -42,7 +42,7 @@ A **proper scoring rule** S(p, y) is one where the expected score E[S(p, y)] is 
 
 ### 1.2 Implementation Analysis
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/epistemics/calibration.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/epistemics/calibration.ts`
 
 **Current Metrics Computed**:
 ```typescript
@@ -96,7 +96,7 @@ Where:
 
 ### 2.2 Implementation Correctness
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/epistemics/calibration.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/epistemics/calibration.ts`
 
 ```typescript
 // Lines 155-159: Bucket-level calibration error
@@ -214,7 +214,7 @@ However, no actual visualization or diagram generation is implemented.
 
 ### 4.2 Current Implementation
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/epistemics/calibration.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/epistemics/calibration.ts`
 
 ```typescript
 // Lines 260-290: adjustConfidenceScore function
@@ -306,7 +306,7 @@ The cold start problem in calibration:
 
 ### 5.2 Current Implementation
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/epistemics/confidence.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/epistemics/confidence.ts`
 
 ```typescript
 // Lines 255-260: Uncalibrated confidence
@@ -318,7 +318,7 @@ export function uncalibratedConfidence(): AbsentConfidence {
 }
 ```
 
-**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/epistemics/calibration.ts`
+**File**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/epistemics/calibration.ts`
 
 ```typescript
 // Lines 267-279: Bucket with insufficient samples
@@ -558,7 +558,7 @@ function computeLogLoss(samples: CalibrationSample[]): number {
 
 ## 10. Conclusion
 
-The Librarian calibration system has a **correct ECE implementation** but lacks **proper scoring rules** and uses **suboptimal adjustment methods**. The gap between the detailed spec (track-f-calibration.md) and actual implementation is significant.
+The LiBrainian calibration system has a **correct ECE implementation** but lacks **proper scoring rules** and uses **suboptimal adjustment methods**. The gap between the detailed spec (track-f-calibration.md) and actual implementation is significant.
 
 **Strengths**:
 - ECE formula correctly implemented

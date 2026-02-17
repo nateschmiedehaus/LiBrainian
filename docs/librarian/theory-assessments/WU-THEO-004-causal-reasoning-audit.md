@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The Librarian's causal reasoning module (`src/epistemics/causal_reasoning.ts`) implements a **Level 1 (Association)** system according to Pearl's Causal Hierarchy, with aspirational but semantically incomplete edge types for Levels 2-3. The implementation provides useful graph traversal capabilities for "what happened" queries but **cannot answer true causal questions** ("what would happen if?") or counterfactual reasoning ("what would have happened?").
+The LiBrainian's causal reasoning module (`src/epistemics/causal_reasoning.ts`) implements a **Level 1 (Association)** system according to Pearl's Causal Hierarchy, with aspirational but semantically incomplete edge types for Levels 2-3. The implementation provides useful graph traversal capabilities for "what happened" queries but **cannot answer true causal questions** ("what would happen if?") or counterfactual reasoning ("what would have happened?").
 
 **Key Finding**: The system conflates correlation with causation. Edge types like `causes`, `enables`, `prevents` are syntactic labels without formal semantics that would enable causal inference.
 
@@ -471,7 +471,7 @@ The `EPISTEMIC_PRIMITIVES_PATTERNS.md` document (Section 4) describes the causal
 
 ## 8. Conclusion
 
-The Librarian's causal reasoning module provides **useful graph traversal** capabilities that can answer "what is connected to what?" but **cannot answer true causal questions**. The implementation is at **Level 1** of Pearl's hierarchy with aspirational but unoperationalized edge types.
+The LiBrainian's causal reasoning module provides **useful graph traversal** capabilities that can answer "what is connected to what?" but **cannot answer true causal questions**. The implementation is at **Level 1** of Pearl's hierarchy with aspirational but unoperationalized edge types.
 
 **Verdict**: The module is fit for its current purpose (impact analysis, dependency tracing) but its naming and documentation suggest causal capabilities it does not have. This creates **epistemic risk** - users may trust "causal" explanations that are actually just correlation reports.
 

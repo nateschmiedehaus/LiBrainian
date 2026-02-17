@@ -1,9 +1,9 @@
 # Track E: Universal Domain Support (D1-D11)
 
-> **Source**: Extracted from `docs/librarian/THEORETICAL_CRITIQUE.md`
-> **Guarantee**: Librarian will support ANY software domain through composable primitives based on fundamental computational aspects.
+> **Source**: Extracted from `docs/LiBrainian/THEORETICAL_CRITIQUE.md`
+> **Guarantee**: LiBrainian will support ANY software domain through composable primitives based on fundamental computational aspects.
 >
-> **Librarian Story**: This is Chapter 6 - The Universality. It depends on Chapter 5 (Honesty/Quantification).
+> **LiBrainian Story**: This is Chapter 6 - The Universality. It depends on Chapter 5 (Honesty/Quantification).
 >
 > **Theory Reference**: All confidence values MUST use `ConfidenceValue` from Track D. See [GLOSSARY.md](./GLOSSARY.md) and [CONFIDENCE_REDESIGN.md](./CONFIDENCE_REDESIGN.md).
 
@@ -50,7 +50,7 @@ confidence: {
 
 ## Overview
 
-Track E ensures Librarian achieves **universal domain coverage** - the ability to analyze and understand ANY software domain, not just traditional development scenarios.
+Track E ensures LiBrainian achieves **universal domain coverage** - the ability to analyze and understand ANY software domain, not just traditional development scenarios.
 
 | Priority | Feature | Part Reference | LOC | Dependencies | Status |
 |----------|---------|----------------|-----|--------------|--------|
@@ -131,7 +131,7 @@ Every software system, regardless of domain, must handle these 9 fundamental asp
 **Response (McCarthy)**: "We can't prove completeness formally, but we CAN test it empirically. For any new domain X that seems unsupported, we ask: which fundamental aspect is missing? If we find one, we add a primitive. If we don't, X is already supported."
 
 **The Guarantee**: For any domain D:
-1. If D can be fully supported by existing primitives, Librarian provides that support.
+1. If D can be fully supported by existing primitives, LiBrainian provides that support.
 2. If D reveals a missing fundamental aspect, that aspect becomes a new primitive.
 3. The protocol provides the construction method.
 4. No domain is unsupportable - at worst, we learn what's missing.
@@ -1314,7 +1314,7 @@ export const tp_audit_report_generate: TechniquePrimitive = {
 ```typescript
 /**
  * DomainContext provides domain-specific interpretation of quality metrics.
- * This enables Librarian to make domain-aware judgments about code quality.
+ * This enables LiBrainian to make domain-aware judgments about code quality.
  */
 interface DomainContext {
   /** Unique identifier for the domain context */
@@ -1771,7 +1771,7 @@ function interpretTestCoverage(
 /**
  * Domain Construction Protocol
  *
- * Given a new domain D, construct its Librarian support:
+ * Given a new domain D, construct its LiBrainian support:
  */
 
 function constructDomainSupport(domain: DomainDescription): TechniqueComposition {
@@ -1930,7 +1930,7 @@ Return ONLY the aspects that are genuinely important, not all 9.
 
 ```
 +-----------------------------------------------------------------------------+
-|                    LIBRARIAN UNIVERSAL DOMAIN ARCHITECTURE                   |
+|                    LiBrainian UNIVERSAL DOMAIN ARCHITECTURE                   |
 |                                                                             |
 |  +---------------------------------------------------------------------+    |
 |  | LAYER 1: FUNDAMENTAL PRIMITIVES (14 domain-agnostic)                |    |
@@ -1989,7 +1989,7 @@ Return ONLY the aspects that are genuinely important, not all 9.
 |                                    |                                        |
 |                                    v                                        |
 |  +---------------------------------------------------------------------+    |
-|  | LAYER 5: LCL (Librarian Configuration Language)                     |    |
+|  | LAYER 5: LCL (LiBrainian Configuration Language)                     |    |
 |  |                                                                     |    |
 |  |  lcl.compose('my_domain')                                           |    |
 |  |     .use('tc_social_platform')                                      |    |
@@ -2005,9 +2005,9 @@ Return ONLY the aspects that are genuinely important, not all 9.
 
 ---
 
-## Integration with Existing Librarian Structures
+## Integration with Existing LiBrainian Structures
 
-| Librarian Structure | File | Role in Universal Support |
+| LiBrainian Structure | File | Role in Universal Support |
 |---------------------|------|--------------------------|
 | **TechniquePrimitive** | `technique_library.ts` | Defines the 14 fundamental primitives |
 | **TechniqueComposition** | `technique_compositions.ts` | Pre-built domain compositions |
@@ -2177,46 +2177,46 @@ Return ONLY the aspects that are genuinely important, not all 9.
 
 ```bash
 # Verify D1 core primitive definitions
-rg "tp_algorithm_trace|tp_component_graph|tp_scale_pattern|tp_realtime_flow|tp_media_pipeline|tp_tool_orchestration|tp_distribution_map" packages/librarian/src
+rg "tp_algorithm_trace|tp_component_graph|tp_scale_pattern|tp_realtime_flow|tp_media_pipeline|tp_tool_orchestration|tp_distribution_map" packages/LiBrainian/src
 
 # Verify D2 composition definitions
-rg "tc_social_platform|tc_video_platform|tc_industrial_backend|tc_developer_tool|tc_dashboard|tc_landing_page|tc_payment_system|tc_e_commerce|tc_search_system|tc_notification" packages/librarian/src
+rg "tc_social_platform|tc_video_platform|tc_industrial_backend|tc_developer_tool|tc_dashboard|tc_landing_page|tc_payment_system|tc_e_commerce|tc_search_system|tc_notification" packages/LiBrainian/src
 
 # Verify D3 security audit primitives
-rg "tp_security_scan|tp_vulnerability_check|tp_owasp_check|tp_dependency_audit" packages/librarian/src
+rg "tp_security_scan|tp_vulnerability_check|tp_owasp_check|tp_dependency_audit" packages/LiBrainian/src
 
 # Verify D4 performance investigation primitives
-rg "tp_profile_analysis|tp_bottleneck_detect|tp_memory_analysis|tp_latency_trace" packages/librarian/src
+rg "tp_profile_analysis|tp_bottleneck_detect|tp_memory_analysis|tp_latency_trace" packages/LiBrainian/src
 
 # Verify D5 API design review primitives
-rg "tp_api_consistency_check|tp_rest_convention_check|tp_schema_validation" packages/librarian/src
+rg "tp_api_consistency_check|tp_rest_convention_check|tp_schema_validation" packages/LiBrainian/src
 
 # Verify D6 dependency upgrade primitives
-rg "tp_breaking_change_detect|tp_migration_path_suggest|tp_compatibility_check" packages/librarian/src
+rg "tp_breaking_change_detect|tp_migration_path_suggest|tp_compatibility_check" packages/LiBrainian/src
 
 # Verify D7 documentation generation primitives
-rg "tp_doc_structure_infer|tp_example_generate|tp_api_doc_generate" packages/librarian/src
+rg "tp_doc_structure_infer|tp_example_generate|tp_api_doc_generate" packages/LiBrainian/src
 
 # Verify D8 technical debt assessment primitives
-rg "tp_debt_identify|tp_debt_prioritize|tp_debt_impact_analyze" packages/librarian/src
+rg "tp_debt_identify|tp_debt_prioritize|tp_debt_impact_analyze" packages/LiBrainian/src
 
 # Verify D9 architecture decision primitives
-rg "tp_tradeoff_analyze|tp_adr_generate|tp_architecture_validate" packages/librarian/src
+rg "tp_tradeoff_analyze|tp_adr_generate|tp_architecture_validate" packages/LiBrainian/src
 
 # Verify D10 legacy code analysis primitives
-rg "tp_legacy_archaeology|tp_safe_zone_identify|tp_modernization_plan" packages/librarian/src
+rg "tp_legacy_archaeology|tp_safe_zone_identify|tp_modernization_plan" packages/LiBrainian/src
 
 # Verify D11 compliance checking primitives
-rg "tp_compliance_scan|tp_evidence_collect|tp_audit_report_generate" packages/librarian/src
+rg "tp_compliance_scan|tp_evidence_collect|tp_audit_report_generate" packages/LiBrainian/src
 
 # Verify DomainContext and quality metrics
-rg "DomainContext|DomainNorms|EmpiricalDistributions|CodeType" packages/librarian/src
+rg "DomainContext|DomainNorms|EmpiricalDistributions|CodeType" packages/LiBrainian/src
 
 # Run domain tests
 npm run test -- --grep "universal domain"
 
 # Verify aspect mapping completeness
-rg "ASPECT_TO_PRIMITIVES" packages/librarian/src
+rg "ASPECT_TO_PRIMITIVES" packages/LiBrainian/src
 ```
 
 ---
@@ -2227,7 +2227,7 @@ rg "ASPECT_TO_PRIMITIVES" packages/librarian/src
 
 **Kay**: "The test of a truly object-oriented system is whether new kinds of objects can be added without changing the system. The test of truly universal primitives is whether new domains can be supported without adding primitives."
 
-**Armstrong**: "Let the domain fail gracefully. If someone tries to use Librarian for a domain and finds it inadequate, the failure should clearly indicate which fundamental aspect is missing - then we can add a primitive."
+**Armstrong**: "Let the domain fail gracefully. If someone tries to use LiBrainian for a domain and finds it inadequate, the failure should clearly indicate which fundamental aspect is missing - then we can add a primitive."
 
 **Naur**: "Don't build 40 domain-specific modules. Build primitives that COMPOSE into domain support."
 

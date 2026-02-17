@@ -21,11 +21,11 @@ codex login status
 ```
 
 **NEVER** check for `process.env.ANTHROPIC_API_KEY`, `process.env.OPENAI_API_KEY`, etc.
-**ALWAYS** use `checkAllProviders()` from `librarian/api`
+**ALWAYS** use `checkAllProviders()` from `LiBrainian/api`
 
 ```typescript
 // ✅ CORRECT - Use provider gate (CLI auth)
-import { checkAllProviders } from 'librarian/api';
+import { checkAllProviders } from 'LiBrainian/api';
 const status = await checkAllProviders();
 if (status.embedding.available) { /* use it */ }
 
@@ -70,7 +70,7 @@ Hash-based embeddings have **ZERO semantic understanding**:
 
 ```typescript
 // ✅ CORRECT - Wrap real embedding service
-import { EmbeddingService, requireProviders } from 'librarian/api';
+import { EmbeddingService, requireProviders } from 'LiBrainian/api';
 
 class MyEmbeddingWrapper {
   private service: EmbeddingService;

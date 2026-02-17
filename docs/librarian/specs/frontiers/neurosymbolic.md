@@ -852,7 +852,7 @@ async function fuseTypeInference(
 
 ```gherkin
 Feature: Neurosymbolic Fusion
-  As a Librarian system
+  As a LiBrainian system
   I want to combine symbolic constraints with neural predictions
   So that I can produce more accurate and robust knowledge
 

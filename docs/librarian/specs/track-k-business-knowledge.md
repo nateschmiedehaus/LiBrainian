@@ -1,10 +1,10 @@
 # Track K: Business Knowledge Domain
 
-> **Source**: Novel specification extending Librarian beyond code knowledge
+> **Source**: Novel specification extending LiBrainian beyond code knowledge
 > **Purpose**: Enable agents to understand and operate the entire business, not just write code
 > **Dependency**: Requires Track D (Quantification) for ConfidenceValue types, Track E (Domain) for primitive patterns
 >
-> **Librarian Story**: Code is only part of running a software business. An agent that can only code is like an employee who can only type - useful but incomplete. Track K gives Librarian the knowledge primitives to understand markets, products, customers, finances, teams, and operations.
+> **LiBrainian Story**: Code is only part of running a software business. An agent that can only code is like an employee who can only type - useful but incomplete. Track K gives LiBrainian the knowledge primitives to understand markets, products, customers, finances, teams, and operations.
 >
 > **Theory Reference**: All confidence values MUST use `ConfidenceValue` from Track D. See [GLOSSARY.md](./GLOSSARY.md).
 
@@ -12,7 +12,7 @@
 
 ## Executive Summary
 
-Track K extends Librarian from a code knowledge system to a **business knowledge system**. Just as Track E defines primitives for understanding code domains (data lineage, state traces, timing bounds), Track K defines primitives for understanding business domains:
+Track K extends LiBrainian from a code knowledge system to a **business knowledge system**. Just as Track E defines primitives for understanding code domains (data lineage, state traces, timing bounds), Track K defines primitives for understanding business domains:
 
 | Domain | Primitives | Purpose |
 |--------|------------|---------|
@@ -1596,7 +1596,7 @@ const tc_business_intelligence: TechniqueComposition = {
 
 ---
 
-## Integration with Existing Librarian Features
+## Integration with Existing LiBrainian Features
 
 ### Knowledge Store Integration
 
@@ -1734,13 +1734,13 @@ interface BusinessQueryResult {
 
 ## Summary
 
-Track K extends Librarian from code knowledge to business knowledge:
+Track K extends LiBrainian from code knowledge to business knowledge:
 
 1. **40 business primitives** across 7 domains (strategy, product, GTM, finance, team, legal, operations)
 2. **4 cross-domain primitives** for business-code traceability
 3. **12 domain compositions** for common workflows
-4. **Full integration** with existing Librarian features (knowledge store, queries, confidence)
+4. **Full integration** with existing LiBrainian features (knowledge store, queries, confidence)
 
 **The key insight**: An agent that only understands code is like an employee who can only type. Track K gives agents the knowledge to understand the entire business context - why code exists, what metrics it affects, how it relates to customers, and what business outcomes it enables.
 
-With Track K, Librarian becomes not just a coding assistant, but a business intelligence system that happens to understand code deeply.
+With Track K, LiBrainian becomes not just a coding assistant, but a business intelligence system that happens to understand code deeply.

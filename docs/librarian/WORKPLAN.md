@@ -1,4 +1,4 @@
-# Librarian Work Plan
+# LiBrainian Work Plan
 
 Status: partial
 Scope: phases, dependencies, acceptance criteria, and evidence gates.
@@ -11,7 +11,7 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 - Provider checks are mandatory for live semantic behavior.
 - Every claim must link to tests, traces, or audits.
 - Doc updates precede implementation changes.
-- Implementation sequencing follows `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md`.
+- Implementation sequencing follows `docs/LiBrainian/IMPLEMENTATION_INTEGRATION_PLAN.md`.
 
 ## Phase 0: Documentation Canon (Now)
 Goal: single source of truth, coherent doc architecture, and complete research consolidation.
@@ -28,12 +28,12 @@ Acceptance:
 - Language onboarding policy documented (immediate support).
 - Open-source extension points documented.
 Evidence:
-- `docs/librarian/DOCS_ARCHITECTURE.md`
-- `docs/librarian/SYSTEM_ARCHITECTURE.md`
-- `docs/librarian/UNDERSTANDING_LAYER.md`
-- `docs/librarian/scenarios.md`
-- `docs/librarian/USE_CASE_MATRIX.md`
-- `docs/librarian/PACKAGING_AND_ONBOARDING.md`
+- `docs/LiBrainian/DOCS_ARCHITECTURE.md`
+- `docs/LiBrainian/SYSTEM_ARCHITECTURE.md`
+- `docs/LiBrainian/UNDERSTANDING_LAYER.md`
+- `docs/LiBrainian/scenarios.md`
+- `docs/LiBrainian/USE_CASE_MATRIX.md`
+- `docs/LiBrainian/PACKAGING_AND_ONBOARDING.md`
 
 ## Phase 1: Model Policy + Provider Gating
 Goal: daily model selection and enforced provider readiness.
@@ -41,11 +41,11 @@ Dependencies: Phase 0.
 Acceptance:
 - Model policy documented and wired to runtime (daily fetch + audit).
 - Provider check blocks runs when unavailable.
-- Librarian defaults to cheapest SOTA tier (Haiku-class) unless proven insufficient.
+- LiBrainian defaults to cheapest SOTA tier (Haiku-class) unless proven insufficient.
 - Provider unavailability errors include `unverified_by_trace(provider_unavailable)` and fail closed.
 - Waiting is the default: no timeouts for required LLM operations unless explicitly configured.
 Evidence gates:
-- `docs/librarian/MODEL_POLICY.md`
+- `docs/LiBrainian/MODEL_POLICY.md`
 - `ensureDailyModelSelection()` writes audits in `state/audits/model_selection/`
 - `checkAllProviders()` enforced before bootstrap and queries
 
@@ -68,21 +68,21 @@ Acceptance:
 - Workspace-aware dependency resolution (monorepo aliases + package boundaries) wired into ingest and graph edges.
 - Edge-case ingestion handled (symlinks, binary, vendor, partial clones).
 Evidence gates:
-- `docs/librarian/PIPELINES_AND_WIRING.md`
+- `docs/LiBrainian/PIPELINES_AND_WIRING.md`
 - Wiring tests for event bus and query pipeline
 - Storage migrations verified
 
 ## Phase 3: Agent + Orchestrator Integration
-Goal: context assembly, scheduling, and multi-agent coordination are librarian-driven.
+Goal: context assembly, scheduling, and multi-agent coordination are LiBrainian-driven.
 Dependencies: Phase 2.
 Acceptance:
-- Context assembly uses librarian queries with evidence and confidence.
+- Context assembly uses LiBrainian queries with evidence and confidence.
 - Scheduler uses semantic signals and expertise matching.
 - File watcher triggers incremental reindex and context invalidation.
 - Locks prevent multi-agent conflicts and stale writes.
 Evidence gates:
 - Integration tests for `preOrchestrationHook` and `enrichTaskContext`
-- Agent pool/scheduler wiring verified against librarian signals
+- Agent pool/scheduler wiring verified against LiBrainian signals
 
 ## Phase 4: Knowledge Construction + Scenario Coverage
 Goal: knowledge mappings and scenario responses are complete and tested.
@@ -118,8 +118,8 @@ Acceptance:
 - Coverage audit emits UC x Method x Scenario matrix with explicit PASS/FAIL.
 - Scenario output baselines include expected-vs-actual diff reports and stress-test traces.
 Evidence gates:
-- `docs/librarian/validation.md`
-- `docs/librarian/AUDIT.md`
+- `docs/LiBrainian/validation.md`
+- `docs/LiBrainian/AUDIT.md`
 - Run logs in `state/audits/`
 - Reliability metrics documented
 

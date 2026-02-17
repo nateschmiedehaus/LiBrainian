@@ -6,7 +6,7 @@
 >
 > **Core Problem**: "Retrieval is lossy compression; system doesn't know what it didn't retrieve."
 >
-> **Librarian Story**: Chapter 6 (The Uncertainty) - This acknowledges retrieval's inherent limitations.
+> **LiBrainian Story**: Chapter 6 (The Uncertainty) - This acknowledges retrieval's inherent limitations.
 
 ---
 
@@ -14,7 +14,7 @@
 
 ### The Fundamental Limitation
 
-Librarian is sophisticated RAG (Retrieval-Augmented Generation), but RAG has a fundamental information-theoretic limit: **retrieval is a lossy compression**.
+LiBrainian is sophisticated RAG (Retrieval-Augmented Generation), but RAG has a fundamental information-theoretic limit: **retrieval is a lossy compression**.
 
 If relevant context wasn't retrieved, synthesis cannot recover it. The system can only reason about what was retrieved. This creates:
 
@@ -612,7 +612,7 @@ async function recordRetrievalOutcome(
 
 ### Phase 1: Core Types and Interfaces (~150 LOC)
 
-**Location**: `packages/librarian/src/types/retrieval_uncertainty.ts`
+**Location**: `packages/LiBrainian/src/types/retrieval_uncertainty.ts`
 
 **Deliverables**:
 - `RetrievalResult` interface
@@ -627,7 +627,7 @@ async function recordRetrievalOutcome(
 
 ### Phase 2: Miss Rate Estimation (~200 LOC)
 
-**Location**: `packages/librarian/src/retrieval/miss_rate.ts`
+**Location**: `packages/LiBrainian/src/retrieval/miss_rate.ts`
 
 **Deliverables**:
 - `estimateMissRate()` function
@@ -643,7 +643,7 @@ async function recordRetrievalOutcome(
 
 ### Phase 3: Query Expansion Strategies (~250 LOC)
 
-**Location**: `packages/librarian/src/retrieval/query_expansion.ts`
+**Location**: `packages/LiBrainian/src/retrieval/query_expansion.ts`
 
 **Deliverables**:
 - `expandWithSynonyms()` function
@@ -659,7 +659,7 @@ async function recordRetrievalOutcome(
 
 ### Phase 4: Iterative Retrieval Loop (~200 LOC)
 
-**Location**: `packages/librarian/src/retrieval/iterative_retrieval.ts`
+**Location**: `packages/LiBrainian/src/retrieval/iterative_retrieval.ts`
 
 **Deliverables**:
 - `iterativeRetrieve()` function
@@ -675,7 +675,7 @@ async function recordRetrievalOutcome(
 
 ### Phase 5: Pipeline Integration (~150 LOC)
 
-**Location**: Updates to `packages/librarian/src/api/librarian.ts`
+**Location**: Updates to `packages/LiBrainian/src/api/LiBrainian.ts`
 
 **Deliverables**:
 - Replace simple retrieval with iterative retrieval
@@ -684,14 +684,14 @@ async function recordRetrievalOutcome(
 - Wire calibration recording
 
 **Acceptance**:
-- [ ] All Librarian queries use iterative retrieval
+- [ ] All LiBrainian queries use iterative retrieval
 - [ ] Response includes `retrievalUncertainty` field
 - [ ] Confidence accounts for miss rate
 - [ ] Integration tests pass
 
 ### Phase 6: Tests (~300 LOC)
 
-**Location**: `packages/librarian/src/retrieval/__tests__/`
+**Location**: `packages/LiBrainian/src/retrieval/__tests__/`
 
 **Deliverables**:
 - Unit tests for miss rate estimation
@@ -701,7 +701,7 @@ async function recordRetrievalOutcome(
 
 **Evidence Command**:
 ```bash
-cd packages/librarian && npx vitest src/retrieval/__tests__/
+cd packages/LiBrainian && npx vitest src/retrieval/__tests__/
 ```
 
 ---
@@ -743,7 +743,7 @@ Per Track D principles, all confidence values in this spec must have explicit pr
 | Miss rate estimation | Every retrieval includes `missRate` in result |
 | Iterative expansion | Queries with low confidence trigger expansion |
 | Conservative confidence | Final confidence < synthesis confidence when miss rate > 0 |
-| Integration | Librarian responses include uncertainty quantification |
+| Integration | LiBrainian responses include uncertainty quantification |
 | Calibration readiness | Outcome recording wired for Track F |
 
 ---
@@ -775,6 +775,6 @@ Track G addresses the fundamental information bottleneck of RAG systems by:
 4. **Propagating honestly**: Discount synthesis confidence by retrieval uncertainty
 5. **Enabling calibration**: Record outcomes for empirical improvement
 
-Without Track G, Librarian's confidence is overconfident - it doesn't account for what it didn't retrieve. With Track G, confidence honestly reflects both synthesis quality AND retrieval completeness.
+Without Track G, LiBrainian's confidence is overconfident - it doesn't account for what it didn't retrieve. With Track G, confidence honestly reflects both synthesis quality AND retrieval completeness.
 
 **The conservative confidence formula is the key insight**: `final_confidence = synthesis_confidence * (1 - estimatedMissRate)`. This ensures that even excellent synthesis cannot compensate for poor retrieval.

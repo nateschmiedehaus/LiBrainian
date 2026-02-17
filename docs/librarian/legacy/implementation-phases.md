@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Implementation Phases
+# LiBrainian Implementation Phases
 
 > **FOR AGENTS**: This doc defines the CORRECT ORDER of implementation. Violating this order causes integration failures.
 > **Navigation**: [README.md](./README.md) | [overview.md](./overview.md) | [system-wiring.md](./system-wiring.md)
@@ -38,17 +38,17 @@ PHASE 1: CORE INFRASTRUCTURE (in order)
 │   ├── Required by: P1, P17
 │   └── Creates: requireProviders() utility
 
-├── P17: Librarian Hard-Stop
+├── P17: LiBrainian Hard-Stop
 │   ├── Depends on: P7 (needs provider check)
 │   └── Modifies: preOrchestrationHook()
 
 ├── P18: No Mock Fallbacks (parallel with P17)
 │   └── Code review task, no dependencies
 
-├── P1: Librarian Initialization
+├── P1: LiBrainian Initialization
 │   ├── Depends on: P7, P17
 │   ├── Required by: P5, P6, P13
-│   └── Creates: Librarian bootstrap in orchestrator startup
+│   └── Creates: LiBrainian bootstrap in orchestrator startup
 
 ├── P24: Execution Backends
 │   ├── Required by: P10, P25
@@ -64,12 +64,12 @@ PHASE 2: ORCHESTRATION LAYER (in order)
 │   ├── Required by: P29, P30, P31
 │   └── Establishes: UnifiedOrchestrator as canonical
 
-├── P5: Context Assembly + Librarian
+├── P5: Context Assembly + LiBrainian
 │   ├── Depends on: P1
 │   ├── Required by: P6, P9
-│   └── Creates: assembleTaskContext() with librarian knowledge
+│   └── Creates: assembleTaskContext() with LiBrainian knowledge
 
-├── P6: Workgraph + Librarian
+├── P6: Workgraph + LiBrainian
 │   ├── Depends on: P1, P5
 │   ├── Required by: P13
 │   └── Creates: SemanticScheduler with similarity grouping
@@ -89,7 +89,7 @@ PHASE 3: AGENT INFRASTRUCTURE (in order)
 
 ├── P13: Expertise Matching
 │   ├── Depends on: P6, P9
-│   └── Enhances: Agent assignment with librarian knowledge
+│   └── Enhances: Agent assignment with LiBrainian knowledge
 
 PHASE 4: RELIABILITY (parallel group)
 ├── P8: Checkpoint/Resume
@@ -182,7 +182,7 @@ PHASE 9: WORLD-CLASS GAPS (after P1-P31)
 │  │                           │                   │                       │   │
 │  │                           ▼                   │                       │   │
 │  │               ┌───────────────────────┐       │                       │   │
-│  │               │      LIBRARIAN        │───────┘                       │   │
+│  │               │      LiBrainian        │───────┘                       │   │
 │  │               │   (P1, Knowledge)     │◀──── EpisodicMemory           │   │
 │  │               └───────────────────────┘      (G2 future)              │   │
 │  │                           │                                           │   │
@@ -224,7 +224,7 @@ PHASE 9: WORLD-CLASS GAPS (after P1-P31)
 
 | This Document | CODEX Guide | Assessment | UI Spec | Purpose |
 |---------------|-------------|------------|---------|---------|
-| P1-P15 | Phase 4 | - | - | Librarian integration |
+| P1-P15 | Phase 4 | - | - | LiBrainian integration |
 | P16 | Phase 0 | - | - | Security baseline |
 | P17-P18 | Phase 2 | A1 (SCAS enforcement) | - | Truthfulness |
 | P19-P23 | Phase 3 | - | - | Type safety |
@@ -248,14 +248,14 @@ npm run test:tier0 -- --grep "git_sanitizer"
 # Verify: All injection tests pass
 
 # PHASE 1 GATE
-node -e "require('./dist/librarian/api/provider_check.js').requireProviders({llm:true,embedding:true})"
+node -e "require('./dist/LiBrainian/api/provider_check.js').requireProviders({llm:true,embedding:true})"
 # Verify: No throw OR clear ProviderUnavailableError
 
-node -e "require('./dist/librarian/index.js').preOrchestrationHook({workspaceRoot:'.'}).then(console.log)"
+node -e "require('./dist/LiBrainian/index.js').preOrchestrationHook({workspaceRoot:'.'}).then(console.log)"
 # Verify: { success: true } OR throws (no degraded mode)
 
 # PHASE 2 GATE
-node -e "require('./dist/orchestrator/context_assembler.js').assembleTaskContext({id:'test',targetFiles:['src/librarian/index.ts']}).then(c => console.log('coverage:', c.coverage.percentage))"
+node -e "require('./dist/orchestrator/context_assembler.js').assembleTaskContext({id:'test',targetFiles:['src/LiBrainian/index.ts']}).then(c => console.log('coverage:', c.coverage.percentage))"
 # Verify: Coverage > 0%, targetFiles enriched
 
 # PHASE 3 GATE
@@ -284,10 +284,10 @@ These connections MUST work for Wave0 to function:
 | Connection | Source | Target | Data Flow | Failure Mode |
 |------------|--------|--------|-----------|--------------|
 | Provider → Startup | `provider_check.ts` | `unified_orchestrator.ts` | API keys validated | HARD STOP |
-| Librarian → Startup | `preOrchestrationHook()` | `startOrchestrator()` | Bootstrap result | HARD STOP |
-| Librarian → Context | `assembleContext()` | `assembleTaskContext()` | Enriched files | Empty context |
+| LiBrainian → Startup | `preOrchestrationHook()` | `startOrchestrator()` | Bootstrap result | HARD STOP |
+| LiBrainian → Context | `assembleContext()` | `assembleTaskContext()` | Enriched files | Empty context |
 | Context → Agent | `TaskContext` | Agent execution | Knowledge + query | Blind agent |
-| Scheduler → Librarian | `SemanticScheduler` | `getSemanticSimilarity()` | File similarity | FIFO fallback |
+| Scheduler → LiBrainian | `SemanticScheduler` | `getSemanticSimilarity()` | File similarity | FIFO fallback |
 | Agent → Registry | Task request | `AgentRegistry.acquire()` | Agent assignment | Queue stall |
 | Execution → Policy | Command | `PolicyEngine.evaluate()` | Allow/deny | Unsafe execution |
 | Execution → Backend | Command | `ExecutionBackend.execute()` | Sandboxed result | Local fallback |

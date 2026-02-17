@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-31
 **Test Type:** Code Navigation Accuracy Assessment
-**Librarian Version:** Current development build
+**LiBrainian Version:** Current development build
 
 ## Executive Summary
 
@@ -20,7 +20,7 @@
 
 ## Test 1: "Where is function queryLibrarian defined"
 
-### Librarian Response
+### LiBrainian Response
 - **Confidence:** 0.840
 - **Latency:** 1541ms
 - **Top Result:** `queryLibrarianWithObserver` at `src/api/query.ts:1102-1120`
@@ -35,7 +35,7 @@ src/__tests__/mvp_librarian.system.test.ts:107 - export async function queryLibr
 ### Assessment
 **Verdict: PARTIAL**
 
-The librarian found `queryLibrarianWithObserver` (a related wrapper function) but the TOP result should have been the main `queryLibrarian` function at line 777. The exact function definition exists at `src/api/query.ts:777` but was not the primary result. The librarian DID point to the correct file (`src/api/query.ts`) in multiple results.
+The LiBrainian found `queryLibrarianWithObserver` (a related wrapper function) but the TOP result should have been the main `queryLibrarian` function at line 777. The exact function definition exists at `src/api/query.ts:777` but was not the primary result. The LiBrainian DID point to the correct file (`src/api/query.ts`) in multiple results.
 
 **Issues:**
 - Primary definition at line 777 was not the first result
@@ -46,7 +46,7 @@ The librarian found `queryLibrarianWithObserver` (a related wrapper function) bu
 
 ## Test 2: "Find all classes that extend Error"
 
-### Librarian Response
+### LiBrainian Response
 - **Confidence:** 0.799
 - **Latency:** 3676ms
 - **Top Results:**
@@ -78,7 +78,7 @@ src/quality/file_size_guard.ts:123 - class FileSizeError extends Error
 ### Assessment
 **Verdict: FAIL**
 
-The librarian completely failed this query. It returned functions related to error handling but **NONE** of the actual Error subclasses. This is a fundamental code navigation failure.
+The LiBrainian completely failed this query. It returned functions related to error handling but **NONE** of the actual Error subclasses. This is a fundamental code navigation failure.
 
 **Critical Issues:**
 - Zero correct results in top 6
@@ -90,7 +90,7 @@ The librarian completely failed this query. It returned functions related to err
 
 ## Test 3: "What calls the bootstrap function"
 
-### Librarian Response
+### LiBrainian Response
 - **Confidence:** 0.803
 - **Latency:** 1393ms
 - **Top Results:**
@@ -102,15 +102,15 @@ The librarian completely failed this query. It returned functions related to err
 
 ### Ground Truth (callers of bootstrapProject)
 ```
-src/api/librarian.ts - calls bootstrapProject
-test/librarian.system.test.ts - calls bootstrap functions
+src/api/LiBrainian.ts - calls bootstrapProject
+test/LiBrainian.system.test.ts - calls bootstrap functions
 src/cli/commands/bootstrap.ts - bootstrapCommand calls bootstrap APIs
 ```
 
 ### Assessment
 **Verdict: PARTIAL**
 
-The librarian found bootstrap-RELATED code but did not correctly identify the CALLERS. The query asked "what calls bootstrap" but the results show bootstrap-adjacent functions, not call sites.
+The LiBrainian found bootstrap-RELATED code but did not correctly identify the CALLERS. The query asked "what calls bootstrap" but the results show bootstrap-adjacent functions, not call sites.
 
 **Issues:**
 - Did not show actual call sites
@@ -122,7 +122,7 @@ The librarian found bootstrap-RELATED code but did not correctly identify the CA
 
 ## Test 4: "Find implementations of LibrarianStorage interface"
 
-### Librarian Response
+### LiBrainian Response
 - **Confidence:** 0.567 (lowest of all queries)
 - **Latency:** 971ms
 - **Explanation:** "Definition query detected: boosted interface/type declarations over implementations"
@@ -142,7 +142,7 @@ Implementation: src/storage/sqlite_storage.ts:225 - export class SqliteLibrarian
 ### Assessment
 **Verdict: PARTIAL**
 
-The librarian paradoxically noted it "boosted interface/type declarations over implementations" when the query explicitly asked for IMPLEMENTATIONS. Result #5 (`createSqliteStorage`) is close but the actual implementing class `SqliteLibrarianStorage` was not surfaced.
+The LiBrainian paradoxically noted it "boosted interface/type declarations over implementations" when the query explicitly asked for IMPLEMENTATIONS. Result #5 (`createSqliteStorage`) is close but the actual implementing class `SqliteLibrarianStorage` was not surfaced.
 
 **Issues:**
 - Query intent misclassified (asked for implementations, boosted definitions)
@@ -154,7 +154,7 @@ The librarian paradoxically noted it "boosted interface/type declarations over i
 
 ## Test 5: "Go to definition of ContextPack type"
 
-### Librarian Response
+### LiBrainian Response
 - **Confidence:** 0.633
 - **Latency:** 760ms (cache hit)
 - **Explanation:** "Definition query detected: boosted interface/type declarations over implementations"
@@ -187,7 +187,7 @@ Despite the system noting "Definition query detected", it did NOT return the act
 
 ### Pattern: Semantic Similarity Over Structural Accuracy
 
-The librarian consistently returns semantically related content but fails at structural code navigation patterns:
+The LiBrainian consistently returns semantically related content but fails at structural code navigation patterns:
 
 1. **"extends Error"** - requires AST/inheritance relationship understanding
 2. **"what calls X"** - requires call graph analysis
@@ -222,4 +222,4 @@ The librarian consistently returns semantically related content but fails at str
 | Avg Confidence | 0.728 |
 | Avg Latency | 1.46s |
 
-**Conclusion:** The librarian performs semantic search well but lacks fundamental code navigation capabilities (go-to-definition, find-references, find-implementations, call-graph). These are standard IDE features that users expect from a code intelligence tool.
+**Conclusion:** The LiBrainian performs semantic search well but lacks fundamental code navigation capabilities (go-to-definition, find-references, find-implementations, call-graph). These are standard IDE features that users expect from a code intelligence tool.

@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Unified Architecture
+# LiBrainian Unified Architecture
 
 > **FOR AGENTS**: This is the architectural foundation. Read this BEFORE implementing any subsystem.
 > **Navigation**: [README.md](./README.md) | [scenarios.md](./scenarios.md) | [implementation-requirements.md](./implementation-requirements.md)
@@ -17,16 +17,16 @@ Extract useful research into canonical docs; do not extend this file.
 > (showing planned design) while others reflect **current implementation**.
 >
 > **Current Implementation Locations** (actual files):
-> - Types/Entities: `src/librarian/types.ts` (not `src/librarian/core/entity.ts`)
-> - Events: `src/librarian/events.ts` (not `src/librarian/core/event.ts`)
-> - Engines: `src/librarian/engines/*_engine.ts` (relevance_engine.ts, constraint_engine.ts, meta_engine.ts)
-> - Storage: `src/librarian/storage/sqlite_storage.ts` (1,894 lines)
-> - Knowledge: `src/librarian/knowledge/` (architecture.ts, impact.ts, patterns.ts, etc.)
-> - Integration: `src/librarian/integration/wave0_integration.ts`
+> - Types/Entities: `src/LiBrainian/types.ts` (not `src/LiBrainian/core/entity.ts`)
+> - Events: `src/LiBrainian/events.ts` (not `src/LiBrainian/core/event.ts`)
+> - Engines: `src/LiBrainian/engines/*_engine.ts` (relevance_engine.ts, constraint_engine.ts, meta_engine.ts)
+> - Storage: `src/LiBrainian/storage/sqlite_storage.ts` (1,894 lines)
+> - Knowledge: `src/LiBrainian/knowledge/` (architecture.ts, impact.ts, patterns.ts, etc.)
+> - Integration: `src/LiBrainian/integration/wave0_integration.ts`
 >
-> **NOT YET IMPLEMENTED** (referenced as `src/librarian/core/*` below):
+> **NOT YET IMPLEMENTED** (referenced as `src/LiBrainian/core/*` below):
 > - Event Bus, Query Pipeline, Coordinator - design specs only
-> - Subsystems in `src/librarian/subsystems/*` - design specs only
+> - Subsystems in `src/LiBrainian/subsystems/*` - design specs only
 >
 > See the Implementation Checklist (Part 5) for status of each component.
 
@@ -59,7 +59,7 @@ The [scenarios.md](./scenarios.md) document identified 6 subsystems needed to so
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              LIBRARIAN UNIFIED ARCHITECTURE                  │
+│                              LiBrainian UNIFIED ARCHITECTURE                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
@@ -159,10 +159,10 @@ The [scenarios.md](./scenarios.md) document identified 6 subsystems needed to so
 
 ### 1.1 Entity
 
-Everything librarian tracks is an Entity.
+Everything LiBrainian tracks is an Entity.
 
 ```typescript
-// src/librarian/core/entity.ts
+// src/LiBrainian/core/entity.ts
 
 type EntityType =
   | 'module'        // A file/module
@@ -274,7 +274,7 @@ interface OutcomeMetadata {
 Confidence is ALWAYS multi-dimensional. Never a single number without context.
 
 ```typescript
-// src/librarian/core/confidence.ts
+// src/LiBrainian/core/confidence.ts
 
 interface Confidence {
   // Three orthogonal dimensions
@@ -350,7 +350,7 @@ function generateCaveats(signals: ConfidenceSignal[]): string[] {
 Scopes are first-class objects, not ad-hoc string arrays.
 
 ```typescript
-// src/librarian/core/scope.ts
+// src/LiBrainian/core/scope.ts
 
 interface Scope {
   // Definition (at least one required)
@@ -483,7 +483,7 @@ function scopeFromDirectory(dir: string): Scope {
 Events are the integration mechanism. All subsystems communicate through events.
 
 ```typescript
-// src/librarian/core/event.ts
+// src/LiBrainian/core/event.ts
 
 type EventType =
   // File system events
@@ -650,7 +650,7 @@ export const eventBus = new EventBusImpl();
 **Every query flows through this pipeline. No shortcuts.**
 
 ```typescript
-// src/librarian/core/pipeline.ts
+// src/LiBrainian/core/pipeline.ts
 
 interface QueryRequest {
   type: QueryType;
@@ -881,7 +881,7 @@ Each subsystem is a self-contained module that:
 ### 3.1 Subsystem Interface
 
 ```typescript
-// src/librarian/subsystems/base.ts
+// src/LiBrainian/subsystems/base.ts
 
 interface Subsystem {
   // Identity
@@ -960,7 +960,7 @@ abstract class BaseSubsystem implements Subsystem {
 ### 3.2 Freshness Subsystem
 
 ```typescript
-// src/librarian/subsystems/freshness.ts
+// src/LiBrainian/subsystems/freshness.ts
 
 interface FreshnessSubsystem extends Subsystem {
   assess(scope: Scope): Promise<FreshnessAssessment>;
@@ -1145,7 +1145,7 @@ class FreshnessSubsystemImpl extends BaseSubsystem implements FreshnessSubsystem
 ### 3.3 Learning Subsystem
 
 ```typescript
-// src/librarian/subsystems/learning.ts
+// src/LiBrainian/subsystems/learning.ts
 
 interface LearningSubsystem extends Subsystem {
   recordQuery(request: QueryRequest, result: QueryResult): void;
@@ -1454,7 +1454,7 @@ class LearningSubsystemImpl extends BaseSubsystem implements LearningSubsystem {
 ### 3.4 Subsystem Coordination
 
 ```typescript
-// src/librarian/core/coordinator.ts
+// src/LiBrainian/core/coordinator.ts
 
 interface LibrarianContext {
   storage: Storage;
@@ -1533,7 +1533,7 @@ let coordinator: LibrarianCoordinator | null = null;
 
 export async function initializeLibrarian(config: LibrarianConfig): Promise<LibrarianCoordinator> {
   if (coordinator) {
-    throw new Error('Librarian already initialized');
+    throw new Error('LiBrainian already initialized');
   }
 
   coordinator = new LibrarianCoordinator();
@@ -1544,7 +1544,7 @@ export async function initializeLibrarian(config: LibrarianConfig): Promise<Libr
 
 export function getLibrarian(): LibrarianCoordinator {
   if (!coordinator) {
-    throw new Error('Librarian not initialized');
+    throw new Error('LiBrainian not initialized');
   }
   return coordinator;
 }
@@ -1557,7 +1557,7 @@ export function getLibrarian(): LibrarianCoordinator {
 Engines (Relevance, Constraint, Meta-Knowledge) don't implement their own logic - they **compose** subsystem capabilities.
 
 ```typescript
-// src/librarian/engines/relevance.ts
+// src/LiBrainian/engines/relevance.ts
 
 class RelevanceEngine {
   constructor(private context: LibrarianContext) {}
@@ -1716,7 +1716,7 @@ class RelevanceEngine {
 
 > **STATUS KEY**: ✅ = Implemented, ⏳ = In Progress, ☐ = Not Started
 >
-> **NOTE**: The original design called for `src/librarian/core/*` files. The current implementation
+> **NOTE**: The original design called for `src/LiBrainian/core/*` files. The current implementation
 > uses different file locations as noted below. This checklist tracks both the original design
 > intent and the actual implementation status.
 
@@ -1724,15 +1724,15 @@ class RelevanceEngine {
 
 ```markdown
 ✅ Implement shared primitives
-  ✅ src/librarian/types.ts (replaces planned core/entity.ts, confidence.ts, scope.ts)
-  ✅ src/librarian/events.ts (replaces planned core/event.ts)
+  ✅ src/LiBrainian/types.ts (replaces planned core/entity.ts, confidence.ts, scope.ts)
+  ✅ src/LiBrainian/events.ts (replaces planned core/event.ts)
 
 ☐ Implement event bus (PLANNED - not yet implemented)
-  ☐ src/librarian/core/event_bus.ts
+  ☐ src/LiBrainian/core/event_bus.ts
   ☐ Tests for pub/sub, wildcards, correlation IDs
 
 ☐ Implement query pipeline (PLANNED - current impl in api/query.ts)
-  ⏳ src/librarian/api/query.ts (partial implementation)
+  ⏳ src/LiBrainian/api/query.ts (partial implementation)
   ☐ Integration tests for full pipeline flow
 ```
 
@@ -1740,32 +1740,32 @@ class RelevanceEngine {
 
 ```markdown
 ⏳ Freshness Subsystem
-  ✅ src/librarian/integration/file_watcher.ts (partial - file watching implemented)
+  ✅ src/LiBrainian/integration/file_watcher.ts (partial - file watching implemented)
   ☐ Event handlers: file:*, git:*, index:* (planned)
   ⏳ Tests: staleness detection (basic), branch awareness (planned)
 
 ⏳ Learning Subsystem
-  ✅ src/librarian/engines/meta_engine.ts (outcome tracking implemented)
-  ✅ src/librarian/integration/wave0_integration.ts (recordTaskOutcome)
+  ✅ src/LiBrainian/engines/meta_engine.ts (outcome tracking implemented)
+  ✅ src/LiBrainian/integration/wave0_integration.ts (recordTaskOutcome)
   ⏳ Tests: outcome recording (partial), pattern detection (planned)
 
 ⏳ Scale Subsystem
-  ✅ src/librarian/memory/hierarchical_memory.ts (L1/L2/L3 caching)
-  ✅ src/librarian/api/governors.ts (budget management)
+  ✅ src/LiBrainian/memory/hierarchical_memory.ts (L1/L2/L3 caching)
+  ✅ src/LiBrainian/api/governors.ts (budget management)
   ⏳ Tests: cache hit/miss (partial), large codebases (planned)
 
 ✅ Coordination Subsystem
-  ✅ src/librarian/integration/file_lock_manager.ts (file locking)
-  ✅ src/librarian/integration/workspace_lock.ts (workspace locking)
+  ✅ src/LiBrainian/integration/file_lock_manager.ts (file locking)
+  ✅ src/LiBrainian/integration/workspace_lock.ts (workspace locking)
   ⏳ Tests: concurrent access (partial), deadlock prevention (planned)
 
 ✅ Pattern Subsystem
-  ✅ src/librarian/knowledge/patterns.ts (pattern inference)
-  ✅ src/librarian/knowledge/pattern_behavior.ts (behavior patterns)
+  ✅ src/LiBrainian/knowledge/patterns.ts (pattern inference)
+  ✅ src/LiBrainian/knowledge/pattern_behavior.ts (behavior patterns)
   ⏳ Tests: pattern detection (partial), recommendations (planned)
 
 ✅ Constraint Subsystem
-  ✅ src/librarian/engines/constraint_engine.ts (fully implemented)
+  ✅ src/LiBrainian/engines/constraint_engine.ts (fully implemented)
   ✅ Wired into engine layer and Wave0 integration
 ```
 
@@ -1773,19 +1773,19 @@ class RelevanceEngine {
 
 ```markdown
 ⏳ Coordinator (partial - using api/bootstrap.ts instead of dedicated coordinator)
-  ✅ src/librarian/api/bootstrap.ts (bootstrap lifecycle management)
-  ✅ src/librarian/api/governors.ts (health checks via governor budgets)
+  ✅ src/LiBrainian/api/bootstrap.ts (bootstrap lifecycle management)
+  ✅ src/LiBrainian/api/governors.ts (health checks via governor budgets)
   ☐ Dedicated coordinator abstraction (planned)
 
 ✅ Engine refactoring
-  ✅ src/librarian/engines/relevance_engine.ts (composes knowledge layer)
-  ✅ src/librarian/engines/constraint_engine.ts (composes pattern/knowledge layer)
-  ✅ src/librarian/engines/meta_engine.ts (composes learning/outcome tracking)
+  ✅ src/LiBrainian/engines/relevance_engine.ts (composes knowledge layer)
+  ✅ src/LiBrainian/engines/constraint_engine.ts (composes pattern/knowledge layer)
+  ✅ src/LiBrainian/engines/meta_engine.ts (composes learning/outcome tracking)
   ✅ Engines use shared types from types.ts
 
 ⏳ Integration tests
-  ✅ src/librarian/__tests__/librarian.test.ts (47/49 passing)
-  ✅ src/librarian/__tests__/agentic/*.test.ts (agentic tests)
+  ✅ src/LiBrainian/__tests__/LiBrainian.test.ts (47/49 passing)
+  ✅ src/LiBrainian/__tests__/agentic/*.test.ts (agentic tests)
   ⏳ Full scenario tests (see scenarios.md) - partial coverage
   ☐ Performance benchmarks (planned)
 ```

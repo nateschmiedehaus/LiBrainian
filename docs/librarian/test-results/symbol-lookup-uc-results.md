@@ -34,7 +34,7 @@
 4. `getProviderRegistry` function (unrelated file) - Confidence: 0.764
 
 **Analysis:**
-- The librarian found functions IN the same file but NOT the class definition itself
+- The LiBrainian found functions IN the same file but NOT the class definition itself
 - The class `SqliteLibrarianStorage` at line 225 was NOT returned
 - Instead, it returned a factory function that creates the class instance
 - This suggests the indexer may not be capturing class definitions as first-class entities
@@ -86,9 +86,9 @@
 4. `extractQueryDepth` - query.ts:2322-2326 - Confidence: 0.903
 5. `resolveQueryCacheTier` - query.ts:2314-2316 - Confidence: 0.825
 6. `buildContextQuery` - context_assembly.ts:272-274 - Confidence: 0.841
-7. `query` - librarian.ts:674-676 - Confidence: 0.799
+7. `query` - LiBrainian.ts:674-676 - Confidence: 0.799
 8. `resolveQueryCacheTtl` - query.ts:2318-2320 - Confidence: 0.829
-9. `queryRequired` - librarian.ts:678-681 - Confidence: 0.817
+9. `queryRequired` - LiBrainian.ts:678-681 - Confidence: 0.817
 10. `createFallbackQueryInterface` - context_assembly.ts:103-109 - Confidence: 0.877
 
 **Analysis:**
@@ -164,7 +164,7 @@
 ### Why Exact Symbol Lookup Fails
 
 1. **No Symbol Table Index**
-   - The librarian appears to lack a dedicated symbol-to-location index
+   - The LiBrainian appears to lack a dedicated symbol-to-location index
    - It relies on semantic similarity of function summaries, not symbol names
    - Class definitions, type definitions, and constants are not first-class indexed entities
 
@@ -233,7 +233,7 @@
 
 ## Conclusion
 
-The librarian **fundamentally cannot perform exact symbol lookup**. It is designed for semantic/conceptual queries ("how does authentication work?") but fails at precise code navigation ("where is class X defined?").
+The LiBrainian **fundamentally cannot perform exact symbol lookup**. It is designed for semantic/conceptual queries ("how does authentication work?") but fails at precise code navigation ("where is class X defined?").
 
 For a code intelligence tool, this is a critical gap. Developers frequently need to find exact symbol definitions, and the current system would consistently mislead them with semantically-related but incorrect results.
 

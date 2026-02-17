@@ -1,6 +1,6 @@
-# Librarian Glossary
+# LiBrainian Glossary
 
-> **Purpose**: Canonical definitions for all terms used across Librarian specifications.
+> **Purpose**: Canonical definitions for all terms used across LiBrainian specifications.
 > **Authority**: This file is authoritative. All specs MUST use these definitions.
 
 ---
@@ -8,7 +8,7 @@
 ## Core Concepts
 
 ### Claim
-A statement about code that Librarian asserts to be true, with associated evidence and confidence.
+A statement about code that LiBrainian asserts to be true, with associated evidence and confidence.
 
 ```typescript
 interface Claim {
@@ -22,7 +22,7 @@ interface Claim {
 ```
 
 ### Confidence
-A value representing Librarian's degree of belief in a claim. **MUST** use `ConfidenceValue` type - raw numbers are forbidden.
+A value representing LiBrainian's degree of belief in a claim. **MUST** use `ConfidenceValue` type - raw numbers are forbidden.
 
 **The Five Valid Types** (no other forms allowed):
 
@@ -43,15 +43,15 @@ See [CONFIDENCE_REDESIGN.md](./CONFIDENCE_REDESIGN.md) for full specification.
 A record of an observation or action that supports or refutes a claim.
 
 **Authoritative V1 schema/API**:
-- Spec: `docs/librarian/specs/core/evidence-ledger.md`
-- Code: `packages/librarian/src/epistemics/evidence_ledger.ts`
+- Spec: `docs/LiBrainian/specs/core/evidence-ledger.md`
+- Code: `packages/LiBrainian/src/epistemics/evidence_ledger.ts`
 
 **Rule**: Don’t define competing “EvidenceEntry” shapes in other specs. If we add sequence/checksums/checkpoints, they must be explicitly versioned extensions layered on top of V1 with a migration plan.
 
 **Evidence is append-only**: Once recorded, evidence cannot be modified. This ensures audit trails are tamper-evident.
 
 ### Knowledge
-Understanding that Librarian has about code, structured as claims with evidence.
+Understanding that LiBrainian has about code, structured as claims with evidence.
 
 ```typescript
 interface KnowledgeState {
@@ -133,7 +133,7 @@ type TechniqueOperator =
 
 **All epistemic claim confidence values MUST use this type.**
 
-**Scope note**: Librarian currently uses many numeric 0–1 values for *ranking and heuristics* (e.g. relevance scores, similarity scores, internal “confidence” fields that are not calibrated). Those values must not be presented as calibrated confidence. The spec direction is to rename those fields to `score`/`signalStrength` (or wrap them in explicit score types). The `ConfidenceValue` boundary applies to **claim confidence** first.
+**Scope note**: LiBrainian currently uses many numeric 0–1 values for *ranking and heuristics* (e.g. relevance scores, similarity scores, internal “confidence” fields that are not calibrated). Those values must not be presented as calibrated confidence. The spec direction is to rename those fields to `score`/`signalStrength` (or wrap them in explicit score types). The `ConfidenceValue` boundary applies to **claim confidence** first.
 
 ```typescript
 /**
@@ -294,7 +294,7 @@ interface ExecutionResult {
 ## Use Cases
 
 ### Use Case
-A specific scenario where an agent uses Librarian.
+A specific scenario where an agent uses LiBrainian.
 
 ```typescript
 interface UseCase {

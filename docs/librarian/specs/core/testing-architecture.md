@@ -6,7 +6,7 @@
 
 ## Core Principle: Real Mode Guarantees World-Class Functionality
 
-Librarian is an **agentic epistemological system**. Its value comes from producing meaningful understanding through LLM synthesis. Testing must verify this real behavior, not mocked approximations.
+LiBrainian is an **agentic epistemological system**. Its value comes from producing meaningful understanding through LLM synthesis. Testing must verify this real behavior, not mocked approximations.
 
 ---
 
@@ -76,15 +76,15 @@ describe('semantic search', () => {
 // TIER-2: Requires real providers, fails honestly
 import { requireProviders } from '../api/provider_check.js';
 
-describe('LIB-S1: High-level librarian API', () => {
+describe('LIB-S1: High-level LiBrainian API', () => {
   it('should respond to queries within timeout', async () => {
     // Fail fast (and honestly) if providers are missing
     await requireProviders({ llm: true, embedding: true });
 
-    const librarian = new Librarian({ workspace });
-    await librarian.initialize();
+    const LiBrainian = new LiBrainian({ workspace });
+    await LiBrainian.initialize();
 
-    const response = await librarian.query('explain auth module');
+    const response = await LiBrainian.query('explain auth module');
 
     expect(response.packs.length).toBeGreaterThan(0);
     expect(response.synthesizedResponse).toBeDefined();
@@ -182,7 +182,7 @@ it('semantic search uses real embeddings when available', async (ctx) => {
 
 Provider mocks should be centralized in test setup, not scattered across files.
 
-**File**: `packages/librarian/vitest.setup.ts`
+**File**: `packages/LiBrainian/vitest.setup.ts`
 
 ```typescript
 import { vi } from 'vitest';
@@ -205,7 +205,7 @@ if (LIBRARIAN_TEST_MODE === 'unit') {
 // Tier-1 and Tier-2: No mocks - use real providers
 ```
 
-**File**: `packages/librarian/vitest.config.ts`
+**File**: `packages/LiBrainian/vitest.config.ts`
 
 ```typescript
 export default defineConfig({
@@ -220,13 +220,13 @@ export default defineConfig({
 
 ```bash
 # Tier-0: Fast, no providers (CI default)
-LIBRARIAN_TEST_MODE=unit npm --prefix packages/librarian test -- --run
+LIBRARIAN_TEST_MODE=unit npm --prefix packages/LiBrainian test -- --run
 
 # Tier-1: With providers, skips if unavailable
-LIBRARIAN_TEST_MODE=integration npm --prefix packages/librarian test -- --run
+LIBRARIAN_TEST_MODE=integration npm --prefix packages/LiBrainian test -- --run
 
 # Tier-2: Requires providers, fails if unavailable
-LIBRARIAN_TEST_MODE=system npm --prefix packages/librarian test -- --run src/__tests__/mvp_librarian.system.test.ts
+LIBRARIAN_TEST_MODE=system npm --prefix packages/LiBrainian test -- --run src/__tests__/mvp_librarian.system.test.ts
 ```
 
 ---
@@ -246,17 +246,17 @@ LIBRARIAN_TEST_MODE=system npm --prefix packages/librarian test -- --run src/__t
 
 ## Tier‑2 Scenario Families (Required for “full build” claims)
 
-Tier‑2 is where Librarian proves it is a world-class knowledge tool under real conditions. “We have specs” or “Tier‑0 is green” is not sufficient.
+Tier‑2 is where LiBrainian proves it is a world-class knowledge tool under real conditions. “We have specs” or “Tier‑0 is green” is not sufficient.
 
 **Non-negotiable requirement**:
-- Librarian is not “full build” unless Tier‑2 includes **≥ 30 scenario families** that span:
+- LiBrainian is not “full build” unless Tier‑2 includes **≥ 30 scenario families** that span:
   - repo profiles (R0–R4),
   - workloads (W0–W3),
   - dependency/storage modes (D0–D3 / S0–S2),
   - and relevant edge cases (E1–E8).
 
 Canonical definition and the required SF‑01…SF‑30 set:
-- `docs/librarian/specs/README.md` (“Full Build Charter (Council of 30)” → “Tier‑2 scenario families”)
+- `docs/LiBrainian/specs/README.md` (“Full Build Charter (Council of 30)” → “Tier‑2 scenario families”)
 
 **Artifact requirement (no theater)**:
 - Each scenario family run must emit audit artifacts (at minimum):
@@ -273,7 +273,7 @@ Implementation guidance:
 ### Directory Structure
 
 ```
-packages/librarian/
+packages/LiBrainian/
 ├── src/
 │   ├── __tests__/                 # Tiered tests by suffix
 │   │   ├── *.test.ts              # Tier-0 (deterministic)
@@ -295,17 +295,17 @@ packages/librarian/
 
 1. **Tier-0 Gate** (Required, <2 minutes):
    ```bash
-   LIBRARIAN_TEST_MODE=unit npm --prefix packages/librarian test -- --run
+   LIBRARIAN_TEST_MODE=unit npm --prefix packages/LiBrainian test -- --run
    ```
 
 2. **Tier-1 Gate** (Required if providers available, <10 minutes):
    ```bash
-   LIBRARIAN_TEST_MODE=integration npm --prefix packages/librarian test -- --run
+   LIBRARIAN_TEST_MODE=integration npm --prefix packages/LiBrainian test -- --run
    ```
 
 3. **Tier-2 Gate** (Required for release, <30 minutes):
    ```bash
-   LIBRARIAN_TEST_MODE=system npm --prefix packages/librarian test -- --run test/system/
+   LIBRARIAN_TEST_MODE=system npm --prefix packages/LiBrainian test -- --run test/system/
    ```
 
 ### Evidence Requirements

@@ -1,16 +1,16 @@
-# Meta Prompt: Librarian Critical Evaluation Orchestrator
+# Meta Prompt: LiBrainian Critical Evaluation Orchestrator
 
-> **Purpose**: This meta prompt instructs an AI agent to orchestrate comprehensive, critical evaluation of Librarian's actual functionality and usability for AI agents across ALL use cases.
+> **Purpose**: This meta prompt instructs an AI agent to orchestrate comprehensive, critical evaluation of LiBrainian's actual functionality and usability for AI agents across ALL use cases.
 >
-> **Key Proof**: Successful bootstrap and active indexing of Librarian ON ITSELF, with demonstrable utility during Librarian development.
+> **Key Proof**: Successful bootstrap and active indexing of LiBrainian ON ITSELF, with demonstrable utility during LiBrainian development.
 
 ---
 
 ## Orchestrator Mission Statement
 
-You are the **Librarian Critical Evaluation Orchestrator**. Your mission is to ruthlessly and honestly evaluate whether Librarian actually helps AI agents perform software engineering tasks better than working without it.
+You are the **LiBrainian Critical Evaluation Orchestrator**. Your mission is to ruthlessly and honestly evaluate whether LiBrainian actually helps AI agents perform software engineering tasks better than working without it.
 
-**Core Hypothesis to Test**: "Librarian provides meaningful, measurable value to AI agents working on codebases."
+**Core Hypothesis to Test**: "LiBrainian provides meaningful, measurable value to AI agents working on codebases."
 
 **Falsification Mindset**: You MUST actively try to disprove this hypothesis. Document every failure, limitation, and disappointment. Success claims require extraordinary evidence.
 
@@ -20,28 +20,28 @@ You are the **Librarian Critical Evaluation Orchestrator**. Your mission is to r
 
 **This phase MUST complete successfully before any other evaluation work.**
 
-### Work Unit: WU-EVAL-001 — Bootstrap Librarian on Librarian
+### Work Unit: WU-EVAL-001 — Bootstrap LiBrainian on LiBrainian
 
-**Objective**: Prove Librarian can bootstrap its own codebase and provide useful context.
+**Objective**: Prove LiBrainian can bootstrap its own codebase and provide useful context.
 
 ```bash
-# Execute in librarian workspace
-cd /path/to/librarian
+# Execute in LiBrainian workspace
+cd /path/to/LiBrainian
 
 # Clean slate (remove any existing index)
-rm -rf .librarian/ librarian.db*
+rm -rf .LiBrainian/ LiBrainian.db*
 
 # Bootstrap with timing
-time librarian bootstrap --force
+time LiBrainian bootstrap --force
 
 # Verify non-trivial indexing
-librarian status
-librarian health --completeness
+LiBrainian status
+LiBrainian health --completeness
 ```
 
 **Success Criteria**:
 - [ ] Bootstrap completes without error
-- [ ] Files indexed > 100 (librarian has ~200+ source files)
+- [ ] Files indexed > 100 (LiBrainian has ~200+ source files)
 - [ ] Functions indexed > 500
 - [ ] Context packs generated > 100
 - [ ] Time to bootstrap < 5 minutes on standard hardware
@@ -49,30 +49,30 @@ librarian health --completeness
 
 **Failure Actions**:
 1. If bootstrap fails, document the EXACT error
-2. Attempt `librarian doctor` to diagnose
-3. Try `librarian bootstrap --offline` as fallback
+2. Attempt `LiBrainian doctor` to diagnose
+3. Try `LiBrainian bootstrap --offline` as fallback
 4. If still failing, THIS IS A CRITICAL FINDING — document and abort further evaluation
 
 ### Work Unit: WU-EVAL-002 — Self-Query Validation
 
-**Objective**: Query Librarian about itself and verify response quality.
+**Objective**: Query LiBrainian about itself and verify response quality.
 
 **Test Queries**:
 ```bash
 # Query 1: High-level architecture
-librarian query "What is the architecture of the query pipeline?"
+LiBrainian query "What is the architecture of the query pipeline?"
 
 # Query 2: Specific implementation detail
-librarian query "How does confidence scoring work?"
+LiBrainian query "How does confidence scoring work?"
 
 # Query 3: Cross-cutting concern
-librarian query "How does the bootstrap process interact with storage?"
+LiBrainian query "How does the bootstrap process interact with storage?"
 
 # Query 4: Debugging scenario
-librarian query "I'm getting SQLITE_BUSY errors, what causes this?"
+LiBrainian query "I'm getting SQLITE_BUSY errors, what causes this?"
 
 # Query 5: Feature location
-librarian query "Where is the embedding provider selection logic?"
+LiBrainian query "Where is the embedding provider selection logic?"
 ```
 
 **Evaluation Rubric for Each Query**:
@@ -116,11 +116,11 @@ librarian query "Where is the embedding provider selection logic?"
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's bootstrap behavior on a FRESH repository.
+You are evaluating LiBrainian's bootstrap behavior on a FRESH repository.
 
 Tasks:
 1. Create a minimal TypeScript project (5-10 files)
-2. Run `librarian bootstrap` and record:
+2. Run `LiBrainian bootstrap` and record:
    - Time to completion
    - Files indexed count
    - Functions indexed count
@@ -135,10 +135,10 @@ CRITICAL: Document ANY friction, confusion, or failures honestly.
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's bootstrap on LARGE repositories.
+You are evaluating LiBrainian's bootstrap on LARGE repositories.
 
 Test repositories (pick 2):
-- librarian itself (~200 files)
+- LiBrainian itself (~200 files)
 - A cloned OSS repo with 500+ files
 
 Measure:
@@ -148,19 +148,19 @@ Measure:
 4. Index completeness (files indexed / total files)
 5. Query response time after bootstrap
 
-CRITICAL: Find the breaking point. At what size does Librarian degrade?
+CRITICAL: Find the breaking point. At what size does LiBrainian degrade?
 ```
 
 ### WU-EVAL-A03: Incremental Re-Index
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's incremental indexing capabilities.
+You are evaluating LiBrainian's incremental indexing capabilities.
 
 Test scenario:
 1. Bootstrap a project fully
 2. Modify 3 files (add functions, change implementations)
-3. Run `librarian index --force <modified-files>`
+3. Run `LiBrainian index --force <modified-files>`
 4. Verify the index reflects changes
 5. Measure incremental update time vs full re-bootstrap
 
@@ -172,12 +172,12 @@ Document: Actual ratio and any inconsistencies
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's robustness to index corruption.
+You are evaluating LiBrainian's robustness to index corruption.
 
 Test scenarios:
 1. Kill bootstrap mid-process → Can it resume?
-2. Delete half of .librarian/ → What happens?
-3. Corrupt librarian.db manually → Does `librarian doctor` detect it?
+2. Delete half of .LiBrainian/ → What happens?
+3. Corrupt LiBrainian.db manually → Does `LiBrainian doctor` detect it?
 4. Run concurrent bootstraps → Database locking behavior?
 
 Document: Every failure mode and whether recovery is possible.
@@ -191,11 +191,11 @@ Document: Every failure mode and whether recovery is possible.
 
 **Sub-Agent Prompt**:
 ```
-You are measuring Librarian's query precision and recall.
+You are measuring LiBrainian's query precision and recall.
 
 Methodology:
 1. For 10 queries with KNOWN correct answers:
-   - Record Librarian's returned files/functions
+   - Record LiBrainian's returned files/functions
    - Compare against ground truth (manual inspection)
    - Calculate: Precision = correct_returned / total_returned
    - Calculate: Recall = correct_returned / total_correct
@@ -214,7 +214,7 @@ Target: Precision > 0.7, Recall > 0.5
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's context depth levels (L0-L3).
+You are evaluating LiBrainian's context depth levels (L0-L3).
 
 For each depth level, run the SAME 5 queries and document:
 - Response length (tokens)
@@ -230,7 +230,7 @@ Anti-test: Does higher depth just add noise?
 
 **Sub-Agent Prompt**:
 ```
-You are hunting for hallucinations in Librarian's responses.
+You are hunting for hallucinations in LiBrainian's responses.
 
 Method:
 1. Query for non-existent functions/files
@@ -238,7 +238,7 @@ Method:
 3. Query edge cases (empty files, binary files, etc.)
 
 Document:
-- Does Librarian confidently return wrong information?
+- Does LiBrainian confidently return wrong information?
 - Does it appropriately indicate uncertainty?
 - Does it refuse to answer when it shouldn't know?
 
@@ -249,7 +249,7 @@ CRITICAL: Any hallucination is a serious finding.
 
 **Sub-Agent Prompt**:
 ```
-You are benchmarking Librarian query performance.
+You are benchmarking LiBrainian query performance.
 
 Test matrix:
 | Query Complexity | Index Size | Expected Time | Actual Time |
@@ -268,7 +268,7 @@ Document: Any queries that exceed 10 seconds.
 
 ### Master Use Case Matrix
 
-Every use case must be evaluated with a Treatment (with Librarian) vs Control (without Librarian) comparison.
+Every use case must be evaluated with a Treatment (with LiBrainian) vs Control (without LiBrainian) comparison.
 
 | Use Case ID | Description | Agent Task | Success Metric |
 |-------------|-------------|------------|----------------|
@@ -289,16 +289,16 @@ Every use case must be evaluated with a Treatment (with Librarian) vs Control (w
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's code navigation support.
+You are evaluating LiBrainian's code navigation support.
 
 Scenario: "Find where the bootstrapProject function is defined and all its callers"
 
-WITH LIBRARIAN:
-1. Run: librarian query "Where is bootstrapProject defined and what calls it?"
+WITH LiBrainian:
+1. Run: LiBrainian query "Where is bootstrapProject defined and what calls it?"
 2. Use the response to navigate to files
 3. Record: Time taken, accuracy of response, missed callers
 
-WITHOUT LIBRARIAN:
+WITHOUT LiBrainian:
 1. Use grep/ripgrep: rg "bootstrapProject" --type ts
 2. Manually trace call graph
 3. Record: Time taken, completeness
@@ -310,16 +310,16 @@ Compare: Which approach is faster AND more complete?
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's bug diagnosis support.
+You are evaluating LiBrainian's bug diagnosis support.
 
 Scenario: "TypeError: Cannot read property 'embeddings' of undefined at line 234 in query.ts"
 
-WITH LIBRARIAN:
+WITH LiBrainian:
 1. Query: "What provides embeddings to the query pipeline and how can it be undefined?"
 2. Use response to form hypothesis
 3. Record: Time to hypothesis, accuracy
 
-WITHOUT LIBRARIAN:
+WITHOUT LiBrainian:
 1. Read query.ts manually
 2. Trace data flow
 3. Record: Time to hypothesis, accuracy
@@ -331,23 +331,23 @@ Compare: Quality of diagnostic reasoning
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's support for adding new features.
+You are evaluating LiBrainian's support for adding new features.
 
-Scenario: "Add a new CLI command 'librarian export' that exports the index to JSON"
+Scenario: "Add a new CLI command 'LiBrainian export' that exports the index to JSON"
 
-WITH LIBRARIAN:
+WITH LiBrainian:
 1. Query: "How are CLI commands structured? Show me examples."
 2. Query: "What data is stored in the index that I need to export?"
 3. Implement the feature
 4. Record: Time, code quality, pattern adherence
 
-WITHOUT LIBRARIAN:
+WITHOUT LiBrainian:
 1. Explore src/cli/ manually
 2. Read existing commands
 3. Implement the feature
 4. Record: Time, code quality, pattern adherence
 
-Compare: Did Librarian reduce time? Improve code quality?
+Compare: Did LiBrainian reduce time? Improve code quality?
 ```
 
 ### WU-EVAL-C04-C12: Remaining Use Cases
@@ -362,10 +362,10 @@ Compare: Did Librarian reduce time? Improve code quality?
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian's file watching and auto-reindex.
+You are evaluating LiBrainian's file watching and auto-reindex.
 
 Test:
-1. Start `librarian watch` in background
+1. Start `LiBrainian watch` in background
 2. Create a new file with new functions
 3. Modify an existing file
 4. Delete a file
@@ -384,7 +384,7 @@ Document: Any synchronization failures or delays.
 
 **Sub-Agent Prompt**:
 ```
-You are evaluating Librarian under concurrent agent workload.
+You are evaluating LiBrainian under concurrent agent workload.
 
 Simulate:
 1. Agent A is querying continuously (1 query/second)
@@ -402,25 +402,25 @@ Target: 99% query success, <2s latency p99
 
 ### WU-EVAL-D03: Self-Development Scenario
 
-**Critical Proof Point**: Can Librarian help an agent work on Librarian itself?
+**Critical Proof Point**: Can LiBrainian help an agent work on LiBrainian itself?
 
 **Sub-Agent Prompt**:
 ```
-You are an AI agent tasked with improving Librarian, using Librarian.
+You are an AI agent tasked with improving LiBrainian, using LiBrainian.
 
 Task: "Add better error messages to the bootstrap command"
 
 Workflow:
-1. Bootstrap Librarian on itself (if not done)
+1. Bootstrap LiBrainian on itself (if not done)
 2. Query: "Where is error handling in bootstrap? Show me current error messages."
 3. Identify improvement opportunities
 4. Make changes to error messages
-5. Run `librarian index --force <modified-files>` to update index
+5. Run `LiBrainian index --force <modified-files>` to update index
 6. Query again to verify changes are reflected
 7. Run tests to ensure no regression
 
 Document:
-- Did Librarian help you find the right files faster?
+- Did LiBrainian help you find the right files faster?
 - Did the index update correctly after your changes?
 - Rate the dogfooding experience 1-10
 ```
@@ -434,7 +434,7 @@ Document:
 **Orchestrator Task**: Aggregate all sub-agent findings into unified report.
 
 ```markdown
-# Librarian Critical Evaluation Report
+# LiBrainian Critical Evaluation Report
 
 ## Executive Summary
 - Overall Utility Score: X/10
@@ -503,13 +503,13 @@ Every claim must have evidence:
 - "Performance is good" → Show latency measurements
 
 ### Rule 4: Active Indexing Maintenance
-Throughout evaluation, keep Librarian's index of itself updated:
+Throughout evaluation, keep LiBrainian's index of itself updated:
 ```bash
 # Run in background during all evaluation
-librarian watch &
+LiBrainian watch &
 
 # Or manually after any code changes
-librarian index --force <changed-files>
+LiBrainian index --force <changed-files>
 ```
 
 ### Rule 5: Falsification Priority
@@ -530,7 +530,7 @@ const subAgentPrompt = {
   workUnitId: 'WU-EVAL-XXX',
   objective: 'Specific objective from work unit',
   inputs: {
-    workspace: '/path/to/librarian',
+    workspace: '/path/to/LiBrainian',
     librarianAvailable: true, // false for Control group
     timeLimit: '30 minutes',
   },
@@ -572,6 +572,6 @@ After completing evaluation:
 
 Start with Phase 0 (Self-Bootstrap Proof). If it passes, spawn sub-agents for Phases 2-5 in parallel. Synthesize results into the final report.
 
-Your evaluation is only valuable if it is HONEST. A report that says "Librarian is perfect" is useless. A report that documents specific failures and suggests specific improvements is invaluable.
+Your evaluation is only valuable if it is HONEST. A report that says "LiBrainian is perfect" is useless. A report that documents specific failures and suggests specific improvements is invaluable.
 
 **Execute with extreme prejudice against false positives.**

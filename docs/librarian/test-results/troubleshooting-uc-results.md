@@ -1,4 +1,4 @@
-# Librarian Troubleshooting Query Test Results
+# LiBrainian Troubleshooting Query Test Results
 
 **Date:** 2026-01-31
 **Test Type:** Troubleshooting Use Case Evaluation
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Librarian was tested with 5 common troubleshooting queries to assess its ability to surface relevant code for debugging issues. Overall, the results show **partial effectiveness** for troubleshooting scenarios, with strengths in specific technical domains but significant gaps for general diagnostic queries.
+LiBrainian was tested with 5 common troubleshooting queries to assess its ability to surface relevant code for debugging issues. Overall, the results show **partial effectiveness** for troubleshooting scenarios, with strengths in specific technical domains but significant gaps for general diagnostic queries.
 
 **Overall Assessment:** Would this help troubleshoot issues? **PARTIALLY - with caveats**
 
@@ -28,11 +28,11 @@ Librarian was tested with 5 common troubleshooting queries to assess its ability
 
 **Results Quality: GOOD (B+)**
 
-The librarian correctly identified bootstrap-related functions that would be useful for troubleshooting:
+The LiBrainian correctly identified bootstrap-related functions that would be useful for troubleshooting:
 
 | Pack | Confidence | File | Relevance |
 |------|------------|------|-----------|
-| `ensureReady()` | 0.771 | librarian.ts | HIGH - Checks initialization state |
+| `ensureReady()` | 0.771 | LiBrainian.ts | HIGH - Checks initialization state |
 | `createBootstrapErrorEvent()` | 0.819 | events.ts | HIGH - Error event creation |
 | `createBootstrapCompleteEvent()` | 0.830 | events.ts | MEDIUM - Completion tracking |
 | `writeBootstrapRecoveryState()` | 0.752 | bootstrap.ts | MEDIUM - Recovery state handling |
@@ -218,7 +218,7 @@ Partial coverage with some irrelevant results.
 | Concurrency/locking issues | NO |
 | Configuration problems | PARTIALLY |
 
-**Overall:** Librarian is useful for troubleshooting when the developer knows the technical domain (e.g., "embedding generation") but struggles with symptom-based queries (e.g., "empty results", "locked error"). For effective troubleshooting support, consider augmenting with error message indexing and diagnostic-specific packs.
+**Overall:** LiBrainian is useful for troubleshooting when the developer knows the technical domain (e.g., "embedding generation") but struggles with symptom-based queries (e.g., "empty results", "locked error"). For effective troubleshooting support, consider augmenting with error message indexing and diagnostic-specific packs.
 
 ---
 

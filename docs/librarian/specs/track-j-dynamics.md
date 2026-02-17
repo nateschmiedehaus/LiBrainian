@@ -2,9 +2,9 @@
 
 > **Source**: Extracted from THEORETICAL_CRITIQUE.md Part XII.D (Dynamical Systems Science Critiques)
 > **Problem References**: P54 (Stability), P55 (Bifurcation), P56 (Emergence), P57 (Resilience)
-> **Purpose**: Analyze Librarian as a dynamical system with feedback loops
+> **Purpose**: Analyze LiBrainian as a dynamical system with feedback loops
 >
-> **Librarian Story**: The learning/confidence system is a dynamical system. Without stability analysis, we cannot guarantee it won't oscillate, diverge, or collapse.
+> **LiBrainian Story**: The learning/confidence system is a dynamical system. Without stability analysis, we cannot guarantee it won't oscillate, diverge, or collapse.
 >
 > **Dependency**: Requires Track F (Calibration) for confidence data, Track D (Quantification) for ConfidenceValue types.
 
@@ -25,7 +25,7 @@
 
 ## Overview
 
-The Librarian learning loop is a dynamical system:
+The LiBrainian learning loop is a dynamical system:
 
 ```
 Confidence -> Agent behavior -> Outcomes -> Confidence updates -> Confidence
@@ -813,7 +813,7 @@ function computeFlickeringRate(series: number[]): number {
 
 ### The Problem
 
-Librarian claims to produce "understanding" through synthesis. But:
+LiBrainian claims to produce "understanding" through synthesis. But:
 - Does the synthesis have causal efficacy, or is it epiphenomenal?
 - Is the whole greater than the sum of its parts?
 - How do we measure knowledge integration?
@@ -1583,11 +1583,11 @@ epistemics module ────────────┘
 
 ## The 25 Greats' Verdict
 
-**Prigogine**: "A system far from equilibrium can exhibit bifurcations, oscillations, and emergence. Without understanding these dynamics, Librarian is flying blind."
+**Prigogine**: "A system far from equilibrium can exhibit bifurcations, oscillations, and emergence. Without understanding these dynamics, LiBrainian is flying blind."
 
 **Strogatz**: "The confidence-outcome feedback loop is a classic nonlinear dynamical system. Stability analysis is not optional - it's fundamental."
 
-**Kauffman**: "At the edge of chaos, complex systems can exhibit both stability and adaptability. Librarian needs to find this edge, not stumble into it."
+**Kauffman**: "At the edge of chaos, complex systems can exhibit both stability and adaptability. LiBrainian needs to find this edge, not stumble into it."
 
 **Tononi**: "Integrated Information Theory provides the tools to measure whether synthesis is truly integrated or merely aggregated. Phi distinguishes understanding from retrieval."
 
@@ -1597,7 +1597,7 @@ epistemics module ────────────┘
 
 ## Summary
 
-Track J System Dynamics Analysis addresses fundamental questions about Librarian's behavior as a dynamical system:
+Track J System Dynamics Analysis addresses fundamental questions about LiBrainian's behavior as a dynamical system:
 
 1. **S1 (Stability Analysis)**: Is the learning loop stable? Can it oscillate, diverge, or collapse?
 2. **S2 (Bifurcation Detection)**: When do parameter changes cause catastrophic failures?
@@ -1608,4 +1608,4 @@ Track J System Dynamics Analysis addresses fundamental questions about Librarian
 
 **Research vs Production**: S1-S3 are research-grade features requiring theoretical validation. S4 (Resilience) has immediate production applicability for chaos testing and reliability engineering.
 
-Without dynamics analysis, Librarian operates as a black box that could fail catastrophically at any moment. With it, we gain predictive understanding of system behavior and early warning of approaching failures.
+Without dynamics analysis, LiBrainian operates as a black box that could fail catastrophically at any moment. With it, we gain predictive understanding of system behavior and early warning of approaching failures.

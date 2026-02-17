@@ -3,13 +3,13 @@
 **Status**: Research Document
 **Version**: 1.0.0
 **Date**: 2026-01-29
-**Purpose**: Survey state-of-the-art approaches for Librarian's epistemic subsystem
+**Purpose**: Survey state-of-the-art approaches for LiBrainian's epistemic subsystem
 
 ---
 
 ## Executive Summary
 
-This document surveys computational approaches to knowledge representation, reasoning under uncertainty, and epistemic AI systems. Each area is analyzed for relevance to Librarian's existing epistemic architecture, which already implements:
+This document surveys computational approaches to knowledge representation, reasoning under uncertainty, and epistemic AI systems. Each area is analyzed for relevance to LiBrainian's existing epistemic architecture, which already implements:
 - Principled ConfidenceValue type system (deterministic, derived, measured, bounded, absent)
 - Expected Calibration Error (ECE) and Maximum Calibration Error (MCE)
 - Isotonic regression calibration
@@ -49,12 +49,12 @@ This document surveys computational approaches to knowledge representation, reas
 - OWL 2 profiles: EL (tractable), QL (query-optimized), RL (rule-based)
 - Reasoners: HermiT, Pellet, ELK
 
-**Relevance to Librarian**: Medium. Librarian's knowledge graph could benefit from OWL semantics for formal reasoning about code relationships. However, the computational overhead may not justify the benefits for code analysis.
+**Relevance to LiBrainian**: Medium. LiBrainian's knowledge graph could benefit from OWL semantics for formal reasoning about code relationships. However, the computational overhead may not justify the benefits for code analysis.
 
 **Recommendation**: Do NOT adopt full OWL. Instead:
 - Use lightweight description logic concepts for type hierarchies
 - Consider OWL 2 EL profile if formal reasoning is needed
-- Librarian's existing semilattice structure for ConfidenceValue is sufficient
+- LiBrainian's existing semilattice structure for ConfidenceValue is sufficient
 
 ### 1.2 Answer Set Programming (ASP)
 
@@ -69,9 +69,9 @@ This document surveys computational approaches to knowledge representation, reas
 - Plingo: Probabilistic extension
 - DLV2: Alternative solver with database integration
 
-**Relevance to Librarian**: Low-Medium. ASP could express code analysis rules declaratively, but the learning curve and integration complexity are high.
+**Relevance to LiBrainian**: Low-Medium. ASP could express code analysis rules declaratively, but the learning curve and integration complexity are high.
 
-**Recommendation**: Monitor but do not adopt. If Librarian needs complex rule-based reasoning in the future, ASP could be reconsidered.
+**Recommendation**: Monitor but do not adopt. If LiBrainian needs complex rule-based reasoning in the future, ASP could be reconsidered.
 
 ### 1.3 Probabilistic Logic Programming (ProbLog, LPMLN)
 
@@ -86,18 +86,18 @@ This document surveys computational approaches to knowledge representation, reas
 - "Lifted Variable Elimination for Probabilistic Logic Programming" ([arXiv:1405.3218](https://arxiv.org/abs/1405.3218))
 - "Survey of lifted inference approaches for PLP" ([ScienceDirect](https://www.sciencedirect.com/science/article/pii/S0888613X16301736))
 
-**Relevance to Librarian**: Medium. ProbLog's approach to uncertain facts aligns well with Librarian's confidence system.
+**Relevance to LiBrainian**: Medium. ProbLog's approach to uncertain facts aligns well with LiBrainian's confidence system.
 
 **Recommendation**: Consider ProbLog-style semantics for:
 - Expressing uncertain relationships between code entities
 - Propagating confidence through inference chains
-- Librarian's `DerivedConfidence` type already captures this spirit
+- LiBrainian's `DerivedConfidence` type already captures this spirit
 
 ### 1.4 Lifted Inference
 
 **Overview**: Inference algorithms that exploit symmetry to avoid grounding all variables, achieving complexity independent of domain size.
 
-**Relevance to Librarian**: Low currently. Would be relevant if Librarian scales to very large codebases with symmetric structures.
+**Relevance to LiBrainian**: Low currently. Would be relevant if LiBrainian scales to very large codebases with symmetric structures.
 
 ---
 
@@ -107,7 +107,7 @@ This document surveys computational approaches to knowledge representation, reas
 
 **Overview**: Graphical models representing probabilistic relationships between variables.
 
-**Relevance to Librarian**: Medium. Could model dependencies between code quality signals.
+**Relevance to LiBrainian**: Medium. Could model dependencies between code quality signals.
 
 **Recommendation**: Consider for:
 - Modeling conditional dependencies between confidence sources
@@ -132,11 +132,11 @@ This document surveys computational approaches to knowledge representation, reas
 | NumPyro | JAX | Speed, GPU support |
 | Gen | Julia | Programmable inference |
 
-**Relevance to Librarian**: Low-Medium. Librarian's TypeScript codebase doesn't easily integrate with Python probabilistic programming.
+**Relevance to LiBrainian**: Low-Medium. LiBrainian's TypeScript codebase doesn't easily integrate with Python probabilistic programming.
 
 **Recommendation**: Do NOT adopt directly. Instead:
 - Apply the mathematical concepts (Bayesian inference, MCMC ideas)
-- Librarian's `bayesianSmooth()` function already implements Beta-Binomial conjugacy
+- LiBrainian's `bayesianSmooth()` function already implements Beta-Binomial conjugacy
 - Consider if calibration learning needs become more sophisticated
 
 ### 2.3 Approximate Inference (MCMC, Variational)
@@ -146,7 +146,7 @@ This document surveys computational approaches to knowledge representation, reas
 - ADVI (Automatic Differentiation Variational Inference)
 - Stein Variational Gradient Descent
 
-**Relevance to Librarian**: Low. Current calibration approach is simpler and sufficient.
+**Relevance to LiBrainian**: Low. Current calibration approach is simpler and sufficient.
 
 ### 2.4 Bayesian Deep Learning
 
@@ -161,13 +161,13 @@ This document surveys computational approaches to knowledge representation, reas
 - BNNs don't consistently outperform simpler alternatives
 - Epistemic vs. aleatoric uncertainty decomposition is valuable
 
-**Relevance to Librarian**: Medium. Uncertainty quantification concepts apply.
+**Relevance to LiBrainian**: Medium. Uncertainty quantification concepts apply.
 
-**Should Librarian Do Bayesian Inference?**
+**Should LiBrainian Do Bayesian Inference?**
 
 **Answer**: Not full Bayesian inference, but Bayesian concepts are valuable.
 
-Current Librarian approach is appropriate:
+Current LiBrainian approach is appropriate:
 - `bayesianSmooth()` for calibration bucket smoothing
 - Wilson score intervals for confidence intervals
 - Bootstrap calibration with principled priors
@@ -200,7 +200,7 @@ Future considerations:
 - **Lean + LLMs**: Formal theorem proving with neural guidance
 - **FunSearch/LaSR**: Evolutionary search over programs guided by LLMs
 
-**Relevance to Librarian**: Low currently. More relevant for formal verification of code properties.
+**Relevance to LiBrainian**: Low currently. More relevant for formal verification of code properties.
 
 ### 3.3 Differentiable Reasoning
 
@@ -213,10 +213,10 @@ Future considerations:
 | Scallop | Provenance semirings for differentiable reasoning |
 | dPASP | Probabilistic ASP with neural predicates |
 
-**Relevance to Librarian**: Medium-High potential.
+**Relevance to LiBrainian**: Medium-High potential.
 
 **Recommendation**: Study [Scallop](https://scallop-lang.github.io/) for:
-- Provenance semiring concepts align with Librarian's formula tracing
+- Provenance semiring concepts align with LiBrainian's formula tracing
 - Could inspire improvements to `DerivedConfidence` provenance tracking
 - Long-term: differentiable reasoning over code graphs
 
@@ -229,7 +229,7 @@ Future considerations:
 - Graph neural networks for structure learning
 - Contrastive learning for embeddings
 
-**Relevance to Librarian**: High for retrieval quality.
+**Relevance to LiBrainian**: High for retrieval quality.
 
 **Recommendation**: Priority P2 enhancement:
 - Current embedding approach is semantic (text-based)
@@ -259,9 +259,9 @@ Future considerations:
 | Temperature Scaling | 33% |
 | Platt Scaling | 25% |
 
-### 4.2 How This Relates to Librarian's Calibration
+### 4.2 How This Relates to LiBrainian's Calibration
 
-**Librarian Already Implements**:
+**LiBrainian Already Implements**:
 - `computeCalibrationCurve()`: Histogram-based ECE/MCE
 - `isotonicCalibration()`: PAV algorithm for monotonic calibration
 - `computeBrierScore()` and `computeLogLoss()`: Proper scoring rules
@@ -269,7 +269,7 @@ Future considerations:
 - `computeSmoothECE()`: Kernel density-based calibration error
 - `bootstrapCalibration()`: Sample-size-aware calibration config
 
-**What Librarian Should Add**:
+**What LiBrainian Should Add**:
 
 1. **Temperature Scaling** (Priority P1):
 ```typescript
@@ -285,7 +285,7 @@ function learnTemperature(
 ```
 
 2. **Focal Loss Awareness** (Priority P3):
-- Not directly applicable (Librarian doesn't train models)
+- Not directly applicable (LiBrainian doesn't train models)
 - But: could weight calibration samples by difficulty
 
 3. **Dirichlet Calibration** (Priority P3):
@@ -327,7 +327,7 @@ function learnTemperature(
 | Cross-conformal | Balance of both |
 | Adaptive Conformal Inference (ACI) | Time series, non-exchangeable data |
 
-### 5.2 Should Librarian Use Conformal Methods?
+### 5.2 Should LiBrainian Use Conformal Methods?
 
 **Answer**: Yes, high priority (P0).
 
@@ -373,7 +373,7 @@ interface ConformalCalibrator {
 }
 ```
 
-**Benefits for Librarian**:
+**Benefits for LiBrainian**:
 1. Replace point confidence with prediction sets
 2. Users know "90% of the time, the true answer is in this set"
 3. Set size indicates uncertainty (large set = uncertain)
@@ -386,7 +386,7 @@ Recent research specifically addresses conformal prediction for NLP:
 - Adaptive nonconformity scores based on semantic similarity
 - Handling multiple valid answers
 
-**Application to Librarian**:
+**Application to LiBrainian**:
 - Code retrieval: "90% confident the relevant file is in {A, B, C}"
 - Claim verification: prediction sets for claim validity
 - Uncertainty quantification for LLM-generated analysis
@@ -416,7 +416,7 @@ Recent research specifically addresses conformal prediction for NLP:
 - Local Entropy Search (LES) for local Bayesian optimization
 - CAGES: Cost-aware gradient entropy search (CDC 2024)
 
-### 6.3 For Guiding What Librarian Should Learn
+### 6.3 For Guiding What LiBrainian Should Learn
 
 **Recommendation**: Priority P1 - Information-theoretic exploration.
 
@@ -458,7 +458,7 @@ type AcquisitionFunction =
 
 **Concept**: Intrinsic motivation to explore uncertain regions.
 
-**Relevance to Librarian**: Medium. Could guide automatic knowledge expansion:
+**Relevance to LiBrainian**: Medium. Could guide automatic knowledge expansion:
 - Identify under-represented code patterns
 - Prioritize indexing of uncertain areas
 - Learn from user feedback on surprising results
@@ -473,7 +473,7 @@ type AcquisitionFunction =
 - [MAML-en-LLM](https://arxiv.org/abs/2405.11446) (SIGKDD 2024): Meta-training LLMs for improved in-context learning
 - 2-4% improvement on unseen domains
 
-**Relevance to Librarian**: Low. Librarian doesn't train models.
+**Relevance to LiBrainian**: Low. LiBrainian doesn't train models.
 
 ### 7.2 In-Context Learning and Chain-of-Thought
 
@@ -484,7 +484,7 @@ type AcquisitionFunction =
 **Key Technique - Self-Consistency**:
 > "First samples a diverse set of reasoning paths instead of only taking the greedy one, and then selects the most consistent answer by marginalizing out the sampled reasoning paths."
 
-**Relevance to Librarian**: High for LLM-based analysis.
+**Relevance to LiBrainian**: High for LLM-based analysis.
 
 **Recommendation**: Priority P2 - Self-consistency for claims.
 
@@ -508,7 +508,7 @@ interface SelfConsistentClaim {
 }
 ```
 
-### 7.3 For Improving Librarian's Reasoning
+### 7.3 For Improving LiBrainian's Reasoning
 
 **Recommendations**:
 
@@ -587,7 +587,7 @@ interface VerificationResult {
 
 **Concept**: Monitor system behavior against specifications at runtime.
 
-**Relevance to Librarian**: Medium. Could verify:
+**Relevance to LiBrainian**: Medium. Could verify:
 - Confidence values stay in [0, 1]
 - Calibration curves are monotonic
 - Semilattice laws are preserved
@@ -611,7 +611,7 @@ interface VerificationResult {
 - DeepSeek R1: 39% acknowledgment
 - Models construct false justifications
 
-**Lesson for Librarian**: Don't trust LLM self-reported confidence. Rely on empirical calibration.
+**Lesson for LiBrainian**: Don't trust LLM self-reported confidence. Rely on empirical calibration.
 
 ### 9.2 Anthropic's Constitutional AI
 
@@ -626,7 +626,7 @@ interface VerificationResult {
 - Synthetic data generation for RLHF
 - Principles like "Is the answer truthful?"
 
-**Relevance to Librarian**: Medium. Principles for epistemic honesty:
+**Relevance to LiBrainian**: Medium. Principles for epistemic honesty:
 - "Does this claim have sufficient evidence?"
 - "Is the confidence calibrated to empirical accuracy?"
 - "Are uncertainty bounds disclosed?"
@@ -656,7 +656,7 @@ interface VerificationResult {
 - Continuous web extraction
 - Self-supervised knowledge base construction
 
-**Lessons for Librarian**:
+**Lessons for LiBrainian**:
 1. Logical consistency is achievable at scale (YAGO)
 2. Commonsense knowledge aids understanding (ConceptNet)
 3. Continuous learning from sources (NELL pattern)
@@ -735,7 +735,7 @@ Based on the systematic review, these areas are under-explored:
 3. **Calibration for code-specific domains**
 4. **Conformal prediction for structured outputs**
 
-### 11.2 Librarian-Specific Research Questions
+### 11.2 LiBrainian-Specific Research Questions
 
 1. How should calibration curves transfer across programming languages?
 2. What nonconformity scores work best for code retrieval?
@@ -744,7 +744,7 @@ Based on the systematic review, these areas are under-explored:
 
 ### 11.3 Potential Contributions
 
-Librarian could contribute:
+LiBrainian could contribute:
 1. Benchmark for code-domain calibration
 2. Conformal prediction for code retrieval
 3. Semilattice-based confidence algebra
@@ -755,7 +755,7 @@ Librarian could contribute:
 
 ### 12.1 Technique Comparison
 
-| Technique | Librarian Has | Should Add | Priority |
+| Technique | LiBrainian Has | Should Add | Priority |
 |-----------|---------------|------------|----------|
 | ECE/MCE | Yes | - | - |
 | Isotonic Calibration | Yes | - | - |
@@ -772,7 +772,7 @@ Librarian could contribute:
 
 ### 12.2 System Comparison
 
-| System | Approach | Librarian Relevance |
+| System | Approach | LiBrainian Relevance |
 |--------|----------|---------------------|
 | ProbLog | Probabilistic logic | Medium - concepts |
 | NumPyro | Probabilistic programming | Low - wrong ecosystem |

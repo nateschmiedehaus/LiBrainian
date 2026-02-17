@@ -1,12 +1,12 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# World-Class Librarian Implementation Plan
+# World-Class LiBrainian Implementation Plan
 
 ## Executive Summary
 
-This document outlines the complete plan to transform the librarian into a world-class knowledge system that perfectly serves agentic systems. It addresses:
+This document outlines the complete plan to transform the LiBrainian into a world-class knowledge system that perfectly serves agentic systems. It addresses:
 
 1. **Knowledge Ontology** - Complete knowledge model for any codebase
 2. **Resilient Architecture** - Fault-tolerant design with graceful degradation
@@ -49,7 +49,7 @@ This document outlines the complete plan to transform the librarian into a world
 
 ### 1.1 Knowledge Domains
 
-The librarian tracks 12 knowledge domains with 150+ attributes:
+The LiBrainian tracks 12 knowledge domains with 150+ attributes:
 
 | Domain | Purpose | Key Attributes |
 |--------|---------|----------------|
@@ -69,7 +69,7 @@ The librarian tracks 12 knowledge domains with 150+ attributes:
 ### 1.2 Knowledge Types
 
 ```typescript
-// src/librarian/knowledge/types/index.ts
+// src/LiBrainian/knowledge/types/index.ts
 
 // Composed from focused type files
 export interface UniversalKnowledge {
@@ -88,7 +88,7 @@ export interface UniversalKnowledge {
 }
 
 // Each domain is a focused interface (~100-150 lines each)
-// See: src/librarian/knowledge/types/*.ts
+// See: src/LiBrainian/knowledge/types/*.ts
 ```
 
 ### 1.3 Freshness Requirements
@@ -150,7 +150,7 @@ type KnowledgeableEntity =
 ### 2.3 Implementation
 
 ```typescript
-// src/librarian/discovery/entity_discoverer.ts
+// src/LiBrainian/discovery/entity_discoverer.ts
 
 class EmergentEntityDiscoverer {
   // Discoverers run in order, each can use results from previous
@@ -190,7 +190,7 @@ class EmergentEntityDiscoverer {
 When one provider is unavailable, use the other. Both provide full capabilities.
 
 ```typescript
-// src/librarian/providers/router.ts
+// src/LiBrainian/providers/router.ts
 
 class ProviderRouter {
   async execute<T>(request: ProviderRequest): Promise<Result<T, ProviderError>> {
@@ -226,7 +226,7 @@ class ProviderRouter {
 ### 3.3 Provider Implementation
 
 ```typescript
-// src/librarian/providers/claude_provider.ts
+// src/LiBrainian/providers/claude_provider.ts
 
 class ClaudeProvider implements Provider {
   readonly id = 'claude';
@@ -287,7 +287,7 @@ class ClaudeProvider implements Provider {
 **Solution:**
 
 ```typescript
-// src/librarian/core/result.ts
+// src/LiBrainian/core/result.ts
 
 export type Result<T, E = Error> =
   | { readonly ok: true; readonly value: T }
@@ -332,7 +332,7 @@ export async function safeReadFile(path: string): Promise<Result<string, Error>>
 **Solution:**
 
 ```typescript
-// src/librarian/core/errors.ts
+// src/LiBrainian/core/errors.ts
 
 export abstract class LibrarianError extends Error {
   abstract readonly code: string;
@@ -417,7 +417,7 @@ export class QueryError extends LibrarianError {
 ### 4.3 Execution Infrastructure
 
 ```typescript
-// src/librarian/core/execution.ts
+// src/LiBrainian/core/execution.ts
 
 interface ExecutionOptions {
   timeoutMs: number;
@@ -506,7 +506,7 @@ function isRetryable(error: unknown): boolean {
 ### 4.4 Health Check System
 
 ```typescript
-// src/librarian/core/health.ts
+// src/LiBrainian/core/health.ts
 
 interface HealthCheck {
   readonly name: string;
@@ -592,7 +592,7 @@ export const healthRegistry = new HealthRegistry();
 #### sqlite_storage.ts (3,801 lines → 6 files)
 
 ```
-src/librarian/storage/
+src/LiBrainian/storage/
 ├── index.ts                    # Re-exports
 ├── types.ts                    # Cleaned interfaces
 ├── connection.ts               # Connection, WAL, pragmas
@@ -609,7 +609,7 @@ src/librarian/storage/
 #### bootstrap.ts (1,138 lines → 4 files)
 
 ```
-src/librarian/api/bootstrap/
+src/LiBrainian/api/bootstrap/
 ├── index.ts                    # Re-exports
 ├── orchestrator.ts             # Main flow (~200 lines)
 ├── recovery.ts                 # Recovery state
@@ -620,7 +620,7 @@ src/librarian/api/bootstrap/
 #### query.ts (1,113 lines → 5 files)
 
 ```
-src/librarian/query/
+src/LiBrainian/query/
 ├── index.ts                    # Re-exports
 ├── processor.ts                # Query orchestration (~150 lines)
 ├── retriever.ts                # Candidate retrieval
@@ -632,7 +632,7 @@ src/librarian/query/
 #### universal_types.ts (1,658 lines → 12 files)
 
 ```
-src/librarian/knowledge/types/
+src/LiBrainian/knowledge/types/
 ├── index.ts                    # Composes all (~50 lines)
 ├── identity.ts                 # ~100 lines
 ├── semantics.ts                # ~150 lines
@@ -656,7 +656,7 @@ src/librarian/knowledge/types/
 **Solution:**
 
 ```typescript
-// src/librarian/ingest/parsers/index.ts
+// src/LiBrainian/ingest/parsers/index.ts
 
 export interface Parser<T> {
   readonly format: string;
@@ -735,7 +735,7 @@ export class UniversalParser {
 **Solution:**
 
 ```typescript
-// src/librarian/storage/repository.ts
+// src/LiBrainian/storage/repository.ts
 
 export interface Repository<T, ID = string> {
   get(id: ID): Promise<Result<T | null, StorageError>>;
@@ -773,7 +773,7 @@ export abstract class SQLiteRepository<T, ID = string> implements Repository<T, 
 **Solution:**
 
 ```typescript
-// src/librarian/extraction/base_extractor.ts
+// src/LiBrainian/extraction/base_extractor.ts
 
 export abstract class BaseExtractor<TInput, TOutput> {
   abstract readonly id: string;
@@ -837,7 +837,7 @@ Update `engines/index.ts` to consolidate all exports.
 ### 6.1 Canonical Types (Prevent Format Mismatches)
 
 ```typescript
-// src/librarian/core/contracts.ts
+// src/LiBrainian/core/contracts.ts
 
 // Branded types prevent mixing incompatible IDs
 type Brand<T, B> = T & { readonly __brand: B };
@@ -910,7 +910,7 @@ export function createValidatedEmbedding(
 ### 6.2 Schema Version Registry
 
 ```typescript
-// src/librarian/core/schema_registry.ts
+// src/LiBrainian/core/schema_registry.ts
 
 const SCHEMA_VERSIONS = {
   embedding: 1,
@@ -971,7 +971,7 @@ export function registerMigration(
 ### 6.3 Event Bus (Loose Coupling)
 
 ```typescript
-// src/librarian/core/event_bus.ts
+// src/LiBrainian/core/event_bus.ts
 
 type LibrarianEvent =
   | { type: 'file:changed'; path: FilePath; timestamp: Timestamp }
@@ -1036,7 +1036,7 @@ export const eventBus = new EventBus();
 ### 6.4 Transaction Coordinator
 
 ```typescript
-// src/librarian/core/transaction_coordinator.ts
+// src/LiBrainian/core/transaction_coordinator.ts
 
 interface TransactionContext {
   readonly id: string;
@@ -1094,7 +1094,7 @@ export const transactionCoordinator = new TransactionCoordinator();
 ### 6.5 Resource Manager
 
 ```typescript
-// src/librarian/core/resource_manager.ts
+// src/LiBrainian/core/resource_manager.ts
 
 interface Semaphore {
   acquire(): Promise<void>;
@@ -1179,7 +1179,7 @@ export const resourceManager = new ResourceManager();
 ### 7.1 Query Types
 
 ```typescript
-// src/librarian/query/types.ts
+// src/LiBrainian/query/types.ts
 
 type AgentQueryIntent =
   // Understanding
@@ -1231,7 +1231,7 @@ interface AgentQuery {
 ### 7.2 Agent-Optimized Responses
 
 ```typescript
-// src/librarian/query/response.ts
+// src/LiBrainian/query/response.ts
 
 interface AgentQueryResponse {
   // Machine-readable decisions
@@ -1289,7 +1289,7 @@ interface AgentQueryResponse {
 ### 7.3 High-Level Agent API
 
 ```typescript
-// src/librarian/api/agent_interface.ts
+// src/LiBrainian/api/agent_interface.ts
 
 class LibrarianAgentAPI {
   // "I'm about to modify this file, what do I need to know?"
@@ -1370,10 +1370,10 @@ class LibrarianAgentAPI {
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create Result type | `src/librarian/core/result.ts` | New |
-| Create Error hierarchy | `src/librarian/core/errors.ts` | New |
-| Create Contracts | `src/librarian/core/contracts.ts` | New |
-| Create Execution utils | `src/librarian/core/execution.ts` | New |
+| Create Result type | `src/LiBrainian/core/result.ts` | New |
+| Create Error hierarchy | `src/LiBrainian/core/errors.ts` | New |
+| Create Contracts | `src/LiBrainian/core/contracts.ts` | New |
+| Create Execution utils | `src/LiBrainian/core/execution.ts` | New |
 | Update `.catch(() => {})` sites | 6 files | Modify |
 | Update string error sites | 10+ files | Modify |
 
@@ -1381,70 +1381,70 @@ class LibrarianAgentAPI {
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create connection.ts | `src/librarian/storage/connection.ts` | New |
-| Create migrations.ts | `src/librarian/storage/migrations.ts` | New |
-| Create entity_repository.ts | `src/librarian/storage/repositories/entity_repository.ts` | New |
-| Create embedding_repository.ts | `src/librarian/storage/repositories/embedding_repository.ts` | New |
-| Create graph_repository.ts | `src/librarian/storage/repositories/graph_repository.ts` | New |
-| Create knowledge_repository.ts | `src/librarian/storage/repositories/knowledge_repository.ts` | New |
-| Refactor sqlite_storage.ts | `src/librarian/storage/sqlite_storage.ts` | Modify (3801→200 lines) |
+| Create connection.ts | `src/LiBrainian/storage/connection.ts` | New |
+| Create migrations.ts | `src/LiBrainian/storage/migrations.ts` | New |
+| Create entity_repository.ts | `src/LiBrainian/storage/repositories/entity_repository.ts` | New |
+| Create embedding_repository.ts | `src/LiBrainian/storage/repositories/embedding_repository.ts` | New |
+| Create graph_repository.ts | `src/LiBrainian/storage/repositories/graph_repository.ts` | New |
+| Create knowledge_repository.ts | `src/LiBrainian/storage/repositories/knowledge_repository.ts` | New |
+| Refactor sqlite_storage.ts | `src/LiBrainian/storage/sqlite_storage.ts` | Modify (3801→200 lines) |
 
 ### Phase 2: Query & Bootstrap Split (Week 2-3)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create query/processor.ts | `src/librarian/query/processor.ts` | New |
-| Create query/retriever.ts | `src/librarian/query/retriever.ts` | New |
-| Create query/scorer.ts | `src/librarian/query/scorer.ts` | New |
-| Create query/synthesizer.ts | `src/librarian/query/synthesizer.ts` | New |
-| Create bootstrap/orchestrator.ts | `src/librarian/api/bootstrap/orchestrator.ts` | New |
-| Create bootstrap/recovery.ts | `src/librarian/api/bootstrap/recovery.ts` | New |
-| Create bootstrap/phases.ts | `src/librarian/api/bootstrap/phases.ts` | New |
+| Create query/processor.ts | `src/LiBrainian/query/processor.ts` | New |
+| Create query/retriever.ts | `src/LiBrainian/query/retriever.ts` | New |
+| Create query/scorer.ts | `src/LiBrainian/query/scorer.ts` | New |
+| Create query/synthesizer.ts | `src/LiBrainian/query/synthesizer.ts` | New |
+| Create bootstrap/orchestrator.ts | `src/LiBrainian/api/bootstrap/orchestrator.ts` | New |
+| Create bootstrap/recovery.ts | `src/LiBrainian/api/bootstrap/recovery.ts` | New |
+| Create bootstrap/phases.ts | `src/LiBrainian/api/bootstrap/phases.ts` | New |
 
 ### Phase 3: Abstractions (Week 3)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create Parser abstraction | `src/librarian/ingest/parsers/` | New |
-| Create Repository base | `src/librarian/storage/repository.ts` | New |
-| Create BaseExtractor | `src/librarian/extraction/base_extractor.ts` | New |
+| Create Parser abstraction | `src/LiBrainian/ingest/parsers/` | New |
+| Create Repository base | `src/LiBrainian/storage/repository.ts` | New |
+| Create BaseExtractor | `src/LiBrainian/extraction/base_extractor.ts` | New |
 | Update ingest indexers | 12 files | Modify |
 
 ### Phase 4: Integration Layer (Week 4)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create EventBus | `src/librarian/core/event_bus.ts` | New |
-| Create SchemaRegistry | `src/librarian/core/schema_registry.ts` | New |
-| Create TransactionCoordinator | `src/librarian/core/transaction_coordinator.ts` | New |
-| Create ResourceManager | `src/librarian/core/resource_manager.ts` | New |
-| Create HealthRegistry | `src/librarian/core/health.ts` | New |
+| Create EventBus | `src/LiBrainian/core/event_bus.ts` | New |
+| Create SchemaRegistry | `src/LiBrainian/core/schema_registry.ts` | New |
+| Create TransactionCoordinator | `src/LiBrainian/core/transaction_coordinator.ts` | New |
+| Create ResourceManager | `src/LiBrainian/core/resource_manager.ts` | New |
+| Create HealthRegistry | `src/LiBrainian/core/health.ts` | New |
 | Wire components | All | Modify |
 
 ### Phase 5: Provider Layer (Week 4)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create ProviderRouter | `src/librarian/providers/router.ts` | New |
-| Create ClaudeProvider | `src/librarian/providers/claude_provider.ts` | New |
-| Create CodexProvider | `src/librarian/providers/codex_provider.ts` | New |
-| Create CircuitBreaker | `src/librarian/providers/circuit_breaker.ts` | New |
+| Create ProviderRouter | `src/LiBrainian/providers/router.ts` | New |
+| Create ClaudeProvider | `src/LiBrainian/providers/claude_provider.ts` | New |
+| Create CodexProvider | `src/LiBrainian/providers/codex_provider.ts` | New |
+| Create CircuitBreaker | `src/LiBrainian/providers/circuit_breaker.ts` | New |
 
 ### Phase 6: Entity Discovery (Week 5)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create EntityDiscoverer | `src/librarian/discovery/entity_discoverer.ts` | New |
-| Create DirectoryDiscoverer | `src/librarian/discovery/discoverers/directory.ts` | New |
-| Create CoChangeDiscoverer | `src/librarian/discovery/discoverers/cochange.ts` | New |
-| Create PatternDiscoverer | `src/librarian/discovery/discoverers/pattern.ts` | New |
+| Create EntityDiscoverer | `src/LiBrainian/discovery/entity_discoverer.ts` | New |
+| Create DirectoryDiscoverer | `src/LiBrainian/discovery/discoverers/directory.ts` | New |
+| Create CoChangeDiscoverer | `src/LiBrainian/discovery/discoverers/cochange.ts` | New |
+| Create PatternDiscoverer | `src/LiBrainian/discovery/discoverers/pattern.ts` | New |
 
 ### Phase 7: Agent Interface (Week 5)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create AgentAPI | `src/librarian/api/agent_interface.ts` | New |
-| Create response types | `src/librarian/query/response.ts` | New |
+| Create AgentAPI | `src/LiBrainian/api/agent_interface.ts` | New |
+| Create response types | `src/LiBrainian/query/response.ts` | New |
 | Integrate with orchestrator | `src/orchestrator/` | Modify |
 
 ### Phase 8: Cleanup (Week 6)
@@ -1463,7 +1463,7 @@ class LibrarianAgentAPI {
 ### New Files to Create
 
 ```
-src/librarian/
+src/LiBrainian/
 ├── core/
 │   ├── result.ts                 # Result type, safe operations
 │   ├── errors.ts                 # Error hierarchy
@@ -1565,7 +1565,7 @@ src/librarian/
 ### 10.1 Unit Tests for New Core
 
 ```typescript
-// src/librarian/core/__tests__/result.test.ts
+// src/LiBrainian/core/__tests__/result.test.ts
 describe('Result', () => {
   test('Ok wraps value', () => {
     const r = Ok(42);
@@ -1585,7 +1585,7 @@ describe('Result', () => {
   });
 });
 
-// src/librarian/core/__tests__/contracts.test.ts
+// src/LiBrainian/core/__tests__/contracts.test.ts
 describe('Contracts', () => {
   test('createFilePath rejects empty', () => {
     const r = createFilePath('');
@@ -1608,7 +1608,7 @@ describe('Contracts', () => {
 ### 10.2 Integration Tests for Components
 
 ```typescript
-// src/librarian/__tests__/provider_failover.test.ts
+// src/LiBrainian/__tests__/provider_failover.test.ts
 describe('Provider Failover', () => {
   test('falls back to codex when claude unavailable', async () => {
     mockClaudeUnavailable();
@@ -1632,7 +1632,7 @@ describe('Provider Failover', () => {
   });
 });
 
-// src/librarian/__tests__/transaction_coordinator.test.ts
+// src/LiBrainian/__tests__/transaction_coordinator.test.ts
 describe('TransactionCoordinator', () => {
   test('rolls back on failure', async () => {
     const rollbackCalled = { value: false };
@@ -1651,11 +1651,11 @@ describe('TransactionCoordinator', () => {
 ### 10.3 End-to-End Tests
 
 ```typescript
-// src/librarian/__tests__/e2e/agent_workflow.test.ts
+// src/LiBrainian/__tests__/e2e/agent_workflow.test.ts
 describe('Agent Workflow E2E', () => {
   test('agent can get modification context', async () => {
-    const librarian = await createLibrarian(testRepo);
-    const api = new LibrarianAgentAPI(librarian);
+    const LiBrainian = await createLibrarian(testRepo);
+    const api = new LibrarianAgentAPI(LiBrainian);
 
     const context = await api.getModificationContext('src/auth.ts');
 
@@ -1666,8 +1666,8 @@ describe('Agent Workflow E2E', () => {
   });
 
   test('agent can assess change safety', async () => {
-    const librarian = await createLibrarian(testRepo);
-    const api = new LibrarianAgentAPI(librarian);
+    const LiBrainian = await createLibrarian(testRepo);
+    const api = new LibrarianAgentAPI(LiBrainian);
 
     const assessment = await api.assessChange(
       'src/auth.ts',
@@ -1690,11 +1690,11 @@ We already have working local embedding infrastructure:
 
 | Component | File | Status |
 |-----------|------|--------|
-| Unified Embedding Pipeline | `src/librarian/api/embedding_providers/unified_embedding_pipeline.ts` | ✅ Working |
-| Cross-Encoder Reranker | `src/librarian/api/embedding_providers/cross_encoder_reranker.ts` | ✅ Working |
-| Co-Change Signals | `src/librarian/api/embedding_providers/co_change_signals.ts` | ✅ Working |
-| Function Chunking | `src/librarian/api/embedding_providers/function_chunking.ts` | ✅ Working |
-| Real Embeddings | `src/librarian/api/embedding_providers/real_embeddings.ts` | ✅ Working |
+| Unified Embedding Pipeline | `src/LiBrainian/api/embedding_providers/unified_embedding_pipeline.ts` | ✅ Working |
+| Cross-Encoder Reranker | `src/LiBrainian/api/embedding_providers/cross_encoder_reranker.ts` | ✅ Working |
+| Co-Change Signals | `src/LiBrainian/api/embedding_providers/co_change_signals.ts` | ✅ Working |
+| Function Chunking | `src/LiBrainian/api/embedding_providers/function_chunking.ts` | ✅ Working |
+| Real Embeddings | `src/LiBrainian/api/embedding_providers/real_embeddings.ts` | ✅ Working |
 
 ### 11.2 Local Models
 
@@ -1749,7 +1749,7 @@ const LOCAL_MODELS = {
 Code is chunked at function boundaries, not arbitrary token limits:
 
 ```typescript
-// src/librarian/api/embedding_providers/function_chunking.ts
+// src/LiBrainian/api/embedding_providers/function_chunking.ts
 
 interface FunctionChunk {
   id: string;
@@ -1799,7 +1799,7 @@ type QueryAspect = 'semantic' | 'signature' | 'docstring' | 'usage' | 'all';
 ### 12.1 File Watcher Integration
 
 ```typescript
-// src/librarian/integration/file_watcher.ts (already exists, needs enhancement)
+// src/LiBrainian/integration/file_watcher.ts (already exists, needs enhancement)
 
 class EnhancedFileWatcher {
   private watcher: FSWatcher;
@@ -1855,7 +1855,7 @@ class EnhancedFileWatcher {
 ### 12.2 Freshness Manager
 
 ```typescript
-// src/librarian/knowledge/freshness_manager.ts
+// src/LiBrainian/knowledge/freshness_manager.ts
 
 interface FreshnessConfig {
   domain: KnowledgeDomain;
@@ -1956,7 +1956,7 @@ const PROPAGATION_RULES: PropagationRule[] = [
 ### 13.1 Aggregating Child Knowledge to Parent
 
 ```typescript
-// src/librarian/knowledge/aggregator.ts
+// src/LiBrainian/knowledge/aggregator.ts
 
 class KnowledgeAggregator {
   // When child knowledge changes, recompute parent
@@ -2050,7 +2050,7 @@ eventBus.on('knowledge:extracted', async (event) => {
 ### 14.1 Agent Registration
 
 ```typescript
-// src/librarian/agents/agent_coordinator.ts
+// src/LiBrainian/agents/agent_coordinator.ts
 
 interface RegisteredAgent {
   id: string;
@@ -2356,7 +2356,7 @@ class ContextOptimizedDelivery {
 ### 16.1 Learning Agent Patterns
 
 ```typescript
-// src/librarian/prefetch/prefetcher.ts
+// src/LiBrainian/prefetch/prefetcher.ts
 
 class PredictivePrefetcher {
   private accessPatterns = new Map<string, AccessSequence[]>();
@@ -2419,7 +2419,7 @@ class PredictivePrefetcher {
 ### 17.1 Recovery Guidance
 
 ```typescript
-// src/librarian/recovery/agent_recovery.ts
+// src/LiBrainian/recovery/agent_recovery.ts
 
 class AgentRecoverySupport {
   async handleAgentError(
@@ -2485,10 +2485,10 @@ class AgentRecoverySupport {
 
 ## 18. Agent Learning Integration
 
-### 18.1 Agents Teaching the Librarian
+### 18.1 Agents Teaching the LiBrainian
 
 ```typescript
-// src/librarian/learning/agent_learning.ts
+// src/LiBrainian/learning/agent_learning.ts
 
 interface AgentLearning {
   type: 'discovery' | 'correction' | 'pattern' | 'insight';
@@ -2567,7 +2567,7 @@ class AgentLearningIntegration {
 ### 19.1 Calibrated Confidence Scores
 
 ```typescript
-// src/librarian/confidence/calibration.ts
+// src/LiBrainian/confidence/calibration.ts
 
 interface CalibratedConfidence {
   // Knowledge quality
@@ -2724,7 +2724,7 @@ These tests validate the local embedding infrastructure:
 **Solution**: Domain discovery and adaptive freshness:
 
 ```typescript
-// src/librarian/knowledge/domain_registry.ts
+// src/LiBrainian/knowledge/domain_registry.ts
 
 interface DomainDefinition {
   readonly id: string;
@@ -2751,7 +2751,7 @@ class DomainRegistry {
   // Codebase can define custom domains
   async loadCodebaseDomains(repoRoot: string): Promise<void> {
     const customConfig = await loadOptionalConfig(
-      path.join(repoRoot, '.librarian/domains.yaml')
+      path.join(repoRoot, '.LiBrainian/domains.yaml')
     );
     if (customConfig) {
       for (const domain of customConfig.domains) {
@@ -2811,7 +2811,7 @@ export const domainRegistry = new DomainRegistry();
 **Solution**: Extensible entity registry with pattern-based discovery:
 
 ```typescript
-// src/librarian/discovery/entity_registry.ts
+// src/LiBrainian/discovery/entity_registry.ts
 
 interface EntityTypeDefinition {
   readonly id: string;
@@ -2844,7 +2844,7 @@ class EntityRegistry {
   // Codebase can define custom entity types
   async loadCodebaseEntityTypes(repoRoot: string): Promise<void> {
     const config = await loadOptionalConfig(
-      path.join(repoRoot, '.librarian/entities.yaml')
+      path.join(repoRoot, '.LiBrainian/entities.yaml')
     );
     if (config?.entityTypes) {
       for (const type of config.entityTypes) {
@@ -2937,7 +2937,7 @@ export const entityRegistry = new EntityRegistry();
 **Solution**: Adaptive provider configuration:
 
 ```typescript
-// src/librarian/providers/adaptive_config.ts
+// src/LiBrainian/providers/adaptive_config.ts
 
 interface ProviderMetrics {
   successCount: number;
@@ -3058,7 +3058,7 @@ export const adaptiveProviderConfig = new AdaptiveProviderConfig();
 **Solution**: Model registry with dynamic selection:
 
 ```typescript
-// src/librarian/api/embedding_providers/model_registry.ts
+// src/LiBrainian/api/embedding_providers/model_registry.ts
 
 interface EmbeddingModelDefinition {
   readonly id: string;
@@ -3106,7 +3106,7 @@ class EmbeddingModelRegistry {
   // Codebase can enable/disable models or add custom ones
   async loadCodebaseConfig(repoRoot: string): Promise<void> {
     const config = await loadOptionalConfig(
-      path.join(repoRoot, '.librarian/embeddings.yaml')
+      path.join(repoRoot, '.LiBrainian/embeddings.yaml')
     );
     if (config?.models) {
       for (const model of config.models) {
@@ -3177,7 +3177,7 @@ export const embeddingModelRegistry = new EmbeddingModelRegistry();
 **Solution**: Intent registry with LLM-assisted classification:
 
 ```typescript
-// src/librarian/query/intent_registry.ts
+// src/LiBrainian/query/intent_registry.ts
 
 interface QueryIntentDefinition {
   readonly id: string;
@@ -3219,7 +3219,7 @@ class QueryIntentRegistry {
   // Codebase can add custom intents
   async loadCodebaseIntents(repoRoot: string): Promise<void> {
     const config = await loadOptionalConfig(
-      path.join(repoRoot, '.librarian/intents.yaml')
+      path.join(repoRoot, '.LiBrainian/intents.yaml')
     );
     if (config?.intents) {
       for (const intent of config.intents) {
@@ -3328,7 +3328,7 @@ export const queryIntentRegistry = new QueryIntentRegistry();
 **Solution**: System-aware auto-tuning:
 
 ```typescript
-// src/librarian/core/adaptive_resources.ts
+// src/LiBrainian/core/adaptive_resources.ts
 
 interface SystemResources {
   availableMemoryMB: number;
@@ -3439,7 +3439,7 @@ export const adaptiveResourceManager = new AdaptiveResourceManager();
 **Solution**: Multi-dimensional relevance with learned weights:
 
 ```typescript
-// src/librarian/query/multi_signal_scorer.ts
+// src/LiBrainian/query/multi_signal_scorer.ts
 
 interface RelevanceSignals {
   // Semantic signals
@@ -3585,7 +3585,7 @@ export const multiSignalScorer = new MultiSignalScorer();
 **Solution**: Hierarchical confidence with uncertainty composition:
 
 ```typescript
-// src/librarian/knowledge/confidence_hierarchy.ts
+// src/LiBrainian/knowledge/confidence_hierarchy.ts
 
 interface ConfidenceComponents {
   source: ConfidenceSource;
@@ -3739,7 +3739,7 @@ export const confidenceCalculator = new ConfidenceCalculator();
 The system reads configuration from these files, making everything adaptable without code changes:
 
 ```yaml
-# .librarian/config.yaml - Main configuration
+# .LiBrainian/config.yaml - Main configuration
 version: 1
 
 # Override domain settings
@@ -3801,7 +3801,7 @@ intents:
 
 ### 23.1 Test Philosophy
 
-Bootstrap tests validate the librarian against REAL codebases, not mocks. They verify:
+Bootstrap tests validate the LiBrainian against REAL codebases, not mocks. They verify:
 
 1. **Indexing Correctness** - Does it find all functions, classes, imports?
 2. **Knowledge Quality** - Is extracted knowledge accurate and useful?
@@ -3814,20 +3814,20 @@ Bootstrap tests validate the librarian against REAL codebases, not mocks. They v
 | Tier | Scope | Target | Duration |
 |------|-------|--------|----------|
 | **Tier 0** | Fixtures only | 10-50 files | < 5 seconds |
-| **Tier 1** | Librarian self-index | ~100 files | < 30 seconds |
+| **Tier 1** | LiBrainian self-index | ~100 files | < 30 seconds |
 | **Tier 2** | Wave0 partial | ~500 files | < 2 minutes |
 | **Tier 3** | Wave0 full | ~1500 files | < 10 minutes |
 
 ### 23.3 Bootstrap Test Implementation
 
 ```typescript
-// src/librarian/__tests__/bootstrap_integration.test.ts
+// src/LiBrainian/__tests__/bootstrap_integration.test.ts
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { fileURLToPath } from 'url';
-import { Librarian } from '../api/librarian.js';
+import { LiBrainian } from '../api/LiBrainian.js';
 import { createSQLiteStorage } from '../storage/sqlite_storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -3835,30 +3835,30 @@ const REPO_ROOT = path.resolve(__dirname, '../../..');
 const LIBRARIAN_ROOT = path.resolve(__dirname, '..');
 
 // ============================================================================
-// TIER 1: LIBRARIAN SELF-INDEX (src/librarian only)
+// TIER 1: LiBrainian SELF-INDEX (src/LiBrainian only)
 // ============================================================================
 
-describe('Bootstrap: Librarian Self-Index', () => {
-  let librarian: Librarian;
+describe('Bootstrap: LiBrainian Self-Index', () => {
+  let LiBrainian: LiBrainian;
   let dbPath: string;
   let indexStats: IndexStats;
 
   beforeAll(async () => {
     console.log('\n' + '='.repeat(70));
-    console.log('BOOTSTRAP TEST: LIBRARIAN SELF-INDEX');
+    console.log('BOOTSTRAP TEST: LiBrainian SELF-INDEX');
     console.log('='.repeat(70) + '\n');
 
     // Create isolated test database
-    dbPath = path.join(REPO_ROOT, '.librarian-test', `bootstrap-${Date.now()}.db`);
+    dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `bootstrap-${Date.now()}.db`);
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = await createSQLiteStorage(dbPath);
-    librarian = new Librarian({ storage, repoRoot: LIBRARIAN_ROOT });
+    LiBrainian = new LiBrainian({ storage, repoRoot: LIBRARIAN_ROOT });
 
     // Run indexing
-    console.log('Indexing src/librarian...');
+    console.log('Indexing src/LiBrainian...');
     const startTime = Date.now();
-    indexStats = await librarian.bootstrap({
+    indexStats = await LiBrainian.bootstrap({
       paths: [LIBRARIAN_ROOT],
       includePatterns: ['**/*.ts'],
       excludePatterns: ['**/*.test.ts', '**/__tests__/**', '**/node_modules/**'],
@@ -3867,7 +3867,7 @@ describe('Bootstrap: Librarian Self-Index', () => {
   }, 60000);
 
   afterAll(async () => {
-    await librarian?.close();
+    await LiBrainian?.close();
     // Cleanup test database
     await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   });
@@ -3875,7 +3875,7 @@ describe('Bootstrap: Librarian Self-Index', () => {
   describe('Indexing Completeness', () => {
     it('should index a reasonable number of files', () => {
       console.log(`Files indexed: ${indexStats.filesIndexed}`);
-      // Librarian has ~50-100 TypeScript files
+      // LiBrainian has ~50-100 TypeScript files
       expect(indexStats.filesIndexed).toBeGreaterThan(30);
       expect(indexStats.filesIndexed).toBeLessThan(200);
     });
@@ -3907,7 +3907,7 @@ describe('Bootstrap: Librarian Self-Index', () => {
 
   describe('Query Accuracy', () => {
     it('should find SQLite storage when querying for database', async () => {
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'find_similar_to',
         target: { type: 'concept', identifier: 'database storage sqlite' },
         preferences: { maxResults: 5 },
@@ -3927,7 +3927,7 @@ describe('Bootstrap: Librarian Self-Index', () => {
     });
 
     it('should find embedding code when querying for vectors', async () => {
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'find_similar_to',
         target: { type: 'concept', identifier: 'embedding vectors similarity' },
         preferences: { maxResults: 5 },
@@ -3947,7 +3947,7 @@ describe('Bootstrap: Librarian Self-Index', () => {
     });
 
     it('should find query processing code', async () => {
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'what_does_this_do',
         target: { type: 'file', identifier: 'query.ts' },
       });
@@ -3961,23 +3961,23 @@ describe('Bootstrap: Librarian Self-Index', () => {
 
   describe('Knowledge Extraction', () => {
     it('should extract knowledge for key files', async () => {
-      const knowledge = await librarian.getKnowledge('file:src/librarian/api/librarian.ts');
+      const knowledge = await LiBrainian.getKnowledge('file:src/LiBrainian/api/LiBrainian.ts');
 
       expect(knowledge).toBeDefined();
       expect(knowledge?.identity).toBeDefined();
-      expect(knowledge?.identity.path).toContain('librarian.ts');
+      expect(knowledge?.identity.path).toContain('LiBrainian.ts');
 
-      console.log('\nKnowledge for librarian.ts:');
+      console.log('\nKnowledge for LiBrainian.ts:');
       console.log(`  Type: ${knowledge?.identity.type}`);
       console.log(`  Language: ${knowledge?.identity.language}`);
       console.log(`  Exports: ${knowledge?.structure.exports?.length ?? 0}`);
     });
 
     it('should compute relationships', async () => {
-      const relationships = await librarian.getRelationships('file:src/librarian/api/librarian.ts');
+      const relationships = await LiBrainian.getRelationships('file:src/LiBrainian/api/LiBrainian.ts');
 
       expect(relationships.dependencies.length).toBeGreaterThan(0);
-      console.log('\nRelationships for librarian.ts:');
+      console.log('\nRelationships for LiBrainian.ts:');
       console.log(`  Dependencies: ${relationships.dependencies.length}`);
       console.log(`  Dependents: ${relationships.dependents.length}`);
     });
@@ -3985,11 +3985,11 @@ describe('Bootstrap: Librarian Self-Index', () => {
 });
 
 // ============================================================================
-// TIER 2: WAVE0 PARTIAL INDEX (src/orchestrator + src/librarian)
+// TIER 2: WAVE0 PARTIAL INDEX (src/orchestrator + src/LiBrainian)
 // ============================================================================
 
 describe('Bootstrap: Wave0 Partial Index', () => {
-  let librarian: Librarian;
+  let LiBrainian: LiBrainian;
   let dbPath: string;
   let indexStats: IndexStats;
 
@@ -3997,18 +3997,18 @@ describe('Bootstrap: Wave0 Partial Index', () => {
 
   beforeAll(async () => {
     console.log('\n' + '='.repeat(70));
-    console.log('BOOTSTRAP TEST: WAVE0 PARTIAL (orchestrator + librarian)');
+    console.log('BOOTSTRAP TEST: WAVE0 PARTIAL (orchestrator + LiBrainian)');
     console.log('='.repeat(70) + '\n');
 
-    dbPath = path.join(REPO_ROOT, '.librarian-test', `bootstrap-partial-${Date.now()}.db`);
+    dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `bootstrap-partial-${Date.now()}.db`);
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = await createSQLiteStorage(dbPath);
-    librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+    LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
-    console.log('Indexing src/orchestrator + src/librarian...');
+    console.log('Indexing src/orchestrator + src/LiBrainian...');
     const startTime = Date.now();
-    indexStats = await librarian.bootstrap({
+    indexStats = await LiBrainian.bootstrap({
       paths: [LIBRARIAN_ROOT, ORCHESTRATOR_ROOT],
       includePatterns: ['**/*.ts'],
       excludePatterns: ['**/*.test.ts', '**/__tests__/**', '**/node_modules/**'],
@@ -4017,29 +4017,29 @@ describe('Bootstrap: Wave0 Partial Index', () => {
   }, 120000);
 
   afterAll(async () => {
-    await librarian?.close();
+    await LiBrainian?.close();
     await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   });
 
   describe('Cross-Module Queries', () => {
-    it('should find connections between orchestrator and librarian', async () => {
-      const results = await librarian.query({
+    it('should find connections between orchestrator and LiBrainian', async () => {
+      const results = await LiBrainian.query({
         intent: 'find_usages_of',
-        target: { type: 'module', identifier: 'librarian' },
+        target: { type: 'module', identifier: 'LiBrainian' },
         context: { scope: 'src/orchestrator' },
       });
 
-      console.log('\nQuery: "find usages of librarian in orchestrator"');
+      console.log('\nQuery: "find usages of LiBrainian in orchestrator"');
       console.log(`Found ${results.sources.length} usages`);
 
-      // Orchestrator should use librarian
+      // Orchestrator should use LiBrainian
       expect(results.sources.length).toBeGreaterThan(0);
     });
 
-    it('should understand orchestrator-librarian data flow', async () => {
-      const results = await librarian.query({
+    it('should understand orchestrator-LiBrainian data flow', async () => {
+      const results = await LiBrainian.query({
         intent: 'trace_data_flow',
-        target: { type: 'concept', identifier: 'context assembly from librarian to orchestrator' },
+        target: { type: 'concept', identifier: 'context assembly from LiBrainian to orchestrator' },
       });
 
       expect(results.answer.summary).toBeTruthy();
@@ -4050,7 +4050,7 @@ describe('Bootstrap: Wave0 Partial Index', () => {
 
   describe('Entity Discovery', () => {
     it('should discover subsystems', async () => {
-      const subsystems = await librarian.getDiscoveredEntities('subsystem');
+      const subsystems = await LiBrainian.getDiscoveredEntities('subsystem');
 
       console.log('\nDiscovered subsystems:');
       for (const s of subsystems.slice(0, 5)) {
@@ -4062,7 +4062,7 @@ describe('Bootstrap: Wave0 Partial Index', () => {
     });
 
     it('should discover components from naming patterns', async () => {
-      const components = await librarian.getDiscoveredEntities('component');
+      const components = await LiBrainian.getDiscoveredEntities('component');
 
       console.log('\nDiscovered components:');
       for (const c of components.slice(0, 5)) {
@@ -4073,7 +4073,7 @@ describe('Bootstrap: Wave0 Partial Index', () => {
 
   describe('Co-Change Analysis', () => {
     it('should identify frequently co-changed file pairs', async () => {
-      const coChangePairs = await librarian.getCoChangePairs({ minCount: 3, limit: 10 });
+      const coChangePairs = await LiBrainian.getCoChangePairs({ minCount: 3, limit: 10 });
 
       console.log('\nFrequently co-changed pairs:');
       for (const pair of coChangePairs.slice(0, 5)) {
@@ -4092,7 +4092,7 @@ describe('Bootstrap: Wave0 Partial Index', () => {
 
 describe.skip('Bootstrap: Wave0 Full Index', () => {
   // Skip by default - run with --run flag for full test
-  let librarian: Librarian;
+  let LiBrainian: LiBrainian;
   let dbPath: string;
   let indexStats: IndexStats;
 
@@ -4103,15 +4103,15 @@ describe.skip('Bootstrap: Wave0 Full Index', () => {
     console.log('BOOTSTRAP TEST: WAVE0 FULL (entire src/)');
     console.log('='.repeat(70) + '\n');
 
-    dbPath = path.join(REPO_ROOT, '.librarian-test', `bootstrap-full-${Date.now()}.db`);
+    dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `bootstrap-full-${Date.now()}.db`);
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = await createSQLiteStorage(dbPath);
-    librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+    LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
     console.log('Indexing entire src/...');
     const startTime = Date.now();
-    indexStats = await librarian.bootstrap({
+    indexStats = await LiBrainian.bootstrap({
       paths: [SRC_ROOT],
       includePatterns: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.mjs'],
       excludePatterns: ['**/*.test.ts', '**/__tests__/**', '**/node_modules/**'],
@@ -4127,13 +4127,13 @@ describe.skip('Bootstrap: Wave0 Full Index', () => {
   }, 600000); // 10 minute timeout
 
   afterAll(async () => {
-    await librarian?.close();
+    await LiBrainian?.close();
     await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   });
 
   describe('Full Codebase Analysis', () => {
     it('should index all major modules', async () => {
-      const modules = await librarian.getModules();
+      const modules = await LiBrainian.getModules();
 
       console.log('\nIndexed modules:');
       for (const m of modules) {
@@ -4143,12 +4143,12 @@ describe.skip('Bootstrap: Wave0 Full Index', () => {
       // Should find major modules
       const moduleNames = modules.map(m => m.name);
       expect(moduleNames).toContain('orchestrator');
-      expect(moduleNames).toContain('librarian');
+      expect(moduleNames).toContain('LiBrainian');
       expect(moduleNames).toContain('soma');
     });
 
     it('should build complete dependency graph', async () => {
-      const graph = await librarian.getDependencyGraph();
+      const graph = await LiBrainian.getDependencyGraph();
 
       console.log(`\nDependency graph: ${graph.nodes} nodes, ${graph.edges} edges`);
 
@@ -4157,7 +4157,7 @@ describe.skip('Bootstrap: Wave0 Full Index', () => {
     });
 
     it('should identify architectural layers', async () => {
-      const layers = await librarian.getDiscoveredEntities('layer');
+      const layers = await LiBrainian.getDiscoveredEntities('layer');
 
       console.log('\nDiscovered architectural layers:');
       for (const l of layers) {
@@ -4171,12 +4171,12 @@ describe.skip('Bootstrap: Wave0 Full Index', () => {
       const queries = [
         { intent: 'find_similar_to', target: { type: 'concept', identifier: 'error handling' } },
         { intent: 'what_does_this_do', target: { type: 'file', identifier: 'orchestrator.ts' } },
-        { intent: 'find_dependencies_of', target: { type: 'module', identifier: 'librarian' } },
+        { intent: 'find_dependencies_of', target: { type: 'module', identifier: 'LiBrainian' } },
       ];
 
       for (const query of queries) {
         const start = performance.now();
-        await librarian.query(query);
+        await LiBrainian.query(query);
         const duration = performance.now() - start;
 
         console.log(`Query "${query.intent}": ${duration.toFixed(0)}ms`);
@@ -4203,73 +4203,73 @@ interface IndexStats {
 ### 23.4 Specific Validation Tests
 
 ```typescript
-// src/librarian/__tests__/bootstrap_validation.test.ts
+// src/LiBrainian/__tests__/bootstrap_validation.test.ts
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { Librarian } from '../api/librarian.js';
+import { LiBrainian } from '../api/LiBrainian.js';
 import { createSQLiteStorage } from '../storage/sqlite_storage.js';
 
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 
 describe('Bootstrap Validation: Known Facts', () => {
-  let librarian: Librarian;
+  let LiBrainian: LiBrainian;
   let dbPath: string;
 
   beforeAll(async () => {
-    dbPath = path.join(REPO_ROOT, '.librarian-test', `validation-${Date.now()}.db`);
+    dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `validation-${Date.now()}.db`);
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = await createSQLiteStorage(dbPath);
-    librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+    LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
-    await librarian.bootstrap({
-      paths: [path.join(REPO_ROOT, 'src/librarian')],
+    await LiBrainian.bootstrap({
+      paths: [path.join(REPO_ROOT, 'src/LiBrainian')],
       includePatterns: ['**/*.ts'],
       excludePatterns: ['**/*.test.ts', '**/__tests__/**'],
     });
   }, 60000);
 
   afterAll(async () => {
-    await librarian?.close();
+    await LiBrainian?.close();
     await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   });
 
   describe('Known Function Extraction', () => {
     it('should find createSQLiteStorage function', async () => {
-      const fn = await librarian.getEntity('function:createSQLiteStorage');
+      const fn = await LiBrainian.getEntity('function:createSQLiteStorage');
       expect(fn).toBeDefined();
       expect(fn?.identity.name).toBe('createSQLiteStorage');
     });
 
     it('should find rerank function from cross_encoder_reranker', async () => {
-      const fn = await librarian.getEntity('function:rerank');
+      const fn = await LiBrainian.getEntity('function:rerank');
       expect(fn).toBeDefined();
     });
 
     it('should find extractCommitHistory function from co_change_signals', async () => {
-      const fn = await librarian.getEntity('function:extractCommitHistory');
+      const fn = await LiBrainian.getEntity('function:extractCommitHistory');
       expect(fn).toBeDefined();
     });
   });
 
   describe('Known Class Extraction', () => {
     it('should find SQLiteStorage class', async () => {
-      const cls = await librarian.getEntity('class:SQLiteStorage');
+      const cls = await LiBrainian.getEntity('class:SQLiteStorage');
       expect(cls).toBeDefined();
     });
   });
 
   describe('Known Import Relationships', () => {
-    it('should know that librarian.ts imports sqlite_storage', async () => {
-      const deps = await librarian.getDependencies('file:src/librarian/api/librarian.ts');
+    it('should know that LiBrainian.ts imports sqlite_storage', async () => {
+      const deps = await LiBrainian.getDependencies('file:src/LiBrainian/api/LiBrainian.ts');
       const importsSqlite = deps.some(d => d.includes('sqlite') || d.includes('storage'));
       expect(importsSqlite).toBe(true);
     });
 
     it('should know that embeddings.ts imports transformers', async () => {
-      const deps = await librarian.getDependencies('file:src/librarian/api/embeddings.ts');
+      const deps = await LiBrainian.getDependencies('file:src/LiBrainian/api/embeddings.ts');
       // May import from embedding_providers
       expect(deps.length).toBeGreaterThan(0);
     });
@@ -4277,16 +4277,16 @@ describe('Bootstrap Validation: Known Facts', () => {
 
   describe('Known File Existence', () => {
     const knownFiles = [
-      'src/librarian/api/librarian.ts',
-      'src/librarian/api/embeddings.ts',
-      'src/librarian/api/query.ts',
-      'src/librarian/storage/sqlite_storage.ts',
-      'src/librarian/types.ts',
+      'src/LiBrainian/api/LiBrainian.ts',
+      'src/LiBrainian/api/embeddings.ts',
+      'src/LiBrainian/api/query.ts',
+      'src/LiBrainian/storage/sqlite_storage.ts',
+      'src/LiBrainian/types.ts',
     ];
 
     for (const file of knownFiles) {
       it(`should have indexed ${file}`, async () => {
-        const entity = await librarian.getEntity(`file:${file}`);
+        const entity = await LiBrainian.getEntity(`file:${file}`);
         expect(entity).toBeDefined();
       });
     }
@@ -4294,31 +4294,31 @@ describe('Bootstrap Validation: Known Facts', () => {
 });
 
 describe('Bootstrap Validation: Semantic Accuracy', () => {
-  let librarian: Librarian;
+  let LiBrainian: LiBrainian;
   let dbPath: string;
 
   beforeAll(async () => {
-    dbPath = path.join(REPO_ROOT, '.librarian-test', `semantic-${Date.now()}.db`);
+    dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `semantic-${Date.now()}.db`);
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = await createSQLiteStorage(dbPath);
-    librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+    LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
-    await librarian.bootstrap({
-      paths: [path.join(REPO_ROOT, 'src/librarian')],
+    await LiBrainian.bootstrap({
+      paths: [path.join(REPO_ROOT, 'src/LiBrainian')],
       includePatterns: ['**/*.ts'],
       excludePatterns: ['**/*.test.ts', '**/__tests__/**'],
     });
   }, 60000);
 
   afterAll(async () => {
-    await librarian?.close();
+    await LiBrainian?.close();
     await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   });
 
   describe('Embedding-Based Retrieval', () => {
     it('should rank sqlite_storage high for "database persistence" query', async () => {
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'find_similar_to',
         target: { type: 'concept', identifier: 'database persistence storage' },
         preferences: { maxResults: 10 },
@@ -4330,7 +4330,7 @@ describe('Bootstrap Validation: Semantic Accuracy', () => {
     });
 
     it('should rank cross_encoder_reranker high for "reranking relevance" query', async () => {
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'find_similar_to',
         target: { type: 'concept', identifier: 'reranking relevance scoring cross encoder' },
         preferences: { maxResults: 10 },
@@ -4342,7 +4342,7 @@ describe('Bootstrap Validation: Semantic Accuracy', () => {
     });
 
     it('should rank co_change_signals high for "git history commit" query', async () => {
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'find_similar_to',
         target: { type: 'concept', identifier: 'git history commit co-change' },
         preferences: { maxResults: 10 },
@@ -4357,7 +4357,7 @@ describe('Bootstrap Validation: Semantic Accuracy', () => {
   describe('Cross-Encoder Re-Ranking', () => {
     it('should improve ordering for ambiguous queries', async () => {
       // Query that could match many files
-      const results = await librarian.query({
+      const results = await LiBrainian.query({
         intent: 'find_similar_to',
         target: { type: 'concept', identifier: 'type definitions interfaces' },
         preferences: { maxResults: 10, useReranking: true },
@@ -4375,12 +4375,12 @@ describe('Bootstrap Validation: Semantic Accuracy', () => {
 ### 23.5 Performance Benchmarks
 
 ```typescript
-// src/librarian/__tests__/bootstrap_benchmarks.test.ts
+// src/LiBrainian/__tests__/bootstrap_benchmarks.test.ts
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { Librarian } from '../api/librarian.js';
+import { LiBrainian } from '../api/LiBrainian.js';
 import { createSQLiteStorage } from '../storage/sqlite_storage.js';
 
 const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -4407,22 +4407,22 @@ describe('Bootstrap Benchmarks', () => {
       const times: number[] = [];
 
       for (let i = 0; i < 3; i++) {
-        const dbPath = path.join(REPO_ROOT, '.librarian-test', `bench-10-${Date.now()}.db`);
+        const dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `bench-10-${Date.now()}.db`);
         await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
         const storage = await createSQLiteStorage(dbPath);
-        const librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+        const LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
         const start = performance.now();
-        await librarian.bootstrap({
-          paths: [path.join(REPO_ROOT, 'src/librarian/api')],
+        await LiBrainian.bootstrap({
+          paths: [path.join(REPO_ROOT, 'src/LiBrainian/api')],
           includePatterns: ['*.ts'],
           excludePatterns: ['**/*.test.ts'],
           maxFiles: 10,
         });
         times.push(performance.now() - start);
 
-        await librarian.close();
+        await LiBrainian.close();
         await fs.rm(dbPath, { force: true });
       }
 
@@ -4434,22 +4434,22 @@ describe('Bootstrap Benchmarks', () => {
       const times: number[] = [];
 
       for (let i = 0; i < 2; i++) {
-        const dbPath = path.join(REPO_ROOT, '.librarian-test', `bench-50-${Date.now()}.db`);
+        const dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `bench-50-${Date.now()}.db`);
         await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
         const storage = await createSQLiteStorage(dbPath);
-        const librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+        const LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
         const start = performance.now();
-        await librarian.bootstrap({
-          paths: [path.join(REPO_ROOT, 'src/librarian')],
+        await LiBrainian.bootstrap({
+          paths: [path.join(REPO_ROOT, 'src/LiBrainian')],
           includePatterns: ['**/*.ts'],
           excludePatterns: ['**/*.test.ts', '**/__tests__/**'],
           maxFiles: 50,
         });
         times.push(performance.now() - start);
 
-        await librarian.close();
+        await LiBrainian.close();
         await fs.rm(dbPath, { force: true });
       }
 
@@ -4459,25 +4459,25 @@ describe('Bootstrap Benchmarks', () => {
   });
 
   describe('Query Speed', () => {
-    let librarian: Librarian;
+    let LiBrainian: LiBrainian;
     let dbPath: string;
 
     beforeAll(async () => {
-      dbPath = path.join(REPO_ROOT, '.librarian-test', `query-bench-${Date.now()}.db`);
+      dbPath = path.join(REPO_ROOT, '.LiBrainian-test', `query-bench-${Date.now()}.db`);
       await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
       const storage = await createSQLiteStorage(dbPath);
-      librarian = new Librarian({ storage, repoRoot: REPO_ROOT });
+      LiBrainian = new LiBrainian({ storage, repoRoot: REPO_ROOT });
 
-      await librarian.bootstrap({
-        paths: [path.join(REPO_ROOT, 'src/librarian')],
+      await LiBrainian.bootstrap({
+        paths: [path.join(REPO_ROOT, 'src/LiBrainian')],
         includePatterns: ['**/*.ts'],
         excludePatterns: ['**/*.test.ts', '**/__tests__/**'],
       });
     }, 60000);
 
     afterAll(async () => {
-      await librarian?.close();
+      await LiBrainian?.close();
       await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
     });
 
@@ -4486,7 +4486,7 @@ describe('Bootstrap Benchmarks', () => {
 
       for (let i = 0; i < 5; i++) {
         const start = performance.now();
-        await librarian.query({
+        await LiBrainian.query({
           intent: 'find_similar_to',
           target: { type: 'concept', identifier: 'database storage' },
           preferences: { maxResults: 10 },
@@ -4504,7 +4504,7 @@ describe('Bootstrap Benchmarks', () => {
 
       for (let i = 0; i < 5; i++) {
         const start = performance.now();
-        await librarian.getDependencies('file:src/librarian/api/librarian.ts');
+        await LiBrainian.getDependencies('file:src/LiBrainian/api/LiBrainian.ts');
         times.push(performance.now() - start);
       }
 
@@ -4518,7 +4518,7 @@ describe('Bootstrap Benchmarks', () => {
 
       for (let i = 0; i < 5; i++) {
         const start = performance.now();
-        await librarian.getKnowledge('file:src/librarian/api/librarian.ts');
+        await LiBrainian.getKnowledge('file:src/LiBrainian/api/LiBrainian.ts');
         times.push(performance.now() - start);
       }
 
@@ -4541,24 +4541,24 @@ describe('Bootstrap Benchmarks', () => {
 ### 23.7 Running Bootstrap Tests
 
 ```bash
-# Run Tier 1 (Librarian self-index) - fast
-npm run test:librarian:bootstrap
+# Run Tier 1 (LiBrainian self-index) - fast
+npm run test:LiBrainian:bootstrap
 
 # Run Tier 2 (Wave0 partial) - medium
-npm run test:librarian:bootstrap:partial
+npm run test:LiBrainian:bootstrap:partial
 
 # Run Tier 3 (Wave0 full) - slow
-npm run test:librarian:bootstrap:full
+npm run test:LiBrainian:bootstrap:full
 
 # Run with detailed output
-npm run test:librarian:bootstrap -- --reporter=verbose
+npm run test:LiBrainian:bootstrap -- --reporter=verbose
 ```
 
 ---
 
 ## Summary
 
-This plan transforms the librarian into a world-class knowledge system by:
+This plan transforms the LiBrainian into a world-class knowledge system by:
 
 1. **Comprehensive Knowledge** - 12+ extensible domains, 150+ attributes, emergent entity discovery
 2. **Resilient Architecture** - Result types, error hierarchy, circuit breakers, health checks

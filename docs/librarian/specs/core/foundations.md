@@ -3,7 +3,7 @@
 > **Status**: DRAFT (extraction scaffold)
 > **Created**: 2026-01-25
 >
-> **Source**: `docs/librarian/THEORETICAL_CRITIQUE.md` Parts I–V
+> **Source**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md` Parts I–V
 >
 > **Goal**: Convert foundational theory into explicit *interfaces + invariants* that are implementable, testable, and linkable from the track specs.
 >

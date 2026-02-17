@@ -4,7 +4,7 @@
 > **Last updated**: 2026-01-22
 > **Scope**: LLM Adapter, Evidence Ledger / Audit Trail, Capability Negotiation / Provider Discovery, Tool/MCP Adapter
 >
-> **Librarian Story**: Chapter 2 (The Foundation) - This is the trustworthy base everything else builds on.
+> **LiBrainian Story**: Chapter 2 (The Foundation) - This is the trustworthy base everything else builds on.
 >
 > **Critical**: Layer 2 must be complete before Tracks A-F can be trusted. Without unified evidence and capability negotiation, claims are unverifiable.
 
@@ -46,7 +46,7 @@
 
 ## Overview
 
-Layer 2 Infrastructure provides the foundation for Librarian's independence and portability. It enables:
+Layer 2 Infrastructure provides the foundation for LiBrainian's independence and portability. It enables:
 
 - **Provider-agnostic LLM access** via the LLM Adapter
 - **Auditable, replayable operations** via the Evidence Ledger
@@ -73,7 +73,7 @@ Layer 2 sits between the Pure Core (Layer 1) and Protocol Adapters (Layer 3):
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      LIBRARIAN (Independent Core)                        │
+│                      LiBrainian (Independent Core)                        │
 │                                                                          │
 │  ┌────────────────────────────────────────────────────────────────────┐  │
 │  │ LAYER 1: PURE CORE (G1)                                            │  │
@@ -132,11 +132,11 @@ Layer 2 sits between the Pure Core (Layer 1) and Protocol Adapters (Layer 3):
 **Purpose**: All LLM calls go through a single adapter for evidence and policy.
 
 **Key Files**:
-- `packages/librarian/src/api/llm_provider_discovery.ts` (registry + probes)
-- `packages/librarian/src/api/llm_env.ts` (config resolution with discovery fallback)
-- `packages/librarian/src/api/provider_check.ts` (`checkAllProviders()` / `requireProviders()`)
+- `packages/LiBrainian/src/api/llm_provider_discovery.ts` (registry + probes)
+- `packages/LiBrainian/src/api/llm_env.ts` (config resolution with discovery fallback)
+- `packages/LiBrainian/src/api/provider_check.ts` (`checkAllProviders()` / `requireProviders()`)
 
-**Verification**: `rg "new LLMService\(" packages/librarian/src --glob '!**/adapters/**' --glob '!**/__tests__/**'`
+**Verification**: `rg "new LLMService\(" packages/LiBrainian/src --glob '!**/adapters/**' --glob '!**/__tests__/**'`
 
 **Acceptance**: Zero matches outside adapters/tests.
 
@@ -238,18 +238,18 @@ The Evidence Ledger is the append-only system of record for all observations and
 ### Current State (Partial Implementation)
 
 Implementation hooks today:
-- MCP audit log (`packages/librarian/src/mcp/audit.ts`)
-- Episodes (`packages/librarian/src/state/episodes_state.ts`)
-- Query stages (`packages/librarian/src/api/query.ts`)
-- Evidence ledger core (`packages/librarian/src/epistemics/evidence_ledger.ts`) with Tier-0 tests (`packages/librarian/src/epistemics/__tests__/evidence_ledger.test.ts`)
+- MCP audit log (`packages/LiBrainian/src/mcp/audit.ts`)
+- Episodes (`packages/LiBrainian/src/state/episodes_state.ts`)
+- Query stages (`packages/LiBrainian/src/api/query.ts`)
+- Evidence ledger core (`packages/LiBrainian/src/epistemics/evidence_ledger.ts`) with Tier-0 tests (`packages/LiBrainian/src/epistemics/__tests__/evidence_ledger.test.ts`)
 
 **What's missing**: full wiring across subsystems (so entries correlate) + deterministic replay/checkpointing + integrity metadata (sequence/checksum).
 
 ### The Evidence Ledger Specification (V1 - Implemented)
 
 **Authoritative** (kept in sync with implementation):
-- Spec: `docs/librarian/specs/core/evidence-ledger.md`
-- Code: `packages/librarian/src/epistemics/evidence_ledger.ts`
+- Spec: `docs/LiBrainian/specs/core/evidence-ledger.md`
+- Code: `packages/LiBrainian/src/epistemics/evidence_ledger.ts`
 
 V1 uses `EvidenceEntry` + `IEvidenceLedger` as the single canonical schema and API. **Do not** introduce a second competing “LedgerEntry” type in docs. If we add replay, integrity metadata (sequence/checksums), or richer event taxonomies, those must be **vNext extensions** layered on top of `EvidenceEntry` with an explicit migration plan (see “Evidence Ledger vNext” below).
 
@@ -779,7 +779,7 @@ interface ResourceSummary {
 /**
  * [CAPABILITIES] Storage capability detection
  *
- * Librarian adapts to what storage can do, not what we assume.
+ * LiBrainian adapts to what storage can do, not what we assume.
  */
 interface StorageCapabilities {
   /** Storage backend identifier */
@@ -1362,11 +1362,11 @@ interface RootCauseAnalysis {
 
 ## Epistemic Kernel Mapping
 
-> **Purpose**: Map Layer 2 Infrastructure to the core epistemic kernel concepts, ensuring all infrastructure components support Librarian's epistemological foundation.
+> **Purpose**: Map Layer 2 Infrastructure to the core epistemic kernel concepts, ensuring all infrastructure components support LiBrainian's epistemological foundation.
 
 ### Kernel Concept Overview
 
-The Epistemic Kernel is Librarian's foundation for producing meaningful, verifiable understanding. Layer 2 Infrastructure implements five core kernel concepts:
+The Epistemic Kernel is LiBrainian's foundation for producing meaningful, verifiable understanding. Layer 2 Infrastructure implements five core kernel concepts:
 
 | Kernel Concept | Layer 2 Implementation | Purpose |
 |----------------|----------------------|---------|
@@ -1663,7 +1663,7 @@ interface ReplayabilityResult {
  */
 ```
 
-### Integration: How the Kernel Supports Librarian
+### Integration: How the Kernel Supports LiBrainian
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -1709,7 +1709,7 @@ interface ReplayabilityResult {
 
 ### Theoretical Foundation
 
-Future agent environments are unpredictable; the only stable interface is a **negotiated capability lattice**. Instead of assuming what's available, Librarian must:
+Future agent environments are unpredictable; the only stable interface is a **negotiated capability lattice**. Instead of assuming what's available, LiBrainian must:
 
 1. **Discover** what capabilities exist in this environment
 2. **Negotiate** which capabilities to use
@@ -1720,8 +1720,8 @@ Future agent environments are unpredictable; the only stable interface is a **ne
 ### Current State (V0)
 
 Minimal capability negotiation is implemented as fail-closed contracts:
-- `packages/librarian/src/api/capability_contracts.ts` (`Capability`, `CapabilityContract`, `negotiateCapabilities`, `requireCapabilities`)
-- Tier-0 tests: `packages/librarian/src/__tests__/capability_contracts.test.ts`
+- `packages/LiBrainian/src/api/capability_contracts.ts` (`Capability`, `CapabilityContract`, `negotiateCapabilities`, `requireCapabilities`)
+- Tier-0 tests: `packages/LiBrainian/src/__tests__/capability_contracts.test.ts`
 
 This is intentionally smaller than the full lattice below (no descriptors/schemas yet). The next step is wiring: operations must declare required/optional capabilities and surface `degradedMode` in outputs (never silent).
 
@@ -1780,7 +1780,7 @@ type CapabilitySource =
 
 ### The Emergent Capability Protocol
 
-> **Key insight**: We can't predict what capabilities agents will develop. Librarian must support capabilities that DON'T EXIST YET.
+> **Key insight**: We can't predict what capabilities agents will develop. LiBrainian must support capabilities that DON'T EXIST YET.
 
 ```typescript
 // Framework for unknown future capabilities
@@ -1861,9 +1861,9 @@ function handleProviderFailure(
 
 ### Default Protocol: Run Before Doing Work
 
-This is the minimal protocol Librarian should run automatically at the start of: bootstrap, query, and plan compilation.
+This is the minimal protocol LiBrainian should run automatically at the start of: bootstrap, query, and plan compilation.
 
-1. **Preflight** (environment/providers/filesystem/config): use the existing preflight framework (`packages/librarian/src/preflight/checks.ts`).
+1. **Preflight** (environment/providers/filesystem/config): use the existing preflight framework (`packages/LiBrainian/src/preflight/checks.ts`).
 
 2. **Capability probe (tools/resources)**: if MCP (or any tool registry) is present, ingest its tool/resource descriptors into `[CAPABILITIES]` and record them as evidence (so "tool available" is a claimable fact).
 
@@ -1871,7 +1871,7 @@ This is the minimal protocol Librarian should run automatically at the start of:
 
 4. **Remediation emission**: produce a short remediation plan, expressed as compositions of primitives/operators with explicit gates.
 
-5. **Fail-closed on strong claims**: if adequacy is missing, Librarian must not allow "works / verified / safe" claims; it should return `unverified_by_trace(adequacy_missing)` with the exact missing items.
+5. **Fail-closed on strong claims**: if adequacy is missing, LiBrainian must not allow "works / verified / safe" claims; it should return `unverified_by_trace(adequacy_missing)` with the exact missing items.
 
 ---
 
@@ -1881,11 +1881,11 @@ This is the minimal protocol Librarian should run automatically at the start of:
 
 | Component | Location | Status |
 |-----------|----------|--------|
-| **Skills System** | `packages/librarian/src/skills/types.ts` | 570 LOC types defined |
-| **Skill Loader** | `packages/librarian/src/skills/loader.ts` | Implemented |
-| **Skill Validator** | `packages/librarian/src/skills/validator.ts` | Implemented |
-| **MCP Tools** | `packages/librarian/src/mcp/` | 20+ tools exposed |
-| **Method Packs** | `packages/librarian/src/api/packs.ts` | Skill->MethodPack adapter |
+| **Skills System** | `packages/LiBrainian/src/skills/types.ts` | 570 LOC types defined |
+| **Skill Loader** | `packages/LiBrainian/src/skills/loader.ts` | Implemented |
+| **Skill Validator** | `packages/LiBrainian/src/skills/validator.ts` | Implemented |
+| **MCP Tools** | `packages/LiBrainian/src/mcp/` | 20+ tools exposed |
+| **Method Packs** | `packages/LiBrainian/src/api/packs.ts` | Skill->MethodPack adapter |
 
 ### The Skills Architecture
 
@@ -2058,13 +2058,13 @@ Keep scenario-agnostic by shipping a small number of **packs** (bundles of detec
 
 ```bash
 # LLM Provider Discovery
-cd packages/librarian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts
 
 # Provider check
-cd packages/librarian && npx tsc --noEmit
+cd packages/LiBrainian && npx tsc --noEmit
 
 # MCP Integration
-cd packages/librarian && npx vitest src/mcp/__tests__/schema.test.ts
+cd packages/LiBrainian && npx vitest src/mcp/__tests__/schema.test.ts
 
 # Full Tier-0
 npm run test:tier0
@@ -2074,7 +2074,7 @@ npm run test:tier0
 
 ## References
 
-- **Primary source**: `docs/librarian/THEORETICAL_CRITIQUE.md`
+- **Primary source**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md`
 - **Part XVI**: Lines 15547-16058 (Extensible LLM Provider Discovery)
 - **Evidence Ledger**: Lines 165-224, 2792-2806, 7032-7310
 - **Capability Negotiation**: Lines 165-224, 680-772

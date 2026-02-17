@@ -1,25 +1,25 @@
-# Agent Instructions for Librarian Repository
+# Agent Instructions for LiBrainian Repository
 
 > **Authority**: This file grants operational permissions to AI agents working on this repository.
-> **Scope**: All agents (Codex, Claude, etc.) implementing the Librarian spec system.
+> **Scope**: All agents (Codex, Claude, etc.) implementing the LiBrainian spec system.
 
 ---
 
-## Using Librarian (READ THIS FIRST)
+## Using LiBrainian (READ THIS FIRST)
 
-**Librarian is AUTOMATIC.** You do not need to configure anything. Just use it.
+**LiBrainian is AUTOMATIC.** You do not need to configure anything. Just use it.
 
 ### Programmatic Usage (Recommended)
 
 ```typescript
-import { initializeLibrarian } from 'librarian';
+import { initializeLibrarian } from 'librainian';
 
-// All you need - Librarian handles everything else
+// All you need - LiBrainian handles everything else
 const lib = await initializeLibrarian(workspace);
 const context = await lib.query(intent);
 ```
 
-That's it. Librarian automatically:
+That's it. LiBrainian automatically:
 - **Auto-bootstraps** if the workspace hasn't been indexed yet
 - **Auto-configures** with optimal settings for your codebase
 - **Auto-selects quality tier** (always uses 'full' for best results)
@@ -29,9 +29,9 @@ That's it. Librarian automatically:
 ### CLI Quick Reference
 
 ```bash
-librarian status          # Check if Librarian is ready for this workspace
-librarian query "intent"  # Get context for any coding intent/question
-librarian health          # Check system health and index status
+LiBrainian status          # Check if LiBrainian is ready for this workspace
+LiBrainian query "intent"  # Get context for any coding intent/question
+LiBrainian health          # Check system health and index status
 ```
 
 ### What You Get Back
@@ -45,17 +45,42 @@ When you call `lib.query(intent)`, you receive:
 
 ### Do NOT Worry About
 
-- Configuration files - Librarian configures itself
-- Index management - Librarian auto-indexes and watches for changes
-- Quality tiers - Librarian always uses maximum quality
-- Provider setup - Librarian handles embedding providers automatically
-- Caching - Librarian caches intelligently without your intervention
+- Configuration files - LiBrainian configures itself
+- Index management - LiBrainian auto-indexes and watches for changes
+- Quality tiers - LiBrainian always uses maximum quality
+- Provider setup - LiBrainian handles embedding providers automatically
+- Caching - LiBrainian caches intelligently without your intervention
 
-**Just query. Librarian handles the rest.**
+**Just query. LiBrainian handles the rest.**
+
+---
+
+## Launch-Critical Non-Negotiables (Override)
+
+These rules override any softer guidance elsewhere in this file for qualification and publish work:
+
+1. **REAL_AGENT_REAL_LIBRARIAN_ONLY**
+   - Qualification and release evidence must come from real agent sessions operating on the real LiBrainian repository.
+   - Synthetic fixtures, mocks, and reference harness workers are diagnostic-only and cannot satisfy release gates.
+2. **NO_RETRY_NO_FALLBACK_NO_DEGRADED_FOR_RELEASE**
+   - Any fallback, retry, degraded, unavailable, skipped, or `unverified_by_trace(...)` marker in release evidence is a failure.
+   - There is no partial pass for release evidence; quality target is binary.
+3. **100% PASS EXPECTATION FOR RELEASE EVIDENCE**
+   - Release gate commands are expected to pass completely with zero strict-failure markers.
+   - If strict markers appear, fix root cause; do not relabel as acceptable.
+4. **AGENTIC QUALIFICATION IS REQUIRED**
+   - `npm run test:agentic:strict` is the canonical qualification command.
+   - This chain uses real agent-command tasks, progressive use-case review, live-fire runs, and strict publish-gate validation.
+5. **CONVERSATION-INSIGHTS TRACKING IS REQUIRED**
+   - `docs/LiBrainian/CONVERSATION_INSIGHTS.md` must be updated at planning checkpoints and before release-gate runs.
+   - Strategy items must map to code/eval/docs/gate work, not passive notes.
 
 ---
 
 ## Troubleshooting
+
+> Troubleshooting commands below are for diagnosis and local recovery only.
+> They must never be used as publish evidence substitutes.
 
 ### 1. Zero-File Bootstrap
 
@@ -73,7 +98,7 @@ ls -la src/  # Check source files exist
 find . -name "*.ts" -o -name "*.js" | head -20
 
 # Force bootstrap with explicit path
-librarian bootstrap --path $(pwd) --force
+LiBrainian bootstrap --path $(pwd) --force
 
 # If still 0, check .librarianignore or config excludes
 cat .librarianignore 2>/dev/null
@@ -88,17 +113,17 @@ cat .librarianignore 2>/dev/null
 **Fix**:
 ```bash
 # Kill any stuck processes
-pkill -f librarian
+pkill -f LiBrainian
 
 # Clear corrupted state
-rm -rf .librarian/  # Remove index directory
-rm -f librarian.db* # Remove database files
+rm -rf .LiBrainian/  # Remove index directory
+rm -f LiBrainian.db* # Remove database files
 
 # Bootstrap in offline mode (no embeddings)
-librarian bootstrap --offline
+LiBrainian bootstrap --offline
 
 # For large repos, use incremental mode
-librarian bootstrap --incremental --batch-size 50
+LiBrainian bootstrap --incremental --batch-size 50
 ```
 
 ### 3. Query Returns Empty
@@ -110,17 +135,17 @@ librarian bootstrap --incremental --batch-size 50
 **Fix**:
 ```bash
 # Check index status
-librarian status
-librarian health
+LiBrainian status
+LiBrainian health
 
 # Verify files are indexed
-librarian stats  # Shows file count
+LiBrainian stats  # Shows file count
 
 # Try broader query
-librarian query "main entry point"  # Instead of specific function names
+LiBrainian query "main entry point"  # Instead of specific function names
 
 # Force re-index if stale
-librarian reindex --force
+LiBrainian reindex --force
 ```
 
 ### 4. Database Locked
@@ -132,13 +157,13 @@ librarian reindex --force
 **Fix**:
 ```bash
 # Find and kill processes holding the lock
-lsof librarian.db 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r kill
+lsof LiBrainian.db 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r kill
 
 # If no processes found, remove stale lock files
-rm -f librarian.db-wal librarian.db-shm
+rm -f LiBrainian.db-wal LiBrainian.db-shm
 
 # Retry operation
-librarian status
+LiBrainian status
 ```
 
 ### 5. Provider Unavailable
@@ -150,22 +175,22 @@ librarian status
 **Fix**:
 ```bash
 # Check provider status
-librarian health --providers
+LiBrainian health --providers
 
-# Use offline/degraded mode (keyword search only)
-librarian bootstrap --offline
-librarian query "search term" --no-embeddings
+# Use offline/degraded mode (keyword search only, diagnostics only)
+LiBrainian bootstrap --offline
+LiBrainian query "search term" --no-embeddings
 
 # Switch to local provider if available
 export LIBRARIAN_PROVIDER=local
-librarian bootstrap
+LiBrainian bootstrap
 ```
 
-### 6. Fallback Without Librarian
+### 6. Fallback Without LiBrainian
 
-**Symptom**: Librarian completely broken and you need context NOW.
+**Symptom**: LiBrainian completely broken and you need context NOW (diagnostics only).
 
-**Cause**: Any unrecoverable Librarian failure.
+**Cause**: Any unrecoverable LiBrainian failure.
 
 **Fix** (manual alternatives):
 ```bash
@@ -188,7 +213,8 @@ find src -name "*.ts" | head -50
 cat src/api/index.ts | head -100
 ```
 
-When Librarian is back, re-bootstrap: `librarian bootstrap --force`
+When LiBrainian is back, re-bootstrap: `LiBrainian bootstrap --force`.
+Do not treat manual fallback output as release or qualification evidence.
 
 ---
 
@@ -221,23 +247,23 @@ The old Phase 8 work units (WU-801-806) are **INVALID** — they used synthetic 
 - Citation verifier (verify file/line/identifier claims)
 - Consistency checker (same question, different phrasing → same answer)
 
-See: `docs/librarian/specs/track-eval-machine-verifiable.md`
+See: `docs/LiBrainian/specs/track-eval-machine-verifiable.md`
 
 ### Step 3: Phase 9 — Agent Performance Evaluation
-**The TRUE test: Do agents perform better WITH Librarian than WITHOUT?**
+**The TRUE test: Do agents perform better WITH LiBrainian than WITHOUT?**
 
 Design:
-- Spawn worker pairs: Control (no Librarian) vs Treatment (with Librarian)
+- Spawn worker pairs: Control (no LiBrainian) vs Treatment (with LiBrainian)
 - Context levels 0-5 (cold start → full context)
 - Task complexity T1-T5 (trivial → extreme)
-- **Librarian awareness levels L0-L4** (no mention → full docs)
+- **LiBrainian awareness levels L0-L4** (no mention → full docs)
 - **Human-style prompts**: "Users get logged out randomly" NOT "Fix SessionManager.refresh()"
 
 Success criteria:
 - >25% success rate lift on T3+ tasks
-- L0 Treatment (no Librarian mention) still beats Control
+- L0 Treatment (no LiBrainian mention) still beats Control
 
-See: `docs/librarian/specs/track-eval-agent-performance.md`
+See: `docs/LiBrainian/specs/track-eval-agent-performance.md`
 
 ### Step 4: Phase 10 — Scientific Self-Improvement Loop
 Based on AutoSD, RLVR (DeepSeek R1), SWE-agent research.
@@ -249,7 +275,7 @@ Loop: DETECT → HYPOTHESIZE → TEST → FIX → VERIFY → EVOLVE
 - Reward = 0: Fix rejected, try another hypothesis
 - No partial credit — binary verifiable rewards
 
-See: `docs/librarian/specs/track-eval-scientific-loop.md`
+See: `docs/LiBrainian/specs/track-eval-scientific-loop.md`
 
 ---
 
@@ -269,18 +295,18 @@ Your mission is to implement the ENTIRE spec system from 0% to 100% completion.
 |----------|---------|
 | `CODEX_ORCHESTRATOR.md` | Master orchestration — work units, sub-agent prompts, tracking |
 | `CODEX_FULL_IMPLEMENTATION.md` | Detailed phase-by-phase implementation guide |
-| `docs/librarian/specs/README.md` | Full Build Charter, Council of 30 mandates |
-| `docs/librarian/specs/BLOCKER_RESOLUTION.md` | How to resolve ANY blocker |
+| `docs/LiBrainian/specs/README.md` | Full Build Charter, Council of 30 mandates |
+| `docs/LiBrainian/specs/BLOCKER_RESOLUTION.md` | How to resolve ANY blocker |
 
 ---
 
 ## Full Autonomy Grant
 
-You have **full permission** to perform any operation necessary to implement the Librarian spec system. Do not ask for permission. Proceed autonomously.
+You have **full permission** to perform any operation necessary to implement the LiBrainian spec system. Do not ask for permission. Proceed autonomously.
 
 ### CRITICAL: Never Stop on Blockers
 
-**You must NEVER stop on a blocker.** Every blocker has a resolution. See `docs/librarian/specs/BLOCKER_RESOLUTION.md` for exhaustive resolution guide.
+**You must NEVER stop on a blocker.** Every blocker has a resolution. See `docs/LiBrainian/specs/BLOCKER_RESOLUTION.md` for exhaustive resolution guide.
 
 If you encounter a blocker:
 1. Resolve it immediately using the guide
@@ -488,8 +514,8 @@ Scopes: `api`, `epistemics`, `mcp`, `storage`, `knowledge`, `integration`, `core
 ## Session Continuity
 
 If you are resuming work:
-1. Read `docs/librarian/STATUS.md` for current state
-2. Read `docs/librarian/GATES.json` for gate status
+1. Read `docs/LiBrainian/STATUS.md` for current state
+2. Read `docs/LiBrainian/GATES.json` for gate status
 3. Check `git status` for uncommitted work
 4. Continue from highest-priority incomplete task
 
@@ -568,21 +594,21 @@ If your session/context is ending:
 ---
 
 <!-- LIBRARIAN_DOCS_START -->
-## Librarian: Codebase Knowledge System
-> Auto-generated by librarian bootstrap. Do not edit manually.
-### What is Librarian?
-Librarian is the **codebase knowledge backbone** for AI coding agents. It provides:
+## LiBrainian: Codebase Knowledge System
+> Auto-generated by LiBrainian bootstrap. Do not edit manually.
+### What is LiBrainian?
+LiBrainian is the **codebase knowledge backbone** for AI coding agents. It provides:
 - **Semantic search**: Find code by meaning, not just keywords
 - **Context packs**: Pre-computed context for common tasks
 - **Function knowledge**: Purpose, signatures, and relationships
 - **Graph analysis**: Call graphs, import graphs, and metrics
-### How to Use Librarian
+### How to Use LiBrainian
 ```typescript
-// 1. Get the librarian instance
-import { getLibrarian } from 'librarian';
-const librarian = await getLibrarian(workspaceRoot);
+// 1. Get the LiBrainian instance
+import { getLibrarian } from 'librainian';
+const LiBrainian = await getLibrarian(workspaceRoot);
 // 2. Query for context
-const context = await librarian.query('How does authentication work?');
+const context = await LiBrainian.query('How does authentication work?');
 // 3. Use in prompts
 const prompt = `Given this context:\n${context}\nImplement...`;
 ```
@@ -594,16 +620,16 @@ const prompt = `Given this context:\n${context}\nImplement...`;
 - **Functions indexed**: 9266
 - **Context packs**: 3327
 ### Key Documentation
-- **Entry point**: `docs/librarian/README.md`
-- **API reference**: `src/librarian/api/README.md`
-- **Query guide**: `docs/librarian/query-guide.md`
+- **Entry point**: `docs/LiBrainian/README.md`
+- **API reference**: `src/LiBrainian/api/README.md`
+- **Query guide**: `docs/LiBrainian/query-guide.md`
 ### When to Re-index
-Librarian auto-watches for changes. Manual reindex needed when:
+LiBrainian auto-watches for changes. Manual reindex needed when:
 - Major refactoring (>50 files changed)
 - After git operations that bypass file watchers
 - When embeddings seem stale
 ```bash
 # Trigger manual reindex
-npx librarian reindex --force
+npx librainian reindex --force
 ```
 <!-- LIBRARIAN_DOCS_END -->

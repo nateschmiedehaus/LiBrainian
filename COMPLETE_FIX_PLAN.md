@@ -1,4 +1,4 @@
-# COMPLETE FIX PLAN FOR WORLD-CLASS LIBRARIAN
+# COMPLETE FIX PLAN FOR WORLD-CLASS LiBrainian
 
 **Version**: 1.0.0
 **Date**: 2026-01-31
@@ -13,7 +13,7 @@ This plan consolidates ALL identified issues from gap analyses, test failures, u
 **Total Issues Identified**: 147
 **Work Units**: 42
 **Estimated Total Effort**: 28-35 engineering days
-**Expected Outcome**: World-class librarian with 100% pass rate
+**Expected Outcome**: World-class LiBrainian with 100% pass rate
 
 ---
 
@@ -26,7 +26,7 @@ This plan consolidates ALL identified issues from gap analyses, test failures, u
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/entailment_checker.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/entailment_checker.ts`**
 
 ```typescript
 // ADD: Dynamic claim pattern expansion
@@ -70,7 +70,7 @@ const BEHAVIORAL_CLAIM_PATTERNS = [
 ];
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/minicheck_scorer.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/minicheck_scorer.ts`**
 
 ```typescript
 // ADD: Negation and quantifier handling
@@ -105,7 +105,7 @@ export function scoreWithNegationAwareness(
 }
 ```
 
-3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/evaluation/chain_of_verification.ts`**
+3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/evaluation/chain_of_verification.ts`**
 
 ```typescript
 // MODIFY: Claim-type-aware weighting
@@ -147,7 +147,7 @@ export function verifyQuestion(
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`**
 
 ```typescript
 // ADD to LibrarianQuery interface (around line 650)
@@ -184,7 +184,7 @@ export interface TokenBudget {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/token_budget.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/token_budget.ts`**
 
 ```typescript
 // ADD: Priority-based intelligent truncation
@@ -272,7 +272,7 @@ function selectTruncationStrategy(
 }
 ```
 
-3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/commands/query.ts`**
+3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/commands/query.ts`**
 
 ```typescript
 // ADD: CLI flag for token budget
@@ -325,7 +325,7 @@ async function queryCommand(args: QueryArgs): Promise<void> {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/errors.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/errors.ts`**
 
 ```typescript
 // ADD: Structured error envelope
@@ -358,7 +358,7 @@ const ERROR_METADATA: Record<ErrorCode, { retryable: boolean; defaultHints: stri
   },
   ERR_NOT_BOOTSTRAPPED: {
     retryable: false,
-    defaultHints: ['Run: librarian bootstrap', 'Check workspace path']
+    defaultHints: ['Run: LiBrainian bootstrap', 'Check workspace path']
   },
   ERR_RATE_LIMITED: {
     retryable: true,
@@ -390,7 +390,7 @@ export class StructuredCliError extends Error {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/index.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/index.ts`**
 
 ```typescript
 // MODIFY: Error handling to output JSON when --json flag is set
@@ -429,7 +429,7 @@ async function handleError(error: unknown, outputJson: boolean): Promise<never> 
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`**
 
 ```typescript
 // ADD to LibrarianQuery (around line 630)
@@ -450,7 +450,7 @@ export interface DeterministicContext {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`**
 
 ```typescript
 // MODIFY: queryLibrarian to respect deterministic mode
@@ -519,7 +519,7 @@ export function stableSort<T>(arr: T[], compareFn: (a: T, b: T) => number): T[] 
 }
 ```
 
-3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/commands/query.ts`**
+3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/commands/query.ts`**
 
 ```typescript
 // ADD: --deterministic flag
@@ -543,7 +543,7 @@ const deterministicFlag = {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/types.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/types.ts`**
 
 ```typescript
 // MODIFY: Add argument edge types to KnowledgeEdgeType
@@ -563,7 +563,7 @@ export type KnowledgeEdgeType =
   | 'grounds';       // Data/evidence for a claim
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/argument_edges.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/argument_edges.ts`**
 
 ```typescript
 // NEW FILE: Argument edge creation and querying
@@ -652,7 +652,7 @@ export async function getArgumentEdgesForEntity(
 }
 ```
 
-3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/knowledge_graph.ts`**
+3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/knowledge_graph.ts`**
 
 ```typescript
 // ADD: Build argument subgraph from rationale
@@ -693,7 +693,7 @@ export async function buildArgumentGraph(
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`**
 
 ```typescript
 // ADD: Perspective type
@@ -716,7 +716,7 @@ export interface LibrarianQuery {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/perspective.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/perspective.ts`**
 
 ```typescript
 // ENHANCE existing file
@@ -793,7 +793,7 @@ export function inferPerspective(query: LibrarianQuery): QueryPerspective {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/importance_metrics.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/importance_metrics.ts`**
 
 ```typescript
 // NEW FILE: Multi-graph importance computation
@@ -866,7 +866,7 @@ function computeArgumentImportance(graph: KnowledgeGraph, entityId: string): num
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/query/multi_signal_scorer.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/query/multi_signal_scorer.ts`**
 
 ```typescript
 // ADD: Multi-graph importance signal
@@ -950,7 +950,7 @@ This is structural refactoring. Create new files by extracting cohesive pieces:
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/cognitive_load.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/cognitive_load.ts`**
 
 ```typescript
 // NEW FILE: Cognitive load estimation
@@ -1039,7 +1039,7 @@ function computeLoadScore(factors: CognitiveLoadFactors): number {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`**
 
 ```typescript
 // ADD to LibrarianResponse
@@ -1061,7 +1061,7 @@ export interface LibrarianResponse {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/role_modes.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/role_modes.ts`**
 
 ```typescript
 // NEW FILE: Role-specific query modes
@@ -1165,7 +1165,7 @@ function transformToBusinessSummary(
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`**
 
 ```typescript
 // ADD to LibrarianQuery
@@ -1187,7 +1187,7 @@ export interface LibrarianQuery {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/causal_graph.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/causal_graph.ts`**
 
 ```typescript
 // NEW FILE: Causal graph implementation
@@ -1322,7 +1322,7 @@ export function computeCausalEffect(
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/decomposition.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/decomposition.ts`**
 
 ```typescript
 // NEW FILE: Task decomposition support
@@ -1422,7 +1422,7 @@ function estimateEffort(cluster: FileCluster): Subtask['estimatedEffort'] {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/commands/decompose.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/commands/decompose.ts`**
 
 ```typescript
 // NEW FILE: CLI command for task decomposition
@@ -1456,7 +1456,7 @@ export async function decomposeCommand(args: DecomposeArgs): Promise<void> {
 }
 ```
 
-**Verification**: `librarian decompose "Add user authentication"` returns ordered subtasks
+**Verification**: `LiBrainian decompose "Add user authentication"` returns ordered subtasks
 
 ---
 
@@ -1467,7 +1467,7 @@ export async function decomposeCommand(args: DecomposeArgs): Promise<void> {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/types.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/types.ts`**
 
 ```typescript
 // ADD to LibrarianQuery
@@ -1492,7 +1492,7 @@ export interface LibrarianResponse {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/commands/cache.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/commands/cache.ts`**
 
 ```typescript
 // NEW FILE: Cache management commands
@@ -1521,7 +1521,7 @@ export async function cacheClearCommand(args: CacheArgs): Promise<void> {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/index.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/index.ts`**
 
 ```typescript
 // ADD: Command aliases
@@ -1549,7 +1549,7 @@ function resolveCommand(input: string): string {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/output.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/output.ts`**
 
 ```typescript
 // NEW FILE: Unified output formatting
@@ -1586,7 +1586,7 @@ export function detectOutputFormat(): OutputFormat {
 }
 ```
 
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/cli/index.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/cli/index.ts`**
 
 ```typescript
 // ADD: Global --output flag
@@ -1605,7 +1605,7 @@ const outputFlag = {
 
 #### Files to Modify:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/depth_hints.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/depth_hints.ts`**
 
 ```typescript
 // NEW FILE: Depth level recommendations
@@ -1658,14 +1658,14 @@ export function computeDepthHint(
 
 Create tests for all new functionality:
 
-1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/__tests__/token_budget.test.ts`**
-2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/__tests__/deterministic_mode.test.ts`**
-3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/__tests__/perspective.test.ts`**
-4. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/__tests__/importance_metrics.test.ts`**
-5. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/graphs/__tests__/causal_graph.test.ts`**
-6. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/__tests__/decomposition.test.ts`**
-7. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/__tests__/role_modes.test.ts`**
-8. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/__tests__/cognitive_load.test.ts`**
+1. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/__tests__/token_budget.test.ts`**
+2. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/__tests__/deterministic_mode.test.ts`**
+3. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/__tests__/perspective.test.ts`**
+4. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/__tests__/importance_metrics.test.ts`**
+5. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/graphs/__tests__/causal_graph.test.ts`**
+6. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/__tests__/decomposition.test.ts`**
+7. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/__tests__/role_modes.test.ts`**
+8. **`/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/__tests__/cognitive_load.test.ts`**
 
 ---
 
@@ -1724,8 +1724,8 @@ Create tests for all new functionality:
 | Role Coverage (DevOps) | 68% | >85% |
 
 ### Qualitative Criteria
-1. **Zero-Config Excellence**: `librarian bootstrap` works on any repo without manual config
-2. **Agent Integration**: Agents measurably perform better with Librarian context
+1. **Zero-Config Excellence**: `LiBrainian bootstrap` works on any repo without manual config
+2. **Agent Integration**: Agents measurably perform better with LiBrainian context
 3. **Trustworthy Claims**: All claims have verifiable citations
 4. **Comprehensive Coverage**: All 30 T-patterns detected, all 15 task types supported
 5. **Self-Improving**: Calibration improves automatically over time

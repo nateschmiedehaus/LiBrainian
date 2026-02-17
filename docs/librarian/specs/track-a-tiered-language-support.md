@@ -1,10 +1,10 @@
 # Track A: Tiered Language Support Specification
 
-> **Extracted from**: `docs/librarian/THEORETICAL_CRITIQUE.md` (Part XVII.A)
+> **Extracted from**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md` (Part XVII.A)
 > **Source**: Turing's insight: "If a human can understand it, a system with an oracle (LLM) can attempt understanding with explicit confidence."
 > **Status**: Specification complete, implementation pending
 >
-> **Librarian Story**: Chapter 6 (The Universality) - Making Librarian work for ANY language.
+> **LiBrainian Story**: Chapter 6 (The Universality) - Making LiBrainian work for ANY language.
 >
 > **Related Specifications**:
 > - [track-b-bootstrap.md](./track-b-bootstrap.md) - Bootstrap pipeline with tier-aware processing
@@ -15,7 +15,7 @@
 
 ## Executive Summary
 
-Track A addresses the fundamental language coverage problem of Librarian: **How does an intelligent system understand code in languages without Tree-sitter parsers?**
+Track A addresses the fundamental language coverage problem of LiBrainian: **How does an intelligent system understand code in languages without Tree-sitter parsers?**
 
 This specification covers:
 - **Four-Tier Language Support** - From full AST to multimodal understanding
@@ -30,9 +30,9 @@ This specification covers:
 
 ### The Parser Coverage Gap
 
-Librarian currently relies on Tree-sitter parsers for code understanding. This creates a coverage gap:
+LiBrainian currently relies on Tree-sitter parsers for code understanding. This creates a coverage gap:
 
-| Language Category | Tree-sitter Support | Librarian Status |
+| Language Category | Tree-sitter Support | LiBrainian Status |
 |------------------|---------------------|------------------|
 | TypeScript, JavaScript, Python | Full parser | Full understanding |
 | Rust, Go, Java, C, C++ | Full parser | Full understanding |
@@ -1345,8 +1345,8 @@ export interface TierAwareQuery {
 - `UniversalLanguageRegistry` class (basic)
 
 **Files**:
-- `packages/librarian/src/tiered/language_tier.ts`
-- `packages/librarian/src/tiered/language_registry.ts`
+- `packages/LiBrainian/src/tiered/language_tier.ts`
+- `packages/LiBrainian/src/tiered/language_registry.ts`
 
 ### Phase 2: Tier Detection and Fallback (~200 LOC)
 
@@ -1357,7 +1357,7 @@ export interface TierAwareQuery {
 - Content signature detection
 
 **Files**:
-- `packages/librarian/src/tiered/tier_detection.ts`
+- `packages/LiBrainian/src/tiered/tier_detection.ts`
 
 ### Phase 3: Chunking Strategies (~300 LOC)
 
@@ -1370,11 +1370,11 @@ export interface TierAwareQuery {
 - `selectChunkingStrategy()` function
 
 **Files**:
-- `packages/librarian/src/tiered/chunking/index.ts`
-- `packages/librarian/src/tiered/chunking/function_blocks.ts`
-- `packages/librarian/src/tiered/chunking/indentation.ts`
-- `packages/librarian/src/tiered/chunking/blank_lines.ts`
-- `packages/librarian/src/tiered/chunking/comment_guided.ts`
+- `packages/LiBrainian/src/tiered/chunking/index.ts`
+- `packages/LiBrainian/src/tiered/chunking/function_blocks.ts`
+- `packages/LiBrainian/src/tiered/chunking/indentation.ts`
+- `packages/LiBrainian/src/tiered/chunking/blank_lines.ts`
+- `packages/LiBrainian/src/tiered/chunking/comment_guided.ts`
 
 ### Phase 4: LLM Entity Extraction (~200 LOC)
 
@@ -1385,8 +1385,8 @@ export interface TierAwareQuery {
 - Entity schema for structured output
 
 **Files**:
-- `packages/librarian/src/tiered/llm_extraction.ts`
-- `packages/librarian/src/tiered/extraction_prompts.ts`
+- `packages/LiBrainian/src/tiered/llm_extraction.ts`
+- `packages/LiBrainian/src/tiered/extraction_prompts.ts`
 
 ### Phase 5: Multimodal Support (~150 LOC)
 
@@ -1397,7 +1397,7 @@ export interface TierAwareQuery {
 - Tier 4 confidence handling
 
 **Files**:
-- `packages/librarian/src/tiered/multimodal.ts`
+- `packages/LiBrainian/src/tiered/multimodal.ts`
 
 ### Phase 6: Integration and Tests (~300 LOC)
 
@@ -1408,9 +1408,9 @@ export interface TierAwareQuery {
 - Comprehensive test suite
 
 **Files**:
-- `packages/librarian/src/tiered/__tests__/language_tier.test.ts`
-- `packages/librarian/src/tiered/__tests__/chunking.test.ts`
-- `packages/librarian/src/tiered/__tests__/llm_extraction.test.ts`
+- `packages/LiBrainian/src/tiered/__tests__/language_tier.test.ts`
+- `packages/LiBrainian/src/tiered/__tests__/chunking.test.ts`
+- `packages/LiBrainian/src/tiered/__tests__/llm_extraction.test.ts`
 
 ### Total: ~1,300 LOC
 
@@ -1453,20 +1453,20 @@ export interface TierAwareQuery {
 
 ```bash
 # Run tier detection tests
-cd packages/librarian && npx vitest run src/tiered/__tests__/language_tier.test.ts
+cd packages/LiBrainian && npx vitest run src/tiered/__tests__/language_tier.test.ts
 
 # Run chunking strategy tests
-cd packages/librarian && npx vitest run src/tiered/__tests__/chunking.test.ts
+cd packages/LiBrainian && npx vitest run src/tiered/__tests__/chunking.test.ts
 
 # Run LLM extraction tests (requires provider)
-cd packages/librarian && npx vitest run src/tiered/__tests__/llm_extraction.test.ts
+cd packages/LiBrainian && npx vitest run src/tiered/__tests__/llm_extraction.test.ts
 
 # Verify no raw confidence numbers
-rg "confidence:\s*0\.\d" packages/librarian/src/tiered --glob '*.ts' | wc -l
+rg "confidence:\s*0\.\d" packages/LiBrainian/src/tiered --glob '*.ts' | wc -l
 # Should return 0
 
 # Verify tier exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Tier'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Tier'))))"
 ```
 
 ---

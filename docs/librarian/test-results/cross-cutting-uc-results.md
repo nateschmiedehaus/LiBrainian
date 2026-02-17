@@ -2,7 +2,7 @@
 
 **Test Date:** 2026-01-31
 **Test Category:** Cross-Cutting Concerns
-**Purpose:** Assess Librarian's ability to find patterns that span multiple modules/files across the codebase
+**Purpose:** Assess LiBrainian's ability to find patterns that span multiple modules/files across the codebase
 
 ---
 
@@ -153,11 +153,11 @@
 - `src/storage/content_cache.ts` (2 functions)
 - `src/constructions/composition.ts` (1 function - pipeline caching)
 
-**Note:** Lower confidence (0.576) suggests Librarian recognized these might be concentrated rather than truly cross-cutting.
+**Note:** Lower confidence (0.576) suggests LiBrainian recognized these might be concentrated rather than truly cross-cutting.
 
 ---
 
-## Analysis: Did Librarian Find Cross-Cutting Patterns?
+## Analysis: Did LiBrainian Find Cross-Cutting Patterns?
 
 ### Strengths
 
@@ -209,7 +209,7 @@
 
 **Overall Cross-Cutting Score: 3.4/5 (68%)**
 
-Librarian shows promise for finding cross-cutting concerns but needs improvement in:
+LiBrainian shows promise for finding cross-cutting concerns but needs improvement in:
 - Tracking usage sites across the codebase (not just implementations)
 - Expanding semantic search for pattern variations
 - Better distribution when results are too concentrated in single files

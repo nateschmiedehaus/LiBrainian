@@ -1,4 +1,4 @@
-# Librarian System Architecture
+# LiBrainian System Architecture
 
 Status: authoritative
 Scope: Canonical system boundaries, components, data flow, and directory layout.
@@ -31,7 +31,7 @@ reliable coordination across large, evolving repos.
 | `[planned]` | Not yet implemented |
 | `[unverified_by_trace]` | Claimed but no evidence trace |
 
-Evidence links live in `docs/librarian/STATUS.md`.
+Evidence links live in `docs/LiBrainian/STATUS.md`.
 
 ## Architectural Invariants
 
@@ -48,19 +48,19 @@ Evidence links live in `docs/librarian/STATUS.md`.
 2. [partial] Fallback extraction produces evidence-backed understanding with explicit gaps.
 3. [partial] Language onboarding is automatic and queued for adapter upgrades.
 
-Evidence: `src/librarian/agents/ast_indexer.ts`, `src/librarian/events.ts:emitLanguageOnboarding`
+Evidence: `src/LiBrainian/agents/ast_indexer.ts`, `src/LiBrainian/events.ts:emitLanguageOnboarding`
 
 ## System Boundaries
 
-Librarian is a knowledge layer, not the orchestrator.
+LiBrainian is a knowledge layer, not the orchestrator.
 
-**Librarian owns:**
+**LiBrainian owns:**
 - Extraction, indexing, storage, knowledge synthesis, and query serving
 - Understanding layer and knowledge maps
 - Model usage policy and provider readiness gates
 - Evidence chain and audit artifact generation
 
-**Librarian does not own:**
+**LiBrainian does not own:**
 - Agent scheduling and execution strategy (Wave0 orchestrator)
 - CLI auth configuration (uses host CLI auth)
 - Task outcome decisions (only provides knowledge)
@@ -78,11 +78,11 @@ Librarian is a knowledge layer, not the orchestrator.
 | Workflow Records | `WorkflowRunRecord.v1` | Execution history and outcomes |
 | Audit Logs | `Trace[]` | Evidence traces for reproducibility |
 
-All schemas are defined in `docs/librarian/SCHEMAS.md`.
+All schemas are defined in `docs/LiBrainian/SCHEMAS.md`.
 
 ## Shared Primitives
 
-All type definitions are authoritative in `docs/librarian/SCHEMAS.md`. This section
+All type definitions are authoritative in `docs/LiBrainian/SCHEMAS.md`. This section
 provides a quick reference.
 
 | Primitive | Purpose | Key Fields |
@@ -159,7 +159,7 @@ CREATE TABLE librarian_multi_vectors (
 
 - Single entrypoint for queries, actions, and agent-facing responses
 - Enforces provider checks, model selection, and budgets
-- Entry: `src/librarian/api/librarian.ts`
+- Entry: `src/LiBrainian/api/LiBrainian.ts`
 
 ### Layer 2: Query Pipeline
 
@@ -169,7 +169,7 @@ normalize -> freshness_check -> acquire_locks -> execute -> enrich ->
 compute_confidence -> apply_defeaters -> render_response
 ```
 
-Entry: `src/librarian/api/query.ts`
+Entry: `src/LiBrainian/api/query.ts`
 
 ### Layer 3: Engines (Compositional)
 
@@ -177,9 +177,9 @@ Three engines compose reasoning support. Full interface contracts in `SCHEMAS.md
 
 | Engine | Purpose | Entry Point |
 |--------|---------|-------------|
-| Relevance | What knowledge is needed | `src/librarian/engines/relevance_engine.ts` |
-| Constraint | What rules apply | `src/librarian/engines/constraint_engine.ts` |
-| Meta-Knowledge | How confident should we be | `src/librarian/engines/meta_engine.ts` |
+| Relevance | What knowledge is needed | `src/LiBrainian/engines/relevance_engine.ts` |
+| Constraint | What rules apply | `src/LiBrainian/engines/constraint_engine.ts` |
+| Meta-Knowledge | How confident should we be | `src/LiBrainian/engines/meta_engine.ts` |
 
 ### Layer 4: Subsystems (Event-Driven)
 
@@ -199,7 +199,7 @@ Three engines compose reasoning support. Full interface contracts in `SCHEMAS.md
 - Health checks with criticality tiers
 - Transaction coordinator for multi-table writes
 
-Entry: `src/librarian/core/`
+Entry: `src/LiBrainian/core/`
 
 ### Layer 6: Knowledge Layer
 
@@ -233,7 +233,7 @@ Language and framework specific extraction.
 
 ## Engine Interface Contracts
 
-Full TypeScript definitions in `docs/librarian/SCHEMAS.md`. Summary:
+Full TypeScript definitions in `docs/LiBrainian/SCHEMAS.md`. Summary:
 
 ### RelevanceEngine
 
@@ -299,7 +299,7 @@ interface LanguageAdapter {
 
 ### Plugin Lifecycle
 
-1. **Discovery**: Plugins in `src/librarian/adapters/` are auto-loaded
+1. **Discovery**: Plugins in `src/LiBrainian/adapters/` are auto-loaded
 2. **Registration**: Call `registerAdapter()` during bootstrap
 3. **Validation**: Plugin must implement required interface
 4. **Activation**: Plugin used when language/domain matches
@@ -309,14 +309,14 @@ interface LanguageAdapter {
 
 ### Rules
 
-1. If Wave0 needs codebase knowledge, it MUST ask Librarian
-2. No duplicate analysis in Wave0 that Librarian already provides
-3. Librarian responses MUST include evidence, confidence, and defeaters
-4. Librarian is the source for: related files, change impact, tests, ownership, similarity, and failure attribution
+1. If Wave0 needs codebase knowledge, it MUST ask LiBrainian
+2. No duplicate analysis in Wave0 that LiBrainian already provides
+3. LiBrainian responses MUST include evidence, confidence, and defeaters
+4. LiBrainian is the source for: related files, change impact, tests, ownership, similarity, and failure attribution
 
 ### Integration Checkpoints
 
-| Checkpoint | Trigger | Librarian Action |
+| Checkpoint | Trigger | LiBrainian Action |
 |------------|---------|------------------|
 | Pre-orchestration | Task start | Bootstrap + provider check |
 | Context assembly | Agent needs context | Assemble context pack |
@@ -328,7 +328,7 @@ interface LanguageAdapter {
 Co-change edges are computed via Wave0 integration (not during bootstrap).
 Future: Add git-history-based co-change computation at bootstrap.
 
-Evidence: `src/librarian/integration/wave0_integration.ts`
+Evidence: `src/LiBrainian/integration/wave0_integration.ts`
 
 ## Provider Architecture
 
@@ -379,7 +379,7 @@ Evidence: `src/librarian/integration/wave0_integration.ts`
 | Language | `language:detected`, `adapter:missing`, `adapter:loaded` |
 | Knowledge | `knowledge:generated`, `knowledge:invalidated` |
 
-Entry: `src/librarian/events.ts`
+Entry: `src/LiBrainian/events.ts`
 
 ## Data Flow
 
@@ -411,7 +411,7 @@ Agent/CLI Response (context packs, evidence)
 ## Directory Architecture
 
 ```
-src/librarian/
+src/LiBrainian/
   adapters/       [planned] Language adapters and parser plugins
   agents/         Agentic tasks (indexing, audits)
   analysis/       Algorithmic analysis helpers
@@ -442,7 +442,7 @@ src/librarian/
 ### Documentation Directory
 
 ```
-docs/librarian/
+docs/LiBrainian/
   README.md               Entry point
   DOCS_ARCHITECTURE.md    Doc governance
   SCHEMAS.md              Type definitions
@@ -478,4 +478,4 @@ docs/librarian/
 
 ---
 
-*This document is authoritative for Librarian system architecture.*
+*This document is authoritative for LiBrainian system architecture.*

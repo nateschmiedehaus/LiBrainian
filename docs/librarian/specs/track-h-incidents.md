@@ -1,9 +1,9 @@
 # Track H: Incident Investigation
 
-> **Source**: Extracted from `docs/librarian/specs/use-case-targets.md` (UC16)
-> **Guarantee**: Librarian will support unified incident intelligence - log correlation, timeline reconstruction, blast radius analysis, and runbook execution
+> **Source**: Extracted from `docs/LiBrainian/specs/use-case-targets.md` (UC16)
+> **Guarantee**: LiBrainian will support unified incident intelligence - log correlation, timeline reconstruction, blast radius analysis, and runbook execution
 >
-> **Librarian Story**: Chapter 8 (The Responder) - When production burns, Librarian becomes the unified intelligence layer across chaos.
+> **LiBrainian Story**: Chapter 8 (The Responder) - When production burns, LiBrainian becomes the unified intelligence layer across chaos.
 >
 > **Theory Reference**: All confidence values MUST use `ConfidenceValue` from Track D. See [GLOSSARY.md](./GLOSSARY.md) and [CONFIDENCE_REDESIGN.md](./CONFIDENCE_REDESIGN.md).
 >
@@ -2100,7 +2100,7 @@ interface PrioritizedSegment {
 
 ```typescript
 /**
- * Integration with Librarian's evidence ledger.
+ * Integration with LiBrainian's evidence ledger.
  *
  * All incident evidence is recorded for:
  * 1. Postmortem generation
@@ -2274,7 +2274,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/types.ts
+// - src/LiBrainian/api/incidents/types.ts
 
 // Deliverables:
 // - Incident, IncidentEvent, IncidentTimeline types
@@ -2289,7 +2289,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/log-correlation.ts
+// - src/LiBrainian/api/incidents/log-correlation.ts
 
 // Deliverables:
 // - LogCorrelationEngine implementation
@@ -2304,7 +2304,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/timeline.ts
+// - src/LiBrainian/api/incidents/timeline.ts
 
 // Deliverables:
 // - TimelineBuilder implementation
@@ -2319,7 +2319,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/blast-radius.ts
+// - src/LiBrainian/api/incidents/blast-radius.ts
 
 // Deliverables:
 // - BlastRadiusAnalyzer implementation
@@ -2334,7 +2334,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/runbook.ts
+// - src/LiBrainian/api/incidents/runbook.ts
 
 // Deliverables:
 // - RunbookManager implementation
@@ -2349,8 +2349,8 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/primitives.ts
-// - src/librarian/api/incidents/compositions.ts
+// - src/LiBrainian/api/incidents/primitives.ts
+// - src/LiBrainian/api/incidents/compositions.ts
 
 // Deliverables:
 // - 8 incident primitives registered
@@ -2364,7 +2364,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/postmortem.ts
+// - src/LiBrainian/api/incidents/postmortem.ts
 
 // Deliverables:
 // - Postmortem document generation
@@ -2378,7 +2378,7 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/integration.ts
+// - src/LiBrainian/api/incidents/integration.ts
 
 // Deliverables:
 // - Track C integration (causal root cause)
@@ -2392,10 +2392,10 @@ interface PostmortemMetadata {
 
 ```typescript
 // Files to create:
-// - src/librarian/api/incidents/__tests__/log-correlation.test.ts
-// - src/librarian/api/incidents/__tests__/timeline.test.ts
-// - src/librarian/api/incidents/__tests__/blast-radius.test.ts
-// - src/librarian/api/incidents/__tests__/runbook.test.ts
+// - src/LiBrainian/api/incidents/__tests__/log-correlation.test.ts
+// - src/LiBrainian/api/incidents/__tests__/timeline.test.ts
+// - src/LiBrainian/api/incidents/__tests__/blast-radius.test.ts
+// - src/LiBrainian/api/incidents/__tests__/runbook.test.ts
 
 // Deliverables:
 // - Unit tests for all modules
@@ -2479,28 +2479,28 @@ interface PostmortemMetadata {
 
 ```bash
 # Run incident tests
-cd packages/librarian && npx vitest run src/api/incidents/__tests__/
+cd packages/LiBrainian && npx vitest run src/api/incidents/__tests__/
 
 # Verify exports
-node -e "import('librarian').then(m => console.log(Object.keys(m).filter(k => k.includes('Incident'))))"
+node -e "import('LiBrainian').then(m => console.log(Object.keys(m).filter(k => k.includes('Incident'))))"
 
 # Correlate logs for time range (when implemented)
-cd packages/librarian && npx tsx src/cli/index.ts incidents correlate-logs --from "2026-01-23T10:00:00Z" --to "2026-01-23T11:00:00Z"
+cd packages/LiBrainian && npx tsx src/cli/index.ts incidents correlate-logs --from "2026-01-23T10:00:00Z" --to "2026-01-23T11:00:00Z"
 
 # Build incident timeline
-cd packages/librarian && npx tsx src/cli/index.ts incidents timeline --incident INC-2026-0123
+cd packages/LiBrainian && npx tsx src/cli/index.ts incidents timeline --incident INC-2026-0123
 
 # Calculate blast radius
-cd packages/librarian && npx tsx src/cli/index.ts incidents blast-radius --service api-gateway
+cd packages/LiBrainian && npx tsx src/cli/index.ts incidents blast-radius --service api-gateway
 
 # Match runbooks
-cd packages/librarian && npx tsx src/cli/index.ts incidents match-runbook --incident INC-2026-0123
+cd packages/LiBrainian && npx tsx src/cli/index.ts incidents match-runbook --incident INC-2026-0123
 
 # Generate postmortem
-cd packages/librarian && npx tsx src/cli/index.ts incidents postmortem --incident INC-2026-0123
+cd packages/LiBrainian && npx tsx src/cli/index.ts incidents postmortem --incident INC-2026-0123
 
 # Check implementation status
-ls -la packages/librarian/src/api/incidents/
+ls -la packages/LiBrainian/src/api/incidents/
 ```
 
 ---

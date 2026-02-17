@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-The librarian shows **mixed results** for configuration use cases. It finds configuration-related functions but struggles to surface the actual configuration infrastructure (files, modules, schemas). The semantic similarity approach works better for functional code than for configuration artifacts.
+The LiBrainian shows **mixed results** for configuration use cases. It finds configuration-related functions but struggles to surface the actual configuration infrastructure (files, modules, schemas). The semantic similarity approach works better for functional code than for configuration artifacts.
 
 ---
 
@@ -171,7 +171,7 @@ To understand config structure, you would need to manually explore:
 
 ## Recommendations
 
-### For Librarian Improvement
+### For LiBrainian Improvement
 
 1. **Index configuration file patterns**: Recognize `*.config.*`, `tsconfig.json`, `package.json`, `.env*` as special configuration artifacts
 

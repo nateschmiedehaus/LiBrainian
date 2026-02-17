@@ -1,10 +1,10 @@
 # Track C: Agentic Workflow Primitives (W1-W6)
 
-> **Extracted from**: `docs/librarian/THEORETICAL_CRITIQUE.md` Part XIX
+> **Extracted from**: `docs/LiBrainian/THEORETICAL_CRITIQUE.md` Part XIX
 > **Source**: Additional Agentic Workflow Gaps (25 Greats' Audit)
 > **Purpose**: Production-grade agentic workflow support
 >
-> **Librarian Story**: Chapter 8 (The Orchestra) - Agents working in concert, observed, guided, and improved.
+> **LiBrainian Story**: Chapter 8 (The Orchestra) - Agents working in concert, observed, guided, and improved.
 >
 > **The 25 Greats' Verdict**: "These six gaps - testing, cost, HITL, multi-agent, versioning, observability - are the difference between a demo and a production system." (Armstrong)
 
@@ -2129,7 +2129,7 @@ export interface Remediation {
  * Evidence item for diagnosis.
  *
  * IMPORTANT: This is not the canonical Evidence Ledger entry type.
- * When persisted, it MUST reference an evidence ledger entry ID (see `docs/librarian/specs/core/evidence-ledger.md`).
+ * When persisted, it MUST reference an evidence ledger entry ID (see `docs/LiBrainian/specs/core/evidence-ledger.md`).
  */
 export interface DiagnosticEvidenceItem {
   /** Evidence type */

@@ -2,7 +2,7 @@
 
 **Test Date:** 2026-01-31
 **Test Type:** INTEGRATION queries
-**Assessment Goal:** Did librarian explain integrations between modules?
+**Assessment Goal:** Did LiBrainian explain integrations between modules?
 
 ---
 
@@ -47,7 +47,7 @@
 **Latency:** 1690ms
 
 **Context Packs Returned:**
-1. `assembleContext()` - Assembles AgentKnowledgeContext from Librarian query response (src/api/query.ts, lines 1126-1146)
+1. `assembleContext()` - Assembles AgentKnowledgeContext from LiBrainian query response (src/api/query.ts, lines 1126-1146)
 2. `getQueryCache()` - Gets hierarchical memory cache for query responses (src/api/query.ts, lines 2297-2312)
 3. `runSemanticRetrievalStage()` - Embeds query intent and retrieves similar entities (src/api/query.ts, lines 1563-1636)
 4. `writePersistentCache()` - Writes cached response to persistent storage (src/api/query.ts, lines 2356-2371)
@@ -56,7 +56,7 @@
 7. `resolveStorageCapabilities()` - Detects storage backend capabilities (src/api/query.ts, lines 2247-2272)
 8. `createQueryInterface()` - Factory function creating QueryInterface (src/api/query_interface.ts, lines 46-65)
 9. `upsertFunctions()` - Function in sqlite_storage.ts (src/storage/sqlite_storage.ts, lines 1214-1264)
-10. `initialize()` - Initialize storage, embedding service, indexer (src/api/librarian.ts, lines 199-340)
+10. `initialize()` - Initialize storage, embedding service, indexer (src/api/LiBrainian.ts, lines 199-340)
 
 **Assessment:** GOOD
 - Shows clear integration points between query and storage layers
@@ -75,7 +75,7 @@
 **Coherence Warning:** "Results appear scattered/incoherent (39%)"
 
 **Context Packs Returned:**
-1. `selfBootstrap()` - Bootstrap Librarian knowledge index on a codebase (src/agents/self_improvement/self_bootstrap.ts, lines 220-324)
+1. `selfBootstrap()` - Bootstrap LiBrainian knowledge index on a codebase (src/agents/self_improvement/self_bootstrap.ts, lines 220-324)
 2. `createIndexLibrarian()` - Function in index_librarian.ts (src/agents/index_librarian.ts, lines 1743-1747)
 
 **Assessment:** POOR
@@ -94,12 +94,12 @@
 **Latency:** 1759ms
 
 **Context Packs Returned:**
-1. `createLibrarianMCPServer()` - Create and start a Librarian MCP server (src/mcp/server.ts, lines 2662-2667)
+1. `createLibrarianMCPServer()` - Create and start a LiBrainian MCP server (src/mcp/server.ts, lines 2662-2667)
 
 **Assessment:** POOR
 - Only 1 result with low confidence
 - Does NOT explain integration points - just shows server creation
-- Missing: How MCP server connects to librarian core, tool handlers, protocol bridges
+- Missing: How MCP server connects to LiBrainian core, tool handlers, protocol bridges
 - Should have returned MCP handler implementations, tool registrations, connection lifecycle
 
 ---

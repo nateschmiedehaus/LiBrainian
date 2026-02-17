@@ -1,4 +1,4 @@
-# Librarian Audit
+# LiBrainian Audit
 
 Status: partial
 Scope: full system audit for truthfulness, wiring, and evidence.
@@ -23,12 +23,12 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 - Check canonical docs align (no contradictions).
 - Ensure each claim links to evidence.
 - Verify STATUS is evidence-only.
-- Verify `docs/librarian/hazard_register.md` is updated for any new features.
+- Verify `docs/LiBrainian/hazard_register.md` is updated for any new features.
 
 ### Phase 2: Implementation Mapping
 - Map each subsystem to code locations.
 - Verify wiring through query pipeline and event bus.
-- Audit exports in `src/librarian/index.ts` for real callers.
+- Audit exports in `src/LiBrainian/index.ts` for real callers.
 
 ### Phase 3: Storage + Pipeline Validity
 - Validate migrations and storage schema.
@@ -41,7 +41,7 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 - Check confidence calibration and defeaters.
 
 ### Phase 5: Scenario Execution
-- Run representative scenarios from `docs/librarian/scenarios.md`.
+- Run representative scenarios from `docs/LiBrainian/scenarios.md`.
 - Record outputs, confidence, and traces.
 - Include language onboarding scenarios (S-LANG-001/002).
 
@@ -79,4 +79,4 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 - Raw provider doc snapshots
 
 ## Legacy Material
-Use `docs/librarian/legacy/COMPREHENSIVE_AUDIT_PROMPT.md` as a deep appendix.
+Use `docs/LiBrainian/legacy/COMPREHENSIVE_AUDIT_PROMPT.md` as a deep appendix.

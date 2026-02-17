@@ -1,13 +1,13 @@
 # RECENT CHANGES Use Case Test Results
 
 **Test Date:** 2026-01-31
-**Librarian Version:** Current development branch (main)
+**LiBrainian Version:** Current development branch (main)
 
 ## Executive Summary
 
-**Overall Assessment: POOR - Librarian Does NOT Know About Recent Changes**
+**Overall Assessment: POOR - LiBrainian Does NOT Know About Recent Changes**
 
-The librarian fails to provide meaningful information about recent changes. It treats "recent changes" queries as semantic searches for code entities with similar text, rather than accessing actual git history, commit metadata, or change tracking data.
+The LiBrainian fails to provide meaningful information about recent changes. It treats "recent changes" queries as semantic searches for code entities with similar text, rather than accessing actual git history, commit metadata, or change tracking data.
 
 ## Test Results
 
@@ -104,9 +104,9 @@ The librarian fails to provide meaningful information about recent changes. It t
 
 ## Root Cause Analysis
 
-### Why Librarian Fails at "Recent Changes" Queries
+### Why LiBrainian Fails at "Recent Changes" Queries
 
-1. **No Git History Integration**: The librarian does not query git log, commit history, or change metadata when processing queries. It only searches indexed code entities.
+1. **No Git History Integration**: The LiBrainian does not query git log, commit history, or change metadata when processing queries. It only searches indexed code entities.
 
 2. **Semantic-Only Matching**: Queries are processed through embedding similarity, which matches words like "bootstrap" to code with "bootstrap" in the text, not to actual change events.
 
@@ -177,11 +177,11 @@ Context Packs:
 
   [function_context] getStorageSlices
   Confidence: 0.834
-  File: src/api/librarian.ts
+  File: src/api/LiBrainian.ts
 
   [function_context] getStorageCapabilities
   Confidence: 0.764
-  File: src/api/librarian.ts
+  File: src/api/LiBrainian.ts
 
   [function_context] purgeOldData
   Confidence: 0.866
@@ -267,7 +267,7 @@ e77fa30 feat(epistemics): migrate DerivedConfidence to proven formulas
 Changes to bootstrap.ts:
 - d2d6d9c feat: implement adaptive resource management and epistemic framework
 - bee6961 HARD STOP: Circular evaluation
-- 7a22f09 chore: initial librarian extraction
+- 7a22f09 chore: initial LiBrainian extraction
 
 Changes to storage layer:
 - 30946be feat: enable TypeScript strict mode (sqlite_storage.ts)
@@ -300,6 +300,6 @@ Changes to query.ts:
 
 ## Conclusion
 
-The librarian currently has **no capability** to answer questions about recent changes. It treats all queries as semantic searches over static code entities. This is a significant gap for developer workflows that frequently involve understanding "what changed" in a codebase.
+The LiBrainian currently has **no capability** to answer questions about recent changes. It treats all queries as semantic searches over static code entities. This is a significant gap for developer workflows that frequently involve understanding "what changed" in a codebase.
 
 **Priority:** HIGH - This is a fundamental expected capability for a code intelligence system.

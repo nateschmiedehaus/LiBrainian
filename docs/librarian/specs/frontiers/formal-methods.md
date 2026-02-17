@@ -10,10 +10,10 @@
 
 ## Executive Summary
 
-**Current Librarian**: Claims are supported by evidence with calibrated confidence.
+**Current LiBrainian**: Claims are supported by evidence with calibrated confidence.
 **Formal Methods Integration**: Claims are mechanically verified by SMT solvers.
 
-Instead of probabilistic confidence, Librarian can produce **formal proofs**: machine-checked verification that a claim is proven, refuted with counterexample, or undecidable within the theory. This transforms certain claim categories from "high confidence" to "mathematically certain."
+Instead of probabilistic confidence, LiBrainian can produce **formal proofs**: machine-checked verification that a claim is proven, refuted with counterexample, or undecidable within the theory. This transforms certain claim categories from "high confidence" to "mathematically certain."
 
 **Target**: 80%+ of verifiable claims resolved by SMT within reasonable time bounds.
 
@@ -667,7 +667,7 @@ interface EncodabilityResult {
 
 ```typescript
 /**
- * Bridge between SMT verification and Librarian's proof system.
+ * Bridge between SMT verification and LiBrainian's proof system.
  */
 interface ISMTProofBridge {
   /**
@@ -755,7 +755,7 @@ const SMT_INFERENCE_RULE: InferenceRule = 'smt_verification' as any;
 
 ```gherkin
 Feature: SMT-Based Claim Verification
-  As a Librarian system
+  As a LiBrainian system
   I want to verify claims using SMT solvers
   So that certain claims have mathematical certainty
 

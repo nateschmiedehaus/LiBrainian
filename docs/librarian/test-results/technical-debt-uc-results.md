@@ -2,11 +2,11 @@
 
 **Date:** 2026-01-31
 **Tester:** Claude Agent (Opus 4.5)
-**Target:** Librarian Query System
+**Target:** LiBrainian Query System
 
 ## Executive Summary
 
-The Librarian successfully identifies code related to technical debt management but **does not identify actual debt instances in the codebase**. Instead, it returns functions and modules that are *about* technical debt (debt detection tools, analyzers) rather than *instances of* technical debt (TODOs, complex functions, deprecated code).
+The LiBrainian successfully identifies code related to technical debt management but **does not identify actual debt instances in the codebase**. Instead, it returns functions and modules that are *about* technical debt (debt detection tools, analyzers) rather than *instances of* technical debt (TODOs, complex functions, deprecated code).
 
 **Overall Assessment: PARTIAL SUCCESS** - The tool shows semantic understanding of technical debt concepts but lacks the ability to surface actual debt items during queries.
 
@@ -198,14 +198,14 @@ The codebase has extensive technical debt analysis infrastructure but the query 
 
 ## Root Cause Analysis
 
-### Why Librarian Returns Tools Instead of Instances
+### Why LiBrainian Returns Tools Instead of Instances
 
 1. **Semantic Embedding Bias**: The embedding model associates "technical debt" queries with code that DISCUSSES technical debt, not code that IS technical debt.
 
 2. **Missing Debt Instance Index**: The system appears to index functions/modules but does not maintain a separate index of debt INSTANCES (TODOs, complex functions, deprecated items).
 
 3. **Query Intent Gap**: There is a difference between:
-   - "Show me debt detection tools" (what Librarian answers)
+   - "Show me debt detection tools" (what LiBrainian answers)
    - "Show me actual debt in the codebase" (what users likely want)
 
 4. **No Runtime Analysis**: Identifying actual debt requires:
@@ -243,4 +243,4 @@ The codebase has extensive technical debt analysis infrastructure but the query 
 | Deprecated code | 0.599 | Yes | No | FAIL |
 | Code smells | 0.672 | Yes | No | PARTIAL |
 
-**Overall: The Librarian demonstrates strong semantic understanding of technical debt CONCEPTS but does not surface actual debt INSTANCES, significantly limiting its utility for debt discovery use cases.**
+**Overall: The LiBrainian demonstrates strong semantic understanding of technical debt CONCEPTS but does not surface actual debt INSTANCES, significantly limiting its utility for debt discovery use cases.**

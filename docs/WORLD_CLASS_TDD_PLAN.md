@@ -1,4 +1,4 @@
-# World-Class Librarian: TDD Implementation Plan
+# World-Class LiBrainian: TDD Implementation Plan
 
 ## Executive Summary
 
@@ -21,7 +21,7 @@ This plan implements the **5 highest-impact, best-understood** enhancements iden
 ### 1.1 Test Specification
 
 ```typescript
-// File: src/librarian/__tests__/hybrid_retrieval.test.ts
+// File: src/LiBrainian/__tests__/hybrid_retrieval.test.ts
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createHybridRetriever, HybridRetriever } from '../api/hybrid_retrieval.js';
@@ -220,7 +220,7 @@ describe('Hybrid Retrieval', () => {
 ### 1.2 Implementation Outline
 
 ```typescript
-// File: src/librarian/api/hybrid_retrieval.ts
+// File: src/LiBrainian/api/hybrid_retrieval.ts
 
 export interface HybridRetrieverConfig {
   semantic: { weight: number; provider: EmbeddingProvider };
@@ -277,7 +277,7 @@ export class HybridRetriever {
 ### 2.1 Test Specification
 
 ```typescript
-// File: src/librarian/__tests__/feedback_learning.test.ts
+// File: src/LiBrainian/__tests__/feedback_learning.test.ts
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { FeedbackProcessor, createFeedbackProcessor } from '../api/feedback_processor.js';
@@ -499,7 +499,7 @@ describe('Feedback Learning', () => {
 ### 2.2 Implementation Outline
 
 ```typescript
-// File: src/librarian/api/feedback_processor.ts
+// File: src/LiBrainian/api/feedback_processor.ts
 
 export interface FeedbackSubmission {
   token: string;
@@ -554,7 +554,7 @@ export class FeedbackProcessor {
 ### 3.1 Test Specification
 
 ```typescript
-// File: src/librarian/__tests__/edge_confidence.test.ts
+// File: src/LiBrainian/__tests__/edge_confidence.test.ts
 
 import { describe, it, expect } from 'vitest';
 import { computeEdgeConfidence, EdgeConfidenceFactors } from '../agents/edge_confidence.js';
@@ -760,7 +760,7 @@ describe('Edge Confidence Computation', () => {
 ### 3.2 Implementation Outline
 
 ```typescript
-// File: src/librarian/agents/edge_confidence.ts
+// File: src/LiBrainian/agents/edge_confidence.ts
 
 export interface EdgeConfidenceFactors {
   source: 'ast_verified' | 'ast_inferred' | 'llm_fallback';
@@ -817,7 +817,7 @@ export function computeEdgeConfidence(factors: EdgeConfidenceFactors): number {
 ### 4.1 Test Specification
 
 ```typescript
-// File: src/librarian/__tests__/episodic_memory.test.ts
+// File: src/LiBrainian/__tests__/episodic_memory.test.ts
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EpisodicMemory, createEpisodicMemory } from '../memory/episodic.js';
@@ -995,7 +995,7 @@ describe('Episodic Memory', () => {
 ### 5.1 Test Specification
 
 ```typescript
-// File: src/librarian/__tests__/graph_ranking.test.ts
+// File: src/LiBrainian/__tests__/graph_ranking.test.ts
 
 import { describe, it, expect } from 'vitest';
 import { GraphRanker, createGraphRanker } from '../ranking/graph_ranker.js';
@@ -1138,25 +1138,25 @@ Phase 5: Graph Ranking        [Structural intelligence]
 
 ```bash
 # Phase 1
-npm run test -- src/librarian/__tests__/hybrid_retrieval.test.ts
+npm run test -- src/LiBrainian/__tests__/hybrid_retrieval.test.ts
 
 # Phase 2
-npm run test -- src/librarian/__tests__/feedback_learning.test.ts
+npm run test -- src/LiBrainian/__tests__/feedback_learning.test.ts
 
 # Phase 3
-npm run test -- src/librarian/__tests__/edge_confidence.test.ts
+npm run test -- src/LiBrainian/__tests__/edge_confidence.test.ts
 
 # Phase 4
-npm run test -- src/librarian/__tests__/episodic_memory.test.ts
+npm run test -- src/LiBrainian/__tests__/episodic_memory.test.ts
 
 # Phase 5
-npm run test -- src/librarian/__tests__/graph_ranking.test.ts
+npm run test -- src/LiBrainian/__tests__/graph_ranking.test.ts
 
 # Full suite
-npm run test -- src/librarian/__tests__/*.test.ts
+npm run test -- src/LiBrainian/__tests__/*.test.ts
 
 # Benchmark: Hybrid vs Semantic-only
-npm run test -- src/librarian/__tests__/retrieval_benchmark.test.ts
+npm run test -- src/LiBrainian/__tests__/retrieval_benchmark.test.ts
 ```
 
 ---
@@ -1183,4 +1183,4 @@ Based on research, a world-class knowledge system must have:
 4. **Memory**: Learns from history (Phase 4)
 5. **Structural Awareness**: Uses code graphs (Phase 5)
 
-All top-tier systems in 2025-2026 papers have these properties. Implementing them makes librarian competitive with state-of-the-art.
+All top-tier systems in 2025-2026 papers have these properties. Implementing them makes LiBrainian competitive with state-of-the-art.

@@ -1,4 +1,4 @@
-# Prioritized Implementation Plan for Librarian Query Gaps
+# Prioritized Implementation Plan for LiBrainian Query Gaps
 
 **Generated:** 2026-01-31
 **Scope:** Fixes for gaps identified in testing evaluation
@@ -26,9 +26,9 @@ The `runRationaleStage()` in `src/api/query.ts` is called for WHY queries (lines
 3. The `inferredRationale` fallback only generates generic text without code analysis
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts` - Lines 1823-1861
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/knowledge/extractors/rationale_extractor.ts`
-3. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/ingest/adr_indexer.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts` - Lines 1823-1861
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/knowledge/extractors/rationale_extractor.ts`
+3. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/ingest/adr_indexer.ts`
 
 **Specific Code Changes:**
 
@@ -103,7 +103,7 @@ describe('WHY query rationale construction', () => {
 The `handleArchitectureQuery()` in `src/api/architecture_overview.ts` uses static directory inference rather than semantic understanding of layer relationships.
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/architecture_overview.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/architecture_overview.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -169,9 +169,9 @@ it('should identify architecture layers semantically', async () => {
 3. Storage doesn't distinguish interface vs function entities well
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/symbol_lookup.ts`
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts` - `applyDefinitionBias()`
-3. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/symbol_storage.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/symbol_lookup.ts`
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts` - `applyDefinitionBias()`
+3. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/symbol_storage.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -252,9 +252,9 @@ describe('Type/interface definition queries', () => {
 3. No pattern detection for "recent changes", "modified in last X", "what changed"
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query_intent.ts` (new patterns)
-3. New file: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/git_query_stage.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query_intent.ts` (new patterns)
+3. New file: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/git_query_stage.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -352,8 +352,8 @@ describe('Git/temporal queries', () => {
 When user asks "show me the contents of X.ts", the query goes through semantic search instead of direct file retrieval.
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query_intent.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query_intent.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -429,8 +429,8 @@ it('should return file contents for "show me query.ts"', async () => {
 3. `correlateTestFiles()` doesn't search by class name in test files
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/test_file_correlation.ts`
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/storage/sqlite_storage.ts` (add test mapping method)
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/test_file_correlation.ts`
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/storage/sqlite_storage.ts` (add test mapping method)
 
 **Specific Code Changes:**
 ```typescript
@@ -516,8 +516,8 @@ it('should find tests for "SqliteStorage class"', async () => {
 3. Documentation packs aren't boosted enough in ranking
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts` - Lines 630-728
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/packs.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts` - Lines 630-728
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/packs.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -565,9 +565,9 @@ if (queryClassification.documentBias > 0.8) {
 
 **Test to Verify:**
 ```typescript
-it('should return documentation for "how to use librarian"', async () => {
+it('should return documentation for "how to use LiBrainian"', async () => {
   const response = await queryLibrarian({
-    intent: 'how do I use librarian',
+    intent: 'how do I use LiBrainian',
     depth: 'L1',
   }, storage);
 
@@ -588,8 +588,8 @@ it('should return documentation for "how to use librarian"', async () => {
 How-to queries require LLM synthesis to provide step-by-step guidance, but synthesis is often skipped or returns generic responses.
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query_synthesis.ts`
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query_synthesis.ts`
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -650,7 +650,7 @@ if (isHowToQuery && synthesisEnabled && finalPacks.length > 0) {
 ```typescript
 it('should provide synthesis for "how do I add a new query type"', async () => {
   const response = await queryLibrarian({
-    intent: 'how do I add a new query type to librarian',
+    intent: 'how do I add a new query type to LiBrainian',
     depth: 'L2',
     llmRequirement: 'required',
   }, storage);
@@ -678,7 +678,7 @@ it('should provide synthesis for "how do I add a new query type"', async () => {
 `EXHAUSTIVE_PATTERNS` in `src/api/query_intent.ts` includes `/\bbreaking\s+change/i` which matches queries about breaking changes conceptually, not just exhaustive dependency enumeration.
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query_intent.ts` - Lines 171-188
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query_intent.ts` - Lines 171-188
 
 **Specific Code Changes:**
 ```typescript
@@ -733,8 +733,8 @@ it('should trigger exhaustive for "list all breaking changes"', () => {
 Graph traversal returns individual edges/nodes but doesn't construct the full call sequence/flow.
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/dependency_query.ts`
-2. New file: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/call_flow_builder.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/dependency_query.ts`
+2. New file: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/call_flow_builder.ts`
 
 **Specific Code Changes:**
 ```typescript
@@ -822,8 +822,8 @@ it('should return full call sequence for "call flow of queryLibrarian"', async (
 Confidence calibration doesn't sufficiently penalize ambiguous, short queries like "config".
 
 **Files to Modify:**
-1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/confidence_calibration.ts`
-2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/api/query.ts`
+1. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/confidence_calibration.ts`
+2. `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/api/query.ts`
 
 **Specific Code Changes:**
 ```typescript

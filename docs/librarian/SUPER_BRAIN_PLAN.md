@@ -1,25 +1,25 @@
-# Librarian Super-Brain Plan (World-Class Agent Memory + Epistemics + Process Engine)
+# LiBrainian Super-Brain Plan (World-Class Agent Memory + Epistemics + Process Engine)
 
 Status: in progress (partial implementation)
-Scope: a concrete, evidence-gated roadmap to evolve Librarian into a “super brain” for coding agents under adversarial repo conditions and extreme scale.
+Scope: a concrete, evidence-gated roadmap to evolve LiBrainian into a “super brain” for coding agents under adversarial repo conditions and extreme scale.
 Last Verified: 2026-01-19
 Owner: librarianship
 Evidence: design only (no implementation claims)
 
 ## Positioning (Important)
 
-This document is **not** a replacement for `docs/librarian/WORKPLAN.md`. It is an
+This document is **not** a replacement for `docs/LiBrainian/WORKPLAN.md`. It is an
 extension roadmap for “Phase 6+” capabilities: cross-domain problem solving,
 epistemic rigor as a first-class runtime, and scalable memory/process support
 for agents operating with minimal instruction in messy or massive codebases.
 
 Implementation protocol:
-- `docs/librarian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`
+- `docs/LiBrainian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`
 
 Non-negotiables from canon still apply:
-- Evidence-first knowledge, explicit confidence, explicit defeaters (`docs/librarian/VISION.md`).
+- Evidence-first knowledge, explicit confidence, explicit defeaters (`docs/LiBrainian/VISION.md`).
 - No fake embeddings, no provider bypass; fail closed on provider unavailability.
-- One unified ingest + query pipeline (`docs/librarian/SYSTEM_ARCHITECTURE.md`).
+- One unified ingest + query pipeline (`docs/LiBrainian/SYSTEM_ARCHITECTURE.md`).
 
 ## First Principle: AutoWatch Catch-Up Truth (Read Before Anything Else)
 
@@ -40,12 +40,12 @@ Details and edge cases are in "AutoWatch: Suspected Problems + Failure Modes" be
 - AutoWatch: watch health derivation (heartbeat/event/reindex ages + suspected dead) exposed via API/CLI/MCP.
 - AutoWatch: batch window coalesces changes; storm threshold marks catch-up and records `watch_event_storm`.
 - AutoWatch: CLI watch defaults a model ID when env config is missing; file watcher stop is idempotent to avoid double-stop errors.
-- System contract: added a typed system contract builder and Librarian API surface.
+- System contract: added a typed system contract builder and LiBrainian API surface.
 - System contract: MCP tool now exposes the contract for agent consumption.
-- System contract: CLI command `librarian contract` added for local access.
+- System contract: CLI command `LiBrainian contract` added for local access.
 - Self-diagnosis: added a drift detector (watch health/cursor vs HEAD) for safe self-knowledge.
 - Self-diagnosis: MCP tool now exposes the diagnosis for agent use.
-- Self-diagnosis: CLI command `librarian diagnose` added for local access.
+- Self-diagnosis: CLI command `LiBrainian diagnose` added for local access.
 - VerificationPlan: added a primitive type and creator for proof obligations.
 - VerificationPlan: query responses attach and persist verification plans for follow-up validation.
 - Technique primitives: added typed TechniquePrimitive/Composition builders for method atoms.
@@ -58,16 +58,16 @@ Details and edge cases are in "AutoWatch: Suspected Problems + Failure Modes" be
 - Plan compiler: added storage-backed composition selection that seeds defaults before selection.
 - MCP: selection tool now seeds default compositions before applying intent filters.
 - API: exported plan compiler composition selection helpers for direct client use.
-- API: added Librarian-level composition selection backed by storage seeding.
+- API: added LiBrainian-level composition selection backed by storage seeding.
 - Plan compiler: added composition-to-work template compilation helper (exported via API).
 - Plan compiler: added storage-backed template compilation helper for seeded compositions.
 - MCP: added compile technique composition tool to emit work templates for agentic recipes.
 - Plan compiler: added gap-aware template compilation helpers to surface missing primitives.
 - MCP: compile technique composition now returns missing primitive IDs when applicable.
 - MCP: compile technique composition can include primitive definitions on request.
-- API: added Librarian bundle compilation for composition templates + primitives.
+- API: added LiBrainian bundle compilation for composition templates + primitives.
 - Plan compiler: added intent-to-bundle compilation helper for composition workflows.
-- API: added Librarian intent-to-bundle compilation for composition workflows.
+- API: added LiBrainian intent-to-bundle compilation for composition workflows.
 - MCP: added compile intent bundles tool for end-to-end recipe compilation.
 - MCP: compile intent bundles supports limit for bounded recipes.
 - MCP: compile intent bundles can omit primitive payloads for lightweight responses.
@@ -78,7 +78,7 @@ Details and edge cases are in "AutoWatch: Suspected Problems + Failure Modes" be
 - CLI: compose validates limit inputs via tests.
 - Technique compositions: expanded defaults with security review, UX discovery, and scaling readiness recipes.
 - Plan compiler: added intent selectors for security, UX, and scaling compositions.
-- API: added Librarian method to compile technique compositions with missing primitive gaps.
+- API: added LiBrainian method to compile technique compositions with missing primitive gaps.
 - Plan compiler: added verification plan prototypes for agentic review, root cause, and release readiness.
 - Technique compositions: added dynamic operators and relationships (sequence, gates, loops) for graph-aware plans.
 - Technique operators: expanded with timebox, budgets, throttles, quorum/consensus, circuit breakers, monitor, persist/replay/cache, reduce.
@@ -86,14 +86,14 @@ Details and edge cases are in "AutoWatch: Suspected Problems + Failure Modes" be
 - Plan compiler: operators now compile into deterministic WorkHierarchy nodes with verification-gate checkpoints.
 - Plan compiler: relationships now compile into deterministic dependency edges on work items.
 - Plan compiler: added `selectMethods` alias plus `planWork` compilation to WorkHierarchy + VerificationPlans.
-- API: Librarian now exposes `planWork` for intent-to-WorkHierarchy planning.
+- API: LiBrainian now exposes `planWork` for intent-to-WorkHierarchy planning.
 - Agentic review: compiled plan helper (`scripts/agentic_review_plan.ts`) feeds review reports with WorkHierarchy output.
-- Agentic review: review output root is configurable (`WVO_AGENTIC_REVIEW_OUT_DIR`) and non-TTY defaults fix mode to report.
+- Agentic review: review output root is configurable (`LIBRARIAN_AGENTIC_REVIEW_OUT_DIR`) and non-TTY defaults fix mode to report.
 - Agentic review hooks: hook installer now honors fix-mode/out-dir env and avoids auto-fix by default.
 - Episode memory: added an Episode builder for trajectory records.
 - Episode memory: state storage helpers for recording/listing episodes.
 - Episode memory: queries now record discovery episodes with outcomes.
-- Memory APIs: Librarian exposes verification plan + episode helpers.
+- Memory APIs: LiBrainian exposes verification plan + episode helpers.
 - VerificationPlan: state storage helpers for saving/listing plans.
 - MCP: added list tools for verification plans and episodes with unit tests.
 - Tests: added unit coverage for watch session startup, watch status reporting, git change parsing, git-cursor reconcile, cursor updates, and watch health derivation.
@@ -107,14 +107,14 @@ This plan uses terms like “usable-first bootstrap” and “progressive enrich
 These are **operational scheduling strategies**, not epistemic shortcuts:
 - “Usable-first” means: retrieval and structural truth are available quickly, while
   semantic/enrichment coverage is explicitly incomplete and represented as gaps/defeaters.
-- At no point should Librarian claim semantic understanding without LLM-backed evidence
+- At no point should LiBrainian claim semantic understanding without LLM-backed evidence
   (or explicit `unverified_by_trace(...)` plus a VerificationPlan).
 
 The goal is faster convergence to a truthful, useful state, not degraded claims.
 
 ## North Star
 
-Librarian becomes an agent’s:
+LiBrainian becomes an agent’s:
 - **Perception system** for the codebase (structure, semantics, history, risks).
 - **Epistemic engine** that turns “beliefs” into defeasible, provable claims.
 - **Process compiler** that turns goals/questions into verifiable work structures.
@@ -162,9 +162,9 @@ focused, treat these as tiers:
 - A text DSL. Start with an IR; only add syntax if it reduces friction measurably.
 - Broad “general creativity” expansions beyond what improves real software outcomes.
 
-## Meta-Knowledge Required to Improve Librarian (What Agents Must Know)
+## Meta-Knowledge Required to Improve LiBrainian (What Agents Must Know)
 
-To reliably improve Librarian (or use Librarian to improve any other repo) under
+To reliably improve LiBrainian (or use LiBrainian to improve any other repo) under
 any load/constraint, agents need first-class, queryable knowledge about:
 
 ### K1) The “Reality Contract” (What Is Allowed To Be Claimed)
@@ -204,11 +204,11 @@ any load/constraint, agents need first-class, queryable knowledge about:
 
 ### K8) Self-Knowledge Drift (Critical)
 
-If Librarian’s own index is stale, then “Librarian analyzing Librarian” can
+If LiBrainian’s own index is stale, then “LiBrainian analyzing LiBrainian” can
 produce confident-but-wrong self-advice. Agents need:
 - A way to detect index drift (indexed commit SHA vs workspace HEAD).
 - A policy: “reindex required scope before relying on self-analysis”.
-- A first-class “self-bootstrap” and “self-watch” posture for Librarian itself.
+- A first-class “self-bootstrap” and “self-watch” posture for LiBrainian itself.
 
 ### K9) Library Currency + Coverage
 - Whether method/technique libraries are current vs stale relative to the repo.
@@ -236,14 +236,14 @@ If any prerequisite is missing in reality, the correct response is:
 
 ### C1) Unified Epistemic Substrate (“One Claim Graph”)
 
-Goal: every semantic statement Librarian emits can be represented as:
+Goal: every semantic statement LiBrainian emits can be represented as:
 - a `Claim` with `Evidence`,
 - linked supports/opposes edges,
 - active defeaters and contradictions,
 - and a confidence decomposition.
 
 Current reality hint: the repo already has an explicit epistemics engine
-(`src/librarian/epistemics/*`) and also “claims/defeaters” elsewhere in the
+(`src/LiBrainian/epistemics/*`) and also “claims/defeaters” elsewhere in the
 knowledge layer. The upgrade is **unification**:
 - Knowledge generation outputs `Claim` nodes (not just prose summaries).
 - Pattern detection, method packs, architecture/rationale outputs produce claims.
@@ -271,7 +271,7 @@ Why: this powers:
 - and detection of “theater” (plans that never ran).
 
 Acceptance (future, measurable):
-- Librarian can answer: “Have we solved this class of problem before? With what
+- LiBrainian can answer: “Have we solved this class of problem before? With what
   evidence and what outcomes?”
 - Confidence updates incorporate trajectory outcomes, not only heuristics.
 
@@ -291,14 +291,14 @@ This is not “tips”. It is an executable methodology substrate.
 
 ### C4) Repo Rehabilitation Engine (“Turn Sucked Repo into World-Class”)
 
-Goal: when a repo is messy/unsafe/unmaintainable, Librarian can:
+Goal: when a repo is messy/unsafe/unmaintainable, LiBrainian can:
 - diagnose the state with evidence,
 - propose a staged transformation plan,
 - generate the minimal scaffolding needed to bootstrap quality,
 - and keep that plan grounded in verification gates.
 
 Acceptance (future, measurable):
-- Librarian produces a rehaul plan with explicit invariants, risks, and a
+- LiBrainian produces a rehaul plan with explicit invariants, risks, and a
   checkpointed rollout that passes Tier-0 gates at each stage.
 
 ### C5) Extreme-Scale Operation (10M LOC and Beyond)
@@ -392,9 +392,9 @@ AutoWatch must make silent failure detectable:
 ### AW-2) Instance Coupling Bug (Single Watcher, Multiple Librarians)
 
 The watcher registry is per-process and keyed by `workspaceRoot`. If a process
-creates multiple Librarian instances for the same workspace, `startFileWatcher`
+creates multiple LiBrainian instances for the same workspace, `startFileWatcher`
 returns the existing watcher handle, but the watcher continues to call the
-*original* Librarian instance it captured at construction time.
+*original* LiBrainian instance it captured at construction time.
 
 Failure outcomes:
 - “AutoWatch is enabled” but updates are applied through the wrong instance.
@@ -441,7 +441,7 @@ Mitigation direction:
 
 ### AW-6) “Repo State” Exclusions and Self-Triggering
 
-Directories like `.librarian/**` and runtime artifacts can change frequently and
+Directories like `.LiBrainian/**` and runtime artifacts can change frequently and
 can be meaningless for code understanding. They can also trigger watch loops.
 
 Mitigation direction:
@@ -600,14 +600,14 @@ When an agent suspects AutoWatch is broken, it should collect a minimal,
 reproducible evidence set before making changes:
 
 1) Confirm platform watcher capability (recursive support, file descriptor limits).
-2) Confirm watch exclusions include internal/runtime directories (`.librarian/**`, caches, build outputs).
+2) Confirm watch exclusions include internal/runtime directories (`.LiBrainian/**`, caches, build outputs).
 3) Confirm LLM defaults are resolvable for incremental reindex (provider + model).
 4) Confirm that file events are actually arriving:
    - edit a known-included source file,
    - observe “file_modified” + “indexing_started/complete” events (or equivalent telemetry),
    - confirm index state transitions to `incremental` and remains healthy.
 5) Confirm that the watcher is calling the correct workspace service/instance:
-   - if multiple Librarian instances exist, verify which instance handles events.
+   - if multiple LiBrainian instances exist, verify which instance handles events.
 6) Stress test storm handling:
    - simulate many file changes (or checkout),
    - verify batching/backpressure triggers rather than per-file thrash.
@@ -623,10 +623,10 @@ This is a compact “any agent, any repo, any constraint” posture guide.
 It is intentionally conservative: prefer correctness and explicit uncertainty.
 
 ### Constraint: Providers unavailable / rate limited
-- Librarian should fail closed for semantic operations with `unverified_by_trace(provider_unavailable)`.
+- LiBrainian should fail closed for semantic operations with `unverified_by_trace(provider_unavailable)`.
 - Agents should switch to structural-only actions (build/test/grep/AST-only) **only**
   if the output is explicitly marked non-semantic and does not claim understanding.
-- Librarian should emit a `VerificationPlan` for how to re-run when providers return.
+- LiBrainian should emit a `VerificationPlan` for how to re-run when providers return.
 
 ### Constraint: Repo is huge (multi-million LOC)
 - Bootstrap should target “usable-first” and defer deep enrichment.
@@ -646,11 +646,11 @@ It is intentionally conservative: prefer correctness and explicit uncertainty.
 - Locks, watch state, and indexing must be coordinated at workspace scope.
 - Work plans should minimize cross-file contention (slices + ownership boundaries).
 
-## Evidence Pack: What To Collect Before Improving Librarian (Or Any Repo)
+## Evidence Pack: What To Collect Before Improving LiBrainian (Or Any Repo)
 
-If an agent is about to improve Librarian (or use Librarian to improve a repo),
+If an agent is about to improve LiBrainian (or use LiBrainian to improve a repo),
 the minimum “epistemically responsible” evidence pack includes:
-- Current index provenance (indexed commit SHA, last index time, Librarian version/quality tier).
+- Current index provenance (indexed commit SHA, last index time, LiBrainian version/quality tier).
 - Provider readiness trace (what providers/models are actually usable now).
 - Bootstrap report(s) and whether the run was resumed/partial.
 - A small task corpus (5–20 real questions) used to measure retrieval usefulness.
@@ -777,7 +777,7 @@ Every technique must be compilable into:
 - `WorkPrimitive` structures (tasks/steps/checkpoints),
 - `AcceptanceCriterion` entries,
 - and `VerificationMethod` entries with concrete commands where possible
-(`src/librarian/strategic/work_primitives.ts`).
+(`src/LiBrainian/strategic/work_primitives.ts`).
 
 This is how methods become operational rather than motivational.
 
@@ -1001,13 +1001,13 @@ Operational behavior:
 - Batch changes into “ChangeSets” and reindex in bounded work units.
 - On provider failures: mark staleness defeaters and queue recovery work.
 
-### A6) System Contract + Provenance API (Self-Describing Librarian)
+### A6) System Contract + Provenance API (Self-Describing LiBrainian)
 
 Problem: docs drift and stale indexes mean agents can confidently do the wrong thing.
 
 Add a small “self-describing” API surface that returns machine-readable truth:
 - `get_system_contract()`:
-  - librarian version + quality tier
+  - LiBrainian version + quality tier
   - enforced invariants (provider gating, semantic requirements, fail-closed rules)
   - index provenance (what commit/tree/time was indexed)
   - watch provenance (cursor + last heartbeat/reindex ok)
@@ -1016,7 +1016,7 @@ Add a small “self-describing” API surface that returns machine-readable trut
   - detects degraded watch state (no heartbeat, no events, no catch-up)
   - returns `unverified_by_trace(self_drift_detected)` when unsafe to rely on self-knowledge
 
-## Should Librarian Have Its Own Language (DSL)?
+## Should LiBrainian Have Its Own Language (DSL)?
 
 ### Motivation
 Agents need a compact way to express:
@@ -1028,7 +1028,7 @@ with deterministic compilation to typed requests.
 
 ### Recommendation: Start with an IR, then (maybe) add a DSL
 
-1) Define a **Librarian Intermediate Representation (LIR)**:
+1) Define a **LiBrainian Intermediate Representation (LIR)**:
    - JSON schemas for `Claim`, `VerificationPlan`, `TechniquePrimitive`,
      `WorkHierarchy`, `Episode`.
 2) Add a small **text format** only if it reduces friction measurably.
@@ -1168,7 +1168,7 @@ For any Phase 6+ feature to be considered real:
 ## Codex 5.2 Implementation Protocol (Inline Summary)
 
 This is the short, exact execution protocol for building this plan with TDD.
-It is derived from `docs/librarian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`.
+It is derived from `docs/LiBrainian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`.
 
 ### Step 0: Establish Truth (Evidence Pack)
 - Record HEAD SHA, last indexed SHA/time, provider readiness, and watch status.
@@ -1323,7 +1323,7 @@ and operational behavior.
 6) **Scale sharding policy**: when a monorepo becomes federated shards and how queries merge results.
 
 ## Out of Scope (For This Doc)
-- Detailed schema additions in `docs/librarian/SCHEMAS.md` (should be a follow-up).
+- Detailed schema additions in `docs/LiBrainian/SCHEMAS.md` (should be a follow-up).
 - Full API surface changes and migrations (should be broken into slices).
 - Any “fake” or deterministic embedding fallback (forbidden by canon).
 
@@ -1360,7 +1360,7 @@ Mitigation:
 - Require calibration reports (empirical) before trusting confidence for automation.
 
 ### RISK-5) Prompt/Instruction Injection via Indexed Content
-Problem: malicious repo content can steer the agent or the Librarian.
+Problem: malicious repo content can steer the agent or the LiBrainian.
 Mitigation:
 - Treat repo content as untrusted for synthesis; isolate-then-aggregate.
 - Attach “untrusted content” defeaters where applicable.
@@ -1372,7 +1372,7 @@ Mitigation:
 - Workspace-level coordination primitives (locks) must extend to watchers and queues.
 - Watch becomes a single workspace service with explicit ownership and heartbeats.
 
-### RISK-7) “Librarian Not Up To Date” as a Recurring Failure Source
+### RISK-7) “LiBrainian Not Up To Date” as a Recurring Failure Source
 Problem: stale indexes silently degrade answer quality.
 Mitigation:
 - Index provenance is mandatory: record workspace commit SHA and last indexed time.
@@ -1401,7 +1401,7 @@ Mitigation:
 
 ## Skills + Tools + Structures Agents Likely Need (Beyond Methods)
 
-Librarian already has a typed skills system (`src/librarian/skills/*`) designed
+LiBrainian already has a typed skills system (`src/LiBrainian/skills/*`) designed
 to load portable procedural knowledge from `SKILL.md` directories and validate
 scripts/resources. To reach “super brain” level, skill ecosystems should be:
 

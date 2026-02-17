@@ -3,7 +3,7 @@
 > **Status**: Canonical template
 > **Purpose**: Ensure every new spec is behavior-complete and evidence-gated.
 
-> Use this file as the starting point when adding a new spec under `docs/librarian/specs/**`.
+> Use this file as the starting point when adding a new spec under `docs/LiBrainian/specs/**`.
 
 ---
 
@@ -20,7 +20,7 @@
 ## 1) Behavioral contract (required)
 
 This spec MUST state what happens under real conditions, using:
-- `docs/librarian/specs/core/operational-profiles.md` (R*/W*/D*/S* profiles, E1–E8 edge cases)
+- `docs/LiBrainian/specs/core/operational-profiles.md` (R*/W*/D*/S* profiles, E1–E8 edge cases)
 
 ### 1.0 Agent experience (required)
 
@@ -64,7 +64,7 @@ At minimum, define behavior for relevant edge cases:
 ### 1.4 Performance and resource budgets
 
 Define how it performs under load and how it behaves when budgets are exceeded:
-- Use `docs/librarian/specs/core/performance-budgets.md` as the canonical baseline.
+- Use `docs/LiBrainian/specs/core/performance-budgets.md` as the canonical baseline.
 - Specify what “time to first useful output” means for this spec (W0).
 - Specify what is timeboxed vs fail-closed (required dependencies must remain fail-closed).
 
@@ -103,7 +103,7 @@ Define types and interfaces only after the behavioral contract is explicit.
 
 ### 3.4 Gate tasks / audit artifacts
 
-- What goes into `docs/librarian/GATES.json`?
+- What goes into `docs/LiBrainian/GATES.json`?
 - What audit artifacts are produced (and how to generate them deterministically)?
 
 ---
@@ -133,12 +133,12 @@ Sequence work:
 
 ## 6) Spec system bookkeeping (required)
 
-- Add/update entry in `docs/librarian/specs/BEHAVIOR_INDEX.md`
+- Add/update entry in `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`
 - If `Status` is `executable`, ensure the Behavior Index entry includes at least one runnable `Verification:` hook.
-- If adding new scenario vocabulary, update `docs/librarian/specs/core/operational-profiles.md` (and add verification hooks)
-- If you change statuses (“design” → “executable”), update `docs/librarian/specs/IMPLEMENTATION_STATUS.md` and the relevant gate status/evidence in `docs/librarian/GATES.json`.
+- If adding new scenario vocabulary, update `docs/LiBrainian/specs/core/operational-profiles.md` (and add verification hooks)
+- If you change statuses (“design” → “executable”), update `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md` and the relevant gate status/evidence in `docs/LiBrainian/GATES.json`.
 
 If this spec changes UC coverage:
-- Update `docs/librarian/USE_CASE_MATRIX.md` (UC rows and/or template mapping).
+- Update `docs/LiBrainian/USE_CASE_MATRIX.md` (UC rows and/or template mapping).
 - Ensure the UC catalog integrity test still passes:
-  - `npm --prefix packages/librarian test -- --run src/__tests__/use_case_matrix_validation.test.ts`
+  - `npm --prefix packages/LiBrainian test -- --run src/__tests__/use_case_matrix_validation.test.ts`

@@ -1,6 +1,6 @@
 # Construction Composition Patterns
 
-This document describes the patterns for building "constructions" - higher-level composed primitives that combine librarian capabilities while maintaining epistemic properties.
+This document describes the patterns for building "constructions" - higher-level composed primitives that combine LiBrainian capabilities while maintaining epistemic properties.
 
 ## Table of Contents
 
@@ -288,7 +288,7 @@ Use this template as a starting point for new constructions.
  * - Confidence System for uncertainty quantification
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/LiBrainian.js';
 import type {
   ConfidenceValue,
   MeasuredConfidence,
@@ -336,10 +336,10 @@ export interface MyReport {
 // ============================================================================
 
 export class MyConstruction {
-  private librarian: Librarian;
+  private LiBrainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(LiBrainian: LiBrainian) {
+    this.LiBrainian = LiBrainian;
   }
 
   /**
@@ -349,8 +349,8 @@ export class MyConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Step 1: Query librarian for context
-    const queryResult = await this.librarian.queryOptional({
+    // Step 1: Query LiBrainian for context
+    const queryResult = await this.LiBrainian.queryOptional({
       intent: `Describe what you're looking for: ${input.field1}`,
       depth: 'L2',  // L1 for quick, L2 for thorough, L3 for deep
       taskType: 'understand',  // or 'debug', 'implement', 'review'
@@ -444,8 +444,8 @@ export class MyConstruction {
 // FACTORY
 // ============================================================================
 
-export function createMyConstruction(librarian: Librarian): MyConstruction {
-  return new MyConstruction(librarian);
+export function createMyConstruction(LiBrainian: LiBrainian): MyConstruction {
+  return new MyConstruction(LiBrainian);
 }
 ```
 

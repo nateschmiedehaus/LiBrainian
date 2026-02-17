@@ -11,7 +11,7 @@
 - `unconstructable-processes.md`
 - `paradoxes-edge-cases.md`
 - `src/epistemics/universal_coherence.ts`
-- `docs/librarian/specs/universal-coherence-design.md`
+- `docs/LiBrainian/specs/universal-coherence-design.md`
 
 ---
 
@@ -2298,7 +2298,7 @@ function adjustRecommendationsForConfidence(
 
 ### 6.1 Design Principle: Positively Productive at Any Stage
 
-The Librarian system must help agents correct course regardless of progress:
+The LiBrainian system must help agents correct course regardless of progress:
 - NOT: "You're wrong, start over"
 - YES: "Here's what's salvageable and how to proceed"
 
@@ -3080,7 +3080,7 @@ const REQUIRED_QUALITY_GATES: QualityGate[] = [
 
 ## Part 8: Limitations Acknowledgment
 
-### 8.1 What Librarian CANNOT Do
+### 8.1 What LiBrainian CANNOT Do
 
 #### 8.1.1 Phenomenal Consciousness
 
@@ -3150,7 +3150,7 @@ const REQUIRED_QUALITY_GATES: QualityGate[] = [
 3. **Gödel Incompleteness**: Any sufficiently powerful system has unprovable truths
 4. **Undecidability of First-Order Logic**: Full logical inference is undecidable
 
-These limit ANY formal system, not just Librarian.
+These limit ANY formal system, not just LiBrainian.
 
 ---
 
@@ -3172,7 +3172,7 @@ These limit ANY formal system, not just Librarian.
 
 ### The Verdict
 
-**The Librarian Universal Coherence System achieves qualified universal constructability for its intended purpose: providing epistemic grounding for AI agents working on software development tasks.**
+**The LiBrainian Universal Coherence System achieves qualified universal constructability for its intended purpose: providing epistemic grounding for AI agents working on software development tasks.**
 
 The qualification "qualified" acknowledges philosophical edge cases while affirming practical completeness. An agent using this system can:
 - Ground its understanding in evidence

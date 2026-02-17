@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Fixes: Critical (P1-P15)
+# LiBrainian Fixes: Critical (P1-P15)
 
 > **FOR AGENTS**: Fix instructions for P1-P15 (Critical/High priority). All are marked RESOLVED but code examples remain useful.
 > **Navigation**: [README.md](./README.md) | [system-wiring.md](./system-wiring.md) | [fixes-remaining.md](./fixes-remaining.md)
@@ -15,19 +15,19 @@ Extract useful research into canonical docs; do not extend this file.
 
 | ID | Problem | Severity | Jump Link |
 |----|---------|----------|-----------|
-| P1 | Librarian not initialized at startup | CRITICAL | [#p1-librarian-not-initialized](#p1-librarian-not-initialized-at-startup-critical) |
+| P1 | LiBrainian not initialized at startup | CRITICAL | [#p1-LiBrainian-not-initialized](#p1-LiBrainian-not-initialized-at-startup-critical) |
 | P2 | UnifiedOrchestrator canonical entrypoint | HIGH | [#p2-unifiedorchestrator](#p2-unifiedorchestrator-not-canonical-entrypoint-high) |
 | P3 | `any` sweep | CRITICAL | [#p3-any-sweep](#p3-any-in-codebase-critical) |
 | P4 | Workgraph quality gates | CRITICAL | [#p4-workgraph-quality](#p4-workgraph-quality-gates-critical) |
-| P5 | Context assembly + librarian | CRITICAL | [#p5-context-assembly](#p5-context-assembly-not-using-librarian-critical) |
-| P6 | Workgraph + librarian signals | CRITICAL | [#p6-workgraph-librarian](#p6-workgraph-not-using-librarian-signals-critical) |
+| P5 | Context assembly + LiBrainian | CRITICAL | [#p5-context-assembly](#p5-context-assembly-not-using-LiBrainian-critical) |
+| P6 | Workgraph + LiBrainian signals | CRITICAL | [#p6-workgraph-LiBrainian](#p6-workgraph-not-using-LiBrainian-signals-critical) |
 | P7 | Provider availability | HIGH | [#p7-provider-check](#p7-provider-availability-not-enforced-high) |
 | P8 | Checkpoint/resume | HIGH | [#p8-checkpoint](#p8-checkpointresume-for-long-tasks-high) |
 | P9 | Agent pool | HIGH | [#p9-agent-pool](#p9-agent-pool-implementation-high) |
 | P10 | Sandbox enabled | HIGH | [#p10-sandbox](#p10-sandbox-not-enabled-by-default-high) |
 | P11 | SQLite concurrent access | MEDIUM | [#p11-sqlite](#p11-sqlite-concurrent-access-medium) |
 | P12 | Disabled tests | MEDIUM | [#p12-disabled-tests](#p12-disabled-tests-medium) |
-| P13 | Expertise matching | MEDIUM | [#p13-expertise](#p13-expertise-matching-via-librarian-medium) |
+| P13 | Expertise matching | MEDIUM | [#p13-expertise](#p13-expertise-matching-via-LiBrainian-medium) |
 | P14 | Bootstrap timeout | MEDIUM | [#p14-bootstrap](#p14-bootstrap-timeout-recovery-medium) |
 | P15 | Query API docs | MEDIUM | [#p15-query-api](#p15-query-api-documented-medium) |
 
@@ -37,26 +37,26 @@ Extract useful research into canonical docs; do not extend this file.
 
 ## PART 2: FIX INSTRUCTIONS
 
-### P1: Librarian Not Initialized at Startup (CRITICAL)
+### P1: LiBrainian Not Initialized at Startup (CRITICAL)
 
-**Symptom**: `.librarian/` directory never created. All agents work without semantic knowledge.
+**Symptom**: `.LiBrainian/` directory never created. All agents work without semantic knowledge.
 
-**Root Cause**: `preOrchestrationHook()` exported from librarian but never called.
+**Root Cause**: `preOrchestrationHook()` exported from LiBrainian but never called.
 
 **Fix**:
 
 ```typescript
 // src/orchestrator/unified_orchestrator.ts (canonical implementation)
 
-import { preOrchestrationHook, isLibrarianReady } from '../librarian';
-import { requireProviders } from '../librarian/api/provider_check';
+import { preOrchestrationHook, isLibrarianReady } from '../LiBrainian';
+import { requireProviders } from '../LiBrainian/api/provider_check';
 
 export async function startOrchestrator(config: OrchestratorConfig): Promise<void> {
   // STEP 0: Require providers - HARD FAIL if unavailable
   await requireProviders({ llm: true, embedding: true });
 
-  // STEP 1: Initialize librarian BEFORE any agent work
-  console.log('[orchestrator] Initializing librarian...');
+  // STEP 1: Initialize LiBrainian BEFORE any agent work
+  console.log('[orchestrator] Initializing LiBrainian...');
 
   const librarianResult = await preOrchestrationHook({
     workspaceRoot: config.workspaceRoot,
@@ -66,15 +66,15 @@ export async function startOrchestrator(config: OrchestratorConfig): Promise<voi
 
   // HARD FAIL on any initialization error - no fallback
   if (!librarianResult.success) {
-    throw new Error(`Librarian initialization failed: ${librarianResult.error}`);
+    throw new Error(`LiBrainian initialization failed: ${librarianResult.error}`);
   }
 
-  // STEP 2: Verify librarian is ready
+  // STEP 2: Verify LiBrainian is ready
   if (!isLibrarianReady()) {
-    throw new Error('Librarian not ready after initialization');
+    throw new Error('LiBrainian not ready after initialization');
   }
 
-  console.log('[orchestrator] Librarian ready, starting orchestration loop');
+  console.log('[orchestrator] LiBrainian ready, starting orchestration loop');
 
   // STEP 3: Now start the orchestration loop
   await runOrchestrationLoop(config);
@@ -84,14 +84,14 @@ export async function startOrchestrator(config: OrchestratorConfig): Promise<voi
 **Implementation Notes (actual)**:
 - Wired provider readiness gate + `preOrchestrationHook` in `src/orchestrator/unified_orchestrator.ts` before any agent startup.
 - Added a hard `isLibrarianReady()` check that aborts startup if the gate does not resolve.
-- Deviation: deterministic/Tier-0 mode skips provider + librarian bootstrap to keep CI provider-free.
+- Deviation: deterministic/Tier-0 mode skips provider + LiBrainian bootstrap to keep CI provider-free.
 - User-requested lifecycle cleanup: `postOrchestrationHook` is now called from `UnifiedOrchestrator.stop()` (not part of P2 definition).
 
 **Verification**:
 ```bash
 # After fix, this directory should exist and contain data:
-ls -la .librarian/
-# Target after fixes: librarian.sqlite, embeddings/, etc.
+ls -la .LiBrainian/
+# Target after fixes: LiBrainian.sqlite, embeddings/, etc.
 ```
 
 ---
@@ -143,7 +143,7 @@ grep -r "from.*orchestrator/core" src/ --include="*.ts" | cut -d: -f1 | xargs se
 // src/orchestrator/unified_orchestrator.ts
 
 export class UnifiedOrchestrator {
-  private librarian: Librarian;
+  private LiBrainian: LiBrainian;
   private agentPool: AgentPool;
   private workgraph: WorkGraph;
   private scheduler: Scheduler;
@@ -153,8 +153,8 @@ export class UnifiedOrchestrator {
   }
 
   async run(task: Task): Promise<TaskResult> {
-    // 1. Get context from librarian
-    const context = await this.librarian.assembleContext(task);
+    // 1. Get context from LiBrainian
+    const context = await this.LiBrainian.assembleContext(task);
 
     // 2. Schedule with semantic awareness
     const scheduled = await this.scheduler.schedule(task, context);
@@ -166,7 +166,7 @@ export class UnifiedOrchestrator {
     const result = await agent.execute(scheduled, context);
 
     // 5. Report outcome for learning
-    await this.librarian.reportOutcome(task, result);
+    await this.LiBrainian.reportOutcome(task, result);
 
     return result;
   }
@@ -324,9 +324,9 @@ export const defaultQualityGateConfig: QualityGateConfig = {
 
 ---
 
-### P5: Context Assembly Ignores Librarian (CRITICAL)
+### P5: Context Assembly Ignores LiBrainian (CRITICAL)
 
-**Symptom**: Agents receive empty/incomplete context even when librarian has knowledge.
+**Symptom**: Agents receive empty/incomplete context even when LiBrainian has knowledge.
 
 **Location**: `src/orchestrator/context_assembler.ts`
 
@@ -335,18 +335,18 @@ export const defaultQualityGateConfig: QualityGateConfig = {
 ```typescript
 // src/orchestrator/context_assembler.ts
 
-import { assembleContext as librarianAssemble, QueryInterface } from '../librarian';
+import { assembleContext as librarianAssemble, QueryInterface } from '../LiBrainian';
 
 export async function assembleTaskContext(task: Task): Promise<AgentKnowledgeContext> {
-  // 1. Check librarian readiness - HARD FAIL if not ready
+  // 1. Check LiBrainian readiness - HARD FAIL if not ready
   if (!isLibrarianReady()) {
-    throw new Error('Librarian not ready - cannot assemble context');
+    throw new Error('LiBrainian not ready - cannot assemble context');
   }
 
   // 2. Determine context level from task type
   const level = mapTaskTypeToLevel(task.type);
 
-  // 3. Request context from librarian
+  // 3. Request context from LiBrainian
   const context = await librarianAssemble({
     taskId: task.id,
     taskDescription: task.description,
@@ -387,13 +387,13 @@ function mapTaskTypeToLevel(type: TaskType): ContextLevel {
 ```
 
 **Implementation Notes (actual)**:
-- `ContextAssembler` now hard-fails when librarian is enabled but not ready (deterministic mode auto-disables librarian).
-- `getLibrarianKnowledgeContext()` uses `librarian.assembleContext()` with inferred depth/level and enforces coverage thresholds.
-- Librarian knowledge context is injected into prompt assembly (key files, coverage gaps, low-confidence files).
+- `ContextAssembler` now hard-fails when LiBrainian is enabled but not ready (deterministic mode auto-disables LiBrainian).
+- `getLibrarianKnowledgeContext()` uses `LiBrainian.assembleContext()` with inferred depth/level and enforces coverage thresholds.
+- LiBrainian knowledge context is injected into prompt assembly (key files, coverage gaps, low-confidence files).
 
 ---
 
-### P6: Workgraph Doesn't Use Librarian (CRITICAL)
+### P6: Workgraph Doesn't Use LiBrainian (CRITICAL)
 
 **Symptom**: Tasks scheduled FIFO without semantic awareness.
 
@@ -402,7 +402,7 @@ function mapTaskTypeToLevel(type: TaskType): ContextLevel {
 ```typescript
 // src/workgraph/scheduler.ts
 
-import { getSemanticSimilarity, getFileExpertise } from '../librarian';
+import { getSemanticSimilarity, getFileExpertise } from '../LiBrainian';
 
 export class SemanticScheduler {
   async schedule(tasks: Task[]): Promise<ScheduledTask[]> {
@@ -450,7 +450,7 @@ export class SemanticScheduler {
 
   private async matchExpertise(tasks: ScheduledTask[]): Promise<ScheduledTask[]> {
     for (const task of tasks) {
-      // Get expertise requirements from librarian
+      // Get expertise requirements from LiBrainian
       const expertise = await getFileExpertise(task.targetFiles);
 
       // Annotate task with preferred agent type
@@ -474,7 +474,7 @@ export class SemanticScheduler {
 **Fix**:
 
 ```typescript
-// src/librarian/api/provider_check.ts
+// src/LiBrainian/api/provider_check.ts
 
 interface ProviderStatus {
   available: boolean;
@@ -622,7 +622,7 @@ try {
 
 **Status (Implemented)**:
 - Provider readiness enforced via `requireProviders` in `src/orchestrator/unified_orchestrator.ts`.
-- `src/librarian/api/provider_check.ts` delegates to provider readiness gate with explicit remediation hints.
+- `src/LiBrainian/api/provider_check.ts` delegates to provider readiness gate with explicit remediation hints.
 - Deterministic mode skips provider checks for Tier-0 runs only.
 
 ---
@@ -748,7 +748,7 @@ async function executeTaskWithCheckpoints(task: Task): Promise<TaskResult> {
 
 **Status**: Implemented in `src/orchestrator/agent_pool.ts` with real queueing, capability-aware selection, and CLI execution bridges.
 
-**Notes**: Agent selection now blends `AgentRegistry` capability scores with `ExpertiseMatcher` signals (librarian-aware). Legacy executeWithCodex/Claude paths call real CLI executors with provider hard-stop.
+**Notes**: Agent selection now blends `AgentRegistry` capability scores with `ExpertiseMatcher` signals (LiBrainian-aware). Legacy executeWithCodex/Claude paths call real CLI executors with provider hard-stop.
 
 **Fix**:
 
@@ -910,7 +910,7 @@ const AGENT_CAPABILITIES: Record<AgentType, string[]> = {
 
 ### P10: Sandbox Disabled by Default (HIGH)
 
-**Symptom**: `WVO_EXEC_SANDBOX` defaults to off. Commands can escape containment.
+**Symptom**: `LIBRARIAN_EXEC_SANDBOX` defaults to off. Commands can escape containment.
 
 **Fix**:
 
@@ -918,7 +918,7 @@ const AGENT_CAPABILITIES: Record<AgentType, string[]> = {
 // src/spine/exec_tool.ts
 
 // SANDBOX ON BY DEFAULT - must explicitly disable
-const SANDBOX_ENABLED = process.env.WVO_EXEC_SANDBOX !== '0';
+const SANDBOX_ENABLED = process.env.LIBRARIAN_EXEC_SANDBOX !== '0';
 
 // Allowed paths - STRICT by default
 const DEFAULT_ALLOWED_PATHS = [
@@ -1008,7 +1008,7 @@ function validateCommandPaths(cmd: string, allowed: string[]): PathValidation {
 **Fix**:
 
 ```typescript
-// src/librarian/storage/sqlite_storage.ts
+// src/LiBrainian/storage/sqlite_storage.ts
 
 import Database from 'better-sqlite3';
 import { lockfile } from 'proper-lockfile';
@@ -1175,14 +1175,14 @@ async function reenableTest(test: DisabledTest): Promise<ReenableResult> {
 
 **Status**: Implemented via `src/orchestrator/expertise_matcher.ts` and integrated into `src/orchestrator/agent_pool.ts` selection.
 
-**Notes**: Task expertise is inferred from librarian context packs, task metadata, and file/language signals. Agent profiles update on successful outcomes.
+**Notes**: Task expertise is inferred from LiBrainian context packs, task metadata, and file/language signals. Agent profiles update on successful outcomes.
 
-**Fix** (already covered in P9 agent pool, but add librarian integration):
+**Fix** (already covered in P9 agent pool, but add LiBrainian integration):
 
 ```typescript
 // src/orchestrator/expertise_matcher.ts
 
-import { getFileExpertise, getTopicModel } from '../librarian';
+import { getFileExpertise, getTopicModel } from '../LiBrainian';
 
 interface ExpertiseProfile {
   agent: Agent;
@@ -1196,7 +1196,7 @@ export class ExpertiseMatcher {
   private profiles: Map<string, ExpertiseProfile> = new Map();
 
   async matchTask(task: Task, agents: Agent[]): Promise<Agent> {
-    // 1. Get task's expertise requirements from librarian
+    // 1. Get task's expertise requirements from LiBrainian
     const taskExpertise = await this.analyzeTaskExpertise(task);
 
     // 2. Score each agent
@@ -1278,7 +1278,7 @@ export class ExpertiseMatcher {
 **Fix**:
 
 ```typescript
-// src/librarian/api/bootstrap.ts
+// src/LiBrainian/api/bootstrap.ts
 
 interface BootstrapState {
   phase: 'discover' | 'parse' | 'embed' | 'analyze' | 'store' | 'complete';
@@ -1292,7 +1292,7 @@ interface BootstrapState {
 export async function bootstrapWithRecovery(
   config: BootstrapConfig
 ): Promise<BootstrapResult> {
-  const stateFile = '.librarian/bootstrap_state.json';
+  const stateFile = '.LiBrainian/bootstrap_state.json';
 
   // Try to recover from previous run
   let state: BootstrapState | null = null;
@@ -1360,10 +1360,10 @@ export async function bootstrapWithRecovery(
 **Fix**:
 
 ```typescript
-// src/librarian/api/query.ts
+// src/LiBrainian/api/query.ts
 
 /**
- * Query API for the Wave0 Librarian
+ * Query API for the Wave0 LiBrainian
  *
  * SCORING ALGORITHM (weighted signals):
  * - semantic similarity (0.4)

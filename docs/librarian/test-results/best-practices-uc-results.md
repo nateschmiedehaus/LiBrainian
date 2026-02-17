@@ -1,7 +1,7 @@
 # Best Practices Use Case - Test Results
 
 **Date**: 2026-01-31
-**Purpose**: Evaluate Librarian's ability to identify project conventions and best practices
+**Purpose**: Evaluate LiBrainian's ability to identify project conventions and best practices
 
 ## Executive Summary
 
@@ -13,7 +13,7 @@
 | Testing patterns | Partially | C- |
 | Project structure | No | F |
 
-**Overall Assessment**: **POOR** - Librarian struggles significantly with best practices queries. It fails to surface documentation (AGENTS.md, README, etc.) and instead returns random function contexts unrelated to the actual conventions used in the project.
+**Overall Assessment**: **POOR** - LiBrainian struggles significantly with best practices queries. It fails to surface documentation (AGENTS.md, README, etc.) and instead returns random function contexts unrelated to the actual conventions used in the project.
 
 ---
 
@@ -216,8 +216,8 @@ Returned same generic function contexts as Query 1:
 
 ## Conclusion
 
-Librarian is fundamentally unsuited for "best practices" queries in its current state. The tool excels at finding specific functions or code entities but fails at meta-level questions about conventions, patterns, and project organization.
+LiBrainian is fundamentally unsuited for "best practices" queries in its current state. The tool excels at finding specific functions or code entities but fails at meta-level questions about conventions, patterns, and project organization.
 
 **Critical Gap**: The system has no way to index or retrieve human-written documentation that describes conventions. All knowledge is derived from code structure, not documentation.
 
-**Recommendation**: Before using Librarian for best practices queries, implement documentation indexing and convention pack types. Current workaround: directly read AGENTS.md and README.md files for conventions.
+**Recommendation**: Before using LiBrainian for best practices queries, implement documentation indexing and convention pack types. Current workaround: directly read AGENTS.md and README.md files for conventions.

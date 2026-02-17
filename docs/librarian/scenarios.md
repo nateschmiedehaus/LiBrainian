@@ -1,4 +1,4 @@
-# Librarian Scenarios (Use-Case Catalog)
+# LiBrainian Scenarios (Use-Case Catalog)
 
 Status: partial
 Scope: exhaustive use-case coverage for agentic and human workflows.
@@ -10,7 +10,7 @@ Evidence: docs only (implementation evidence lives in STATUS.md)
 This catalog enumerates the real tasks a knowledge system must solve for any
 codebase. Each scenario binds a question pattern to the knowledge mappings,
 construction methods, and expected outputs.
-Scenario coverage is anchored to `docs/librarian/USE_CASE_MATRIX.md`;
+Scenario coverage is anchored to `docs/LiBrainian/USE_CASE_MATRIX.md`;
 each scenario should map to one or more UC IDs.
 
 ## Scenario Construction Model (Combinatorial Coverage)
@@ -258,4 +258,4 @@ Each response must include:
 - Next actions and tests
 
 ## Relationship to Legacy Scenarios
-Detailed narratives and failure cases are archived in `docs/librarian/legacy/scenarios.md`.
+Detailed narratives and failure cases are archived in `docs/LiBrainian/legacy/scenarios.md`.

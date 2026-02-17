@@ -1,9 +1,9 @@
-# Librarian Control Loop: The Perception Subsystem
+# LiBrainian Control Loop: The Perception Subsystem
 
-> **Librarian = Perception + State Estimation**
+> **LiBrainian = Perception + State Estimation**
 > **Agent = Controller + Actuator**
 
-This document defines the librarian's role in the Wave0 cybernetic control loop.
+This document defines the LiBrainian's role in the Wave0 cybernetic control loop.
 
 ---
 
@@ -16,7 +16,7 @@ This document defines the librarian's role in the Wave0 cybernetic control loop.
                               │
                               ▼ observations (file changes, git events)
 ┌─────────────────────────────────────────────────────────────────┐
-│                     LIBRARIAN (Perception)                      │
+│                     LiBrainian (Perception)                      │
 │                                                                 │
 │  ┌───────────┐    ┌───────────┐    ┌───────────┐              │
 │  │ AST Parse │ →  │ Embedding │ →  │  Graph    │              │
@@ -57,7 +57,7 @@ This document defines the librarian's role in the Wave0 cybernetic control loop.
 
 ## Observable State Variables
 
-The librarian maintains a state estimate with these observable variables:
+The LiBrainian maintains a state estimate with these observable variables:
 
 ### 1. Code Graph Health
 
@@ -100,7 +100,7 @@ The librarian maintains a state estimate with these observable variables:
 
 ## Confidence Decay Model
 
-Confidence in librarian knowledge decays over time and events:
+Confidence in LiBrainian knowledge decays over time and events:
 
 ### Decay Triggers
 
@@ -259,9 +259,9 @@ const DEFAULT_RECOVERY_BUDGET: RecoveryBudget = {
 
 ## Feedback Loop Integration
 
-### Agent → Librarian Feedback
+### Agent → LiBrainian Feedback
 
-The agent provides feedback to improve librarian accuracy:
+The agent provides feedback to improve LiBrainian accuracy:
 
 ```typescript
 interface AgentFeedback {
@@ -304,7 +304,7 @@ async function processAgentFeedback(feedback: AgentFeedback): Promise<void> {
 
 ### Metrics Export
 
-The librarian exports metrics for monitoring:
+The LiBrainian exports metrics for monitoring:
 
 ```typescript
 // Prometheus-style metrics
@@ -376,7 +376,7 @@ Tests are NOT optional. Implementation is NOT complete until all validation gate
 
 ## References
 
-- `docs/librarian/VISION.md` - Control theory model overview
-- `docs/librarian/validation.md` - Validation and testing
-- `docs/librarian/HANDOFF_CLAUDE_OPUS.md` - Librarian testing philosophy
+- `docs/LiBrainian/VISION.md` - Control theory model overview
+- `docs/LiBrainian/validation.md` - Validation and testing
+- `docs/LiBrainian/HANDOFF_CLAUDE_OPUS.md` - LiBrainian testing philosophy
 - `docs/TEST.md` - Testing policy (AUTHORITATIVE)

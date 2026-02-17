@@ -1,9 +1,9 @@
-# Librarian Spec System — Implementation Manual
+# LiBrainian Spec System — Implementation Manual
 
 > **Status**: Canonical (process)
 > **Created**: 2026-01-25
 >
-> **Purpose**: This folder is the executable specification for Librarian’s future behavior. It is written so an implementer (human or agent) can implement the system with strict TDD, without guessing missing requirements.
+> **Purpose**: This folder is the executable specification for LiBrainian’s future behavior. It is written so an implementer (human or agent) can implement the system with strict TDD, without guessing missing requirements.
 
 ---
 
@@ -11,24 +11,26 @@
 
 - Specs must define **behavior under real conditions** (repo shape, workloads, outages, edge cases), not only interfaces and types.
 - Any claim of “implemented / verified / supported” must be backed by a runnable evidence hook (Tier‑0 test, Tier‑1 skip test, Tier‑2 system test, gate task, or an audit artifact generator).
-- If a capability is required and not available, Librarian must **fail closed** with an explicit `unverified_by_trace(...)` reason (no silent degradation).
+- If a capability is required and not available, LiBrainian must **fail closed** with an explicit `unverified_by_trace(...)` reason (no silent degradation).
 
-This manual is the “how to implement these specs” page. The per-spec behavioral contracts are in `docs/librarian/specs/BEHAVIOR_INDEX.md`.
+This manual is the “how to implement these specs” page. The per-spec behavioral contracts are in `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`.
 
 ---
 
 ## Authority & precedence (stop drift)
 
-This folder defines **the intended future behavior** of Librarian and how to implement it without guessing.
+This folder defines **the intended future behavior** of LiBrainian and how to implement it without guessing.
 
 When documents disagree, resolve the conflict explicitly (do not “average” them):
 - **Repo-global precedence** is declared in `config/canon.json` (see `doc_precedence`).
-- **Within Librarian**:
-  - **Current reality**: `docs/librarian/STATUS.md` (what exists and what is verified, with evidence).
-  - **Future behavior spec**: `docs/librarian/specs/**` (this folder) + `docs/librarian/USE_CASE_MATRIX.md` (canonical UC inventory).
-  - **Tie-break inside the spec system**: `docs/librarian/specs/BEHAVIOR_INDEX.md` + runnable verification hooks are authoritative until corrected.
+- **Within LiBrainian**:
+  - **Current reality**: `docs/LiBrainian/STATUS.md` (what exists and what is verified, with evidence).
+  - **Future behavior spec**: `docs/LiBrainian/specs/**` (this folder) + `docs/LiBrainian/USE_CASE_MATRIX.md` (canonical UC inventory).
+  - **Tie-break inside the spec system**: `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` + runnable verification hooks are authoritative until corrected.
 
-Important: avoid absolutist guidance like “Librarian is non-functional without LLM” unless it is scoped to **semantic synthesis/claims**. Librarian may still provide deterministic maps/packs/adequacy disclosures in provider-degraded modes (see dependency profiles in `docs/librarian/specs/core/operational-profiles.md`).
+Important: avoid absolutist guidance like “LiBrainian is non-functional without LLM” unless it is scoped to **higher‑order cognition**. LiBrainian may still provide deterministic maps/packs/adequacy disclosures in provider-degraded modes (see dependency profiles in `docs/LiBrainian/specs/core/operational-profiles.md`).
+
+**Higher‑order cognition (LLM‑required)** means any output that claims understanding, explanation, reasoning, decision support, critique, or synthesis (purpose, mechanism, contract, rationale, consequences). Structural outputs (counts, file locations, dependency lists, AST‑derived facts) are non‑semantic and may run without LLMs **only with explicit disclosure**.
 
 ---
 
@@ -41,15 +43,15 @@ Important: avoid absolutist guidance like “Librarian is non-functional without
 - **No theater**
   - “Green without observation” is forbidden (e.g., returning early instead of a real skip; placeholder confidence; gates that don’t run anything).
 
-## Priority 0: Extract Librarian First (Stop-the-line)
+## Priority 0: Extract LiBrainian First (Stop-the-line)
 
-The spec system is the *future* Librarian: a standalone knowledge tool. To keep reality from drifting away from the spec, **full extraction from Wave0 is the top priority**.
+The spec system is the *future* LiBrainian: a standalone knowledge tool. To keep reality from drifting away from the spec, **full extraction from Wave0 is the top priority**.
 
-Implement “essentials” inside the extracted Librarian package (or as minimal shims that preserve the boundary) rather than entangling Wave0 with Librarian internals.
+Implement “essentials” inside the extracted LiBrainian package (or as minimal shims that preserve the boundary) rather than entangling Wave0 with LiBrainian internals.
 
 Policy and evidence live in:
-- `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md` (Priority 0 section)
-- `docs/librarian/GATES.json` (`layer1.*` extraction gates)
+- `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md` (Priority 0 section)
+- `docs/LiBrainian/GATES.json` (`layer1.*` extraction gates)
 
 Authoritative policy docs (outside this folder):
 - `docs/TEST.md`
@@ -61,14 +63,14 @@ Authoritative policy docs (outside this folder):
 
 ## Reading order (implementation-first)
 
-1. `docs/librarian/specs/BEHAVIOR_INDEX.md`
-2. `docs/librarian/specs/core/operational-profiles.md`
-3. `docs/librarian/specs/core/performance-budgets.md`
-4. `docs/librarian/specs/core/testing-architecture.md`
-5. `docs/librarian/specs/core/work-objects.md`
-6. `docs/librarian/specs/core/knowledge-construction.md`
-7. `docs/librarian/specs/core/construction-templates.md`
-8. `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md` and `docs/librarian/specs/IMPLEMENTATION_FAILURE_RCA.md`
+1. `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`
+2. `docs/LiBrainian/specs/core/operational-profiles.md`
+3. `docs/LiBrainian/specs/core/performance-budgets.md`
+4. `docs/LiBrainian/specs/core/testing-architecture.md`
+5. `docs/LiBrainian/specs/core/work-objects.md`
+6. `docs/LiBrainian/specs/core/knowledge-construction.md`
+7. `docs/LiBrainian/specs/core/construction-templates.md`
+8. `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md` and `docs/LiBrainian/specs/IMPLEMENTATION_FAILURE_RCA.md`
 9. Then the specific track/core spec(s) you’re implementing.
 
 Rule: If a spec doc and the Behavior Index disagree about behavior/status, treat the Behavior Index + runnable evidence as authoritative until corrected.
@@ -81,7 +83,7 @@ This section is the spec-system’s “world‑class target contract”. It is i
 
 ### Definition of done (full build; not MVP)
 
-Librarian is “full build” only when ALL are true:
+LiBrainian is “full build” only when ALL are true:
 - **Output envelope invariant**: every query returns:
   - `packs[]`
   - `adequacy`
@@ -110,8 +112,8 @@ Librarian is “full build” only when ALL are true:
 ### Phase order (full build program; stop-the-line sequencing)
 
 0. **Priority‑0 extraction + boundary lock**
-   - Goal: Librarian is standalone; Wave0 consumes only public package API; no product logic lives on the wrong side of the boundary.
-   - Gates: `docs/librarian/GATES.json` `layer1.*` (especially `layer1.repoExtraction`).
+   - Goal: LiBrainian is standalone; Wave0 consumes only public package API; no product logic lives on the wrong side of the boundary.
+   - Gates: `docs/LiBrainian/GATES.json` `layer1.*` (especially `layer1.repoExtraction`).
 
 1. **Kernel (unskippable base)**
    - capability negotiation (required/optional + degraded-mode disclosure)
@@ -157,123 +159,123 @@ Librarian is “full build” only when ALL are true:
 Each mandate is tied to a canonical spec home and an enforcement mechanism. If enforcement is “planned”, the spec MUST label the capability `design` until the hook exists.
 
 1) **Chief Architect** — freeze the output envelope; everything compiles to templates.
-- Spec homes: `docs/librarian/specs/core/knowledge-construction.md`, `docs/librarian/specs/core/construction-templates.md`
+- Spec homes: `docs/LiBrainian/specs/core/knowledge-construction.md`, `docs/LiBrainian/specs/core/construction-templates.md`
 - Enforcement: planned Tier‑0 “envelope shape” tests + Tier‑2 façade scenario suites.
 
 2) **Spec Systems Engineer** — behavior-first, profile-driven specs; Behavior Index is authoritative.
-- Spec homes: `docs/librarian/specs/BEHAVIOR_INDEX.md`, `docs/librarian/specs/core/operational-profiles.md`
-- Enforcement: `src/librarian/__tests__/librarian_spec_behavior_index.test.ts`
+- Spec homes: `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`, `docs/LiBrainian/specs/core/operational-profiles.md`
+- Enforcement: `src/LiBrainian/__tests__/librarian_spec_behavior_index.test.ts`
 
 3) **TDD Purist** — Tier‑0 first; if you can’t test the invariant deterministically, you haven’t specified it.
-- Spec homes: `docs/librarian/specs/core/testing-architecture.md`
-- Enforcement: tiering guards in `packages/librarian/src/__tests__/test_tiering_guard.test.ts` + Tier‑0 gates in `docs/librarian/GATES.json`.
+- Spec homes: `docs/LiBrainian/specs/core/testing-architecture.md`
+- Enforcement: tiering guards in `packages/LiBrainian/src/__tests__/test_tiering_guard.test.ts` + Tier‑0 gates in `docs/LiBrainian/GATES.json`.
 
 4) **Epistemologist** — no claim without evidence + defeaters; no invented confidence.
-- Spec homes: `docs/librarian/specs/core/confidence-boundary.md`, `docs/librarian/specs/track-d-quantification.md`, `docs/librarian/specs/track-f-epistemology.md`
-- Enforcement: Track‑D unit tests in `packages/librarian/src/epistemics/__tests__/*`
+- Spec homes: `docs/LiBrainian/specs/core/confidence-boundary.md`, `docs/LiBrainian/specs/track-d-quantification.md`, `docs/LiBrainian/specs/track-f-epistemology.md`
+- Enforcement: Track‑D unit tests in `packages/LiBrainian/src/epistemics/__tests__/*`
 
 5) **Provider/Infra Engineer** — one provider gate, CLI auth only, explicit outages.
-- Spec homes: `docs/librarian/specs/core/testing-architecture.md`, `docs/librarian/specs/layer2-infrastructure.md`
-- Enforcement: provider gate tests in `packages/librarian/src/__tests__/provider_gate.test.ts`
+- Spec homes: `docs/LiBrainian/specs/core/testing-architecture.md`, `docs/LiBrainian/specs/layer2-infrastructure.md`
+- Enforcement: provider gate tests in `packages/LiBrainian/src/__tests__/provider_gate.test.ts`
 
 6) **Embeddings Specialist** — embeddings are real or absent; no fake vectors.
-- Spec homes: `docs/librarian/specs/core/testing-architecture.md`, `src/EMBEDDING_RULES.md`, `docs/LIVE_PROVIDERS_PLAYBOOK.md`
+- Spec homes: `docs/LiBrainian/specs/core/testing-architecture.md`, `src/EMBEDDING_RULES.md`, `docs/LIVE_PROVIDERS_PLAYBOOK.md`
 - Enforcement: forbidden pattern checks + provider gate semantics; Tier‑2 suites required for semantic validation.
 
 7) **Reliability Engineer** — degraded modes are first-class; “non-functional” applies to semantic synthesis only.
-- Spec homes: `docs/librarian/specs/core/operational-profiles.md`
+- Spec homes: `docs/LiBrainian/specs/core/operational-profiles.md`
 - Enforcement: deterministic tests for degraded-mode disclosure (planned) + Tier‑2 outage scenario families (planned).
 
 8) **Data Modeler** — stable knowledge objects with IDs + invalidation + freshness.
-- Spec homes: `docs/librarian/specs/core/knowledge-construction.md`
+- Spec homes: `docs/LiBrainian/specs/core/knowledge-construction.md`
 - Enforcement: planned Tier‑0 registry completeness tests.
 
 9) **Storage Engineer** — sqlite default; S1/S2 behavior specified; no silent drops.
-- Spec homes: `docs/librarian/specs/core/evidence-ledger.md`, `docs/librarian/specs/core/operational-profiles.md`
-- Enforcement: storage/ledger tests under `packages/librarian/src/epistemics/__tests__/` (partial today).
+- Spec homes: `docs/LiBrainian/specs/core/evidence-ledger.md`, `docs/LiBrainian/specs/core/operational-profiles.md`
+- Enforcement: storage/ledger tests under `packages/LiBrainian/src/epistemics/__tests__/` (partial today).
 
 10) **Replay/Tracing Engineer** — append-only ledger with correlation IDs; replay detects regressions.
-- Spec homes: `docs/librarian/specs/core/evidence-ledger.md`
+- Spec homes: `docs/LiBrainian/specs/core/evidence-ledger.md`
 - Enforcement: partial tests exist; full replay gate is required before “executable”.
 
 11) **Performance Engineer** — budgets are specs; meeting them requires audit artifacts.
-- Spec homes: `docs/librarian/specs/core/performance-budgets.md`
+- Spec homes: `docs/LiBrainian/specs/core/performance-budgets.md`
 - Enforcement: planned Tier‑2 performance report artifact + gate.
 
 12) **Large-Repo Engineer** — token-budgeted repo maps; no full scan per query (except disclosed W1).
-- Spec homes: `docs/librarian/specs/core/construction-templates.md` (RepoMap), `docs/librarian/specs/core/performance-budgets.md`
+- Spec homes: `docs/LiBrainian/specs/core/construction-templates.md` (RepoMap), `docs/LiBrainian/specs/core/performance-budgets.md`
 - Enforcement: planned Tier‑2 R3/R4 scenario families.
 
 13) **Watch Mode Engineer** — W2 is invariant: incremental, debounced, freshness always surfaced.
-- Spec homes: `docs/librarian/specs/core/performance-budgets.md`, `docs/librarian/specs/core/operational-profiles.md`
+- Spec homes: `docs/LiBrainian/specs/core/performance-budgets.md`, `docs/LiBrainian/specs/core/operational-profiles.md`
 - Enforcement: watch health + incremental tests exist in code; Tier‑2 scenario families required.
 
 14) **Concurrency Engineer** — W3 safe writes; bounded contention; conflict objects.
-- Spec homes: `docs/librarian/specs/core/operational-profiles.md`, `docs/librarian/specs/core/work-objects.md`
+- Spec homes: `docs/LiBrainian/specs/core/operational-profiles.md`, `docs/LiBrainian/specs/core/work-objects.md`
 - Enforcement: contention behavior must be tested deterministically; multi-agent Tier‑2 scenarios required.
 
 15) **Security Engineer** — hostile inputs; injection/poisoning modeled; security failures are disclosures.
-- Spec homes: `docs/librarian/specs/track-g-security.md`
-- Enforcement: security test suites under `packages/librarian/src/security/**`.
+- Spec homes: `docs/LiBrainian/specs/track-g-security.md`
+- Enforcement: security test suites under `packages/LiBrainian/src/security/**`.
 
 16) **Supply Chain Engineer** — provenance-first SBOM/risk; manifest-only fallback disclosed.
-- Spec homes: `docs/librarian/specs/core/construction-templates.md` (SupplyChain)
+- Spec homes: `docs/LiBrainian/specs/core/construction-templates.md` (SupplyChain)
 - Enforcement: planned Tier‑2 scenario families with adapter-missing disclosures.
 
 17) **Compliance Engineer** — never infer compliance; evidence packs only; missing evidence is disclosed.
-- Spec homes: `docs/librarian/specs/core/construction-templates.md` (ComplianceEvidence)
+- Spec homes: `docs/LiBrainian/specs/core/construction-templates.md` (ComplianceEvidence)
 - Enforcement: planned Tier‑2 compliance evidence scenarios.
 
 18) **Product Engineer** — one call unblocks: orientation + edit context + next actions.
-- Spec homes: `docs/librarian/specs/core/knowledge-construction.md`
+- Spec homes: `docs/LiBrainian/specs/core/knowledge-construction.md`
 - Enforcement: Tier‑2 “agent unblocking” scenario families.
 
 19) **UX for Agents Specialist** — packs are budgeted and prioritized; always show what’s missing and what to do next.
-- Spec homes: `docs/librarian/specs/core/performance-budgets.md`, `docs/librarian/specs/core/knowledge-construction.md`
+- Spec homes: `docs/LiBrainian/specs/core/performance-budgets.md`, `docs/LiBrainian/specs/core/knowledge-construction.md`
 - Enforcement: planned pack adequacy audits + scenario suites.
 
 20) **API Designer** — library API and MCP share pipeline + envelope; one registry + drift test.
-- Spec homes: `docs/librarian/specs/layer2-infrastructure.md`
-- Enforcement: MCP tool registry tests under `packages/librarian/src/mcp/__tests__/`.
+- Spec homes: `docs/LiBrainian/specs/layer2-infrastructure.md`
+- Enforcement: MCP tool registry tests under `packages/LiBrainian/src/mcp/__tests__/`.
 
 21) **Tooling Engineer** — tools must be callable via real entrypoint; tests must not bypass.
-- Spec homes: `docs/librarian/specs/IMPLEMENTATION_FAILURE_RCA.md`
+- Spec homes: `docs/LiBrainian/specs/IMPLEMENTATION_FAILURE_RCA.md`
 - Enforcement: tool-entrypoint tests + drift guards (present).
 
 22) **Extraction/Modularity Engineer** — extraction is Priority‑0; lock boundary before features.
-- Spec homes: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`
-- Enforcement: `docs/librarian/GATES.json` `layer1.*` gates.
+- Spec homes: `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`
+- Enforcement: `docs/LiBrainian/GATES.json` `layer1.*` gates.
 
 23) **Refactoring Surgeon** — no refactors while extracting; characterization tests first.
-- Spec homes: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`
+- Spec homes: `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`
 - Enforcement: process discipline enforced via gates and review; add characterization test requirement per moved surface.
 
 24) **Quality Gates Engineer** — no green without observation; gates must carry evidence.
-- Spec homes: `docs/librarian/specs/core/testing-architecture.md`
-- Enforcement: `src/librarian/__tests__/librarian_gate_theater.test.ts`
+- Spec homes: `docs/LiBrainian/specs/core/testing-architecture.md`
+- Enforcement: `src/LiBrainian/__tests__/librarian_gate_theater.test.ts`
 
 25) **Evaluation Scientist** — define “world-class” as scenario outcomes and artifacts; measure, don’t assert.
-- Spec homes: `docs/librarian/specs/core/performance-budgets.md`
+- Spec homes: `docs/LiBrainian/specs/core/performance-budgets.md`
 - Enforcement: planned evaluation artifact gates.
 
 26) **Calibration Engineer** — confidence becomes real only with outcomes; until then absent.
-- Spec homes: `docs/librarian/specs/track-d-quantification.md`, `docs/librarian/specs/track-f-epistemology.md`
+- Spec homes: `docs/LiBrainian/specs/track-d-quantification.md`, `docs/LiBrainian/specs/track-f-epistemology.md`
 - Enforcement: calibration tests + artifact requirements (partial today).
 
 27) **Knowledge Graph Engineer** — maps are provenance-first graphs with defeaters and staleness decay.
-- Spec homes: `docs/librarian/specs/core/knowledge-construction.md`
+- Spec homes: `docs/LiBrainian/specs/core/knowledge-construction.md`
 - Enforcement: planned graph/map correctness suites.
 
 28) **Incident Response Engineer** — runbooks/obs are optional evidence sources; missing produces “create runbook” tasks.
-- Spec homes: `docs/librarian/specs/core/construction-templates.md` (ObservabilityRunbooks)
+- Spec homes: `docs/LiBrainian/specs/core/construction-templates.md` (ObservabilityRunbooks)
 - Enforcement: planned Tier‑2 incident scenario families.
 
 29) **Documentation Engineer** — one canonical home per concept; behavior+usage scenarios required.
-- Spec homes: `docs/librarian/specs/README.md`
-- Enforcement: drift guards + budget guards in `src/librarian/__tests__/librarian_spec_budget_guards.test.ts`.
+- Spec homes: `docs/LiBrainian/specs/README.md`
+- Enforcement: drift guards + budget guards in `src/LiBrainian/__tests__/librarian_spec_budget_guards.test.ts`.
 
 30) **Program Manager** — UC scale maps to templates; ≥30 Tier‑2 scenario families required for “full build”.
-- Spec homes: this section + `docs/librarian/GATES.json`
+- Spec homes: this section + `docs/LiBrainian/GATES.json`
 - Enforcement: planned Tier‑2 scenario family suite gates + artifact paths.
 
 ### 30 historical lenses — how the council forces “world‑best” without theater
@@ -485,10 +487,10 @@ This spec system must not become “endless docs” that drift and can’t be im
 Rules:
 - **One canonical home per concept.** If two docs define the same thing, that’s a spec bug. Pick one canonical file; other docs must link.
 - **Inventories live in one place.** Examples:
-  - Use cases live in `docs/librarian/USE_CASE_MATRIX.md` (do not copy large UC lists into other specs).
-  - Construction template contract + template set live in `docs/librarian/specs/core/construction-templates.md`.
+  - Use cases live in `docs/LiBrainian/USE_CASE_MATRIX.md` (do not copy large UC lists into other specs).
+  - Construction template contract + template set live in `docs/LiBrainian/specs/core/construction-templates.md`.
 - **Prefer extending over adding.** Adding a new spec file is only justified when it *reduces* ambiguity and prevents drift (e.g., by creating a single canonical home).
-- **Template admission is strict.** New construction templates are allowed only if they are broadly reusable (≥3 UCs) or they replace/merge existing templates. Otherwise, add a new map/pack type under an existing template. Canonical policy: `docs/librarian/specs/core/construction-templates.md`.
+- **Template admission is strict.** New construction templates are allowed only if they are broadly reusable (≥3 UCs) or they replace/merge existing templates. Otherwise, add a new map/pack type under an existing template. Canonical policy: `docs/LiBrainian/specs/core/construction-templates.md`.
 - **If you must summarize elsewhere, label it as non-canonical.** Provide a pointer to the canonical source and avoid duplicating tables/mappings.
 
 ---
@@ -499,20 +501,20 @@ Rules:
 - **Tier‑1 (`*.integration.test.ts`)**: may call real providers; must *skip as skipped* if unavailable (no early-return “pass”).
 - **Tier‑2 (`*.system.test.ts`)**: provider-required; must fail honestly if providers unavailable.
 
-This tiering is enforced mechanically (see `docs/librarian/specs/core/testing-architecture.md`).
+This tiering is enforced mechanically (see `docs/LiBrainian/specs/core/testing-architecture.md`).
 
 ---
 
 ## How to implement a spec (step-by-step)
 
-1. Pick a spec file and read its entry in `docs/librarian/specs/BEHAVIOR_INDEX.md`.
+1. Pick a spec file and read its entry in `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`.
 2. Identify the target **operational profiles** (R*/W*/D*/S*) and edge cases (E1–E8) it must cover.
 3. Write Tier‑0 tests for:
    - deterministic contracts (types, parsing, schemas, failure modes)
    - “fail-closed” disclosure paths (`unverified_by_trace(...)`)
    - drift prevention (single entrypoint / single registry) where relevant
 4. Add Tier‑1/Tier‑2 tests only when the behavior requires real providers.
-5. Update gates (if required) in `docs/librarian/GATES.json`:
+5. Update gates (if required) in `docs/LiBrainian/GATES.json`:
    - commands must be runnable
    - statuses must not claim `pass`/`partial`/`skip_when_unavailable` without run metadata
 6. Update documentation status honestly:
@@ -522,14 +524,14 @@ This tiering is enforced mechanically (see `docs/librarian/specs/core/testing-ar
 
 ## Changing/adding spec files (mechanical requirements)
 
-When you add or rename a spec file under `docs/librarian/specs/**`:
-- Start from `docs/librarian/specs/SPEC_TEMPLATE.md` (recommended).
-- Add/update its entry in `docs/librarian/specs/BEHAVIOR_INDEX.md` (required).
-- Use `docs/librarian/specs/core/operational-profiles.md` vocabulary for conditions.
+When you add or rename a spec file under `docs/LiBrainian/specs/**`:
+- Start from `docs/LiBrainian/specs/SPEC_TEMPLATE.md` (recommended).
+- Add/update its entry in `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` (required).
+- Use `docs/LiBrainian/specs/core/operational-profiles.md` vocabulary for conditions.
 - If its `Status:` is `executable`, include at least one runnable verification hook.
 
 Tier‑0 enforcement:
-- `src/librarian/__tests__/librarian_spec_behavior_index.test.ts`
+- `src/LiBrainian/__tests__/librarian_spec_behavior_index.test.ts`
 
 ---
 
@@ -538,31 +540,31 @@ Tier‑0 enforcement:
 Deterministic gate:
 - `npm run test:tier0`
 
-Librarian-only deterministic tests:
-- `npm --prefix packages/librarian test -- --run`
+LiBrainian-only deterministic tests:
+- `npm --prefix packages/LiBrainian test -- --run`
 
 Live-provider gates (Tier‑2) are intentionally separate; see:
-- `docs/librarian/GATES.json`
+- `docs/LiBrainian/GATES.json`
 
 ---
 
 ## Spec system map (where instructions live)
 
-- `docs/librarian/specs/BEHAVIOR_INDEX.md`
+- `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`
   - The behavioral contract index. Every spec file must have an entry here.
-- `docs/librarian/specs/core/operational-profiles.md`
+- `docs/LiBrainian/specs/core/operational-profiles.md`
   - Shared vocabulary for repo profiles (R*), workloads (W*), dependencies/storage (D*/S*), edge cases (E1–E8).
-- `docs/librarian/specs/core/testing-architecture.md`
+- `docs/LiBrainian/specs/core/testing-architecture.md`
   - Tier policy + “no theater” rules.
-- `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`
+- `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`
   - Concrete integration work required for executability (wiring, drift fixes, sequencing).
-- `docs/librarian/specs/IMPLEMENTATION_FAILURE_RCA.md`
+- `docs/LiBrainian/specs/IMPLEMENTATION_FAILURE_RCA.md`
   - Root-causes and mechanical guardrails (tests/gates) that prevent repeat failure.
-- `docs/librarian/specs/IMPLEMENTATION_STATUS.md`
+- `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md`
   - “Verified vs unverified” truth table; do not mark “done” without evidence.
-- `docs/librarian/specs/GLOSSARY.md`
+- `docs/LiBrainian/specs/GLOSSARY.md`
   - Canonical terminology; avoid competing definitions.
-- `docs/librarian/specs/EXTRACTION_INDEX.md` + `docs/librarian/specs/EXTRACTION_GAP_REPORT.md`
+- `docs/LiBrainian/specs/EXTRACTION_INDEX.md` + `docs/LiBrainian/specs/EXTRACTION_GAP_REPORT.md`
   - Accounting for theory→spec extraction gaps (prevents “complete” theater).
 
 ---
@@ -618,7 +620,7 @@ Use the smallest honest hook that would catch regressions:
 - **Tier‑1**: integration with real providers, but skip with `ctx.skip(...)` when unavailable (must show as skipped).
 - **Tier‑2**: end-to-end behavior. No mocks. If providers are missing, fail with `unverified_by_trace(provider_unavailable)`.
 
-If you add or change a gate in `docs/librarian/GATES.json`:
+If you add or change a gate in `docs/LiBrainian/GATES.json`:
 - the command must be runnable
 - statuses `pass|partial|skip_when_unavailable` must include `lastRun` and `evidence`
 - do not add “string count” gates (they’re theater)
@@ -656,8 +658,8 @@ This is the canonical way to turn a “design” spec into verified behavior wit
 Wire one concrete event source into the unified evidence ledger with stable correlation IDs, using Tier‑0-first TDD.
 
 Recommended spec targets:
-- `docs/librarian/specs/core/evidence-ledger.md`
-- `docs/librarian/specs/layer2-infrastructure.md`
+- `docs/LiBrainian/specs/core/evidence-ledger.md`
+- `docs/LiBrainian/specs/layer2-infrastructure.md`
 
 ### Step 0: Define the observable behavior (before coding)
 
@@ -703,14 +705,14 @@ If the behavior is provider-dependent:
 ### Step 4: Add a gate or audit artifact (when it matters)
 
 If the behavior is a “system invariant” (e.g., “ledger correlation IDs exist across subsystems”):
-- Add a gate task in `docs/librarian/GATES.json` pointing to a runnable command.
+- Add a gate task in `docs/LiBrainian/GATES.json` pointing to a runnable command.
 - Do not mark `pass|partial|skip_when_unavailable` without `lastRun` and a human-readable `evidence` string.
 
 ### Step 5: Update spec bookkeeping honestly
 
-- Update `docs/librarian/specs/BEHAVIOR_INDEX.md`:
+- Update `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`:
   - If the spec is `executable`, include `Verification:` that points to the test/gate you added.
-- Update `docs/librarian/specs/IMPLEMENTATION_STATUS.md` (if this moves something from missing → partial → verified).
+- Update `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md` (if this moves something from missing → partial → verified).
 
 ### Step 6: Validate deterministically
 
@@ -723,8 +725,8 @@ If Tier‑0 is green, only then proceed to Tier‑1/Tier‑2 runs (if applicable
 
 ## Worked example (recommended): Adding a new spec file
 
-1. Copy `docs/librarian/specs/SPEC_TEMPLATE.md` to the new spec path.
+1. Copy `docs/LiBrainian/specs/SPEC_TEMPLATE.md` to the new spec path.
 2. Fill in the behavioral contract first (profiles + edge cases + degradation policy).
-3. Add the new file to `docs/librarian/specs/BEHAVIOR_INDEX.md` (required), including `Verification:` if `executable`.
+3. Add the new file to `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` (required), including `Verification:` if `executable`.
 4. Add/adjust Tier‑0 tests and gates so the behavior is not “paper only”.
 5. Validate: `npm run test:tier0`.

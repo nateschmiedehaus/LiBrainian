@@ -1,8 +1,8 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
-# Librarian Fixes: Remaining (P16-P31)
+# LiBrainian Fixes: Remaining (P16-P31)
 
 > **FOR AGENTS**: Fix instructions for P16-P31 (Security, type safety, cleanup). P16 is P0 CRITICAL - fix FIRST.
 > **Navigation**: [README.md](./README.md) | [fixes-critical.md](./fixes-critical.md) | [validation.md](./validation.md)
@@ -18,7 +18,7 @@ Extract useful research into canonical docs; do not extend this file.
 | ID | Problem | Severity | Jump Link |
 |----|---------|----------|-----------|
 | **P16** | Command injection vulnerability | **P0 CRITICAL** | [#p16-command-injection](#p16-command-injection-vulnerability-p0-critical---fix-first) |
-| P17 | Librarian failure hard-stops | CRITICAL | [#p17-librarian-failure](#p17-librarian-failure-hard-stops-critical) |
+| P17 | LiBrainian failure hard-stops | CRITICAL | [#p17-LiBrainian-failure](#p17-LiBrainian-failure-hard-stops-critical) |
 | P18 | Mock orchestrator fallbacks | CRITICAL | [#p18-mock-fallbacks](#p18-mock-orchestrator-fallbacks-removed-critical) |
 | P19 | Safe JSON.parse wrappers | HIGH | [#p19-json-parse](#p19-safe-jsonparse-wrappers-high) |
 | P20 | TODO/FIXME/HACK debt | HIGH | [#p20-todo-debt](#p20-todofixmehack-debt-high) |
@@ -142,20 +142,20 @@ npm run test:tier0 -- --grep "git_sanitizer"
 
 ---
 
-### P17: Librarian Failure Does Not Hard-Stop (CRITICAL)
+### P17: LiBrainian Failure Does Not Hard-Stop (CRITICAL)
 
-**Symptom**: Librarian initialization fails silently, agents proceed without knowledge.
+**Symptom**: LiBrainian initialization fails silently, agents proceed without knowledge.
 
 **Root Cause**: Error handling returns success with "degraded mode" instead of failing.
 
 **Fix**:
 
 ```typescript
-// src/librarian/integration/wave0_integration.ts
+// src/LiBrainian/integration/wave0_integration.ts
 
 export async function preOrchestrationHook(options: PreOrchestrationOptions): Promise<PreOrchestrationResult> {
   // Skip in deterministic mode (Tier-0 tests)
-  if (process.env.WVO_DETERMINISTIC === '1') {
+  if (process.env.LIBRARIAN_DETERMINISTIC === '1') {
     return { success: true, skipped: true, reason: 'deterministic_mode' };
   }
 
@@ -165,20 +165,20 @@ export async function preOrchestrationHook(options: PreOrchestrationOptions): Pr
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    console.error('[FATAL] Librarian initialization failed:', message);
-    console.error('[FATAL] Wave0 cannot operate without librarian.');
+    console.error('[FATAL] LiBrainian initialization failed:', message);
+    console.error('[FATAL] Wave0 cannot operate without LiBrainian.');
 
     // HARD FAIL - no fallback, no emergency mode
-    throw new Error(`Librarian initialization failed: ${message}. Wave0 requires librarian.`);
+    throw new Error(`LiBrainian initialization failed: ${message}. Wave0 requires LiBrainian.`);
   }
 }
 ```
 
-**Principle**: Wave0 without librarian is like a surgeon without eyes. There is no "degraded mode" - the system stops.
+**Principle**: Wave0 without LiBrainian is like a surgeon without eyes. There is no "degraded mode" - the system stops.
 
 **Status (Implemented)**:
 - `preOrchestrationHook` and `ensureLibrarianReady` now hard-fail; emergency mode entry removed.
-- `enrichTaskContext` now throws when librarian is unavailable or query fails (no empty-context fallback).
+- `enrichTaskContext` now throws when LiBrainian is unavailable or query fails (no empty-context fallback).
 - Outcome recording and reindex notifications propagate failures instead of silently skipping.
 
 ---

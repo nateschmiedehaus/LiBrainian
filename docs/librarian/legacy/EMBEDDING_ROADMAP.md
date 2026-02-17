@@ -1,5 +1,5 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md`.
 Extract useful research into canonical docs; do not extend this file.
 
 # Embedding System Roadmap
@@ -144,7 +144,7 @@ Extract useful research into canonical docs; do not extend this file.
 ## Files Created
 
 ```
-src/librarian/api/embedding_providers/
+src/LiBrainian/api/embedding_providers/
 ├── real_embeddings.ts           # Core embedding with multiple models
 ├── enhanced_retrieval.ts        # Query expansion, hybrid scoring
 ├── graph_augmented_similarity.ts # Adversarial detection, graph proximity
@@ -155,7 +155,7 @@ src/librarian/api/embedding_providers/
 ├── llm_purpose_extractor.ts     # Claude/Codex purpose extraction
 └── unified_embedding_pipeline.ts # Complete integrated pipeline
 
-src/librarian/__tests__/
+src/LiBrainian/__tests__/
 ├── embedding_validation.test.ts      # Basic validation
 ├── embedding_validation_real.test.ts # Real codebase validation
 ├── embedding_use_cases.test.ts       # 240+ use case coverage

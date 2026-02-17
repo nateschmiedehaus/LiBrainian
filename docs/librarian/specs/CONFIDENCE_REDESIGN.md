@@ -37,7 +37,7 @@ confidence: { kind: 'labeled_guess', value: 0.7, trackingId: 'tp_artifact_trace_
 
 ### Core Principle: No Arbitrary Numbers
 
-Every **epistemic claim confidence** value in Librarian must be one of:
+Every **epistemic claim confidence** value in LiBrainian must be one of:
 
 | Type | Definition | Example |
 |------|------------|---------|
@@ -51,7 +51,7 @@ Every **epistemic claim confidence** value in Librarian must be one of:
 
 ### Scope Note: Scores vs Claim Confidence
 
-Librarian currently uses many numeric 0–1 values for ranking and heuristics (relevance scores, similarity scores, internal “confidence” fields that are not calibrated). Those should not be presented as calibrated confidence in claims. Track D’s `ConfidenceValue` boundary applies to **claim confidence** first; ranking values should be named `score` / `signalStrength` (or wrapped in explicit score types).
+LiBrainian currently uses many numeric 0–1 values for ranking and heuristics (relevance scores, similarity scores, internal “confidence” fields that are not calibrated). Those should not be presented as calibrated confidence in claims. Track D’s `ConfidenceValue` boundary applies to **claim confidence** first; ranking values should be named `score` / `signalStrength` (or wrapped in explicit score types).
 
 ---
 

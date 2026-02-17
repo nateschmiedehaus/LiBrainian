@@ -1,4 +1,4 @@
-# Librarian Packaging + Onboarding Guide
+# LiBrainian Packaging + Onboarding Guide
 
 Status: partial
 Scope: packaging, injection, and onboarding for any repo or agentic system.
@@ -7,7 +7,7 @@ Owner: librarianship
 Evidence: plan only (implementation evidence lives in STATUS.md)
 
 ## Purpose
-Define how Librarian is packaged, injected, and operated in any repository
+Define how LiBrainian is packaged, injected, and operated in any repository
 with minimal friction and maximum portability.
 
 ## Packaging Principles
@@ -18,8 +18,8 @@ with minimal friction and maximum portability.
 - Documentation quality aligned with top OSS practices.
 
 ## Distribution Model
-- Primary: npm package with CLI entrypoint `librarian`.
-- Secondary: source-embedded module under `src/librarian` for monorepos.
+- Primary: npm package with CLI entrypoint `LiBrainian`.
+- Secondary: source-embedded module under `src/LiBrainian` for monorepos.
 - Optional: standalone binary wrapper for environments without Node tooling.
 
 ## Open-Source Packaging Standard
@@ -37,43 +37,45 @@ with minimal friction and maximum portability.
 - Provider adapters (LLM/embedding backends).
 
 ## Injection Modes
-- Local workspace mode: adds `.librarian/` state and SQLite DB in repo root.
+- Local workspace mode: adds `.LiBrainian/` state and SQLite DB in repo root.
 - External workspace mode: stores state under a specified workspace path.
 - Read-only mode: queries only; no indexing or bootstrap (provider gate still required).
 
 ## Repository Injection Checklist
-1) `npx librarian init` creates `.librarian/` and seeds config.
-2) `librarian check-providers` verifies CLI auth.
-3) `librarian bootstrap --scope .` builds initial knowledge.
-4) `librarian status` confirms readiness and evidence links.
-5) Add `docs/librarian/` as the canonical knowledge docs.
+1) `LiBrainian quickstart` runs auto-heal + bootstrap + baseline (preferred).
+2) `LiBrainian check-providers` verifies CLI auth if quickstart ran degraded.
+3) `LiBrainian status` confirms readiness and evidence links.
+4) Add `docs/LiBrainian/` as the canonical knowledge docs.
 
 ## Required Files and Directories
-- `.librarian/` (state, sqlite, governor config, audit artifacts).
-- `docs/librarian/` (canonical docs for operation and governance).
+- `.LiBrainian/` (state, sqlite, governor config, audit artifacts).
+- `docs/LiBrainian/` (canonical docs for operation and governance).
 - `state/audits/` (audits only; no runtime state elsewhere).
 
 ## Configuration
-- `./.librarian/governor.json` controls budgets and concurrency.
+- `./.LiBrainian/governor.json` controls budgets and concurrency.
 - `LIBRARIAN_LLM_PROVIDER` and `LIBRARIAN_LLM_MODEL` may be set by policy.
 - Daily model selection writes `state/audits/model_selection/`.
 - Configuration is explicit; no hidden defaults or implicit fallbacks.
-- Provide a `librarian config` CLI to print the effective config.
+- Provide a `LiBrainian config` CLI to print the effective config.
 
 ## CLI Surface (Required)
-- `librarian bootstrap --scope <path>`: full index + knowledge generation.
-- `librarian status`: shows readiness, version, stats.
-- `librarian query --intent <text> --depth <L0|L1|L2>`: get context packs.
-- `librarian check-providers`: provider readiness gate.
-- `librarian validate`: run Tier-0 deterministic checks.
-- `librarian coverage --strict`: UC x method x scenario coverage audit.
+- `LiBrainian quickstart`: end-to-end onboarding recovery (fast by default).
+- `LiBrainian bootstrap --scope <path>`: full index + knowledge generation.
+- `LiBrainian status`: shows readiness, version, stats.
+- `LiBrainian query --intent <text> --depth <L0|L1|L2>`: get context packs.
+- `LiBrainian check-providers`: provider readiness gate.
+- `LiBrainian validate`: run Tier-0 deterministic checks.
+- `LiBrainian coverage --strict`: UC x method x scenario coverage audit.
+- `LiBrainian smoke`: external repo smoke harness for agent-style validation.
+- `LiBrainian journey`: agentic journey simulation across real repos.
 
 ## Onboarding Flow (Any Repo)
-1) Verify providers via CLI authentication.
-2) Run daily model selection (policy enforced).
-3) Run `librarian bootstrap` for the repo.
-4) Validate with Tier-0 and Tier-2 gates.
-5) Use `librarian query` via agent workflows.
+1) Run `LiBrainian quickstart` (fast) or `LiBrainian quickstart --mode full` (full).
+2) Verify providers via CLI authentication if degraded.
+3) Validate with Tier-0 and Tier-2 gates.
+4) Run `LiBrainian journey` to simulate agent usage on real repos.
+5) Use `LiBrainian query` via agent workflows.
 
 ## Agentic System Integration
 - Expose ContextPackRequest and ContextPackBundle contracts.
@@ -87,8 +89,8 @@ with minimal friction and maximum portability.
 - Evidence artifacts are explained and easy to inspect.
 
 ## Uninstall and Cleanup
-- Remove `.librarian/` directory.
-- Remove `state/audits/librarian/` if no longer required.
+- Remove `.LiBrainian/` directory.
+- Remove `state/audits/LiBrainian/` if no longer required.
 - No other repo files should be touched by default.
 
 ## Documentation Standards
@@ -116,9 +118,12 @@ Every onboarding run must establish a measurement baseline for future comparison
 
 ```bash
 # Capture baseline during onboarding
-librarian bootstrap --scope . --emit-baseline
+LiBrainian bootstrap --scope . --emit-baseline
 
-# Output: state/audits/librarian/baselines/YYYY-MM-DD-HH-MM.json
+# Or run quickstart (baseline enabled by default)
+LiBrainian quickstart
+
+# Output: state/audits/LiBrainian/baselines/YYYY-MM-DD-HH-MM.json
 ```
 
 ### Baseline Schema
@@ -176,11 +181,11 @@ All onboarding and operation runs must produce these artifacts:
 
 | Artifact | Location | Schema |
 |----------|----------|--------|
-| Bootstrap report | `state/audits/librarian/bootstrap/` | `BootstrapReport.v1` |
+| Bootstrap report | `state/audits/LiBrainian/bootstrap/` | `BootstrapReport.v1` |
 | Model selection | `state/audits/model_selection/` | `ModelSelectionRecord.v1` |
 | Provider checks | `state/audits/providers/` | `ProviderCheckRecord.v1` |
-| Baseline metrics | `state/audits/librarian/baselines/` | `OnboardingBaseline.v1` |
-| Gap report | `state/audits/librarian/gaps/` | `GapReport.v1` |
+| Baseline metrics | `state/audits/LiBrainian/baselines/` | `OnboardingBaseline.v1` |
+| Gap report | `state/audits/LiBrainian/gaps/` | `GapReport.v1` |
 
 ### Conditional Artifacts
 
@@ -205,7 +210,7 @@ All onboarding and operation runs must produce these artifacts:
 
 ```bash
 # Verify artifact completeness
-librarian audit --check-artifacts
+LiBrainian audit --check-artifacts
 
 # Expected output:
 # BootstrapReport.v1: OK (2026-01-08)

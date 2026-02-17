@@ -3,14 +3,14 @@
 ## Research Document
 
 **Date**: 2026-01-30
-**Context**: Librarian code analysis tool prioritization enhancement
+**Context**: LiBrainian code analysis tool prioritization enhancement
 **Status**: Research Complete - Ready for Implementation Planning
 
 ---
 
 ## Executive Summary
 
-Usage-weighted prioritization enables Librarian to understand which code matters most based on actual usage patterns. Code called 1000x/day vs 1x/day has vastly different optimization impact. This document provides a taxonomy of usage signals, recommended algorithms, and integration strategies with Librarian's existing infrastructure.
+Usage-weighted prioritization enables LiBrainian to understand which code matters most based on actual usage patterns. Code called 1000x/day vs 1x/day has vastly different optimization impact. This document provides a taxonomy of usage signals, recommended algorithms, and integration strategies with LiBrainian's existing infrastructure.
 
 ---
 
@@ -18,7 +18,7 @@ Usage-weighted prioritization enables Librarian to understand which code matters
 
 ### 1.1 Static Signals (Always Available)
 
-| Signal | Description | Collection Difficulty | Accuracy | Librarian Status |
+| Signal | Description | Collection Difficulty | Accuracy | LiBrainian Status |
 |--------|-------------|----------------------|----------|------------------|
 | **Import Count** | Number of files importing this module | Easy | Medium | Available via `getGraphEdges` |
 | **Call Graph In-Degree** | Number of functions calling this function | Easy | Medium | Available via graph edges |
@@ -65,7 +65,7 @@ Where:
 - Complexity = cyclomatic complexity or lines of code
 ```
 
-**Librarian Already Has**:
+**LiBrainian Already Has**:
 - `ChangeChurn.changeCount` in `src/knowledge/universal_types.ts`
 - `ChangeChurn.changeFrequency` (changes per month)
 - Complexity tracking via `QualityComplexity`
@@ -84,7 +84,7 @@ Where:
 
 ### 2.3 Integration with Existing Scoring
 
-Librarian's current `SCORE_WEIGHTS` in `src/api/query.ts`:
+LiBrainian's current `SCORE_WEIGHTS` in `src/api/query.ts`:
 
 ```typescript
 const SCORE_WEIGHTS = {
@@ -124,9 +124,9 @@ const SCORE_WEIGHTS = {
 | **Power Law** | `1 / (1 + t)^alpha` | Heavy tail, slow decay | alpha (decay rate) |
 | **Sigmoid** | `1 / (1 + e^(k(t-T)))` | Smooth transition | k (steepness), T (midpoint) |
 
-### 3.2 Recommended: Change-Based Decay (Already in Librarian!)
+### 3.2 Recommended: Change-Based Decay (Already in LiBrainian!)
 
-Librarian already implements a superior approach in `src/knowledge/extractors/evidence_collector.ts`:
+LiBrainian already implements a superior approach in `src/knowledge/extractors/evidence_collector.ts`:
 
 ```typescript
 // DESIGN PRINCIPLE: Confidence decays based on GRAPH CHANGES, not calendar time.
@@ -208,7 +208,7 @@ Flame graphs (Brendan Gregg) prioritize by:
 2. **Depth** = call stack depth (indirect usage)
 3. **Color** = category (CPU, I/O, lock contention)
 
-**Applicable to Librarian**:
+**Applicable to LiBrainian**:
 - Width analog: Import count + call count
 - Depth analog: Distance from entry point
 - Color analog: Entity type (function, module, config)
@@ -220,7 +220,7 @@ Coverage tools (Istanbul, NYC) prioritize by:
 2. **Branch coverage gaps** - Logic paths never exercised
 3. **Function coverage** - Entire functions never called in tests
 
-**Applicable to Librarian**:
+**Applicable to LiBrainian**:
 - Cross-reference call graph with test coverage
 - High PageRank + low coverage = priority debt
 - This is the "risk-weighted coverage" metric
@@ -293,7 +293,7 @@ function computeUsageWeightedPriority(entity: Entity): number {
 
 ---
 
-## 6. Integration with Existing Librarian Infrastructure
+## 6. Integration with Existing LiBrainian Infrastructure
 
 ### 6.1 Existing Components to Leverage
 
@@ -503,7 +503,7 @@ export function computeHotspotScore(
 - Datadog APM (runtime metrics)
 - Istanbul/NYC (coverage)
 
-### Librarian-Specific
+### LiBrainian-Specific
 - `src/graphs/pagerank.ts` - PageRank implementation
 - `src/graphs/temporal_graph.ts` - Cochange analysis
 - `src/knowledge/extractors/evidence_collector.ts` - Change-based decay
@@ -515,7 +515,7 @@ export function computeHotspotScore(
 ## 10. Summary
 
 **Key Findings**:
-1. Librarian already has strong foundations (PageRank, centrality, cochange)
+1. LiBrainian already has strong foundations (PageRank, centrality, cochange)
 2. Hotspot scoring (churn * complexity) is the highest-value addition
 3. Change-based decay is superior to calendar-based decay (already implemented!)
 4. Runtime telemetry is a stretch goal with significant privacy considerations

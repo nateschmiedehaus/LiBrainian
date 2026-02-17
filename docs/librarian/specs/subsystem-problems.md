@@ -363,7 +363,7 @@ interface EpisodeLearningSystem {
 
 ## Epistemology Subsystem
 
-> **Track mapping**: Problems 43–46 are specified in Track F Epistemology. See `docs/librarian/specs/track-f-epistemology.md`.
+> **Track mapping**: Problems 43–46 are specified in Track F Epistemology. See `docs/LiBrainian/specs/track-f-epistemology.md`.
 
 ### Problem 43: The Gettier Problem is Unaddressed
 
@@ -471,7 +471,7 @@ type Defeater = {
 
 ## Dynamics Subsystem
 
-> **Track mapping**: Problems 54–56 are specified in Track J Dynamics. See `docs/librarian/specs/track-j-dynamics.md`.
+> **Track mapping**: Problems 54–56 are specified in Track J Dynamics. See `docs/LiBrainian/specs/track-j-dynamics.md`.
 
 ### Problem 54: No Stability Analysis
 

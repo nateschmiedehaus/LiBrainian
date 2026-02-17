@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The Evidence Ledger is a **unified append-only log** that serves as the foundation for all epistemic operations in Librarian. Every claim, observation, retrieval, and synthesis event is recorded with full provenance, enabling:
+The Evidence Ledger is a **unified append-only log** that serves as the foundation for all epistemic operations in LiBrainian. Every claim, observation, retrieval, and synthesis event is recorded with full provenance, enabling:
 
 - **Auditability**: Complete trace of how any conclusion was reached
 - **Calibration**: Historical data for confidence calibration
@@ -470,7 +470,7 @@ class SqliteEvidenceLedger implements IEvidenceLedger {
 
 ```gherkin
 Feature: Evidence Ledger
-  As a Librarian system
+  As a LiBrainian system
   I want to record all epistemic events
   So that I can audit, calibrate, and improve
 
@@ -545,13 +545,13 @@ function deriveEvidenceConfidence(entry: Omit<EvidenceEntry, 'confidence'>): Con
 
 ## 9. Epistemological Model
 
-This section documents the philosophical foundations of Librarian's epistemic system, which differ fundamentally from classical approaches.
+This section documents the philosophical foundations of LiBrainian's epistemic system, which differ fundamentally from classical approaches.
 
 ### 9.1 Temporal Paraconsistent Epistemology
 
-Librarian implements **temporal paraconsistent epistemology**, NOT classical AGM belief revision. This distinction is critical:
+LiBrainian implements **temporal paraconsistent epistemology**, NOT classical AGM belief revision. This distinction is critical:
 
-| Aspect | AGM Belief Revision | Librarian's Approach |
+| Aspect | AGM Belief Revision | LiBrainian's Approach |
 |--------|---------------------|---------------------|
 | Contradictions | Immediately resolved via contraction | Kept visible indefinitely |
 | Belief sets | Always consistent | Can contain contradictions |
@@ -567,7 +567,7 @@ In real codebases, contradictions are common and often meaningful:
 - Human understanding evolves over time
 - LLM synthesis may produce inconsistent claims
 
-Rather than forcing premature resolution (which loses information), Librarian preserves contradictions and uses them to:
+Rather than forcing premature resolution (which loses information), LiBrainian preserves contradictions and uses them to:
 1. Surface areas needing human attention
 2. Track uncertainty in specific code regions
 3. Improve calibration by observing which claims survive
@@ -599,7 +599,7 @@ interface ContradictionResolution {
 
 ### 9.3 Soft Revision via Confidence Degradation
 
-Instead of binary belief acceptance/rejection, Librarian uses **soft revision** through graduated confidence degradation:
+Instead of binary belief acceptance/rejection, LiBrainian uses **soft revision** through graduated confidence degradation:
 
 **Confidence Propagation Rules** (configurable):
 
@@ -636,7 +636,7 @@ This contrasts with atemporal AGM where beliefs exist in a timeless set.
 
 ### 9.5 Open-World Assumption
 
-Librarian operates under an **open-world assumption**:
+LiBrainian operates under an **open-world assumption**:
 - Absence of a claim does not imply its negation
 - `AbsentConfidence` explicitly represents "we don't know"
 - Queries can return "insufficient evidence" rather than false

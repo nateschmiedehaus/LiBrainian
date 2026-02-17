@@ -1,4 +1,4 @@
-# Librarian Implementation Plan: Fix Wiring + Reduce Redundancy
+# LiBrainian Implementation Plan: Fix Wiring + Reduce Redundancy
 
 Status: active
 Created: 2026-01-15
@@ -8,7 +8,7 @@ Priority: P0 (blocks reliable operation)
 
 ## Executive Summary
 
-The Librarian has **broken wiring** and **redundant code paths**. This plan:
+The LiBrainian has **broken wiring** and **redundant code paths**. This plan:
 
 1. **FIXES the governor context chain** - tokens actually tracked
 2. **WIRES the feedback loop** - existing code becomes functional
@@ -181,7 +181,7 @@ For a 1000-file project with ~500 functions:
 
 1. **Add governor to KnowledgeGeneratorConfig:**
 ```typescript
-// src/librarian/knowledge/generator.ts
+// src/LiBrainian/knowledge/generator.ts
 export interface KnowledgeGeneratorConfig {
   // ... existing fields ...
   governor?: GovernorContext;  // ADD THIS
@@ -190,7 +190,7 @@ export interface KnowledgeGeneratorConfig {
 
 2. **Pass governor from bootstrap to generator:**
 ```typescript
-// src/librarian/api/bootstrap.ts:runKnowledgeGeneration()
+// src/LiBrainian/api/bootstrap.ts:runKnowledgeGeneration()
 const generator = createKnowledgeGenerator({
   storage,
   workspace: phaseConfig.workspace,
@@ -204,7 +204,7 @@ const generator = createKnowledgeGenerator({
 
 3. **Thread governor through generator to extractors:**
 ```typescript
-// src/librarian/knowledge/generator.ts:generateForFunction()
+// src/LiBrainian/knowledge/generator.ts:generateForFunction()
 const semanticsResult = await extractSemanticsWithLLM(semanticsInput, {
   llmProvider: this.config.llmProvider,
   llmModelId: this.config.llmModelId,
@@ -214,7 +214,7 @@ const semanticsResult = await extractSemanticsWithLLM(semanticsInput, {
 
 4. **Add governor to extractor configs:**
 ```typescript
-// src/librarian/knowledge/extractors/semantics.ts
+// src/LiBrainian/knowledge/extractors/semantics.ts
 export interface LLMSemanticsConfig {
   llmProvider: 'claude' | 'codex';
   llmModelId?: string;
@@ -244,7 +244,7 @@ const response = await llmService.chat({
 **Changes Required:**
 
 ```typescript
-// src/librarian/knowledge/extractors/file_extractor.ts:extractFileSemantics()
+// src/LiBrainian/knowledge/extractors/file_extractor.ts:extractFileSemantics()
 import { buildLlmEvidence } from './llm_evidence.js';
 
 // Before LLM call (line ~405):
@@ -279,7 +279,7 @@ Same pattern for `directory_extractor.ts:extractDirectorySemantics()`
 
 1. **Add queryId to synthesis response:**
 ```typescript
-// src/librarian/api/query_synthesis.ts
+// src/LiBrainian/api/query_synthesis.ts
 export interface SynthesisResult {
   // ... existing fields ...
   queryId: string;  // ADD for feedback correlation
@@ -288,7 +288,7 @@ export interface SynthesisResult {
 
 2. **Pass outcome to recordContextPackAccess:**
 ```typescript
-// src/librarian/api/query.ts (line 299)
+// src/LiBrainian/api/query.ts (line 299)
 // BEFORE:
 await storage.recordContextPackAccess(pack.packId);
 // AFTER:
@@ -297,7 +297,7 @@ await storage.recordContextPackAccess(pack.packId);
 
 3. **Create feedback endpoint:**
 ```typescript
-// src/librarian/api/feedback.ts (NEW FILE)
+// src/LiBrainian/api/feedback.ts (NEW FILE)
 import { processAgentFeedback, createTaskOutcomeFeedback } from '../integration/agent_feedback.js';
 
 export async function recordQueryFeedback(
@@ -319,7 +319,7 @@ export async function recordQueryFeedback(
 
 4. **Add CLI command for feedback:**
 ```typescript
-// src/librarian/cli/commands/feedback.ts
+// src/LiBrainian/cli/commands/feedback.ts
 export async function feedbackCommand(args: FeedbackArgs): Promise<void> {
   await recordQueryFeedback(storage, args.queryId, args.packIds, args.outcome);
 }
@@ -345,7 +345,7 @@ export async function feedbackCommand(args: FeedbackArgs): Promise<void> {
 
 **Implementation:**
 ```typescript
-// NEW: src/librarian/knowledge/extractors/unified_extractor.ts
+// NEW: src/LiBrainian/knowledge/extractors/unified_extractor.ts
 // ~250 lines, replaces ~600 lines of redundant LLM logic across 3 files
 
 import { extractSecurity } from './security_extractor.js';
@@ -384,7 +384,7 @@ export async function extractUnifiedKnowledge(
 
 **Update generator.ts:**
 ```typescript
-// src/librarian/knowledge/generator.ts:generateForFunction()
+// src/LiBrainian/knowledge/generator.ts:generateForFunction()
 
 // BEFORE: 3 separate LLM calls
 const semantics = await extractSemanticsWithLLM(...);
@@ -421,7 +421,7 @@ const { semantics, security, rationale, llmEvidence } = await extractUnifiedKnow
 
 1. **Set non-zero defaults:**
 ```typescript
-// src/librarian/api/governors.ts
+// src/LiBrainian/api/governors.ts
 export const DEFAULT_GOVERNOR_CONFIG: GovernorConfig = {
   maxTokensPerFile: 5000,           // Was 0 (unlimited)
   maxTokensPerPhase: 500_000,       // Was 0 (unlimited)
@@ -436,7 +436,7 @@ export const DEFAULT_GOVERNOR_CONFIG: GovernorConfig = {
 
 2. **Check budget before each extraction:**
 ```typescript
-// src/librarian/knowledge/generator.ts:generateForFunction()
+// src/LiBrainian/knowledge/generator.ts:generateForFunction()
 if (this.config.governor) {
   const check = this.config.governor.checkBudget();
   if (!check.allowed) {
@@ -469,7 +469,7 @@ const result: UniversalKnowledge = {
 Instead of a separate file, add batching directly to `unified_extractor.ts`:
 
 ```typescript
-// In src/librarian/knowledge/extractors/unified_extractor.ts
+// In src/LiBrainian/knowledge/extractors/unified_extractor.ts
 
 const BATCH_SIZE = 5;
 
@@ -522,7 +522,7 @@ export async function extractUnifiedBatch(
 Instead of a separate prioritizer file, add to generator.ts:
 
 ```typescript
-// In src/librarian/knowledge/generator.ts
+// In src/LiBrainian/knowledge/generator.ts
 
 function prioritizeEntities(
   entities: CodeEntity[],
@@ -567,7 +567,7 @@ async generateAll(): Promise<GenerationResult> {
 **Goal:** Store evidence for audit/reproducibility
 
 ```sql
--- NEW MIGRATION: src/librarian/storage/migrations/002_llm_evidence.sql
+-- NEW MIGRATION: src/LiBrainian/storage/migrations/002_llm_evidence.sql
 
 ALTER TABLE librarian_universal_knowledge ADD COLUMN llm_evidence TEXT;
 -- JSON: { semantics: {...}, security: {...}, rationale: {...} }
@@ -582,7 +582,7 @@ CREATE INDEX idx_uk_llm_provider ON librarian_universal_knowledge(
 
 **Update storage types:**
 ```typescript
-// src/librarian/storage/types.ts
+// src/LiBrainian/storage/types.ts
 export interface StoredUniversalKnowledge {
   // ... existing fields ...
   llm_evidence?: string;  // JSON serialized LLM evidence by section
@@ -598,7 +598,7 @@ export interface StoredUniversalKnowledge {
 **Goal:** Track query-time LLM consumption
 
 ```typescript
-// src/librarian/api/query.ts
+// src/LiBrainian/api/query.ts
 
 // Pass governor to synthesis
 const synthesis = await synthesizeQueryAnswer(
@@ -611,7 +611,7 @@ const synthesis = await synthesizeQueryAnswer(
   }
 );
 
-// src/librarian/api/query_synthesis.ts:synthesizeQueryAnswer()
+// src/LiBrainian/api/query_synthesis.ts:synthesizeQueryAnswer()
 export async function synthesizeQueryAnswer(
   intent: string,
   packs: ContextPack[],
@@ -637,7 +637,7 @@ export async function synthesizeQueryAnswer(
 **Goal:** Enable resume from mid-phase
 
 ```typescript
-// src/librarian/api/bootstrap.ts
+// src/LiBrainian/api/bootstrap.ts
 
 interface FileCheckpoint {
   processedFiles: Map<string, string>;  // path → checksum
@@ -677,7 +677,7 @@ async function runFileKnowledgeWithCheckpoint(
 **Goal:** Don't preload at bootstrap; load on demand
 
 ```typescript
-// src/librarian/methods/method_pack_service.ts
+// src/LiBrainian/methods/method_pack_service.ts
 
 export class LazyMethodPackService {
   private cache = new Map<string, MethodPack>();
@@ -709,7 +709,7 @@ export class LazyMethodPackService {
 }
 
 // Remove preload from bootstrap
-// src/librarian/api/bootstrap.ts
+// src/LiBrainian/api/bootstrap.ts
 // DELETE: await preloadMethodPacksForBootstrap();
 ```
 
@@ -776,19 +776,19 @@ CREATE INDEX idx_defeaters_active ON librarian_defeaters(active) WHERE active = 
 
 ### 4.1 Required Agent Documentation
 
-Create `src/librarian/AGENTS.md`:
+Create `src/LiBrainian/AGENTS.md`:
 
 ```markdown
-# Librarian Agent Protocol
+# LiBrainian Agent Protocol
 
 ## Overview
-Librarian provides semantic codebase understanding for AI agents. This document
+LiBrainian provides semantic codebase understanding for AI agents. This document
 defines the protocol for efficient, token-aware interaction.
 
 ## Critical: Token Awareness
 
 Bootstrap consumes significant tokens. Before bootstrapping:
-1. Check quota: `librarian status --check-quota`
+1. Check quota: `LiBrainian status --check-quota`
 2. Use fast mode for initial bootstrap: `--mode fast`
 3. Full mode only when quota available: `--mode full`
 
@@ -809,7 +809,7 @@ Bootstrap consumes significant tokens. Before bootstrapping:
 ### Feedback Requirement
 After every query:
 ```bash
-librarian feedback --query-id <id> --outcome success|failure|partial
+LiBrainian feedback --query-id <id> --outcome success|failure|partial
 ```
 
 This enables:
@@ -822,9 +822,9 @@ This enables:
 ```json
 {
   "mcpServers": {
-    "librarian": {
+    "LiBrainian": {
       "command": "npm",
-      "args": ["run", "librarian:mcp"],
+      "args": ["run", "LiBrainian:mcp"],
       "env": {}
     }
   }
@@ -840,9 +840,9 @@ This enables:
 
 ### 4.2 Skills (Create SKILL.md files)
 
-**src/librarian/skills/librarian-bootstrap/SKILL.md**
-**src/librarian/skills/librarian-query/SKILL.md**
-**src/librarian/skills/librarian-feedback/SKILL.md**
+**src/LiBrainian/skills/LiBrainian-bootstrap/SKILL.md**
+**src/LiBrainian/skills/LiBrainian-query/SKILL.md**
+**src/LiBrainian/skills/LiBrainian-feedback/SKILL.md**
 
 (Content as specified in original plan)
 
@@ -892,24 +892,24 @@ This enables:
 ## Appendix A: Complete File Change Summary
 
 ### New Files (~350 lines total)
-- `src/librarian/knowledge/extractors/unified_extractor.ts` (~300 lines) - consolidates 3 LLM paths + batching
-- `src/librarian/api/feedback.ts` (~50 lines) - wires existing feedback code
+- `src/LiBrainian/knowledge/extractors/unified_extractor.ts` (~300 lines) - consolidates 3 LLM paths + batching
+- `src/LiBrainian/api/feedback.ts` (~50 lines) - wires existing feedback code
 
 ### Modified Files (Fix Wiring - ~100 lines added)
-- `src/librarian/knowledge/generator.ts` - Add governor field, priority sorting, use unified extraction (+60 lines)
-- `src/librarian/api/bootstrap.ts` - Pass governor to knowledge generation phase (+10 lines)
-- `src/librarian/api/governors.ts` - Set non-zero budget defaults (+5 lines)
-- `src/librarian/knowledge/extractors/file_extractor.ts` - Add `buildLlmEvidence()` call (+10 lines)
-- `src/librarian/knowledge/extractors/directory_extractor.ts` - Add `buildLlmEvidence()` call (+10 lines)
-- `src/librarian/api/query.ts` - Pass governor to synthesis (+5 lines)
-- `src/librarian/api/query_synthesis.ts` - Accept governor, return queryId (+5 lines)
-- `src/librarian/storage/sqlite_storage.ts` - Persist LLM evidence columns (+20 lines)
+- `src/LiBrainian/knowledge/generator.ts` - Add governor field, priority sorting, use unified extraction (+60 lines)
+- `src/LiBrainian/api/bootstrap.ts` - Pass governor to knowledge generation phase (+10 lines)
+- `src/LiBrainian/api/governors.ts` - Set non-zero budget defaults (+5 lines)
+- `src/LiBrainian/knowledge/extractors/file_extractor.ts` - Add `buildLlmEvidence()` call (+10 lines)
+- `src/LiBrainian/knowledge/extractors/directory_extractor.ts` - Add `buildLlmEvidence()` call (+10 lines)
+- `src/LiBrainian/api/query.ts` - Pass governor to synthesis (+5 lines)
+- `src/LiBrainian/api/query_synthesis.ts` - Accept governor, return queryId (+5 lines)
+- `src/LiBrainian/storage/sqlite_storage.ts` - Persist LLM evidence columns (+20 lines)
 
 ### Modified Files (Consolidation - Lines Removed)
-- `src/librarian/knowledge/extractors/semantics.ts` - Delete `extractSemantics()` (throws), delete `extractSemanticsWithLLM()` body (~-180 lines, keep types/imports)
-- `src/librarian/knowledge/extractors/security_extractor.ts` - Delete `extractSecurityWithLLM()` body (~-200 lines, keep `extractSecurity()` static)
-- `src/librarian/knowledge/extractors/rationale_extractor.ts` - Delete `extractRationale()` (throws), delete `extractRationaleWithLLM()` body (~-250 lines, keep `extractRationaleSignals()`)
-- `src/librarian/knowledge/extractors/index.ts` - Remove LLM function exports (~-10 lines)
+- `src/LiBrainian/knowledge/extractors/semantics.ts` - Delete `extractSemantics()` (throws), delete `extractSemanticsWithLLM()` body (~-180 lines, keep types/imports)
+- `src/LiBrainian/knowledge/extractors/security_extractor.ts` - Delete `extractSecurityWithLLM()` body (~-200 lines, keep `extractSecurity()` static)
+- `src/LiBrainian/knowledge/extractors/rationale_extractor.ts` - Delete `extractRationale()` (throws), delete `extractRationaleWithLLM()` body (~-250 lines, keep `extractRationaleSignals()`)
+- `src/LiBrainian/knowledge/extractors/index.ts` - Remove LLM function exports (~-10 lines)
 
 ### Code Delta Summary
 | Category | Lines Added | Lines Removed | Net |
@@ -921,11 +921,11 @@ This enables:
 | **Total** | **+475** | **-665** | **-190** |
 
 ### What Stays Unchanged
-- `src/librarian/knowledge/extractors/security_extractor.ts:extractSecurity()` (~400 lines) - static CWE analysis
-- `src/librarian/knowledge/extractors/rationale_extractor.ts:extractRationaleSignals()` (~300 lines) - heuristic ADR/commit extraction
-- `src/librarian/knowledge/extractors/quality_extractor.ts` (all) - complexity metrics
-- `src/librarian/knowledge/extractors/testing_extractor.ts` (all) - test coverage
-- `src/librarian/integration/agent_feedback.ts` (all 352 lines) - just gets callers now
+- `src/LiBrainian/knowledge/extractors/security_extractor.ts:extractSecurity()` (~400 lines) - static CWE analysis
+- `src/LiBrainian/knowledge/extractors/rationale_extractor.ts:extractRationaleSignals()` (~300 lines) - heuristic ADR/commit extraction
+- `src/LiBrainian/knowledge/extractors/quality_extractor.ts` (all) - complexity metrics
+- `src/LiBrainian/knowledge/extractors/testing_extractor.ts` (all) - test coverage
+- `src/LiBrainian/integration/agent_feedback.ts` (all 352 lines) - just gets callers now
 - All other extractors (history, identity, relationships, etc.)
 
 ---
@@ -936,7 +936,7 @@ These tests are designed to verify real behavior, not mocks. They must pass befo
 
 ### Test Suite 1: Governor Wiring Verification
 
-**File:** `src/librarian/__tests__/governor_wiring.test.ts`
+**File:** `src/LiBrainian/__tests__/governor_wiring.test.ts`
 
 ```typescript
 describe('Governor Context Propagation', () => {
@@ -1007,7 +1007,7 @@ describe('Governor Context Propagation', () => {
 
 ### Test Suite 2: LLM Evidence Storage
 
-**File:** `src/librarian/__tests__/llm_evidence_storage.test.ts`
+**File:** `src/LiBrainian/__tests__/llm_evidence_storage.test.ts`
 
 ```typescript
 describe('LLM Evidence Persistence', () => {
@@ -1075,7 +1075,7 @@ describe('LLM Evidence Persistence', () => {
 
 ### Test Suite 3: Feedback Loop Integration
 
-**File:** `src/librarian/__tests__/feedback_loop.test.ts`
+**File:** `src/LiBrainian/__tests__/feedback_loop.test.ts`
 
 ```typescript
 describe('Feedback Loop Wiring', () => {
@@ -1141,7 +1141,7 @@ describe('Feedback Loop Wiring', () => {
 
 ### Test Suite 4: Unified Extraction Quality
 
-**File:** `src/librarian/__tests__/unified_extraction.test.ts`
+**File:** `src/LiBrainian/__tests__/unified_extraction.test.ts`
 
 ```typescript
 describe('Unified Extraction', () => {
@@ -1198,7 +1198,7 @@ describe('Unified Extraction', () => {
 
 ### Test Suite 5: Budget Enforcement
 
-**File:** `src/librarian/__tests__/budget_enforcement.test.ts`
+**File:** `src/LiBrainian/__tests__/budget_enforcement.test.ts`
 
 ```typescript
 describe('Budget Enforcement', () => {
@@ -1249,7 +1249,7 @@ describe('Budget Enforcement', () => {
 
 ### Test Suite 6: Priority Ordering
 
-**File:** `src/librarian/__tests__/priority_ordering.test.ts`
+**File:** `src/LiBrainian/__tests__/priority_ordering.test.ts`
 
 ```typescript
 describe('Entity Prioritization', () => {
@@ -1304,7 +1304,7 @@ describe('Entity Prioritization', () => {
 
 ### Test Suite 7: Integration (End-to-End)
 
-**File:** `src/librarian/__tests__/integration_e2e.test.ts`
+**File:** `src/LiBrainian/__tests__/integration_e2e.test.ts`
 
 ```typescript
 describe('End-to-End Integration', () => {
@@ -1391,10 +1391,10 @@ npm test -- --grep "Budget Enforcement"
 **After All Implementation:**
 ```bash
 # Full test suite
-npm run test:librarian
+npm run test:LiBrainian
 
 # Integration tests require live providers
-npm run test:librarian:live
+npm run test:LiBrainian:live
 ```
 
 ---
@@ -1406,19 +1406,19 @@ npm run test:librarian:live
 npm run test -- --grep "governor context"
 
 # Verify LLM evidence
-npm run librarian -- bootstrap --scope librarian --mode fast
-sqlite3 .librarian/librarian.db "SELECT COUNT(*) FROM librarian_files WHERE llm_evidence IS NOT NULL"
+npm run LiBrainian -- bootstrap --scope LiBrainian --mode fast
+sqlite3 .LiBrainian/LiBrainian.db "SELECT COUNT(*) FROM librarian_files WHERE llm_evidence IS NOT NULL"
 
 # Verify feedback loop
-npm run librarian -- query "test query"
-npm run librarian -- feedback --query-id <id> --outcome success
-sqlite3 .librarian/librarian.db "SELECT * FROM librarian_calibration_samples"
+npm run LiBrainian -- query "test query"
+npm run LiBrainian -- feedback --query-id <id> --outcome success
+sqlite3 .LiBrainian/LiBrainian.db "SELECT * FROM librarian_calibration_samples"
 
 # Verify budget enforcement
-LIBRARIAN_MAX_TOKENS=100000 npm run librarian -- bootstrap --mode full
+LIBRARIAN_MAX_TOKENS=100000 npm run LiBrainian -- bootstrap --mode full
 # Should fail with budget_exhausted before completion
 
 # Verify priority ordering
-npm run librarian -- bootstrap --mode full --verbose 2>&1 | grep "priority:"
+npm run LiBrainian -- bootstrap --mode full --verbose 2>&1 | grep "priority:"
 # Should show high-PageRank entities first
 ```

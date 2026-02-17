@@ -637,7 +637,7 @@ However, the implementation has gaps:
 
 These gaps are addressable without architectural changes. The append-only foundation is sound; the confidence propagation and relationship modeling need refinement.
 
-**Verdict**: The Evidence Ledger is a philosophically coherent but epistemically incomplete implementation. With the recommended changes, it can serve as a robust foundation for the Librarian's epistemic operations.
+**Verdict**: The Evidence Ledger is a philosophically coherent but epistemically incomplete implementation. With the recommended changes, it can serve as a robust foundation for the LiBrainian's epistemic operations.
 
 ---
 

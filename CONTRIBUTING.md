@@ -1,6 +1,6 @@
-# Contributing to Librarian
+# Contributing to LiBrainian
 
-First off, thank you for considering contributing to Librarian! It's people like you that make Librarian such a great tool for the developer community.
+First off, thank you for considering contributing to LiBrainian! It's people like you that make LiBrainian such a great tool for the developer community.
 
 ## Table of Contents
 
@@ -34,7 +34,7 @@ There are many ways to contribute:
 
 ### Before You Start
 
-1. Check existing [issues](https://github.com/nateschmiedehaus/librarian/issues) and [PRs](https://github.com/nateschmiedehaus/librarian/pulls)
+1. Check existing [issues](https://github.com/nateschmiedehaus/LiBrainian/issues) and [PRs](https://github.com/nateschmiedehaus/LiBrainian/pulls)
 2. For major changes, open an issue first to discuss
 3. Read our architecture docs in `docs/`
 
@@ -50,8 +50,8 @@ There are many ways to contribute:
 
 ```bash
 # Clone the repository
-git clone https://github.com/nateschmiedehaus/librarian.git
-cd librarian
+git clone https://github.com/nateschmiedehaus/LiBrainian.git
+cd LiBrainian
 
 # Install dependencies
 npm install
@@ -76,7 +76,7 @@ export ANTHROPIC_API_KEY=your-key
 export OPENAI_API_KEY=your-key
 
 # Development
-export DEBUG=librarian:*
+export DEBUG=LiBrainian:*
 ```
 
 ## Making Changes
@@ -304,7 +304,7 @@ Documentation lives in:
 
 ```typescript
 /**
- * Query the librarian for relevant context.
+ * Query the LiBrainian for relevant context.
  *
  * @param options - Query options
  * @param options.intent - What you're trying to accomplish
@@ -313,7 +313,7 @@ Documentation lives in:
  *
  * @example
  * ```typescript
- * const result = await librarian.query({
+ * const result = await LiBrainian.query({
  *   intent: 'Add authentication',
  *   depth: 'L2',
  * });
@@ -330,8 +330,8 @@ export async function query(options: QueryOptions): Promise<QueryResult> {
 ### Getting Help
 
 - **Discord**: [Join our Discord](https://discord.gg/anthropic)
-- **GitHub Discussions**: [Ask questions](https://github.com/nateschmiedehaus/librarian/discussions)
-- **Issues**: [Report bugs](https://github.com/nateschmiedehaus/librarian/issues)
+- **GitHub Discussions**: [Ask questions](https://github.com/nateschmiedehaus/LiBrainian/discussions)
+- **Issues**: [Report bugs](https://github.com/nateschmiedehaus/LiBrainian/issues)
 
 ### Recognition
 
@@ -342,7 +342,7 @@ Contributors are recognized in:
 
 ## Thank You!
 
-Your contributions make Librarian better for everyone. We appreciate your time and effort!
+Your contributions make LiBrainian better for everyone. We appreciate your time and effort!
 
 ---
 

@@ -1,6 +1,6 @@
-# Librarian Spec System Orchestrator Prompt
+# LiBrainian Spec System Orchestrator Prompt
 
-> **Target**: Codex main agent implementing the complete Librarian spec system
+> **Target**: Codex main agent implementing the complete LiBrainian spec system
 > **Architecture**: Main orchestrator + up to 3 concurrent sub-agents
 > **Goal**: Exhaustive implementation until the Full Build Charter is satisfied
 
@@ -8,15 +8,15 @@
 
 ## Your Role
 
-You are the **Main Orchestrator Agent** responsible for implementing the Librarian spec system to world-class completion. You manage up to **3 concurrent sub-agents**, each receiving a fresh, well-engineered prompt with full context for their specific task.
+You are the **Main Orchestrator Agent** responsible for implementing the LiBrainian spec system to world-class completion. You manage up to **3 concurrent sub-agents**, each receiving a fresh, well-engineered prompt with full context for their specific task.
 
 ---
 
 ## Critical Context (Read First)
 
-### The Librarian Story
+### The LiBrainian Story
 
-Librarian is a standalone knowledge tool that helps AI agents *understand* codebases, not just search them. It produces:
+LiBrainian is a standalone knowledge tool that helps AI agents *understand* codebases, not just search them. It produces:
 - **Knowledge objects**: Facts, Maps, Claims, Packs
 - **Evidence-backed answers**: Every claim traces to evidence
 - **Honest uncertainty**: `unverified_by_trace(...)` when evidence is missing
@@ -25,7 +25,7 @@ Librarian is a standalone knowledge tool that helps AI agents *understand* codeb
 ### Repository Structure
 
 ```
-/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/
+/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/
 ├── src/                    # Implementation (the code you modify)
 │   ├── __tests__/          # Tier-0 deterministic tests
 │   ├── api/                # Query, bootstrap, embeddings
@@ -33,7 +33,7 @@ Librarian is a standalone knowledge tool that helps AI agents *understand* codeb
 │   ├── knowledge/          # Extractors, synthesizer
 │   ├── mcp/                # MCP server (7 tools, 6 resources)
 │   └── ...
-├── docs/librarian/         # Spec system (your implementation guide)
+├── docs/LiBrainian/         # Spec system (your implementation guide)
 │   ├── specs/              # Behavioral specs (what to build)
 │   │   ├── README.md       # Implementation manual
 │   │   ├── BEHAVIOR_INDEX.md   # Behavioral contracts
@@ -58,7 +58,7 @@ Librarian is a standalone knowledge tool that helps AI agents *understand* codeb
 
 ## The Full Build Charter (Definition of Done)
 
-Librarian is "done" only when ALL of these are true:
+LiBrainian is "done" only when ALL of these are true:
 
 ### Output Envelope Invariant
 Every query returns: `packs[]`, `adequacy`, `disclosures[]`, `verificationPlan`, `traceId`
@@ -88,7 +88,7 @@ Every query returns: `packs[]`, `adequacy`, `disclosures[]`, `verificationPlan`,
 **Gates**: `layer1.noWave0Imports`, `layer1.noDirectImports`, `layer1.standaloneTests`
 
 Tasks:
-- [ ] Verify no Wave0 imports in Librarian package
+- [ ] Verify no Wave0 imports in LiBrainian package
 - [ ] Verify all tests run standalone
 - [ ] Lock the package boundary before feature work
 
@@ -167,15 +167,15 @@ You are the **orchestrator**. For each task, spawn a **sub-agent** with:
 # Sub-Agent Task: [TASK_NAME]
 
 ## Context
-You are implementing part of the Librarian spec system. Your task is isolated and well-defined.
+You are implementing part of the LiBrainian spec system. Your task is isolated and well-defined.
 
 ## Your Specific Task
 [DETAILED TASK DESCRIPTION]
 
 ## Spec References (Read These First)
 - Primary: [SPEC_FILE_PATH]
-- Behavior contract: See `docs/librarian/specs/BEHAVIOR_INDEX.md` entry for this spec
-- Profiles: `docs/librarian/specs/core/operational-profiles.md`
+- Behavior contract: See `docs/LiBrainian/specs/BEHAVIOR_INDEX.md` entry for this spec
+- Profiles: `docs/LiBrainian/specs/core/operational-profiles.md`
 
 ## Implementation Requirements
 
@@ -183,7 +183,7 @@ You are implementing part of the Librarian spec system. Your task is isolated an
 1. Write Tier-0 test first (deterministic, no providers)
 2. Implement minimal code to pass
 3. Add Tier-1/2 tests only if behavior requires providers
-4. Update gates in `docs/librarian/GATES.json` if applicable
+4. Update gates in `docs/LiBrainian/GATES.json` if applicable
 
 ### 2. Files You Will Modify
 - [SPECIFIC_FILE_PATHS]
@@ -327,6 +327,6 @@ Start with **Phase 0-1** tasks. Your first sub-agent should tackle:
 
 **Task P0-1: Evidence Ledger Wiring - Provider Gate**
 
-Read `docs/librarian/specs/core/evidence-ledger.md` and wire provider gate events to the unified ledger with stable correlation IDs.
+Read `docs/LiBrainian/specs/core/evidence-ledger.md` and wire provider gate events to the unified ledger with stable correlation IDs.
 
 Good luck. Build something world-class.

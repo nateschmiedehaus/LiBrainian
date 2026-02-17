@@ -1,7 +1,7 @@
-# Librarian Quality Evaluation & Constructions Plan
+# LiBrainian Quality Evaluation & Constructions Plan
 
 > **Mode**: ORCHESTRATOR with WORKER SUBAGENTS
-> **Goal**: Objectively evaluate Librarian's quality for 30 common agent tasks + build/test constructions
+> **Goal**: Objectively evaluate LiBrainian's quality for 30 common agent tasks + build/test constructions
 > **Pattern**: Following CODEX_ORCHESTRATOR.md methodology
 
 ---
@@ -10,8 +10,8 @@
 
 This plan orchestrates three parallel workstreams:
 
-1. **Stream A**: Quality Analysis of Bootstrap & Librarian (30 agent tasks)
-2. **Stream B**: Build Helpful Constructions using Librarian Primitives
+1. **Stream A**: Quality Analysis of Bootstrap & LiBrainian (30 agent tasks)
+2. **Stream B**: Build Helpful Constructions using LiBrainian Primitives
 3. **Stream C**: Test Constructions on Real Project
 
 All evaluated **objectively** using machine-verifiable metrics.
@@ -127,7 +127,7 @@ interface TaskEvaluation {
 
 ## STREAM B: BUILD CONSTRUCTIONS
 
-### B.1 Librarian Primitives Available
+### B.1 LiBrainian Primitives Available
 
 From codebase exploration, these primitives are composable:
 
@@ -235,7 +235,7 @@ SecurityAuditHelper = compose(
 
 **Candidate repos from eval-corpus** (if available) or clone:
 1. A medium-sized open source TypeScript project
-2. The librarian codebase itself (dog-fooding)
+2. The LiBrainian codebase itself (dog-fooding)
 
 ### C.2 Test Protocol
 
@@ -271,7 +271,7 @@ FOR each construction:
 | WU ID | Name | Stream | Dependencies | Est. |
 |-------|------|--------|--------------|------|
 | WU-E001 | Verify all tests pass | Setup | None | 1 |
-| WU-E002 | Bootstrap librarian on target project | Setup | WU-E001 | 2 |
+| WU-E002 | Bootstrap LiBrainian on target project | Setup | WU-E001 | 2 |
 | WU-E003 | Generate ground truth from AST | Setup | WU-E002 | 2 |
 
 ### Phase 2: Quality Analysis - Navigation (WU-E101 to WU-E106)

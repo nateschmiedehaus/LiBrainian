@@ -19,7 +19,7 @@ We examine this problem through five lenses:
 4. **Domain Stratification** - the proper hierarchy of constraints
 5. **AI Agent Applications** - practical implications for autonomous agents
 
-**Key Finding**: Pure foundationalism (basic beliefs justify derived beliefs) and pure coherentism (beliefs justify each other holistically) are both inadequate for multi-level systems. Susan Haack's **foundherentism**, combined with Paul Thagard's **constraint satisfaction** approach to coherence, provides a tractable framework for epistemological coherence across abstraction levels. This has direct application to how Librarian should structure project knowledge and how AI agents should reason about their tasks.
+**Key Finding**: Pure foundationalism (basic beliefs justify derived beliefs) and pure coherentism (beliefs justify each other holistically) are both inadequate for multi-level systems. Susan Haack's **foundherentism**, combined with Paul Thagard's **constraint satisfaction** approach to coherence, provides a tractable framework for epistemological coherence across abstraction levels. This has direct application to how LiBrainian should structure project knowledge and how AI agents should reason about their tasks.
 
 ---
 
@@ -31,7 +31,7 @@ We examine this problem through five lenses:
 4. [Holistic Coherence](#4-holistic-coherence)
 5. [Domain Stratification](#5-domain-stratification)
 6. [AI Agent Applications](#6-ai-agent-applications)
-7. [Implications for Librarian](#7-implications-for-librarian)
+7. [Implications for LiBrainian](#7-implications-for-LiBrainian)
 8. [Implementation Recommendations](#8-implementation-recommendations)
 9. [References](#9-references)
 
@@ -697,11 +697,11 @@ Document any deviations with justification chains
 
 ---
 
-## 7. Implications for Librarian
+## 7. Implications for LiBrainian
 
-### 7.1 Current Librarian Coherence Mechanisms
+### 7.1 Current LiBrainian Coherence Mechanisms
 
-**From COHERENCE_ANALYSIS.md**, Librarian already tracks seven dimensions of coherence:
+**From COHERENCE_ANALYSIS.md**, LiBrainian already tracks seven dimensions of coherence:
 
 | Dimension | Definition | Current Score |
 |-----------|------------|---------------|
@@ -713,7 +713,7 @@ Document any deviations with justification chains
 | **Temporal** | Priority ordering is implementable | 8/10 |
 | **Goal** | All parts aim at same goal | 9/10 |
 
-**The Librarian Story** (from COHERENCE_ANALYSIS.md):
+**The LiBrainian Story** (from COHERENCE_ANALYSIS.md):
 
 > The narrative progression: Problem → Foundation → Pipeline → Bootstrap → Honesty → Universality → Completion
 
@@ -723,7 +723,7 @@ This is an implicit justification chain structure.
 
 **Gap 1: Philosophy Not Explicitly Modeled**
 
-Librarian has principles (in VISION.md) but no formal model of:
+LiBrainian has principles (in VISION.md) but no formal model of:
 - What beliefs are at the "philosophy" level
 - How they constrain lower levels
 - When they can be revised
@@ -906,7 +906,7 @@ interface CoherentEvidenceGraph extends EvidenceGraph {
 
 ```typescript
 // Before executing task
-function prepareTask(task: AgentTask, library: Librarian): TaskContext {
+function prepareTask(task: AgentTask, library: LiBrainian): TaskContext {
   // Retrieve relevant philosophy
   const philosophy = library.getRelevantPhilosophy(task.domain);
 

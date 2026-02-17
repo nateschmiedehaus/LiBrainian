@@ -1,6 +1,6 @@
 # Spec Coherence Analysis
 
-> **Purpose**: Critical review of spec documentation across ALL dimensions of coherence to ensure the doc set enables efficient implementation toward Librarian's unified vision.
+> **Purpose**: Critical review of spec documentation across ALL dimensions of coherence to ensure the doc set enables efficient implementation toward LiBrainian's unified vision.
 > **Created**: 2026-01-22
 > **Status**: Coherence significantly improved, but not “final”. Remaining gaps include: spec↔gate drift, extraction completeness gaps, and integration wiring still missing.
 >
@@ -30,7 +30,7 @@ This analysis evaluates the spec set across seven distinct coherence dimensions:
 
 ### Pass 1 (Initial Fixes)
 
-1. ✅ Added "The Librarian Story" narrative to AGENT_INSTRUCTIONS.md
+1. ✅ Added "The LiBrainian Story" narrative to AGENT_INSTRUCTIONS.md
 2. ✅ Created GLOSSARY.md with canonical definitions
 3. ✅ Created IMPLEMENTATION_STATUS.md mapping prior issues to story chapters
 4. ✅ Added Critical Problem → Track mapping
@@ -78,7 +78,7 @@ This analysis evaluates the spec set across seven distinct coherence dimensions:
 | **Logical** | Dependencies are explicit and non-circular; status labels are evidence-backed. |
 | **Semantic** | GLOSSARY terminology is consistent across tracks; no competing definitions. |
 | **Conceptual** | Search/retrieval is a mechanism serving epistemic adequacy; no metaphor conflicts. |
-| **Narrative** | “Librarian story” connects tracks to the system goal; readers can implement in order. |
+| **Narrative** | “LiBrainian story” connects tracks to the system goal; readers can implement in order. |
 | **Technical** | Interfaces/types don’t conflict; specs reference real code paths/gates/tests. |
 | **Temporal** | Roadmap ordering matches dependencies and test tiers justified by provider requirements. |
 | **Goal** | Each track contributes to “understanding with evidence” and discloses degraded modes honestly. |
@@ -99,7 +99,7 @@ This pass corrects those claims with actual fixes:
 
 19. ✅ **Fixed Track A Pattern Example**: Replaced `confidence: 0.9` with `{ type: 'absent', reason: 'uncalibrated' }`
 
-20. ✅ **Created ConfidenceValue Implementation**: `packages/librarian/src/epistemics/confidence.ts` (~350 LOC)
+20. ✅ **Created ConfidenceValue Implementation**: `packages/LiBrainian/src/epistemics/confidence.ts` (~350 LOC)
     - All 5 confidence types defined and exported
     - Derivation rules D1-D6 implemented
     - Degradation handlers implemented
@@ -121,10 +121,10 @@ These are **implementation tasks**, not coherence problems:
 
 ---
 
-## Librarian's Core Vision (From THEORETICAL_CRITIQUE.md)
+## LiBrainian's Core Vision (From THEORETICAL_CRITIQUE.md)
 
 ### The One-Sentence Goal
-**Librarian is an epistemological system that produces *understanding* (not search results) that is evidence-backed, calibrated, defensible, and actionable for agents.**
+**LiBrainian is an epistemological system that produces *understanding* (not search results) that is evidence-backed, calibrated, defensible, and actionable for agents.**
 
 ### The Non-Negotiable Invariants
 
@@ -188,7 +188,7 @@ These are **implementation tasks**, not coherence problems:
 
 **Impact**: An agent implementing features might miss critical usability problems. The "why" is disconnected from the "what".
 
-**Status**: **RESOLVED (2026-01-24)** — `docs/librarian/AGENT_INSTRUCTIONS.md` now contains “Critical Problem → Track Mapping”.
+**Status**: **RESOLVED (2026-01-24)** — `docs/LiBrainian/AGENT_INSTRUCTIONS.md` now contains “Critical Problem → Track Mapping”.
 
 ---
 
@@ -202,8 +202,8 @@ These are **implementation tasks**, not coherence problems:
 **Impact**: These problems will never be addressed because no implementation path exists.
 
 **Status**: **PARTIALLY RESOLVED (2026-01-24)** — explicit mappings now exist for:
-- Problems 43–46 → Track F Epistemology (`docs/librarian/specs/track-f-epistemology.md`)
-- Problems 54–56 → Track J Dynamics (`docs/librarian/specs/track-j-dynamics.md`)
+- Problems 43–46 → Track F Epistemology (`docs/LiBrainian/specs/track-f-epistemology.md`)
+- Problems 54–56 → Track J Dynamics (`docs/LiBrainian/specs/track-j-dynamics.md`)
 
 Remaining “Pending” items still need explicit track assignment to avoid being forgotten.
 
@@ -217,7 +217,7 @@ Remaining “Pending” items still need explicit track assignment to avoid bein
 
 **Impact**: Features may be implemented without improving actual utility.
 
-**Status**: **RESOLVED (CENTRAL MAPPING) (2026-01-24)** — `docs/librarian/AGENT_INSTRUCTIONS.md` now includes a central “Use Case → Feature Mapping”.
+**Status**: **RESOLVED (CENTRAL MAPPING) (2026-01-24)** — `docs/LiBrainian/AGENT_INSTRUCTIONS.md` now includes a central “Use Case → Feature Mapping”.
 
 **Optional improvement**: Add per-track “Use Cases Enabled” sections as redundancy, but treat the central mapping as canonical to avoid duplication drift.
 
@@ -253,8 +253,8 @@ But P0 (LLM Provider Discovery) IS part of Layer 2 Infrastructure, not Layer 3.
 ### Issue 7: MEDIUM - Missing "Evidence Ledger" Track
 
 **Status**: **RESOLVED (2026-01-24)** — the canonical Evidence Ledger spec now exists in:
-- `docs/librarian/specs/core/evidence-ledger.md` (canonical V1 schema/API)
-- `docs/librarian/specs/layer2-infrastructure.md` (wiring requirements + vNext extensions)
+- `docs/LiBrainian/specs/core/evidence-ledger.md` (canonical V1 schema/API)
+- `docs/LiBrainian/specs/layer2-infrastructure.md` (wiring requirements + vNext extensions)
 
 **Guardrail**: Layer 2 must reference the canonical `EvidenceEntry`/`IEvidenceLedger` types and avoid introducing a competing “LedgerEntry” v1 schema (extensions are explicitly versioned as vNext).
 
@@ -410,7 +410,7 @@ Layer 0 (Build) → Layer 1 (Extraction) → Layer 2 (Infrastructure)
 
 **Conflicting Metaphors Found**:
 
-1. **Librarian-as-Search vs Librarian-as-Epistemology**:
+1. **LiBrainian-as-Search vs LiBrainian-as-Epistemology**:
    - Track A talks about "retrieval" and "queries" (search metaphor)
    - Track B talks about "knowledge states" and "claims" (epistemology metaphor)
    - These are compatible but the relationship isn't clear
@@ -466,7 +466,7 @@ Layer 0 (Build) → Layer 1 (Extraction) → Layer 2 (Infrastructure)
 
 **Unified Narrative** (Should be in AGENT_INSTRUCTIONS.md):
 
-> **The Librarian Story**
+> **The LiBrainian Story**
 >
 > **Chapter 1: The Problem** - Agents need to understand code, not just search it. Understanding requires evidence-backed claims with calibrated confidence.
 >
@@ -557,9 +557,9 @@ Layer 0 (Build) → Layer 1 (Extraction) → Layer 2 (Infrastructure)
 
 **Fix**: Add to each spec:
 ```markdown
-## Contribution to Librarian's Goal
+## Contribution to LiBrainian's Goal
 
-This track contributes to Librarian's goal of epistemological adequacy by:
+This track contributes to LiBrainian's goal of epistemological adequacy by:
 - [specific contribution]
 - [how it depends on other tracks]
 - [what other tracks depend on it]
@@ -581,7 +581,7 @@ All raw `confidence: 0.7` examples should become honest `ConfidenceValue` entrie
 Consolidate the three evidence schemas into one authoritative definition.
 
 ### Fix 4: Add Narrative Section to AGENT_INSTRUCTIONS
-Add "The Librarian Story" section showing how tracks connect.
+Add "The LiBrainian Story" section showing how tracks connect.
 
 ### Fix 5: Add Critical Problem → Track Mapping
 Explicit table in AGENT_INSTRUCTIONS.md.

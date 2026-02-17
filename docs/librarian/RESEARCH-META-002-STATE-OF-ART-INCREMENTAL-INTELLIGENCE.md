@@ -10,7 +10,7 @@
 
 This research document surveys the state of the art in incremental code intelligence, examining how production systems handle the challenge of maintaining up-to-date indices and knowledge graphs as codebases evolve. The key finding is that **incremental computation is a well-solved problem at the framework level**, with mature solutions like Salsa, Differential Dataflow, and DICE providing robust foundations. The challenge lies in **choosing the right granularity of incrementality** for your specific use case and **avoiding over-engineering** when simpler solutions suffice.
 
-**Key Takeaways for Librarian:**
+**Key Takeaways for LiBrainian:**
 1. Content-addressable storage (like Git blob IDs) provides natural deduplication and change detection
 2. The "durability" concept from Salsa can dramatically reduce unnecessary recomputation
 3. Differential dataflow patterns enable O(changes) rather than O(repository) updates
@@ -27,7 +27,7 @@ This research document surveys the state of the art in incremental code intellig
 4. [Academic Research](#4-academic-research)
 5. [Patterns and Anti-patterns](#5-patterns-and-anti-patterns)
 6. [Comparison Matrix](#6-comparison-matrix)
-7. [Recommendations for Librarian](#7-recommendations-for-librarian)
+7. [Recommendations for LiBrainian](#7-recommendations-for-LiBrainian)
 8. [Implementation Complexity Estimates](#8-implementation-complexity-estimates)
 9. [References](#9-references)
 
@@ -658,11 +658,11 @@ Low Benefit, High Complexity (Avoid):
 
 ---
 
-## 7. Recommendations for Librarian
+## 7. Recommendations for LiBrainian
 
 ### 7.1 Recommended Architecture
 
-Based on this research, Librarian should adopt a **tiered incremental approach**:
+Based on this research, LiBrainian should adopt a **tiered incremental approach**:
 
 ```
 Tier 0: File Watcher (Immediate)
@@ -690,7 +690,7 @@ Tier 3: Cross-File Semantic (Background)
 
 #### 1. Content-Hash Based Caching
 ```typescript
-// Recommended approach for Librarian
+// Recommended approach for LiBrainian
 interface ContentCache {
   // Key: SHA-256 of file content
   // Value: Analysis results
@@ -970,4 +970,4 @@ Q5: What resources are available?
 
 ---
 
-*This research document was prepared for the Librarian project to inform architecture decisions around incremental code intelligence and knowledge graph maintenance.*
+*This research document was prepared for the LiBrainian project to inform architecture decisions around incremental code intelligence and knowledge graph maintenance.*

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive inventory of all epistemic types, classes, primitives, operators, and computational patterns in Librarian's epistemic infrastructure. The epistemics module (`src/epistemics/`) implements a principled approach to tracking confidence, calibration, and evidence provenance.
+This document provides a comprehensive inventory of all epistemic types, classes, primitives, operators, and computational patterns in LiBrainian's epistemic infrastructure. The epistemics module (`src/epistemics/`) implements a principled approach to tracking confidence, calibration, and evidence provenance.
 
 **Core Design Principle**: No arbitrary numbers. Every confidence value MUST have provenance.
 
@@ -1048,4 +1048,4 @@ The system is migrating from string-based formulas to proven formula ASTs for ty
 ---
 
 *Document generated: 2026-01-29*
-*Librarian Epistemic Infrastructure v1.0*
+*LiBrainian Epistemic Infrastructure v1.0*

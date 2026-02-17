@@ -3,7 +3,7 @@
 > **Status**: Canonical for “why we failed before” + “mechanics to prevent recurrence”
 > **Last Updated**: 2026-01-25
 >
-> **Scope**: This document is about *implementation failure modes* when implementing the Librarian spec system (not product/user failures in downstream agent runs).
+> **Scope**: This document is about *implementation failure modes* when implementing the LiBrainian spec system (not product/user failures in downstream agent runs).
 
 ---
 
@@ -15,17 +15,17 @@ Previous attempts to “implement the spec system” failed primarily due to:
 2. **Theater**: “green” indicators without real observation (fake embeddings; non-skipping tests; string-count gates; “partial/pass” without evidence).
 3. **Non-executable core**: large bodies of spec/typework without end-to-end execution + replayable traces (a.k.a. “documentation theater”).
 
-This repo now enforces several *mechanical* anti-repeat guardrails (tests + gates). Remaining gaps are explicitly listed in `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
+This repo now enforces several *mechanical* anti-repeat guardrails (tests + gates). Remaining gaps are explicitly listed in `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`.
 
 ---
 
 ## Evidence Sources Used For This RCA (Repo-Local)
 
-- “Documentation theater” warning and execution-first prescription: `docs/librarian/THEORETICAL_CRITIQUE.md`
-- Failure mode register (FM‑01…FM‑38): `docs/librarian/WORKPLAN.md`
-- Reality ledger of what is verified vs unverified: `docs/librarian/STATUS.md`
+- “Documentation theater” warning and execution-first prescription: `docs/LiBrainian/THEORETICAL_CRITIQUE.md`
+- Failure mode register (FM‑01…FM‑38): `docs/LiBrainian/WORKPLAN.md`
+- Reality ledger of what is verified vs unverified: `docs/LiBrainian/STATUS.md`
 - Wave0 integration assessment of concrete breakages: `docs/LIBRARIAN_WAVE0_FULL_INTEGRATION_ASSESSMENT.md`
-- Implementation drift tracking: `docs/librarian/specs/IMPLEMENTATION_STATUS.md`
+- Implementation drift tracking: `docs/LiBrainian/specs/IMPLEMENTATION_STATUS.md`
 
 ---
 
@@ -43,9 +43,9 @@ This repo now enforces several *mechanical* anti-repeat guardrails (tests + gate
 **Mechanics added (prevents recurrence)**
 - Schema registry now includes the tools that the server advertises (example: `status`, `system_contract`, `diagnose_self`).
 - Tier‑0 tests now enforce registry consistency and exercise the real `callTool` path:
-  - `packages/librarian/src/mcp/__tests__/tool_registry_consistency.test.ts`
-  - `packages/librarian/src/mcp/__tests__/system_contract.test.ts`
-  - `packages/librarian/src/mcp/__tests__/diagnose_self.test.ts`
+  - `packages/LiBrainian/src/mcp/__tests__/tool_registry_consistency.test.ts`
+  - `packages/LiBrainian/src/mcp/__tests__/system_contract.test.ts`
+  - `packages/LiBrainian/src/mcp/__tests__/diagnose_self.test.ts`
 
 **Non-repeat rule**
 - No test may claim MCP tool coverage unless it traverses `callTool()` (schema + auth + execution).
@@ -62,10 +62,10 @@ This repo now enforces several *mechanical* anti-repeat guardrails (tests + gate
 - Gates were treated as documentation, not as executable contracts.
 
 **Mechanics added (prevents recurrence)**
-- Tier‑0 guardrail test enforces anti-theater invariants on `docs/librarian/GATES.json`:
+- Tier‑0 guardrail test enforces anti-theater invariants on `docs/LiBrainian/GATES.json`:
   - forbids `rg … | wc -l` subshell gates
   - requires `lastRun` + `evidence` for `pass`/`partial`/`skip_when_unavailable`
-  - `src/librarian/__tests__/librarian_gate_theater.test.ts`
+  - `src/LiBrainian/__tests__/librarian_gate_theater.test.ts`
 
 **Non-repeat rule**
 - Any gate with status `pass|partial|skip_when_unavailable` MUST have `lastRun` and a human-readable evidence string.
@@ -97,7 +97,7 @@ This repo now enforces several *mechanical* anti-repeat guardrails (tests + gate
 
 **Mechanics in progress**
 - Track D is scoped to claim boundaries; raw numeric scores remain allowed for ranking/heuristics but MUST NOT masquerade as calibrated confidence.
-- `docs/librarian/GATES.json` keeps Q4–Q7 “not implemented” until migration is real.
+- `docs/LiBrainian/GATES.json` keeps Q4–Q7 “not implemented” until migration is real.
 
 ---
 
@@ -110,7 +110,7 @@ This repo now enforces several *mechanical* anti-repeat guardrails (tests + gate
 - Unify query, execution, and provider events into the evidence ledger with stable session IDs.
 - Require at least one end-to-end “run → trace → replay” gate before marking execution-related tracks verified.
 
-See: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
+See: `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`.
 
 ---
 
@@ -127,7 +127,7 @@ See: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
 - Provider-required suites were moved to explicit system-tier files (example: `mvp_librarian.system.test.ts`, `embedding_use_cases.system.test.ts`).
 - Live-provider suites were separated out of deterministic suites (example: `librarian_live.system.test.ts`).
 - Tier‑0 guardrail test now fails if `checkAllProviders`/`requireProviders` appear in plain `*.test.ts`:
-  - `packages/librarian/src/__tests__/test_tiering_guard.test.ts`
+  - `packages/LiBrainian/src/__tests__/test_tiering_guard.test.ts`
 
 **Non-repeat rule**
 - If a test calls providers (directly or via provider gate), it MUST be `*.integration.test.ts` (skip) or `*.system.test.ts` (require).
@@ -150,9 +150,9 @@ See: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
 - No completeness gate ensuring every spec had an explicit behavioral contract.
 
 **Mechanics added (prevents recurrence)**
-- Canonical profile vocabulary: `docs/librarian/specs/core/operational-profiles.md`
-- Canonical per-spec behavioral contracts: `docs/librarian/specs/BEHAVIOR_INDEX.md`
-- Tier‑0 enforcement: `src/librarian/__tests__/librarian_spec_behavior_index.test.ts`
+- Canonical profile vocabulary: `docs/LiBrainian/specs/core/operational-profiles.md`
+- Canonical per-spec behavioral contracts: `docs/LiBrainian/specs/BEHAVIOR_INDEX.md`
+- Tier‑0 enforcement: `src/LiBrainian/__tests__/librarian_spec_behavior_index.test.ts`
   - fails if any spec file is missing its behavior entry
   - fails if any `executable` entry lacks a runnable verification hook
 
@@ -164,7 +164,7 @@ See: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
 ### RC‑8: Extraction procrastination (the “we’ll split later” trap)
 
 **Observed failure**
-- Implementations accumulated inside Wave0 while Librarian remained entangled with Wave0 internals.
+- Implementations accumulated inside Wave0 while LiBrainian remained entangled with Wave0 internals.
 - Agents optimized for “ship an essential feature” rather than “stabilize the boundary”, so extraction never completed.
 - The spec describes a standalone knowledge tool, but reality drifted into a monolith where public/package surfaces were optional.
 
@@ -174,14 +174,14 @@ See: `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md`.
 
 **Mechanics required (prevents recurrence)**
 - Treat full package extraction as **Priority 0** (stop-the-line) in the spec system:
-  - `docs/librarian/specs/INTEGRATION_CHANGE_LIST.md` (Priority 0 section)
+  - `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md` (Priority 0 section)
 - Make extraction gates explicit and non-optional:
-  - `docs/librarian/GATES.json` (`layer1.*`)
+  - `docs/LiBrainian/GATES.json` (`layer1.*`)
 - Enforce a single boundary rule in practice:
-  - Wave0 must consume Librarian via the package public API; `src/librarian/**` is compatibility shim only.
+  - Wave0 must consume LiBrainian via the package public API; `src/LiBrainian/**` is compatibility shim only.
 
 **Non-repeat rule**
-- If extraction gates are not green, do not implement “Librarian essentials” inside Wave0. Implement them in the Librarian package or stop with an explicit boundary-blocking reason.
+- If extraction gates are not green, do not implement “LiBrainian essentials” inside Wave0. Implement them in the LiBrainian package or stop with an explicit boundary-blocking reason.
 
 ## Implementation Protocol (So We Can’t Fail Again)
 

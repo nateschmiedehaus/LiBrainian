@@ -1,13 +1,13 @@
-# Librarian Self-Improvement Plan
+# LiBrainian Self-Improvement Plan
 
-## Using Librarian's Own Index to Improve Librarian
+## Using LiBrainian's Own Index to Improve LiBrainian
 
-This document outlines how to use librarian's bootstrap of itself to systematically improve its own capabilities.
+This document outlines how to use LiBrainian's bootstrap of itself to systematically improve its own capabilities.
 
 ## Current State Assessment (2026-01-16)
 
 ### Index Statistics
-- **Files**: 322 TypeScript files in `src/librarian/`
+- **Files**: 322 TypeScript files in `src/LiBrainian/`
 - **Functions**: 2,615 indexed with purpose descriptions
 - **Context Packs**: 3,259 (function + module + change_impact)
 - **Graph Edges**: 12,176 (10,537 calls + 1,639 imports)
@@ -25,12 +25,12 @@ This document outlines how to use librarian's bootstrap of itself to systematica
 
 ## Improvement Phase 1: Fix Confidence Calculation
 
-### Query to Librarian
+### Query to LiBrainian
 ```bash
-npx tsx src/librarian/cli/index.ts query "Where is function confidence calculated?"
+npx tsx src/LiBrainian/cli/index.ts query "Where is function confidence calculated?"
 ```
 
-### Librarian's Response (Verified)
+### LiBrainian's Response (Verified)
 Found relevant files:
 - `api/query_synthesis.ts` - `estimateConfidence()` (lines 385-400)
 - `api/confidence_calibration.ts` - `computeUncertaintyMetrics()` (lines 82-89)
@@ -46,9 +46,9 @@ Found relevant files:
 
 ## Improvement Phase 2: Wire Feedback Loop
 
-### Query to Librarian
+### Query to LiBrainian
 ```bash
-npx tsx src/librarian/cli/index.ts query "Where is processAgentFeedback and how is it called?"
+npx tsx src/LiBrainian/cli/index.ts query "Where is processAgentFeedback and how is it called?"
 ```
 
 ### Expected Discovery
@@ -67,9 +67,9 @@ npx tsx src/librarian/cli/index.ts query "Where is processAgentFeedback and how 
 
 ## Improvement Phase 3: Enable Test Mapping
 
-### Query to Librarian
+### Query to LiBrainian
 ```bash
-npx tsx src/librarian/cli/index.ts query "Where is test mapping populated in bootstrap?"
+npx tsx src/LiBrainian/cli/index.ts query "Where is test mapping populated in bootstrap?"
 ```
 
 ### Expected Discovery
@@ -87,9 +87,9 @@ npx tsx src/librarian/cli/index.ts query "Where is test mapping populated in boo
 
 ## Improvement Phase 4: Populate File/Directory Knowledge
 
-### Query to Librarian
+### Query to LiBrainian
 ```bash
-npx tsx src/librarian/cli/index.ts query "Where are file and directory records stored?"
+npx tsx src/LiBrainian/cli/index.ts query "Where are file and directory records stored?"
 ```
 
 ### Expected Discovery
@@ -110,11 +110,11 @@ After each improvement phase:
 
 ```bash
 # Run validation tests
-npx vitest run src/librarian/__tests__/understanding_validation.test.ts
-npx vitest run src/librarian/__tests__/confidence_calibration_validation.test.ts
+npx vitest run src/LiBrainian/__tests__/understanding_validation.test.ts
+npx vitest run src/LiBrainian/__tests__/confidence_calibration_validation.test.ts
 
 # Check database metrics
-sqlite3 ./state/librarian.db "
+sqlite3 ./state/LiBrainian.db "
   SELECT 'Functions' as type, COUNT(*) as count,
          ROUND(AVG(confidence), 2) as avg_conf,
          COUNT(DISTINCT ROUND(confidence, 1)) as distinct_conf
@@ -144,15 +144,15 @@ sqlite3 ./state/librarian.db "
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. Query librarian for relevant code                       │
+│  1. Query LiBrainian for relevant code                       │
 │     ↓                                                       │
-│  2. Librarian returns context packs with line numbers       │
+│  2. LiBrainian returns context packs with line numbers       │
 │     ↓                                                       │
 │  3. Read identified files, understand implementation        │
 │     ↓                                                       │
-│  4. Make targeted fix based on librarian's guidance         │
+│  4. Make targeted fix based on LiBrainian's guidance         │
 │     ↓                                                       │
-│  5. Re-bootstrap librarian on itself                        │
+│  5. Re-bootstrap LiBrainian on itself                        │
 │     ↓                                                       │
 │  6. Validate improvement via tests + DB queries             │
 │     ↓                                                       │

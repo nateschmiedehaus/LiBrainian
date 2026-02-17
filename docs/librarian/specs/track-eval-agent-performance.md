@@ -1,16 +1,16 @@
 # Agent Performance Evaluation Track
 
 > **Status**: Design
-> **Purpose**: Measure Librarian's actual utility by testing with agent workers
+> **Purpose**: Measure LiBrainian's actual utility by testing with agent workers
 > **Principle**: Real task performance > synthetic Q&A correctness
 
 ---
 
 ## Core Insight
 
-The true test of Librarian is: **Do agents perform better WITH it than WITHOUT it?**
+The true test of LiBrainian is: **Do agents perform better WITH it than WITHOUT it?**
 
-Instead of asking "Did Librarian answer correctly?", ask:
+Instead of asking "Did LiBrainian answer correctly?", ask:
 - Did the agent complete the task?
 - How long did it take?
 - How many errors did it make?
@@ -33,7 +33,7 @@ Instead of asking "Did Librarian answer correctly?", ask:
            ▼                              ▼
 ┌─────────────────────┐      ┌─────────────────────┐
 │   WORKER (Control)  │      │  WORKER (Treatment) │
-│   - No Librarian    │      │  - Has Librarian    │
+│   - No LiBrainian    │      │  - Has LiBrainian    │
 │   - Limited context │      │  - Same context     │
 │   - Same task       │      │  - Same task        │
 └─────────────────────┘      └─────────────────────┘
@@ -107,26 +107,26 @@ Simulates: Best case scenario
 - Fix a clear bug with stack trace
 - Add a new field to a type
 - Update an import path
-- **Expected**: Small Librarian advantage on time
+- **Expected**: Small LiBrainian advantage on time
 
 ### Moderate (T3)
 - Add new endpoint following existing patterns
 - Fix a bug without stack trace
 - Implement a feature from spec
-- **Expected**: Noticeable Librarian advantage
+- **Expected**: Noticeable LiBrainian advantage
 
 ### Hard (T4)
 - Refactor module to use different pattern
 - Debug intermittent failure
 - Add feature requiring understanding of 5+ files
-- **Expected**: Significant Librarian advantage
+- **Expected**: Significant LiBrainian advantage
 
 ### Extreme (T5)
 - Debug race condition
 - Find security vulnerability
 - Understand and modify complex algorithm
 - Cross-cutting concern affecting many files
-- **Expected**: Large Librarian advantage OR reveals Librarian limitations
+- **Expected**: Large LiBrainian advantage OR reveals LiBrainian limitations
 
 ---
 
@@ -164,7 +164,7 @@ interface WorkerSession {
   errorsEncountered: number;
   backtrackCount: number;  // How many times did they undo/retry
 
-  // Librarian usage (treatment only)
+  // LiBrainian usage (treatment only)
   librarianQueries?: LibrarianQuery[];
   librarianHelpfulness?: number;  // Self-rated by worker
 
@@ -216,7 +216,7 @@ T4 Hard          30%              55%           +83%
 T5 Extreme       10%              35%          +250%
 ```
 
-The bigger the lift at higher complexity, the more valuable Librarian is.
+The bigger the lift at higher complexity, the more valuable LiBrainian is.
 
 ---
 
@@ -254,8 +254,8 @@ Total: 20 tasks × 4 repos = 80 tasks
 1. SELECT task from task bank
 2. CLONE test repo to isolated directory (×2 copies)
 3. CONFIGURE context level
-4. SPAWN control worker (no Librarian)
-5. SPAWN treatment worker (with Librarian)
+4. SPAWN control worker (no LiBrainian)
+5. SPAWN treatment worker (with LiBrainian)
 6. RECORD all events from both
 7. WAIT for completion or timeout
 8. VERIFY outcomes (run tests, check diffs)
@@ -277,7 +277,7 @@ GENERATE report
 
 ### Statistical Validity
 - Run each (task, context) combination 3× to reduce variance
-- Use paired comparisons (same task, same context, ±Librarian)
+- Use paired comparisons (same task, same context, ±LiBrainian)
 - Report confidence intervals, not just point estimates
 
 ---
@@ -298,45 +298,45 @@ This tests REAL-WORLD usability, not ideal-condition performance.
 
 ---
 
-### Librarian Awareness Levels (for Treatment workers)
+### LiBrainian Awareness Levels (for Treatment workers)
 
 **Level L0: No Mention**
 ```
-Worker knows: Nothing about Librarian
+Worker knows: Nothing about LiBrainian
 Discovery: Must find it in environment (MCP tools, help commands)
 Tests: Discoverability
 ```
 
 **Level L1: Exists, No Instructions**
 ```
-Worker knows: "There's a tool called Librarian that might help"
+Worker knows: "There's a tool called LiBrainian that might help"
 Discovery: Must figure out how to use it
 Tests: Intuitive usability
 ```
 
 **Level L2: Basic Hint**
 ```
-Worker knows: "You can ask Librarian questions about the codebase"
+Worker knows: "You can ask LiBrainian questions about the codebase"
 Discovery: Must figure out what to ask
 Tests: Query formulation
 ```
 
 **Level L3: Example Query**
 ```
-Worker knows: "Try asking Librarian: 'Where is X defined?'"
+Worker knows: "Try asking LiBrainian: 'Where is X defined?'"
 Discovery: Must generalize from example
 Tests: Adaptation
 ```
 
 **Level L4: Full Documentation (Baseline)**
 ```
-Worker knows: Complete Librarian usage guide
+Worker knows: Complete LiBrainian usage guide
 Tests: Optimal usage ceiling
 ```
 
 ---
 
-### Control Worker (No Librarian)
+### Control Worker (No LiBrainian)
 
 ```
 You're a developer. Here's a task.
@@ -369,7 +369,7 @@ The code is at: {repo_path}
 Figure it out and fix it. Let me know when you're done or if you're stuck.
 ```
 
-*Librarian is available as an MCP tool but not mentioned. Worker must discover it.*
+*LiBrainian is available as an MCP tool but not mentioned. Worker must discover it.*
 
 ---
 
@@ -382,7 +382,7 @@ You're a developer. Here's a task.
 
 The code is at: {repo_path}
 
-There's some tool called "Librarian" that might help with understanding the code,
+There's some tool called "LiBrainian" that might help with understanding the code,
 but I haven't used it myself.
 
 Figure it out and fix it. Let me know when you're done or if you're stuck.
@@ -399,7 +399,7 @@ You're a developer. Here's a task.
 
 The code is at: {repo_path}
 
-If you need help understanding the codebase, you can ask Librarian questions
+If you need help understanding the codebase, you can ask LiBrainian questions
 about it. Not sure exactly how it works but supposedly it knows about the code.
 
 Figure it out and fix it.
@@ -416,7 +416,7 @@ You're a developer. Here's a task.
 
 The code is at: {repo_path}
 
-Tip: You can ask Librarian things like "Where is the auth logic?" or
+Tip: You can ask LiBrainian things like "Where is the auth logic?" or
 "What calls this function?" to understand the code faster.
 
 Good luck.
@@ -450,7 +450,7 @@ causing it. Can you look into it?
 
 ---
 
-### Recording Librarian Discovery & Usage
+### Recording LiBrainian Discovery & Usage
 
 For treatment workers, record:
 
@@ -496,8 +496,8 @@ interface LibrarianUsageRecord {
 - Test each level produces expected behavior
 - Calibrate difficulty
 
-### Phase 4: Librarian Integration
-- Wire Librarian into treatment workers
+### Phase 4: LiBrainian Integration
+- Wire LiBrainian into treatment workers
 - Query recording
 - Helpfulness self-rating
 
@@ -511,7 +511,7 @@ interface LibrarianUsageRecord {
 
 ## Success Criteria
 
-Librarian is considered successful if:
+LiBrainian is considered successful if:
 
 1. **Significant lift at T3+**: >25% success rate improvement on moderate+ tasks
 2. **Time reduction**: >30% faster completion on successful tasks
@@ -521,15 +521,15 @@ Librarian is considered successful if:
 
 ### NEW: Human-Realistic Success Criteria
 
-6. **Discoverability**: >70% of L0 workers discover and use Librarian
+6. **Discoverability**: >70% of L0 workers discover and use LiBrainian
 7. **Intuitive usage**: L1 workers achieve >50% of L4 (full docs) performance
-8. **Vague query handling**: Librarian provides useful answers to human-style queries >60% of time
-9. **Wrong question recovery**: When worker asks wrong question, Librarian redirects usefully >40% of time
+8. **Vague query handling**: LiBrainian provides useful answers to human-style queries >60% of time
+9. **Wrong question recovery**: When worker asks wrong question, LiBrainian redirects usefully >40% of time
 
 ### The Real Test
 
-**If workers with NO instructions about Librarian (L0) still perform better than Control,
-Librarian is genuinely useful in the real world.**
+**If workers with NO instructions about LiBrainian (L0) still perform better than Control,
+LiBrainian is genuinely useful in the real world.**
 
 | Comparison | What it tests |
 |-----------|---------------|
@@ -542,10 +542,10 @@ Librarian is genuinely useful in the real world.**
 
 ## Failure Modes to Detect
 
-1. **Librarian slows workers down**: Treatment takes longer despite same success
-2. **Hallucination harm**: Treatment makes worse errors due to bad Librarian info
-3. **Over-reliance**: Treatment fails when Librarian gives partial info
-4. **Complexity ceiling**: Librarian doesn't help at T4/T5
+1. **LiBrainian slows workers down**: Treatment takes longer despite same success
+2. **Hallucination harm**: Treatment makes worse errors due to bad LiBrainian info
+3. **Over-reliance**: Treatment fails when LiBrainian gives partial info
+4. **Complexity ceiling**: LiBrainian doesn't help at T4/T5
 5. **Context level insensitivity**: Same performance regardless of context
 
 ---
@@ -553,5 +553,5 @@ Librarian is genuinely useful in the real world.**
 ## Integration with Other Tracks
 
 - **Machine-Verifiable Eval**: Use AST verification on worker outputs
-- **Calibration**: Track confidence of Librarian responses vs worker success
-- **Hallucination Detection**: Flag cases where Librarian led worker astray
+- **Calibration**: Track confidence of LiBrainian responses vs worker success
+- **Hallucination Detection**: Flag cases where LiBrainian led worker astray

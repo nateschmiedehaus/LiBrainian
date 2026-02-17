@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The `findRefactoringOpportunities` function was tested against the librarian codebase (620 TypeScript source files, excluding tests). It identified **3,695 total suggestions** (1,865 when filtering out low-priority items).
+The `findRefactoringOpportunities` function was tested against the LiBrainian codebase (620 TypeScript source files, excluding tests). It identified **3,695 total suggestions** (1,865 when filtering out low-priority items).
 
 ## Results Overview
 

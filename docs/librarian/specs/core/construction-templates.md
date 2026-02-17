@@ -7,16 +7,16 @@ Scope: the *elegance mechanism* that prevents “one-off handler creep” by map
 This spec exists to make the system implementable “like the best engineers would”: by building a small kernel + a small number of reusable programs, rather than accreting bespoke endpoints for every new use case.
 
 Canonical conceptual parent:
-- `docs/librarian/specs/core/knowledge-construction.md`
+- `docs/LiBrainian/specs/core/knowledge-construction.md`
 
 ---
 
 ## 0) Non-negotiable goal
 
-The Librarian spec system must support UC coverage **without awkwardness** for an agent:
+The LiBrainian spec system must support UC coverage **without awkwardness** for an agent:
 - An agent supplies an intent (plus optional hints).
-- Librarian compiles it into a `ConstructionPlan` using templates.
-- Librarian returns packs + adequacy + verification plan + disclosures.
+- LiBrainian compiles it into a `ConstructionPlan` using templates.
+- LiBrainian returns packs + adequacy + verification plan + disclosures.
 
 No “micro-API stitching” requirement is allowed for normal work.
 
@@ -246,14 +246,14 @@ Behavior:
 
 ## 6) UC mapping strategy (v1, spec-system-owned)
 
-The full UC inventory is outside this folder (`docs/librarian/USE_CASE_MATRIX.md`), but the *mapping strategy* is part of the spec system.
+The full UC inventory is outside this folder (`docs/LiBrainian/USE_CASE_MATRIX.md`), but the *mapping strategy* is part of the spec system.
 
 ### 6.1 Domain → default templates (v1, mechanical)
 
 This mapping is the *mechanical* default so every UC is satisfiable by ≥1 template without bespoke pipelines.
 
 Rule:
-- A UC is considered “mappable” if its `Domain` (in `docs/librarian/USE_CASE_MATRIX.md`) appears in this table.
+- A UC is considered “mappable” if its `Domain` (in `docs/LiBrainian/USE_CASE_MATRIX.md`) appears in this table.
 - Templates listed here are **minimum defaults**; additional templates may be selected by intent/hints.
 
 Format is intentionally simple for deterministic validation:
@@ -314,4 +314,4 @@ To make this doc `executable` later:
 
 Current deterministic enforcement (Tier‑0):
 - Domain → template mapping completeness is validated via:
-  - `packages/librarian/src/__tests__/use_case_matrix_validation.test.ts`
+  - `packages/LiBrainian/src/__tests__/use_case_matrix_validation.test.ts`

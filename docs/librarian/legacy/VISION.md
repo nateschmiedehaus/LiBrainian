@@ -1,11 +1,11 @@
 # Legacy Research Notice
-This file is archived. Canonical guidance lives in `docs/librarian/README.md` and `docs/librarian/MASTER.md`.
+This file is archived. Canonical guidance lives in `docs/LiBrainian/README.md` and `docs/LiBrainian/MASTER.md`.
 This legacy spec is a historical snapshot and is not authoritative.
 
-# WAVE0 + LIBRARIAN: Historical FULL Tier Specification (Archived)
+# WAVE0 + LiBrainian: Historical FULL Tier Specification (Archived)
 
 > **VERSION**: 2.0.0 FULL (December 2025)
-> **PURPOSE**: Historical research snapshot for Librarian; not an authoritative spec.
+> **PURPOSE**: Historical research snapshot for LiBrainian; not an authoritative spec.
 
 ---
 
@@ -30,12 +30,12 @@ Wave0 is a **Successful Complex Adaptive System (SCAS)** - not just any CAS, but
 |-----------|------------------------|
 | **P1: Diverse Agents** | Multiple specialized agents (executor, critic, planner) |
 | **P2: Self-Organization** | Agents coordinate without central control |
-| **P3: Adaptability** | Librarian confidence signals drive behavior changes |
+| **P3: Adaptability** | LiBrainian confidence signals drive behavior changes |
 | **P4: Emergence** | System-level intelligence from simple agent interactions |
 | **P5: Feedback Loops** | Every outcome updates knowledge and confidence |
 | **P6: Edge of Chaos** | Balanced exploration/exploitation via fitness landscape |
 | **P7: Path Dependence** | Episodic memory informs future decisions |
-| **P8: Learning** | Librarian records ALL outcomes, learns from failures |
+| **P8: Learning** | LiBrainian records ALL outcomes, learns from failures |
 | **P9: Homeostasis** | Quality gates and constraints maintain system health |
 | **P10: Via Negativa** | Anti-pattern detection prevents known failures |
 | **P11: Fitness Landscape** | Bench harness measures progress toward optima |
@@ -55,11 +55,11 @@ This insight drives the entire architecture. Rather than having agents re-analyz
 
 ## PART 2: THE CONCEPT
 
-### 2.1 What is Librarian?
+### 2.1 What is LiBrainian?
 
-**Librarian** is wave0's knowledge backbone - the system that understands code and provides that understanding to agents. It answers fundamental questions:
+**LiBrainian** is wave0's knowledge backbone - the system that understands code and provides that understanding to agents. It answers fundamental questions:
 
-| Question | Librarian Capability | Implementation |
+| Question | LiBrainian Capability | Implementation |
 |----------|---------------------|----------------|
 | "What does this code do?" | Semantic indexing (embeddings + AST) | `EmbeddingService`, `ast_indexer.ts` |
 | "How does this code connect?" | Dependency graphs, call graphs | `call_edge_extractor.ts`, `module_graph.ts` |
@@ -72,9 +72,9 @@ This insight drives the entire architecture. Rather than having agents re-analyz
 
 ### 2.2 The Three Engines
 
-Librarian's intelligence is organized into three production-ready engines:
+LiBrainian's intelligence is organized into three production-ready engines:
 
-#### RELEVANCE ENGINE (`src/librarian/engines/relevance_engine.ts` - 297 LOC)
+#### RELEVANCE ENGINE (`src/LiBrainian/engines/relevance_engine.ts` - 297 LOC)
 
 ```
 "What do I need to know for this task?"
@@ -90,7 +90,7 @@ METHODS:
 └── learnNegative(packId, reason)   Learn from failures
 ```
 
-#### CONSTRAINT ENGINE (`src/librarian/engines/constraint_engine.ts` - 482 LOC)
+#### CONSTRAINT ENGINE (`src/LiBrainian/engines/constraint_engine.ts` - 482 LOC)
 
 ```
 "What rules apply and am I breaking them?"
@@ -108,7 +108,7 @@ METHODS:
 └── suggestConstraint(pattern)          Learning from successful patterns
 ```
 
-#### META-KNOWLEDGE ENGINE (`src/librarian/engines/meta_engine.ts` - 390 LOC)
+#### META-KNOWLEDGE ENGINE (`src/LiBrainian/engines/meta_engine.ts` - 390 LOC)
 
 ```
 "How confident should I be?"
@@ -132,7 +132,7 @@ CONFIDENCE MODEL:
 
 Each domain provides specialized queries:
 
-#### ARCHITECTURE KNOWLEDGE (`src/librarian/knowledge/architecture.ts` - 585 LOC)
+#### ARCHITECTURE KNOWLEDGE (`src/LiBrainian/knowledge/architecture.ts` - 585 LOC)
 
 ```typescript
 interface ArchitectureQuery {
@@ -148,7 +148,7 @@ interface ArchitectureQuery {
 }
 ```
 
-#### IMPACT KNOWLEDGE (`src/librarian/knowledge/impact.ts` - 489 LOC)
+#### IMPACT KNOWLEDGE (`src/LiBrainian/knowledge/impact.ts` - 489 LOC)
 
 ```typescript
 interface ImpactQuery {
@@ -162,7 +162,7 @@ interface ImpactQuery {
 }
 ```
 
-#### QUALITY KNOWLEDGE (`src/librarian/knowledge/quality.ts` - 450 LOC)
+#### QUALITY KNOWLEDGE (`src/LiBrainian/knowledge/quality.ts` - 450 LOC)
 
 ```typescript
 interface QualityQuery {
@@ -178,7 +178,7 @@ interface QualityQuery {
 }
 ```
 
-#### PATTERNS KNOWLEDGE (`src/librarian/knowledge/patterns.ts` - 449 LOC)
+#### PATTERNS KNOWLEDGE (`src/LiBrainian/knowledge/patterns.ts` - 449 LOC)
 
 ```typescript
 interface PatternsQuery {
@@ -193,7 +193,7 @@ interface PatternsQuery {
 }
 ```
 
-#### EVOLUTION KNOWLEDGE (`src/librarian/knowledge/evolution.ts` - 500 LOC)
+#### EVOLUTION KNOWLEDGE (`src/LiBrainian/knowledge/evolution.ts` - 500 LOC)
 
 ```typescript
 interface EvolutionQuery {
@@ -209,7 +209,7 @@ interface EvolutionQuery {
 }
 ```
 
-#### STRUCTURE KNOWLEDGE (`src/librarian/knowledge/structure.ts` - 423 LOC)
+#### STRUCTURE KNOWLEDGE (`src/LiBrainian/knowledge/structure.ts` - 423 LOC)
 
 ```typescript
 interface StructureQuery {
@@ -226,7 +226,7 @@ interface StructureQuery {
 
 ### 2.4 The Golden Rule
 
-> **IF wave0 needs to know something about the codebase, THEN it MUST ask librarian. NEVER implement parallel analysis.**
+> **IF wave0 needs to know something about the codebase, THEN it MUST ask LiBrainian. NEVER implement parallel analysis.**
 
 This rule prevents:
 - Duplicated analysis logic scattered across agents
@@ -252,7 +252,7 @@ The agentic review system exemplifies this:
 ### 3.1 File Structure (Actual Paths)
 
 ```
-src/librarian/
+src/LiBrainian/
 ├── agents/                           # Indexing agents (6 modules)
 │   ├── index_librarian.ts            # Core file/function indexing (main agent)
 │   ├── swarm_runner.ts               # Parallel worker pool orchestration
@@ -263,7 +263,7 @@ src/librarian/
 │   └── types.ts                      # Agent type definitions
 │
 ├── api/                              # Public API surface (24 modules)
-│   ├── librarian.ts                  # Main entry point (createLibrarian)
+│   ├── LiBrainian.ts                  # Main entry point (createLibrarian)
 │   ├── query.ts                      # Query execution (queryLibrarian)
 │   ├── bootstrap.ts                  # Initialization (bootstrapProject)
 │   ├── embeddings.ts                 # EmbeddingService implementation
@@ -488,7 +488,7 @@ interface QueryResponse {
 
 ### 5.1 Wave0 Integration Hooks
 
-From `src/librarian/integration/wave0_integration.ts` (430 LOC):
+From `src/LiBrainian/integration/wave0_integration.ts` (430 LOC):
 
 ```typescript
 // 1. Bootstrap gating (called at startup)
@@ -536,7 +536,7 @@ async function postOrchestrationHook(workspace: string): Promise<void>
 
 ### 5.2 SBFL Attribution
 
-From `src/librarian/integration/causal_attribution.ts`:
+From `src/LiBrainian/integration/causal_attribution.ts`:
 
 ```typescript
 interface AttributionResult {
@@ -558,7 +558,7 @@ async function attributeFailure(
 
 ### 5.3 Event System
 
-From `src/librarian/events.ts`:
+From `src/LiBrainian/events.ts`:
 
 ```typescript
 type LibrarianEventType =
@@ -583,7 +583,7 @@ export const globalEventBus: LibrarianEventBus;
 
 ### 6.1 Budget Configuration
 
-From `src/librarian/api/governors.ts` (73 LOC):
+From `src/LiBrainian/api/governors.ts` (73 LOC):
 
 ```typescript
 interface GovernorConfig {
@@ -621,7 +621,7 @@ interface GovernorBudgetReportV1 {
 ### 7.1 Bootstrap Command
 
 ```bash
-# Bootstrap librarian (EMBEDDINGS REQUIRED)
+# Bootstrap LiBrainian (EMBEDDINGS REQUIRED)
 npx ts-node scripts/bootstrap_librarian.ts --provider claude
 
 # Provider options:
@@ -636,8 +636,8 @@ npx ts-node scripts/bootstrap_librarian.ts --provider claude
 ### 7.2 Verification Commands
 
 ```bash
-# Check librarian database status
-sqlite3 state/librarian/librarian.sqlite "
+# Check LiBrainian database status
+sqlite3 state/LiBrainian/LiBrainian.sqlite "
   SELECT
     (SELECT COUNT(*) FROM librarian_modules) as modules,
     (SELECT COUNT(*) FROM librarian_functions) as functions,
@@ -645,10 +645,10 @@ sqlite3 state/librarian/librarian.sqlite "
     (SELECT COUNT(*) FROM librarian_context_packs) as packs;
 "
 
-# Run librarian qualification tests
-npm run test:librarian
+# Run LiBrainian qualification tests
+npm run test:LiBrainian
 
-# Run agentic librarian review
+# Run agentic LiBrainian review
 node scripts/agentic_librarian_review.mjs
 ```
 
@@ -659,9 +659,9 @@ import {
   preOrchestrationHook,
   enrichTaskContext,
   recordTaskOutcome,
-} from 'librarian';
+} from 'librainian';
 
-// At startup (HARD FAILS if librarian unavailable)
+// At startup (HARD FAILS if LiBrainian unavailable)
 await preOrchestrationHook(workspace);
 
 // Before each task
@@ -864,11 +864,11 @@ export const QUALITY_TIERS = {
 
 ### 11.2 Key Exports
 
-From `src/librarian/index.ts`:
+From `src/LiBrainian/index.ts`:
 
 ```typescript
 // Core
-export { Librarian, createLibrarian, createLibrarianSync } from './api/librarian.js';
+export { LiBrainian, createLibrarian, createLibrarianSync } from './api/LiBrainian.js';
 
 // Query
 export { queryLibrarian, createFunctionQuery, createFileQuery } from './api/query.js';
@@ -902,16 +902,16 @@ export { LibrarianEventBus, globalEventBus } from './events.js';
 |----------|---------|---------|
 | `ANTHROPIC_API_KEY` | - | Claude API key (required for claude provider) |
 | `OPENAI_API_KEY` | - | OpenAI API key (required for openai provider) |
-| `WVO_DETERMINISTIC` | `0` | Set to `1` to skip librarian in tests |
+| `LIBRARIAN_DETERMINISTIC` | `0` | Set to `1` to skip LiBrainian in tests |
 | `WAVE0_TEST_MODE` | `false` | Set to `true` for deterministic test mode |
-| `WVO_LIBRARIAN_WAIT_INDEX_MS` | - | Wait for pending indexing (ms) |
-| `WVO_LIBRARIAN_WATCH_DEBOUNCE_MS` | `500` | File watcher debounce (ms) |
+| `LIBRARIAN_LIBRARIAN_WAIT_INDEX_MS` | - | Wait for pending indexing (ms) |
+| `LIBRARIAN_LIBRARIAN_WATCH_DEBOUNCE_MS` | `500` | File watcher debounce (ms) |
 
 ---
 
 ## CONCLUSION
 
-Librarian v2.0.0 FULL tier represents the complete, production-ready knowledge system for Wave0:
+LiBrainian v2.0.0 FULL tier represents the complete, production-ready knowledge system for Wave0:
 
 1. **122+ TypeScript files** implementing comprehensive functionality
 2. **3 Engines** (Relevance, Constraint, Meta-Knowledge) providing intelligent reasoning

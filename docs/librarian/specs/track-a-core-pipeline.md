@@ -18,7 +18,7 @@
 | **P0** | LLM Provider Discovery | XVI | Mostly implemented (needs “only entrypoint” enforcement) |
 | **P1** | Operator Execution Layer | XV | Partially implemented (no-op operators; end-to-end unverified) |
 | **P2** | Semantic Composition Selector | XIV.B | Partially implemented (keyword-first; semantic missing) |
-| **P3** | LCL Core (Librarian Context Language) | XIX.L | Implemented |
+| **P3** | LCL Core (LiBrainian Context Language) | XIX.L | Implemented |
 | **P4** | Structure Templates | XIX.M | Implemented |
 | **P5** | Pattern Catalog (8 patterns) | XIV.A, XVII.H | Implemented (confidence migration pending) |
 | **P6** | Codebase Advisor | XIV.C | Implemented (integration evidence pending) |
@@ -45,16 +45,16 @@
 - **[EVIDENCE_LEDGER] Events**: provider check start/finish, model registry update, provider mismatch/unsupported warnings.
 - **[CLAIMS] Outputs**: "provider available / model supported" claims must cite provider checks + model registry evidence.
 - **Degradation**: if providers unavailable -> fail with `unverified_by_trace(provider_unavailable)`; no API key fallbacks.
-- **Evidence commands**: `cd packages/librarian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts` and `./scripts/check_forbidden_patterns.sh`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts` and `./scripts/check_forbidden_patterns.sh`.
 
 ### A. The Core Problem
 
 Provider selection must be **capability-driven** (what's available + authenticated), not "whatever env vars happen to be set", and it must be **used everywhere**.
 
 Implementation reality (already present, but must be enforced as the only entrypoint):
-- `src/librarian/api/llm_provider_discovery.ts` (registry + probes + status)
-- `src/librarian/api/llm_env.ts` (`resolveLibrarianModelConfigWithDiscovery()` fallback)
-- `src/librarian/api/provider_check.ts` (`checkAllProviders()` / `requireProviders()`)
+- `src/LiBrainian/api/llm_provider_discovery.ts` (registry + probes + status)
+- `src/LiBrainian/api/llm_env.ts` (`resolveLibrarianModelConfigWithDiscovery()` fallback)
+- `src/LiBrainian/api/provider_check.ts` (`checkAllProviders()` / `requireProviders()`)
 
 This fails in multiple scenarios:
 
@@ -331,7 +331,7 @@ Third parties can register custom providers:
 
 ```typescript
 // In user code or a plugin
-import { llmProviderRegistry, type LlmProviderProbe } from 'librarian';
+import { llmProviderRegistry, type LlmProviderProbe } from 'librainian';
 
 const myCustomProbe: LlmProviderProbe = {
   descriptor: {
@@ -353,9 +353,9 @@ const myCustomProbe: LlmProviderProbe = {
 llmProviderRegistry.register(myCustomProbe);
 ```
 
-### H. Librarian Independence
+### H. LiBrainian Independence
 
-> **Critical**: Librarian must work as a standalone package without wave0-specific dependencies.
+> **Critical**: LiBrainian must work as a standalone package without wave0-specific dependencies.
 
 The provider discovery system ensures this by:
 
@@ -366,7 +366,7 @@ The provider discovery system ensures this by:
 
 ### I. Model Qualification Gate
 
-Before accepting a new model (especially local models), verify it can actually perform Librarian's tasks:
+Before accepting a new model (especially local models), verify it can actually perform LiBrainian's tasks:
 
 ```typescript
 interface ModelQualificationResult {
@@ -425,7 +425,7 @@ const QUALIFICATION_TESTS = [
 
 ## P1: Operator Execution Layer (Part XV)
 
-> **Librarian Story**: Chapter 3 (The Pipeline) - This enables executable workflows.
+> **LiBrainian Story**: Chapter 3 (The Pipeline) - This enables executable workflows.
 >
 > **Critical Problem**: This addresses [Critical Problem A](./critical-usability.md#critical-problem-a-execution-engine-not-verified-end-to-end)
 
@@ -450,7 +450,7 @@ const QUALIFICATION_TESTS = [
 - **[EVIDENCE_LEDGER] Events**: operator_start, primitive_dispatch, operator_result, branch/loop/skip/retry decisions.
 - **[CLAIMS] Outputs**: "composition executed" claims must cite operator trace + primitive outcomes.
 - **Degradation**: if operator unknown -> abort composition with `unverified_by_trace(operator_unsupported)`.
-- **Evidence commands**: `cd packages/librarian && npx vitest src/api/__tests__/operator_interpreters.test.ts src/api/__tests__/operator_registry.test.ts`.
+- **Evidence commands**: `cd packages/LiBrainian && npx vitest src/api/__tests__/operator_interpreters.test.ts src/api/__tests__/operator_registry.test.ts`.
 
 ### A. The Core Problem
 
@@ -1230,7 +1230,7 @@ interface CompositionSelection {
 
 ---
 
-## P3: LCL Core - Librarian Configuration Language (Part XIX.L)
+## P3: LCL Core - LiBrainian Configuration Language (Part XIX.L)
 
 ### [SPEC_SLICE] LCL Core
 
@@ -1273,7 +1273,7 @@ lcl.compose('my_workflow')
 ### C. Configuration Grammar
 
 ```typescript
-// File: packages/librarian/src/api/lcl.ts
+// File: packages/LiBrainian/src/api/lcl.ts
 // This is a THIN LAYER over existing builders -- estimated ~200 LOC
 
 import { CompositionBuilder } from './technique_composition_builder.js';
@@ -1366,7 +1366,7 @@ Presets are JSON configurations that reference EXISTING elements:
 }
 ```
 
-**Implementation**: Presets are stored in `state/librarian/presets.json` and loaded by the existing storage layer.
+**Implementation**: Presets are stored in `state/LiBrainian/presets.json` and loaded by the existing storage layer.
 
 ### E. Implementation Roadmap
 
@@ -1474,7 +1474,7 @@ export const STRUCTURE_TEMPLATES = {
 
 ### C. Implementation
 
-**File**: `packages/librarian/src/api/structure_templates.ts`
+**File**: `packages/LiBrainian/src/api/structure_templates.ts`
 
 | Deliverable | Est. LOC |
 |-------------|----------|
@@ -1756,13 +1756,13 @@ async function findPatternsForSituation(
 
 ### [SPEC_SLICE] Codebase-Aware Composition Suggestion
 
-- **[CAPABILITIES] Required**: Librarian query interface; ability to discover codebase features.
-- **[ADAPTERS] Interfaces**: Librarian; CodebaseFeature discovery.
+- **[CAPABILITIES] Required**: LiBrainian query interface; ability to discover codebase features.
+- **[ADAPTERS] Interfaces**: LiBrainian; CodebaseFeature discovery.
 - **[EVIDENCE_LEDGER] Events**: feature discovered, suggestion generated, suggestion priority.
 
 ### A. The Core Problem
 
-When Librarian bootstraps on a new codebase, it doesn't know what compositions would be useful for *that specific codebase*. A codebase with auth needs security compositions; a codebase with APIs needs breaking-change detection; etc.
+When LiBrainian bootstraps on a new codebase, it doesn't know what compositions would be useful for *that specific codebase*. A codebase with auth needs security compositions; a codebase with APIs needs breaking-change detection; etc.
 
 ### B. Codebase Feature Discovery
 
@@ -1792,7 +1792,7 @@ interface CompositionSuggestion {
 
 ```typescript
 class CodebaseCompositionAdvisor {
-  private librarian: Librarian;
+  private LiBrainian: LiBrainian;
 
   /**
    * Analyze codebase and suggest useful compositions
@@ -1819,7 +1819,7 @@ class CodebaseCompositionAdvisor {
   private async discoverFeatures(): Promise<CodebaseFeature[]> {
     const features: CodebaseFeature[] = [];
 
-    // Query Librarian for various domains
+    // Query LiBrainian for various domains
     const queries = [
       { intent: 'authentication and authorization code', domain: 'auth' },
       { intent: 'API endpoints and routes', domain: 'api' },
@@ -1834,7 +1834,7 @@ class CodebaseCompositionAdvisor {
     ];
 
     for (const query of queries) {
-      const response = await this.librarian.query({
+      const response = await this.LiBrainian.query({
         intent: query.intent,
         depth: 'L1',
         minConfidence: 0.5,
@@ -2186,28 +2186,28 @@ P21: LLM Capability Requirements
 
 ```bash
 # P0: LLM Provider Discovery
-cd packages/librarian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/llm_provider_discovery.test.ts
 
 # P1: Operator Execution Layer
-cd packages/librarian && npx vitest src/api/__tests__/operator_interpreters.test.ts src/api/__tests__/operator_registry.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/operator_interpreters.test.ts src/api/__tests__/operator_registry.test.ts
 
 # P2: Semantic Composition Selector
-cd packages/librarian && npx vitest src/api/__tests__/semantic_composition_selector.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/semantic_composition_selector.test.ts
 
 # P3: LCL Core
-cd packages/librarian && npx vitest src/api/__tests__/lcl.test.ts src/api/__tests__/preset_storage.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/lcl.test.ts src/api/__tests__/preset_storage.test.ts
 
 # P4: Structure Templates
-cd packages/librarian && npx vitest src/api/__tests__/structure_templates.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/structure_templates.test.ts
 
 # P5: Pattern Catalog
-cd packages/librarian && npx vitest src/api/__tests__/pattern_catalog.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/pattern_catalog.test.ts
 
 # P6: Codebase Advisor
-cd packages/librarian && npx vitest src/api/__tests__/codebase_advisor.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/codebase_advisor.test.ts
 
 # P7: Evolution Engine
-cd packages/librarian && npx vitest src/api/__tests__/evolution_engine.test.ts
+cd packages/LiBrainian && npx vitest src/api/__tests__/evolution_engine.test.ts
 
 # Full Tier-0 suite
 npm run test:tier0
@@ -3316,7 +3316,7 @@ export class CapabilityAwareQueryAdapter {
 
 ### Operational Semantics
 
-The Librarian Configuration Language (LCL) has formal operational semantics that define how expressions evaluate.
+The LiBrainian Configuration Language (LCL) has formal operational semantics that define how expressions evaluate.
 
 ```typescript
 /**

@@ -1101,7 +1101,7 @@ ALGORITHM ActiveLearningRetrieval(question, config):
 
 ```gherkin
 Feature: Active Learning Retrieval
-  As a Librarian system
+  As a LiBrainian system
   I want to intelligently explore the codebase
   So that I use fewer queries to reach the same confidence
 

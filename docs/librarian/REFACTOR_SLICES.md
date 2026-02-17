@@ -1,4 +1,4 @@
-# Librarian Ecosystem Upgrade: PR Slicing Plan
+# LiBrainian Ecosystem Upgrade: PR Slicing Plan
 
 **Generated**: 2026-01-08
 **Scope**: MCP server, AGENTS.md, Skills, evidence graphs, hybrid retrieval, evaluation harness, security hardening
@@ -55,13 +55,13 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add evidence graph core types
 - **Goal**: Define the argument/evidence graph schema with nodes, supports, opposes, assumptions, and defeater types. No runtime logic yet.
 - **Files touched**:
-  - ADD `src/librarian/epistemics/types.ts`
-  - ADD `src/librarian/epistemics/index.ts`
-  - MODIFY `src/librarian/types.ts` (import/re-export)
+  - ADD `src/LiBrainian/epistemics/types.ts`
+  - ADD `src/LiBrainian/epistemics/index.ts`
+  - MODIFY `src/LiBrainian/types.ts` (import/re-export)
 - **Depends on**: (none)
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/epistemics`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/epistemics`
 - **Tier-0 tests added**:
-  - `src/librarian/epistemics/__tests__/types.test.ts` (type guards, serialization)
+  - `src/LiBrainian/epistemics/__tests__/types.test.ts` (type guards, serialization)
 - **Tier-2 checks (optional)**: N/A (types only)
 - **Stop conditions**:
   - Type definitions fail to compile
@@ -73,15 +73,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 ### PR#2: Add MCP Protocol Types
 
 - **Title**: Add MCP protocol type definitions
-- **Goal**: Define typed interfaces for all MCP resources, tools, and roots that Librarian will expose. Strict separation from implementation.
+- **Goal**: Define typed interfaces for all MCP resources, tools, and roots that LiBrainian will expose. Strict separation from implementation.
 - **Files touched**:
-  - ADD `src/librarian/mcp/types.ts`
-  - ADD `src/librarian/mcp/schema.ts` (JSON Schema for tool inputs)
-  - ADD `src/librarian/mcp/index.ts`
+  - ADD `src/LiBrainian/mcp/types.ts`
+  - ADD `src/LiBrainian/mcp/schema.ts` (JSON Schema for tool inputs)
+  - ADD `src/LiBrainian/mcp/index.ts`
 - **Depends on**: (none)
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/mcp`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/mcp`
 - **Tier-0 tests added**:
-  - `src/librarian/mcp/__tests__/schema.test.ts` (schema validation tests)
+  - `src/LiBrainian/mcp/__tests__/schema.test.ts` (schema validation tests)
 - **Tier-2 checks (optional)**: N/A
 - **Stop conditions**:
   - Schema fails JSON Schema Draft-07 validation
@@ -95,15 +95,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add AgentGuidancePack and Skills type definitions
 - **Goal**: Define typed structures for parsed AGENTS.md content (AgentGuidancePack) and Skills (SKILL.md + resources). Includes precedence rules.
 - **Files touched**:
-  - ADD `src/librarian/guidance/types.ts`
-  - ADD `src/librarian/guidance/precedence.ts`
-  - ADD `src/librarian/skills/types.ts`
-  - ADD `src/librarian/skills/index.ts`
+  - ADD `src/LiBrainian/guidance/types.ts`
+  - ADD `src/LiBrainian/guidance/precedence.ts`
+  - ADD `src/LiBrainian/skills/types.ts`
+  - ADD `src/LiBrainian/skills/index.ts`
 - **Depends on**: (none)
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/guidance src/librarian/skills`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/guidance src/LiBrainian/skills`
 - **Tier-0 tests added**:
-  - `src/librarian/guidance/__tests__/precedence.test.ts` (directory precedence rules)
-  - `src/librarian/skills/__tests__/types.test.ts` (skill structure validation)
+  - `src/LiBrainian/guidance/__tests__/precedence.test.ts` (directory precedence rules)
+  - `src/LiBrainian/skills/__tests__/types.test.ts` (skill structure validation)
 - **Tier-2 checks (optional)**: N/A
 - **Stop conditions**:
   - Precedence logic ambiguous for nested monorepo cases
@@ -118,13 +118,13 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add evidence graph storage layer
 - **Goal**: Implement SQLite schema and CRUD operations for evidence nodes, edges, and defeaters. Support graph traversal queries.
 - **Files touched**:
-  - MODIFY `src/librarian/storage/sqlite_storage.ts` (add evidence tables)
-  - ADD `src/librarian/migrations/002_evidence_graph.sql`
-  - ADD `src/librarian/epistemics/storage.ts`
+  - MODIFY `src/LiBrainian/storage/sqlite_storage.ts` (add evidence tables)
+  - ADD `src/LiBrainian/migrations/002_evidence_graph.sql`
+  - ADD `src/LiBrainian/epistemics/storage.ts`
 - **Depends on**: PR#1
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/epistemics`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/epistemics`
 - **Tier-0 tests added**:
-  - `src/librarian/epistemics/__tests__/storage.test.ts` (CRUD, traversal, consistency)
+  - `src/LiBrainian/epistemics/__tests__/storage.test.ts` (CRUD, traversal, consistency)
 - **Tier-2 checks (optional)**: `npm run test:integration -- evidence_graph`
 - **Stop conditions**:
   - Migration breaks existing schema
@@ -138,14 +138,14 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Upgrade defeater activation to full calculus
 - **Goal**: Extend existing defeater system with typed defeaters (staleness, contradiction, coverage gaps, tool failure, sandbox mismatch, untrusted content influence). Contradictions remain visible.
 - **Files touched**:
-  - MODIFY `src/librarian/knowledge/defeater_activation.ts` (add new types)
-  - ADD `src/librarian/epistemics/defeater_calculus.ts`
-  - ADD `src/librarian/epistemics/contradiction_tracker.ts`
+  - MODIFY `src/LiBrainian/knowledge/defeater_activation.ts` (add new types)
+  - ADD `src/LiBrainian/epistemics/defeater_calculus.ts`
+  - ADD `src/LiBrainian/epistemics/contradiction_tracker.ts`
 - **Depends on**: PR#1, PR#4
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/epistemics`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/epistemics`
 - **Tier-0 tests added**:
-  - `src/librarian/epistemics/__tests__/defeater_calculus.test.ts`
-  - `src/librarian/epistemics/__tests__/contradiction_tracker.test.ts` (must include negative fixture: silent reconciliation = fail)
+  - `src/LiBrainian/epistemics/__tests__/defeater_calculus.test.ts`
+  - `src/LiBrainian/epistemics/__tests__/contradiction_tracker.test.ts` (must include negative fixture: silent reconciliation = fail)
 - **Tier-2 checks (optional)**: `npm run test:integration -- defeaters`
 - **Stop conditions**:
   - Silent contradiction reconciliation detected
@@ -159,15 +159,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add AGENTS.md parser with directory precedence
 - **Goal**: Parse AGENTS.md (and variants) into typed AgentGuidancePack. Support nested discovery with deterministic precedence.
 - **Files touched**:
-  - ADD `src/librarian/guidance/parser.ts`
-  - ADD `src/librarian/guidance/discovery.ts`
-  - ADD `src/librarian/guidance/validator.ts`
+  - ADD `src/LiBrainian/guidance/parser.ts`
+  - ADD `src/LiBrainian/guidance/discovery.ts`
+  - ADD `src/LiBrainian/guidance/validator.ts`
 - **Depends on**: PR#3
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/guidance`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/guidance`
 - **Tier-0 tests added**:
-  - `src/librarian/guidance/__tests__/parser.test.ts`
-  - `src/librarian/guidance/__tests__/discovery.test.ts` (monorepo fixtures)
-  - `src/librarian/guidance/__tests__/validator.test.ts`
+  - `src/LiBrainian/guidance/__tests__/parser.test.ts`
+  - `src/LiBrainian/guidance/__tests__/discovery.test.ts` (monorepo fixtures)
+  - `src/LiBrainian/guidance/__tests__/validator.test.ts`
 - **Tier-2 checks (optional)**: Test against real wave0-autopilot AGENTS.md
 - **Stop conditions**:
   - Parser fails on existing AGENTS.md in repo
@@ -181,16 +181,16 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add Skills loader with strict validation
 - **Goal**: Load Skills folders (SKILL.md + scripts/resources), validate against schema, expose as Method Packs.
 - **Files touched**:
-  - ADD `src/librarian/skills/loader.ts`
-  - ADD `src/librarian/skills/validator.ts`
-  - ADD `src/librarian/skills/method_pack_adapter.ts`
-  - MODIFY `src/librarian/methods/method_pack_service.ts` (integrate skills)
+  - ADD `src/LiBrainian/skills/loader.ts`
+  - ADD `src/LiBrainian/skills/validator.ts`
+  - ADD `src/LiBrainian/skills/method_pack_adapter.ts`
+  - MODIFY `src/LiBrainian/methods/method_pack_service.ts` (integrate skills)
 - **Depends on**: PR#3
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/skills`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/skills`
 - **Tier-0 tests added**:
-  - `src/librarian/skills/__tests__/loader.test.ts`
-  - `src/librarian/skills/__tests__/validator.test.ts` (negative fixtures for invalid skills)
-  - `src/librarian/skills/__tests__/method_pack_adapter.test.ts`
+  - `src/LiBrainian/skills/__tests__/loader.test.ts`
+  - `src/LiBrainian/skills/__tests__/validator.test.ts` (negative fixtures for invalid skills)
+  - `src/LiBrainian/skills/__tests__/method_pack_adapter.test.ts`
 - **Tier-2 checks (optional)**: Load skills from `.claude/skills/` if present
 - **Stop conditions**:
   - Invalid skill passes validation
@@ -206,19 +206,19 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add MCP server with resource exposure
 - **Goal**: Create production-grade MCP server exposing: file tree, symbols, knowledge maps, method packs, audits, provenance, repo/revision identity as resources.
 - **Files touched**:
-  - ADD `src/librarian/mcp/server.ts`
-  - ADD `src/librarian/mcp/resources/file_tree.ts`
-  - ADD `src/librarian/mcp/resources/symbols.ts`
-  - ADD `src/librarian/mcp/resources/knowledge_maps.ts`
-  - ADD `src/librarian/mcp/resources/method_packs.ts`
-  - ADD `src/librarian/mcp/resources/audits.ts`
-  - ADD `src/librarian/mcp/resources/provenance.ts`
-  - ADD `src/librarian/mcp/resources/identity.ts`
+  - ADD `src/LiBrainian/mcp/server.ts`
+  - ADD `src/LiBrainian/mcp/resources/file_tree.ts`
+  - ADD `src/LiBrainian/mcp/resources/symbols.ts`
+  - ADD `src/LiBrainian/mcp/resources/knowledge_maps.ts`
+  - ADD `src/LiBrainian/mcp/resources/method_packs.ts`
+  - ADD `src/LiBrainian/mcp/resources/audits.ts`
+  - ADD `src/LiBrainian/mcp/resources/provenance.ts`
+  - ADD `src/LiBrainian/mcp/resources/identity.ts`
 - **Depends on**: PR#2, PR#6, PR#7
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/mcp`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/mcp`
 - **Tier-0 tests added**:
-  - `src/librarian/mcp/__tests__/server.test.ts`
-  - `src/librarian/mcp/__tests__/resources.test.ts`
+  - `src/LiBrainian/mcp/__tests__/server.test.ts`
+  - `src/LiBrainian/mcp/__tests__/resources.test.ts`
 - **Tier-2 checks (optional)**: `npm run test:mcp:client` (mock client integration)
 - **Stop conditions**:
   - MCP SDK handshake fails
@@ -232,19 +232,19 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add MCP tools for query, bootstrap, audit operations
 - **Goal**: Expose tools: bootstrap/index/update, query (typed intent), get_context_pack_bundle, verify_claim, run_audit, diff_runs, export_index.
 - **Files touched**:
-  - ADD `src/librarian/mcp/tools/bootstrap.ts`
-  - ADD `src/librarian/mcp/tools/query.ts`
-  - ADD `src/librarian/mcp/tools/context_pack.ts`
-  - ADD `src/librarian/mcp/tools/verify_claim.ts`
-  - ADD `src/librarian/mcp/tools/audit.ts`
-  - ADD `src/librarian/mcp/tools/diff_runs.ts`
-  - ADD `src/librarian/mcp/tools/export.ts`
-  - MODIFY `src/librarian/mcp/server.ts` (register tools)
+  - ADD `src/LiBrainian/mcp/tools/bootstrap.ts`
+  - ADD `src/LiBrainian/mcp/tools/query.ts`
+  - ADD `src/LiBrainian/mcp/tools/context_pack.ts`
+  - ADD `src/LiBrainian/mcp/tools/verify_claim.ts`
+  - ADD `src/LiBrainian/mcp/tools/audit.ts`
+  - ADD `src/LiBrainian/mcp/tools/diff_runs.ts`
+  - ADD `src/LiBrainian/mcp/tools/export.ts`
+  - MODIFY `src/LiBrainian/mcp/server.ts` (register tools)
 - **Depends on**: PR#8, PR#4, PR#5
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/mcp/tools`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/mcp/tools`
 - **Tier-0 tests added**:
-  - `src/librarian/mcp/tools/__tests__/*.test.ts` (one per tool)
-- **Tier-2 checks (optional)**: End-to-end MCP client test with real librarian instance
+  - `src/LiBrainian/mcp/tools/__tests__/*.test.ts` (one per tool)
+- **Tier-2 checks (optional)**: End-to-end MCP client test with real LiBrainian instance
 - **Stop conditions**:
   - Tool input validation fails to reject malformed inputs
   - Any tool execution exceeds 30s without streaming
@@ -257,16 +257,16 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add strict authorization model to MCP server
 - **Goal**: Implement authorization checks. Add user-consent hooks for code execution, file writes, and external network access. Treat tool descriptions as untrusted.
 - **Files touched**:
-  - ADD `src/librarian/mcp/auth/authorization.ts`
-  - ADD `src/librarian/mcp/auth/consent_hooks.ts`
-  - ADD `src/librarian/mcp/auth/untrusted_filter.ts`
-  - MODIFY `src/librarian/mcp/server.ts` (integrate auth)
+  - ADD `src/LiBrainian/mcp/auth/authorization.ts`
+  - ADD `src/LiBrainian/mcp/auth/consent_hooks.ts`
+  - ADD `src/LiBrainian/mcp/auth/untrusted_filter.ts`
+  - MODIFY `src/LiBrainian/mcp/server.ts` (integrate auth)
 - **Depends on**: PR#8, PR#9
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/mcp/auth`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/mcp/auth`
 - **Tier-0 tests added**:
-  - `src/librarian/mcp/auth/__tests__/authorization.test.ts`
-  - `src/librarian/mcp/auth/__tests__/consent_hooks.test.ts` (negative: unauthorized action must fail)
-  - `src/librarian/mcp/auth/__tests__/untrusted_filter.test.ts` (injection patterns)
+  - `src/LiBrainian/mcp/auth/__tests__/authorization.test.ts`
+  - `src/LiBrainian/mcp/auth/__tests__/consent_hooks.test.ts` (negative: unauthorized action must fail)
+  - `src/LiBrainian/mcp/auth/__tests__/untrusted_filter.test.ts` (injection patterns)
 - **Tier-2 checks (optional)**: Adversarial tool description injection test
 - **Stop conditions**:
   - Unauthorized action succeeds
@@ -280,14 +280,14 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add comprehensive audit trail for MCP interactions
 - **Goal**: All MCP interactions produce traceable audit artifacts with timestamps, request/response hashes, and provenance.
 - **Files touched**:
-  - ADD `src/librarian/mcp/audit/trail.ts`
-  - ADD `src/librarian/mcp/audit/artifact_writer.ts`
-  - MODIFY `src/librarian/mcp/server.ts` (wrap all handlers)
+  - ADD `src/LiBrainian/mcp/audit/trail.ts`
+  - ADD `src/LiBrainian/mcp/audit/artifact_writer.ts`
+  - MODIFY `src/LiBrainian/mcp/server.ts` (wrap all handlers)
 - **Depends on**: PR#10
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/mcp/audit`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/mcp/audit`
 - **Tier-0 tests added**:
-  - `src/librarian/mcp/audit/__tests__/trail.test.ts`
-  - `src/librarian/mcp/audit/__tests__/artifact_writer.test.ts`
+  - `src/LiBrainian/mcp/audit/__tests__/trail.test.ts`
+  - `src/LiBrainian/mcp/audit/__tests__/artifact_writer.test.ts`
 - **Tier-2 checks (optional)**: Verify audit artifacts are valid JSON and parseable
 - **Stop conditions**:
   - MCP interaction missing audit artifact
@@ -303,15 +303,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add query router with intent-based strategy selection
 - **Goal**: Route queries to appropriate retrieval strategy based on intent (understand/debug/refactor/impact/security). Classification must be explainable.
 - **Files touched**:
-  - ADD `src/librarian/query/router.ts`
-  - ADD `src/librarian/query/intent_classifier.ts`
-  - ADD `src/librarian/query/strategy_selector.ts`
-  - MODIFY `src/librarian/api/query.ts` (integrate router)
+  - ADD `src/LiBrainian/query/router.ts`
+  - ADD `src/LiBrainian/query/intent_classifier.ts`
+  - ADD `src/LiBrainian/query/strategy_selector.ts`
+  - MODIFY `src/LiBrainian/api/query.ts` (integrate router)
 - **Depends on**: PR#4
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/query`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/query`
 - **Tier-0 tests added**:
-  - `src/librarian/query/__tests__/router.test.ts`
-  - `src/librarian/query/__tests__/intent_classifier.test.ts` (fixture per intent type)
+  - `src/LiBrainian/query/__tests__/router.test.ts`
+  - `src/LiBrainian/query/__tests__/intent_classifier.test.ts` (fixture per intent type)
 - **Tier-2 checks (optional)**: LLM-backed classification accuracy test
 - **Stop conditions**:
   - Intent classification accuracy < 80% on test set
@@ -325,17 +325,17 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add BM25, dense, late-interaction, and cross-encoder retrieval
 - **Goal**: Implement retrieval primitives: sparse lexical (BM25), dense semantic, late-interaction multi-vector, and cross-encoder reranking. All measurable.
 - **Files touched**:
-  - ADD `src/librarian/retrieval/bm25.ts`
-  - ADD `src/librarian/retrieval/dense.ts`
-  - ADD `src/librarian/retrieval/late_interaction.ts`
-  - MODIFY `src/librarian/api/embedding_providers/cross_encoder_reranker.ts` (enhance)
-  - ADD `src/librarian/retrieval/fusion.ts`
+  - ADD `src/LiBrainian/retrieval/bm25.ts`
+  - ADD `src/LiBrainian/retrieval/dense.ts`
+  - ADD `src/LiBrainian/retrieval/late_interaction.ts`
+  - MODIFY `src/LiBrainian/api/embedding_providers/cross_encoder_reranker.ts` (enhance)
+  - ADD `src/LiBrainian/retrieval/fusion.ts`
 - **Depends on**: PR#12
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/retrieval`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/retrieval`
 - **Tier-0 tests added**:
-  - `src/librarian/retrieval/__tests__/bm25.test.ts`
-  - `src/librarian/retrieval/__tests__/dense.test.ts`
-  - `src/librarian/retrieval/__tests__/fusion.test.ts` (ranking quality metrics)
+  - `src/LiBrainian/retrieval/__tests__/bm25.test.ts`
+  - `src/LiBrainian/retrieval/__tests__/dense.test.ts`
+  - `src/LiBrainian/retrieval/__tests__/fusion.test.ts` (ranking quality metrics)
 - **Tier-2 checks (optional)**: Retrieval quality benchmark (MRR, NDCG)
 - **Stop conditions**:
   - BM25 fails on exact keyword match
@@ -349,15 +349,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add graph-based retrieval and summarization
 - **Goal**: Build knowledge graphs with controlled schemas. Use graph retrieval for large corpora. Measure benefit vs baseline.
 - **Files touched**:
-  - ADD `src/librarian/retrieval/graph_rag.ts`
-  - ADD `src/librarian/retrieval/graph_schema.ts`
-  - ADD `src/librarian/retrieval/graph_summarization.ts`
-  - MODIFY `src/librarian/query/router.ts` (add graph strategy)
+  - ADD `src/LiBrainian/retrieval/graph_rag.ts`
+  - ADD `src/LiBrainian/retrieval/graph_schema.ts`
+  - ADD `src/LiBrainian/retrieval/graph_summarization.ts`
+  - MODIFY `src/LiBrainian/query/router.ts` (add graph strategy)
 - **Depends on**: PR#12, PR#13, PR#4
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/retrieval`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/retrieval`
 - **Tier-0 tests added**:
-  - `src/librarian/retrieval/__tests__/graph_rag.test.ts`
-  - `src/librarian/retrieval/__tests__/graph_summarization.test.ts`
+  - `src/LiBrainian/retrieval/__tests__/graph_rag.test.ts`
+  - `src/LiBrainian/retrieval/__tests__/graph_summarization.test.ts`
 - **Tier-2 checks (optional)**: A/B comparison vs non-graph retrieval
 - **Stop conditions**:
   - GraphRAG performs worse than baseline (abort, don't cargo-cult)
@@ -371,16 +371,16 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add multi-layer defense against retrieval corruption
 - **Goal**: Treat repository content as untrusted. Detect instruction patterns. Implement isolate-then-aggregate for high-risk queries. Adversarial test suite.
 - **Files touched**:
-  - ADD `src/librarian/security/injection_detector.ts`
-  - ADD `src/librarian/security/isolated_aggregator.ts`
-  - ADD `src/librarian/security/adversarial_fixtures.ts`
-  - MODIFY `src/librarian/api/query.ts` (integrate defense)
+  - ADD `src/LiBrainian/security/injection_detector.ts`
+  - ADD `src/LiBrainian/security/isolated_aggregator.ts`
+  - ADD `src/LiBrainian/security/adversarial_fixtures.ts`
+  - MODIFY `src/LiBrainian/api/query.ts` (integrate defense)
 - **Depends on**: PR#12
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/security`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/security`
 - **Tier-0 tests added**:
-  - `src/librarian/security/__tests__/injection_detector.test.ts` (50+ injection patterns)
-  - `src/librarian/security/__tests__/isolated_aggregator.test.ts`
-  - `src/librarian/security/__tests__/adversarial.test.ts` (must pass all)
+  - `src/LiBrainian/security/__tests__/injection_detector.test.ts` (50+ injection patterns)
+  - `src/LiBrainian/security/__tests__/isolated_aggregator.test.ts`
+  - `src/LiBrainian/security/__tests__/adversarial.test.ts` (must pass all)
 - **Tier-2 checks (optional)**: Red team injection test suite
 - **Stop conditions**:
   - Any adversarial fixture bypasses detection
@@ -396,15 +396,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add behavioral patch comparison in evaluation harness
 - **Goal**: Compare behavioral consequences of patches (candidate vs baseline). Detect test suite insufficiency. Emit structured reports.
 - **Files touched**:
-  - ADD `src/librarian/evaluation/differential.ts`
-  - ADD `src/librarian/evaluation/patch_analyzer.ts`
-  - ADD `src/librarian/evaluation/insufficiency_detector.ts`
-  - ADD `src/librarian/evaluation/report_generator.ts`
+  - ADD `src/LiBrainian/evaluation/differential.ts`
+  - ADD `src/LiBrainian/evaluation/patch_analyzer.ts`
+  - ADD `src/LiBrainian/evaluation/insufficiency_detector.ts`
+  - ADD `src/LiBrainian/evaluation/report_generator.ts`
 - **Depends on**: PR#4, PR#5
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/evaluation`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/evaluation`
 - **Tier-0 tests added**:
-  - `src/librarian/evaluation/__tests__/differential.test.ts`
-  - `src/librarian/evaluation/__tests__/insufficiency_detector.test.ts` (green-but-wrong fixtures)
+  - `src/LiBrainian/evaluation/__tests__/differential.test.ts`
+  - `src/LiBrainian/evaluation/__tests__/insufficiency_detector.test.ts` (green-but-wrong fixtures)
 - **Tier-2 checks (optional)**: Run against known SWE-bench patches
 - **Stop conditions**:
   - "Green but wrong" patch passes undetected
@@ -418,16 +418,16 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Upgrade calibration to empirical process with Brier scores
 - **Goal**: Decompose confidence (retrieval, structural, semantic, test/exec, recency). Learn calibration per repo/language/task. Report drift.
 - **Files touched**:
-  - MODIFY `src/librarian/api/confidence_calibration.ts` (add Brier scoring)
-  - ADD `src/librarian/measurement/calibration_learner.ts`
-  - ADD `src/librarian/measurement/confidence_decomposition.ts`
-  - ADD `src/librarian/measurement/drift_reporter.ts`
+  - MODIFY `src/LiBrainian/api/confidence_calibration.ts` (add Brier scoring)
+  - ADD `src/LiBrainian/measurement/calibration_learner.ts`
+  - ADD `src/LiBrainian/measurement/confidence_decomposition.ts`
+  - ADD `src/LiBrainian/measurement/drift_reporter.ts`
 - **Depends on**: PR#4, PR#5
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/measurement`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/measurement`
 - **Tier-0 tests added**:
-  - `src/librarian/measurement/__tests__/calibration_learner.test.ts`
-  - `src/librarian/measurement/__tests__/confidence_decomposition.test.ts`
-  - `src/librarian/measurement/__tests__/drift_reporter.test.ts`
+  - `src/LiBrainian/measurement/__tests__/calibration_learner.test.ts`
+  - `src/LiBrainian/measurement/__tests__/confidence_decomposition.test.ts`
+  - `src/LiBrainian/measurement/__tests__/drift_reporter.test.ts`
 - **Tier-2 checks (optional)**: Calibration accuracy on historical data
 - **Stop conditions**:
   - Brier score calculation incorrect (verified against reference)
@@ -441,18 +441,18 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add deterministic replay and diff tooling
 - **Goal**: Every run reproducible via deterministic replay. Same inputs + traces = same outputs (minus time). Provide replay/diff commands.
 - **Files touched**:
-  - ADD `src/librarian/replay/recorder.ts`
-  - ADD `src/librarian/replay/player.ts`
-  - ADD `src/librarian/replay/differ.ts`
-  - ADD `src/librarian/cli/commands/replay.ts`
-  - ADD `src/librarian/cli/commands/diff_run.ts`
-  - MODIFY `src/librarian/mcp/tools/diff_runs.ts` (integrate)
+  - ADD `src/LiBrainian/replay/recorder.ts`
+  - ADD `src/LiBrainian/replay/player.ts`
+  - ADD `src/LiBrainian/replay/differ.ts`
+  - ADD `src/LiBrainian/cli/commands/replay.ts`
+  - ADD `src/LiBrainian/cli/commands/diff_run.ts`
+  - MODIFY `src/LiBrainian/mcp/tools/diff_runs.ts` (integrate)
 - **Depends on**: PR#11
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/replay`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/replay`
 - **Tier-0 tests added**:
-  - `src/librarian/replay/__tests__/recorder.test.ts`
-  - `src/librarian/replay/__tests__/player.test.ts` (determinism check)
-  - `src/librarian/replay/__tests__/differ.test.ts`
+  - `src/LiBrainian/replay/__tests__/recorder.test.ts`
+  - `src/LiBrainian/replay/__tests__/player.test.ts` (determinism check)
+  - `src/LiBrainian/replay/__tests__/differ.test.ts`
 - **Tier-2 checks (optional)**: Replay real bootstrap run and verify identical output
 - **Stop conditions**:
   - Non-determinism in replay (output differs)
@@ -466,17 +466,17 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add explicit OWASP LLM Top 10 controls and tests
 - **Goal**: Implement and test controls for: prompt injection, insecure output handling, excessive agency, supply chain vulnerabilities, sensitive info disclosure, unbounded consumption.
 - **Files touched**:
-  - ADD `src/librarian/security/owasp/index.ts`
-  - ADD `src/librarian/security/owasp/prompt_injection.ts`
-  - ADD `src/librarian/security/owasp/output_handling.ts`
-  - ADD `src/librarian/security/owasp/excessive_agency.ts`
-  - ADD `src/librarian/security/owasp/supply_chain.ts`
-  - ADD `src/librarian/security/owasp/info_disclosure.ts`
-  - ADD `src/librarian/security/owasp/consumption_limits.ts`
+  - ADD `src/LiBrainian/security/owasp/index.ts`
+  - ADD `src/LiBrainian/security/owasp/prompt_injection.ts`
+  - ADD `src/LiBrainian/security/owasp/output_handling.ts`
+  - ADD `src/LiBrainian/security/owasp/excessive_agency.ts`
+  - ADD `src/LiBrainian/security/owasp/supply_chain.ts`
+  - ADD `src/LiBrainian/security/owasp/info_disclosure.ts`
+  - ADD `src/LiBrainian/security/owasp/consumption_limits.ts`
 - **Depends on**: PR#15, PR#10
-- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/librarian/security/owasp`
+- **Tier-0 gate**: `npm run typecheck && npm run test:unit -- src/LiBrainian/security/owasp`
 - **Tier-0 tests added**:
-  - `src/librarian/security/owasp/__tests__/*.test.ts` (one per control, with negative fixtures)
+  - `src/LiBrainian/security/owasp/__tests__/*.test.ts` (one per control, with negative fixtures)
 - **Tier-2 checks (optional)**: Full OWASP control validation
 - **Stop conditions**:
   - Any control missing test coverage
@@ -514,15 +514,15 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add comprehensive agent integration documentation
 - **Goal**: Document MCP, AGENTS.md, Skills integration with examples for multiple agent frameworks.
 - **Files touched**:
-  - ADD `docs/librarian/AGENT_COOKBOOK.md`
-  - ADD `docs/librarian/examples/mcp_client.ts`
-  - ADD `docs/librarian/examples/skills_usage.ts`
-  - ADD `docs/librarian/examples/agents_md_integration.ts`
+  - ADD `docs/LiBrainian/AGENT_COOKBOOK.md`
+  - ADD `docs/LiBrainian/examples/mcp_client.ts`
+  - ADD `docs/LiBrainian/examples/skills_usage.ts`
+  - ADD `docs/LiBrainian/examples/agents_md_integration.ts`
 - **Depends on**: PR#8, PR#9, PR#6, PR#7
-- **Tier-0 gate**: `npm run typecheck -- docs/librarian/examples`
+- **Tier-0 gate**: `npm run typecheck -- docs/LiBrainian/examples`
 - **Tier-0 tests added**:
   - Example files must compile
-- **Tier-2 checks (optional)**: Examples run successfully against live librarian
+- **Tier-2 checks (optional)**: Examples run successfully against live LiBrainian
 - **Stop conditions**:
   - Example code doesn't compile
   - Missing coverage for major use case
@@ -535,9 +535,9 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add guide for validating claims and replaying runs
 - **Goal**: Document how to validate claims, replay runs, verify provenance, interpret defeaters.
 - **Files touched**:
-  - ADD `docs/librarian/TRUST_VERIFICATION.md`
-  - ADD `docs/librarian/EPISTEMIC_MODEL.md`
-  - MODIFY `docs/librarian/README.md` (link)
+  - ADD `docs/LiBrainian/TRUST_VERIFICATION.md`
+  - ADD `docs/LiBrainian/EPISTEMIC_MODEL.md`
+  - MODIFY `docs/LiBrainian/README.md` (link)
 - **Depends on**: PR#18, PR#5
 - **Tier-0 gate**: Markdown lint passes
 - **Tier-0 tests added**: N/A (docs)
@@ -554,8 +554,8 @@ Wave 6: Documentation + Polish (depends on Wave 5)
 - **Title**: Add security posture document with OWASP alignment
 - **Goal**: Document threats, mitigations, residual risks, and test evidence. Aligned to OWASP LLM Top 10.
 - **Files touched**:
-  - ADD `docs/librarian/SECURITY_POSTURE.md`
-  - ADD `docs/librarian/THREAT_MODEL.md`
+  - ADD `docs/LiBrainian/SECURITY_POSTURE.md`
+  - ADD `docs/LiBrainian/THREAT_MODEL.md`
   - MODIFY `SECURITY.md` (disclosure path)
 - **Depends on**: PR#19, PR#20
 - **Tier-0 gate**: Markdown lint passes
@@ -579,7 +579,7 @@ Wave 6: Documentation + Polish (depends on Wave 5)
   - ADD `examples/scenarios/`
   - ADD `CONTRIBUTING.md`
   - ADD `CODE_OF_CONDUCT.md`
-  - MODIFY `docs/librarian/ROADMAP.md`
+  - MODIFY `docs/LiBrainian/ROADMAP.md`
 - **Depends on**: PR#21, PR#22, PR#23
 - **Tier-0 gate**: Examples compile and run
 - **Tier-0 tests added**:

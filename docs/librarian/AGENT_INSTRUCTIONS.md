@@ -1,4 +1,4 @@
-# Librarian: Agent Implementation Instructions
+# LiBrainian: Agent Implementation Instructions
 
 > **THIS IS THE AUTHORITATIVE FILE FOR IMPLEMENTATION WORK.**
 > Do NOT read THEORETICAL_CRITIQUE.md for implementation guidance.
@@ -8,7 +8,7 @@
 
 ## Conceptual Foundation
 
-**What Librarian Is**: An epistemological system that produces *understanding*, not search results. Every claim must be evidence-backed, confidence must be calibrated, and the system must fail honestly when it cannot function.
+**What LiBrainian Is**: An epistemological system that produces *understanding*, not search results. Every claim must be evidence-backed, confidence must be calibrated, and the system must fail honestly when it cannot function.
 
 **Why This Structure**: Implementation follows a strict dependency order because:
 1. **You cannot test what doesn't build** (Layer 0)
@@ -16,7 +16,7 @@
 3. **Features without infrastructure are theater** (Layer 2 before Layer 3)
 4. **Confidence without calibration is lying** (Quantification before advanced features)
 
-**The LLM Requirement**: Librarian without LLM is not a degraded system - it's a non-functional system. Never implement fallbacks that simulate success.
+**The LLM Requirement**: LiBrainian without LLM is not a degraded system - it's a non-functional system. Never implement fallbacks that simulate success.
 
 ---
 
@@ -122,7 +122,7 @@ All gates must pass. See **[specs/core/testing-architecture.md](specs/core/testi
 
 | Gate | Command | Acceptance | If Fails |
 |------|---------|------------|----------|
-| **0.1 Typecheck** | `cd packages/librarian && npx tsc --noEmit` | Zero errors | Fix type errors |
+| **0.1 Typecheck** | `cd packages/LiBrainian && npx tsc --noEmit` | Zero errors | Fix type errors |
 | **0.2 Build** | `npm run build` | Exit 0, complexity OK | Fix errors or refactor |
 | **0.3 Tier-0** | `LIBRARIAN_TEST_MODE=unit npm test -- --run` | All pass | Fix tests or code |
 | **0.4 Tier-1** | `LIBRARIAN_TEST_MODE=integration npm test -- --run` | Pass or skip | Skip if providers unavailable |
@@ -146,9 +146,9 @@ Package must run without wave0. Gates 1.1 and 1.2 can run in parallel.
 
 | Gate | Command | Acceptance |
 |------|---------|------------|
-| **1.1 No wave0 imports** | `rg "src/(wave0\|orchestrator)/" packages/librarian/src` | Zero matches |
-| **1.2 No direct imports** | `rg "from '\.\.\/librarian/" src --glob '!src/librarian/**'` | Zero matches |
-| **1.3 Standalone tests** | `cd packages/librarian && npm test` | Pass without wave0 |
+| **1.1 No wave0 imports** | `rg "src/(wave0\|orchestrator)/" packages/LiBrainian/src` | Zero matches |
+| **1.2 No direct imports** | `rg "from '\.\.\/LiBrainian/" src --glob '!src/LiBrainian/**'` | Zero matches |
+| **1.3 Standalone tests** | `cd packages/LiBrainian && npm test` | Pass without wave0 |
 
 ---
 
@@ -160,7 +160,7 @@ These are the **foundations features depend on**. Tasks 2.1, 2.2, 2.3 can run in
 
 **Purpose**: All LLM calls go through a single adapter for evidence and policy.
 
-**Verification**: `rg "new LLMService\(" packages/librarian/src --glob '!**/adapters/**' --glob '!**/__tests__/**'`
+**Verification**: `rg "new LLMService\(" packages/LiBrainian/src --glob '!**/adapters/**' --glob '!**/__tests__/**'`
 
 **Acceptance**: Zero matches outside adapters/tests.
 
@@ -170,7 +170,7 @@ These are the **foundations features depend on**. Tasks 2.1, 2.2, 2.3 can run in
 
 **Purpose**: Single append-only log of all actions for replay and audit.
 
-**Current implementation**: `packages/librarian/src/epistemics/evidence_ledger.ts`
+**Current implementation**: `packages/LiBrainian/src/epistemics/evidence_ledger.ts`
 
 ```typescript
 interface IEvidenceLedger {
@@ -186,13 +186,13 @@ interface IEvidenceLedger {
 - Ledger implementation tests pass (Tier-0).
 - Wiring points have deterministic tests that assert entries are appended when a subsystem emits an event.
 
-**Test**: `packages/librarian/src/epistemics/__tests__/evidence_ledger.test.ts` must pass
+**Test**: `packages/LiBrainian/src/epistemics/__tests__/evidence_ledger.test.ts` must pass
 
 ### Task 2.3: Capability Negotiation
 
 **Purpose**: Explicit declaration of what the system needs and what's available.
 
-**Create**: `packages/librarian/src/api/capability_contracts.ts`
+**Create**: `packages/LiBrainian/src/api/capability_contracts.ts`
 
 ```typescript
 type Capability = 'llm:chat' | 'llm:embedding' | 'storage:sqlite' | 'storage:vector' | 'tool:filesystem' | 'tool:git' | 'tool:mcp';
@@ -214,7 +214,7 @@ function negotiateCapabilities(required: Capability[], available: Capability[]):
 - Missing required capability → fail-closed with `unverified_by_trace(capability_missing)`
 - Missing optional capability → `degradedMode` is surfaced explicitly (never silent)
 
-**Test**: `cd packages/librarian && npx vitest run src/__tests__/capability_contracts.test.ts`
+**Test**: `cd packages/LiBrainian && npx vitest run src/__tests__/capability_contracts.test.ts`
 
 ### Task 2.4: Tool/MCP Adapter
 
@@ -222,11 +222,11 @@ function negotiateCapabilities(required: Capability[], available: Capability[]):
 
 **Purpose**: Unified interface for tool calls with evidence logging.
 
-**Create**: `packages/librarian/src/api/tool_adapter.ts`
+**Create**: `packages/LiBrainian/src/api/tool_adapter.ts`
 
 **Verification (no-theater)**:
-- Tier‑0 wiring test: `cd packages/librarian && npx vitest run src/mcp/__tests__/tool_adapter_bridge.test.ts`
-- Drift guard (single registry): `cd packages/librarian && npx vitest run src/mcp/__tests__/tool_registry_consistency.test.ts`
+- Tier‑0 wiring test: `cd packages/LiBrainian && npx vitest run src/mcp/__tests__/tool_adapter_bridge.test.ts`
+- Drift guard (single registry): `cd packages/LiBrainian && npx vitest run src/mcp/__tests__/tool_registry_consistency.test.ts`
 
 ---
 
@@ -264,7 +264,7 @@ For deep dives into any track, read the corresponding spec file in `specs/`:
 | [`specs/GLOSSARY.md`](./specs/GLOSSARY.md) | **Canonical definitions** - All terms used across specs | Meta |
 | [`specs/IMPLEMENTATION_STATUS.md`](./specs/IMPLEMENTATION_STATUS.md) | **Prior implementation issues** - What exists, what's broken, what's missing | Meta |
 
-### The Librarian Story (Why These Tracks Exist)
+### The LiBrainian Story (Why These Tracks Exist)
 
 > **Read this first to understand HOW the tracks fit together.**
 
@@ -290,8 +290,8 @@ Two metaphors appear throughout the specs. **They are not in conflict - they are
 
 | Layer | Metaphor | What It Describes | Example Terms |
 |-------|----------|-------------------|---------------|
-| **Surface** | Search/Retrieval | How Librarian finds information | query, retrieval, similarity, embedding |
-| **Core** | Epistemology | How Librarian produces understanding | claim, evidence, confidence, knowledge |
+| **Surface** | Search/Retrieval | How LiBrainian finds information | query, retrieval, similarity, embedding |
+| **Core** | Epistemology | How LiBrainian produces understanding | claim, evidence, confidence, knowledge |
 
 **The relationship**:
 
@@ -308,7 +308,7 @@ SEARCH (Surface)                    EPISTEMOLOGY (Core)
 
 **Search is the mechanism; epistemology is the goal.**
 
-Librarian uses search techniques (embeddings, similarity, retrieval) to gather information. But the OUTPUT is not search results - it's **knowledge claims with evidence and confidence**.
+LiBrainian uses search techniques (embeddings, similarity, retrieval) to gather information. But the OUTPUT is not search results - it's **knowledge claims with evidence and confidence**.
 
 **Critical distinction**:
 - A search system returns: "Here are files containing 'auth'"
@@ -448,14 +448,14 @@ These form the main retrieval/synthesis pipeline.
 
 | ID | Feature | Depends On | Test |
 |----|---------|------------|------|
-| P0 | LLM Provider Discovery | Layer 2 | `packages/librarian/src/api/__tests__/llm_provider_discovery.test.ts` |
-| P1 | Operator Execution | P0 | `packages/librarian/src/api/__tests__/operator_interpreters.test.ts` |
-| P2 | Semantic Selector | P0 | `packages/librarian/src/api/__tests__/librarian_select_compositions.test.ts` |
-| P3 | LCL Core | P0, P1 | `packages/librarian/src/api/__tests__/lcl.test.ts` |
-| P4 | Structure Templates | P3 | `packages/librarian/src/api/__tests__/structure_templates.test.ts` |
-| P5 | Pattern Catalog | P3 | `packages/librarian/src/api/__tests__/pattern_catalog.test.ts` |
-| P6 | Codebase Advisor | P5 | `packages/librarian/src/api/__tests__/codebase_advisor.test.ts` |
-| P7 | Evolution Engine | P6 | `packages/librarian/src/api/__tests__/composition_evolution.test.ts` |
+| P0 | LLM Provider Discovery | Layer 2 | `packages/LiBrainian/src/api/__tests__/llm_provider_discovery.test.ts` |
+| P1 | Operator Execution | P0 | `packages/LiBrainian/src/api/__tests__/operator_interpreters.test.ts` |
+| P2 | Semantic Selector | P0 | `packages/LiBrainian/src/api/__tests__/librarian_select_compositions.test.ts` |
+| P3 | LCL Core | P0, P1 | `packages/LiBrainian/src/api/__tests__/lcl.test.ts` |
+| P4 | Structure Templates | P3 | `packages/LiBrainian/src/api/__tests__/structure_templates.test.ts` |
+| P5 | Pattern Catalog | P3 | `packages/LiBrainian/src/api/__tests__/pattern_catalog.test.ts` |
+| P6 | Codebase Advisor | P5 | `packages/LiBrainian/src/api/__tests__/codebase_advisor.test.ts` |
+| P7 | Evolution Engine | P6 | `packages/LiBrainian/src/api/__tests__/composition_evolution.test.ts` |
 
 ### Track B: Bootstrap Pipeline (P1 → P10)
 
@@ -463,9 +463,9 @@ These enable cold-start and universal applicability.
 
 | ID | Feature | Depends On | Test |
 |----|---------|------------|------|
-| P8 | Zero-Knowledge Bootstrap | P1 | `packages/librarian/src/api/__tests__/zero_knowledge_bootstrap.test.ts` |
-| P9 | Universal Applicability | P8 | `packages/librarian/src/api/__tests__/universal_applicability.test.ts` |
-| P10 | Epistemic Policy | P9 | `packages/librarian/src/api/__tests__/epistemic_policy.test.ts` |
+| P8 | Zero-Knowledge Bootstrap | P1 | `packages/LiBrainian/src/api/__tests__/zero_knowledge_bootstrap.test.ts` |
+| P9 | Universal Applicability | P8 | `packages/LiBrainian/src/api/__tests__/universal_applicability.test.ts` |
+| P10 | Epistemic Policy | P9 | `packages/LiBrainian/src/api/__tests__/epistemic_policy.test.ts` |
 
 ### Track C: Extended Features (P11 → P18)
 
@@ -473,14 +473,14 @@ Advanced capabilities that build on the core.
 
 | ID | Feature | Depends On | Test |
 |----|---------|------------|------|
-| P11 | Storage Interface Split | P10 | `packages/librarian/src/api/__tests__/librarian_storage_slices.test.ts` |
-| P12 | Transaction Boundaries | P11 | `packages/librarian/src/storage/__tests__/transactions.test.ts` |
-| P13 | Prediction-Oriented Memory | P12 | `packages/librarian/src/api/__tests__/learning_loop.test.ts` |
-| P14 | Self-Aware Oracle | P13 | `packages/librarian/src/api/__tests__/self_aware_oracle.test.ts` |
-| P15 | Proof-Carrying Context | P14 | `packages/librarian/src/api/__tests__/proof_carrying_context.test.ts` |
-| P16 | Causal Discovery | P15 | `packages/librarian/src/api/__tests__/causal_discovery.test.ts` |
-| P17 | Bi-Temporal Knowledge | P16 | `packages/librarian/src/api/__tests__/bi_temporal_knowledge.test.ts` |
-| P18 | Metacognitive Architecture | P17 | `packages/librarian/src/api/__tests__/metacognitive_architecture.test.ts` |
+| P11 | Storage Interface Split | P10 | `packages/LiBrainian/src/api/__tests__/librarian_storage_slices.test.ts` |
+| P12 | Transaction Boundaries | P11 | `packages/LiBrainian/src/storage/__tests__/transactions.test.ts` |
+| P13 | Prediction-Oriented Memory | P12 | `packages/LiBrainian/src/api/__tests__/learning_loop.test.ts` |
+| P14 | Self-Aware Oracle | P13 | `packages/LiBrainian/src/api/__tests__/self_aware_oracle.test.ts` |
+| P15 | Proof-Carrying Context | P14 | `packages/LiBrainian/src/api/__tests__/proof_carrying_context.test.ts` |
+| P16 | Causal Discovery | P15 | `packages/LiBrainian/src/api/__tests__/causal_discovery.test.ts` |
+| P17 | Bi-Temporal Knowledge | P16 | `packages/LiBrainian/src/api/__tests__/bi_temporal_knowledge.test.ts` |
+| P18 | Metacognitive Architecture | P17 | `packages/LiBrainian/src/api/__tests__/metacognitive_architecture.test.ts` |
 
 ### Track D: Principled Confidence (Q1 → Q8)
 
@@ -490,9 +490,9 @@ See [CONFIDENCE_REDESIGN.md](./specs/CONFIDENCE_REDESIGN.md) for full rationale.
 
 | ID | Feature | Depends On | Test/Verification |
 |----|---------|------------|-------------------|
-| Q1 | ConfidenceValue Type | Layer 2 | `packages/librarian/src/epistemics/__tests__/computed_confidence.test.ts` |
-| Q2 | Derivation Rules | Q1 | `packages/librarian/src/epistemics/__tests__/computed_confidence.test.ts` |
-| Q3 | Degradation Handlers | Q1 | `packages/librarian/src/epistemics/__tests__/computed_confidence.test.ts` |
+| Q1 | ConfidenceValue Type | Layer 2 | `packages/LiBrainian/src/epistemics/__tests__/computed_confidence.test.ts` |
+| Q2 | Derivation Rules | Q1 | `packages/LiBrainian/src/epistemics/__tests__/computed_confidence.test.ts` |
+| Q3 | Degradation Handlers | Q1 | `packages/LiBrainian/src/epistemics/__tests__/computed_confidence.test.ts` |
 | Q4 | Migration Script | Q1-Q3 | `unverified_by_trace(not_implemented)` |
 | Q5 | Migrate claim confidence surfaces | Q4 | `unverified_by_trace(migration_pending)` |
 | Q6 | Rename heuristic “confidence” fields | Q5 | `unverified_by_trace(migration_pending)` |
@@ -502,15 +502,15 @@ See [CONFIDENCE_REDESIGN.md](./specs/CONFIDENCE_REDESIGN.md) for full rationale.
 **Verification**:
 ```bash
 # Migration audit (expected non-zero until Track D migration completes)
-rg "confidence:\\s*0\\.\\d" packages/librarian/src --glob '*.ts'
-rg "placeholder\\(" packages/librarian/src --glob '*.ts'
+rg "confidence:\\s*0\\.\\d" packages/LiBrainian/src --glob '*.ts'
+rg "placeholder\\(" packages/LiBrainian/src --glob '*.ts'
 ```
 
 ### Track E: Universal Domain (D1 → D4)
 
 | ID | Feature | Depends On | Test |
 |----|---------|------------|------|
-| D1 | 7 Domain Primitives | Q1-Q3 | `packages/librarian/src/api/__tests__/domain_support.test.ts` |
+| D1 | 7 Domain Primitives | Q1-Q3 | `packages/LiBrainian/src/api/__tests__/domain_support.test.ts` |
 | D2 | 10 World-Class Compositions | D1 | `unverified_by_trace(spec_only)` |
 | D3 | Domain Construction Protocol | D2 | `unverified_by_trace(spec_only)` |
 | D4 | Aspect Decomposer | D3 | `unverified_by_trace(spec_only)` |
@@ -521,9 +521,9 @@ Can run in parallel with feature tracks once Q2 is complete.
 
 | ID | Feature | Depends On | Test |
 |----|---------|------------|------|
-| C1 | Claim-Outcome Tracking | Q2 | `packages/librarian/src/api/__tests__/feedback_loop.test.ts` |
-| C2 | Calibration Curves | C1 | `packages/librarian/src/__tests__/confidence_calibration.test.ts` |
-| C3 | Confidence Adjustment | C2 | `packages/librarian/src/api/confidence_calibration.ts` |
+| C1 | Claim-Outcome Tracking | Q2 | `packages/LiBrainian/src/api/__tests__/feedback_loop.test.ts` |
+| C2 | Calibration Curves | C1 | `packages/LiBrainian/src/__tests__/confidence_calibration.test.ts` |
+| C3 | Confidence Adjustment | C2 | `packages/LiBrainian/src/api/confidence_calibration.ts` |
 | C4 | Calibration Dashboard | C2 | `unverified_by_trace(spec_only)` |
 
 ---
@@ -533,12 +533,12 @@ Can run in parallel with feature tracks once Q2 is complete.
 Run all verification. Everything must pass.
 
 ```bash
-cd packages/librarian && npx tsc --noEmit        # Typecheck
+cd packages/LiBrainian && npx tsc --noEmit        # Typecheck
 npm run build                                     # Build
 npm run test:tier0                                # Tier-0
 npm test                                          # Full suite
 node scripts/canon_guard.mjs                      # Doc coherence
-rg "src/(wave0|orchestrator)/" packages/librarian/src  # Extraction (must be empty)
+rg "src/(wave0|orchestrator)/" packages/LiBrainian/src  # Extraction (must be empty)
 ```
 
 ---
@@ -551,7 +551,7 @@ rg "src/(wave0|orchestrator)/" packages/librarian/src  # Extraction (must be emp
 
 | Option | Command | When |
 |--------|---------|------|
-| Git subtree | `git subtree split --prefix=packages/librarian` | Preserve history |
+| Git subtree | `git subtree split --prefix=packages/LiBrainian` | Preserve history |
 | Copy | New repo, copy files | Clean start |
 | npm publish | `npm publish` | Public release |
 
@@ -562,7 +562,7 @@ rg "src/(wave0|orchestrator)/" packages/librarian/src  # Extraction (must be emp
 3. Move/split package contents
 4. Update wave0's package.json to use the external package
 5. Verify wave0 still works
-6. Delete packages/librarian from wave0
+6. Delete packages/LiBrainian from wave0
 7. Update GATES.json
 
 ---
@@ -610,7 +610,7 @@ The orchestrator:
 
 1. **Build fails**: Read error, fix error, repeat
 2. **Test fails**: Read assertion, understand expected vs actual, fix
-3. **Can't find code**: `rg -n "pattern" packages/librarian/src`
+3. **Can't find code**: `rg -n "pattern" packages/LiBrainian/src`
 4. **Don't understand requirement**: Read relevant Part in THEORETICAL_CRITIQUE.md
 5. **Genuinely blocked**: Document blocker (file, line, error) and STOP
 
@@ -618,7 +618,7 @@ The orchestrator:
 
 ## Machine-Readable Status
 
-After completing any task, update `docs/librarian/GATES.json`:
+After completing any task, update `docs/LiBrainian/GATES.json`:
 
 ```json
 {

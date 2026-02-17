@@ -1,6 +1,6 @@
-# World-Class Librarian Initiative
+# World-Class LiBrainian Initiative
 
-> **Goal**: Make Librarian genuinely indispensable for any agent working on any codebase
+> **Goal**: Make LiBrainian genuinely indispensable for any agent working on any codebase
 > **Priority**: Quality over speed. Comprehensive over fast. Correct over convenient.
 > **Status**: Active Development
 
@@ -8,9 +8,9 @@
 
 ## Core Principles
 
-1. **Handle ANYTHING**: With appropriate constructables and configs, Librarian must provide value for any task
-2. **Automatic Intelligence**: Librarian should auto-configure and auto-recommend, not require manual setup
-3. **Zero Friction Integration**: Agents should use Librarian without thinking about it
+1. **Handle ANYTHING**: With appropriate constructables and configs, LiBrainian must provide value for any task
+2. **Automatic Intelligence**: LiBrainian should auto-configure and auto-recommend, not require manual setup
+3. **Zero Friction Integration**: Agents should use LiBrainian without thinking about it
 4. **Evidence-Based Everything**: Every claim, recommendation, and action must be backed by verifiable evidence
 5. **Full Tier by Default**: No MVP shortcuts in production—comprehensive analysis always
 
@@ -37,11 +37,11 @@ Upgrade default quality tier from MVP to FULL:
 **Priority**: P0 (Blocking)
 **Status**: Planned
 
-Make agents use Librarian automatically without manual queries:
+Make agents use LiBrainian automatically without manual queries:
 
 1. **Pre-Task Context Injection**
    - Detect task intent from user message
-   - Query Librarian for relevant context
+   - Query LiBrainian for relevant context
    - Inject context into agent's working memory
    - No agent action required
 
@@ -56,7 +56,7 @@ Make agents use Librarian automatically without manual queries:
    - Update context as codebase evolves
    - Alert agent to breaking changes
 
-**Deliverable**: Agents work better with Librarian present, even without explicit queries
+**Deliverable**: Agents work better with LiBrainian present, even without explicit queries
 
 ---
 
@@ -84,7 +84,7 @@ Index and retrieve documentation with same rigor as code:
    - Implementation queries ("where is X") → Code
    - Hybrid queries → Both
 
-**Deliverable**: Query "how should an agent use Librarian?" returns integration docs, not random functions
+**Deliverable**: Query "how should an agent use LiBrainian?" returns integration docs, not random functions
 
 ---
 
@@ -92,7 +92,7 @@ Index and retrieve documentation with same rigor as code:
 **Priority**: P1 (Important)
 **Status**: Planned
 
-Librarian configures itself optimally for each codebase:
+LiBrainian configures itself optimally for each codebase:
 
 1. **Language/Framework Detection**
    - Auto-detect: TypeScript, Python, Rust, Go, etc.
@@ -110,11 +110,11 @@ Librarian configures itself optimally for each codebase:
    - Configure domain-specific extractors
 
 4. **Config Generation**
-   - Generate `.librarian/config.json` with optimal settings
+   - Generate `.LiBrainian/config.json` with optimal settings
    - Explain each setting's purpose
    - Allow override with justification
 
-**Deliverable**: `librarian bootstrap` auto-configures perfectly for any project type
+**Deliverable**: `LiBrainian bootstrap` auto-configures perfectly for any project type
 
 ---
 
@@ -240,7 +240,7 @@ Knowledge base improves automatically:
    - Share patterns across similar projects
    - Build institutional knowledge
 
-**Deliverable**: Librarian gets smarter with every use
+**Deliverable**: LiBrainian gets smarter with every use
 
 ---
 
@@ -248,7 +248,7 @@ Knowledge base improves automatically:
 **Priority**: P2 (Important)
 **Status**: Planned
 
-Verify Librarian's own claims:
+Verify LiBrainian's own claims:
 
 1. **Citation Verification**
    - Check that cited files/lines exist
@@ -270,7 +270,7 @@ Verify Librarian's own claims:
    - Test edge cases
    - Measure robustness
 
-**Deliverable**: Librarian's outputs are verifiably correct
+**Deliverable**: LiBrainian's outputs are verifiably correct
 
 ---
 
@@ -295,7 +295,7 @@ Work across multiple repositories:
    - Share best practices
    - Build organization-wide knowledge
 
-**Deliverable**: Librarian works at organizational scale
+**Deliverable**: LiBrainian works at organizational scale
 
 ---
 
@@ -335,7 +335,7 @@ Work across multiple repositories:
 
 1. **WU-WORLD-001**: Full tier upgrade (foundation)
 2. **WU-WORLD-003**: Documentation indexing (fixes query problem)
-3. **WU-WORLD-002**: Agent integration (makes Librarian used)
+3. **WU-WORLD-002**: Agent integration (makes LiBrainian used)
 4. **WU-WORLD-004**: Auto-configuration (reduces friction)
 5. **WU-WORLD-007**: Query understanding (improves results)
 6. **WU-WORLD-005**: Pattern library (comprehensive detection)
@@ -348,10 +348,10 @@ Work across multiple repositories:
 
 ## Success Criteria
 
-Librarian achieves "world-class" when:
+LiBrainian achieves "world-class" when:
 
-1. **Zero-Config Excellence**: `librarian bootstrap` works optimally on any repo
-2. **Automatic Value**: Agents are measurably better with Librarian present
+1. **Zero-Config Excellence**: `LiBrainian bootstrap` works optimally on any repo
+2. **Automatic Value**: Agents are measurably better with LiBrainian present
 3. **Trustworthy Claims**: 95%+ of claims are verifiable
 4. **Comprehensive Coverage**: Works for any language, framework, project type
 5. **Self-Improving**: Gets better with every use without manual intervention

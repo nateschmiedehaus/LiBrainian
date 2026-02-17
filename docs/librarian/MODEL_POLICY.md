@@ -1,4 +1,4 @@
-# Librarian Model Policy (Daily Selection)
+# LiBrainian Model Policy (Daily Selection)
 
 Status: authoritative
 Scope: Daily model selection, provider checks, escalation rules, and cost control.
@@ -26,7 +26,7 @@ without sacrificing semantic fidelity or tool support.
 1. **CLI Authentication Only**: No API keys in environment variables
 2. **Provider Verification**: Verify via `checkAllProviders()` before any operation
 3. **Fail Closed**: If providers unavailable, return `unverified_by_trace(provider_unavailable)`
-4. **Default Cheap**: Use Haiku-class for Librarian unless capability gap proven
+4. **Default Cheap**: Use Haiku-class for LiBrainian unless capability gap proven
 5. **Audit Trail**: Record all model selections in `state/audits/model_selection/`
 
 ## Daily Selection Procedure (Required)
@@ -37,7 +37,7 @@ without sacrificing semantic fidelity or tool support.
 4. Select the cheapest SOTA model per provider
 5. Record model name, context window, tool support, and rationale
 6. Store raw provider doc snapshots alongside the audit record
-7. Update Librarian model registry and audit log
+7. Update LiBrainian model registry and audit log
 
 ## Required Provider Sources
 
@@ -71,13 +71,13 @@ Record URL and access timestamp for each fetch.
 
 | Tier | Capability | Use Case | Cost (Relative) |
 |------|------------|----------|-----------------|
-| Haiku | Fast, cheap, good for simple tasks | Default Librarian operations | 1x |
+| Haiku | Fast, cheap, good for simple tasks | Default LiBrainian operations | 1x |
 | Sonnet | Balanced, better reasoning | Complex synthesis, escalation | 5x |
 | Opus | Best reasoning, highest quality | Critical decisions, disputes | 25x |
 
-## Librarian Defaults
+## LiBrainian Defaults
 
-- **Primary**: Haiku-class model (latest generation) for all Librarian workloads
+- **Primary**: Haiku-class model (latest generation) for all LiBrainian workloads
 - **Fallback**: Cheapest SOTA coding-capable Codex model
 - **Escalation**: Higher tiers only when documented capability gap exists
 
@@ -211,7 +211,7 @@ After successful operation, consider de-escalating:
 
 ## Automation Hook
 
-- Daily job runs before any librarian bootstrap or query
+- Daily job runs before any LiBrainian bootstrap or query
 - If daily record missing, run selection before proceeding
 - If provider docs cannot be fetched, return `unverified_by_trace(provider_unavailable)`
 
@@ -219,7 +219,7 @@ After successful operation, consider de-escalating:
 
 | Component | Path | Purpose |
 |-----------|------|---------|
-| Provider checks | `src/librarian/api/provider_check.ts` | Verify availability |
+| Provider checks | `src/LiBrainian/api/provider_check.ts` | Verify availability |
 | Model registry | `src/models/model_registry.ts` | Store selections |
 | Orchestrator routing | `src/orchestrator/model_router.ts` | Route to provider |
 | Daily selection | `src/models/model_policy.ts` | Execute selection |
@@ -326,4 +326,4 @@ This enables:
 
 ---
 
-*This document is authoritative for Librarian model selection and escalation policy.*
+*This document is authoritative for LiBrainian model selection and escalation policy.*

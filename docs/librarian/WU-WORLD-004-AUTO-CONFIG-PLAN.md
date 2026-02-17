@@ -5,7 +5,7 @@
 
 ## Summary
 
-Comprehensive auto-configuration system that enables Librarian to "just work" for any agent on any codebase without prior knowledge.
+Comprehensive auto-configuration system that enables LiBrainian to "just work" for any agent on any codebase without prior knowledge.
 
 ## Architecture
 
@@ -71,7 +71,7 @@ Detects and auto-fixes:
 ## Zero-Knowledge Bootstrap Flow
 
 ```
-Agent arrives → librarian auto → Scan (5-15s) → Config (<1s) → Bootstrap (30s-5min) → Ready
+Agent arrives → LiBrainian auto → Scan (5-15s) → Config (<1s) → Bootstrap (30s-5min) → Ready
 ```
 
 ## Success Metrics

@@ -14,7 +14,7 @@
 | Migration scripts and data migration | 0.842 | 3 | 4.3s | GOOD |
 | Backwards compatibility handling | 0.835 | 6 | 4.6s | GOOD |
 
-**Overall Assessment: YES - Librarian would be HIGHLY USEFUL for planning migrations**
+**Overall Assessment: YES - LiBrainian would be HIGHLY USEFUL for planning migrations**
 
 ## Detailed Results
 
@@ -66,7 +66,7 @@
 
 4. **getCurrentVersion** (confidence: 0.817)
    - File: `src/api/versioning.ts` (lines 258-269)
-   - Summary: Get the current librarian version as a LibrarianVersion object with full quality tier
+   - Summary: Get the current LiBrainian version as a LibrarianVersion object with full quality tier
 
 5. **createTradeoffAnalysis** (confidence: 0.830)
    - File: `src/strategic/architecture_decisions.ts` (lines 608-663)
@@ -264,7 +264,7 @@ These gaps are informative for migration planning - they suggest considering:
 
 **Score: 4.5/5**
 
-The librarian system demonstrates strong capabilities for supporting migration planning:
+The LiBrainian system demonstrates strong capabilities for supporting migration planning:
 
 - **High confidence scores** (0.81-0.84) across all queries
 - **Relevant results** that directly address migration concerns

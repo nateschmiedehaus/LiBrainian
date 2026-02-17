@@ -49,10 +49,10 @@ interface ProblemDetector {
   // Run test suite, collect failures
   testFailures(): Problem[];
 
-  // Run Librarian on known-good queries, verify answers
+  // Run LiBrainian on known-good queries, verify answers
   regressionCheck(goldQueries: Query[]): Problem[];
 
-  // Run Librarian on adversarial inputs
+  // Run LiBrainian on adversarial inputs
   adversarialProbe(probes: AdversarialInput[]): Problem[];
 
   // Compare Treatment vs Control worker performance
@@ -76,7 +76,7 @@ interface Problem {
 ### Sub-Agent Prompt: Problem Detector
 
 ```
-You are a PROBLEM DETECTOR for Librarian.
+You are a PROBLEM DETECTOR for LiBrainian.
 
 Your job: Find problems systematically. Do NOT fix them.
 
@@ -397,7 +397,7 @@ OUTPUT:
 ```
 You are the SCIENTIFIC LOOP ORCHESTRATOR.
 
-Your job: Coordinate sub-agents to systematically improve Librarian.
+Your job: Coordinate sub-agents to systematically improve LiBrainian.
 
 LOOP:
 1. SPAWN Problem Detector → collect problems
@@ -441,7 +441,7 @@ After each loop iteration:
 
 1. **Re-run A/B experiments** with Treatment vs Control workers
 2. **Measure lift change**: Did the fix improve agent performance?
-3. **Track trends**: Is Librarian getting better over time?
+3. **Track trends**: Is LiBrainian getting better over time?
 
 ```typescript
 interface ImprovementTracking {

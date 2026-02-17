@@ -25,18 +25,18 @@
 **Expected Behavior:** Return context packs that explain what `src/api/bootstrap.ts` does.
 
 **Actual File Purpose (from source):**
-- Bootstrap API for Librarian
+- Bootstrap API for LiBrainian
 - Orchestrates workspace initialization including: code indexing, knowledge graph building, embedding generation, ingestion from multiple sources (docs, config, CI, tests, deps, security, etc.)
 - Handles bootstrap phases, recovery state, and progress tracking
 - Creates and manages bootstrap configurations
 - Key exports: `createBootstrapConfig`, `bootstrapStatePath`, various ingestion source integrations
 
-**What Librarian Returned:**
+**What LiBrainian Returned:**
 - Confidence: 0.781
 - 10 context packs found
 - Top pack: `createBootstrapConfig` function (confidence 0.870) - CORRECT
 - Also found: `isPlainObject`, `resolveSuggestionConfig`, `isBootstrapPhaseProgress`, `normalizeIngestionPath` - all from bootstrap.ts - CORRECT
-- Found test file context and librarian.ts functions - tangentially related
+- Found test file context and LiBrainian.ts functions - tangentially related
 
 **Assessment:**
 - **Pros:** Did find several functions from the target file
@@ -50,13 +50,13 @@
 **Expected Behavior:** Return explanation of the SQLite storage implementation.
 
 **Actual File Purpose (from source):**
-- SQLite storage implementation for Librarian using better-sqlite3
+- SQLite storage implementation for LiBrainian using better-sqlite3
 - Stores embeddings as BLOBs with brute-force cosine similarity search
 - Implements `LibrarianStorage` interface
 - Provides SQL injection prevention with allowlisted columns/tables
 - Key functions: `createStorageFromBackend`, `createSqliteStorage`, `getModuleByPath`, etc.
 
-**What Librarian Returned:**
+**What LiBrainian Returned:**
 - Confidence: 0.803
 - 8 context packs found
 - Top pack: `createStorageFromBackend` function (confidence 0.880) - CORRECT
@@ -75,17 +75,17 @@
 **Expected Behavior:** Return a summary of the CLI entry point file.
 
 **Actual File Purpose (from source):**
-- CLI entry point for Librarian
+- CLI entry point for LiBrainian
 - Defines all CLI commands: status, query, bootstrap, inspect, confidence, validate, check-providers, visualize, watch, contract, diagnose, health, heal, evolve, eval, replay, analyze, config heal
 - Parses command line arguments with `parseArgs`
 - Routes to individual command handlers
 - Provides structured error handling with JSON output support
 
-**What Librarian Returned:**
+**What LiBrainian Returned:**
 - Confidence: 0.669 (lowest of all tests)
 - 10 context packs found
 - **No packs from src/cli/index.ts at all**
-- Top pack: `summarizeContextSession` from librarian.ts - WRONG FILE
+- Top pack: `summarizeContextSession` from LiBrainian.ts - WRONG FILE
 - Other results: `buildFunctionPack`, `summarizeResponse`, `summarizeDependencies`, `summarizeIngestionItem` - all unrelated "summarize" functions
 
 **Assessment:**
@@ -106,7 +106,7 @@
 - Calculates Expected Calibration Error (ECE) and Maximum Calibration Error (MCE)
 - Key exports: `computeCalibrationCurve`, `CalibrationSample`, `CalibrationBucket`, `CalibrationCurve`, `CalibrationReport`
 
-**What Librarian Returned:**
+**What LiBrainian Returned:**
 - Confidence: 0.738
 - 10 context packs found
 - **No packs from src/epistemics/calibration.ts**
@@ -143,7 +143,7 @@
   13. Directory affinity
 - Implements learned weights and feedback-based weight updates
 
-**What Librarian Returned:**
+**What LiBrainian Returned:**
 - Confidence: 0.796
 - 10 context packs found
 - **All top 10 packs from src/query/multi_signal_scorer.ts** - PERFECT
@@ -224,7 +224,7 @@ Total Confidence: 0.669
 Packs Found: 10
 Top Pack: summarizeContextSession - Confidence: 0.792
   Summary: Generate a summary of a context session
-  File: src/api/librarian.ts  <-- WRONG FILE
+  File: src/api/LiBrainian.ts  <-- WRONG FILE
 ```
 
 ### Query 5 Output (multi_signal_scorer.ts) - SUCCESS

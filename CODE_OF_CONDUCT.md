@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-We are committed to making participation in Librarian a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We are committed to making participation in LiBrainian a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
 We commit to acting and interacting in ways that build an open, welcoming, diverse, inclusive, and healthy community.
 
@@ -36,7 +36,7 @@ This Code of Conduct applies within all community spaces and also applies when a
 
 ## Reporting
 
-If you experience or witness unacceptable behavior, report it by emailing `conduct@librarian-ai.dev`.
+If you experience or witness unacceptable behavior, report it by emailing `conduct@LiBrainian-ai.dev`.
 
 All reports will be reviewed and investigated promptly and fairly. All community leaders are obligated to respect the privacy and security of the reporter.
 

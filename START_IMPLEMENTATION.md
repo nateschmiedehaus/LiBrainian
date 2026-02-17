@@ -6,9 +6,9 @@
 
 ## Your Mission
 
-Implement the complete Librarian spec system from current state to 100% completion.
+Implement the complete LiBrainian spec system from current state to 100% completion.
 
-**Repository**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian`
+**Repository**: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian`
 
 ---
 
@@ -18,8 +18,8 @@ Implement the complete Librarian spec system from current state to 100% completi
 1. AGENTS.md                  — Your permissions (FULL AUTONOMY)
 2. CODEX_ORCHESTRATOR.md      — Work units and sub-agent architecture
 3. CODEX_FULL_IMPLEMENTATION.md — Detailed implementation phases
-4. docs/librarian/STATUS.md   — Current progress state
-5. docs/librarian/GATES.json  — Gate status
+4. docs/LiBrainian/STATUS.md   — Current progress state
+5. docs/LiBrainian/GATES.json  — Gate status
 ```
 
 ---
@@ -27,7 +27,7 @@ Implement the complete Librarian spec system from current state to 100% completi
 ## Step 2: Check Current State and Fix Any Failures
 
 ```bash
-cd /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+cd /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 npm install    # Ensure dependencies
 npm test -- --run   # Check baseline — MUST HAVE 0 FAILURES
 npx tsc --noEmit    # Check types — MUST HAVE 0 ERRORS
@@ -63,7 +63,7 @@ Check CODEX_ORCHESTRATOR.md for FAILING_TESTS in MASTER STATE. If non-empty:
 
 **NEVER:**
 - Ask for permission or human input
-- Stop on a blocker (see `docs/librarian/specs/BLOCKER_RESOLUTION.md`)
+- Stop on a blocker (see `docs/LiBrainian/specs/BLOCKER_RESOLUTION.md`)
 - Wait between work units
 - Summarize and ask "should I continue?"
 - Proceed to new work when tests are failing
@@ -81,7 +81,7 @@ Check CODEX_ORCHESTRATOR.md for FAILING_TESTS in MASTER STATE. If non-empty:
 
 ## Full Build Charter (Definition of Done)
 
-See `docs/librarian/specs/README.md` for complete charter. Key gates:
+See `docs/LiBrainian/specs/README.md` for complete charter. Key gates:
 
 - All Tier-0 tests pass
 - TypeScript compiles

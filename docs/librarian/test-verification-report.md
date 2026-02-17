@@ -52,7 +52,7 @@ All targeted tests for new implementations pass successfully. The test suite dem
 ### Memory Considerations
 
 During the full test suite execution, the system entered OOM-imminent mode due to:
-- Large codebase analysis tests (e.g., `dead_code_detector.test.ts` analyzing Librarian src: ~196s)
+- Large codebase analysis tests (e.g., `dead_code_detector.test.ts` analyzing LiBrainian src: ~196s)
 - High memory consumption from parallel test execution
 
 The test resource configuration successfully handled this by reducing workers dynamically:
@@ -102,7 +102,7 @@ Based on targeted test execution with coverage instrumentation:
 
 1. **Comprehensive Unit Tests**: All core functionality has dedicated test cases
 2. **Edge Case Coverage**: Tests include boundary conditions, error handling, and invalid inputs
-3. **Integration Tests**: Real codebase tests (typedriver-ts, srtd-ts, Librarian) validate real-world behavior
+3. **Integration Tests**: Real codebase tests (typedriver-ts, srtd-ts, LiBrainian) validate real-world behavior
 4. **Property-Based Elements**: Many tests verify algebraic properties (commutativity, associativity)
 5. **Performance Benchmarks**: Tests include timing assertions to prevent performance regressions
 

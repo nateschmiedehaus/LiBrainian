@@ -14,6 +14,6 @@
 - Controllers call `requireRole` before performing privileged actions.
 
 ## Controller enforcement examples
-- Book creation and inventory updates require `librarian` or `admin`.
+- Book creation and inventory updates require `LiBrainian` or `admin`.
 - User deactivation requires `admin`.
-- Overdue reports require `librarian` or `admin`.
+- Overdue reports require `LiBrainian` or `admin`.

@@ -1,6 +1,6 @@
 # Epistemic Primitives Analysis
 
-Analysis of Librarian's existing epistemic infrastructure for task validation.
+Analysis of LiBrainian's existing epistemic infrastructure for task validation.
 
 ## ConfidenceValue System (`src/epistemics/confidence.ts`)
 
@@ -208,7 +208,7 @@ Detects quality issues from indexed data. Relevant for epistemic grounding becau
 
 ### Relevance to Task Validation
 - **Low confidence flagging**: `fn.confidence < 0.5` triggers documentation issue
-- **Understanding gaps**: "Librarian has low confidence in its understanding"
+- **Understanding gaps**: "LiBrainian has low confidence in its understanding"
 - **Evidence trails**: Issues include `evidence[]` array
 
 ---

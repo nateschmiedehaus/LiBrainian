@@ -505,7 +505,7 @@ Equations:
 
 | Test Case | Scenario | Acceptance Criteria |
 |-----------|----------|---------------------|
-| `real_codebase_scm` | packages/librarian | Valid SCM constructed |
+| `real_codebase_scm` | packages/LiBrainian | Valid SCM constructed |
 | `intervention_on_real` | Change real function | Plausible effects |
 | `compare_to_transitive` | Same change | Do-calculus more precise |
 
@@ -520,7 +520,7 @@ Equations:
 
 ```gherkin
 Feature: Do-Calculus for Code
-  As a Librarian system
+  As a LiBrainian system
   I want to use causal inference
   So that I can predict what will actually break
 

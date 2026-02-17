@@ -391,7 +391,7 @@ interface TaskValidationResult {
 
 ### Integration with Existing Primitives
 
-The validator composes existing Librarian primitives:
+The validator composes existing LiBrainian primitives:
 
 ```typescript
 class TaskEpistemicValidator implements ITaskEpistemicValidator {
@@ -785,7 +785,7 @@ interface RemediationAction {
 
 2. **Configuration presets**
    - `strict`, `standard`, `relaxed` presets
-   - Per-project configuration via `.librarian.json`
+   - Per-project configuration via `.LiBrainian.json`
    - Environment variable overrides
 
 ## Preset Configuration
@@ -793,7 +793,7 @@ interface RemediationAction {
 Users select validation policy through configuration:
 
 ```json
-// .librarian.json
+// .LiBrainian.json
 {
   "epistemicValidation": {
     "enabled": true,

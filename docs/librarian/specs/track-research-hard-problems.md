@@ -7,7 +7,7 @@
 
 ## Purpose
 
-Address the genuinely hard problems that prevent Librarian from being reliable:
+Address the genuinely hard problems that prevent LiBrainian from being reliable:
 - Semantic correctness verification
 - Cross-file reasoning at scale
 - Adversarial robustness
@@ -430,7 +430,7 @@ type RedFlagType =
 
 ### Problem
 
-Librarian might give different answers to semantically equivalent questions, or contradict itself across queries.
+LiBrainian might give different answers to semantically equivalent questions, or contradict itself across queries.
 
 ### Specification
 

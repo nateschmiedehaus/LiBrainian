@@ -4,7 +4,7 @@
 > **Part References**: XIX.N.4, XIX.N.5, XIX.N.7, Problems 6, 11, 14, 16, 49
 > **Purpose**: Make confidence claims HONEST through empirical calibration
 >
-> **Librarian Story**: Chapter 5 (The Honesty) - Part 2. This upgrades `absent`/uncalibrated confidence to empirically `measured` confidence when outcome data exists.
+> **LiBrainian Story**: Chapter 5 (The Honesty) - Part 2. This upgrades `absent`/uncalibrated confidence to empirically `measured` confidence when outcome data exists.
 >
 > **Dependency**: Requires Track D (Q1-Q3) to be implemented first. Track D provides `ConfidenceValue` + derivation + conservative handling for `absent`. Track F provides calibration loops that produce `measured` confidence (no arbitrary numbers).
 
@@ -255,7 +255,7 @@ interface CalibrationDataset {
   examples: CalibrationExample[];
   // When collected
   collectedAt: string;
-  // Version of Librarian used
+  // Version of LiBrainian used
   librarianVersion: string;
 }
 ```
@@ -772,7 +772,7 @@ interface CalibrationDashboard {
 
 ### Bootstrap Calibration Process
 
-1. **Collect Ground Truth**: Run Librarian on codebases where we KNOW the correct answers
+1. **Collect Ground Truth**: Run LiBrainian on codebases where we KNOW the correct answers
 2. **Record Claims**: Capture every confidence-bearing claim
 3. **Verify Outcomes**: Human or automated verification of correctness
 4. **Compute Calibration**: stated confidence vs actual accuracy
@@ -850,4 +850,4 @@ Track F Calibration Infrastructure makes confidence claims HONEST by:
 
 **Total estimated LOC**: ~550
 
-Without calibration infrastructure, Librarian's confidence values are "wishes, not measurements." With it, confidence approximates true P(correct), enabling agents to make informed decisions about uncertainty.
+Without calibration infrastructure, LiBrainian's confidence values are "wishes, not measurements." With it, confidence approximates true P(correct), enabling agents to make informed decisions about uncertainty.

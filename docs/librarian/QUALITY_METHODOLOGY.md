@@ -1,8 +1,8 @@
-# Librarian Quality Methodology
+# LiBrainian Quality Methodology
 
 ## Problem Statement
 
-The librarian has quality detection infrastructure but it doesn't work reliably in practice:
+The LiBrainian has quality detection infrastructure but it doesn't work reliably in practice:
 - **Dead code detection**: Uses query access count, not call graph (many false positives)
 - **Importance signals**: Graph too sparse to produce meaningful PageRank/centrality
 - **Stale data**: Deleted files remain in index
@@ -368,7 +368,7 @@ These measures work for ANY codebase and provide actionable insights.
 
 8. **Change coupling** - Files that change together
 9. **Layer violation detection** - Architecture boundary checks
-10. **Query success tracking** - Measure librarian effectiveness
+10. **Query success tracking** - Measure LiBrainian effectiveness
 
 ---
 
@@ -421,21 +421,21 @@ export interface CircularDependency {
 
 ```bash
 # Overall health dashboard
-librarian health
+LiBrainian health
 
 # Specific quality checks
-librarian quality --check=dead-code
-librarian quality --check=hotspots
-librarian quality --check=circular-deps
-librarian quality --check=understanding-coverage
+LiBrainian quality --check=dead-code
+LiBrainian quality --check=hotspots
+LiBrainian quality --check=circular-deps
+LiBrainian quality --check=understanding-coverage
 
 # Fix suggestions
-librarian quality --fix-suggestions
-librarian quality --prioritize  # Order by impact
+LiBrainian quality --fix-suggestions
+LiBrainian quality --prioritize  # Order by impact
 
 # Export for CI
-librarian quality --format=json > quality-report.json
-librarian quality --fail-on=critical  # Exit 1 if critical issues
+LiBrainian quality --format=json > quality-report.json
+LiBrainian quality --fail-on=critical  # Exit 1 if critical issues
 ```
 
 ---

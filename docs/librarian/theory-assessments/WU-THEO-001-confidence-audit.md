@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The Librarian ConfidenceValue type system represents a **principled departure from arbitrary confidence scores** toward a provenance-based epistemic framework. The implementation is theoretically sound in its core design, with the five confidence types (`deterministic`, `derived`, `measured`, `bounded`, `absent`) mapping well to established epistemological categories. However, there are gaps in calibration theory alignment and composition soundness that warrant attention.
+The LiBrainian ConfidenceValue type system represents a **principled departure from arbitrary confidence scores** toward a provenance-based epistemic framework. The implementation is theoretically sound in its core design, with the five confidence types (`deterministic`, `derived`, `measured`, `bounded`, `absent`) mapping well to established epistemological categories. However, there are gaps in calibration theory alignment and composition soundness that warrant attention.
 
 **Overall Assessment**: SOUND with GAPS
 

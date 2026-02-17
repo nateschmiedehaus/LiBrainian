@@ -1,7 +1,7 @@
 # Documentation Use Case Test Results
 
 **Test Date:** 2026-01-31
-**Librarian Version:** Current (main branch)
+**LiBrainian Version:** Current (main branch)
 **Test Mode:** `--no-synthesis` (LLM disabled)
 
 ## Executive Summary
@@ -14,7 +14,7 @@
 | Changelog and release notes | NO | 4 | 0.637 | FAIL |
 | Architecture documentation and design docs | PARTIAL | 10 | 0.567 | PARTIAL |
 
-**Overall Assessment: POOR** - The librarian consistently fails to surface actual documentation files. Instead, it returns function contexts from source code that are tangentially related to the query terms.
+**Overall Assessment: POOR** - The LiBrainian consistently fails to surface actual documentation files. Instead, it returns function contexts from source code that are tangentially related to the query terms.
 
 ---
 
@@ -205,7 +205,7 @@
 
 ```
 Platform: darwin (Darwin 24.6.0)
-Working Directory: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian
+Working Directory: /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian
 Git Branch: main
 Embedding Model: all-MiniLM-L6-v2
 Domains Defined: 474
@@ -216,7 +216,7 @@ Domains Defined: 474
 Per git status, the repository contains:
 - `docs/USABILITY_ANALYSIS.md`
 - `docs/construction-patterns.md`
-- `docs/librarian/` (multiple .md files)
+- `docs/LiBrainian/` (multiple .md files)
 - `docs/research/` directory
 - `examples/` directory
 - `AGENTS.md`

@@ -1,7 +1,7 @@
 # WHY Questions Use Case Test Results
 
 **Test Date:** 2026-01-31
-**Test Purpose:** Assess whether Librarian explains rationale and design decisions for "WHY" questions
+**Test Purpose:** Assess whether LiBrainian explains rationale and design decisions for "WHY" questions
 **Mode:** `--no-synthesis` (raw context packs without LLM synthesis)
 
 ---
@@ -16,7 +16,7 @@
 | Why is confidence calibration needed? | Partial | No - returned calibration code, not justification |
 | Why separate epistemics from storage? | Partial | No - returned storage code, not architectural reasoning |
 
-**Overall Assessment:** **FAIL** - Librarian does not effectively answer "WHY" questions. It retrieves semantically related code but fails to surface rationale, design documents, ADRs (Architecture Decision Records), or explanatory comments that would explain the reasoning behind architectural decisions.
+**Overall Assessment:** **FAIL** - LiBrainian does not effectively answer "WHY" questions. It retrieves semantically related code but fails to surface rationale, design documents, ADRs (Architecture Decision Records), or explanatory comments that would explain the reasoning behind architectural decisions.
 
 ---
 
@@ -221,9 +221,9 @@
 
 ## Conclusion
 
-Librarian currently **does not effectively answer WHY questions**. It returns semantically related code but fails to surface the reasoning, rationale, or design decisions behind architectural choices.
+LiBrainian currently **does not effectively answer WHY questions**. It returns semantically related code but fails to surface the reasoning, rationale, or design decisions behind architectural choices.
 
-For WHY questions to work properly, Librarian needs:
+For WHY questions to work properly, LiBrainian needs:
 1. Query intent classification to recognize rationale-seeking queries
 2. Dedicated indexing of design documentation and ADRs
 3. Extraction and surfacing of explanatory comments

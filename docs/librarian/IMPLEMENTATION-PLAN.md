@@ -1,4 +1,4 @@
-# Librarian Enhancement Implementation Plan
+# LiBrainian Enhancement Implementation Plan
 
 > **Status**: APPROVED FOR IMPLEMENTATION
 > **Version**: 1.0
@@ -9,9 +9,9 @@
 
 ## Executive Summary
 
-This implementation plan synthesizes findings from seven research documents into a concrete, phased roadmap for enhancing Librarian. The plan prioritizes high-impact, low-effort improvements that leverage existing infrastructure.
+This implementation plan synthesizes findings from seven research documents into a concrete, phased roadmap for enhancing LiBrainian. The plan prioritizes high-impact, low-effort improvements that leverage existing infrastructure.
 
-**Key Insight**: Librarian is 60-70% ready. Most enhancements are integration work, not greenfield development.
+**Key Insight**: LiBrainian is 60-70% ready. Most enhancements are integration work, not greenfield development.
 
 ### Research Documents Synthesized
 
@@ -136,7 +136,7 @@ function inferPerspective(query: LibrarianQuery): Perspective | undefined {
 
 #### Success Criteria
 
-- [ ] `librarian query "auth flow" --perspective=security` returns security-focused results
+- [ ] `LiBrainian query "auth flow" --perspective=security` returns security-focused results
 - [ ] Perspective inference from taskType works for all 10 task types
 - [ ] Multi-perspective queries combine results correctly
 
@@ -353,7 +353,7 @@ export const ERROR_METADATA: Record<string, Partial<ErrorEnvelope>> = {
   'ERR_NOT_BOOTSTRAPPED': {
     retryable: true,
     retryAfterMs: 0,
-    recoveryHints: ['Run librarian bootstrap first']
+    recoveryHints: ['Run LiBrainian bootstrap first']
   },
   'ERR_PROVIDER_UNAVAILABLE': {
     retryable: true,
@@ -1361,7 +1361,7 @@ Add schema version to responses.
 
 export interface LibrarianResponse {
   /** Schema identifier */
-  $schema: 'librarian-response/v1';
+  $schema: 'LiBrainian-response/v1';
 
   /** Current response version */
   $version: string;

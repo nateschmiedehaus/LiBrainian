@@ -67,7 +67,7 @@ Build a curated set of repositories with known-correct annotations.
 ├── repos/
 │   ├── small-typescript/               # ~50 files, fully annotated
 │   │   ├── src/                        # Actual source code
-│   │   └── .librarian-eval/
+│   │   └── .LiBrainian-eval/
 │   │       ├── manifest.json           # Repo metadata
 │   │       ├── ground-truth.json       # Query/answer pairs
 │   │       └── annotations/
@@ -369,7 +369,7 @@ interface OutcomeRecord {
 
 | Source | Trigger | Data Collected |
 |--------|---------|----------------|
-| **Test outcomes** | Test run after Librarian prediction | Did predicted tests fail? |
+| **Test outcomes** | Test run after LiBrainian prediction | Did predicted tests fail? |
 | **Agent feedback** | Agent task completion | Did context pack lead to success? |
 | **Human corrections** | Human flags error | What was wrong, what's correct? |
 | **Contradictions** | Query returns conflicting answer | Which claim is wrong? |
@@ -468,7 +468,7 @@ interface CodebaseProfile {
   };
 
   // Recommendations
-  recommendations: string[];      // How to improve Librarian accuracy
+  recommendations: string[];      // How to improve LiBrainian accuracy
 }
 ```
 

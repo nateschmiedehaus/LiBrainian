@@ -1,4 +1,4 @@
-# Librarian Work Units: Research-Backed Improvement Plan
+# LiBrainian Work Units: Research-Backed Improvement Plan
 
 > **Purpose**: Define cutting-edge work units informed by state-of-the-art 2025-2026 research
 > **Generated**: 2026-01-27
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document synthesizes findings from comprehensive research into actionable work units for Librarian improvement. Each work unit is backed by specific research findings, metrics targets, and implementation recommendations from cutting-edge academic and industry work.
+This document synthesizes findings from comprehensive research into actionable work units for LiBrainian improvement. Each work unit is backed by specific research findings, metrics targets, and implementation recommendations from cutting-edge academic and industry work.
 
 ---
 
@@ -280,20 +280,20 @@ This document synthesizes findings from comprehensive research into actionable w
 ## WU-CAT-BOOTSTRAP: Self-Hosting & Meta-Analysis
 
 ### Research Foundation
-- **Self-Hosting**: Librarian indexes its own codebase
+- **Self-Hosting**: LiBrainian indexes its own codebase
 - **Bootstrap Validation**: Use self-indexed data for testing
-- **Meta-Analysis**: Librarian evaluates its own outputs
+- **Meta-Analysis**: LiBrainian evaluates its own outputs
 - **Reflexion**: Self-reflection for improvement
 
 ### Work Units
 
 | ID | Title | Description | Acceptance Criteria |
 |----|-------|-------------|---------------------|
-| WU-BOOT-001 | Self-Index Pipeline | Librarian indexes Librarian codebase | Complete index of own code |
+| WU-BOOT-001 | Self-Index Pipeline | LiBrainian indexes LiBrainian codebase | Complete index of own code |
 | WU-BOOT-002 | Bootstrap Test Suite | Tests using self-indexed data | >= 50 bootstrap tests |
-| WU-BOOT-003 | Meta-Evaluation | Librarian evaluates own retrieval quality | Quality scores for own queries |
+| WU-BOOT-003 | Meta-Evaluation | LiBrainian evaluates own retrieval quality | Quality scores for own queries |
 | WU-BOOT-004 | Reflexion Integration | Self-reflection on retrieval failures | Failure analysis automated |
-| WU-BOOT-005 | Dog-fooding Pipeline | Use Librarian to develop Librarian | Daily dog-fooding runs |
+| WU-BOOT-005 | Dog-fooding Pipeline | Use LiBrainian to develop LiBrainian | Daily dog-fooding runs |
 
 ### Key Metrics
 - Self-index completeness: 100%
@@ -468,12 +468,12 @@ This document synthesizes findings from comprehensive research into actionable w
 
 ## WU-CAT-EXTRACTION: Epistemic Primitives Library Extraction (DEFERRED)
 
-> **Status**: DEFERRED - See `docs/librarian/PRIMITIVE_EXTRACTION_FEASIBILITY.md`
-> **Prerequisite**: Validate patterns in Librarian with real external repos first
+> **Status**: DEFERRED - See `docs/LiBrainian/PRIMITIVE_EXTRACTION_FEASIBILITY.md`
+> **Prerequisite**: Validate patterns in LiBrainian with real external repos first
 > **Rationale**: Premature extraction risks API churn and lost context
 
 ### Research Foundation
-- Librarian's epistemic primitives (ConfidenceValue, Evidence Ledger, Defeaters)
+- LiBrainian's epistemic primitives (ConfidenceValue, Evidence Ledger, Defeaters)
 - Design-by-contract patterns (primitive-contracts.md)
 - Construction templates (T1-T12) for UC mapping
 - Self-improvement loop (11 primitives, 5 compositions)
@@ -644,7 +644,7 @@ This work unit is created AFTER the assessment phase completes, with specific su
 
 > **Status**: SCOPED (from completed audits WU-THEO-001 through WU-THEO-006)
 > **Blocked By**: WU-THEO-007 completion
-> **Source**: Theory assessment reports in docs/librarian/theory-assessments/
+> **Source**: Theory assessment reports in docs/LiBrainian/theory-assessments/
 
 ### SHORT-TERM (P0 - Immediate, Low Effort)
 
@@ -715,11 +715,11 @@ Sprint 4+: WU-THIMPL-201+ (P2 items as capacity allows)
 ## WU-CAT-SELF-IMPROVEMENT: Self-Improvement Loop Implementation
 
 > **Status**: NOT STARTED
-> **Spec**: `docs/librarian/specs/self-improvement-primitives.md`
+> **Spec**: `docs/LiBrainian/specs/self-improvement-primitives.md`
 > **Estimated LOC**: ~5,750 (per spec roadmap)
 
 ### Research Foundation
-- Librarian's 11 self-improvement primitives spec
+- LiBrainian's 11 self-improvement primitives spec
 - Meta-epistemic loop design (self-index → self-query → self-verify → self-learn)
 - Gettier case detection and resolution
 - Bounded recursion with theoretical constraints
@@ -765,7 +765,7 @@ Sprint 4+: WU-THIMPL-201+ (P2 items as capacity allows)
 ## WU-CAT-TEMPLATES: Construction Templates Implementation
 
 > **Status**: PARTIAL (T1,T3-T5,T10-T11 partial; T2,T6-T9,T12 not started)
-> **Spec**: `docs/librarian/specs/core/construction-templates.md`
+> **Spec**: `docs/LiBrainian/specs/core/construction-templates.md`
 
 ### Research Foundation
 - Template-based UC coverage (anti-accretion mechanism)
@@ -804,7 +804,7 @@ Sprint 4+: WU-THIMPL-201+ (P2 items as capacity allows)
 ## WU-CAT-CONTRACTS: Primitive Contracts System
 
 > **Status**: NOT STARTED
-> **Spec**: `docs/librarian/specs/core/primitive-contracts.md`
+> **Spec**: `docs/LiBrainian/specs/core/primitive-contracts.md`
 
 ### Research Foundation
 - Design-by-contract for technique primitives
@@ -835,7 +835,7 @@ Sprint 4+: WU-THIMPL-201+ (P2 items as capacity allows)
 ## WU-CAT-LEDGER: Evidence Ledger Unification
 
 > **Status**: PARTIAL (basic structure exists, wiring incomplete)
-> **Spec**: `docs/librarian/specs/core/evidence-ledger.md`
+> **Spec**: `docs/LiBrainian/specs/core/evidence-ledger.md`
 
 ### Research Foundation
 - Append-only epistemic event log
@@ -865,7 +865,7 @@ Sprint 4+: WU-THIMPL-201+ (P2 items as capacity allows)
 ## WU-CAT-CALIBRATION-EXT: Calibration Extensions
 
 > **Status**: C2 implemented, C1/C4 gaps remain
-> **Spec**: `docs/librarian/specs/track-f-calibration.md`
+> **Spec**: `docs/LiBrainian/specs/track-f-calibration.md`
 
 ### Work Units
 
@@ -914,17 +914,17 @@ Sprint 4+: WU-THIMPL-201+ (P2 items as capacity allows)
 
 ---
 
-## WU-META-BOOTSTRAP: Librarian Self-Bootstrapping
+## WU-META-BOOTSTRAP: LiBrainian Self-Bootstrapping
 
 > **Status**: READY TO EXECUTE
-> **Purpose**: Have Librarian index itself - the ultimate dogfooding test
+> **Purpose**: Have LiBrainian index itself - the ultimate dogfooding test
 > **Blocked By**: WU-SELF-101 (selfBootstrap primitive) - COMPLETE
 
 ### Rationale
 
-Librarian should eat its own dogfood by indexing its own codebase. This provides:
+LiBrainian should eat its own dogfood by indexing its own codebase. This provides:
 1. **Validation**: Tests that the system works on a real, complex TypeScript codebase
-2. **Self-awareness**: Enables Librarian to answer questions about itself
+2. **Self-awareness**: Enables LiBrainian to answer questions about itself
 3. **Calibration data**: Real outcomes for confidence calibration
 4. **Improvement signals**: Identifies gaps in its own understanding
 
@@ -932,9 +932,9 @@ Librarian should eat its own dogfood by indexing its own codebase. This provides
 
 | ID | Title | Description | Blocked By |
 |----|-------|-------------|------------|
-| WU-META-001 | Execute Librarian self-bootstrap | Run selfBootstrap on the Librarian codebase itself | WU-SELF-101 |
+| WU-META-001 | Execute LiBrainian self-bootstrap | Run selfBootstrap on the LiBrainian codebase itself | WU-SELF-101 |
 | WU-META-002 | Validate self-index quality | Query the index and verify accuracy | WU-META-001 |
-| WU-META-003 | Generate self-improvement report | Use self-analysis to identify Librarian's own issues | WU-META-002 |
+| WU-META-003 | Generate self-improvement report | Use self-analysis to identify LiBrainian's own issues | WU-META-002 |
 | WU-META-004 | Persist self-index | Save the self-index for ongoing use | WU-META-001 |
 
 ### Execution Plan
@@ -942,7 +942,7 @@ Librarian should eat its own dogfood by indexing its own codebase. This provides
 ```typescript
 // Step 1: Self-bootstrap
 const result = await selfBootstrap({
-  rootDir: '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian',
+  rootDir: '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian',
   excludePatterns: [
     'node_modules/**',
     'dist/**',

@@ -2,7 +2,7 @@
 
 Status: design (compiler + registry contract; wiring in progress)
 Created: 2026-01-25
-Scope: how Librarian constructs “anything an agent could want to know” about a repo with honesty, evidence, and replay.
+Scope: how LiBrainian constructs “anything an agent could want to know” about a repo with honesty, evidence, and replay.
 
 This doc exists because “we have 310 use cases” is not enough unless the spec system also defines a **construction mechanism** that can reliably build and maintain the required knowledge per project and per agent session.
 
@@ -33,7 +33,7 @@ Non‑negotiables (Wave0 constraints):
 
 ## Key idea: “100 things” collapse into a small number of canonical knowledge objects
 
-Instead of trying to special-case 100+ questions, Librarian constructs and serves a small set of durable knowledge objects that answer those questions by composition.
+Instead of trying to special-case 100+ questions, LiBrainian constructs and serves a small set of durable knowledge objects that answer those questions by composition.
 
 ### Canonical knowledge objects
 
@@ -44,7 +44,7 @@ Instead of trying to special-case 100+ questions, Librarian constructs and serve
 - **Episodes/Outcomes**: what happened when an agent tried something (inputs, actions, results) used later for calibration and learning.
 
 Important: most “best-in-class” code assistants ship a *repo map* (compact structural summary) to stay within context budgets.
-In Librarian terms, that is a **Map** (e.g., `RepoMap` / `SymbolMap`) plus a `Pack` formatter that can emit:
+In LiBrainian terms, that is a **Map** (e.g., `RepoMap` / `SymbolMap`) plus a `Pack` formatter that can emit:
 - a *token-budgeted* structural overview (paths + key symbols + signatures),
 - a *change-aware* delta summary (what moved since last run),
 - and the *disclosure* of what parts are unindexed / stale.
@@ -58,20 +58,20 @@ Storage surfaces (intended):
 ## Agent ergonomics contract (non-awkward usage)
 
 The spec system is explicitly **not** “an API surface where the agent must know which subsystem to call”.
-Agents have bad memory and tight context budgets; Librarian must be usable as a single, reliable perception tool:
+Agents have bad memory and tight context budgets; LiBrainian must be usable as a single, reliable perception tool:
 
 - Agent provides **intent** (natural language + optional hints like affected files, depth, token budget).
-- Librarian returns:
+- LiBrainian returns:
   - the smallest sufficient set of **packs** to proceed,
   - a **repo map** when repo-scale orientation is needed,
   - an **adequacy report** describing coverage/freshness/blocked capabilities,
   - and a **verification plan** when the claim cannot be proven with current evidence.
 
 Non-negotiable: the agent MUST NOT be required to “stitch together” dozens of micro-queries to do normal work.
-Instead, Librarian compiles the intent into a construction template and executes it.
+Instead, LiBrainian compiles the intent into a construction template and executes it.
 
 Canonical template contract:
-- `docs/librarian/specs/core/construction-templates.md`
+- `docs/LiBrainian/specs/core/construction-templates.md`
 
 ---
 
@@ -83,7 +83,7 @@ Construction templates are the **anti-accretion mechanism**:
 - adding a UC should rarely require new pipeline code; it should usually be a mapping change or a new map/pack type.
 
 The canonical definition of templates, required output envelope, and mapping rules live here:
-- `docs/librarian/specs/core/construction-templates.md`
+- `docs/LiBrainian/specs/core/construction-templates.md`
 
 This doc focuses on the *construction model* (objects + adequacy + recording) rather than duplicating template inventories.
 
@@ -91,12 +91,12 @@ This doc focuses on the *construction model* (objects + adequacy + recording) ra
 
 ## Construction compiler (per query / per workflow)
 
-Given a user/agent intent, Librarian must compile it into a **ConstructionPlan**:
+Given a user/agent intent, LiBrainian must compile it into a **ConstructionPlan**:
 
 1. **Interpret intent**
    - Map to UC IDs + scenario family when possible (canonical anchors):
-     - `docs/librarian/USE_CASE_MATRIX.md`
-     - `docs/librarian/scenarios.md`
+     - `docs/LiBrainian/USE_CASE_MATRIX.md`
+     - `docs/LiBrainian/scenarios.md`
 2. **Determine required knowledge objects**
    - Which maps/facts are required to answer honestly?
    - Which are optional enrichments?
@@ -136,7 +136,7 @@ Minimum adequacy fields (v1 intent):
 
 ## Bootstrap constructor (per project)
 
-On first run (or when stale), Librarian constructs a minimal “Repo Knowledge Atlas” baseline:
+On first run (or when stale), LiBrainian constructs a minimal “Repo Knowledge Atlas” baseline:
 
 ### L0 baseline (must exist before semantic claims)
 
@@ -224,7 +224,7 @@ This construction system is only partially wired in code. The spec is executable
 ## Verification hooks (current + future)
 
 Current “no drift” enforcement:
-- `src/librarian/__tests__/librarian_spec_behavior_index.test.ts` (spec-index completeness)
+- `src/LiBrainian/__tests__/librarian_spec_behavior_index.test.ts` (spec-index completeness)
 
 Planned verification (to make this fully executable):
 - Tier‑0: a deterministic registry test ensuring every required knowledge object has a constructor and invalidation rules.
@@ -232,7 +232,7 @@ Planned verification (to make this fully executable):
 
 ---
 
-## Appendix A: 100 things an agent wants to know (and Librarian must support)
+## Appendix A: 100 things an agent wants to know (and LiBrainian must support)
 
 This list is intentionally explicit. The construction system must make these answerable **directly** (from RepoFacts/Maps) or **indirectly** (via Claims/Packs + adapters) with adequate disclosure.
 
@@ -335,8 +335,8 @@ This list is intentionally explicit. The construction system must make these ans
 89. What “done” means for this task (Definition of Done obligations)?
 90. What evidence artifacts should be produced (tests, audits, traces, reports)?
 
-91. What is the current Librarian index freshness and corpus adequacy for this repo?
-92. What did Librarian do to answer (plan/trace), and where is the replay anchor?
+91. What is the current LiBrainian index freshness and corpus adequacy for this repo?
+92. What did LiBrainian do to answer (plan/trace), and where is the replay anchor?
 93. What evidence supports claim C, and what defeaters exist?
 94. Which claims are unverified, and what are the remediation steps?
 95. What knowledge objects changed since last run (facts/maps/claims/packs)?
@@ -351,12 +351,12 @@ This list is intentionally explicit. The construction system must make these ans
 ## Appendix B: 50 additional “missing” use cases (now specified as UC-261…UC-310)
 
 These are use cases that were *not explicitly represented* as first-class UC rows before. They are now part of the canonical UC inventory:
-- `docs/librarian/USE_CASE_MATRIX.md` (UC‑261…UC‑310)
+- `docs/LiBrainian/USE_CASE_MATRIX.md` (UC‑261…UC‑310)
 
 The design intent is to add them **without exploding bespoke handlers**:
 - UC coverage is expressed as UC→template mappings (reusable programs), not new endpoints.
 - The canonical UC inventory is the matrix; the canonical template contract is:
-  - `docs/librarian/specs/core/construction-templates.md`
+  - `docs/LiBrainian/specs/core/construction-templates.md`
 
 Note: adapters marked optional must still obey fail-closed semantics when the UC requires that evidence:
 return `unverified_by_trace(external_evidence_unavailable:<adapter>)` rather than guessing.

@@ -1,8 +1,8 @@
-# Librarian Overview (Compatibility)
+# LiBrainian Overview (Compatibility)
 
 This file exists for backward-compatible doc links.
 
-- Start here: `docs/librarian/README.md`
-- Current reality/status: `docs/librarian/STATUS.md`
-- Legacy overview (historical): `docs/librarian/legacy/overview.md`
+- Start here: `docs/LiBrainian/README.md`
+- Current reality/status: `docs/LiBrainian/STATUS.md`
+- Legacy overview (historical): `docs/LiBrainian/legacy/overview.md`
 

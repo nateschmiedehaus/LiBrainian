@@ -423,11 +423,11 @@ optimizer.minimize(loss, var_list=[temp_var])
 
 ---
 
-## 6. Recommendations for Librarian
+## 6. Recommendations for LiBrainian
 
 ### 6.1 Calibration Strategy
 
-Given Librarian's focus on code understanding with confidence scoring, the following approach is recommended:
+Given LiBrainian's focus on code understanding with confidence scoring, the following approach is recommended:
 
 #### Short-Term (Immediate Implementation)
 1. **Use temperature scaling** for any neural network components
@@ -463,7 +463,7 @@ Based on research findings:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 Librarian Calibration Architecture               │
+│                 LiBrainian Calibration Architecture               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Raw Prediction ──▶ Calibration Layer ──▶ Calibrated Confidence │
@@ -570,4 +570,4 @@ Calibration in production AI systems is a mature field for traditional ML but re
 4. **Domain requirements vary**: Medical AI requires FDA compliance; finance requires speed; code generation benefits from localized uncertainty
 5. **Tools exist**: scikit-learn, PyTorch temperature scaling, Evidently AI, and Arize Phoenix provide solid foundations
 
-For Librarian, the recommended approach is to start with established calibration methods (temperature scaling for neural components), implement comprehensive monitoring from day one, and develop LLM-specific calibration strategies based on sampling consistency and surrogate models rather than raw logprobs.
+For LiBrainian, the recommended approach is to start with established calibration methods (temperature scaling for neural components), implement comprehensive monitoring from day one, and develop LLM-specific calibration strategies based on sampling consistency and surrogate models rather than raw logprobs.

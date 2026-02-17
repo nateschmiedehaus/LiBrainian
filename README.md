@@ -1,22 +1,22 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/nateschmiedehaus/librarian/main/assets/librarian-logo.svg" alt="Librarian" width="120" />
+<img src="https://raw.githubusercontent.com/nateschmiedehaus/LiBrainian/main/assets/LiBrainian-logo.svg" alt="LiBrainian" width="120" />
 
-# Librarian
+# LiBrainian
 
 ### The Epistemic Knowledge Layer for Agentic Software Development
 
-[![CI](https://github.com/nateschmiedehaus/librarian/actions/workflows/ci.yml/badge.svg)](https://github.com/nateschmiedehaus/librarian/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/nateschmiedehaus/librarian)
+[![CI](https://github.com/nateschmiedehaus/LiBrainian/actions/workflows/ci.yml/badge.svg)](https://github.com/nateschmiedehaus/LiBrainian/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/nateschmiedehaus/LiBrainian)
 [![npm version](https://img.shields.io/npm/v/librainian.svg)](https://www.npmjs.com/package/librainian)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**Librarian gives AI coding agents calibrated, evidence-backed understanding of any codebase.**
+**LiBrainian gives AI coding agents calibrated, evidence-backed understanding of any codebase.**
 
-[Quick Start](#quick-start) | [Why Librarian](#why-librarian) | [Features](#features) | [Documentation](docs/) | [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) | [Why LiBrainian](#why-LiBrainian) | [Features](#features) | [Documentation](docs/) | [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -48,12 +48,12 @@ npx librainian status
 ```typescript
 import { createLibrarian } from 'librainian';
 
-const librarian = await createLibrarian({
+const LiBrainian = await createLibrarian({
   workspace: process.cwd(),
 });
 
 // Get context for a task with calibrated confidence
-const context = await librarian.query({
+const context = await LiBrainian.query({
   intent: 'Add rate limiting to the API',
   depth: 'L2',
 });
@@ -64,7 +64,7 @@ console.log(context.summary);
 //  Confidence: 0.87 (high) - based on 3 evidence sources."
 
 // Get quality issues ranked by ROI
-const issues = await librarian.getIssues({
+const issues = await LiBrainian.getIssues({
   status: 'open',
   orderBy: 'roi',
   limit: 10
@@ -73,13 +73,13 @@ const issues = await librarian.getIssues({
 
 ---
 
-## Why Librarian?
+## Why LiBrainian?
 
 AI coding agents are powerful but often **overconfident** and **context-blind**. They hallucinate file locations, miss architectural patterns, and treat all code equally.
 
-**Librarian solves this through epistemic grounding:**
+**LiBrainian solves this through epistemic grounding:**
 
-| Challenge | Without Librarian | With Librarian |
+| Challenge | Without LiBrainian | With LiBrainian |
 |-----------|-------------------|----------------|
 | **Finding code** | Grep/search, miss context | Semantic search with PageRank importance |
 | **Understanding purpose** | Guess and hallucinate | Evidence-backed explanations with citations |
@@ -90,7 +90,7 @@ AI coding agents are powerful but often **overconfident** and **context-blind**.
 ### Key Differentiators
 
 **vs. Raw LLM Context**
-- Librarian provides *structured* knowledge graphs, not just text dumps
+- LiBrainian provides *structured* knowledge graphs, not just text dumps
 - Confidence scores tell your agent when to ask for help vs. proceed
 - Evidence chains let agents verify their understanding
 
@@ -113,7 +113,7 @@ AI coding agents are powerful but often **overconfident** and **context-blind**.
 Build a rich knowledge graph of your codebase with importance signals:
 
 ```
-                    LIBRARIAN KNOWLEDGE GRAPH
+                    LiBrainian KNOWLEDGE GRAPH
 +---------------------------------------------------------------+
 |                                                               |
 |  +-----------+    calls    +-----------+   imports  +-------+ |
@@ -134,7 +134,7 @@ Build a rich knowledge graph of your codebase with importance signals:
 
 ### Epistemics Layer
 
-Librarian features a sophisticated epistemic framework that treats confidence as a first-class primitive with proper semantics:
+LiBrainian features a sophisticated epistemic framework that treats confidence as a first-class primitive with proper semantics:
 
 **Core Modules:**
 - **Confidence System** - Calibrated confidence with Bayesian updates, proper algebraic laws (semilattice operations), and typed formulas
@@ -161,7 +161,7 @@ Librarian features a sophisticated epistemic framework that treats confidence as
 Every response includes calibrated confidence scores:
 
 ```typescript
-const result = await librarian.query({ intent: 'Find the payment processor' });
+const result = await LiBrainian.query({ intent: 'Find the payment processor' });
 
 console.log(result.confidence);     // 0.92 (high confidence)
 console.log(result.uncertainties);  // ['Multiple payment providers exist', 'Stripe vs PayPal unclear']
@@ -201,7 +201,7 @@ $ npx librainian quality
 Built-in research for common domains with world-class standards:
 
 ```typescript
-const practices = await librarian.getBestPractices('authentication');
+const practices = await LiBrainian.getBestPractices('authentication');
 
 // Returns:
 // Essential:
@@ -216,10 +216,10 @@ const practices = await librarian.getBestPractices('authentication');
 
 ### Agent Feedback Loop
 
-Librarian learns from agent interactions to improve over time:
+LiBrainian learns from agent interactions to improve over time:
 
 ```typescript
-await librarian.submitFeedback({
+await LiBrainian.submitFeedback({
   queryId: result.feedbackToken,
   helpful: ['src/auth/handler.ts', 'src/utils/crypto.ts'],
   missing: 'Could not find password reset flow',
@@ -238,7 +238,7 @@ await librarian.submitFeedback({
                                  |
                                  v
 +--------------------------------------------------------------------+
-|                          LIBRARIAN                                  |
+|                          LiBrainian                                  |
 |  +----------------+  +----------------+  +------------------------+ |
 |  |    Indexing    |  |   Knowledge    |  |        Quality         | |
 |  |                |  |                |  |                        | |
@@ -298,23 +298,23 @@ await librarian.submitFeedback({
 
 ## Package Entry Points
 
-Librarian exports multiple entry points for different use cases:
+LiBrainian exports multiple entry points for different use cases:
 
 ```typescript
 // Main API
 import { createLibrarian } from 'librainian';
 
 // Query API
-import { queryLibrarian } from 'librarian/api';
+import { queryLibrarian } from 'LiBrainian/api';
 
 // Quality detection
-import { detectAllIssues } from 'librarian/quality';
+import { detectAllIssues } from 'LiBrainian/quality';
 
 // Storage layer
-import { createStorageSlices } from 'librarian/storage';
+import { createStorageSlices } from 'LiBrainian/storage';
 
 // LLM providers
-import { createProvider } from 'librarian/providers';
+import { createProvider } from 'LiBrainian/providers';
 ```
 
 ---
@@ -347,7 +347,7 @@ Options:
   --json               Alias for --format json
 
 Tip: run `librainian help` for the full, up-to-date command list.
-Legacy alias: `librarian` is still supported.
+Legacy alias: `LiBrainian` is still supported.
 
 Examples:
   librainian bootstrap .
@@ -373,7 +373,7 @@ Examples:
 
 ## Configuration
 
-Create `librarian.config.ts` in your project root:
+Create `LiBrainian.config.ts` in your project root:
 
 ```typescript
 import { defineConfig } from 'librainian';
@@ -426,13 +426,13 @@ export default defineConfig({
 | Query (p50) | ~150ms | ~20MB |
 | Query (p99) | ~800ms | ~50MB |
 
-Librarian uses incremental indexing - after initial bootstrap, updates are near-instant.
+LiBrainian uses incremental indexing - after initial bootstrap, updates are near-instant.
 
 ---
 
 ## Testing
 
-Librarian has **4,280+ tests** covering all functionality (including 780 tests for new epistemics and evaluation modules):
+LiBrainian has **4,280+ tests** covering all functionality (including 780 tests for new epistemics and evaluation modules):
 
 ```bash
 # Run all tests
@@ -454,7 +454,7 @@ npm run test:watch
 
 ## Contributing
 
-We welcome contributions! Librarian is designed for extensibility:
+We welcome contributions! LiBrainian is designed for extensibility:
 
 - **Add language support** - Extend the parser layer
 - **New quality detectors** - Add issue detection rules
@@ -465,8 +465,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Development setup
-git clone https://github.com/nateschmiedehaus/librarian.git
-cd librarian
+git clone https://github.com/nateschmiedehaus/LiBrainian.git
+cd LiBrainian
 npm install
 npm run build
 npm test
@@ -523,15 +523,15 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-Built by [Nate Schmiedehaus](https://github.com/librarian-ai) to advance the state of AI-assisted software development.
+Built by [Nate Schmiedehaus](https://github.com/LiBrainian-ai) to advance the state of AI-assisted software development.
 
-Special thanks to all [contributors](https://github.com/nateschmiedehaus/librarian/graphs/contributors).
+Special thanks to all [contributors](https://github.com/nateschmiedehaus/LiBrainian/graphs/contributors).
 
 ---
 
 <div align="center">
 
-**[Documentation](docs/)** | **[Examples](examples/)** | **[Discord](https://discord.gg/librarian)** | **[Twitter](https://twitter.com/librarian_ai)**
+**[Documentation](docs/)** | **[Examples](examples/)** | **[Discord](https://discord.gg/LiBrainian)** | **[Twitter](https://twitter.com/librarian_ai)**
 
 Made with care for the AI-assisted development community
 

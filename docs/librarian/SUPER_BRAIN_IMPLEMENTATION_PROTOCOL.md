@@ -1,13 +1,13 @@
 # Super-Brain Implementation Protocol (Codex 5.2 Friendly)
 
 Status: planned
-Scope: an exact, stepwise implementation protocol for `SUPER_BRAIN_PLAN.md` that is safe under real constraints and aligned with Librarian canon.
+Scope: an exact, stepwise implementation protocol for `SUPER_BRAIN_PLAN.md` that is safe under real constraints and aligned with LiBrainian canon.
 Last Verified: 2026-01-19
 Owner: librarianship
 Evidence: design only (no implementation claims)
 
 This protocol is designed for agents (Codex 5.x class) and humans implementing
-Librarian changes in small, verifiable slices.
+LiBrainian changes in small, verifiable slices.
 
 ## Hard Constraints (Read First)
 
@@ -22,8 +22,8 @@ Librarian changes in small, verifiable slices.
    - Extend existing surfaces: query pipeline, storage, event bus, skills framework, MF method packs.
    - Avoid introducing a second “method system” or “watch system”.
 
-4) **Do not trust Librarian’s self-knowledge unless index provenance is current**
-   - “Librarian analyzing Librarian” is unsafe if the index is stale.
+4) **Do not trust LiBrainian’s self-knowledge unless index provenance is current**
+   - “LiBrainian analyzing LiBrainian” is unsafe if the index is stale.
    - Always check index provenance first (see Protocol Step 0).
 
 ## Protocol Step 0 — Establish Truth (Before Any Code)
@@ -34,13 +34,13 @@ Goal: confirm what is true *right now*, so you don’t implement based on drift.
    - `docs/AGENTS.md`
    - `src/EMBEDDING_RULES.md`
    - `docs/LIVE_PROVIDERS_PLAYBOOK.md`
-   - `docs/librarian/VISION.md`
+   - `docs/LiBrainian/VISION.md`
 
 2) Confirm baseline gates:
    - Run Tier-0 gate and note existing failures; do not “fix unrelated”.
    - If provider audits are required for a change, schedule a Tier-2 run.
 
-3) Confirm Librarian index provenance:
+3) Confirm LiBrainian index provenance:
    - Determine what commit/time the index represents vs workspace HEAD.
    - If stale: treat any self-analysis output as `unverified_by_trace(self_drift_detected)`.
 
@@ -69,7 +69,7 @@ AutoWatch is “done” when:
 ### Implementation Targets (Concrete)
 
 Add a single persisted watch state record:
-- Storage key: `librarian.watch_state.v1`
+- Storage key: `LiBrainian.watch_state.v1`
 - Shape (minimum):
   - `schema_version`
   - `workspace_root` (canonical)
@@ -114,17 +114,17 @@ Introduce a “changeset queue”:
   - and stop per-file reindex until the sweep completes or is blocked.
 
 ### Critical Edge Cases (Must Handle)
-- Multiple Librarian instances in one process (watcher instance coupling).
+- Multiple LiBrainian instances in one process (watcher instance coupling).
 - `fs.watch` portability (no events / errors on some platforms).
 - Atomic rename saves (rename storms).
 - Lock conflicts (`lease_conflict`) → requeue with backoff, do not drop silently.
-- Watch excludes must include internal directories (`.librarian/**`) by default.
+- Watch excludes must include internal directories (`.LiBrainian/**`) by default.
 
 ### Files You Will Almost Certainly Touch
-- `src/librarian/integration/file_watcher.ts` (watch manager behavior)
-- `src/librarian/state/index_state.ts` (extend or parallel watch state)
-- `src/librarian/api/librarian.ts` (add `watchStatus()` and/or `getSystemContract()`)
-- `src/librarian/mcp/server.ts` and/or CLI watch commands (ensure config plumbed)
+- `src/LiBrainian/integration/file_watcher.ts` (watch manager behavior)
+- `src/LiBrainian/state/index_state.ts` (extend or parallel watch state)
+- `src/LiBrainian/api/LiBrainian.ts` (add `watchStatus()` and/or `getSystemContract()`)
+- `src/LiBrainian/mcp/server.ts` and/or CLI watch commands (ensure config plumbed)
 
 ### Tier-0 Tests (Minimum)
 - Watcher persists heartbeat + status in storage.
@@ -147,7 +147,7 @@ Every semantic answer can produce a structured proof obligation:
 ### Implementation Targets (Concrete)
 
 Add a new artifact in storage:
-- `librarian.verification_plans.v1` (state key or table)
+- `LiBrainian.verification_plans.v1` (state key or table)
 - `VerificationPlan` includes:
   - target (claim/work/entity)
   - methods (command/test/manual check)
@@ -166,7 +166,7 @@ Tier-0 tests:
 
 ### Outcome Definition
 
-Librarian can store “what happened” so confidence becomes empirical:
+LiBrainian can store “what happened” so confidence becomes empirical:
 - inputs (intent/scope)
 - evidence used (packs)
 - actions taken (patches/commands)
@@ -176,7 +176,7 @@ Librarian can store “what happened” so confidence becomes empirical:
 ### Implementation Targets (Concrete)
 
 Persist:
-- `librarian.episodes.v1` (state key or table; start with additive state key)
+- `LiBrainian.episodes.v1` (state key or table; start with additive state key)
 Ensure:
 - redaction by default (no secrets)
 - provenance (timestamps, tool versions)

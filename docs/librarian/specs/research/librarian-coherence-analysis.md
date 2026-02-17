@@ -1,14 +1,14 @@
-# Librarian Epistemological Coherence Analysis
+# LiBrainian Epistemological Coherence Analysis
 
 **Status:** Research Analysis
 **Date:** 2026-01-29
-**Scope:** Analysis of existing coherence mechanisms in the Librarian epistemics module
+**Scope:** Analysis of existing coherence mechanisms in the LiBrainian epistemics module
 
 ---
 
 ## Executive Summary
 
-Librarian has built a sophisticated epistemic infrastructure with strong **horizontal coherence** (claims at the same abstraction level support/contradict each other) but lacks explicit **vertical coherence** mechanisms (tracing implementation details to architectural principles). The system can track that "function X calls function Y" but cannot currently express or enforce that "this button color derives from the project's minimalist design philosophy."
+LiBrainian has built a sophisticated epistemic infrastructure with strong **horizontal coherence** (claims at the same abstraction level support/contradict each other) but lacks explicit **vertical coherence** mechanisms (tracing implementation details to architectural principles). The system can track that "function X calls function Y" but cannot currently express or enforce that "this button color derives from the project's minimalist design philosophy."
 
 **Key Finding:** The epistemics module provides the *primitives* for coherence but not the *structure* for cross-level reasoning.
 
@@ -329,14 +329,14 @@ Where `derivesFrom` and `constrains` create a DAG (Directed Acyclic Graph) from 
 
 ---
 
-## 5. Bootstrap Status: Has Librarian Been Bootstrapped on Itself?
+## 5. Bootstrap Status: Has LiBrainian Been Bootstrapped on Itself?
 
 ### 5.1 Configuration Evidence
 
-From `.librarian.json`:
+From `.LiBrainian.json`:
 ```json
 {
-  "projectName": "librarian",
+  "projectName": "LiBrainian",
   "epistemicValidation": {
     "enabled": true,
     "preset": "standard"
@@ -344,11 +344,11 @@ From `.librarian.json`:
 }
 ```
 
-Librarian *configures itself* to use epistemic validation, but this is **meta-configuration**, not a knowledge graph.
+LiBrainian *configures itself* to use epistemic validation, but this is **meta-configuration**, not a knowledge graph.
 
 ### 5.2 What "Bootstrapped" Would Mean
 
-A fully bootstrapped Librarian would have:
+A fully bootstrapped LiBrainian would have:
 
 1. **Self-Knowledge Graph**
    - Claims about every function, module, pattern in its own codebase
@@ -372,17 +372,17 @@ A fully bootstrapped Librarian would have:
 ### 5.3 Current State: Partial Bootstrap
 
 **What exists:**
-- Extensive documentation in `/docs/librarian/specs/` describing principles
+- Extensive documentation in `/docs/LiBrainian/specs/` describing principles
 - Code comments referencing theoretical foundations (e.g., `// Based on Pollock's defeaters`)
 - Config file enabling epistemic validation
 
 **What's missing:**
-- No evidence graph populated with Librarian's own claims
+- No evidence graph populated with LiBrainian's own claims
 - No principle claims registered as first-class knowledge entities
 - No derivation chains connecting code decisions to philosophical commitments
 - No automated coherence checking of own codebase
 
-**Evidence of non-bootstrap:** The research documents in `/docs/librarian/specs/research/` describe principles *textually* but don't register them as machine-verifiable claims in the epistemic system.
+**Evidence of non-bootstrap:** The research documents in `/docs/LiBrainian/specs/research/` describe principles *textually* but don't register them as machine-verifiable claims in the epistemic system.
 
 ### 5.4 What Self-Bootstrap Would Look Like
 
@@ -447,7 +447,7 @@ async function bootstrapLibrarian(storage: EvidenceGraphStorage, ledger: IEviden
 | No abstraction levels | All claims are "flat" | Can't distinguish button color from architecture |
 | No derivation edges | No "derived_from_principle" relationship | Can't trace decisions to rationale |
 | No constraint validation | No mechanism to check principle satisfaction | Coherence violations go undetected |
-| No self-bootstrap | Librarian doesn't have knowledge of itself | Can't demonstrate own coherence |
+| No self-bootstrap | LiBrainian doesn't have knowledge of itself | Can't demonstrate own coherence |
 
 ### 6.3 Recommended Next Steps
 
@@ -455,7 +455,7 @@ async function bootstrapLibrarian(storage: EvidenceGraphStorage, ledger: IEviden
 2. **Add AbstractionLevel** field to Claim with explicit level numbers
 3. **Create new EdgeType** `'derived_from'` and `'constrains'`
 4. **Implement CoherenceValidator** that traverses derivation chains
-5. **Bootstrap Librarian** by populating its own knowledge graph
+5. **Bootstrap LiBrainian** by populating its own knowledge graph
 6. **Add principle violation detection** to the defeater detection cycle
 
 ---
@@ -471,19 +471,19 @@ async function bootstrapLibrarian(storage: EvidenceGraphStorage, ledger: IEviden
 | `src/epistemics/task_validation.ts` | 1-1591 | Epistemic grounding for tasks |
 | `src/epistemics/causal_reasoning.ts` | 1-1286 | Causal graph and traversal |
 | `src/epistemics/confidence.ts` | (not shown) | ConfidenceValue 5-variant type |
-| `.librarian.json` | 1-18 | Project epistemic configuration |
+| `.LiBrainian.json` | 1-18 | Project epistemic configuration |
 
 ---
 
 ## 8. Conclusion
 
-Librarian has built an impressive epistemic foundation with sophisticated mechanisms for:
+LiBrainian has built an impressive epistemic foundation with sophisticated mechanisms for:
 - Tracking claim provenance and confidence
 - Detecting and handling defeaters
 - Managing contradictions explicitly
 - Validating task justifications
 
-However, the system operates **within a single abstraction level** (code properties). To achieve true epistemological coherence across abstraction levels, Librarian needs:
+However, the system operates **within a single abstraction level** (code properties). To achieve true epistemological coherence across abstraction levels, LiBrainian needs:
 
 1. **Typed abstraction levels** for claims
 2. **Derivation relationships** connecting levels
@@ -494,4 +494,4 @@ The primitives are in place; the structure for vertical coherence is not.
 
 ---
 
-*Analysis performed by examining source code in `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/epistemics/`*
+*Analysis performed by examining source code in `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian/src/epistemics/`*

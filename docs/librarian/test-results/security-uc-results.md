@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The Librarian performs **moderately well** for security-related queries but has significant gaps in surface-level security discovery. It excels at finding internal sanitization/validation code but struggles with database access patterns and comprehensive security infrastructure discovery.
+The LiBrainian performs **moderately well** for security-related queries but has significant gaps in surface-level security discovery. It excels at finding internal sanitization/validation code but struggles with database access patterns and comprehensive security infrastructure discovery.
 
 **Overall Rating**: 6/10 for Security Use Cases
 
@@ -151,7 +151,7 @@ The Librarian performs **moderately well** for security-related queries but has 
 
 ## Critical Missed Security Infrastructure
 
-The Librarian **failed to surface** these critical security components:
+The LiBrainian **failed to surface** these critical security components:
 
 ### 1. Dedicated Security Module (`/src/security/`)
 ```
@@ -168,7 +168,7 @@ The codebase has comprehensive rate limiting (token bucket, sliding window, circ
 ### 3. Database Security
 - 700+ lines of raw SQL in `sqlite_storage.ts`
 - Uses parameterized queries via `better-sqlite3` (good practice)
-- But Librarian couldn't surface this for SQL injection review
+- But LiBrainian couldn't surface this for SQL injection review
 
 ### 4. Authentication Token Security
 - Uses `crypto.randomBytes()` for token generation
@@ -217,4 +217,4 @@ The codebase has comprehensive rate limiting (token bucket, sliding window, circ
 
 **Overall Security Use Case Score: 5.2/10**
 
-The Librarian is currently **not suitable** for comprehensive security audits without significant improvements to security-domain retrieval.
+The LiBrainian is currently **not suitable** for comprehensive security audits without significant improvements to security-domain retrieval.

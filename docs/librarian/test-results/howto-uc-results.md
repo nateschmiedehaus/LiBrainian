@@ -16,7 +16,7 @@
 | How to add a knowledge extractor | 10 | 0.667 | Partial | Extractor code found, no creation walkthrough |
 | How to contribute to this project | 6 | 0.529 | No | Unrelated functions returned, fell back to general packs |
 
-**Overall Assessment:** The librarian does NOT provide actionable how-to guidance. It returns semantically-related code fragments rather than procedural instructions.
+**Overall Assessment:** The LiBrainian does NOT provide actionable how-to guidance. It returns semantically-related code fragments rather than procedural instructions.
 
 ---
 
@@ -72,7 +72,7 @@
 - **Missing:** No pointer to `src/**/__tests__/` directory pattern
 - **Verdict:** Returns INTERNAL test-related code, not GUIDANCE on writing tests
 
-**Key Gap:** The results are about the librarian's own testing infrastructure concepts, NOT about how a developer would write a new test file for this project.
+**Key Gap:** The results are about the LiBrainian's own testing infrastructure concepts, NOT about how a developer would write a new test file for this project.
 
 ---
 
@@ -84,8 +84,8 @@
 1. `createStorageFromBackend` in `sqlite_storage.ts` - Creates storage instance
 2. `purgeOldData` in `versioning.ts` - Deletes old storage data
 3. `setStorage` in `self_index_validator.ts` - Dependency injection for storage
-4. `getStorageSlices` in `librarian.ts` - Access storage facets
-5. `getStorageCapabilities` in `librarian.ts` - Get backend capabilities
+4. `getStorageSlices` in `LiBrainian.ts` - Access storage facets
+5. `getStorageCapabilities` in `LiBrainian.ts` - Get backend capabilities
 6. `consolidate` in `learning_loop.ts` - Prune and promote storage data
 7. `storeMultiVectorEmbedding` in `index_librarian.ts` - Store embeddings
 
@@ -155,7 +155,7 @@
 
 ### Why HOW-TO Queries Fail
 
-1. **Code-Centric Indexing:** The librarian indexes code entities (functions, modules) but lacks:
+1. **Code-Centric Indexing:** The LiBrainian indexes code entities (functions, modules) but lacks:
    - Procedural documentation
    - Tutorial content
    - Step-by-step guides
@@ -168,7 +168,7 @@
    - Registration patterns (how commands/extractors/etc. are wired up)
    - Example file templates
 
-4. **Missing Meta-Knowledge:** The librarian lacks:
+4. **Missing Meta-Knowledge:** The LiBrainian lacks:
    - Project structure documentation
    - Development workflow documentation
    - Extension point documentation
@@ -197,7 +197,7 @@
 
 ## Conclusion
 
-The librarian currently performs poorly on HOW-TO queries. It treats procedural guidance questions as semantic search for related code, returning implementation details rather than actionable instructions.
+The LiBrainian currently performs poorly on HOW-TO queries. It treats procedural guidance questions as semantic search for related code, returning implementation details rather than actionable instructions.
 
 **Key Metric:** 0/5 queries returned actionable how-to guidance.
 

@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The Librarian confidence composition system implements a pragmatic approach to confidence propagation using derivation rules D1-D6. The system forms a **partial algebraic structure** with some desirable properties (identity elements, associativity for certain operations) but lacks a complete, closed algebra. The independence assumptions underlying product-based rules (D3, D4) are the primary theoretical concern, as they may lead to miscalibrated outputs when composing correlated primitives.
+The LiBrainian confidence composition system implements a pragmatic approach to confidence propagation using derivation rules D1-D6. The system forms a **partial algebraic structure** with some desirable properties (identity elements, associativity for certain operations) but lacks a complete, closed algebra. The independence assumptions underlying product-based rules (D3, D4) are the primary theoretical concern, as they may lead to miscalibrated outputs when composing correlated primitives.
 
 **Overall Assessment**: SOUND BUT INCOMPLETE
 
@@ -646,7 +646,7 @@ function productWithCorrelation(
 
 ## 8. Conclusion
 
-The Librarian primitive composition system provides a **pragmatically sound** approach to confidence propagation. The derivation rules (D1-D6) are mathematically valid under their assumptions, and the algebraic structure - while not a complete semiring - has the key properties needed for correct pipeline composition.
+The LiBrainian primitive composition system provides a **pragmatically sound** approach to confidence propagation. The derivation rules (D1-D6) are mathematically valid under their assumptions, and the algebraic structure - while not a complete semiring - has the key properties needed for correct pipeline composition.
 
 **Strengths**:
 1. Conservative bias (min, strict absent propagation) avoids overconfidence

@@ -1,7 +1,7 @@
 # Composition Language Investigation
 
 Status: Investigation Complete
-Scope: Assessing whether Librarian needs a deeper composition language or DSL
+Scope: Assessing whether LiBrainian needs a deeper composition language or DSL
 Last Verified: 2026-01-28
 Owner: Architecture Review
 Evidence: Code analysis of src/api/technique_library.ts, src/strategic/techniques.ts, src/api/pattern_catalog.ts, src/api/composition_selector.ts, and related files
@@ -10,7 +10,7 @@ Evidence: Code analysis of src/api/technique_library.ts, src/strategic/technique
 
 **VERDICT: DO NOT IMPLEMENT (with partial exception)**
 
-After a comprehensive review of Librarian's existing composition infrastructure, I conclude that Librarian **already has** a sophisticated composition language embedded in its technique primitive and composition systems. The existing system provides:
+After a comprehensive review of LiBrainian's existing composition infrastructure, I conclude that LiBrainian **already has** a sophisticated composition language embedded in its technique primitive and composition systems. The existing system provides:
 
 1. **119+ technique primitives** covering cognitive, procedural, epistemic, diagnostic, and orchestrating concerns
 2. **26 operator types** (sequence, parallel, conditional, loop, gate, fallback, merge, fanout, retry, escalate, checkpoint, etc.)
@@ -246,10 +246,10 @@ LangChain uses a chain/agent abstraction:
 - **Agents**: Tool-calling loops with LLM decision-making
 - **LCEL**: LangChain Expression Language for composition
 
-Librarian comparison:
-- Librarian's operator system is **more expressive** than LCEL (supports quorum, consensus, circuit breaker)
-- Librarian has **stronger contracts** (JSON Schema, preconditions, postconditions)
-- LangChain has a **text DSL** (LCEL); Librarian does not
+LiBrainian comparison:
+- LiBrainian's operator system is **more expressive** than LCEL (supports quorum, consensus, circuit breaker)
+- LiBrainian has **stronger contracts** (JSON Schema, preconditions, postconditions)
+- LangChain has a **text DSL** (LCEL); LiBrainian does not
 
 #### DSPy (Stanford)
 
@@ -258,10 +258,10 @@ DSPy provides:
 - **Modules**: Composable prompt components
 - **Optimizers**: Automatic prompt tuning
 
-Librarian comparison:
-- Librarian's primitives are analogous to DSPy signatures but **broader in scope**
-- Librarian's LearningLoop is analogous to DSPy optimizers
-- DSPy focuses on **prompt optimization**; Librarian focuses on **knowledge retrieval and reasoning**
+LiBrainian comparison:
+- LiBrainian's primitives are analogous to DSPy signatures but **broader in scope**
+- LiBrainian's LearningLoop is analogous to DSPy optimizers
+- DSPy focuses on **prompt optimization**; LiBrainian focuses on **knowledge retrieval and reasoning**
 
 #### Semantic Kernel (Microsoft)
 
@@ -270,10 +270,10 @@ Semantic Kernel offers:
 - **Plans**: Generated execution plans
 - **Connectors**: Integrations with external services
 
-Librarian comparison:
-- Librarian's primitives are richer than Semantic Kernel skills
+LiBrainian comparison:
+- LiBrainian's primitives are richer than Semantic Kernel skills
 - Both support **operator-based composition**
-- Semantic Kernel has **dynamic planning** via LLM; Librarian has **pattern-based selection**
+- Semantic Kernel has **dynamic planning** via LLM; LiBrainian has **pattern-based selection**
 
 ### Academic Research
 
@@ -281,7 +281,7 @@ Relevant papers and their implications:
 
 1. **"Language Models as Compilers: Simulating Pseudocode Execution Improves Algorithmic Reasoning"** (2024)
    - Finding: Explicit step-by-step execution helps reasoning
-   - Implication: Librarian's primitive decomposition is theoretically sound
+   - Implication: LiBrainian's primitive decomposition is theoretically sound
 
 2. **"DSL for LLM Workflow Orchestration"** (various workshop papers)
    - Finding: DSLs reduce errors in complex workflows
@@ -289,7 +289,7 @@ Relevant papers and their implications:
 
 3. **"Executable Specifications for AI Systems"** (formal methods community)
    - Finding: Executable specs enable verification
-   - Implication: Librarian's JSON Schema contracts serve this purpose
+   - Implication: LiBrainian's JSON Schema contracts serve this purpose
 
 ### State of Prompt Programming Languages
 
@@ -298,7 +298,7 @@ The field has explored:
 - **Guidance**: Grammar-constrained LLM output
 - **Outlines**: JSON schema-constrained generation
 
-Librarian's approach is different:
+LiBrainian's approach is different:
 - Not constraining LLM output format
 - Constraining **what knowledge to retrieve** and **how to compose reasoning**
 
@@ -345,7 +345,7 @@ The **cost** is **medium-high** because:
 
 **VERDICT**: DO NOT IMPLEMENT (with partial exception)
 
-**Reasoning**: Librarian already has a comprehensive composition system that is:
+**Reasoning**: LiBrainian already has a comprehensive composition system that is:
 - Strongly typed via TypeScript
 - Semantically rich via operators and relationships
 - Learnable via the pattern catalog
@@ -366,7 +366,7 @@ The **cost** is **medium-high** because:
 For external agent integration, a **lightweight declarative schema** would be valuable:
 
 ```yaml
-# Example: librarian.composition.yaml
+# Example: LiBrainian.composition.yaml
 composition:
   id: tc_custom_review
   name: Custom Code Review
@@ -395,14 +395,14 @@ This would:
 | WU ID | Name | Description | Dependencies |
 |-------|------|-------------|--------------|
 | WU-COMPOSITION-YAML | Composition YAML Schema | Define JSON Schema for YAML composition files; add loader to parse into TechniqueComposition | None |
-| WU-COMPOSITION-LOADER | Composition Loader CLI | Add `librarian compose --file composition.yaml` command | WU-COMPOSITION-YAML |
+| WU-COMPOSITION-LOADER | Composition Loader CLI | Add `LiBrainian compose --file composition.yaml` command | WU-COMPOSITION-YAML |
 
 **Estimated effort**: 3-5 days
 **Priority**: Low (existing TypeScript API is sufficient for current use cases)
 
 ## Appendix: Code References
 
-All paths are relative to repository root: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian`
+All paths are relative to repository root: `/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/LiBrainian`
 
 | File | Purpose |
 |------|---------|

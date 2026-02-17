@@ -3,7 +3,7 @@
 **Status**: Design Specification
 **Version**: 1.0.0
 **Date**: 2026-01-29
-**Input**: `docs/librarian/specs/research/universal-epistemic-primitives.md`
+**Input**: `docs/LiBrainian/specs/research/universal-epistemic-primitives.md`
 **Purpose**: Design universal constructors for building ANY epistemic structure from primitives, with practical presets for common domains
 
 ---
@@ -32,7 +32,7 @@ And the four primitive operations:
 2. **Composition**: Complex structures emerge from composing simpler ones
 3. **Preset Templates**: Common configurations available out-of-the-box
 4. **Auto-Configuration**: Intelligent inference of appropriate structure
-5. **Integration**: Maps cleanly to existing Librarian epistemics
+5. **Integration**: Maps cleanly to existing LiBrainian epistemics
 
 ---
 
@@ -2738,18 +2738,18 @@ export function adaptPreset(
 
 ## 10. Integration Mapping
 
-### 10.1 Mapping to Librarian Types
+### 10.1 Mapping to LiBrainian Types
 
 ```typescript
 // ============================================================================
-// INTEGRATION WITH LIBRARIAN EPISTEMICS
+// INTEGRATION WITH LiBrainian EPISTEMICS
 // ============================================================================
 
 /**
- * Mapping between Universal Coherence types and Librarian types.
+ * Mapping between Universal Coherence types and LiBrainian types.
  *
  * This section defines how the universal primitives map to
- * the existing Librarian epistemic infrastructure.
+ * the existing LiBrainian epistemic infrastructure.
  */
 
 import type { ConfidenceValue as LibrarianConfidenceValue } from '../epistemics/confidence.js';
@@ -2758,7 +2758,7 @@ import type { ExtendedDefeater as LibrarianDefeater } from '../epistemics/types.
 import type { EvidenceEntry, IEvidenceLedger } from '../epistemics/evidence_ledger.js';
 
 /**
- * Convert a Librarian ConfidenceValue to a universal GradedStrength.
+ * Convert a LiBrainian ConfidenceValue to a universal GradedStrength.
  */
 export function confidenceToGradedStrength(
   confidence: LibrarianConfidenceValue
@@ -2815,7 +2815,7 @@ export function confidenceToGradedStrength(
 }
 
 /**
- * Convert a universal GradedStrength to a Librarian ConfidenceValue.
+ * Convert a universal GradedStrength to a LiBrainian ConfidenceValue.
  */
 export function gradedStrengthToConfidence(
   strength: GradedStrength
@@ -2865,7 +2865,7 @@ export function gradedStrengthToConfidence(
 }
 
 /**
- * Convert a Librarian Claim to a universal EpistemicObject.
+ * Convert a LiBrainian Claim to a universal EpistemicObject.
  */
 export function claimToEpistemicObject(
   claim: LibrarianClaim,
@@ -2906,7 +2906,7 @@ export function claimToEpistemicObject(
 }
 
 /**
- * Convert a universal EpistemicObject to a Librarian Claim.
+ * Convert a universal EpistemicObject to a LiBrainian Claim.
  */
 export function epistemicObjectToClaim(
   obj: EpistemicObject
@@ -2939,7 +2939,7 @@ export function epistemicObjectToClaim(
 }
 
 /**
- * Convert a Librarian EvidenceGraph to a universal CoherenceNetwork.
+ * Convert a LiBrainian EvidenceGraph to a universal CoherenceNetwork.
  */
 export function evidenceGraphToCoherenceNetwork(
   graph: EvidenceGraph,
@@ -3286,14 +3286,14 @@ This design specification provides:
 
 4. **Auto-Configuration** (Section 9): Algorithms to infer appropriate structure from objects or domain hints.
 
-5. **Integration Mapping** (Section 10): Complete mapping between universal types and existing Librarian epistemics.
+5. **Integration Mapping** (Section 10): Complete mapping between universal types and existing LiBrainian epistemics.
 
 The system is designed to be:
 - **Universal**: Any epistemic domain can be modeled
 - **Composable**: Complex structures emerge from simple operations
 - **Practical**: Presets enable quick adoption
 - **Extensible**: Custom presets and rules are supported
-- **Integrated**: Maps cleanly to existing Librarian infrastructure
+- **Integrated**: Maps cleanly to existing LiBrainian infrastructure
 
 ---
 

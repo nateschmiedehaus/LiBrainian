@@ -1,4 +1,4 @@
-# Librarian Pipelines and Wiring
+# LiBrainian Pipelines and Wiring
 
 Status: authoritative
 Scope: End-to-end wiring for ingestion, understanding, query, and feedback.
@@ -127,7 +127,7 @@ Responsibilities:
 6) Daily model selection -> provider models -> runtime config.
 7) Language detection -> adapter selection -> fallback extraction.
 
-## Wiring Inventory (Librarian-Critical)
+## Wiring Inventory (LiBrainian-Critical)
 | ID | Source | Target | Purpose |
 | --- | --- | --- | --- |
 | W1 | CLI bootstrap | Provider gate | Fail fast if providers unavailable |
@@ -144,8 +144,8 @@ Responsibilities:
 | W12 | Feedback | Learning engine | Confidence updates |
 
 ## Full Wiring Inventory (Target)
-This table is the complete wire reference for Wave0 and Librarian integration.
-Status for each wire is tracked in `docs/librarian/STATUS.md`.
+This table is the complete wire reference for Wave0 and LiBrainian integration.
+Status for each wire is tracked in `docs/LiBrainian/STATUS.md`.
 
 | # | Source | Target | Wire Type | Data | Frequency |
 | --- | --- | --- | --- | --- | --- |
@@ -153,20 +153,20 @@ Status for each wire is tracked in `docs/librarian/STATUS.md`.
 | 2 | UnifiedOrchestrator | requireProviders() | Check | Provider readiness | Once/startup |
 | 3 | requireProviders() | LLM providers | Healthcheck | Ping request | Once/startup |
 | 4 | UnifiedOrchestrator | preOrchestrationHook() | Init | Workspace, timeout | Once/startup |
-| 5 | preOrchestrationHook() | Librarian bootstrap | Init | Workspace root | Once/startup |
-| 6 | Librarian bootstrap | File system | Scan | Directory traversal | Once/bootstrap |
-| 7 | Librarian bootstrap | Embedding API | Embed | File contents | Per file |
-| 8 | Librarian bootstrap | SQLite storage | Store | Embeddings, metadata | Per file |
+| 5 | preOrchestrationHook() | LiBrainian bootstrap | Init | Workspace root | Once/startup |
+| 6 | LiBrainian bootstrap | File system | Scan | Directory traversal | Once/bootstrap |
+| 7 | LiBrainian bootstrap | Embedding API | Embed | File contents | Per file |
+| 8 | LiBrainian bootstrap | SQLite storage | Store | Embeddings, metadata | Per file |
 | 9 | WorkGraph | Task source | Intake | New tasks | Per task |
 | 10 | WorkGraph | SemanticScheduler | Schedule | Task list | Per batch |
-| 11 | SemanticScheduler | Librarian similarity | Query | File paths | Per task pair |
+| 11 | SemanticScheduler | LiBrainian similarity | Query | File paths | Per task pair |
 | 12 | SemanticScheduler | AgentPool | Assign | Scheduled tasks | Per task |
 | 13 | AgentPool | AgentRegistry | Lookup | Capability query | Per assignment |
 | 14 | AgentRegistry | Agent instance | Acquire | Agent lock | Per assignment |
 | 15 | Agent instance | ContextAssembler | Request | Task + files | Per task |
-| 16 | ContextAssembler | Librarian assembleContext | Query | Task intent, scope | Per task |
-| 17 | Librarian | SQLite storage | Query | Embeddings | Per query |
-| 18 | Librarian | SQLite storage | Query | Call graph | Per query |
+| 16 | ContextAssembler | LiBrainian assembleContext | Query | Task intent, scope | Per task |
+| 17 | LiBrainian | SQLite storage | Query | Embeddings | Per query |
+| 18 | LiBrainian | SQLite storage | Query | Call graph | Per query |
 | 19 | ContextAssembler | Agent instance | Response | Enriched context | Per task |
 | 20 | Agent instance | LLM API | Inference | Prompt + context | Per action |
 | 21 | LLM API | Agent instance | Response | Generated text | Per action |
@@ -177,8 +177,8 @@ Status for each wire is tracked in `docs/librarian/STATUS.md`.
 | 26 | ExecutionBackend | Agent instance | Result | Exit code, stdout | Per execution |
 | 27 | Agent instance | CheckpointManager | Save | State snapshot | Per phase |
 | 28 | CheckpointManager | File system | Write | Checkpoint JSON | Per phase |
-| 29 | Agent instance | Librarian | Report | Action trajectory | Per task |
-| 30 | Librarian | EpisodicMemory | Store | Episode record | Per task |
+| 29 | Agent instance | LiBrainian | Report | Action trajectory | Per task |
+| 30 | LiBrainian | EpisodicMemory | Store | Episode record | Per task |
 | 31 | Agent instance | QualityGate | Submit | Patch/output | Per task |
 | 32 | QualityGate | LLM API | Review | Code for slop check | Per submission |
 | 33 | QualityGate | DomainExpertRouter | Route | Approval request | If needed |
@@ -292,7 +292,7 @@ Pipeline operations must be deterministic where possible for reproducible measur
 
 ```bash
 # Verify determinism for bootstrap
-librarian bootstrap --scope . --verify-determinism
+LiBrainian bootstrap --scope . --verify-determinism
 
 # Runs bootstrap twice with same inputs
 # Compares: entity IDs, relations, chunk boundaries
@@ -377,4 +377,4 @@ interface PipelineTrace {
 
 ---
 
-*This document is authoritative for Librarian pipeline architecture and integration wiring.*
+*This document is authoritative for LiBrainian pipeline architecture and integration wiring.*

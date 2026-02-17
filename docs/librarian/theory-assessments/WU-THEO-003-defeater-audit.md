@@ -7,14 +7,14 @@
 > - `src/epistemics/defeaters.ts`
 > - `src/epistemics/defeater_ledger.ts`
 > - `src/epistemics/types.ts`
-> - `docs/librarian/specs/core/primitive-contracts.md`
-> - `docs/librarian/EPISTEMIC_PRIMITIVES_PATTERNS.md`
+> - `docs/LiBrainian/specs/core/primitive-contracts.md`
+> - `docs/LiBrainian/EPISTEMIC_PRIMITIVES_PATTERNS.md`
 
 ---
 
 ## Executive Summary
 
-The Librarian defeater system demonstrates **strong alignment** with Pollock's defeater taxonomy, implementing all three canonical defeater types (rebutting, undercutting, undermining). The 10+ type classification maps coherently to the theoretical framework. However, there are gaps in **higher-order defeat handling** and **reinstatement mechanics** that warrant attention.
+The LiBrainian defeater system demonstrates **strong alignment** with Pollock's defeater taxonomy, implementing all three canonical defeater types (rebutting, undercutting, undermining). The 10+ type classification maps coherently to the theoretical framework. However, there are gaps in **higher-order defeat handling** and **reinstatement mechanics** that warrant attention.
 
 **Overall Assessment**: **7.5/10** - Theoretically sound foundation with room for advanced defeasible reasoning features.
 
@@ -435,7 +435,7 @@ claim.confidence = {
 
 ## 9. Conclusion
 
-The Librarian defeater system provides a **solid implementation** of Pollock's defeater taxonomy with clear mapping between implementation types and theoretical categories. The strength decomposition and type-specific reduction formulas are well-designed.
+The LiBrainian defeater system provides a **solid implementation** of Pollock's defeater taxonomy with clear mapping between implementation types and theoretical categories. The strength decomposition and type-specific reduction formulas are well-designed.
 
 **Key Strengths**:
 - All three Pollock categories (rebutting, undercutting, undermining) represented

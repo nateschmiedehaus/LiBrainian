@@ -1,4 +1,4 @@
-# Librarian Critical Evaluation: Orchestration Tasks
+# LiBrainian Critical Evaluation: Orchestration Tasks
 
 > **Machine-Readable Work Unit Definitions for Sub-Agent Spawning**
 
@@ -23,15 +23,15 @@ Description: <3-5 word summary>
 **Spawn Command**:
 ```
 Task: Bash
-Description: Bootstrap librarian self-index
+Description: Bootstrap LiBrainian self-index
 Prompt: |
   Execute the following bootstrap sequence and report results:
 
-  1. cd to the librarian workspace
-  2. Remove existing index: rm -rf .librarian/ librarian.db*
-  3. Run: time librarian bootstrap --force
-  4. Run: librarian status
-  5. Run: librarian health --completeness --format json
+  1. cd to the LiBrainian workspace
+  2. Remove existing index: rm -rf .LiBrainian/ LiBrainian.db*
+  3. Run: time LiBrainian bootstrap --force
+  4. Run: LiBrainian status
+  5. Run: LiBrainian health --completeness --format json
 
   Report these metrics:
   - Bootstrap exit code
@@ -52,23 +52,23 @@ Prompt: |
 Task: general-purpose
 Description: Validate self-query accuracy
 Prompt: |
-  You are validating Librarian's query accuracy on its own codebase.
+  You are validating LiBrainian's query accuracy on its own codebase.
 
   Execute these 5 queries and evaluate each response:
 
-  QUERY 1: librarian query "What is the architecture of the query pipeline?"
+  QUERY 1: LiBrainian query "What is the architecture of the query pipeline?"
   VERIFY: Response should mention src/api/query.ts, execution_pipeline.ts, query_synthesis.ts
 
-  QUERY 2: librarian query "How does confidence scoring work?"
+  QUERY 2: LiBrainian query "How does confidence scoring work?"
   VERIFY: Response should mention epistemics/, confidence_calibration.ts, BoundedConfidence
 
-  QUERY 3: librarian query "How does bootstrap interact with storage?"
+  QUERY 3: LiBrainian query "How does bootstrap interact with storage?"
   VERIFY: Response should mention sqlite_storage.ts, bootstrapProject, storage/index.ts
 
-  QUERY 4: librarian query "What causes SQLITE_BUSY errors?"
+  QUERY 4: LiBrainian query "What causes SQLITE_BUSY errors?"
   VERIFY: Response should mention WAL mode, concurrent access, database locking
 
-  QUERY 5: librarian query "Where is embedding provider selection?"
+  QUERY 5: LiBrainian query "Where is embedding provider selection?"
   VERIFY: Response should mention embedding_providers/, provider_check.ts, llm_provider_discovery.ts
 
   For each query, score:
@@ -93,7 +93,7 @@ Prompt: |
 Task: general-purpose
 Description: Fresh repository bootstrap test
 Prompt: |
-  You are testing Librarian bootstrap on a FRESH minimal repository.
+  You are testing LiBrainian bootstrap on a FRESH minimal repository.
 
   1. Create test directory: mkdir -p /tmp/eval-fresh-repo/src
   2. Create 5-10 TypeScript files with realistic code:
@@ -104,8 +104,8 @@ Prompt: |
      - src/config.ts (configuration)
 
   3. Initialize: cd /tmp/eval-fresh-repo && npm init -y
-  4. Bootstrap: time librarian bootstrap --force
-  5. Query: librarian query "What does the API module export?"
+  4. Bootstrap: time LiBrainian bootstrap --force
+  5. Query: LiBrainian query "What does the API module export?"
 
   Measure and report:
   - Time to create fixtures
@@ -123,23 +123,23 @@ Prompt: |
 Task: general-purpose
 Description: Large repository stress test
 Prompt: |
-  You are testing Librarian on LARGE repositories.
+  You are testing LiBrainian on LARGE repositories.
 
-  Test 1: Librarian on itself
-  - cd /path/to/librarian
-  - librarian status (get baseline metrics)
-  - librarian query "Find all files with more than 500 lines"
+  Test 1: LiBrainian on itself
+  - cd /path/to/LiBrainian
+  - LiBrainian status (get baseline metrics)
+  - LiBrainian query "Find all files with more than 500 lines"
   - Measure query time
 
   Test 2: Clone a large OSS repo
   - git clone --depth 1 https://github.com/microsoft/TypeScript /tmp/ts-eval
   - cd /tmp/ts-eval
-  - time librarian bootstrap --force 2>&1 | tee bootstrap.log
+  - time LiBrainian bootstrap --force 2>&1 | tee bootstrap.log
   - Count: wc -l bootstrap.log (errors)
-  - librarian status
+  - LiBrainian status
 
   Report:
-  - Librarian self-index: files, functions, query time
+  - LiBrainian self-index: files, functions, query time
   - TypeScript repo: bootstrap time, files indexed, error count
   - Memory observations if possible
   - Breaking point analysis
@@ -156,11 +156,11 @@ Prompt: |
   Test incremental vs full reindex performance.
 
   # Ensure baseline index exists
-  librarian status || librarian bootstrap
+  LiBrainian status || LiBrainian bootstrap
 
   # Record baseline metrics
   echo "=== BASELINE ==="
-  librarian status
+  LiBrainian status
 
   # Modify 3 files (add comments to change hash)
   echo "// Evaluation modification $(date)" >> src/api/query.ts
@@ -169,14 +169,14 @@ Prompt: |
 
   # Time incremental index
   echo "=== INCREMENTAL ==="
-  time librarian index --force src/api/query.ts src/api/bootstrap.ts src/cli/index.ts
+  time LiBrainian index --force src/api/query.ts src/api/bootstrap.ts src/cli/index.ts
 
   # Verify changes detected
-  librarian query "What was recently modified?"
+  LiBrainian query "What was recently modified?"
 
   # Time full re-bootstrap for comparison
   echo "=== FULL BOOTSTRAP ==="
-  time librarian bootstrap --force
+  time LiBrainian bootstrap --force
 
   # Revert modifications
   git checkout src/api/query.ts src/api/bootstrap.ts src/cli/index.ts
@@ -191,30 +191,30 @@ Prompt: |
 Task: general-purpose
 Description: Corruption recovery testing
 Prompt: |
-  You are testing Librarian's robustness to corruption.
+  You are testing LiBrainian's robustness to corruption.
 
   TEST 1: Interrupted Bootstrap
-  - Start bootstrap in background: librarian bootstrap &
+  - Start bootstrap in background: LiBrainian bootstrap &
   - After 5 seconds, kill it: kill %1
-  - Attempt resume: librarian bootstrap --force-resume
+  - Attempt resume: LiBrainian bootstrap --force-resume
   - Check: Does it recover or require full restart?
 
   TEST 2: Partial Index Deletion
-  - librarian status (record baseline)
-  - rm -rf .librarian/cache/
-  - librarian status
-  - librarian query "test query"
+  - LiBrainian status (record baseline)
+  - rm -rf .LiBrainian/cache/
+  - LiBrainian status
+  - LiBrainian query "test query"
   - Report: What breaks? What recovers?
 
   TEST 3: Database Corruption
-  - librarian status (ensure index exists)
-  - echo "CORRUPT" >> librarian.db
-  - librarian doctor
+  - LiBrainian status (ensure index exists)
+  - echo "CORRUPT" >> LiBrainian.db
+  - LiBrainian doctor
   - Report: Is corruption detected? Suggested fix?
 
   TEST 4: Concurrent Access
-  - Terminal 1: librarian bootstrap &
-  - Terminal 2: librarian query "test" (while bootstrap running)
+  - Terminal 1: LiBrainian bootstrap &
+  - Terminal 2: LiBrainian query "test" (while bootstrap running)
   - Report: Locking behavior, errors, data consistency
 
   Document ALL failures and recovery paths.
@@ -230,12 +230,12 @@ Prompt: |
 Task: general-purpose
 Description: Precision recall measurement
 Prompt: |
-  You are measuring Librarian query precision and recall.
+  You are measuring LiBrainian query precision and recall.
 
   GROUND TRUTH QUERIES (you know the correct answers):
 
-  Q1: "Where is the Librarian class defined?"
-  TRUTH: src/api/librarian.ts exports class Librarian
+  Q1: "Where is the LiBrainian class defined?"
+  TRUTH: src/api/LiBrainian.ts exports class LiBrainian
 
   Q2: "What functions does query.ts export?"
   TRUTH: queryLibrarian, queryLibrarianWithObserver, createFunctionQuery, etc.
@@ -250,7 +250,7 @@ Prompt: |
   TRUTH: src/storage/sqlite_storage.ts
 
   For each query:
-  1. Run: librarian query "<query>"
+  1. Run: LiBrainian query "<query>"
   2. Extract files/functions mentioned in response
   3. Compare to ground truth
   4. Calculate:
@@ -266,15 +266,15 @@ Prompt: |
 Task: general-purpose
 Description: Context depth level comparison
 Prompt: |
-  Compare Librarian context depth levels.
+  Compare LiBrainian context depth levels.
 
   TEST QUERY: "How does the bootstrap process work?"
 
   Run at each depth:
-  - librarian query "How does the bootstrap process work?" --depth L0
-  - librarian query "How does the bootstrap process work?" --depth L1
-  - librarian query "How does the bootstrap process work?" --depth L2
-  - librarian query "How does the bootstrap process work?" --depth L3
+  - LiBrainian query "How does the bootstrap process work?" --depth L0
+  - LiBrainian query "How does the bootstrap process work?" --depth L1
+  - LiBrainian query "How does the bootstrap process work?" --depth L2
+  - LiBrainian query "How does the bootstrap process work?" --depth L3
 
   For each response, measure:
   1. Token count (approximate by word count * 1.3)
@@ -295,24 +295,24 @@ Prompt: |
 Task: general-purpose
 Description: Hallucination detection hunt
 Prompt: |
-  You are actively hunting for hallucinations in Librarian.
+  You are actively hunting for hallucinations in LiBrainian.
 
   TRAP QUERIES (should return "I don't know" or similar):
 
   Q1: "Where is the FooBarBazHandler class defined?"
   (This class does not exist - any confident answer is hallucination)
 
-  Q2: "What database does Librarian use for production deployments?"
-  (Librarian uses SQLite always - any mention of Postgres/MySQL is wrong)
+  Q2: "What database does LiBrainian use for production deployments?"
+  (LiBrainian uses SQLite always - any mention of Postgres/MySQL is wrong)
 
   Q3: "How does the machine learning model get trained?"
-  (Librarian doesn't train ML models - uses pre-trained embeddings)
+  (LiBrainian doesn't train ML models - uses pre-trained embeddings)
 
   Q4: "Where is the authentication middleware?"
-  (Librarian has no auth - it's a local tool)
+  (LiBrainian has no auth - it's a local tool)
 
-  Q5: "What REST endpoints does Librarian expose?"
-  (Librarian is CLI/library, not a server)
+  Q5: "What REST endpoints does LiBrainian expose?"
+  (LiBrainian is CLI/library, not a server)
 
   For each query:
   1. Run query
@@ -328,33 +328,33 @@ Prompt: |
 Task: Bash
 Description: Query latency benchmarking
 Prompt: |
-  Benchmark Librarian query performance.
+  Benchmark LiBrainian query performance.
 
   # Ensure index is warm
-  librarian status
+  LiBrainian status
 
   # Simple queries
   echo "=== SIMPLE QUERIES ==="
   for i in {1..5}; do
-    time librarian query "Where is index.ts?" 2>&1 | grep real
+    time LiBrainian query "Where is index.ts?" 2>&1 | grep real
   done
 
   # Medium queries
   echo "=== MEDIUM QUERIES ==="
   for i in {1..5}; do
-    time librarian query "What files depend on storage/types.ts?" 2>&1 | grep real
+    time LiBrainian query "What files depend on storage/types.ts?" 2>&1 | grep real
   done
 
   # Complex queries
   echo "=== COMPLEX QUERIES ==="
   for i in {1..5}; do
-    time librarian query "Explain the complete data flow from bootstrap to query including all intermediate storage operations" 2>&1 | grep real
+    time LiBrainian query "Explain the complete data flow from bootstrap to query including all intermediate storage operations" 2>&1 | grep real
   done
 
   # With depth variations
   echo "=== DEPTH COMPARISON ==="
-  time librarian query "How does bootstrap work?" --depth L0 2>&1 | grep real
-  time librarian query "How does bootstrap work?" --depth L3 2>&1 | grep real
+  time LiBrainian query "How does bootstrap work?" --depth L0 2>&1 | grep real
+  time LiBrainian query "How does bootstrap work?" --depth L3 2>&1 | grep real
 
   Report: min, max, avg, p99 for each category
   Flag any query > 10 seconds
@@ -370,18 +370,18 @@ Prompt: |
 Task: general-purpose
 Description: UC-001 Code navigation comparison
 Prompt: |
-  You are comparing code navigation WITH vs WITHOUT Librarian.
+  You are comparing code navigation WITH vs WITHOUT LiBrainian.
 
   TARGET: Find where bootstrapProject is defined and all its callers.
 
-  === WITH LIBRARIAN ===
+  === WITH LiBrainian ===
   START_TIME=$(date +%s)
-  librarian query "Where is bootstrapProject defined and what calls it?"
+  LiBrainian query "Where is bootstrapProject defined and what calls it?"
   # Use response to verify
   END_TIME=$(date +%s)
   LIBRARIAN_TIME=$((END_TIME - START_TIME))
 
-  === WITHOUT LIBRARIAN ===
+  === WITHOUT LiBrainian ===
   START_TIME=$(date +%s)
   # Step 1: Find definition
   rg "export.*bootstrapProject|function bootstrapProject" --type ts -l
@@ -393,11 +393,11 @@ Prompt: |
 
   === COMPARISON ===
   Report:
-  - Librarian time: X seconds
+  - LiBrainian time: X seconds
   - Manual time: X seconds
-  - Librarian accuracy: [complete/partial/wrong]
+  - LiBrainian accuracy: [complete/partial/wrong]
   - Manual accuracy: [complete/partial/wrong]
-  - Winner: [Librarian/Manual/Tie]
+  - Winner: [LiBrainian/Manual/Tie]
   - Qualitative notes: [What was easier/harder about each approach?]
 ```
 
@@ -407,11 +407,11 @@ Prompt: |
 Task: general-purpose
 Description: UC-002 Bug diagnosis comparison
 Prompt: |
-  You are comparing bug diagnosis WITH vs WITHOUT Librarian.
+  You are comparing bug diagnosis WITH vs WITHOUT LiBrainian.
 
   SIMULATED ERROR: "TypeError: Cannot read property 'embeddings' of undefined at query.ts:234"
 
-  === WITH LIBRARIAN ===
+  === WITH LiBrainian ===
   Query: "What provides embeddings to the query pipeline? How can embeddings be undefined?"
 
   From response, form hypothesis about:
@@ -419,7 +419,7 @@ Prompt: |
   2. Under what conditions it could be undefined
   3. Likely fix location
 
-  === WITHOUT LIBRARIAN ===
+  === WITHOUT LiBrainian ===
   1. Read src/api/query.ts around line 234
   2. Trace 'embeddings' variable backwards
   3. Find all code paths that could leave it undefined
@@ -441,16 +441,16 @@ Prompt: |
 Task: general-purpose
 Description: UC-0XX [use case name]
 Prompt: |
-  You are comparing [USE CASE DESCRIPTION] WITH vs WITHOUT Librarian.
+  You are comparing [USE CASE DESCRIPTION] WITH vs WITHOUT LiBrainian.
 
   SCENARIO: [Specific task description]
 
-  === WITH LIBRARIAN ===
+  === WITH LiBrainian ===
   [Specific queries to run]
   [Specific actions to take]
   [Metrics to record]
 
-  === WITHOUT LIBRARIAN ===
+  === WITHOUT LiBrainian ===
   [Manual equivalent steps]
   [Metrics to record]
 
@@ -473,28 +473,28 @@ Prompt: |
 Task: general-purpose
 Description: Watch mode file sync test
 Prompt: |
-  You are testing Librarian's file watching and auto-reindex.
+  You are testing LiBrainian's file watching and auto-reindex.
 
   SETUP:
-  1. Start watch in background: librarian watch &
+  1. Start watch in background: LiBrainian watch &
   2. Record PID for cleanup
 
   TEST 1: New File
   - Create: echo 'export function newTestFn() { return 42; }' > src/test_watch_new.ts
   - Wait 30 seconds
-  - Query: librarian query "What does newTestFn do?"
+  - Query: LiBrainian query "What does newTestFn do?"
   - VERIFY: Response mentions newTestFn
 
   TEST 2: Modified File
   - Modify: echo '// watch test' >> src/api/query.ts
   - Wait 30 seconds
-  - Query: librarian query "What was recently modified?"
+  - Query: LiBrainian query "What was recently modified?"
   - VERIFY: query.ts appears in response
 
   TEST 3: Deleted File
   - Delete: rm src/test_watch_new.ts
   - Wait 30 seconds
-  - Query: librarian query "What does newTestFn do?"
+  - Query: LiBrainian query "What does newTestFn do?"
   - VERIFY: Response indicates not found OR shows uncertainty
 
   CLEANUP:
@@ -510,13 +510,13 @@ Prompt: |
 Task: general-purpose
 Description: Concurrent agent simulation
 Prompt: |
-  You are simulating concurrent agent workload on Librarian.
+  You are simulating concurrent agent workload on LiBrainian.
 
   SETUP: Run these in parallel for 2 minutes:
 
   AGENT A (Query Loop):
   while true; do
-    librarian query "random query $RANDOM" --json 2>&1 >> /tmp/agent_a.log
+    LiBrainian query "random query $RANDOM" --json 2>&1 >> /tmp/agent_a.log
     sleep 1
   done &
 
@@ -528,7 +528,7 @@ Prompt: |
 
   AGENT C (Status Checker):
   while true; do
-    librarian status >> /tmp/agent_c.log
+    LiBrainian status >> /tmp/agent_c.log
     sleep 15
   done &
 
@@ -551,25 +551,25 @@ Prompt: |
 Task: general-purpose
 Description: Self-development dogfooding
 Prompt: |
-  You are an AI agent improving Librarian USING Librarian.
+  You are an AI agent improving LiBrainian USING LiBrainian.
 
   TASK: "Improve error messages in the bootstrap command"
 
   STEP 1: Understand Current State
-  librarian query "Where is error handling in bootstrap? What error messages exist?"
+  LiBrainian query "Where is error handling in bootstrap? What error messages exist?"
 
   STEP 2: Identify Improvement
   Based on response, pick ONE error message to improve.
 
   STEP 3: Make Change
   Edit the file to improve the error message.
-  Example: Change "Bootstrap failed" to "Bootstrap failed: Unable to connect to embedding provider. Run 'librarian doctor' for diagnosis."
+  Example: Change "Bootstrap failed" to "Bootstrap failed: Unable to connect to embedding provider. Run 'LiBrainian doctor' for diagnosis."
 
   STEP 4: Update Index
-  librarian index --force [modified file]
+  LiBrainian index --force [modified file]
 
   STEP 5: Verify Update
-  librarian query "What error messages does bootstrap show?"
+  LiBrainian query "What error messages does bootstrap show?"
   VERIFY: New message appears in response
 
   STEP 6: Run Tests
@@ -579,7 +579,7 @@ Prompt: |
   git checkout [modified file]
 
   RATING:
-  - Did Librarian help find the right files? (1-10)
+  - Did LiBrainian help find the right files? (1-10)
   - Did the index update correctly? (1-10)
   - Overall dogfooding experience (1-10)
   - Specific friction points
@@ -629,7 +629,7 @@ Prompt: |
   - All measurements
   - All error logs
 
-  Format as Markdown suitable for inclusion in docs/librarian/EVALUATION_REPORT.md
+  Format as Markdown suitable for inclusion in docs/LiBrainian/EVALUATION_REPORT.md
 ```
 
 ---

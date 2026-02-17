@@ -6,7 +6,7 @@
 >
 > **Principle**: A labeled guess is still a guess. No arbitrary numbers, period.
 >
-> **Librarian Story**: Chapter 5 (The Honesty) - This is the foundation for calibration.
+> **LiBrainian Story**: Chapter 5 (The Honesty) - This is the foundation for calibration.
 
 ---
 
@@ -25,7 +25,7 @@ The previous design wrapped arbitrary values with labels (a “labeled guess” 
 
 ## Scope (Avoiding a Category Error)
 
-Librarian currently uses many numeric 0–1 values for *ranking and heuristics* (relevance, similarity, internal scoring). Those values are not necessarily calibrated “degree of belief in a claim”.
+LiBrainian currently uses many numeric 0–1 values for *ranking and heuristics* (relevance, similarity, internal scoring). Those values are not necessarily calibrated “degree of belief in a claim”.
 
 Track D applies to **epistemic claim confidence** (the thing we communicate as “this claim is supported/true with confidence X”). Ranking values should be named `score` / `signalStrength` (or wrapped in explicit score types) so the system does not accidentally treat heuristics as calibrated confidence.
 
@@ -35,7 +35,7 @@ Track D applies to **epistemic claim confidence** (the thing we communicate as �
 
 ### Core Principle: No Arbitrary Numbers
 
-Every confidence value in Librarian must be one of:
+Every confidence value in LiBrainian must be one of:
 
 | Type | Definition | When to Use |
 |------|------------|-------------|
@@ -362,7 +362,7 @@ confidence: {
 
 ### Q1: ConfidenceValue Type System (~100 LOC)
 
-**Location**: `packages/librarian/src/epistemics/confidence.ts`
+**Location**: `packages/LiBrainian/src/epistemics/confidence.ts`
 
 **Deliverable**: Complete type definitions as specified above.
 
@@ -375,7 +375,7 @@ confidence: {
 
 ### Q2: Derivation Rule Implementations (~150 LOC)
 
-**Location**: `packages/librarian/src/epistemics/confidence.ts`
+**Location**: `packages/LiBrainian/src/epistemics/confidence.ts`
 
 **Deliverable**: Functions for D1-D6 derivation rules.
 
@@ -389,7 +389,7 @@ confidence: {
 
 ### Q3: System Degradation Handlers (~100 LOC)
 
-**Location**: `packages/librarian/src/epistemics/confidence.ts`
+**Location**: `packages/LiBrainian/src/epistemics/confidence.ts`
 
 **Deliverable**: Functions for handling absent confidence gracefully.
 
@@ -452,7 +452,7 @@ When confidence is `absent`, the system MUST handle it differently. It cannot pr
 
 ### Green: Q1-Q4 Complete
 
-- [ ] `ConfidenceValue` type exported from `packages/librarian/src/epistemics/index.ts`
+- [ ] `ConfidenceValue` type exported from `packages/LiBrainian/src/epistemics/index.ts`
 - [ ] Claim confidence does not use labeled-guess wrappers (legacy placeholder may exist only in deprecated scoring shims)
 - [ ] All derivation rules implemented
 - [ ] Degradation handlers working
@@ -467,8 +467,8 @@ When confidence is `absent`, the system MUST handle it differently. It cannot pr
 
 ```bash
 # These should return 0 matches
-rg "confidence:\s*0\.\d" packages/librarian/src --glob '*.ts' | wc -l
-rg "placeholder\\s*\\(" packages/librarian/src --glob '*.ts' | wc -l
+rg "confidence:\s*0\.\d" packages/LiBrainian/src --glob '*.ts' | wc -l
+rg "placeholder\\s*\\(" packages/LiBrainian/src --glob '*.ts' | wc -l
 ```
 
 ---

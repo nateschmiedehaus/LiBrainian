@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The librarian was tested on its ability to recognize five classic design patterns in the codebase. **The results are mixed** - the librarian successfully retrieves code artifacts that implement patterns but does not explicitly recognize or label them as design patterns. The system performs semantic matching on function/code context rather than pattern-level abstraction.
+The LiBrainian was tested on its ability to recognize five classic design patterns in the codebase. **The results are mixed** - the LiBrainian successfully retrieves code artifacts that implement patterns but does not explicitly recognize or label them as design patterns. The system performs semantic matching on function/code context rather than pattern-level abstraction.
 
 | Pattern Query | Recognition | Relevant Results | Confidence | Assessment |
 |--------------|-------------|-----------------|------------|------------|
@@ -16,7 +16,7 @@ The librarian was tested on its ability to recognize five classic design pattern
 | Builder | Yes | Yes | 0.826 | Excellent - found builder class |
 | Strategy | Partial | Yes | 0.793 | Good - found strategy-related code |
 
-**Overall Assessment: PARTIAL SUCCESS** - The librarian finds code implementing patterns but lacks explicit pattern classification.
+**Overall Assessment: PARTIAL SUCCESS** - The LiBrainian finds code implementing patterns but lacks explicit pattern classification.
 
 ---
 
@@ -31,7 +31,7 @@ The librarian was tested on its ability to recognize five classic design pattern
 
 **Result:** FAILED - No pattern recognition
 
-**Explanation from librarian:**
+**Explanation from LiBrainian:**
 > "Fell back to general packs (semantic match unavailable)."
 
 **What was returned:**
@@ -43,7 +43,7 @@ The librarian was tested on its ability to recognize five classic design pattern
 - `parseYamlDocument()` - YAML parser
 
 **Analysis:**
-The librarian failed to find any singleton patterns. The results are generic function contexts with no relationship to singleton implementations. The system explicitly noted "No semantic matches above similarity threshold (0.35)" and fell back to general packs.
+The LiBrainian failed to find any singleton patterns. The results are generic function contexts with no relationship to singleton implementations. The system explicitly noted "No semantic matches above similarity threshold (0.35)" and fell back to general packs.
 
 **Issue:** The codebase may not contain obvious singleton patterns, or the indexing does not capture pattern-level semantics.
 
@@ -58,7 +58,7 @@ The librarian failed to find any singleton patterns. The results are generic fun
 
 **Result:** GOOD - Successfully identified factory functions
 
-**Explanation from librarian:**
+**Explanation from LiBrainian:**
 > "Added 2 graph-similar entities. Scored candidates using multi-signal relevance model. Added 9 packs from semantic + graph candidates. Ranked 9 candidates (avg score 0.58)."
 
 **Relevant Results Found:**
@@ -73,7 +73,7 @@ The librarian failed to find any singleton patterns. The results are generic fun
 | `createMockTracer()` | composition.test.ts | Mock factory function |
 
 **Analysis:**
-Excellent results. The librarian correctly identified multiple factory functions across the codebase:
+Excellent results. The LiBrainian correctly identified multiple factory functions across the codebase:
 - Factory methods (`fromId`, `from`)
 - Factory functions (`create*` naming convention)
 - Test helper factories (`createMockTracer`)
@@ -91,7 +91,7 @@ The semantic search successfully matched the "factory" concept to functions that
 
 **Result:** GOOD - Successfully identified event system components
 
-**Explanation from librarian:**
+**Explanation from LiBrainian:**
 > "Added 2 community neighbors. Added 2 graph-similar entities. Scored candidates using multi-signal relevance model. Applied multi-vector scoring to 5 module candidates."
 
 **Relevant Results Found:**
@@ -102,7 +102,7 @@ The semantic search successfully matched the "factory" concept to functions that
 | `on()` | executor.ts | Subscribe to executor events |
 
 **Analysis:**
-The librarian correctly identified the core observer/event pattern implementation:
+The LiBrainian correctly identified the core observer/event pattern implementation:
 - **events.ts:** Core event system with `on()` registration returning unsubscribe functions - classic observer pattern
 - **executor.ts:** Event emission and subscription methods
 
@@ -119,7 +119,7 @@ The results show proper understanding of the observer pattern's key components: 
 
 **Result:** EXCELLENT - Comprehensive builder pattern identification
 
-**Explanation from librarian:**
+**Explanation from LiBrainian:**
 > "Added 2 graph-similar entities. Scored candidates using multi-signal relevance model. Applied multi-vector scoring to 3 module candidates. Added 9 packs from semantic + graph candidates. Ranked 14 candidates (avg score 0.63)."
 
 **Relevant Results Found:**
@@ -134,7 +134,7 @@ The results show proper understanding of the observer pattern's key components: 
 | `parallelBuilder()` | composition.ts | Start building parallel construction |
 
 **Analysis:**
-This is the strongest result. The librarian found a complete builder pattern implementation in `TechniqueCompositionBuilder`:
+This is the strongest result. The LiBrainian found a complete builder pattern implementation in `TechniqueCompositionBuilder`:
 - **Fluent interface:** `setName()` returns `TechniqueCompositionBuilder` for chaining
 - **Accumulation methods:** `addPrimitive()` adds elements incrementally
 - **Terminal operation:** `build()` finalizes and validates the composition
@@ -153,7 +153,7 @@ The graph-based retrieval effectively connected related builder methods within t
 
 **Result:** GOOD - Found strategy-related abstractions
 
-**Explanation from librarian:**
+**Explanation from LiBrainian:**
 > "Added 2 graph-similar entities. Scored candidates using multi-signal relevance model. Added 3 packs from semantic + graph candidates. Ranked 4 candidates (avg score 0.55)."
 
 **Relevant Results Found:**
@@ -164,7 +164,7 @@ The graph-based retrieval effectively connected related builder methods within t
 | `setPlannerStrategy()` | hierarchical_orchestrator.ts | Set custom planner strategy |
 
 **Analysis:**
-The librarian found strategy-related code:
+The LiBrainian found strategy-related code:
 - **resolveStrategy():** Explicitly uses strategy terminology, looks up strategies from a list
 - **setPlannerStrategy():** Allows swapping planner strategies at runtime - core strategy pattern behavior
 - **setCalibrationTracker():** Dependency injection of tracker (related pattern)
@@ -177,7 +177,7 @@ These demonstrate the strategy pattern's key characteristic: swappable algorithm
 
 ### Strengths
 
-1. **Semantic matching works for named patterns:** When code uses pattern-related terminology (factory, builder, strategy), the librarian finds relevant results.
+1. **Semantic matching works for named patterns:** When code uses pattern-related terminology (factory, builder, strategy), the LiBrainian finds relevant results.
 
 2. **Graph-based retrieval connects related code:** The builder pattern query successfully found multiple methods from the same `TechniqueCompositionBuilder` class.
 
@@ -187,7 +187,7 @@ These demonstrate the strategy pattern's key characteristic: swappable algorithm
 
 ### Weaknesses
 
-1. **No explicit pattern classification:** The librarian does not label results as "this is a singleton" or "this implements observer pattern."
+1. **No explicit pattern classification:** The LiBrainian does not label results as "this is a singleton" or "this implements observer pattern."
 
 2. **Singleton pattern failure:** The query fell back to generic results, suggesting the pattern concept itself isn't indexed.
 
