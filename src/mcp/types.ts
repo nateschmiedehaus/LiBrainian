@@ -15,6 +15,7 @@
  * - get_context_pack_bundle
  * - verify_claim
  * - run_audit
+ * - list_runs
  * - diff_runs
  * - export_index
  *
@@ -687,8 +688,20 @@ export interface AuditFinding {
   remediation?: string;
 }
 
+/** List runs tool input */
+export interface ListRunsToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum runs to return */
+  limit?: number;
+}
+
 /** Diff runs tool input */
 export interface DiffRunsToolInput {
+  /** Workspace path to resolve persisted run history */
+  workspace?: string;
+
   /** First run ID */
   runIdA: string;
 
@@ -996,6 +1009,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     consentMessage: 'Audit will analyze codebase and write reports',
     riskLevel: 'low',
   },
+  list_runs: {
+    tool: 'list_runs',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   diff_runs: {
     tool: 'diff_runs',
     requiredScopes: ['read'],
@@ -1204,7 +1223,17 @@ export function isRunAuditToolInput(value: unknown): value is RunAuditToolInput 
 export function isDiffRunsToolInput(value: unknown): value is DiffRunsToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return typeof obj.runIdA === 'string' && typeof obj.runIdB === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return workspaceOk && typeof obj.runIdA === 'string' && typeof obj.runIdB === 'string';
+}
+
+/** Type guard for ListRunsToolInput */
+export function isListRunsToolInput(value: unknown): value is ListRunsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  return workspaceOk && limitOk;
 }
 
 /** Type guard for ExportIndexToolInput */

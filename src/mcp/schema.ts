@@ -112,9 +112,18 @@ export const RunAuditToolInputSchema = z.object({
 }).strict();
 
 /**
+ * List runs tool input schema
+ */
+export const ListRunsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  limit: z.number().int().positive().max(100).optional().describe('Maximum number of runs to return (default: 10, max: 100)'),
+}).strict().default({});
+
+/**
  * Diff runs tool input schema
  */
 export const DiffRunsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path used to resolve persisted run history'),
   runIdA: z.string().min(1).describe('ID of the first run'),
   runIdB: z.string().min(1).describe('ID of the second run'),
   detailed: z.boolean().optional().default(false).describe('Include detailed diff information'),
@@ -244,6 +253,7 @@ export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
+export type ListRunsToolInputType = z.infer<typeof ListRunsToolInputSchema>;
 export type DiffRunsToolInputType = z.infer<typeof DiffRunsToolInputSchema>;
 export type ExportIndexToolInputType = z.infer<typeof ExportIndexToolInputSchema>;
 export type GetContextPackBundleToolInputType = z.infer<typeof GetContextPackBundleToolInputSchema>;
@@ -272,6 +282,7 @@ export const TOOL_INPUT_SCHEMAS = {
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   run_audit: RunAuditToolInputSchema,
+  list_runs: ListRunsToolInputSchema,
   diff_runs: DiffRunsToolInputSchema,
   export_index: ExportIndexToolInputSchema,
   get_context_pack_bundle: GetContextPackBundleToolInputSchema,

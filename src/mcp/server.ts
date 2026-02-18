@@ -40,6 +40,7 @@ import {
   type SubmitFeedbackToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
+  type ListRunsToolInput,
   type DiffRunsToolInput,
   type ExportIndexToolInput,
   type GetContextPackBundleToolInput,
@@ -235,6 +236,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
   diff_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3500 },
+  list_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
   get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
 };
@@ -254,6 +256,29 @@ interface CallToolRequestLike {
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 200;
+const DEFAULT_RUN_LIST_LIMIT = 10;
+const MAX_RUN_LIST_LIMIT = 100;
+const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
+const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
+const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
+
+interface BootstrapRunStatsSnapshot {
+  filesProcessed: number;
+  functionsIndexed: number;
+  contextPacksCreated: number;
+  averageConfidence: number;
+}
+
+interface BootstrapRunRecord {
+  runId: string;
+  workspace: string;
+  startedAt: string;
+  completedAt?: string;
+  success: boolean;
+  durationMs: number;
+  stats: BootstrapRunStatsSnapshot;
+  error?: string;
+}
 
 interface PaginationOptions {
   pageSize?: number;
@@ -849,11 +874,24 @@ export class LibrarianMCPServer {
         inputSchema: {
           type: 'object',
           properties: {
+            workspace: { type: 'string', description: 'Workspace path used to resolve persisted run history' },
             runIdA: { type: 'string', description: 'First run ID' },
             runIdB: { type: 'string', description: 'Second run ID' },
             detailed: { type: 'boolean', description: 'Include detailed diff' },
           },
           required: ['runIdA', 'runIdB'],
+        },
+      },
+      {
+        name: 'list_runs',
+        description: 'List recent persisted bootstrap runs for a workspace',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            limit: { type: 'number', description: 'Maximum runs to return (default 10, max 100)' },
+          },
+          required: [],
         },
       },
       {
@@ -1068,13 +1106,20 @@ export class LibrarianMCPServer {
   private async callTool(name: string, args: unknown): Promise<CallToolResult> {
     const startTime = Date.now();
     const entryId = this.generateId();
+    const invocation = this.extractToolInvocationContext(args);
 
     try {
+      if (invocation.authTokenError) {
+        throw new Error(`Authorization denied: ${invocation.authTokenError}`);
+      }
+
       // Validate input
-      const validation = validateToolInput(name, args);
+      const validation = validateToolInput(name, invocation.toolArgs);
       if (!validation.valid) {
         throw new Error(`Invalid input: ${validation.errors.map((e) => e.message).join(', ')}`);
       }
+      const workspaceHint = this.resolveWorkspaceHint(validation.data);
+      const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
 
       // Check authorization
       const auth = TOOL_AUTHORIZATION[name];
@@ -1089,14 +1134,36 @@ export class LibrarianMCPServer {
             operation: 'authorization',
             name,
             input: this.sanitizeInput(args),
-            status: 'denied',
-            error: `Missing required scopes: ${auth.requiredScopes.join(', ')}`,
-          });
+              status: 'denied',
+              error: `Missing required scopes: ${auth.requiredScopes.join(', ')}`,
+            });
           throw new Error(`Authorization denied: missing required scopes`);
         }
       }
 
-      const sanitizedInput = this.sanitizeInput(args);
+      if (invocation.authToken) {
+        const authorization = this.authorizeToolCall(invocation.authToken, name, workspace);
+        const consentBypassed = authorization.requiresConsent === true && this.config.authorization.requireConsent === false;
+        if (!authorization.authorized && !consentBypassed) {
+          const missingScopes = authorization.missingScopes?.join(', ');
+          const reason = missingScopes
+            ? `${authorization.reason ?? 'Insufficient permissions'} (missing scopes: ${missingScopes})`
+            : (authorization.reason ?? 'Access denied');
+          this.logAudit({
+            id: entryId,
+            timestamp: new Date().toISOString(),
+            operation: 'authorization',
+            name,
+            input: this.sanitizeInput(invocation.toolArgs),
+            status: 'denied',
+            error: reason,
+            sessionId: authorization.sessionId,
+          });
+          throw new Error(`Authorization denied: ${reason}`);
+        }
+      }
+
+      const sanitizedInput = this.sanitizeInput(invocation.toolArgs);
       const inputRecord =
         sanitizedInput && typeof sanitizedInput === 'object' && !Array.isArray(sanitizedInput)
           ? (sanitizedInput as Record<string, unknown>)
@@ -1142,8 +1209,6 @@ export class LibrarianMCPServer {
       this.inFlightToolCalls += 1;
 
       // Execute tool
-      const workspaceHint = this.resolveWorkspaceHint(validation.data);
-      const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
       const hint = TOOL_HINTS[name];
       const shouldPersistInstrumentation = !(hint?.readOnlyHint ?? false);
       const instrumentation = shouldPersistInstrumentation
@@ -1207,7 +1272,7 @@ export class LibrarianMCPServer {
         timestamp: new Date().toISOString(),
         operation: 'tool_call',
         name,
-        input: this.sanitizeInput(args),
+        input: this.sanitizeInput(invocation.toolArgs),
         status: 'failure',
         durationMs: Date.now() - startTime,
         error: error instanceof Error ? error.message : String(error),
@@ -1215,7 +1280,7 @@ export class LibrarianMCPServer {
 
       const normalizedError = toAgentErrorPayload({
         toolName: name,
-        args,
+        args: invocation.toolArgs,
         message: error instanceof Error ? error.message : String(error),
       });
 
@@ -1231,6 +1296,31 @@ export class LibrarianMCPServer {
     } finally {
       this.inFlightToolCalls = Math.max(0, this.inFlightToolCalls - 1);
     }
+  }
+
+  private extractToolInvocationContext(args: unknown): {
+    toolArgs: unknown;
+    authToken?: string;
+    authTokenError?: string;
+  } {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      return { toolArgs: args };
+    }
+    const raw = args as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(raw, '__authToken')) {
+      return { toolArgs: args };
+    }
+    const { __authToken, ...toolArgs } = raw;
+    if (typeof __authToken !== 'string' || __authToken.trim().length === 0) {
+      return {
+        toolArgs,
+        authTokenError: 'Invalid authentication token',
+      };
+    }
+    return {
+      toolArgs,
+      authToken: __authToken.trim(),
+    };
   }
 
   private async executeWithTimeout<T>(promise: Promise<T>, timeoutMs: number, toolName: string): Promise<T> {
@@ -1528,6 +1618,8 @@ export class LibrarianMCPServer {
         return this.executeVerifyClaim(args as VerifyClaimToolInput);
       case 'run_audit':
         return this.executeRunAudit(args as RunAuditToolInput);
+      case 'list_runs':
+        return this.executeListRuns(args as ListRunsToolInput);
       case 'diff_runs':
         return this.executeDiffRuns(args as DiffRunsToolInput);
       case 'export_index':
@@ -1626,6 +1718,134 @@ export class LibrarianMCPServer {
     return storage;
   }
 
+  private getWorkspaceSearchOrder(preferredWorkspace?: string): string[] {
+    const candidates: string[] = [];
+    if (preferredWorkspace && preferredWorkspace.trim().length > 0) {
+      candidates.push(path.resolve(preferredWorkspace));
+    }
+    for (const workspace of this.state.workspaces.keys()) {
+      candidates.push(path.resolve(workspace));
+    }
+    for (const workspace of this.config.workspaces ?? []) {
+      if (typeof workspace === 'string' && workspace.trim().length > 0) {
+        candidates.push(path.resolve(workspace));
+      }
+    }
+
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      deduped.push(candidate);
+    }
+    return deduped;
+  }
+
+  private normalizeBootstrapRunHistory(raw: unknown): BootstrapRunRecord[] {
+    const toFinite = (value: unknown, fallback = 0): number => {
+      const num = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(num) ? num : fallback;
+    };
+    let candidateRuns: unknown[] = [];
+    if (Array.isArray(raw)) {
+      candidateRuns = raw;
+    } else if (raw && typeof raw === 'object' && Array.isArray((raw as { runs?: unknown[] }).runs)) {
+      candidateRuns = (raw as { runs: unknown[] }).runs;
+    }
+
+    const runs: BootstrapRunRecord[] = [];
+    for (const value of candidateRuns) {
+      if (!value || typeof value !== 'object') continue;
+      const record = value as Record<string, unknown>;
+      const runId = typeof record.runId === 'string' ? record.runId : '';
+      const workspace = typeof record.workspace === 'string' ? record.workspace : '';
+      const startedAt = typeof record.startedAt === 'string' ? record.startedAt : '';
+      if (!runId || !workspace || !startedAt) continue;
+      const startedAtMs = Date.parse(startedAt);
+      if (!Number.isFinite(startedAtMs)) continue;
+      const rawCompletedAt = typeof record.completedAt === 'string' ? record.completedAt : undefined;
+      const completedAt = rawCompletedAt && Number.isFinite(Date.parse(rawCompletedAt)) ? rawCompletedAt : undefined;
+      const statsRaw = record.stats;
+      const statsObj = statsRaw && typeof statsRaw === 'object'
+        ? (statsRaw as Record<string, unknown>)
+        : {};
+      runs.push({
+        runId,
+        workspace: path.resolve(workspace),
+        startedAt,
+        completedAt,
+        success: record.success === true,
+        durationMs: Math.max(0, toFinite(record.durationMs, 0)),
+        stats: {
+          filesProcessed: Math.max(0, toFinite(statsObj.filesProcessed, 0)),
+          functionsIndexed: Math.max(0, toFinite(statsObj.functionsIndexed, 0)),
+          contextPacksCreated: Math.max(0, toFinite(statsObj.contextPacksCreated, 0)),
+          averageConfidence: toFinite(statsObj.averageConfidence, 0),
+        },
+        error: typeof record.error === 'string' ? record.error : undefined,
+      });
+    }
+
+    runs.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+    return runs;
+  }
+
+  private async getBootstrapRunHistory(storage: LibrarianStorage): Promise<BootstrapRunRecord[]> {
+    const raw = await storage.getState(BOOTSTRAP_RUN_HISTORY_STATE_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return this.normalizeBootstrapRunHistory(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  private async setBootstrapRunHistory(storage: LibrarianStorage, runs: BootstrapRunRecord[]): Promise<void> {
+    const payload = {
+      schemaVersion: BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION,
+      runs: runs.slice(0, MAX_PERSISTED_BOOTSTRAP_RUNS),
+    };
+    await storage.setState(BOOTSTRAP_RUN_HISTORY_STATE_KEY, JSON.stringify(payload));
+  }
+
+  private async persistBootstrapRunRecord(
+    workspacePath: string,
+    record: BootstrapRunRecord,
+    storageHint?: LibrarianStorage
+  ): Promise<void> {
+    let storage = storageHint;
+    if (!storage) {
+      try {
+        storage = await this.getOrCreateStorage(workspacePath);
+      } catch {
+        return;
+      }
+    }
+
+    const history = await this.getBootstrapRunHistory(storage);
+    const merged = [record, ...history.filter((entry) => entry.runId !== record.runId)];
+    await this.setBootstrapRunHistory(storage, merged);
+  }
+
+  private async findBootstrapRunRecord(
+    runId: string,
+    preferredWorkspace?: string
+  ): Promise<BootstrapRunRecord | null> {
+    for (const workspacePath of this.getWorkspaceSearchOrder(preferredWorkspace)) {
+      try {
+        const storage = await this.getOrCreateStorage(workspacePath);
+        const history = await this.getBootstrapRunHistory(storage);
+        const match = history.find((entry) => entry.runId === runId);
+        if (match) return match;
+      } catch {
+        // Ignore inaccessible/uninitialized workspaces while searching.
+      }
+    }
+    return null;
+  }
+
   private async executeBootstrap(input: BootstrapToolInput): Promise<unknown> {
     const startTime = Date.now();
     const runId = this.generateId();
@@ -1688,6 +1908,7 @@ export class LibrarianMCPServer {
       // Get status after bootstrap
       const status = await librarian.getStatus();
       const storage = librarian.getStorage() ?? undefined;
+      const storageStats = storage ? await storage.getStats().catch(() => null) : null;
 
       // Validate autoWatch is actually running if enabled
       const actuallyWatching = librarian.isWatching();
@@ -1707,11 +1928,29 @@ export class LibrarianMCPServer {
         watching: actuallyWatching,
       });
 
+      const completedAt = new Date();
+      const durationMs = Math.max(0, completedAt.getTime() - startTime);
+      const runRecord: BootstrapRunRecord = {
+        runId,
+        workspace: workspacePath,
+        startedAt: new Date(startTime).toISOString(),
+        completedAt: completedAt.toISOString(),
+        success: status.bootstrapped,
+        durationMs,
+        stats: {
+          filesProcessed: status.stats.totalModules,
+          functionsIndexed: status.stats.totalFunctions,
+          contextPacksCreated: status.stats.totalContextPacks,
+          averageConfidence: storageStats?.averageConfidence ?? 0,
+        },
+      };
+      await this.persistBootstrapRunRecord(workspacePath, runRecord, storage ?? undefined);
+
       return {
         success: status.bootstrapped,
         runId,
         workspace: workspacePath,
-        durationMs: Date.now() - startTime,
+        durationMs,
         stats: {
           filesProcessed: status.stats.totalModules,
           functionsIndexed: status.stats.totalFunctions,
@@ -1725,11 +1964,31 @@ export class LibrarianMCPServer {
         },
       };
     } catch (error) {
+      const workspacePath = typeof input.workspace === 'string' ? path.resolve(input.workspace) : undefined;
+      const completedAt = new Date();
+      const durationMs = Math.max(0, completedAt.getTime() - startTime);
+      if (workspacePath) {
+        await this.persistBootstrapRunRecord(workspacePath, {
+          runId,
+          workspace: workspacePath,
+          startedAt: new Date(startTime).toISOString(),
+          completedAt: completedAt.toISOString(),
+          success: false,
+          durationMs,
+          stats: {
+            filesProcessed: 0,
+            functionsIndexed: 0,
+            contextPacksCreated: 0,
+            averageConfidence: 0,
+          },
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       return {
         success: false,
         runId,
         workspace: input.workspace,
-        durationMs: Date.now() - startTime,
+        durationMs,
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -3008,59 +3267,86 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeDiffRuns(input: DiffRunsToolInput): Promise<unknown> {
+  private async executeListRuns(input: ListRunsToolInput): Promise<unknown> {
     try {
-      // Find workspaces with matching run IDs
-      let workspaceA: WorkspaceState | undefined;
-      let workspaceB: WorkspaceState | undefined;
-
-      for (const [, ws] of this.state.workspaces) {
-        if (ws.lastBootstrapRunId === input.runIdA) workspaceA = ws;
-        if (ws.lastBootstrapRunId === input.runIdB) workspaceB = ws;
-      }
-
-      if (!workspaceA || !workspaceB) {
+      const candidateWorkspaces = this.getWorkspaceSearchOrder(input.workspace);
+      const workspacePath = candidateWorkspaces[0];
+      if (!workspacePath) {
         return {
-          summary: 'One or both runs not found',
-          runIdA: input.runIdA,
-          runIdB: input.runIdB,
-          error: 'Run IDs must match recent bootstrap runs in registered workspaces',
+          success: false,
+          error: 'No workspace specified and no workspaces available',
+          totalRuns: 0,
+          runs: [],
         };
       }
 
-      const storageA = await this.getOrCreateStorage(workspaceA.path);
-      const storageB = await this.getOrCreateStorage(workspaceB.path);
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const runs = await this.getBootstrapRunHistory(storage);
+      const requestedLimit = Number(input.limit ?? DEFAULT_RUN_LIST_LIMIT);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.max(1, Math.min(MAX_RUN_LIST_LIMIT, Math.trunc(requestedLimit)))
+        : DEFAULT_RUN_LIST_LIMIT;
 
-      const statsA = await storageA.getStats();
-      const statsB = await storageB.getStats();
+      return {
+        success: true,
+        workspace: workspacePath,
+        totalRuns: runs.length,
+        runs: runs.slice(0, limit),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        totalRuns: 0,
+        runs: [],
+      };
+    }
+  }
+
+  private async executeDiffRuns(input: DiffRunsToolInput): Promise<unknown> {
+    try {
+      const runA = await this.findBootstrapRunRecord(input.runIdA, input.workspace);
+      const runB = await this.findBootstrapRunRecord(input.runIdB, input.workspace);
+      if (!runA || !runB) {
+        return {
+          summary: 'One or both runs not found',
+          workspace: input.workspace ? path.resolve(input.workspace) : undefined,
+          runIdA: input.runIdA,
+          runIdB: input.runIdB,
+          error: 'Run IDs were not found in persisted bootstrap history. Use list_runs to discover available run IDs.',
+        };
+      }
 
       const diff = {
         functions: {
-          before: statsA.totalFunctions,
-          after: statsB.totalFunctions,
-          delta: statsB.totalFunctions - statsA.totalFunctions,
+          before: runA.stats.functionsIndexed,
+          after: runB.stats.functionsIndexed,
+          delta: runB.stats.functionsIndexed - runA.stats.functionsIndexed,
         },
         modules: {
-          before: statsA.totalModules,
-          after: statsB.totalModules,
-          delta: statsB.totalModules - statsA.totalModules,
+          before: runA.stats.filesProcessed,
+          after: runB.stats.filesProcessed,
+          delta: runB.stats.filesProcessed - runA.stats.filesProcessed,
         },
         contextPacks: {
-          before: statsA.totalContextPacks,
-          after: statsB.totalContextPacks,
-          delta: statsB.totalContextPacks - statsA.totalContextPacks,
+          before: runA.stats.contextPacksCreated,
+          after: runB.stats.contextPacksCreated,
+          delta: runB.stats.contextPacksCreated - runA.stats.contextPacksCreated,
         },
         avgConfidence: {
-          before: statsA.averageConfidence,
-          after: statsB.averageConfidence,
-          delta: statsB.averageConfidence - statsA.averageConfidence,
+          before: runA.stats.averageConfidence,
+          after: runB.stats.averageConfidence,
+          delta: runB.stats.averageConfidence - runA.stats.averageConfidence,
         },
       };
 
       return {
         summary: `Diff between ${input.runIdA} and ${input.runIdB}`,
+        workspace: input.workspace ? path.resolve(input.workspace) : undefined,
         runIdA: input.runIdA,
         runIdB: input.runIdB,
+        runA,
+        runB,
         diff,
         detailed: input.detailed ? diff : undefined,
       };
@@ -3810,9 +4096,10 @@ export async function startStdioServer(
  * Main entry point for CLI invocation.
  */
 export async function main(): Promise<void> {
+  const writeEnabled = process.argv.includes('--write');
   const config: Partial<LibrarianMCPServerConfig> = {
     authorization: {
-      enabledScopes: ['read', 'write'],
+      enabledScopes: writeEnabled ? ['read', 'write'] : ['read'],
       requireConsent: true,
     },
   };

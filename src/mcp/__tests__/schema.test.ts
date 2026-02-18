@@ -57,6 +57,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
+      expect(schemas).toContain('list_runs');
       expect(schemas).toContain('diff_runs');
       expect(schemas).toContain('export_index');
       expect(schemas).toContain('get_context_pack_bundle');
@@ -67,7 +68,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('select_technique_compositions');
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
-      expect(schemas).toHaveLength(18);
+      expect(schemas).toHaveLength(19);
     });
 
     it('should return schema for known tools', () => {
@@ -325,6 +326,7 @@ describe('MCP Schema', () => {
 
     it('should validate with detailed option', () => {
       const result = validateToolInput('diff_runs', {
+        workspace: '/tmp/workspace',
         runIdA: 'run_1',
         runIdB: 'run_2',
         detailed: true,
@@ -350,6 +352,29 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isDiffRunsToolInput({ runIdA: 'a', runIdB: 'b' })).toBe(true);
       expect(isDiffRunsToolInput({ runIdA: 'a' })).toBe(false);
+    });
+  });
+
+  describe('List Runs Tool Schema', () => {
+    it('should validate default input', () => {
+      const result = validateToolInput('list_runs', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate with workspace and limit', () => {
+      const result = validateToolInput('list_runs', {
+        workspace: '/tmp/workspace',
+        limit: 10,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject non-positive limit', () => {
+      const result = validateToolInput('list_runs', {
+        workspace: '/tmp/workspace',
+        limit: 0,
+      });
+      expect(result.valid).toBe(false);
     });
   });
 
