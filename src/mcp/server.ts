@@ -2870,6 +2870,20 @@ export class LibrarianMCPServer {
               message: 'No context packs generated',
             });
           }
+          const lastIndexing = await storage.getLastIndexingResult();
+          if (lastIndexing?.filesSkipped && lastIndexing.filesSkipped > 0) {
+            const sampleSkipped = lastIndexing.errors
+              .map((error) => error.path)
+              .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0)
+              .slice(0, 3);
+            findings.push({
+              severity: 'warning',
+              category: 'coverage',
+              message: sampleSkipped.length > 0
+                ? `${lastIndexing.filesSkipped} files were skipped during the last indexing run (examples: ${sampleSkipped.join(', ')})`
+                : `${lastIndexing.filesSkipped} files were skipped during the last indexing run`,
+            });
+          }
           break;
         }
         case 'freshness': {
@@ -2886,15 +2900,86 @@ export class LibrarianMCPServer {
               });
             }
           }
+          const lastIndexedAt = metadata?.lastIndexing;
+          if (lastIndexedAt) {
+            const files = await storage.getFiles();
+            const staleFiles: string[] = [];
+            for (const file of files.slice(0, 250)) {
+              const filePath = path.isAbsolute(file.path)
+                ? file.path
+                : path.join(workspace.path, file.path);
+              try {
+                const stat = await fs.stat(filePath);
+                if (stat.mtime > lastIndexedAt) {
+                  staleFiles.push(file.path);
+                }
+              } catch {
+                // Ignore files we cannot stat during freshness checks.
+              }
+              if (staleFiles.length >= 10) break;
+            }
+            if (staleFiles.length > 0) {
+              findings.push({
+                severity: 'warning',
+                category: 'freshness',
+                message: `Detected ${staleFiles.length} files newer than last indexing time (examples: ${staleFiles.slice(0, 5).join(', ')})`,
+              });
+            }
+          }
           break;
         }
         case 'security': {
-          // Security-focused audit
-          findings.push({
-            severity: 'info',
-            category: 'security',
-            message: 'Security audit checks authorization scopes and access patterns',
-          });
+          const packs = await storage.getContextPacks({ limit: 200 });
+          const suspiciousPatterns: Array<{ pattern: RegExp; label: string }> = [
+            { pattern: /\b(api[_-]?key|access[_-]?token|secret|password|private[_-]?key)\b\s*[:=]\s*['"][^'"\s]{12,}/i, label: 'credential_assignment' },
+            { pattern: /\bsk_(?:live|test)_[a-z0-9]{16,}\b/i, label: 'stripe_key' },
+            { pattern: /\bAKIA[0-9A-Z]{16}\b/, label: 'aws_access_key' },
+          ];
+
+          for (const pack of packs) {
+            const content = [pack.summary, ...pack.keyFacts].join('\n');
+            const matchedPattern = suspiciousPatterns.find(({ pattern }) => pattern.test(content));
+            if (!matchedPattern) continue;
+            findings.push({
+              severity: 'warning',
+              category: 'security',
+              message: `Potential hardcoded secret pattern (${matchedPattern.label}) in pack ${pack.packId} for ${pack.targetId}`,
+              file: pack.relatedFiles[0],
+            });
+          }
+
+          const deniedAuthAttempts = this.state.auditLog.filter((entry) => {
+            if (entry.operation !== 'authorization') return false;
+            if (entry.status !== 'denied') return false;
+            const ageMs = Date.now() - new Date(entry.timestamp).getTime();
+            return Number.isFinite(ageMs) && ageMs <= 24 * 60 * 60 * 1000;
+          }).length;
+          if (deniedAuthAttempts > 0) {
+            findings.push({
+              severity: 'info',
+              category: 'security',
+              message: `${deniedAuthAttempts} authorization denials observed in the last 24h`,
+            });
+          }
+
+          const riskyScopes = this.config.authorization.enabledScopes.filter(
+            (scope) => scope === 'admin' || scope === 'network' || scope === 'execute'
+          );
+          if (riskyScopes.length > 0 && !this.config.authorization.requireConsent) {
+            findings.push({
+              severity: 'warning',
+              category: 'security',
+              message: `High-privilege scopes enabled without consent gate: ${riskyScopes.join(', ')}`,
+            });
+          }
+
+          if (findings.length === 0) {
+            findings.push({
+              severity: 'info',
+              category: 'security',
+              message: `No security findings detected across ${packs.length} context packs and recent authorization logs`,
+            });
+          }
           break;
         }
       }
