@@ -18,6 +18,9 @@ import {
   safeParseToolInput,
   BootstrapToolInputSchema,
   QueryToolInputSchema,
+  ResetSessionStateToolInputSchema,
+  RequestHumanReviewToolInputSchema,
+  SubmitFeedbackToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
   DiffRunsToolInputSchema,
@@ -29,6 +32,9 @@ import {
   MCP_SCHEMA_VERSION,
   isBootstrapToolInput,
   isQueryToolInput,
+  isResetSessionStateToolInput,
+  isRequestHumanReviewToolInput,
+  isSubmitFeedbackToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
   isDiffRunsToolInput,
@@ -52,8 +58,12 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
       expect(schemas).toContain('query');
+      expect(schemas).toContain('reset_session_state');
+      expect(schemas).toContain('request_human_review');
+      expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
+      expect(schemas).toContain('list_runs');
       expect(schemas).toContain('diff_runs');
       expect(schemas).toContain('export_index');
       expect(schemas).toContain('get_context_pack_bundle');
@@ -64,7 +74,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('select_technique_compositions');
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
-      expect(schemas).toHaveLength(17);
+      expect(schemas).toContain('get_change_impact');
+      expect(schemas).toHaveLength(22);
     });
 
     it('should return schema for known tools', () => {
@@ -145,6 +156,9 @@ describe('MCP Schema', () => {
         depth: 'L2',
         includeEngines: true,
         includeEvidence: true,
+        pageSize: 10,
+        pageIdx: 1,
+        outputFile: '/tmp/query.json',
       };
       const result = validateToolInput('query', input);
       expect(result.valid).toBe(true);
@@ -188,9 +202,128 @@ describe('MCP Schema', () => {
       expect(result.valid).toBe(false);
     });
 
+    it('should reject invalid pagination values', () => {
+      expect(validateToolInput('query', { intent: 'test', pageSize: 0 }).valid).toBe(false);
+      expect(validateToolInput('query', { intent: 'test', pageIdx: -1 }).valid).toBe(false);
+    });
+
     it('should pass type guard', () => {
       expect(isQueryToolInput({ intent: 'test' })).toBe(true);
       expect(isQueryToolInput({})).toBe(false);
+    });
+  });
+
+  describe('Submit Feedback Tool Schema', () => {
+    it('should validate correct input', () => {
+      const result = validateToolInput('submit_feedback', {
+        feedbackToken: 'fbk_123',
+        outcome: 'success',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate input with optional fields', () => {
+      const result = validateToolInput('submit_feedback', {
+        feedbackToken: 'fbk_123',
+        outcome: 'partial',
+        workspace: '/tmp/workspace',
+        agentId: 'codex-cli',
+        missingContext: 'Need auth lifecycle docs',
+        customRatings: [{ packId: 'pack-1', relevant: true, usefulness: 0.8 }],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      expect(validateToolInput('submit_feedback', { outcome: 'success' }).valid).toBe(false);
+      expect(validateToolInput('submit_feedback', { feedbackToken: 'fbk_123' }).valid).toBe(false);
+    });
+
+    it('should reject invalid outcome', () => {
+      const result = validateToolInput('submit_feedback', {
+        feedbackToken: 'fbk_123',
+        outcome: 'invalid',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'failure' })).toBe(true);
+      expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'bad' })).toBe(false);
+    });
+  });
+
+  describe('Reset Session State Tool Schema', () => {
+    it('should validate empty input', () => {
+      const result = validateToolInput('reset_session_state', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('reset_session_state', {
+        sessionId: 'sess_123',
+        workspace: '/tmp/workspace',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject extra properties (strict mode)', () => {
+      const result = validateToolInput('reset_session_state', {
+        sessionId: 'sess_123',
+        unknownField: 'value',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isResetSessionStateToolInput({ sessionId: 'sess_123' })).toBe(true);
+      expect(isResetSessionStateToolInput({ workspace: '/tmp/workspace' })).toBe(true);
+      expect(isResetSessionStateToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Request Human Review Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('request_human_review', {
+        reason: 'Ambiguous function ownership across two modules',
+        context_summary: 'Two candidate implementations returned with conflicting confidence.',
+        proposed_action: 'Patch auth/session.ts to alter token refresh behavior',
+        confidence_tier: 'uncertain',
+        risk_level: 'high',
+        blocking: true,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      const result = validateToolInput('request_human_review', {
+        reason: 'Need approval',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should reject invalid enum values', () => {
+      const result = validateToolInput('request_human_review', {
+        reason: 'Need approval',
+        context_summary: 'Low confidence retrieval',
+        proposed_action: 'Delete module',
+        confidence_tier: 'medium',
+        risk_level: 'critical',
+        blocking: true,
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isRequestHumanReviewToolInput({
+        reason: 'Need approval',
+        context_summary: 'Low confidence retrieval',
+        proposed_action: 'Modify auth flow',
+        confidence_tier: 'low',
+        risk_level: 'medium',
+        blocking: false,
+      })).toBe(true);
+      expect(isRequestHumanReviewToolInput(null)).toBe(false);
     });
   });
 
@@ -274,6 +407,7 @@ describe('MCP Schema', () => {
 
     it('should validate with detailed option', () => {
       const result = validateToolInput('diff_runs', {
+        workspace: '/tmp/workspace',
         runIdA: 'run_1',
         runIdB: 'run_2',
         detailed: true,
@@ -299,6 +433,29 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isDiffRunsToolInput({ runIdA: 'a', runIdB: 'b' })).toBe(true);
       expect(isDiffRunsToolInput({ runIdA: 'a' })).toBe(false);
+    });
+  });
+
+  describe('List Runs Tool Schema', () => {
+    it('should validate default input', () => {
+      const result = validateToolInput('list_runs', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate with workspace and limit', () => {
+      const result = validateToolInput('list_runs', {
+        workspace: '/tmp/workspace',
+        limit: 10,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject non-positive limit', () => {
+      const result = validateToolInput('list_runs', {
+        workspace: '/tmp/workspace',
+        limit: 0,
+      });
+      expect(result.valid).toBe(false);
     });
   });
 
@@ -369,6 +526,9 @@ describe('MCP Schema', () => {
         entityIds: ['entity_1'],
         bundleType: 'comprehensive',
         maxTokens: 50000,
+        pageSize: 10,
+        pageIdx: 1,
+        outputFile: '/tmp/bundle.json',
       });
       expect(result.valid).toBe(true);
     });
@@ -407,10 +567,38 @@ describe('MCP Schema', () => {
       }).valid).toBe(false);
     });
 
+    it('should reject invalid pagination values', () => {
+      expect(validateToolInput('get_context_pack_bundle', {
+        entityIds: ['e1'],
+        pageSize: 0,
+      }).valid).toBe(false);
+      expect(validateToolInput('get_context_pack_bundle', {
+        entityIds: ['e1'],
+        pageIdx: -1,
+      }).valid).toBe(false);
+    });
+
     it('should pass type guard', () => {
       expect(isGetContextPackBundleToolInput({ entityIds: ['e1'] })).toBe(true);
       expect(isGetContextPackBundleToolInput({ entityIds: [] })).toBe(true); // Array.isArray passes
       expect(isGetContextPackBundleToolInput({})).toBe(false);
+    });
+  });
+
+  describe('List Tool Pagination Schema', () => {
+    it('accepts page controls and outputFile for list_verification_plans', () => {
+      const result = validateToolInput('list_verification_plans', {
+        workspace: '/tmp/workspace',
+        pageSize: 10,
+        pageIdx: 2,
+        outputFile: '/tmp/plans-page.json',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects invalid page controls for list_verification_plans', () => {
+      expect(validateToolInput('list_verification_plans', { pageSize: 0 }).valid).toBe(false);
+      expect(validateToolInput('list_verification_plans', { pageIdx: -1 }).valid).toBe(false);
     });
   });
 

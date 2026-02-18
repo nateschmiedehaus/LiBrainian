@@ -75,6 +75,8 @@ export interface ContextAssemblySession {
   drillDown(sessionId: string, entityId: string): Promise<DrillDownResponse>;
   summarize(sessionId: string): Promise<ContextSummary>;
   close(sessionId: string): Promise<void>;
+  restore(session: ContextSession): ContextSession;
+  snapshot(sessionId: string): ContextSession;
 }
 
 export interface ContextAssemblySessionOptions {
@@ -316,6 +318,24 @@ export class ContextAssemblySessionManager implements ContextAssemblySession {
       this.sessions.delete(sessionId);
       this.sessionLocks.delete(sessionId);
     });
+  }
+
+  restore(session: ContextSession): ContextSession {
+    this.pruneExpired();
+    const cloned = structuredClone(session);
+    const packIndex = buildPackIndex(cloned.context.packs);
+    if (packIndex.size > this.maxPacksPerSession) {
+      throw new Error('unverified_by_trace(context_session_pack_limit_exceeded)');
+    }
+    this.sessions.set(cloned.sessionId, { session: cloned, packIndex });
+    this.pruneOverflow();
+    return structuredClone(cloned);
+  }
+
+  snapshot(sessionId: string): ContextSession {
+    this.pruneExpired();
+    const state = this.getSession(sessionId);
+    return structuredClone(state.session);
   }
 
   private getSession(sessionId: string): SessionState {

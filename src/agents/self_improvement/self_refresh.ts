@@ -319,7 +319,7 @@ export async function selfRefresh(
   const changeSummary = await detectChanges(rootDir, sinceCommit, sinceDays);
 
   if (verbose) {
-    console.log(`[selfRefresh] Detected changes:`, {
+    console.error(`[selfRefresh] Detected changes:`, {
       added: changeSummary.added.length,
       modified: changeSummary.modified.length,
       deleted: changeSummary.deleted.length,

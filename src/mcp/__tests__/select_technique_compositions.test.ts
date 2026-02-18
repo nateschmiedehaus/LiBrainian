@@ -29,5 +29,10 @@ describe('MCP select technique compositions tool', () => {
     expect(result.compositions.map((item: { id: string }) => item.id)).toEqual(
       expect.arrayContaining(['tc_release_readiness'])
     );
+    expect(result.runId).toEqual(expect.any(String));
+    expect(result.constructionResult).toBeDefined();
+    expect(result.constructionResult.schema).toBe('SelectTechniqueCompositionsOutputSchema');
+    expect(result.constructionResult.output.intent).toBe('Prepare a release plan');
+    expect(result.constructionResult.meta.constructionId).toBe('select_technique_compositions');
   });
 });

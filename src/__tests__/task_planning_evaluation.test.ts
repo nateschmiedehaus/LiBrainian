@@ -24,7 +24,10 @@ import type { LibrarianStorage, ModuleRecord, FunctionRecord } from '../storage/
 // TEST CONFIGURATION
 // ============================================================================
 
-const WORKSPACE = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian';
+const WORKSPACE = path.join(
+  os.tmpdir(),
+  `librarian-task-planning-eval-${process.pid}-${Date.now()}`
+);
 
 // Test task descriptions - real-world scenarios
 const TEST_TASKS = [
@@ -436,6 +439,8 @@ describe('Task Planning Quality Evaluation', () => {
   const evaluations: PlanEvaluation[] = [];
 
   beforeAll(async () => {
+    await fs.mkdir(WORKSPACE, { recursive: true });
+
     // Create a temporary database for testing
     tempDbPath = path.join(os.tmpdir(), `librarian-test-${Date.now()}.sqlite`);
 
@@ -466,6 +471,8 @@ describe('Task Planning Quality Evaluation', () => {
         // Ignore cleanup errors
       }
     }
+
+    await fs.rm(WORKSPACE, { recursive: true, force: true }).catch(() => {});
 
     // Print summary report
     if (evaluations.length > 0) {

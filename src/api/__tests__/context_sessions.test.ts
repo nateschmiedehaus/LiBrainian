@@ -172,6 +172,27 @@ describe('context assembly sessions', () => {
     expect(summary.packCount).toBe(3);
   });
 
+  it('can restore and snapshot session state across manager instances', async () => {
+    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+      if (query.intent === 'auth overview') {
+        return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
+      }
+      return makeResponse(query, [makePack('pack_follow', 'src/auth_follow.ts', 'Follow-up')]);
+    });
+    const first = new ContextAssemblySessionManager({ query: queryRunner });
+    const started = await first.start({ intent: 'auth overview', depth: 'L1' });
+    const follow = await first.followUp(started.sessionId, 'token refresh');
+
+    const second = new ContextAssemblySessionManager({ query: queryRunner });
+    second.restore(follow.session);
+    const snapshot = second.snapshot(started.sessionId);
+    expect(snapshot.context.packs).toHaveLength(2);
+
+    const next = await second.followUp(started.sessionId, 'session cookies');
+    expect(next.session.context.packs).toHaveLength(2);
+    expect(next.newPacks).toHaveLength(0);
+  });
+
   it('enforces pack limits on follow-ups', async () => {
     const queryRunner = vi.fn(async (query: LibrarianQuery) => {
       if (query.intent === 'auth overview') {

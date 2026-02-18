@@ -11,7 +11,10 @@
 
 import { describe, it, expect } from 'vitest';
 import * as ts from 'typescript';
-import { extractSymbolsFromSource } from '../symbol_extractor.js';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { extractSymbolsFromSource, extractSymbolsFromFile, extractSymbolsFromDirectory } from '../symbol_extractor.js';
 
 /**
  * Helper to extract symbols from a TypeScript code string.
@@ -68,6 +71,37 @@ describe('SymbolExtractor', () => {
       const result = extractSymbols('export function doSomething() {}');
       expect(result).toContainEqual(
         expect.objectContaining({ name: 'doSomething', kind: 'function', exported: true })
+      );
+    });
+
+    it('extracts function metadata for arrow functions assigned to variables', () => {
+      const code = `export const MyComponent = (props: Props): string => {
+  return props.title;
+};`;
+      const result = extractSymbols(code);
+      const symbol = result.find((s) => s.name === 'MyComponent');
+
+      expect(symbol).toBeDefined();
+      expect(symbol).toMatchObject({
+        kind: 'function',
+        exported: true,
+        line: 1,
+        endLine: 3,
+        parameters: ['props'],
+      });
+      expect(symbol?.signature).toContain('function MyComponent(props: Props)');
+      expect(symbol?.signature).toContain(': string');
+    });
+
+    it('extracts all destructured variable bindings', () => {
+      const code = `const [state, setState] = useState<string>('');`;
+      const result = extractSymbols(code);
+
+      expect(result).toContainEqual(
+        expect.objectContaining({ name: 'state', kind: 'const', exported: false })
+      );
+      expect(result).toContainEqual(
+        expect.objectContaining({ name: 'setState', kind: 'const', exported: false })
       );
     });
   });
@@ -758,6 +792,58 @@ namespace API {
           namespace: 'MyModule',
         })
       );
+    });
+  });
+
+  describe('file and directory extraction', () => {
+    it('extracts symbols from JavaScript files', async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-extractor-js-'));
+      const filePath = path.join(tempDir, 'api.js');
+      try {
+        await fs.writeFile(filePath, 'export function handler(req, res) { return res; }', 'utf8');
+        const symbols = await extractSymbolsFromFile(filePath);
+        expect(symbols).toContainEqual(
+          expect.objectContaining({
+            name: 'handler',
+            kind: 'function',
+            exported: true,
+          })
+        );
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('extracts symbols from JS/JSX files in directory scans', async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-extractor-dir-'));
+      try {
+        await fs.writeFile(path.join(tempDir, 'index.js'), 'export const VERSION = "1.0";', 'utf8');
+        await fs.writeFile(
+          path.join(tempDir, 'widget.jsx'),
+          'export function Widget() { return <div>Hello</div>; }',
+          'utf8'
+        );
+        await fs.writeFile(path.join(tempDir, 'types.d.ts'), 'export type Ignored = string;', 'utf8');
+
+        const result = await extractSymbolsFromDirectory(tempDir);
+        expect(result.filesProcessed).toBe(2);
+        expect(result.symbols).toContainEqual(
+          expect.objectContaining({
+            name: 'VERSION',
+            kind: 'const',
+            exported: true,
+          })
+        );
+        expect(result.symbols).toContainEqual(
+          expect.objectContaining({
+            name: 'Widget',
+            kind: 'function',
+            exported: true,
+          })
+        );
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
     });
   });
 });

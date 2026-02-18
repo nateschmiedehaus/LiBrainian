@@ -1529,8 +1529,8 @@ export interface KnowledgeGraphEdge {
   id: string;
   sourceId: string;
   targetId: string;
-  sourceType: 'function' | 'module' | 'file' | 'directory' | 'commit' | 'author';
-  targetType: 'function' | 'module' | 'file' | 'directory' | 'commit' | 'author';
+  sourceType: 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface' | 'commit' | 'author';
+  targetType: 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface' | 'commit' | 'author';
   edgeType: KnowledgeEdgeType;
   weight: number;                 // 0-1 strength
   confidence: number;             // 0-1 how certain

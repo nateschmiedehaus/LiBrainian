@@ -8,7 +8,7 @@ export {
   createLibrarian,
   createLibrarianSync,
 } from './librarian.js';
-export type { LibrarianConfig, LibrarianStatus } from './librarian.js';
+export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
 export type {
   LlmRequirement,
   LlmRequired,

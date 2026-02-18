@@ -276,7 +276,7 @@ describe('query pipeline definition', () => {
     expect(report?.status).toBe('partial');
   });
 
-  it('returns undefined when synthesis lacks a workspace root', async () => {
+  it('returns empty synthesis payload when workspace root is unavailable', async () => {
     const stageTracker = __testing.createStageTracker();
     const coverageGaps: string[] = [];
     const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
@@ -295,7 +295,8 @@ describe('query pipeline definition', () => {
       resolveWorkspaceRootFn: async () => '',
     });
 
-    expect(result).toBeUndefined();
+    expect(result.synthesis).toBeUndefined();
+    expect(result.synthesisMode).toBe('heuristic');
     expect(coverageGaps.join(' ')).toMatch(/workspace root/i);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('failed');
@@ -327,7 +328,8 @@ describe('query pipeline definition', () => {
       synthesizeQueryAnswerFn: vi.fn(),
     });
 
-    expect(result?.answer).toBe('quick');
+    expect(result.synthesis?.answer).toBe('quick');
+    expect(result.synthesisMode).toBe('heuristic');
     expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('success');
@@ -367,7 +369,8 @@ describe('query pipeline definition', () => {
       synthesizeQueryAnswerFn,
     });
 
-    expect(result?.answer).toBe('forced-quick');
+    expect(result.synthesis?.answer).toBe('forced-quick');
+    expect(result.synthesisMode).toBe('heuristic');
     expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
     expect(synthesizeQueryAnswerFn).not.toHaveBeenCalled();
   });
@@ -398,7 +401,8 @@ describe('query pipeline definition', () => {
       synthesizeQueryAnswerFn,
     });
 
-    expect(result?.answer).toBe('full');
+    expect(result.synthesis?.answer).toBe('full');
+    expect(result.synthesisMode).toBe('llm');
     expect(synthesizeQueryAnswerFn).toHaveBeenCalledTimes(1);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('success');
@@ -428,7 +432,9 @@ describe('query pipeline definition', () => {
       synthesizeQueryAnswerFn,
     });
 
-    expect(result).toBeUndefined();
+    expect(result.synthesis).toBeUndefined();
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(result.llmError).toBe('provider_unavailable');
     expect(coverageGaps.join(' ')).toMatch(/synthesis unavailable/i);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('failed');
@@ -455,9 +461,62 @@ describe('query pipeline definition', () => {
       synthesizeQueryAnswerFn,
     });
 
-    expect(result).toBeUndefined();
+    expect(result.synthesis).toBeUndefined();
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(result.llmError).toBe('kaboom');
     expect(coverageGaps.join(' ')).toMatch(/synthesis failed/i);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('failed');
+  });
+
+  it('ranks heuristic fallback packs by query relevance', () => {
+    const authPack = createPack({
+      packId: 'auth-pack',
+      summary: 'Session token refresh and authentication middleware flow',
+      keyFacts: ['auth token lifecycle', 'session refresh'],
+      successCount: 3,
+      failureCount: 0,
+    });
+    const buildPack = createPack({
+      packId: 'build-pack',
+      summary: 'Build pipeline and deployment release process',
+      keyFacts: ['ci workflow', 'release pipeline'],
+      successCount: 3,
+      failureCount: 0,
+    });
+
+    const authRanked = __testing.rankHeuristicFallbackPacks([authPack, buildPack], 'auth session refresh token');
+    const buildRanked = __testing.rankHeuristicFallbackPacks([authPack, buildPack], 'deployment pipeline release');
+
+    expect(authRanked[0]?.packId).toBe('auth-pack');
+    expect(buildRanked[0]?.packId).toBe('build-pack');
+  });
+
+  it('supports hiding llm errors with showLlmErrors=false', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'moderate' });
+    };
+    const synthesizeQueryAnswerFn = vi.fn().mockResolvedValue({
+      synthesized: false,
+      reason: 'provider_unavailable',
+    });
+
+    const result = await __testing.runSynthesisStage({
+      query: { intent: 'test synthesis', depth: 'L1', showLlmErrors: false },
+      storage: {} as LibrarianStorage,
+      finalPacks: [createPack({})],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+      canAnswerFromSummariesFn: () => false,
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result.synthesis).toBeUndefined();
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(result.llmError).toBeUndefined();
   });
 });

@@ -1,8 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { composeCommand } from '../compose.js';
 import { Librarian } from '../../../api/librarian.js';
+import { composeConstructions } from '../../../constructions/lego_pipeline.js';
 
 vi.mock('../../../api/librarian.js');
+vi.mock('../../../constructions/lego_pipeline.js', () => ({
+  composeConstructions: vi.fn().mockResolvedValue({
+    mode: 'constructions',
+    executed: ['knowledge', 'refactoring', 'security'],
+    findings: [],
+    recommendations: [],
+    confidence: { type: 'deterministic', value: 0.8 },
+  }),
+}));
 
 describe('composeCommand', () => {
   const mockWorkspace = '/test/workspace';
@@ -44,18 +54,15 @@ describe('composeCommand', () => {
       rawArgs: ['compose', 'release', 'plan'],
     });
 
-    expect(mockLibrarian.compileTechniqueBundlesFromIntent).toHaveBeenCalledWith(
-      'release plan',
-      expect.objectContaining({ includePrimitives: false })
-    );
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('wt_tc_release_readiness'));
+    expect(composeConstructions).toHaveBeenCalledWith(mockLibrarian, 'release plan');
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"executed"'));
   });
 
-  it('passes includePrimitives and limit', async () => {
+  it('passes includePrimitives and limit in techniques mode', async () => {
     await composeCommand({
       workspace: mockWorkspace,
       args: ['release', 'plan'],
-      rawArgs: ['compose', 'release', 'plan', '--limit', '1', '--include-primitives', '--pretty'],
+      rawArgs: ['compose', 'release', 'plan', '--mode', 'techniques', '--limit', '1', '--include-primitives', '--pretty'],
     });
 
     expect(mockLibrarian.compileTechniqueBundlesFromIntent).toHaveBeenCalledWith(
@@ -73,5 +80,15 @@ describe('composeCommand', () => {
         rawArgs: ['compose', 'release', 'plan', '--limit', '-1'],
       })
     ).rejects.toThrow('Limit must be a positive integer');
+  });
+
+  it('throws for invalid mode', async () => {
+    await expect(
+      composeCommand({
+        workspace: mockWorkspace,
+        args: ['release', 'plan'],
+        rawArgs: ['compose', 'release', 'plan', '--mode', 'invalid'],
+      })
+    ).rejects.toThrow('Invalid mode');
   });
 });

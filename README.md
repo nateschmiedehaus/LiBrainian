@@ -80,6 +80,8 @@ If this query returns a summary + files + confidence, your install is healthy.
 ```bash
 # 1) Bootstrap + heal + baseline in one pass
 npx librainian quickstart
+# setup/init aliases (same flow, setup-oriented naming)
+npx librainian setup --depth quick
 
 # 2) Ask for context
 npx librainian query "Where is authentication enforced?"
@@ -88,6 +90,16 @@ npx librainian query "Where is authentication enforced?"
 npx librainian status --format json
 npx librainian health --format json
 ```
+
+### MCP (agent clients)
+
+For Claude Code/Cursor/VS Code/Windsurf/Gemini client wiring, run:
+
+```bash
+npx librainian mcp --print-config
+```
+
+Then follow the full setup guide at `docs/mcp-setup.md`.
 
 ### Programmatic (recommended for agents)
 
@@ -155,6 +167,7 @@ LiBrainian auto-detects what is present and indexes only what is available in th
 
 ```bash
 # Day 0 / onboarding
+npx librainian setup --depth quick
 npx librainian quickstart
 npx librainian bootstrap .
 npx librainian doctor --heal
@@ -218,6 +231,35 @@ npm run package:assert-identity
 npm run package:install-smoke
 ```
 
+## Release Provenance
+
+LiBrainian enforces publish provenance before release:
+
+```bash
+npm run package:assert-release-provenance
+```
+
+This guard verifies:
+- `package.json` version is valid semver and newer than npm's latest published version
+- matching git tag (`v<version>`) exists locally
+- matching git tag points to `HEAD`
+
+Runtime trust/provenance visibility:
+- `npx librainian status --format json` includes verification provenance summary fields
+- `npx librainian health --format json` includes provenance status for release-evidence readiness
+- generated evidence artifacts:
+  - `state/audits/LiBrainian/manifest.json`
+  - `docs/LiBrainian/STATUS.md`
+  - `docs/LiBrainian/GATES.json`
+
+Canonical release sequence:
+
+```bash
+npm version <patch|minor|major>
+git push --follow-tags
+npm publish --provenance --access public
+```
+
 PR process is in `CONTRIBUTING.md`.
 
 ## Examples
@@ -241,6 +283,8 @@ npx tsx examples/feedback_loop_example.ts
 - Fast onboarding: `docs/START_HERE.md`
 - Docs index: `docs/README.md`
 - Core docs: `docs/librarian/README.md`
+- MCP setup: `docs/mcp-setup.md`
+- MCP design principles: `docs/mcp-design-principles.md`
 - Query guide: `docs/librarian/query-guide.md`
 - Specifications: `docs/librarian/specs/README.md`
 - Architecture notes: `ARCHITECTURE.md`

@@ -49,6 +49,12 @@ jobs:
       - name: Package identity guard
         run: npm run package:assert-identity
 
+      - name: Evidence sync
+        run: npm run evidence:sync
+
+      - name: Evidence drift guard
+        run: npm run evidence:drift-check
+
       - name: Build and pack
         run: npm run release:pack
 

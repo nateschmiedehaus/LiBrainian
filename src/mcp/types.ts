@@ -15,6 +15,7 @@
  * - get_context_pack_bundle
  * - verify_claim
  * - run_audit
+ * - list_runs
  * - diff_runs
  * - export_index
  *
@@ -458,6 +459,9 @@ export interface QueryToolInput {
   /** Workspace path (optional, uses first ready workspace if not specified) */
   workspace?: string;
 
+  /** Optional session identifier for loop detection and adaptive retrieval behavior */
+  sessionId?: string;
+
   /** Typed query intent */
   intentType?: QueryIntent;
 
@@ -475,6 +479,15 @@ export interface QueryToolInput {
 
   /** Include evidence graph */
   includeEvidence?: boolean;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 export interface QueryToolOutput {
@@ -484,8 +497,26 @@ export interface QueryToolOutput {
   /** Total confidence */
   totalConfidence: number;
 
+  /** Retrieval sufficiency classification */
+  retrievalStatus?: 'sufficient' | 'partial' | 'insufficient';
+
+  /** Retrieval entropy over returned confidence distribution */
+  retrievalEntropy?: number;
+
+  /** True when retrieval quality remains insufficient after escalation */
+  retrievalInsufficient?: boolean;
+
+  /** Clarifying questions to recover from insufficient retrieval */
+  suggestedClarifyingQuestions?: string[];
+
   /** Synthesized answer (if LLM available) */
   synthesis?: string;
+
+  /** How synthesis was produced */
+  synthesisMode?: 'llm' | 'heuristic' | 'cache';
+
+  /** LLM synthesis error when fallback mode is active */
+  llmError?: string;
 
   /** Verification plan for follow-up validation */
   verificationPlan?: VerificationPlan;
@@ -504,6 +535,169 @@ export interface QueryToolOutput {
 
   /** Cache hit */
   cacheHit: boolean;
+
+  /** Repeated-query loop detection and recovery guidance */
+  loopDetection?: {
+    detected: boolean;
+    pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat';
+    occurrences: number;
+    windowSeconds: number;
+    message: string;
+    alternativeStrategies: Array<{
+      tool: 'query' | 'get_context_pack_bundle' | 'list_runs' | 'run_audit' | 'status';
+      rationale: string;
+      topic?: string;
+    }>;
+    humanReviewSuggested: boolean;
+  };
+
+  /** Optional recommendation to escalate to a human review tool call */
+  humanReviewRecommendation?: {
+    recommended: boolean;
+    tool: 'request_human_review';
+    reason: string;
+    confidenceTier: 'low' | 'uncertain';
+    riskLevel: 'low' | 'medium' | 'high';
+    blockingSuggested: boolean;
+  };
+}
+
+/** Reset session state tool input */
+export interface ResetSessionStateToolInput {
+  /** Session ID to reset (optional if auth token is provided) */
+  sessionId?: string;
+
+  /** Optional workspace hint used for anonymous session reset fallback */
+  workspace?: string;
+}
+
+/** Reset session state tool output */
+export interface ResetSessionStateToolOutput {
+  success: boolean;
+  sessionId: string;
+  clearedQueries: number;
+  message: string;
+}
+
+/** Request human review tool input */
+export interface RequestHumanReviewToolInput {
+  /** Why human review is needed */
+  reason: string;
+
+  /** Summary of uncertain or conflicting context */
+  context_summary: string;
+
+  /** Action the agent was about to take */
+  proposed_action: string;
+
+  /** Confidence tier forcing escalation */
+  confidence_tier: 'low' | 'uncertain';
+
+  /** Risk if the action is wrong */
+  risk_level: 'low' | 'medium' | 'high';
+
+  /** Whether the agent should pause for response */
+  blocking: boolean;
+}
+
+/** Request human review tool output */
+export interface RequestHumanReviewToolOutput {
+  review_request_id: string;
+  status: 'pending' | 'advisory';
+  human_readable_summary: string;
+  blocking: boolean;
+  expires_in_seconds: number;
+}
+
+/** Change impact tool input */
+export interface GetChangeImpactToolInput {
+  /** Changed file/module/function identifier to analyze */
+  target: string;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum transitive depth for propagation (default: 3) */
+  depth?: number;
+
+  /** Maximum impacted files to return (default: 200) */
+  maxResults?: number;
+
+  /** Optional change type to refine risk scoring */
+  changeType?: 'modify' | 'delete' | 'rename' | 'move';
+}
+
+export interface GetChangeImpactToolOutput {
+  success: boolean;
+  target: string;
+  resolvedTarget?: string;
+  depth: number;
+  impacted: Array<{
+    file: string;
+    depth: number;
+    direct: boolean;
+    relationship: 'imports';
+    impactScore: number;
+    confidence: number;
+    reason: string;
+    reasonFlags: string[];
+    testCoversChanged: boolean;
+    coChangeWeight: number;
+  }>;
+  summary: {
+    totalImpacted: number;
+    directCount: number;
+    transitiveCount: number;
+    testsFlagged: number;
+    maxImpactScore: number;
+    durationMs: number;
+    riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+    riskScore?: number;
+  };
+  error?: string;
+}
+
+/** Submit feedback tool input */
+export interface SubmitFeedbackToolInput {
+  /** Feedback token from query response */
+  feedbackToken: string;
+
+  /** Task outcome */
+  outcome: 'success' | 'failure' | 'partial';
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Agent identifier */
+  agentId?: string;
+
+  /** Description of missing context */
+  missingContext?: string;
+
+  /** Optional per-pack ratings */
+  customRatings?: Array<{
+    packId: string;
+    relevant: boolean;
+    usefulness?: number;
+    reason?: string;
+  }>;
+}
+
+export interface SubmitFeedbackToolOutput {
+  /** Feedback token */
+  feedbackToken: string;
+
+  /** Outcome used */
+  outcome: 'success' | 'failure' | 'partial';
+
+  /** Whether processing succeeded */
+  success: boolean;
+
+  /** Number of confidence adjustments applied */
+  adjustmentsApplied: number;
+
+  /** Error message when processing fails */
+  error?: string;
 }
 
 export interface ContextPackSummary {
@@ -629,8 +823,20 @@ export interface AuditFinding {
   remediation?: string;
 }
 
+/** List runs tool input */
+export interface ListRunsToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum runs to return */
+  limit?: number;
+}
+
 /** Diff runs tool input */
 export interface DiffRunsToolInput {
+  /** Workspace path to resolve persisted run history */
+  workspace?: string;
+
   /** First run ID */
   runIdA: string;
 
@@ -717,6 +923,15 @@ export interface GetContextPackBundleToolInput {
 
   /** Max token budget */
   maxTokens?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 export interface GetContextPackBundleToolOutput {
@@ -755,6 +970,15 @@ export interface ListVerificationPlansToolInput {
 
   /** Limit number of plans returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** List episodes tool input */
@@ -764,6 +988,15 @@ export interface ListEpisodesToolInput {
 
   /** Limit number of episodes returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** List technique primitives tool input */
@@ -773,6 +1006,15 @@ export interface ListTechniquePrimitivesToolInput {
 
   /** Limit number of primitives returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** List technique compositions tool input */
@@ -782,6 +1024,15 @@ export interface ListTechniqueCompositionsToolInput {
 
   /** Limit number of compositions returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** Select technique compositions tool input */
@@ -868,6 +1119,30 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  reset_session_state: {
+    tool: 'reset_session_state',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  request_human_review: {
+    tool: 'request_human_review',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  get_change_impact: {
+    tool: 'get_change_impact',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  submit_feedback: {
+    tool: 'submit_feedback',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_context_pack_bundle: {
     tool: 'get_context_pack_bundle',
     requiredScopes: ['read'],
@@ -885,6 +1160,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiredScopes: ['read', 'write'],
     requiresConsent: true,
     consentMessage: 'Audit will analyze codebase and write reports',
+    riskLevel: 'low',
+  },
+  list_runs: {
+    tool: 'list_runs',
+    requiredScopes: ['read'],
+    requiresConsent: false,
     riskLevel: 'low',
   },
   diff_runs: {
@@ -1015,6 +1296,39 @@ export interface LibrarianMCPServerConfig {
     /** Debounce interval in ms for file change events */
     debounceMs: number;
   };
+
+  /** Loop detection and recovery settings */
+  loopDetection: {
+    /** Enable repeated-query loop detection */
+    enabled: boolean;
+
+    /** Detection window in seconds */
+    windowSeconds: number;
+
+    /** Fire identical query warnings after this many occurrences */
+    exactRepeatThreshold: number;
+
+    /** Fire semantic repeat warnings after this many occurrences */
+    semanticRepeatThreshold: number;
+
+    /** Fire futile repeat strategy escalation after this many zero-result repeats */
+    futileRepeatThreshold: number;
+
+    /** Maximum query records to retain per session */
+    maxSessionHistory: number;
+
+    /** Whether to auto-adjust retrieval strategy on repeated futile queries */
+    autoEscalateStrategy: boolean;
+  };
+
+  /** Human review escalation settings */
+  humanReview: {
+    /** Threshold in minutes where stale index should trigger recommendation for write-intent queries */
+    staleIndexThresholdMinutes: number;
+
+    /** Default expiration timeout included in review requests */
+    defaultReviewTimeoutSeconds: number;
+  };
 }
 
 /** Default server configuration */
@@ -1040,6 +1354,19 @@ export const DEFAULT_MCP_SERVER_CONFIG: LibrarianMCPServerConfig = {
     enabled: true,
     debounceMs: 200,
   },
+  loopDetection: {
+    enabled: true,
+    windowSeconds: 60,
+    exactRepeatThreshold: 2,
+    semanticRepeatThreshold: 3,
+    futileRepeatThreshold: 2,
+    maxSessionHistory: 20,
+    autoEscalateStrategy: true,
+  },
+  humanReview: {
+    staleIndexThresholdMinutes: 30,
+    defaultReviewTimeoutSeconds: 300,
+  },
 };
 
 // ============================================================================
@@ -1057,7 +1384,59 @@ export function isBootstrapToolInput(value: unknown): value is BootstrapToolInpu
 export function isQueryToolInput(value: unknown): value is QueryToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return typeof obj.intent === 'string';
+  const intentOk = typeof obj.intent === 'string';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return intentOk && sessionIdOk && pageSizeOk && pageIdxOk && outputFileOk;
+}
+
+/** Type guard for ResetSessionStateToolInput */
+export function isResetSessionStateToolInput(value: unknown): value is ResetSessionStateToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return sessionIdOk && workspaceOk;
+}
+
+/** Type guard for RequestHumanReviewToolInput */
+export function isRequestHumanReviewToolInput(value: unknown): value is RequestHumanReviewToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const reasonOk = typeof obj.reason === 'string';
+  const summaryOk = typeof obj.context_summary === 'string';
+  const actionOk = typeof obj.proposed_action === 'string';
+  const confidenceOk = obj.confidence_tier === 'low' || obj.confidence_tier === 'uncertain';
+  const riskOk = obj.risk_level === 'low' || obj.risk_level === 'medium' || obj.risk_level === 'high';
+  const blockingOk = typeof obj.blocking === 'boolean';
+  return reasonOk && summaryOk && actionOk && confidenceOk && riskOk && blockingOk;
+}
+
+/** Type guard for GetChangeImpactToolInput */
+export function isGetChangeImpactToolInput(value: unknown): value is GetChangeImpactToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const targetOk = typeof obj.target === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const depthOk = typeof obj.depth === 'number' || typeof obj.depth === 'undefined';
+  const maxResultsOk = typeof obj.maxResults === 'number' || typeof obj.maxResults === 'undefined';
+  const changeTypeOk = obj.changeType === 'modify' || obj.changeType === 'delete' || obj.changeType === 'rename' || obj.changeType === 'move' || typeof obj.changeType === 'undefined';
+  return targetOk && workspaceOk && depthOk && maxResultsOk && changeTypeOk;
+}
+
+/** Type guard for SubmitFeedbackToolInput */
+export function isSubmitFeedbackToolInput(value: unknown): value is SubmitFeedbackToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const tokenOk = typeof obj.feedbackToken === 'string';
+  const outcomeOk = obj.outcome === 'success' || obj.outcome === 'failure' || obj.outcome === 'partial';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const agentIdOk = typeof obj.agentId === 'string' || typeof obj.agentId === 'undefined';
+  const missingContextOk = typeof obj.missingContext === 'string' || typeof obj.missingContext === 'undefined';
+  const ratingsOk = Array.isArray(obj.customRatings) || typeof obj.customRatings === 'undefined';
+  return tokenOk && outcomeOk && workspaceOk && agentIdOk && missingContextOk && ratingsOk;
 }
 
 /** Type guard for VerifyClaimToolInput */
@@ -1078,7 +1457,17 @@ export function isRunAuditToolInput(value: unknown): value is RunAuditToolInput 
 export function isDiffRunsToolInput(value: unknown): value is DiffRunsToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return typeof obj.runIdA === 'string' && typeof obj.runIdB === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return workspaceOk && typeof obj.runIdA === 'string' && typeof obj.runIdB === 'string';
+}
+
+/** Type guard for ListRunsToolInput */
+export function isListRunsToolInput(value: unknown): value is ListRunsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  return workspaceOk && limitOk;
 }
 
 /** Type guard for ExportIndexToolInput */
@@ -1092,7 +1481,11 @@ export function isExportIndexToolInput(value: unknown): value is ExportIndexTool
 export function isGetContextPackBundleToolInput(value: unknown): value is GetContextPackBundleToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return Array.isArray(obj.entityIds);
+  const entityIdsOk = Array.isArray(obj.entityIds);
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return entityIdsOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for SystemContractToolInput */
@@ -1115,7 +1508,10 @@ export function isListVerificationPlansToolInput(value: unknown): value is ListV
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for ListEpisodesToolInput */
@@ -1124,7 +1520,10 @@ export function isListEpisodesToolInput(value: unknown): value is ListEpisodesTo
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for ListTechniquePrimitivesToolInput */
@@ -1133,7 +1532,10 @@ export function isListTechniquePrimitivesToolInput(value: unknown): value is Lis
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for ListTechniqueCompositionsToolInput */
@@ -1142,7 +1544,10 @@ export function isListTechniqueCompositionsToolInput(value: unknown): value is L
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for SelectTechniqueCompositionsToolInput */

@@ -12,17 +12,23 @@ USAGE:
 
 START HERE:
     librainian quickstart
+    librainian setup --depth quick
     librainian query "How does authentication work?"
     librainian status --format json
 
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
+    setup               Alias for quickstart (setup-oriented naming)
+    init                Alias for quickstart (init-oriented naming)
     query <intent>      Run a query against the knowledge base
+    feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
+    mcp                 Start MCP stdio server / print client config snippets
+    eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
     watch               Watch for file changes and auto-reindex
-    compose             Compile technique bundles from intent
+    compose             Compose construction pipelines or technique bundles
     doctor              Run diagnostics and recovery hints
     health              Show current LiBrainian health status
     smoke               Run external repo smoke harness
@@ -41,7 +47,7 @@ ADVANCED:
     evolve              Run evolutionary improvement loop
     eval                Produce FitnessReport.v1 for current state
     replay              Replay an evolution cycle or variant
-    index --force <file...>  Incrementally index specific files
+    index --force ...        Incrementally index explicit files or git-selected changes
     analyze             Run static analysis (dead code, complexity)
     config heal         Auto-detect and fix suboptimal configuration
     ralph               Run DETECT->FIX->VERIFY loop and write an audit report
@@ -58,6 +64,7 @@ EXAMPLES:
     librainian quickstart
     librainian query "How does the payment flow work?"
     librainian bootstrap --force
+    librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian publish-gate --profile release --json
 
@@ -75,6 +82,7 @@ OPTIONS:
     --verbose           Show detailed statistics
     --format text|json  Output format (default: text)
     --json              Alias for --format json
+    --out <path>        Write JSON output to file (requires --json/--format json)
 
 DESCRIPTION:
     Displays the current state of the librarian knowledge index, including:
@@ -87,6 +95,7 @@ DESCRIPTION:
 EXAMPLES:
     librarian status
     librarian status --verbose
+    librarian status --json --out /tmp/librarian-status.json
 `,
 
   query: `
@@ -113,7 +122,10 @@ OPTIONS:
     --exhaustive        Enable exhaustive mode for dependency queries (returns all dependents)
     --transitive        Include transitive dependencies (with --exhaustive)
     --max-depth <n>     Maximum depth for transitive traversal (default: 10)
+    --session <id>      Session mode: "new" starts a session, existing id continues it
+    --drill-down <id>   Drill into an entity/file within an existing session
     --json              Output results as JSON
+    --out <path>        Write JSON output to file (requires --json)
 
 DESCRIPTION:
     Queries the librarian knowledge base for context packs matching your intent.
@@ -159,11 +171,44 @@ EXAMPLES:
     librarian query "What tests cover login?" --files src/auth/login.ts
     librarian query "Assess impact" --uc UC-041,UC-042 --uc-priority high
     librarian query "API endpoint structure" --json
+    librarian query "API endpoint structure" --json --out /tmp/librarian-query.json
     librarian query "Quick overview" --token-budget 2000 --token-reserve 500
     librarian query "Test reproducibility" --deterministic --json
     librarian query "list all CLI commands" --enumerate
     librarian query "how many test files" --enumerate --json
     librarian query "what depends on SqliteStorage" --exhaustive --transitive
+    librarian query "How does auth work?" --session new --json
+    librarian query "What about token refresh?" --session sess_abc123 --json
+    librarian query --session sess_abc123 --drill-down src/auth/session.ts --json
+`,
+
+  feedback: `
+librarian feedback - Submit outcome feedback for a prior query
+
+USAGE:
+    librarian feedback <feedbackToken> --outcome <success|failure|partial> [options]
+
+OPTIONS:
+    --outcome <value>        Task outcome: success | failure | partial
+    --agent-id <id>          Agent identifier (e.g., codex-cli)
+    --missing-context <txt>  Missing context description
+    --ratings <json>         JSON array with per-pack ratings
+    --ratings-file <path>    Path to JSON file with per-pack ratings
+    --json                   Emit machine-readable JSON output
+
+DESCRIPTION:
+    Records feedback against a prior query result so LiBrainian can update
+    context-pack confidence and track retrieval gaps.
+
+    Notes:
+    - feedbackToken comes from librarian query output (feedbackToken field)
+    - Use --ratings/--ratings-file for explicit per-pack relevance control
+    - Without custom ratings, outcome-level feedback applies to all packs
+
+EXAMPLES:
+    librarian feedback fbk_123 --outcome success
+    librarian feedback fbk_123 --outcome failure --missing-context "Need auth token lifecycle docs"
+    librarian feedback fbk_123 --outcome partial --ratings-file state/ratings.json --json
 `,
 
   bootstrap: `
@@ -178,6 +223,8 @@ OPTIONS:
     --scope <name>      Bootstrap scope: full | librarian (default: full)
     --mode <name>       Bootstrap mode: fast | full (default: full)
     --emit-baseline     Write OnboardingBaseline.v1 after successful bootstrap
+    --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
+    --no-claude-md      Skip CLAUDE.md injection even when updating agent docs
     --install-grammars  Install missing tree-sitter grammar packages
     --llm-provider <p>  Force LLM provider: claude | codex (default: auto)
     --llm-model <id>    Force LLM model id (default: daily selection)
@@ -209,6 +256,54 @@ EXAMPLES:
     librarian bootstrap --emit-baseline
 `,
 
+  mcp: `
+librarian mcp - Start MCP stdio server and print client setup snippets
+
+USAGE:
+    librarian mcp [options]
+
+OPTIONS:
+    --print-config        Print config snippets and exit (do not start server)
+    --client <name>       Target a single client: claude|cursor|vscode|windsurf|gemini
+    --launcher <mode>     Command style: installed|npx (default: installed)
+    --json                Emit JSON when used with --print-config
+    --stdio               Accepted for compatibility; stdio is always used
+
+DESCRIPTION:
+    Runs the LiBrainian MCP server over stdio for MCP-compatible clients.
+    Use --print-config to generate copy-ready JSON snippets for client setup.
+
+EXAMPLES:
+    librarian mcp
+    librarian mcp --print-config
+    librarian mcp --print-config --client claude
+    librarian mcp --print-config --launcher npx --json
+`,
+
+  'eject-docs': `
+librarian eject-docs - Remove injected librarian docs from CLAUDE.md files
+
+USAGE:
+    librarian eject-docs [options]
+
+OPTIONS:
+    --dry-run           Report files that would be changed without writing
+    --json              Output results as JSON
+
+DESCRIPTION:
+    Removes all sections between:
+    - <!-- LIBRARIAN_DOCS_START -->
+    - <!-- LIBRARIAN_DOCS_END -->
+
+    from CLAUDE.md files while preserving user-authored content.
+    Safe to run multiple times.
+
+EXAMPLES:
+    librarian eject-docs
+    librarian eject-docs --dry-run
+    librarian eject-docs --json
+`,
+
   quickstart: `
 librarian quickstart - Smooth onboarding and recovery flow
 
@@ -217,9 +312,13 @@ USAGE:
 
 OPTIONS:
     --mode <name>       Bootstrap mode: fast | full (default: fast)
+    --depth <name>      Setup depth alias: quick | full (quick maps to fast)
     --risk-tolerance <t>  Config heal risk: safe | low | medium (default: low)
     --force             Force bootstrap even if not required
     --skip-baseline     Skip writing OnboardingBaseline.v1
+    --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
+    --ci                CI-friendly mode (non-interactive, skips MCP registration)
+    --no-mcp            Skip MCP registration/setup steps
     --json              Output results as JSON
 
 DESCRIPTION:
@@ -234,9 +333,43 @@ DESCRIPTION:
 
 EXAMPLES:
     librarian quickstart
+    librarian setup --depth quick --ci --no-mcp
+    librarian init --depth full
     librarian quickstart --mode full
     librarian quickstart --force --skip-baseline
+    librarian quickstart --update-agent-docs
     librarian quickstart --json
+`,
+
+  setup: `
+librarian setup - Alias for quickstart onboarding
+
+USAGE:
+    librarian setup [options]
+
+DESCRIPTION:
+    Runs the same onboarding flow as:
+    librarian quickstart [options]
+
+    Common setup invocation:
+    librarian setup --depth quick --ci --no-mcp
+
+See:
+    librarian help quickstart
+`,
+
+  init: `
+librarian init - Alias for quickstart onboarding
+
+USAGE:
+    librarian init [options]
+
+DESCRIPTION:
+    Runs the same onboarding flow as:
+    librarian quickstart [options]
+
+See:
+    librarian help quickstart
 `,
 
   smoke: `
@@ -368,24 +501,32 @@ EXAMPLES:
 `,
 
   compose: `
-librarian compose - Compile technique bundles from intent
+librarian compose - Compose construction pipelines or technique bundles
 
 USAGE:
     librarian compose "<intent>" [options]
 
 OPTIONS:
+    --mode <m>         Compose mode: constructions|techniques (default: constructions)
     --limit <n>         Limit number of bundles returned
     --include-primitives  Include primitive definitions in output
     --pretty            Pretty-print JSON output
 
 DESCRIPTION:
-    Compiles technique composition bundles from an intent using the plan compiler.
-    Outputs JSON for downstream automation or inspection.
+    constructions mode:
+    - Runs composable construction bricks with shared context and prior findings
+    - Produces normalized findings/recommendations across knowledge, refactoring, and security
+    - Reuses context through a single pipeline pass for agent workflows
+
+    techniques mode:
+    - Compiles technique composition bundles from intent using the plan compiler
+    - Outputs template + primitive bundles for downstream automation
 
 EXAMPLES:
-    librarian compose "Prepare a release plan"
-    librarian compose "Performance regression triage" --limit 2
-    librarian compose "Release readiness" --include-primitives --pretty
+    librarian compose "Investigate payment auth regression"
+    librarian compose "Prepare a release plan" --mode techniques
+    librarian compose "Performance regression triage" --mode techniques --limit 2
+    librarian compose "Release readiness" --mode techniques --include-primitives --pretty
 `,
 
   confidence: `
@@ -474,6 +615,7 @@ USAGE:
 OPTIONS:
     --json              Output results as JSON
     --format text|json  Output format (default: text)
+    --out <path>        Write JSON output to file (requires --json/--format json)
 
 DESCRIPTION:
     Checks the availability and authentication status of:
@@ -490,6 +632,7 @@ DESCRIPTION:
 EXAMPLES:
     librarian check-providers
     librarian check-providers --json
+    librarian check-providers --json --out /tmp/librarian-providers.json
 `,
 
   watch: `
@@ -646,9 +789,15 @@ librarian index - Incrementally index specific files
 
 USAGE:
     librarian index --force <file...> [options]
+    librarian index --force --incremental [options]
+    librarian index --force --staged [options]
+    librarian index --force --since <ref> [options]
 
 OPTIONS:
     --force             REQUIRED. Acknowledge risk of context pack loss on failure
+    --incremental       Index changed files from git status (modified + added + untracked)
+    --staged            Index only staged files from git diff --cached
+    --since <ref>       Index files changed since a git ref (for CI branch comparison)
     --verbose           Show detailed indexing output
 
 DESCRIPTION:
@@ -678,6 +827,9 @@ EXAMPLES:
     librarian index --force src/new_feature.ts
     librarian index --force src/auth/*.ts --verbose
     librarian index --force file1.ts file2.ts file3.ts
+    librarian index --force --incremental
+    librarian index --force --staged
+    librarian index --force --since origin/main
 `,
 
   analyze: `
@@ -792,6 +944,7 @@ OPTIONS:
     --verbose           Show detailed diagnostic information
     --json              Output results as JSON
     --heal              Attempt automatic healing (config + bootstrap)
+    --fix               Purge invalid embeddings and re-embed via bootstrap
     --install-grammars  Install missing tree-sitter grammar packages
     --risk-tolerance    Max risk for config fixes (safe|low|medium)
 
@@ -866,9 +1019,10 @@ EXAMPLES:
     librarian doctor --json
     librarian doctor --verbose --json
     librarian doctor --heal
+    librarian doctor --fix
 	    librarian doctor --heal --risk-tolerance safe
 	    librarian doctor --install-grammars
-	`,
+		`,
 
 	  'publish-gate': `
 	librarian publish-gate - Run strict publish-readiness gate checks

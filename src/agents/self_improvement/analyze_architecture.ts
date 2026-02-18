@@ -600,7 +600,7 @@ export async function analyzeArchitecture(
   }
 
   if (verbose) {
-    console.log(`[analyzeArchitecture] Analyzing ${modules.length} modules`);
+    console.error(`[analyzeArchitecture] Analyzing ${modules.length} modules`);
   }
 
   // Build module graphs

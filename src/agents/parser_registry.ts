@@ -178,6 +178,7 @@ function parseGenericModule(
     'import_clause',
     'import_spec',
     'import_from_statement',
+    'import_header',
     'using_directive',
     'using_declaration',
     'namespace_use_declaration',
@@ -191,7 +192,7 @@ function parseGenericModule(
       const nameNode =
         node.childForFieldName('name') ??
         node.childForFieldName('identifier') ??
-        findNamedChild(node, ['identifier', 'type_identifier', 'name']);
+        findNamedChild(node, ['identifier', 'type_identifier', 'name', 'simple_identifier', 'property_identifier']);
       const signature = buildTreeSitterSignature(content, node, 'body');
       const parsed = buildParsedFunctionFromNode(node, content, nameNode, signature);
       if (parsed) functions.push(parsed);

@@ -232,7 +232,7 @@ async function gatherAdditionalEvidence(
   }
 
   if (verbose) {
-    console.log(`[resolveGettier] Gathered ${additionalEvidence.length} additional evidence items`);
+    console.error(`[resolveGettier] Gathered ${additionalEvidence.length} additional evidence items`);
   }
 
   return additionalEvidence;
@@ -409,7 +409,7 @@ async function findCounterevidence(
   }
 
   if (verbose && counterevidence.length > 0) {
-    console.log(`[resolveGettier] Found ${counterevidence.length} counterevidence items`);
+    console.error(`[resolveGettier] Found ${counterevidence.length} counterevidence items`);
   }
 
   return counterevidence;
@@ -562,7 +562,7 @@ export async function resolveGettierCase(
   }
 
   if (verbose) {
-    console.log(`[resolveGettier] Analyzing claim: "${suspectedGettierClaim.text}"`);
+    console.error(`[resolveGettier] Analyzing claim: "${suspectedGettierClaim.text}"`);
   }
 
   // Stage 1: Initial Verification
@@ -605,13 +605,13 @@ export async function resolveGettierCase(
   const initialAnalysis = verificationResult.gettierAnalysis;
 
   if (verbose) {
-    console.log(`[resolveGettier] Initial Gettier risk: ${(initialAnalysis.gettierRisk * 100).toFixed(1)}%`);
+    console.error(`[resolveGettier] Initial Gettier risk: ${(initialAnalysis.gettierRisk * 100).toFixed(1)}%`);
   }
 
   // Early exit if already safe
   if (initialAnalysis.gettierRisk < targetGettierRisk && !initialAnalysis.isGettierCase) {
     if (verbose) {
-      console.log('[resolveGettier] Claim already safe, no resolution needed');
+      console.error('[resolveGettier] Claim already safe, no resolution needed');
     }
 
     return {
@@ -644,7 +644,7 @@ export async function resolveGettierCase(
     iterations++;
 
     if (verbose) {
-      console.log(`[resolveGettier] Iteration ${iterations}/${maxIterations}`);
+      console.error(`[resolveGettier] Iteration ${iterations}/${maxIterations}`);
     }
 
     // Gather additional evidence
@@ -668,14 +668,14 @@ export async function resolveGettierCase(
     currentAnalysis = reanalyzeGettierRisk(initialAnalysis, allAdditionalEvidence, causalChain);
 
     if (verbose) {
-      console.log(`[resolveGettier] Updated Gettier risk: ${(currentAnalysis.gettierRisk * 100).toFixed(1)}%`);
+      console.error(`[resolveGettier] Updated Gettier risk: ${(currentAnalysis.gettierRisk * 100).toFixed(1)}%`);
     }
 
     // Check for strong counterevidence (early exit)
     const strongCounterEvidence = counterevidence.filter((e) => e.confidence.score > 0.7);
     if (strongCounterEvidence.length >= 2) {
       if (verbose) {
-        console.log('[resolveGettier] Strong counterevidence found, exiting loop');
+        console.error('[resolveGettier] Strong counterevidence found, exiting loop');
       }
       break;
     }
@@ -714,7 +714,7 @@ export async function resolveGettierCase(
   const duration = Date.now() - startTime;
 
   if (verbose) {
-    console.log(`[resolveGettier] Complete. Resolution: ${resolution}`);
+    console.error(`[resolveGettier] Complete. Resolution: ${resolution}`);
   }
 
   return {

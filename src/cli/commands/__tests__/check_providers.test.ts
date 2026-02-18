@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { checkProvidersCommand } from '../check_providers.js';
 import { checkAllProviders } from '../../../api/provider_check.js';
 import { runProviderReadinessGate } from '../../../api/provider_gate.js';
@@ -44,5 +47,20 @@ describe('checkProvidersCommand', () => {
     const parsed = JSON.parse(output ?? '{}') as { workspace?: string; gate?: { ready?: boolean } };
     expect(parsed.workspace).toBe(workspace);
     expect(parsed.gate?.ready).toBe(true);
+  });
+
+  it('writes JSON to --out path', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-providers-out-'));
+    const outPath = path.join(tmpDir, 'providers.json');
+
+    try {
+      await checkProvidersCommand({ workspace, format: 'json', out: outPath });
+      const raw = await fs.readFile(outPath, 'utf8');
+      const parsed = JSON.parse(raw) as { workspace?: string; gate?: { ready?: boolean } };
+      expect(parsed.workspace).toBe(workspace);
+      expect(parsed.gate?.ready).toBe(true);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });

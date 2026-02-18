@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import { Librarian } from '../../api/librarian.js';
 import { createError } from '../errors.js';
+import { composeConstructions } from '../../constructions/lego_pipeline.js';
 
 export interface ComposeCommandOptions {
   workspace: string;
@@ -17,6 +18,7 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
       limit: { type: 'string' },
       'include-primitives': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
+      mode: { type: 'string', default: 'constructions' },
     },
     allowPositionals: true,
     strict: false,
@@ -29,6 +31,13 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
 
   const includePrimitives = values['include-primitives'] as boolean;
   const pretty = values.pretty as boolean;
+  const modeRaw = String(values.mode ?? 'constructions').toLowerCase();
+  const mode = modeRaw === 'techniques' || modeRaw === 'constructions'
+    ? modeRaw
+    : 'constructions';
+  if (modeRaw !== 'techniques' && modeRaw !== 'constructions') {
+    throw createError('INVALID_ARGUMENT', `Invalid mode "${modeRaw}". Use constructions|techniques.`);
+  }
   const limitRaw = typeof values.limit === 'string' ? values.limit : '';
   const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
   if (parsedLimit !== undefined && (!Number.isFinite(parsedLimit) || parsedLimit <= 0)) {
@@ -45,11 +54,17 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
   });
 
   await librarian.initialize();
-  const bundles = await librarian.compileTechniqueBundlesFromIntent(intent, {
-    limit,
-    includePrimitives,
-  });
-  const output = JSON.stringify({ intent, bundles }, null, pretty ? 2 : 0);
+  const outputPayload = mode === 'constructions'
+    ? await composeConstructions(librarian, intent)
+    : {
+        mode: 'techniques',
+        intent,
+        bundles: await librarian.compileTechniqueBundlesFromIntent(intent, {
+          limit,
+          includePrimitives,
+        }),
+      };
+  const output = JSON.stringify(outputPayload, null, pretty ? 2 : 0);
   console.log(output);
   await librarian.shutdown();
 }

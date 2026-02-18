@@ -215,6 +215,16 @@ describe('classifyError', () => {
     }
   });
 
+  it('sanitizes unverified trace markers in classified messages', () => {
+    const envelope = classifyError(
+      new Error('unverified_by_trace(provider_unavailable): Embedding provider unavailable')
+    );
+
+    expect(envelope.code).toBe('EPROVIDER_UNAVAILABLE');
+    expect(envelope.message).toBe('Embedding provider unavailable');
+    expect(envelope.message).not.toContain('unverified_by_trace');
+  });
+
   it('should classify unknown errors as EUNKNOWN', () => {
     const error = new Error('Some completely unknown error');
     const envelope = classifyError(error);
@@ -342,6 +352,16 @@ describe('formatErrorWithHints', () => {
     const formatted = formatErrorWithHints(envelope);
 
     expect(formatted).toContain('5000ms');
+  });
+
+  it('sanitizes unverified trace marker text in formatted output', () => {
+    const formatted = formatErrorWithHints(createErrorEnvelope(
+      'EPROVIDER_UNAVAILABLE',
+      'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
+    ));
+
+    expect(formatted).toContain('Embedding provider unavailable');
+    expect(formatted).not.toContain('unverified_by_trace');
   });
 });
 

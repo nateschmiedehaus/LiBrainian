@@ -54,6 +54,7 @@ describe('quickstartCommand', () => {
       allowDegradedEmbeddings: true,
       bootstrapMode: 'fast',
       emitBaseline: true,
+      updateAgentDocs: false,
       forceBootstrap: false,
       riskTolerance: 'low',
     }));
@@ -63,7 +64,7 @@ describe('quickstartCommand', () => {
     await quickstartCommand({
       workspace,
       args: [],
-      rawArgs: ['quickstart', '--mode', 'full', '--risk-tolerance', 'medium', '--force', '--skip-baseline', '--json'],
+      rawArgs: ['quickstart', '--mode', 'full', '--risk-tolerance', 'medium', '--force', '--skip-baseline', '--update-agent-docs', '--json'],
     });
 
     expect(runOnboardingRecovery).toHaveBeenCalledWith(expect.objectContaining({
@@ -71,6 +72,7 @@ describe('quickstartCommand', () => {
       riskTolerance: 'medium',
       forceBootstrap: true,
       emitBaseline: false,
+      updateAgentDocs: true,
     }));
 
     const payload = consoleLogSpy.mock.calls
@@ -79,6 +81,34 @@ describe('quickstartCommand', () => {
     expect(payload).toBeTruthy();
     const parsed = JSON.parse(payload!);
     expect(parsed.status).toBeTruthy();
+  });
+
+  it('supports setup-compatible depth/ci/no-mcp flags', async () => {
+    await quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['setup', '--depth', 'quick', '--ci', '--no-mcp', '--json'],
+    });
+
+    expect(runOnboardingRecovery).toHaveBeenCalledWith(expect.objectContaining({
+      bootstrapMode: 'fast',
+    }));
+
+    const payload = consoleLogSpy.mock.calls
+      .map(call => call[0])
+      .find(value => typeof value === 'string' && value.includes('"mcp"')) as string | undefined;
+    expect(payload).toBeTruthy();
+    const parsed = JSON.parse(payload!);
+    expect(parsed.ci).toBe(true);
+    expect(parsed.mcp?.skipped).toBe(true);
+  });
+
+  it('throws on conflicting --mode and --depth values', async () => {
+    await expect(quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['setup', '--mode', 'full', '--depth', 'quick'],
+    })).rejects.toThrow(/Conflicting options/);
   });
 
   it('surfaces bootstrap warnings in JSON output', async () => {
@@ -109,5 +139,30 @@ describe('quickstartCommand', () => {
     expect(payload).toBeTruthy();
     const parsed = JSON.parse(payload!);
     expect(parsed.warnings).toContain('Semantic search unavailable - no embeddings generated.');
+  });
+
+  it('explains why capabilities are disabled when providers are available', async () => {
+    vi.mocked(runOnboardingRecovery).mockResolvedValue({
+      errors: [],
+      configHeal: { attempted: false, success: true, appliedFixes: 0, failedFixes: 0 },
+      storageRecovery: { attempted: false, recovered: false, actions: [], errors: [] },
+      providerStatus: {
+        llm: { available: true, provider: 'claude', model: 'claude-haiku', latencyMs: 5 },
+        embedding: { available: true, provider: 'xenova', model: 'all-MiniLM', latencyMs: 5 },
+      },
+      bootstrap: {
+        required: false,
+        attempted: false,
+        success: true,
+        retries: 0,
+        skipEmbeddings: true,
+        skipLlm: true,
+      },
+    } as any);
+
+    await quickstartCommand({ workspace, args: [], rawArgs: ['quickstart'] });
+
+    const output = consoleLogSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(output).toContain('disabled (fast mode; provider ready)');
   });
 });

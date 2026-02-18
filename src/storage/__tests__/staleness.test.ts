@@ -11,6 +11,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { StalenessTracker, createStalenessTracker } from '../staleness.js';
 import type { LibrarianStorage, FileKnowledge, IndexingResult } from '../types.js';
+import { computeFileChecksum } from '../../utils/checksums.js';
 
 // ============================================================================
 // MOCK STORAGE
@@ -110,8 +111,7 @@ describe('StalenessTracker', () => {
 
       // Compute checksum and store it
       const content = fs.readFileSync(testFile, 'utf-8');
-      const crypto = await import('node:crypto');
-      const checksum = crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
+      const checksum = computeFileChecksum(content);
 
       mockStorage.addFile(createMockFileKnowledge(testFile, checksum));
 
@@ -179,8 +179,7 @@ describe('StalenessTracker', () => {
       fs.writeFileSync(file2, 'const b = 2;');
 
       // Index file1 with correct checksum
-      const crypto = await import('node:crypto');
-      const checksum1 = crypto.createHash('sha256').update('const a = 1;').digest('hex').slice(0, 16);
+      const checksum1 = computeFileChecksum('const a = 1;');
       mockStorage.addFile(createMockFileKnowledge(file1, checksum1));
 
       // Index file2 with old checksum
@@ -262,8 +261,7 @@ describe('StalenessTracker', () => {
       fs.writeFileSync(newFile, 'const neww = 3;');
 
       // Index fresh file with correct checksum
-      const crypto = await import('node:crypto');
-      const freshChecksum = crypto.createHash('sha256').update('const fresh = 1;').digest('hex').slice(0, 16);
+      const freshChecksum = computeFileChecksum('const fresh = 1;');
       mockStorage.addFile(createMockFileKnowledge(freshFile, freshChecksum));
 
       // Index stale file with old checksum

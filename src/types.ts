@@ -220,7 +220,7 @@ export interface DocumentKnowledge {
   };
 }
 
-export type GraphEntityType = 'function' | 'module' | 'file' | 'directory';
+export type GraphEntityType = 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface';
 export type GraphEdgeType = 'calls' | 'imports' | 'extends' | 'implements';
 
 export interface GraphEdge {
@@ -393,6 +393,15 @@ export interface BootstrapConfig {
    * Emit an onboarding baseline report after successful bootstrap.
    */
   emitBaseline?: boolean;
+  /**
+   * Opt-in to mutating AGENTS.md / CLAUDE.md / CODEX.md with generated sections.
+   * Default is false to avoid surprising edits in instruction files.
+   */
+  updateAgentDocs?: boolean;
+  /**
+   * When true, skip CLAUDE.md writes even if updateAgentDocs is enabled.
+   */
+  noClaudeMd?: boolean;
   /**
    * Automatically recover from stale bootstrap checkpoints by restarting clean.
    * When false, stale checkpoints throw and require manual force-resume.
@@ -629,6 +638,7 @@ export interface OnboardingBaseline {
  * Research basis: docs/research/MULTI-PERSPECTIVE-VIEWS-RESEARCH.md
  */
 export type Perspective =
+  | 'navigation'     // T-01 to T-06, T-16: Code/file navigation and location discovery
   | 'debugging'      // T-19 to T-24: Bug investigation patterns
   | 'security'       // T-27: Security vulnerability patterns
   | 'performance'    // T-28: Performance anti-patterns
@@ -641,6 +651,7 @@ export type Perspective =
  * All valid perspective values for validation.
  */
 export const PERSPECTIVES: readonly Perspective[] = [
+  'navigation',
   'debugging',
   'security',
   'performance',
@@ -864,6 +875,11 @@ export interface LibrarianQuery {
   minConfidence?: number;
   ucRequirements?: UCRequirementSet;
   llmRequirement?: LlmRequirement;
+  /**
+   * Surface raw LLM synthesis errors on the response when available.
+   * Defaults to true. Set false for backward-compatible silent mode.
+   */
+  showLlmErrors?: boolean;
   embeddingRequirement?: EmbeddingRequirement;
 
   /**
@@ -932,6 +948,12 @@ export interface LibrarianQuery {
    * Useful for evaluation runs that must reflect current logic rather than prior cached responses.
    */
   disableCache?: boolean;
+
+  /**
+   * Maximum number of automatic retrieval escalations for this query.
+   * Defaults to 2 when not provided.
+   */
+  maxEscalationDepth?: number;
 
   /**
    * Edge types to filter knowledge graph traversal.
@@ -1046,6 +1068,8 @@ export interface UncertaintyMetrics {
   variance: number;
 }
 
+export type RetrievalStatus = 'sufficient' | 'partial' | 'insufficient';
+
 /**
  * Structured follow-up query suggestion.
  * Provides actionable queries agents can execute directly, rather than
@@ -1071,6 +1095,8 @@ export interface QueryDiagnostics {
   suggestions: string[];
 }
 
+export type SynthesisMode = 'llm' | 'heuristic' | 'cache';
+
 export interface LibrarianResponse {
   query: LibrarianQuery;
   packs: ContextPack[];
@@ -1082,11 +1108,17 @@ export interface LibrarianResponse {
   totalConfidence: number;
   calibration?: ConfidenceCalibrationSummary;
   uncertainty?: UncertaintyMetrics;
+  retrievalStatus?: RetrievalStatus;
+  retrievalEntropy?: number;
+  retrievalInsufficient?: boolean;
+  suggestedClarifyingQuestions?: string[];
   cacheHit: boolean;
   latencyMs: number;
   version: LibrarianVersion;
   llmRequirement?: LlmRequirement;
   llmAvailable?: boolean;
+  synthesisMode?: SynthesisMode;
+  llmError?: string;
   drillDownHints: string[];
   /**
    * Structured follow-up queries agents can execute directly.
@@ -1099,6 +1131,11 @@ export interface LibrarianResponse {
   methodHintSource?: 'uc' | 'taskType' | 'intent' | 'llm';
   explanation?: string;
   coverageGaps?: string[];
+  /**
+   * Raw epistemic trace markers removed from user-facing fields.
+   * Useful for diagnostics, verbose logs, and strict evidence checks.
+   */
+  epistemicsDebug?: string[];
   evidenceByPack?: Record<string, EvidenceRef[]>;
   engines?: LibrarianEngineResults;
   stages?: StageReport[];
@@ -1229,11 +1266,112 @@ export interface OutputEnvelope {
   traceId: string;
 }
 
+const TRACE_MARKER_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
+
+interface ParsedTraceMarkerMessage {
+  code?: string;
+  userMessage: string;
+  rawMessage: string;
+}
+
+function parseTraceMarkerMessage(message: string | undefined): ParsedTraceMarkerMessage {
+  const rawMessage = String(message ?? '').trim();
+  const match = rawMessage.match(TRACE_MARKER_PATTERN);
+  if (!match) {
+    return {
+      userMessage: rawMessage,
+      rawMessage,
+    };
+  }
+
+  const code = (match[1] ?? '').trim();
+  const detail = (match[2] ?? '').trim();
+  return {
+    code: code || undefined,
+    userMessage: detail || code.replace(/_/g, ' '),
+    rawMessage,
+  };
+}
+
+function sanitizeTraceMessageList(values: string[] | undefined, debug: string[]): string[] | undefined {
+  if (!Array.isArray(values)) return values;
+  const seen = new Set<string>();
+  const sanitized: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const parsed = parseTraceMarkerMessage(value);
+    if (parsed.code) debug.push(parsed.rawMessage);
+    const message = parsed.userMessage.trim();
+    if (!message || seen.has(message)) continue;
+    seen.add(message);
+    sanitized.push(message);
+  }
+  return sanitized;
+}
+
+function sanitizeTraceId(traceId: string | undefined, debug: string[]): string | undefined {
+  if (!traceId) return traceId;
+  const parsed = parseTraceMarkerMessage(traceId);
+  if (parsed.code) {
+    debug.push(parsed.rawMessage);
+    return parsed.code;
+  }
+  return parsed.userMessage || traceId;
+}
+
+export function sanitizeLibrarianResponse(response: LibrarianResponse): LibrarianResponse {
+  const debug = Array.isArray(response.epistemicsDebug)
+    ? response.epistemicsDebug.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  const disclosures = sanitizeTraceMessageList(response.disclosures, debug) ?? [];
+  const coverageGaps = sanitizeTraceMessageList(response.coverageGaps, debug);
+  const methodHints = sanitizeTraceMessageList(response.methodHints, debug);
+  const drillDownHints = sanitizeTraceMessageList(response.drillDownHints, debug) ?? [];
+  const parsedLlmError = response.llmError ? parseTraceMarkerMessage(response.llmError) : undefined;
+  const llmError = parsedLlmError?.userMessage;
+  if (parsedLlmError?.code) {
+    debug.push(parsedLlmError.rawMessage);
+  }
+  const followUpQueries = response.followUpQueries?.map((query) => ({
+    ...query,
+    reason: parseTraceMarkerMessage(query.reason).userMessage,
+  }));
+  const synthesis = response.synthesis
+    ? {
+      ...response.synthesis,
+      uncertainties: sanitizeTraceMessageList(response.synthesis.uncertainties, debug) ?? [],
+    }
+    : response.synthesis;
+
+  const sanitized = {
+    ...response,
+    disclosures,
+    coverageGaps,
+    methodHints,
+    drillDownHints,
+    llmError,
+    traceId: sanitizeTraceId(response.traceId, debug) ?? response.traceId,
+    followUpQueries,
+    synthesis,
+  };
+  const dedupedDebug = Array.from(new Set(debug));
+  if (dedupedDebug.length > 0) {
+    sanitized.epistemicsDebug = dedupedDebug;
+  } else {
+    sanitized.epistemicsDebug = undefined;
+  }
+  return sanitized;
+}
+
 export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResponse & OutputEnvelope {
   const disclosures = new Set(response.disclosures ?? []);
+  const epistemicsDebug = Array.isArray(response.epistemicsDebug)
+    ? response.epistemicsDebug.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
   let constructionPlan = response.constructionPlan;
   if (!constructionPlan) {
-    disclosures.add('unverified_by_trace(construction_plan_missing)');
+    disclosures.add('Construction plan missing; generated default plan.');
+    epistemicsDebug.push('unverified_by_trace(construction_plan_missing)');
     constructionPlan = {
       id: 'cp_unverified',
       templateId: 'T1',
@@ -1245,20 +1383,23 @@ export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResp
   }
   const adequacy = response.adequacy;
   if (!response.adequacy) {
-    disclosures.add('unverified_by_trace(adequacy_missing)');
+    disclosures.add('Adequacy report missing; verification completeness is unknown.');
+    epistemicsDebug.push('unverified_by_trace(adequacy_missing)');
   }
   const verificationPlan = response.verificationPlan;
   if (!response.verificationPlan) {
-    disclosures.add('unverified_by_trace(verification_plan_missing)');
+    disclosures.add('Verification plan missing; follow-up checks may be incomplete.');
+    epistemicsDebug.push('unverified_by_trace(verification_plan_missing)');
   }
 
-  return {
+  return sanitizeLibrarianResponse({
     ...response,
     constructionPlan,
     adequacy,
     verificationPlan,
     disclosures: Array.from(disclosures),
-  };
+    epistemicsDebug,
+  }) as LibrarianResponse & OutputEnvelope;
 }
 
 /**

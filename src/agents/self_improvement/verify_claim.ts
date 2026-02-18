@@ -119,7 +119,7 @@ async function gatherCodeEvidence(
   const terms = extractKeyTerms(claim);
 
   if (verbose) {
-    console.log(`[verifyClaim] Searching for evidence with terms: ${terms.join(', ')}`);
+    console.error(`[verifyClaim] Searching for evidence with terms: ${terms.join(', ')}`);
   }
 
   // Search functions for matching evidence
@@ -521,7 +521,7 @@ export async function verifyClaim(
   }
 
   if (verbose) {
-    console.log(`[verifyClaim] Verifying claim: "${claimText}"`);
+    console.error(`[verifyClaim] Verifying claim: "${claimText}"`);
   }
 
   // Gather evidence from multiple sources
@@ -558,7 +558,7 @@ export async function verifyClaim(
   const evidence = allEvidence.slice(0, maxEvidence);
 
   if (verbose) {
-    console.log(`[verifyClaim] Gathered ${evidence.length} evidence items`);
+    console.error(`[verifyClaim] Gathered ${evidence.length} evidence items`);
   }
 
   // Find defeaters

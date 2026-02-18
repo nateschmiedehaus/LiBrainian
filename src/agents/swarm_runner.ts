@@ -403,13 +403,13 @@ async function loadCheckpointV2(
 
       // If indexer version changed, invalidate all entries
       if (v2.indexerVersion !== INDEXER_VERSION) {
-        console.log(`[SwarmRunner] Indexer version changed (${v2.indexerVersion} → ${INDEXER_VERSION}), reindexing all files`);
+        console.error(`[SwarmRunner] Indexer version changed (${v2.indexerVersion} → ${INDEXER_VERSION}), reindexing all files`);
         return createEmptyCheckpoint(currentConfig);
       }
 
       // If config changed, invalidate all entries
       if (!configsMatch(v2.configFingerprint, currentConfig)) {
-        console.log('[SwarmRunner] Configuration changed, reindexing all files');
+        console.error('[SwarmRunner] Configuration changed, reindexing all files');
         return createEmptyCheckpoint(currentConfig);
       }
 
@@ -417,7 +417,7 @@ async function loadCheckpointV2(
     }
 
     // Migrate from V1 checkpoint (no content hashes, must reindex)
-    console.log('[SwarmRunner] Migrating from V1 checkpoint, reindexing all files for content hashing');
+    console.error('[SwarmRunner] Migrating from V1 checkpoint, reindexing all files for content hashing');
     return createEmptyCheckpoint(currentConfig);
   } catch {
     return createEmptyCheckpoint(currentConfig);

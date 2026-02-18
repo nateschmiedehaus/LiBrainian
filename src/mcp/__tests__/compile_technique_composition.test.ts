@@ -47,5 +47,9 @@ describe('MCP compile technique composition tool', () => {
     expect(result.primitives.map((item: { id: string }) => item.id)).toEqual(
       expect.arrayContaining(['tp_release_plan'])
     );
+    expect(result.runId).toEqual(expect.any(String));
+    expect(result.constructionResult).toBeDefined();
+    expect(result.constructionResult.schema).toBe('CompileTechniqueCompositionOutputSchema');
+    expect(result.constructionResult.meta.constructionId).toBe('compile_technique_composition');
   });
 });

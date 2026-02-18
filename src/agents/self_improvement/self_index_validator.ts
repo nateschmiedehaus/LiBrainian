@@ -326,12 +326,12 @@ export class SelfIndexValidator {
       result.passed = result.relevanceScore >= this.passThreshold;
 
       if (this.verbose) {
-        console.log(`[SelfIndexValidator] Query: "${spec.query}"`);
-        console.log(`  Relevance: ${(result.relevanceScore * 100).toFixed(1)}%`);
-        console.log(`  Found files: ${result.foundFiles.join(', ') || 'none'}`);
-        console.log(`  Missing files: ${result.missingFiles.join(', ') || 'none'}`);
-        console.log(`  Found concepts: ${result.foundConcepts.join(', ') || 'none'}`);
-        console.log(`  Missing concepts: ${result.missingConcepts.join(', ') || 'none'}`);
+        console.error(`[SelfIndexValidator] Query: "${spec.query}"`);
+        console.error(`  Relevance: ${(result.relevanceScore * 100).toFixed(1)}%`);
+        console.error(`  Found files: ${result.foundFiles.join(', ') || 'none'}`);
+        console.error(`  Missing files: ${result.missingFiles.join(', ') || 'none'}`);
+        console.error(`  Found concepts: ${result.foundConcepts.join(', ') || 'none'}`);
+        console.error(`  Missing concepts: ${result.missingConcepts.join(', ') || 'none'}`);
       }
     } catch (error) {
       result.queryTimeMs = Date.now() - startTime;

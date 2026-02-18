@@ -86,7 +86,7 @@ export type {
 
 // Core librarian interface
 export { Librarian, createLibrarian, createLibrarianSync } from './api/librarian.js';
-export type { LibrarianConfig, LibrarianStatus } from './api/librarian.js';
+export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './api/librarian.js';
 
 // Query interface
 export {
@@ -719,33 +719,6 @@ export {
   createFullModeConfig,
 } from './config/index.js';
 export type { FullModeAnalysisConfig, FullModeTddConfig } from './config/index.js';
-
-// Debug/Tracing (G10)
-export {
-  LibrarianTracer,
-  globalTracer,
-  createTracer,
-  traceAsync,
-  traceSync,
-  formatTraceTree,
-  LibrarianInspector,
-  createInspector,
-  enableTracingBridge,
-  disableTracingBridge,
-  isTracingBridgeEnabled,
-} from './debug/index.js';
-export type {
-  TraceSpan,
-  TraceEvent,
-  StartSpanOptions,
-  ExportedTrace,
-  TraceTree,
-  ModuleInspection,
-  FunctionInspection,
-  QueryInspection,
-  ConfidenceInspection,
-  TracingBridgeOptions,
-} from './debug/index.js';
 
 // Types (re-export from types.ts)
 // Note: QualityTier is defined in this file based on QUALITY_TIERS constant

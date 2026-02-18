@@ -1,5 +1,6 @@
 // Query API for Librarian.
 import path from 'node:path';
+import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { LibrarianStorage, SimilarityResult, QueryCacheEntry, MultiVectorRecord, MultiVectorQueryOptions, StorageCapabilities, EmbeddableEntityType } from '../storage/types.js';
 import type {
@@ -21,6 +22,7 @@ import type {
   DeterministicContext,
   FollowUpQuery,
   QueryDiagnostics,
+  SynthesisMode,
 } from '../types.js';
 import { isProjectUnderstandingQuery, PROJECT_UNDERSTANDING_PATTERNS, handleProjectUnderstandingQuery } from './project_understanding.js';
 import { isArchitectureQuery, ARCHITECTURE_QUERY_PATTERNS, handleArchitectureQuery } from './architecture_overview.js';
@@ -165,6 +167,13 @@ import {
   type BugReport,
 } from '../constructions/bug_investigation_assistant.js';
 import {
+  buildClarifyingQuestions,
+  categorizeRetrievalStatus,
+  computeRetrievalEntropy,
+  decideRetrievalEscalation,
+  expandEscalationIntent,
+} from './retrieval_escalation.js';
+import {
   SecurityAuditHelper,
   createSecurityAuditHelper,
   type SecurityReport,
@@ -200,6 +209,18 @@ export interface QueryTraceOptions {
   evidenceLedger?: IEvidenceLedger;
   sessionId?: SessionId;
 }
+
+interface RetrievalEscalationState {
+  attempts: number;
+  maxDepth: number;
+}
+
+interface QueryExecutionOptions {
+  escalationState?: RetrievalEscalationState;
+}
+
+const DEFAULT_MAX_ESCALATION_DEPTH = 2;
+const MAX_ALLOWED_ESCALATION_DEPTH = 8;
 const q = (value: number, range: [number, number], rationale: string): number =>
   resolveQuantifiedValue(configurable(value, range, rationale));
 
@@ -234,6 +255,8 @@ const FALLBACK_MIN_CONFIDENCE_FULL = q(
   [0, 1],
   'Fallback minimum confidence for full packs.'
 );
+const FALLBACK_CANDIDATE_LIMIT = 80;
+const FALLBACK_RESULT_LIMIT = 6;
 const DEFAULT_MIN_CONFIDENCE = q(0.3, [0, 1], 'Default minimum confidence for pack retrieval.');
 const CANDIDATE_SCORE_FLOOR = q(0.85, [0, 1], 'Fallback candidate score floor.');
 const MIN_RESULT_CONFIDENCE_THRESHOLD = q(0.4, [0, 1], 'Minimum confidence threshold for returning results vs "not found".');
@@ -1458,7 +1481,8 @@ export async function queryLibrarian(
   embeddingService: EmbeddingService = defaultEmbeddingService,
   governorContext?: GovernorContext,
   onStage?: QueryStageObserver,
-  traceOptions: QueryTraceOptions = {}
+  traceOptions: QueryTraceOptions = {},
+  executionOptions: QueryExecutionOptions = {}
 ): Promise<LibrarianResponse> {
   // Initialize deterministic context if deterministic mode is enabled
   const deterministicCtx: DeterministicContext | null = query.deterministic
@@ -1517,6 +1541,11 @@ export async function queryLibrarian(
         : onStage
     );
     const workspaceRoot = await resolveWorkspaceRoot(storage);
+    const configuredMaxEscalationDepth = await resolveMaxEscalationDepth(workspaceRoot, query.maxEscalationDepth);
+    const escalationState = executionOptions.escalationState ?? {
+      attempts: 0,
+      maxDepth: configuredMaxEscalationDepth,
+    };
     const extractionSnapshot = await checkExtractionSnapshot({
       workspaceRoot,
       discloseMissingMetadata: false,
@@ -1540,6 +1569,7 @@ export async function queryLibrarian(
     let embeddingRequirement: EmbeddingRequirement =
       query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required');
     let llmAvailable = llmRequirement === 'required';
+    let llmProviderError: string | undefined;
     query = { ...query, llmRequirement, embeddingRequirement };
     const capabilities = resolveStorageCapabilities(storage);
   const stageTracker = createStageTracker(stageObserver);
@@ -1622,6 +1652,7 @@ export async function queryLibrarian(
     if (llmRequirement === 'optional') {
       llmAvailable = llmProviderReady;
       if (!llmAvailable) {
+        llmProviderError = providerSnapshot.status.llm.error ?? 'LLM provider unavailable';
         recordCoverageGap(
           'synthesis',
           `LLM unavailable: ${providerSnapshot.status.llm.error ?? 'not configured'}.`,
@@ -1706,6 +1737,22 @@ export async function queryLibrarian(
         disclosures,
         constructionPlan,
       } as CachedResponse;
+      cachedResponse.synthesisMode = 'cache';
+      if (query.showLlmErrors === false) {
+        cachedResponse.llmError = undefined;
+      }
+      cachedResponse.retrievalEntropy = cachedResponse.retrievalEntropy
+        ?? computeRetrievalEntropy(cachedResponse.packs);
+      cachedResponse.retrievalStatus = cachedResponse.retrievalStatus
+        ?? categorizeRetrievalStatus({
+          totalConfidence: cachedResponse.totalConfidence,
+          packCount: cachedResponse.packs.length,
+        });
+      cachedResponse.retrievalInsufficient = cachedResponse.retrievalInsufficient
+        ?? ((query.depth ?? 'L1') === 'L3' && cachedResponse.totalConfidence < 0.3);
+      if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
+        cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
+      }
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
         await cacheStore.recordQueryCacheAccess(cacheKey);
@@ -2529,6 +2576,70 @@ export async function queryLibrarian(
   if (coherenceAnalysis.warnings.length > 0) {
     disclosures.push(...coherenceAnalysis.warnings.map(w => `coherence_warning: ${w}`));
   }
+  const currentDepth = query.depth ?? 'L1';
+  const retrievalEntropy = computeRetrievalEntropy(finalPacks);
+  const escalationDecision = decideRetrievalEscalation({
+    depth: currentDepth,
+    totalConfidence,
+    retrievalEntropy,
+    escalationAttempts: escalationState.attempts,
+    maxEscalationDepth: escalationState.maxDepth,
+    packCount: finalPacks.length,
+  });
+
+  if (escalationDecision.shouldEscalate) {
+    const expandedIntent = escalationDecision.expandQuery
+      ? expandEscalationIntent(query.intent ?? '', finalPacks)
+      : (query.intent ?? '');
+    const nextQuery: LibrarianQuery = {
+      ...query,
+      depth: escalationDecision.nextDepth,
+      intent: expandedIntent,
+    };
+    const unchangedIntent = nextQuery.intent === query.intent;
+    const unchangedDepth = nextQuery.depth === currentDepth;
+
+    if (!(unchangedIntent && unchangedDepth)) {
+      await logRetrievalEscalationEvent(workspaceRoot, {
+        intent: query.intent,
+        fromDepth: currentDepth,
+        toDepth: nextQuery.depth,
+        totalConfidence,
+        retrievalEntropy,
+        reasons: escalationDecision.reasons,
+        attempt: escalationState.attempts + 1,
+        maxEscalationDepth: escalationState.maxDepth,
+      });
+
+      const escalatedResponse = await queryLibrarian(
+        nextQuery,
+        storage,
+        embeddingService,
+        governorContext,
+        onStage,
+        traceOptions,
+        {
+          escalationState: {
+            attempts: escalationState.attempts + 1,
+            maxDepth: escalationState.maxDepth,
+          },
+        }
+      );
+      escalatedResponse.disclosures = [
+        ...escalatedResponse.disclosures,
+        `retrieval_escalation: ${currentDepth} -> ${nextQuery.depth} (${escalationDecision.reasons.join(', ') || 'policy_triggered'})`,
+      ];
+      return escalatedResponse;
+    }
+  }
+  const retrievalStatus = categorizeRetrievalStatus({
+    totalConfidence,
+    packCount: finalPacks.length,
+  });
+  const retrievalInsufficient = currentDepth === 'L3' && totalConfidence < 0.3;
+  const suggestedClarifyingQuestions = retrievalInsufficient
+    ? buildClarifyingQuestions(query.intent ?? '')
+    : undefined;
 
   // CONFIDENCE THRESHOLD CHECK: Return "no results" for low-confidence matches
   // It's better to say "I don't know" than to return confidently wrong answers.
@@ -2549,6 +2660,12 @@ export async function queryLibrarian(
         totalConfidence: 0,
         calibration: summarizeCalibration(calibration),
         uncertainty: computeUncertaintyMetrics(0),
+        retrievalStatus: 'insufficient',
+        retrievalEntropy,
+        retrievalInsufficient: currentDepth === 'L3',
+        suggestedClarifyingQuestions: currentDepth === 'L3'
+          ? buildClarifyingQuestions(query.intent ?? '')
+          : undefined,
         cacheHit: false,
         latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
         version,
@@ -2647,7 +2764,7 @@ export async function queryLibrarian(
 
   // VISION REQUIREMENT: Synthesize understanding from retrieved knowledge
   // LLM synthesis is mandatory when LLM is available
-  let synthesis = await runSynthesisStage({
+  const synthesisStageResult = await runSynthesisStage({
     query,
     storage,
     finalPacks,
@@ -2657,7 +2774,15 @@ export async function queryLibrarian(
     synthesisEnabled,
     workspaceRoot,
   });
+  let synthesis = synthesisStageResult.synthesis;
+  let synthesisMode: SynthesisMode | undefined = synthesisStageResult.synthesisMode;
+  let llmError: string | undefined = synthesisStageResult.llmError;
+  if (!llmError && llmProviderError) {
+    llmError = llmProviderError;
+  }
   synthesis = applyAdequacyToSynthesis(synthesis, adequacyReport);
+  if (!synthesisMode && synthesis) synthesisMode = 'llm';
+  if (!synthesisMode && finalPacks.length > 0) synthesisMode = 'heuristic';
 
   // Apply token budget if specified - truncate by relevance to fit budget
   let tokenBudgetResult: import('../types.js').TokenBudgetResult | undefined;
@@ -2762,6 +2887,7 @@ export async function queryLibrarian(
   }
 
   const postProcessingStage = stageTracker.start('post_processing', 1);
+  let storageWriteDegraded = false;
   const verificationPlan = createQueryVerificationPlan({
     query,
     packs: finalPacks,
@@ -2774,7 +2900,15 @@ export async function queryLibrarian(
       await saveVerificationPlan(storage, verificationPlan, { adequacyReport });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      recordCoverageGap('post_processing', `Verification plan save failed: ${message}`, 'minor');
+      if (isStorageWriteDegradedError(message)) {
+        storageWriteDegraded = true;
+        const degradedMessage = createStorageWriteDegradedMessage(message);
+        disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
+        drillDownHints.unshift(degradedMessage);
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+      } else {
+        recordCoverageGap('post_processing', `Verification plan save failed: ${message}`, 'minor');
+      }
     }
   }
 
@@ -2783,13 +2917,13 @@ export async function queryLibrarian(
   const feedbackToken = generateUUID('fbk_');
 
   // Store feedback context for later attribution
-  storeFeedbackContext({
+  await storeFeedbackContext({
     feedbackToken,
     packIds: finalPacks.map(p => p.packId),
     queryIntent: query.intent ?? '',
     queryDepth: query.depth ?? 'L1',
     createdAt: getNow(),
-  });
+  }, storage);
 
   // Mark the first/best pack as the primary result for agent ergonomics
   // This gives agents a clear "start here" signal
@@ -2808,12 +2942,18 @@ export async function queryLibrarian(
     totalConfidence,
     calibration: summarizeCalibration(calibration),
     uncertainty: computeUncertaintyMetrics(totalConfidence),
+    retrievalStatus,
+    retrievalEntropy,
+    retrievalInsufficient,
+    suggestedClarifyingQuestions,
     cacheHit,
     // Use fixed latency (0) in deterministic mode for reproducibility
     latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
     version,
     llmRequirement,
     llmAvailable,
+    synthesisMode,
+    llmError: query.showLlmErrors === false ? undefined : llmError,
     drillDownHints,
     followUpQueries: followUpQueries.length ? followUpQueries : undefined,
     methodHints: methodGuidance?.hints,
@@ -2887,7 +3027,16 @@ export async function queryLibrarian(
     await recordQueryEpisode(storage, { query, response, durationMs: response.latencyMs });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    recordCoverageGap('post_processing', `Episode record failed: ${message}`, 'minor');
+    if (isStorageWriteDegradedError(message)) {
+      if (!storageWriteDegraded) {
+        const degradedMessage = createStorageWriteDegradedMessage(message);
+        disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
+        drillDownHints.unshift(degradedMessage);
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+      }
+    } else {
+      recordCoverageGap('post_processing', `Episode record failed: ${message}`, 'minor');
+    }
     response.coverageGaps = coverageGaps;
   }
   stageTracker.finish(postProcessingStage, { outputCount: 1, filteredCount: 0 });
@@ -3031,12 +3180,50 @@ export interface FeedbackContext {
 const FEEDBACK_CONTEXT_LIMIT = 500;
 const FEEDBACK_CONTEXT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const feedbackContextCache = new Map<string, FeedbackContext>();
+const FEEDBACK_CONTEXT_STATE_KEY = 'feedback_context_v1';
+
+function parseFeedbackContextList(raw: string | null): FeedbackContext[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is FeedbackContext => {
+      if (!value || typeof value !== 'object') return false;
+      const record = value as Partial<FeedbackContext>;
+      return (
+        typeof record.feedbackToken === 'string' &&
+        Array.isArray(record.packIds) &&
+        typeof record.queryIntent === 'string' &&
+        typeof record.queryDepth === 'string' &&
+        typeof record.createdAt === 'string'
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function pruneFeedbackContexts(contexts: FeedbackContext[]): FeedbackContext[] {
+  const now = Date.now();
+  const deduped = new Map<string, FeedbackContext>();
+
+  for (const context of contexts) {
+    const createdAtMs = Date.parse(context.createdAt);
+    if (!Number.isFinite(createdAtMs)) continue;
+    if (now - createdAtMs > FEEDBACK_CONTEXT_TTL_MS) continue;
+    deduped.set(context.feedbackToken, context);
+  }
+
+  return Array.from(deduped.values())
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+    .slice(-FEEDBACK_CONTEXT_LIMIT);
+}
 
 /**
  * Store feedback context for a query result.
  * Called internally when generating feedbackToken.
  */
-function storeFeedbackContext(context: FeedbackContext): void {
+async function storeFeedbackContext(context: FeedbackContext, storage?: LibrarianStorage): Promise<void> {
   feedbackContextCache.set(context.feedbackToken, context);
 
   // Prune old entries if over limit
@@ -3061,6 +3248,16 @@ function storeFeedbackContext(context: FeedbackContext): void {
         feedbackContextCache.delete(token);
       }
     }
+  }
+
+  if (!storage) return;
+
+  try {
+    const persisted = parseFeedbackContextList(await storage.getState(FEEDBACK_CONTEXT_STATE_KEY));
+    const merged = pruneFeedbackContexts([...persisted, context]);
+    await storage.setState(FEEDBACK_CONTEXT_STATE_KEY, JSON.stringify(merged));
+  } catch {
+    // Feedback persistence should never fail the main query path.
   }
 }
 
@@ -3748,11 +3945,12 @@ async function runCandidatePackStage(options: {
     const fallbackMinConfidence = version.qualityTier === 'mvp'
       ? FALLBACK_MIN_CONFIDENCE_MVP
       : FALLBACK_MIN_CONFIDENCE_FULL;
-    let fallback = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: 6 });
-    if (!fallback.length) fallback = await storage.getContextPacks({ limit: 6 });
+    let fallbackCandidates = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: FALLBACK_CANDIDATE_LIMIT });
+    if (!fallbackCandidates.length) fallbackCandidates = await storage.getContextPacks({ limit: FALLBACK_CANDIDATE_LIMIT });
+    const fallback = rankHeuristicFallbackPacks(fallbackCandidates, query.intent ?? '').slice(0, FALLBACK_RESULT_LIMIT);
     if (fallback.length) {
       allPacks.push(...fallback);
-      explanationParts.push('Fell back to general packs (semantic match unavailable).');
+      explanationParts.push('Applied heuristic fallback ranking (lexical + outcome-weighted) because semantic match was unavailable.');
       stageTracker.finish(fallbackStage, { outputCount: fallback.length, filteredCount: 0 });
     } else {
       recordCoverageGap(
@@ -3771,6 +3969,84 @@ async function runCandidatePackStage(options: {
     }
   }
   return { allPacks };
+}
+
+function rankHeuristicFallbackPacks(candidates: ContextPack[], intent: string): ContextPack[] {
+  if (candidates.length <= 1) return candidates;
+  const queryTerms = Array.from(new Set(tokenize(intent)));
+  if (queryTerms.length === 0) {
+    return candidates
+      .slice()
+      .sort((left, right) => {
+        const leftOutcome = (left.successCount + 1) / (left.successCount + left.failureCount + 2);
+        const rightOutcome = (right.successCount + 1) / (right.successCount + right.failureCount + 2);
+        return rightOutcome - leftOutcome || right.confidence - left.confidence;
+      });
+  }
+
+  const corpus = candidates.map((pack) => {
+    const text = [
+      pack.summary,
+      pack.packType,
+      pack.targetId,
+      ...pack.keyFacts,
+      ...pack.relatedFiles,
+    ].join(' ');
+    const terms = tokenize(text);
+    const termFreq = new Map<string, number>();
+    for (const term of terms) {
+      termFreq.set(term, (termFreq.get(term) ?? 0) + 1);
+    }
+    return {
+      pack,
+      termFreq,
+      length: Math.max(1, terms.length),
+    };
+  });
+
+  const averageDocLength = Math.max(
+    1,
+    corpus.reduce((sum, doc) => sum + doc.length, 0) / Math.max(1, corpus.length)
+  );
+  const docFrequency = new Map<string, number>();
+  for (const term of queryTerms) {
+    let df = 0;
+    for (const doc of corpus) {
+      if (doc.termFreq.has(term)) df += 1;
+    }
+    docFrequency.set(term, df);
+  }
+
+  const k1 = 1.2;
+  const b = 0.75;
+  const totalDocs = corpus.length;
+
+  return corpus
+    .map((doc) => {
+      let bm25 = 0;
+      for (const term of queryTerms) {
+        const tf = doc.termFreq.get(term) ?? 0;
+        if (tf === 0) continue;
+        const df = docFrequency.get(term) ?? 0;
+        const idf = Math.log(1 + ((totalDocs - df + 0.5) / (df + 0.5)));
+        const numerator = tf * (k1 + 1);
+        const denominator = tf + k1 * (1 - b + b * (doc.length / averageDocLength));
+        bm25 += idf * (numerator / Math.max(denominator, 1e-9));
+      }
+
+      const lexicalScore = bm25 / (bm25 + 1);
+      const outcomeScore = (doc.pack.successCount + 1) / (doc.pack.successCount + doc.pack.failureCount + 2);
+      const confidenceScore = Math.max(0, Math.min(1, doc.pack.confidence));
+      const finalScore = (lexicalScore * 0.65) + (outcomeScore * 0.2) + (confidenceScore * 0.15);
+
+      return { pack: doc.pack, finalScore };
+    })
+    .sort((left, right) =>
+      right.finalScore - left.finalScore
+      || right.pack.confidence - left.pack.confidence
+      || right.pack.accessCount - left.pack.accessCount
+    )
+    .map((entry) => entry.pack);
 }
 
 // ============================================================================
@@ -5492,6 +5768,16 @@ async function runMethodGuidanceStage(options: {
   return methodGuidance;
 }
 
+function stripTracePrefix(message: string): string {
+  return message.replace(/unverified_by_trace\([^)]+\):\s*/g, '').trim();
+}
+
+interface SynthesisStageResult {
+  synthesis?: SynthesizedResponse;
+  synthesisMode?: SynthesisMode;
+  llmError?: string;
+}
+
 async function runSynthesisStage(options: {
   query: LibrarianQuery;
   storage: LibrarianStorage;
@@ -5505,7 +5791,7 @@ async function runSynthesisStage(options: {
   canAnswerFromSummariesFn?: typeof canAnswerFromSummaries;
   createQuickAnswerFn?: typeof createQuickAnswer;
   synthesizeQueryAnswerFn?: typeof synthesizeQueryAnswer;
-}): Promise<SynthesizedResponse | undefined> {
+}): Promise<SynthesisStageResult> {
   const {
     query,
     storage,
@@ -5525,13 +5811,17 @@ async function runSynthesisStage(options: {
   const buildQuickAnswer = createQuickAnswerFn ?? createQuickAnswer;
   const synthesizeAnswer = synthesizeQueryAnswerFn ?? synthesizeQueryAnswer;
   let synthesis: SynthesizedResponse | undefined;
+  let synthesisMode: SynthesisMode | undefined = synthesisEnabled
+    ? undefined
+    : (finalPacks.length > 0 ? 'heuristic' : undefined);
+  let llmError: string | undefined;
   const synthesisStage = stageTracker.start('synthesis', synthesisEnabled && query.intent && finalPacks.length > 0 ? 1 : 0);
   if (synthesisEnabled && query.intent && finalPacks.length > 0) {
     const resolvedWorkspaceRoot = workspaceRoot?.trim() || await resolveWorkspace(storage);
     if (!resolvedWorkspaceRoot || !resolvedWorkspaceRoot.trim()) {
       recordCoverageGap('synthesis', 'Workspace root unavailable; skipping synthesis.', 'moderate');
       stageTracker.finish(synthesisStage, { outputCount: 0, filteredCount: 0, status: 'failed' });
-      return undefined;
+      return { synthesis: undefined, synthesisMode: 'heuristic', llmError };
     }
     try {
       const forceSummarySynthesis = query.forceSummarySynthesis === true;
@@ -5546,6 +5836,7 @@ async function runSynthesisStage(options: {
             keyInsights: quickAnswer.keyInsights,
             uncertainties: quickAnswer.uncertainties,
           };
+          synthesisMode = 'heuristic';
           explanationParts.push('Quick synthesis from pack summaries.');
         } catch (quickError) {
           if (!forceSummarySynthesis) {
@@ -5571,6 +5862,7 @@ async function runSynthesisStage(options: {
             keyInsights: topPack?.keyFacts?.slice(0, 3) ?? [],
             uncertainties: ['Answer synthesized from retrieved context summaries (forced quick mode).'],
           };
+          synthesisMode = 'heuristic';
           explanationParts.push('Forced quick synthesis from top retrieved context.');
         }
       } else {
@@ -5590,20 +5882,33 @@ async function runSynthesisStage(options: {
             keyInsights: synthesisResult.keyInsights,
             uncertainties: synthesisResult.uncertainties,
           };
+          synthesisMode = 'llm';
           explanationParts.push('LLM-synthesized understanding from retrieved knowledge.');
         } else {
           const reason = 'reason' in synthesisResult ? synthesisResult.reason : 'unverified_by_trace(synthesis_unavailable)';
           recordCoverageGap('synthesis', `Synthesis unavailable: ${reason}`, 'moderate');
+          synthesisMode = 'heuristic';
+          if (query.showLlmErrors !== false) {
+            llmError = stripTracePrefix(reason);
+          }
         }
       }
     } catch (synthesisError) {
       const message = synthesisError instanceof Error ? synthesisError.message : String(synthesisError);
       // Log but don't fail query if synthesis fails
-      recordCoverageGap('synthesis', `Synthesis failed: ${message.replace(/unverified_by_trace\([^)]+\):\s*/, '')}`, 'moderate');
+      const sanitized = stripTracePrefix(message);
+      recordCoverageGap('synthesis', `Synthesis failed: ${sanitized}`, 'moderate');
+      synthesisMode = 'heuristic';
+      if (query.showLlmErrors !== false) {
+        llmError = sanitized;
+      }
     }
   }
+  if (!synthesisMode && finalPacks.length > 0 && !synthesis) {
+    synthesisMode = 'heuristic';
+  }
   stageTracker.finish(synthesisStage, { outputCount: synthesis ? 1 : 0, filteredCount: 0 });
-  return synthesis;
+  return { synthesis, synthesisMode, llmError };
 }
 
 function applyAdequacyToSynthesis(
@@ -5630,19 +5935,30 @@ function applyAdequacyToSynthesis(
  */
 export async function getFeedbackContext(
   feedbackToken: string,
-  _storage: LibrarianStorage
+  storage: LibrarianStorage
 ): Promise<FeedbackContext | null> {
   const context = feedbackContextCache.get(feedbackToken);
-  if (!context) return null;
-
-  // Check if expired
-  const age = Date.now() - new Date(context.createdAt).getTime();
-  if (age > FEEDBACK_CONTEXT_TTL_MS) {
+  if (context) {
+    const age = Date.now() - new Date(context.createdAt).getTime();
+    if (age <= FEEDBACK_CONTEXT_TTL_MS) {
+      return context;
+    }
     feedbackContextCache.delete(feedbackToken);
-    return null;
   }
 
-  return context;
+  try {
+    const persisted = parseFeedbackContextList(await storage.getState(FEEDBACK_CONTEXT_STATE_KEY));
+    const pruned = pruneFeedbackContexts(persisted);
+    if (pruned.length !== persisted.length) {
+      await storage.setState(FEEDBACK_CONTEXT_STATE_KEY, JSON.stringify(pruned));
+    }
+    const match = pruned.find((entry) => entry.feedbackToken === feedbackToken);
+    if (!match) return null;
+    feedbackContextCache.set(match.feedbackToken, match);
+    return match;
+  } catch {
+    return null;
+  }
 }
 
 function resolveStorageCapabilities(storage: LibrarianStorage): StorageCapabilities {
@@ -6666,6 +6982,71 @@ async function resolveWorkspaceRoot(storage: LibrarianStorage): Promise<string> 
   }
   return process.cwd();
 }
+async function resolveMaxEscalationDepth(workspaceRoot: string, override?: number): Promise<number> {
+  if (typeof override === 'number' && Number.isFinite(override)) {
+    return normalizeEscalationDepth(override);
+  }
+
+  const configPaths = [
+    path.join(workspaceRoot, 'librainian.config.json'),
+    path.join(workspaceRoot, '.librarian', 'config.json'),
+  ];
+
+  for (const configPath of configPaths) {
+    try {
+      const raw = await fs.readFile(configPath, 'utf8');
+      const parsed = safeJsonParse<Record<string, unknown>>(raw);
+      if (!parsed.ok || !parsed.value || typeof parsed.value !== 'object') continue;
+
+      const topLevel = parsed.value.max_escalation_depth;
+      const retrievalScoped = (parsed.value.retrieval as { max_escalation_depth?: unknown } | undefined)?.max_escalation_depth;
+      const candidate = typeof topLevel === 'number' ? topLevel : (typeof retrievalScoped === 'number' ? retrievalScoped : undefined);
+      if (candidate !== undefined) {
+        return normalizeEscalationDepth(candidate);
+      }
+    } catch {
+      // Optional config file; ignore read/parse failures.
+    }
+  }
+
+  return DEFAULT_MAX_ESCALATION_DEPTH;
+}
+
+function normalizeEscalationDepth(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_MAX_ESCALATION_DEPTH;
+  return Math.max(0, Math.min(MAX_ALLOWED_ESCALATION_DEPTH, Math.floor(value)));
+}
+
+async function logRetrievalEscalationEvent(workspaceRoot: string, event: {
+  intent: string;
+  fromDepth: LibrarianQuery['depth'];
+  toDepth: LibrarianQuery['depth'];
+  totalConfidence: number;
+  retrievalEntropy: number;
+  reasons: string[];
+  attempt: number;
+  maxEscalationDepth: number;
+}): Promise<void> {
+  try {
+    const logPath = path.join(workspaceRoot, '.librarian', 'retrieval_confidence_log.jsonl');
+    await fs.mkdir(path.dirname(logPath), { recursive: true });
+    const record = {
+      timestamp: new Date().toISOString(),
+      escalation_reason: event.reasons.join('|') || 'policy_triggered',
+      intent: event.intent,
+      from_depth: event.fromDepth,
+      to_depth: event.toDepth,
+      confidence_score: Number(event.totalConfidence.toFixed(4)),
+      retrieval_entropy: Number(event.retrievalEntropy.toFixed(4)),
+      attempt: event.attempt,
+      max_escalation_depth: event.maxEscalationDepth,
+    };
+    await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  } catch {
+    // Logging must never break query execution.
+  }
+}
+
 function normalizeCochangePath(value: string, workspaceRoot: string): string | null {
   if (!value) return null;
   const normalized = value.replace(/\\/g, '/');
@@ -6986,6 +7367,26 @@ function generateDrillDownHints(packs: ContextPack[], query: LibrarianQuery): Dr
 
   return { hints, followUpQueries };
 }
+
+function isStorageWriteDegradedError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('storage_lock_compromised')
+    || lower.includes('storage_locked')
+    || lower.includes('database is locked')
+    || lower.includes('sqlite_busy')
+    || lower.includes('unable to update lock within the stale threshold')
+  );
+}
+
+function createStorageWriteDegradedMessage(rawMessage: string): string {
+  const cleaned = rawMessage
+    .replace(/\bunverified_by_trace\([^)]+\):\s*/gi, '')
+    .trim();
+  const detail = cleaned.length > 0 ? cleaned : 'storage unavailable';
+  return `Session degraded: results were returned but could not be persisted (${detail}). Run \`librarian doctor --heal\` to recover.`;
+}
+
 function getCurrentVersion(): LibrarianVersion { return { major: LIBRARIAN_VERSION.major, minor: LIBRARIAN_VERSION.minor, patch: LIBRARIAN_VERSION.patch, string: LIBRARIAN_VERSION.string, qualityTier: 'full', indexedAt: new Date(), indexerVersion: LIBRARIAN_VERSION.string, features: [...LIBRARIAN_VERSION.features] }; }
 
 /**
@@ -7031,6 +7432,7 @@ export const __testing = {
   runDefeaterStage,
   runMethodGuidanceStage,
   runSynthesisStage,
+  rankHeuristicFallbackPacks,
 };
 
 /**

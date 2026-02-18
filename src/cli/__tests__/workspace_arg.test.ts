@@ -61,4 +61,16 @@ describe('resolveWorkspaceArg', () => {
     expect(result.workspace).toBe('/tmp/project');
     expect(result.commandArgs).toEqual(['--json']);
   });
+
+  it('supports positional workspace for setup alias commands', () => {
+    const result = resolveWorkspaceArg({
+      command: 'setup',
+      commandArgs: ['/tmp/project', '--depth', 'quick'],
+      rawArgs: ['setup', '/tmp/project', '--depth', 'quick'],
+      defaultWorkspace: '/cwd',
+    });
+
+    expect(result.workspace).toBe('/tmp/project');
+    expect(result.commandArgs).toEqual(['--depth', 'quick']);
+  });
 });

@@ -328,7 +328,7 @@ export async function incrementalSelfCheck(
 
   // Stage 1: Self-Refresh
   if (verbose) {
-    console.log('[incrementalSelfCheck] Stage 1: Refresh');
+    console.error('[incrementalSelfCheck] Stage 1: Refresh');
   }
   onProgress?.('refresh', 0);
 
@@ -359,7 +359,7 @@ export async function incrementalSelfCheck(
   // Early return if no changes
   if (refreshResult.changedFiles.length === 0) {
     if (verbose) {
-      console.log('[incrementalSelfCheck] No changes detected');
+      console.error('[incrementalSelfCheck] No changes detected');
     }
 
     return {
@@ -383,7 +383,7 @@ export async function incrementalSelfCheck(
 
   // Stage 2: Analyze Consistency
   if (verbose) {
-    console.log('[incrementalSelfCheck] Stage 2: Consistency Analysis');
+    console.error('[incrementalSelfCheck] Stage 2: Consistency Analysis');
   }
   onProgress?.('analysis', 0);
 
@@ -415,7 +415,7 @@ export async function incrementalSelfCheck(
   let calibrationDelta: number | undefined;
   if (checkCalibration) {
     if (verbose) {
-      console.log('[incrementalSelfCheck] Stage 3: Calibration Check');
+      console.error('[incrementalSelfCheck] Stage 3: Calibration Check');
     }
 
     try {
@@ -433,7 +433,7 @@ export async function incrementalSelfCheck(
 
   // Stage 4: Build Changed Area Analysis
   if (verbose) {
-    console.log('[incrementalSelfCheck] Stage 4: Compare with Baseline');
+    console.error('[incrementalSelfCheck] Stage 4: Compare with Baseline');
   }
   onProgress?.('comparison', 0);
 
@@ -491,7 +491,7 @@ export async function incrementalSelfCheck(
   const duration = Date.now() - startTime;
 
   if (verbose) {
-    console.log(`[incrementalSelfCheck] Complete. Status: ${status}, New issues: ${newIssues.length}, Resolved: ${resolvedIssues.length}`);
+    console.error(`[incrementalSelfCheck] Complete. Status: ${status}, New issues: ${newIssues.length}, Resolved: ${resolvedIssues.length}`);
   }
 
   return {

@@ -230,7 +230,7 @@ async function gatherPredictionOutcomes(
   }
 
   if (verbose) {
-    console.log(`[verifyCalibration] Gathered ${outcomes.length} prediction-outcome pairs`);
+    console.error(`[verifyCalibration] Gathered ${outcomes.length} prediction-outcome pairs`);
   }
 
   return outcomes;
@@ -581,7 +581,7 @@ export async function verifyCalibration(
   }
 
   if (verbose) {
-    console.log(`[verifyCalibration] Starting calibration verification`);
+    console.error(`[verifyCalibration] Starting calibration verification`);
   }
 
   // Gather prediction-outcome pairs
@@ -603,7 +603,7 @@ export async function verifyCalibration(
   const brierScore = computeBrierScore(outcomes);
 
   if (verbose) {
-    console.log(`[verifyCalibration] ECE: ${ece.toFixed(4)}, MCE: ${mce.toFixed(4)}, Brier: ${brierScore.toFixed(4)}`);
+    console.error(`[verifyCalibration] ECE: ${ece.toFixed(4)}, MCE: ${mce.toFixed(4)}, Brier: ${brierScore.toFixed(4)}`);
   }
 
   // Determine status

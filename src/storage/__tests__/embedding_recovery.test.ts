@@ -141,4 +141,14 @@ describe('Embedding Dimension Mismatch Recovery', () => {
       })
     ).rejects.toThrow('embedding_dimension_mismatch');
   });
+
+  it('rejects zero-norm embeddings at storage boundary', async () => {
+    const metadata: EmbeddingMetadata = {
+      modelId: 'test-model',
+      entityType: 'function',
+    };
+    const zeroVector = new Float32Array(384);
+
+    await expect(storage.setEmbedding('zero-fn', zeroVector, metadata)).rejects.toThrow('provider_invalid_output');
+  });
 });

@@ -52,6 +52,16 @@ Add screenshots for UI changes.
 - [ ] `npm run package:install-smoke` passes
 - [ ] `npm run eval:publish-gate -- --json` passes
 
+## MCP Tool Checklist (required when adding/updating MCP tools)
+
+- [ ] Token-optimized output (no unnecessary payload bloat)
+- [ ] Reference-over-value path for large outputs
+- [ ] Single-purpose deterministic behavior
+- [ ] Error responses include actionable recovery guidance
+- [ ] `annotations.readOnlyHint` set correctly
+- [ ] Pagination controls for list-style outputs
+- [ ] Dual-format output plan documented (structured + human-readable)
+
 ## Breaking Changes
 
 If this is a breaking change, describe:

@@ -110,6 +110,7 @@ import { LIBRARIAN_VERSION } from '../index.js';
 import { applyMigrations } from '../api/migrations.js';
 import { noResult } from '../api/empty_values.js';
 import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
+import { attemptStorageRecovery } from './storage_recovery.js';
 import {
   createEmptyRedactionCounts,
   createRedactionAuditReport,
@@ -133,6 +134,21 @@ const LOCK_UPDATE_INTERVAL_MS = 60_000; // 1 minute
 
 /** Maximum lock acquisition retries */
 const LOCK_MAX_RETRIES = 12;
+const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
+
+function inspectEmbeddingVectorValues(embedding: Float32Array): { normSq: number; hasNonFinite: boolean } {
+  let normSq = 0;
+  let hasNonFinite = false;
+  for (let i = 0; i < embedding.length; i++) {
+    const value = embedding[i];
+    if (!Number.isFinite(value)) {
+      hasNonFinite = true;
+      break;
+    }
+    normSq += value * value;
+  }
+  return { normSq, hasNonFinite };
+}
 
 // ============================================================================
 // SQL INJECTION PREVENTION
@@ -257,6 +273,43 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     this.redactionTotals = createEmptyRedactionCounts();
   }
 
+  private async acquireProcessLock(): Promise<void> {
+    // IMPORTANT: proper-lockfile will throw an uncaught exception by default if it considers a lock compromised
+    // (e.g., event loop stalls preventing timely lock refresh). Always provide an onCompromised handler.
+    // Also: keep `stale` comfortably above any realistic "blocked event loop" window to avoid false positives
+    // during long synchronous work (SQLite WAL checkpoints, embedding model loads, etc.).
+    this.releaseLock = await lockfile.lock(this.dbPath, {
+      lockfilePath: this.lockPath,
+      stale: LOCK_STALE_TIMEOUT_MS,
+      update: LOCK_UPDATE_INTERVAL_MS,
+      onCompromised: (err) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.lockCompromisedError = error;
+        logWarning('SQLite lock compromised; treating storage as unsafe', {
+          path: this.lockPath,
+          error: error.message,
+        });
+        try {
+          if (this.db) {
+            this.db.close();
+            this.db = null;
+          }
+        } catch (closeError) {
+          logWarning('Failed to close DB after lock compromise', { path: this.dbPath, error: closeError });
+        }
+        void this.releaseLock?.().catch((releaseError) => {
+          logWarning('Failed to release lock after compromise', { path: this.lockPath, error: releaseError });
+        });
+      },
+      retries: {
+        retries: LOCK_MAX_RETRIES,
+        factor: 1.5,
+        minTimeout: 200,
+        maxTimeout: 10_000,
+      },
+    });
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) return;
     await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
@@ -269,6 +322,13 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
         // Lock exists but may be stale from a crashed process
         // The proper-lockfile library will handle this via the stale option
         logWarning('Existing lock detected, will attempt to acquire with stale recovery', { path: this.lockPath });
+        const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+        if (proactiveRecovery.recovered) {
+          logWarning('Recovered stale lock state before acquisition', {
+            path: this.lockPath,
+            actions: proactiveRecovery.actions,
+          });
+        }
       }
     } catch (checkError) {
       // Lock check failed, proceed with acquisition which will handle this case
@@ -279,43 +339,27 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     }
 
     try {
-      // IMPORTANT: proper-lockfile will throw an uncaught exception by default if it considers a lock compromised
-      // (e.g., event loop stalls preventing timely lock refresh). Always provide an onCompromised handler.
-      // Also: keep `stale` comfortably above any realistic "blocked event loop" window to avoid false positives
-      // during long synchronous work (SQLite WAL checkpoints, embedding model loads, etc.).
-      this.releaseLock = await lockfile.lock(this.dbPath, {
-        lockfilePath: this.lockPath,
-        stale: LOCK_STALE_TIMEOUT_MS,
-        update: LOCK_UPDATE_INTERVAL_MS,
-        onCompromised: (err) => {
-          const error = err instanceof Error ? err : new Error(String(err));
-          this.lockCompromisedError = error;
-          logWarning('SQLite lock compromised; treating storage as unsafe', {
-            path: this.lockPath,
-            error: error.message,
-          });
-          try {
-            if (this.db) {
-              this.db.close();
-              this.db = null;
-            }
-          } catch (closeError) {
-            logWarning('Failed to close DB after lock compromise', { path: this.dbPath, error: closeError });
-          }
-          void this.releaseLock?.().catch((releaseError) => {
-            logWarning('Failed to release lock after compromise', { path: this.lockPath, error: releaseError });
-          });
-        },
-        retries: {
-          retries: LOCK_MAX_RETRIES,
-          factor: 1.5,
-          minTimeout: 200,
-          maxTimeout: 10_000,
-        },
-      });
+      await this.acquireProcessLock();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+        recovered: false,
+        actions: [] as string[],
+        errors: [String(recoveryError)],
+      }));
+      if (!recovery.recovered) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      }
+      logWarning('Recovered storage lock state; retrying lock acquisition', {
+        path: this.lockPath,
+        actions: recovery.actions,
+      });
+      try {
+        await this.acquireProcessLock();
+      } catch (retryError) {
+        const message = retryError instanceof Error ? retryError.message : String(retryError);
+        throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      }
     }
 
     try {
@@ -2742,6 +2786,13 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     if (embedding.length === 0 || embedding.byteLength === 0 || embedding.buffer.byteLength === 0) {
       throw new Error('unverified_by_trace(provider_invalid_output): embedding buffer is empty');
     }
+    const { normSq, hasNonFinite } = inspectEmbeddingVectorValues(embedding);
+    if (hasNonFinite) {
+      throw new Error('unverified_by_trace(provider_invalid_output): embedding contains non-finite values');
+    }
+    if (normSq <= EMBEDDING_INVALID_NORM_TOLERANCE) {
+      throw new Error('unverified_by_trace(provider_invalid_output): embedding has zero norm');
+    }
     const buffer = Buffer.allocUnsafe(embedding.length * 4);
     const view = new Float32Array(buffer.buffer, buffer.byteOffset, embedding.length);
     view.set(embedding);
@@ -2846,6 +2897,102 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     `).all() as Array<{ dimension: number; count: number }>;
 
     return rows;
+  }
+
+  async inspectEmbeddingIntegrity(options: { normTolerance?: number; sampleLimit?: number } = {}): Promise<{
+    totalEmbeddings: number;
+    invalidEmbeddings: number;
+    sampleEntityIds: string[];
+  }> {
+    const db = this.ensureDb();
+    const tolerance = options.normTolerance ?? EMBEDDING_INVALID_NORM_TOLERANCE;
+    const sampleLimit = Math.max(1, options.sampleLimit ?? 20);
+    const rows = db.prepare('SELECT entity_id, embedding FROM librarian_embeddings').all() as Array<{
+      entity_id: string;
+      embedding: Buffer;
+    }>;
+    const sampleEntityIds: string[] = [];
+    let invalidEmbeddings = 0;
+    for (const row of rows) {
+      const view = new Float32Array(
+        row.embedding.buffer,
+        row.embedding.byteOffset,
+        row.embedding.length / Float32Array.BYTES_PER_ELEMENT
+      );
+      const { normSq, hasNonFinite } = inspectEmbeddingVectorValues(view);
+      if (hasNonFinite || normSq <= tolerance) {
+        invalidEmbeddings += 1;
+        if (sampleEntityIds.length < sampleLimit) {
+          sampleEntityIds.push(row.entity_id);
+        }
+      }
+    }
+
+    return {
+      totalEmbeddings: rows.length,
+      invalidEmbeddings,
+      sampleEntityIds,
+    };
+  }
+
+  async purgeInvalidEmbeddings(options: { normTolerance?: number; sampleLimit?: number } = {}): Promise<{
+    removedEmbeddings: number;
+    removedMultiVectors: number;
+    sampleEntityIds: string[];
+  }> {
+    const db = this.ensureDb();
+    const tolerance = options.normTolerance ?? EMBEDDING_INVALID_NORM_TOLERANCE;
+    const sampleLimit = Math.max(1, options.sampleLimit ?? 20);
+    const rows = db.prepare('SELECT entity_id, embedding FROM librarian_embeddings').all() as Array<{
+      entity_id: string;
+      embedding: Buffer;
+    }>;
+    const invalidEntityIds: string[] = [];
+    const sampleEntityIds: string[] = [];
+    for (const row of rows) {
+      const view = new Float32Array(
+        row.embedding.buffer,
+        row.embedding.byteOffset,
+        row.embedding.length / Float32Array.BYTES_PER_ELEMENT
+      );
+      const { normSq, hasNonFinite } = inspectEmbeddingVectorValues(view);
+      if (hasNonFinite || normSq <= tolerance) {
+        invalidEntityIds.push(row.entity_id);
+        if (sampleEntityIds.length < sampleLimit) {
+          sampleEntityIds.push(row.entity_id);
+        }
+      }
+    }
+
+    if (invalidEntityIds.length === 0) {
+      return {
+        removedEmbeddings: 0,
+        removedMultiVectors: 0,
+        sampleEntityIds,
+      };
+    }
+
+    const deleteEmbedding = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
+    const deleteMultiVector = db.prepare('DELETE FROM librarian_multi_vectors WHERE entity_id = ?');
+    const result = db.transaction(() => {
+      let removedEmbeddings = 0;
+      let removedMultiVectors = 0;
+      for (const entityId of invalidEntityIds) {
+        removedEmbeddings += deleteEmbedding.run(entityId).changes;
+        removedMultiVectors += deleteMultiVector.run(entityId).changes;
+      }
+      return { removedEmbeddings, removedMultiVectors };
+    })();
+
+    if (result.removedEmbeddings > 0 || result.removedMultiVectors > 0) {
+      this.vectorIndexDirty = true;
+    }
+
+    return {
+      removedEmbeddings: result.removedEmbeddings,
+      removedMultiVectors: result.removedMultiVectors,
+      sampleEntityIds,
+    };
   }
 
   async findSimilarByEmbedding(

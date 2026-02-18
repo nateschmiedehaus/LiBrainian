@@ -11,8 +11,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as crypto from 'node:crypto';
 import type { LibrarianStorage, FileQueryOptions } from './types.js';
+import { computeFileChecksum } from '../utils/checksums.js';
 
 // ============================================================================
 // TYPES
@@ -337,7 +337,7 @@ export class StalenessTracker {
    */
   private async computeChecksum(filePath: string): Promise<string> {
     const content = fs.readFileSync(filePath, 'utf-8');
-    return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
+    return computeFileChecksum(content);
   }
 }
 

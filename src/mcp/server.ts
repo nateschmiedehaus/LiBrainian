@@ -37,8 +37,13 @@ import {
   type BootstrapToolInput,
   type StatusToolInput,
   type QueryToolInput,
+  type ResetSessionStateToolInput,
+  type RequestHumanReviewToolInput,
+  type GetChangeImpactToolInput,
+  type SubmitFeedbackToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
+  type ListRunsToolInput,
   type DiffRunsToolInput,
   type ExportIndexToolInput,
   type GetContextPackBundleToolInput,
@@ -64,6 +69,16 @@ import {
   validateToolInput,
   type ValidationResult,
 } from './schema.js';
+import { z } from 'zod';
+import {
+  CompileIntentBundlesOutputSchema,
+  CompileTechniqueCompositionOutputSchema,
+  ConstructionOutputSchemaHints,
+  DefaultToolOutputSchemaHint,
+  SelectTechniqueCompositionsOutputSchema,
+  type ConstructionResultEnvelope,
+  validateConstructionOutput,
+} from './construction_results.js';
 
 // Librarian API imports
 import {
@@ -75,12 +90,16 @@ import {
   getBootstrapStatus,
   queryLibrarian,
 } from '../api/index.js';
+import { estimateTokens } from '../api/token_budget.js';
+import { computeChangeImpactReport } from '../api/change_impact_tool.js';
+import { categorizeRetrievalStatus, computeRetrievalEntropy } from '../api/retrieval_escalation.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
 import {
   compileTechniqueCompositionTemplateWithGapsFromStorage,
   compileTechniqueCompositionBundleFromStorage,
 } from '../api/plan_compiler.js';
 import { compileTechniqueBundlesFromIntent } from '../api/plan_compiler.js';
+import { submitQueryFeedback } from '../integration/agent_protocol.js';
 import { createSqliteStorage, type LibrarianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
 import {
@@ -89,6 +108,7 @@ import {
   type SessionToken,
   type AuthorizationResult,
 } from './authentication.js';
+import { createHash } from 'node:crypto';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { createAuditLogger, type AuditLogger } from './audit.js';
@@ -163,6 +183,42 @@ export interface SessionState {
 
   /** Last activity */
   lastActivity: string;
+
+  /** Recent query records for repeated-query loop detection */
+  queryHistory: QueryRecord[];
+}
+
+interface QueryRecord {
+  fingerprint: string;
+  semanticHash: string;
+  normalizedIntent: string;
+  timestampMs: number;
+  resultCount: number;
+  workspace: string;
+}
+
+interface LoopDetectionResult {
+  detected: boolean;
+  pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat';
+  occurrences: number;
+  windowSeconds: number;
+  message: string;
+  alternativeStrategies: Array<{
+    tool: 'query' | 'get_context_pack_bundle' | 'list_runs' | 'run_audit' | 'status';
+    rationale: string;
+    topic?: string;
+  }>;
+  humanReviewSuggested: boolean;
+}
+
+interface ToolExecutionContext {
+  sessionId?: string;
+}
+
+interface LoopMetrics {
+  exactCount: number;
+  semanticCount: number;
+  futileCount: number;
 }
 
 /** Audit log entry */
@@ -195,6 +251,41 @@ export interface AuditLogEntry {
   error?: string;
 }
 
+interface ToolHintMetadata {
+  readOnlyHint: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+  requiresIndex: boolean;
+  requiresEmbeddings: boolean;
+  estimatedTokens: number;
+}
+
+const TOOL_HINTS: Record<string, ToolHintMetadata> = {
+  bootstrap: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 12000 },
+  status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
+  list_episodes: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
+  list_technique_primitives: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  list_technique_compositions: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  select_technique_compositions: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
+  compile_technique_composition: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
+  reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
+  request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
+  verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
+  diff_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3500 },
+  list_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
+  get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
+};
+
 interface ReadResourceRequestLike {
   params: {
     uri: string;
@@ -206,6 +297,321 @@ interface CallToolRequestLike {
     name: string;
     arguments?: Record<string, unknown>;
   };
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 200;
+const DEFAULT_RUN_LIST_LIMIT = 10;
+const MAX_RUN_LIST_LIMIT = 100;
+const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
+const LOW_CONFIDENCE_THRESHOLD = 0.35;
+const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
+const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
+const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
+const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
+
+interface BootstrapRunStatsSnapshot {
+  filesProcessed: number;
+  functionsIndexed: number;
+  contextPacksCreated: number;
+  averageConfidence: number;
+}
+
+interface BootstrapRunRecord {
+  runId: string;
+  workspace: string;
+  startedAt: string;
+  completedAt?: string;
+  success: boolean;
+  durationMs: number;
+  stats: BootstrapRunStatsSnapshot;
+  error?: string;
+}
+
+interface PaginationOptions {
+  pageSize?: number;
+  pageIdx?: number;
+  limit?: number;
+}
+
+interface PaginationMetadata {
+  pageSize: number;
+  pageIdx: number;
+  totalItems: number;
+  pageCount: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextPageIdx?: number;
+  previousPageIdx?: number;
+  showingFrom: number;
+  showingTo: number;
+  showing: string;
+}
+
+const TRACE_MESSAGE_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
+
+interface ParsedEpistemicMessage {
+  code?: string;
+  userMessage: string;
+  rawMessage: string;
+}
+
+function parseEpistemicMessage(message: string): ParsedEpistemicMessage {
+  const rawMessage = String(message ?? '').trim();
+  const match = rawMessage.match(TRACE_MESSAGE_PATTERN);
+  if (!match) {
+    return {
+      userMessage: rawMessage,
+      rawMessage,
+    };
+  }
+  const code = (match[1] ?? '').trim();
+  const detail = (match[2] ?? '').trim();
+  return {
+    code,
+    userMessage: detail || code.replace(/_/g, ' '),
+    rawMessage,
+  };
+}
+
+function sanitizeDisclosures(disclosures: string[] | undefined): {
+  userDisclosures: string[];
+  epistemicsDebug: string[];
+} {
+  const userDisclosures: string[] = [];
+  const epistemicsDebug: string[] = [];
+  const seen = new Set<string>();
+  for (const disclosure of disclosures ?? []) {
+    const parsed = parseEpistemicMessage(disclosure);
+    if (parsed.code) {
+      epistemicsDebug.push(parsed.rawMessage);
+    }
+    const normalized = parsed.userMessage.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    userDisclosures.push(normalized);
+  }
+  return { userDisclosures, epistemicsDebug };
+}
+
+function sanitizeTraceId(traceId: string | undefined): string | undefined {
+  if (!traceId) return traceId;
+  const parsed = parseEpistemicMessage(traceId);
+  return parsed.code ?? traceId;
+}
+
+function buildQueryFixCommands(code: string | undefined, workspace: string | undefined): string[] {
+  const workspaceArg = workspace?.trim() ? workspace.trim() : '<workspace>';
+  switch (code) {
+    case 'workspace_unavailable':
+      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` to register and index this workspace.`];
+    case 'bootstrap_required':
+      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` before running query.`];
+    case 'provider_unavailable':
+      return ['Run `librarian check-providers` to diagnose provider setup and authentication.'];
+    case 'query_failed':
+      return [
+        'Run `librarian doctor` to diagnose storage/workspace issues.',
+        'Retry with a narrower intent after confirming providers are healthy.',
+      ];
+    default:
+      return ['Run `librarian doctor` to diagnose this query failure.'];
+  }
+}
+
+function normalizeErrorCode(rawCode: string | undefined, fallback = 'tool_execution_failed'): string {
+  const candidate = String(rawCode ?? '').trim().toLowerCase();
+  if (!candidate) return fallback;
+  const normalized = candidate.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return normalized || fallback;
+}
+
+function inferErrorCode(message: string, parsedCode?: string): string {
+  if (parsedCode) return normalizeErrorCode(parsedCode);
+  const normalized = message.trim().toLowerCase();
+  if (normalized.includes('workspace not registered') || normalized.includes('workspace_unavailable')) {
+    return 'workspace_not_registered';
+  }
+  if (
+    normalized.includes('workspace not ready')
+    || normalized.includes('no indexed workspace')
+    || normalized.includes('bootstrap first')
+    || normalized.includes('not bootstrapped')
+    || normalized.includes('bootstrap_required')
+  ) {
+    return 'workspace_not_bootstrapped';
+  }
+  if (normalized.includes('authorization denied') || normalized.includes('missing required scopes')) {
+    return 'authorization_denied';
+  }
+  if (normalized.includes('invalid input') || normalized.includes('schema_validation_failed')) {
+    return 'invalid_input';
+  }
+  if (normalized.includes('claim not found') || normalized.includes('claim_not_found')) {
+    return 'claim_not_found';
+  }
+  if (normalized.includes('workspace not found') || normalized.includes('workspace not accessible')) {
+    return 'workspace_not_found';
+  }
+  if (normalized.includes('unknown tool')) return 'tool_not_found';
+  return 'tool_execution_failed';
+}
+
+function getWorkspaceArg(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object') return undefined;
+  const workspace = (args as Record<string, unknown>).workspace;
+  if (typeof workspace !== 'string') return undefined;
+  const trimmed = workspace.trim();
+  return trimmed || undefined;
+}
+
+function buildAgentNextSteps(code: string, toolName: string, workspace: string | undefined): {
+  nextSteps: string[];
+  recoverWith?: { tool: string; args: Record<string, unknown> };
+} {
+  const workspaceArg = workspace ?? '<workspace>';
+  switch (code) {
+    case 'workspace_not_registered':
+      return {
+        nextSteps: [
+          `Call bootstrap({ workspace: "${workspaceArg}" }) to register and index this workspace.`,
+          `After bootstrap succeeds, retry ${toolName}.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
+    case 'workspace_not_bootstrapped':
+      return {
+        nextSteps: [
+          `Call bootstrap({ workspace: "${workspaceArg}" }) to build the index before using ${toolName}.`,
+          `Retry ${toolName} after bootstrap completes.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
+    case 'authorization_denied':
+      return {
+        nextSteps: [
+          'Start the MCP server with the required scopes enabled for this tool.',
+          'Retry the tool call after scope configuration is updated.',
+        ],
+      };
+    case 'invalid_input':
+      return {
+        nextSteps: [
+          'Check tool argument requirements via list_tools.',
+          `Retry ${toolName} with all required fields and valid value types.`,
+        ],
+      };
+    case 'claim_not_found':
+      return {
+        nextSteps: [
+          'Use query to discover relevant claim IDs first.',
+          'Retry verify_claim with a valid claimId from query output.',
+        ],
+      };
+    default:
+      return {
+        nextSteps: [
+          'Retry the tool call once to rule out transient errors.',
+          'If the error persists, run `librarian doctor --json` and apply suggested fixes.',
+        ],
+      };
+  }
+}
+
+function toAgentErrorPayload(params: {
+  toolName: string;
+  args?: unknown;
+  message: string;
+  basePayload?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const base = params.basePayload ? { ...params.basePayload } : {};
+  const parsedMessage = parseEpistemicMessage(params.message);
+  const disclosures = Array.isArray(base.disclosures)
+    ? base.disclosures.filter((value): value is string => typeof value === 'string')
+    : [];
+  const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(disclosures);
+  const existingDebug = Array.isArray(base.epistemicsDebug)
+    ? base.epistemicsDebug.filter((value): value is string => typeof value === 'string')
+    : [];
+  const debug = [...existingDebug, ...epistemicsDebug];
+  if (parsedMessage.code) {
+    debug.push(parsedMessage.rawMessage);
+  }
+  const code = normalizeErrorCode(
+    typeof base.code === 'string' ? base.code : undefined,
+    inferErrorCode(params.message, parsedMessage.code)
+  );
+  const { nextSteps, recoverWith } = buildAgentNextSteps(
+    code,
+    params.toolName,
+    getWorkspaceArg(params.args)
+  );
+  const suppliedNextSteps = Array.isArray(base.nextSteps)
+    ? base.nextSteps.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  const suppliedRecoverWith = base.recoverWith
+    && typeof base.recoverWith === 'object'
+    && !Array.isArray(base.recoverWith)
+    ? base.recoverWith as { tool?: unknown; args?: unknown }
+    : undefined;
+  const normalizedRecoverWith = suppliedRecoverWith
+    && typeof suppliedRecoverWith.tool === 'string'
+    && suppliedRecoverWith.tool.trim()
+    && suppliedRecoverWith.args
+    && typeof suppliedRecoverWith.args === 'object'
+    && !Array.isArray(suppliedRecoverWith.args)
+    ? {
+      tool: suppliedRecoverWith.tool.trim(),
+      args: suppliedRecoverWith.args as Record<string, unknown>,
+    }
+    : recoverWith;
+
+  return {
+    ...base,
+    error: true,
+    code,
+    message: parsedMessage.userMessage || 'Tool execution failed.',
+    nextSteps: suppliedNextSteps.length > 0 ? suppliedNextSteps : nextSteps,
+    recoverWith: normalizedRecoverWith,
+    disclosures: userDisclosures.length > 0 ? userDisclosures : base.disclosures,
+    traceId: sanitizeTraceId(typeof base.traceId === 'string' ? base.traceId : undefined) ?? base.traceId,
+    llmError: typeof base.llmError === 'string' ? parseEpistemicMessage(base.llmError).userMessage : base.llmError,
+    epistemicsDebug: debug.length > 0 ? Array.from(new Set(debug)) : base.epistemicsDebug,
+  };
+}
+
+function normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+  const base = result as Record<string, unknown>;
+
+  if (base.error === true && typeof base.message === 'string') {
+    return toAgentErrorPayload({
+      toolName,
+      args,
+      message: base.message,
+      basePayload: base,
+    });
+  }
+
+  if (typeof base.error === 'string') {
+    return toAgentErrorPayload({
+      toolName,
+      args,
+      message: base.error,
+      basePayload: base,
+    });
+  }
+
+  if (base.success === false && typeof base.message === 'string') {
+    return toAgentErrorPayload({
+      toolName,
+      args,
+      message: base.message,
+      basePayload: base,
+    });
+  }
+
+  return null;
 }
 
 // ============================================================================
@@ -222,6 +628,8 @@ export class LibrarianMCPServer {
   private config: LibrarianMCPServerConfig;
   private state: ServerState;
   private transport: StdioServerTransport | null = null;
+  private inFlightToolCalls = 0;
+  private readonly inFlightBootstraps = new Map<string, Promise<unknown>>();
 
   constructor(config: Partial<LibrarianMCPServerConfig> = {}) {
     this.config = { ...DEFAULT_MCP_SERVER_CONFIG, ...config };
@@ -336,48 +744,60 @@ export class LibrarianMCPServer {
       },
       {
         name: 'list_verification_plans',
-        description: 'List verification plans for a workspace',
+        description: 'List verification plans for a workspace (typically 1-8KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of plans returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
       },
       {
         name: 'list_episodes',
-        description: 'List verification episodes for a workspace',
+        description: 'List verification episodes for a workspace (typically 1-8KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of episodes returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
       },
       {
         name: 'list_technique_primitives',
-        description: 'List technique primitives for a workspace',
+        description: 'List technique primitives for a workspace (typically 2-12KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of primitives returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
       },
       {
         name: 'list_technique_compositions',
-        description: 'List technique compositions for a workspace',
+        description: 'List technique compositions for a workspace (typically 2-12KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of compositions returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
@@ -423,20 +843,96 @@ export class LibrarianMCPServer {
       },
       {
         name: 'query',
-        description: 'Query the knowledge base for context and insights',
+        description: 'Query the knowledge base for context and insights (typically 3-15KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             intent: { type: 'string', description: 'Query intent or question' },
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
             intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'] },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
             minConfidence: { type: 'number', description: 'Min confidence (0-1)' },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },
             includeEngines: { type: 'boolean', description: 'Include engine results' },
             includeEvidence: { type: 'boolean', description: 'Include evidence graph' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'reset_session_state',
+        description: 'Reset session-scoped query loop detection state for a stuck agent workflow',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID to reset (optional if auth token is provided)' },
+            workspace: { type: 'string', description: 'Workspace hint for anonymous session fallback' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'request_human_review',
+        description: 'Signal uncertain or risky context and request structured human review before proceeding',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            reason: { type: 'string', description: 'Why human review is needed' },
+            context_summary: { type: 'string', description: 'Summary of uncertain or conflicting context' },
+            proposed_action: { type: 'string', description: 'Action the agent was about to take' },
+            confidence_tier: { type: 'string', enum: ['low', 'uncertain'], description: 'Confidence tier requiring escalation' },
+            risk_level: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Risk if the action is wrong' },
+            blocking: { type: 'boolean', description: 'Whether the agent should pause for human response' },
+          },
+          required: ['reason', 'context_summary', 'proposed_action', 'confidence_tier', 'risk_level', 'blocking'],
+        },
+      },
+      {
+        name: 'get_change_impact',
+        description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            target: { type: 'string', description: 'Changed file/module/function identifier to analyze' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            depth: { type: 'number', description: 'Maximum transitive depth for propagation (default 3, max 8)' },
+            maxResults: { type: 'number', description: 'Maximum impacted files to return (default 200, max 1000)' },
+            changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+          },
+          required: ['target'],
+        },
+      },
+      {
+        name: 'submit_feedback',
+        description: 'Submit outcome feedback for a prior query feedbackToken',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            feedbackToken: { type: 'string', description: 'Feedback token from query response' },
+            outcome: { type: 'string', enum: ['success', 'failure', 'partial'], description: 'Task outcome' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            agentId: { type: 'string', description: 'Agent identifier' },
+            missingContext: { type: 'string', description: 'Description of missing context' },
+            customRatings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  packId: { type: 'string' },
+                  relevant: { type: 'boolean' },
+                  usefulness: { type: 'number' },
+                  reason: { type: 'string' },
+                },
+                required: ['packId', 'relevant'],
+              },
+              description: 'Optional per-pack relevance ratings',
+            },
+          },
+          required: ['feedbackToken', 'outcome'],
         },
       },
       {
@@ -470,11 +966,24 @@ export class LibrarianMCPServer {
         inputSchema: {
           type: 'object',
           properties: {
+            workspace: { type: 'string', description: 'Workspace path used to resolve persisted run history' },
             runIdA: { type: 'string', description: 'First run ID' },
             runIdB: { type: 'string', description: 'Second run ID' },
             detailed: { type: 'boolean', description: 'Include detailed diff' },
           },
           required: ['runIdA', 'runIdB'],
+        },
+      },
+      {
+        name: 'list_runs',
+        description: 'List recent persisted bootstrap runs for a workspace',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            limit: { type: 'number', description: 'Maximum runs to return (default 10, max 100)' },
+          },
+          required: [],
         },
       },
       {
@@ -493,27 +1002,60 @@ export class LibrarianMCPServer {
       },
       {
         name: 'get_context_pack_bundle',
-        description: 'Get bundled context packs for entities',
+        description: 'Get bundled context packs for entities (typically 4-20KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             entityIds: { type: 'array', items: { type: 'string' }, description: 'Entity IDs' },
             bundleType: { type: 'string', enum: ['minimal', 'standard', 'comprehensive'] },
             maxTokens: { type: 'number', description: 'Max token budget' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: ['entityIds'],
         },
       },
     ];
 
-    // Filter tools based on authorized scopes
-    return tools.filter((tool) => {
-      const auth = TOOL_AUTHORIZATION[tool.name];
-      if (!auth) return true;
-      return auth.requiredScopes.every((scope) =>
-        this.config.authorization.enabledScopes.includes(scope)
-      );
-    });
+    // Filter tools based on authorized scopes and annotate capabilities for clients.
+    return tools
+      .filter((tool) => {
+        const auth = TOOL_AUTHORIZATION[tool.name];
+        if (!auth) return true;
+        return auth.requiredScopes.every((scope) =>
+          this.config.authorization.enabledScopes.includes(scope)
+        );
+      })
+      .map((tool) => this.withToolHints(tool));
+  }
+
+  private withToolHints(tool: Tool): Tool {
+    const hints = TOOL_HINTS[tool.name] ?? {
+      readOnlyHint: true,
+      openWorldHint: false,
+      requiresIndex: false,
+      requiresEmbeddings: false,
+      estimatedTokens: 1200,
+    };
+
+    return {
+      ...tool,
+      annotations: {
+        ...(tool.annotations ?? {}),
+        readOnlyHint: hints.readOnlyHint,
+        destructiveHint: hints.destructiveHint ?? !hints.readOnlyHint,
+        idempotentHint: hints.idempotentHint ?? hints.readOnlyHint,
+        openWorldHint: hints.openWorldHint ?? false,
+      },
+      _meta: {
+        ...(tool._meta ?? {}),
+        requiresIndex: hints.requiresIndex,
+        requiresEmbeddings: hints.requiresEmbeddings,
+        estimatedTokens: hints.estimatedTokens,
+        outputSchema: ConstructionOutputSchemaHints[tool.name as keyof typeof ConstructionOutputSchemaHints] ?? DefaultToolOutputSchemaHint,
+      },
+    };
   }
 
   /**
@@ -595,7 +1137,7 @@ export class LibrarianMCPServer {
       const data = await this.getResourceData(parsed.workspace, parsed.resourceType);
 
       const auditWorkspace = parsed.workspace ? path.resolve(parsed.workspace) : undefined;
-      const instrumentation = await this.ensureWorkspaceInstrumentation(auditWorkspace);
+      const instrumentation = this.getWorkspaceStateForTool(auditWorkspace);
       instrumentation?.auditLogger?.logResourceAccess({
         operation: uri,
         status: 'success',
@@ -626,7 +1168,7 @@ export class LibrarianMCPServer {
       try {
         const parsed = this.parseResourceUri(uri);
         const auditWorkspace = parsed?.workspace ? path.resolve(parsed.workspace) : undefined;
-        const instrumentation = await this.ensureWorkspaceInstrumentation(auditWorkspace);
+        const instrumentation = this.getWorkspaceStateForTool(auditWorkspace);
         instrumentation?.auditLogger?.logResourceAccess({
           operation: uri,
           status: 'failure',
@@ -656,13 +1198,21 @@ export class LibrarianMCPServer {
   private async callTool(name: string, args: unknown): Promise<CallToolResult> {
     const startTime = Date.now();
     const entryId = this.generateId();
+    const invocation = this.extractToolInvocationContext(args);
+    const executionContext: ToolExecutionContext = {};
 
     try {
+      if (invocation.authTokenError) {
+        throw new Error(`Authorization denied: ${invocation.authTokenError}`);
+      }
+
       // Validate input
-      const validation = validateToolInput(name, args);
+      const validation = validateToolInput(name, invocation.toolArgs);
       if (!validation.valid) {
         throw new Error(`Invalid input: ${validation.errors.map((e) => e.message).join(', ')}`);
       }
+      const workspaceHint = this.resolveWorkspaceHint(validation.data);
+      const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
 
       // Check authorization
       const auth = TOOL_AUTHORIZATION[name];
@@ -677,29 +1227,121 @@ export class LibrarianMCPServer {
             operation: 'authorization',
             name,
             input: this.sanitizeInput(args),
-            status: 'denied',
-            error: `Missing required scopes: ${auth.requiredScopes.join(', ')}`,
-          });
+              status: 'denied',
+              error: `Missing required scopes: ${auth.requiredScopes.join(', ')}`,
+            });
           throw new Error(`Authorization denied: missing required scopes`);
         }
       }
 
-      const sanitizedInput = this.sanitizeInput(args);
+      if (invocation.authToken) {
+        const authorization = this.authorizeToolCall(invocation.authToken, name, workspace);
+        if (authorization.sessionId) {
+          executionContext.sessionId = authorization.sessionId;
+        }
+        const consentBypassed = authorization.requiresConsent === true && this.config.authorization.requireConsent === false;
+        if (!authorization.authorized && !consentBypassed) {
+          const missingScopes = authorization.missingScopes?.join(', ');
+          const reason = missingScopes
+            ? `${authorization.reason ?? 'Insufficient permissions'} (missing scopes: ${missingScopes})`
+            : (authorization.reason ?? 'Access denied');
+          this.logAudit({
+            id: entryId,
+            timestamp: new Date().toISOString(),
+            operation: 'authorization',
+            name,
+            input: this.sanitizeInput(invocation.toolArgs),
+            status: 'denied',
+            error: reason,
+            sessionId: authorization.sessionId,
+          });
+          throw new Error(`Authorization denied: ${reason}`);
+        }
+      }
+
+      const sanitizedInput = this.sanitizeInput(invocation.toolArgs);
       const inputRecord =
         sanitizedInput && typeof sanitizedInput === 'object' && !Array.isArray(sanitizedInput)
           ? (sanitizedInput as Record<string, unknown>)
           : { value: sanitizedInput };
 
+      const maxConcurrent = Math.max(1, Number(this.config.performance.maxConcurrent ?? 1));
+      if (this.inFlightToolCalls >= maxConcurrent) {
+        const retryAfterMs = Math.max(200, Math.min(5000, Math.floor((this.config.performance.timeoutMs ?? 1000) / 10)));
+        const busyPayload = toAgentErrorPayload({
+          toolName: name,
+          args: validation.data,
+          message: `Server busy: ${this.inFlightToolCalls} tool calls in flight. Retry in ${retryAfterMs}ms.`,
+          basePayload: {
+            code: 'server_busy',
+            retryAfterMs,
+            nextSteps: [
+              `Retry ${name} after ${retryAfterMs}ms.`,
+              'Reduce concurrent tool calls or increase performance.maxConcurrent.',
+            ],
+          },
+        });
+        this.logAudit({
+          id: entryId,
+          timestamp: new Date().toISOString(),
+          operation: 'tool_call',
+          name,
+          input: sanitizedInput,
+          status: 'failure',
+          durationMs: Date.now() - startTime,
+          error: `Server busy: ${this.inFlightToolCalls}/${maxConcurrent} in flight`,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(busyPayload, null, 2),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      this.inFlightToolCalls += 1;
+
       // Execute tool
-      const workspaceHint = this.resolveWorkspaceHint(validation.data);
-      const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
-      const instrumentation = await this.ensureWorkspaceInstrumentation(workspace);
-      const result = instrumentation?.toolAdapter
-        ? await instrumentation.toolAdapter.call(
+      const hint = TOOL_HINTS[name];
+      const shouldPersistInstrumentation = !(hint?.readOnlyHint ?? false);
+      const instrumentation = shouldPersistInstrumentation
+        ? await this.ensureWorkspaceInstrumentation(workspace)
+        : this.getWorkspaceStateForTool(workspace, { registerIfMissing: true });
+      const executionPromise = instrumentation?.toolAdapter
+        ? instrumentation.toolAdapter.call(
             { operation: name, input: inputRecord, workspace },
-            () => this.executeTool(name, validation.data)
+            () => this.executeTool(name, validation.data, executionContext)
           )
-        : await this.executeTool(name, validation.data);
+        : this.executeTool(name, validation.data, executionContext);
+      const timeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
+      const result = await this.executeWithTimeout(executionPromise, timeoutMs, name);
+
+      const normalizedError = normalizeToolErrorResult(name, validation.data, result);
+      if (normalizedError) {
+        this.logAudit({
+          id: entryId,
+          timestamp: new Date().toISOString(),
+          operation: 'tool_call',
+          name,
+          input: sanitizedInput,
+          status: 'failure',
+          durationMs: Date.now() - startTime,
+          error: String(normalizedError.message ?? 'Tool execution failed'),
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(normalizedError, null, 2),
+            },
+          ],
+          isError: true,
+        };
+      }
 
       // Log success
       this.logAudit({
@@ -726,25 +1368,87 @@ export class LibrarianMCPServer {
         timestamp: new Date().toISOString(),
         operation: 'tool_call',
         name,
-        input: this.sanitizeInput(args),
+        input: this.sanitizeInput(invocation.toolArgs),
         status: 'failure',
         durationMs: Date.now() - startTime,
         error: error instanceof Error ? error.message : String(error),
+      });
+
+      const normalizedError = toAgentErrorPayload({
+        toolName: name,
+        args: invocation.toolArgs,
+        message: error instanceof Error ? error.message : String(error),
       });
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              error: true,
-              message: error instanceof Error ? error.message : String(error),
-            }),
+            text: JSON.stringify(normalizedError, null, 2),
           },
         ],
         isError: true,
       };
+    } finally {
+      this.inFlightToolCalls = Math.max(0, this.inFlightToolCalls - 1);
     }
+  }
+
+  private extractToolInvocationContext(args: unknown): {
+    toolArgs: unknown;
+    authToken?: string;
+    authTokenError?: string;
+  } {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      return { toolArgs: args };
+    }
+    const raw = args as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(raw, '__authToken')) {
+      return { toolArgs: args };
+    }
+    const { __authToken, ...toolArgs } = raw;
+    if (typeof __authToken !== 'string' || __authToken.trim().length === 0) {
+      return {
+        toolArgs,
+        authTokenError: 'Invalid authentication token',
+      };
+    }
+    return {
+      toolArgs,
+      authToken: __authToken.trim(),
+    };
+  }
+
+  private async executeWithTimeout<T>(promise: Promise<T>, timeoutMs: number, toolName: string): Promise<T> {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Tool execution timed out after ${timeoutMs}ms (${toolName})`));
+      }, timeoutMs);
+      void promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          reject(error);
+        }
+      );
+    });
+  }
+
+  private executeBootstrapDeduped(input: BootstrapToolInput): Promise<unknown> {
+    const workspacePath = path.resolve(input.workspace);
+    const inFlight = this.inFlightBootstraps.get(workspacePath);
+    if (inFlight) return inFlight;
+    const execution = this.executeBootstrap(input).finally(() => {
+      if (this.inFlightBootstraps.get(workspacePath) === execution) {
+        this.inFlightBootstraps.delete(workspacePath);
+      }
+    });
+    this.inFlightBootstraps.set(workspacePath, execution);
+    return execution;
   }
 
   private resolveWorkspaceHint(args: unknown): string | undefined {
@@ -761,6 +1465,20 @@ export class LibrarianMCPServer {
       if (typeof first === 'string' && first.trim()) return first;
     }
     return undefined;
+  }
+
+  private getWorkspaceStateForTool(
+    workspacePath: string | undefined,
+    options: { registerIfMissing?: boolean } = {}
+  ): WorkspaceState | null {
+    if (!workspacePath || !workspacePath.trim()) return null;
+    const resolvedWorkspace = path.resolve(workspacePath);
+    let workspace = this.state.workspaces.get(resolvedWorkspace);
+    if (!workspace && options.registerIfMissing) {
+      this.registerWorkspace(resolvedWorkspace);
+      workspace = this.state.workspaces.get(resolvedWorkspace);
+    }
+    return workspace ?? null;
   }
 
   private async ensureWorkspaceInstrumentation(
@@ -828,13 +1546,441 @@ export class LibrarianMCPServer {
     return workspace;
   }
 
+  private resolveQuerySessionState(input: {
+    workspacePath: string;
+    context: ToolExecutionContext;
+    input: QueryToolInput;
+  }): SessionState | null {
+    if (!this.config.loopDetection.enabled) return null;
+    const explicitSessionId = typeof input.input.sessionId === 'string' && input.input.sessionId.trim().length > 0
+      ? input.input.sessionId.trim()
+      : undefined;
+    const sessionId = input.context.sessionId ?? explicitSessionId ?? this.buildAnonymousSessionId(input.workspacePath);
+    return this.getOrCreateSessionState(sessionId);
+  }
+
+  private buildAnonymousSessionId(workspacePath: string): string {
+    return `anon:${path.resolve(workspacePath)}`;
+  }
+
+  private getOrCreateSessionState(sessionId: string): SessionState {
+    const now = new Date().toISOString();
+    const existing = this.state.sessions.get(sessionId);
+    if (existing) {
+      existing.lastActivity = now;
+      existing.requestCount += 1;
+      return existing;
+    }
+
+    const created: SessionState = {
+      id: sessionId,
+      createdAt: now,
+      authorizedScopes: new Set<AuthorizationScope>(['read']),
+      requestCount: 1,
+      lastActivity: now,
+      queryHistory: [],
+    };
+    this.state.sessions.set(sessionId, created);
+    return created;
+  }
+
+  private collectLoopMetrics(history: QueryRecord[], intent: string, workspacePath: string): LoopMetrics {
+    const windowMs = Math.max(1, this.config.loopDetection.windowSeconds) * 1000;
+    const nowMs = Date.now();
+    const normalizedIntent = this.normalizeLoopIntent(intent);
+    const fingerprint = this.hashLoopValue(normalizedIntent);
+    const semanticHash = this.hashLoopValue(this.toSemanticHashSource(normalizedIntent));
+
+    const withinWindow = history.filter((record) =>
+      record.workspace === workspacePath && (nowMs - record.timestampMs) <= windowMs
+    );
+    const exactMatches = withinWindow.filter((record) => record.fingerprint === fingerprint);
+    const semanticMatches = withinWindow.filter((record) =>
+      record.semanticHash === semanticHash
+      || this.computeSemanticQuerySimilarity(record.normalizedIntent, normalizedIntent) >= LOOP_SEMANTIC_SIMILARITY_THRESHOLD
+    );
+    const futileMatches = exactMatches.filter((record) => record.resultCount === 0);
+
+    return {
+      exactCount: exactMatches.length,
+      semanticCount: semanticMatches.length,
+      futileCount: futileMatches.length,
+    };
+  }
+
+  private applyFutileRepeatEscalation(
+    query: {
+      intent: string;
+      intentType?: QueryToolInput['intentType'];
+      affectedFiles?: string[];
+      minConfidence?: number;
+      depth: 'L0' | 'L1' | 'L2' | 'L3';
+    },
+    futileCount: number
+  ): void {
+    const threshold = Math.max(1, this.config.loopDetection.futileRepeatThreshold);
+    if (futileCount < threshold) return;
+
+    query.minConfidence = Math.min(query.minConfidence ?? 0.5, 0.2);
+    if (query.depth === 'L0' || query.depth === 'L1') {
+      query.depth = 'L2';
+    } else if (query.depth === 'L2') {
+      query.depth = 'L3';
+    }
+
+    if (futileCount >= threshold + 1) {
+      query.minConfidence = 0;
+      query.depth = 'L3';
+    }
+  }
+
+  private recordQueryAndBuildLoopDetection(input: {
+    sessionState: SessionState;
+    workspacePath: string;
+    intent: string;
+    resultCount: number;
+  }): LoopDetectionResult | undefined {
+    const normalizedIntent = this.normalizeLoopIntent(input.intent);
+    const record: QueryRecord = {
+      fingerprint: this.hashLoopValue(normalizedIntent),
+      semanticHash: this.hashLoopValue(this.toSemanticHashSource(normalizedIntent)),
+      normalizedIntent,
+      timestampMs: Date.now(),
+      resultCount: input.resultCount,
+      workspace: input.workspacePath,
+    };
+    input.sessionState.queryHistory.push(record);
+    const maxHistory = Math.max(1, this.config.loopDetection.maxSessionHistory);
+    if (input.sessionState.queryHistory.length > maxHistory) {
+      input.sessionState.queryHistory.splice(0, input.sessionState.queryHistory.length - maxHistory);
+    }
+
+    const metrics = this.collectLoopMetrics(input.sessionState.queryHistory, input.intent, input.workspacePath);
+    const exactThreshold = Math.max(1, this.config.loopDetection.exactRepeatThreshold);
+    const semanticThreshold = Math.max(1, this.config.loopDetection.semanticRepeatThreshold);
+    const futileThreshold = Math.max(1, this.config.loopDetection.futileRepeatThreshold);
+
+    if (metrics.futileCount >= futileThreshold && record.resultCount === 0) {
+      return this.buildLoopDetectionResult('futile_repeat', metrics.futileCount, normalizedIntent, true);
+    }
+    if (metrics.exactCount >= exactThreshold) {
+      return this.buildLoopDetectionResult('identical_query', metrics.exactCount, normalizedIntent, false);
+    }
+    if (metrics.semanticCount >= semanticThreshold) {
+      return this.buildLoopDetectionResult('semantic_repeat', metrics.semanticCount, normalizedIntent, false);
+    }
+    return undefined;
+  }
+
+  private buildLoopDetectionResult(
+    pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat',
+    occurrences: number,
+    normalizedIntent: string,
+    humanReviewSuggested: boolean
+  ): LoopDetectionResult {
+    const windowSeconds = Math.max(1, this.config.loopDetection.windowSeconds);
+    const strategyTopic = normalizedIntent.split(/\s+/).slice(0, 6).join(' ');
+    const patternMessage = pattern === 'futile_repeat'
+      ? 'This query has repeatedly returned no useful results.'
+      : 'This query pattern has repeated in the current session.';
+
+    return {
+      detected: true,
+      pattern,
+      occurrences,
+      windowSeconds,
+      message: `${patternMessage} Seen ${occurrences} times in the last ${windowSeconds} seconds. Consider rephrasing, broadening scope, or switching tools.`,
+      alternativeStrategies: [
+        {
+          tool: 'query',
+          topic: strategyTopic || 'broader architecture context',
+          rationale: 'Try a broader intent phrase or omit specific identifiers to widen retrieval coverage.',
+        },
+        {
+          tool: 'get_context_pack_bundle',
+          rationale: 'Bundle context around related entities to inspect connected implementation details.',
+        },
+        {
+          tool: 'status',
+          rationale: 'Verify index freshness before retrying if results appear unexpectedly empty.',
+        },
+      ],
+      humanReviewSuggested,
+    };
+  }
+
+  private normalizeLoopIntent(intent: string): string {
+    return intent
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private toSemanticHashSource(normalizedIntent: string): string {
+    const tokens = normalizedIntent
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    const uniqueSorted = Array.from(new Set(tokens)).sort();
+    return uniqueSorted.join(' ');
+  }
+
+  private hashLoopValue(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  private computeSemanticQuerySimilarity(a: string, b: string): number {
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    const aTokens = new Set(a.split(' ').filter(Boolean));
+    const bTokens = new Set(b.split(' ').filter(Boolean));
+    const intersection = Array.from(aTokens).filter((token) => bTokens.has(token)).length;
+    const union = new Set([...aTokens, ...bTokens]).size;
+    if (union === 0) return 0;
+    return intersection / union;
+  }
+
+  private classifyConfidenceTier(confidence: number): 'low' | 'uncertain' | 'strong' {
+    if (confidence <= LOW_CONFIDENCE_THRESHOLD) return 'low';
+    if (confidence <= UNCERTAIN_CONFIDENCE_THRESHOLD) return 'uncertain';
+    return 'strong';
+  }
+
+  private isSecuritySensitiveIntent(intent: string): boolean {
+    return /\b(auth|token|crypto|secret|password|permission|access|delete|drop|rm)\b/i.test(intent);
+  }
+
+  private isWriteIntent(input: QueryToolInput): boolean {
+    if (input.intentType === 'refactor' || input.intentType === 'impact') return true;
+    return /\b(write|modify|edit|delete|remove|refactor|rename|migrate|update|create)\b/i.test(input.intent);
+  }
+
+  private isWorkspaceStaleForHumanReview(workspace: WorkspaceState): boolean {
+    if (workspace.indexState === 'stale') return true;
+    if (!workspace.indexedAt) return false;
+    const staleMinutes = this.config.humanReview?.staleIndexThresholdMinutes
+      ?? DEFAULT_MCP_SERVER_CONFIG.humanReview.staleIndexThresholdMinutes;
+    const thresholdMs = Math.max(1, staleMinutes) * 60_000;
+    const indexedAtMs = Date.parse(workspace.indexedAt);
+    if (!Number.isFinite(indexedAtMs)) return false;
+    return (Date.now() - indexedAtMs) > thresholdMs;
+  }
+
+  private buildHumanReviewRecommendation(input: {
+    workspace: WorkspaceState;
+    queryInput: QueryToolInput;
+    packs: Array<{ confidence?: number }>;
+    totalConfidence: number;
+    loopDetection?: LoopDetectionResult;
+  }): {
+    recommended: boolean;
+    tool: 'request_human_review';
+    reason: string;
+    confidenceTier: 'low' | 'uncertain';
+    riskLevel: 'low' | 'medium' | 'high';
+    blockingSuggested: boolean;
+  } | undefined {
+    const reasons: string[] = [];
+    let riskLevel: 'low' | 'medium' | 'high' = 'low';
+    let blockingSuggested = false;
+    let tier: 'low' | 'uncertain' | undefined;
+
+    const perPackConfidences = input.packs
+      .map((pack) => pack.confidence)
+      .filter((value): value is number => typeof value === 'number');
+    const allUncertainPacks = perPackConfidences.length > 0
+      && perPackConfidences.every((value) => this.classifyConfidenceTier(value) === 'uncertain');
+    const overallTier = this.classifyConfidenceTier(input.totalConfidence);
+
+    if (overallTier === 'low') {
+      tier = 'low';
+      reasons.push('Overall retrieval confidence is low.');
+      riskLevel = 'medium';
+      blockingSuggested = true;
+    } else if (overallTier === 'uncertain') {
+      tier = 'uncertain';
+    }
+
+    if (allUncertainPacks) {
+      tier = tier ?? 'uncertain';
+      reasons.push('All retrieved packs are in the uncertain confidence band.');
+      riskLevel = riskLevel === 'low' ? 'medium' : riskLevel;
+    }
+
+    if ((input.loopDetection?.occurrences ?? 0) >= 3) {
+      reasons.push(`Loop detection fired ${input.loopDetection?.occurrences} times in this session.`);
+      riskLevel = 'high';
+      blockingSuggested = true;
+      tier = tier ?? 'uncertain';
+    }
+
+    if (this.isSecuritySensitiveIntent(input.queryInput.intent) && overallTier !== 'strong') {
+      reasons.push('Intent appears security-sensitive while confidence is below strong.');
+      riskLevel = 'high';
+      blockingSuggested = true;
+      tier = tier ?? 'uncertain';
+    }
+
+    if (this.isWorkspaceStaleForHumanReview(input.workspace) && this.isWriteIntent(input.queryInput)) {
+      reasons.push('Workspace index appears stale for a write-oriented intent.');
+      riskLevel = 'high';
+      blockingSuggested = true;
+      tier = tier ?? 'uncertain';
+    }
+
+    if (reasons.length === 0 || !tier) return undefined;
+
+    return {
+      recommended: true,
+      tool: 'request_human_review',
+      reason: reasons.join(' '),
+      confidenceTier: tier,
+      riskLevel,
+      blockingSuggested,
+    };
+  }
+
+  private paginateItems<T>(items: T[], options: PaginationOptions = {}): { items: T[]; pagination: PaginationMetadata } {
+    const rawPageSize = options.pageSize ?? options.limit ?? DEFAULT_PAGE_SIZE;
+    const pageSize = Number.isFinite(rawPageSize)
+      ? Math.max(1, Math.min(MAX_PAGE_SIZE, Math.trunc(rawPageSize as number)))
+      : DEFAULT_PAGE_SIZE;
+
+    const rawPageIdx = options.pageIdx ?? 0;
+    const pageIdx = Number.isFinite(rawPageIdx)
+      ? Math.max(0, Math.trunc(rawPageIdx as number))
+      : 0;
+
+    const totalItems = items.length;
+    const pageCount = totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize);
+    const start = pageIdx * pageSize;
+    const end = Math.min(start + pageSize, totalItems);
+    const pageItems = start >= totalItems ? [] : items.slice(start, end);
+
+    const showingFrom = pageItems.length === 0 ? 0 : start + 1;
+    const showingTo = pageItems.length === 0 ? 0 : start + pageItems.length;
+    const hasNextPage = end < totalItems;
+    const hasPreviousPage = pageIdx > 0 && totalItems > 0;
+    const nextPageIdx = hasNextPage ? pageIdx + 1 : undefined;
+    const previousPageIdx = hasPreviousPage ? pageIdx - 1 : undefined;
+    const showing = `Showing ${showingFrom}-${showingTo} of ${totalItems}. Next: ${nextPageIdx !== undefined ? `pageIdx=${nextPageIdx}` : 'none'}. Total pages: ${pageCount}.`;
+
+    return {
+      items: pageItems,
+      pagination: {
+        pageSize,
+        pageIdx,
+        totalItems,
+        pageCount,
+        hasNextPage,
+        hasPreviousPage,
+        nextPageIdx,
+        previousPageIdx,
+        showingFrom,
+        showingTo,
+        showing,
+      },
+    };
+  }
+
+  private async writeOutputReference(
+    outputFile: string,
+    payload: unknown,
+    pagination: PaginationMetadata,
+    workspacePath?: string
+  ): Promise<{
+    filePath: string;
+    summary: string;
+    totalItems: number;
+    pageCount: number;
+    pageSize: number;
+    pageIdx: number;
+    pagination: PaginationMetadata;
+  }> {
+    const basePath = workspacePath ? path.resolve(workspacePath) : process.cwd();
+    const outputPath = path.isAbsolute(outputFile)
+      ? path.resolve(outputFile)
+      : path.resolve(basePath, outputFile);
+
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(outputPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
+
+    return {
+      filePath: outputPath,
+      summary: pagination.showing,
+      totalItems: pagination.totalItems,
+      pageCount: pagination.pageCount,
+      pageSize: pagination.pageSize,
+      pageIdx: pagination.pageIdx,
+      pagination,
+    };
+  }
+
+  private buildConstructionResultEnvelope<T>(params: {
+    output: T;
+    schemaName: string;
+    runId: string;
+    durationMs: number;
+    meta: {
+      constructionId: string;
+      workspace?: string;
+      intent?: string;
+      compositionId?: string;
+    };
+    evidence?: string[];
+    trivialResult?: boolean;
+  }): ConstructionResultEnvelope<T> {
+    const tokensUsed = Math.round(JSON.stringify(params.output).length / 4);
+    return {
+      success: true,
+      output: params.output,
+      schema: params.schemaName,
+      evidence: params.evidence ?? [],
+      runId: params.runId,
+      tokensUsed,
+      durationMs: params.durationMs,
+      trivialResult: params.trivialResult ?? false,
+      meta: {
+        constructionId: params.meta.constructionId,
+        schemaName: params.schemaName,
+        workspace: params.meta.workspace,
+        intent: params.meta.intent,
+        compositionId: params.meta.compositionId,
+      },
+    };
+  }
+
+  private validateConstructionOutputOrError<T>(
+    constructionId: string,
+    schemaName: string,
+    schema: z.ZodType<T>,
+    output: unknown
+  ): { ok: true; data: T } | { ok: false; error: string } {
+    const validation = validateConstructionOutput(schema, output);
+    if (validation.valid) {
+      return { ok: true, data: validation.data };
+    }
+    const error = new Error(`${validation.message}: ${validation.issues.join('; ')}`);
+    console.error('[mcp] Construction output schema validation failed', {
+      constructionId,
+      schema: schemaName,
+      issues: validation.issues,
+      stack: error.stack,
+    });
+    return {
+      ok: false,
+      error: `schema_validation_failed(${constructionId}): ${validation.issues.join('; ')}`,
+    };
+  }
+
   /**
    * Execute a specific tool.
    */
-  private async executeTool(name: string, args: unknown): Promise<unknown> {
+  private async executeTool(name: string, args: unknown, context: ToolExecutionContext = {}): Promise<unknown> {
     switch (name) {
       case 'bootstrap':
-        return this.executeBootstrap(args as BootstrapToolInput);
+        return this.executeBootstrapDeduped(args as BootstrapToolInput);
       case 'status':
         return this.executeStatus(args as StatusToolInput);
       case 'system_contract':
@@ -856,11 +2002,21 @@ export class LibrarianMCPServer {
       case 'compile_intent_bundles':
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'query':
-        return this.executeQuery(args as QueryToolInput);
+        return this.executeQuery(args as QueryToolInput, context);
+      case 'reset_session_state':
+        return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
+      case 'request_human_review':
+        return this.executeRequestHumanReview(args as RequestHumanReviewToolInput);
+      case 'get_change_impact':
+        return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
+      case 'submit_feedback':
+        return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'verify_claim':
         return this.executeVerifyClaim(args as VerifyClaimToolInput);
       case 'run_audit':
         return this.executeRunAudit(args as RunAuditToolInput);
+      case 'list_runs':
+        return this.executeListRuns(args as ListRunsToolInput);
       case 'diff_runs':
         return this.executeDiffRuns(args as DiffRunsToolInput);
       case 'export_index':
@@ -959,6 +2115,134 @@ export class LibrarianMCPServer {
     return storage;
   }
 
+  private getWorkspaceSearchOrder(preferredWorkspace?: string): string[] {
+    const candidates: string[] = [];
+    if (preferredWorkspace && preferredWorkspace.trim().length > 0) {
+      candidates.push(path.resolve(preferredWorkspace));
+    }
+    for (const workspace of this.state.workspaces.keys()) {
+      candidates.push(path.resolve(workspace));
+    }
+    for (const workspace of this.config.workspaces ?? []) {
+      if (typeof workspace === 'string' && workspace.trim().length > 0) {
+        candidates.push(path.resolve(workspace));
+      }
+    }
+
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      deduped.push(candidate);
+    }
+    return deduped;
+  }
+
+  private normalizeBootstrapRunHistory(raw: unknown): BootstrapRunRecord[] {
+    const toFinite = (value: unknown, fallback = 0): number => {
+      const num = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(num) ? num : fallback;
+    };
+    let candidateRuns: unknown[] = [];
+    if (Array.isArray(raw)) {
+      candidateRuns = raw;
+    } else if (raw && typeof raw === 'object' && Array.isArray((raw as { runs?: unknown[] }).runs)) {
+      candidateRuns = (raw as { runs: unknown[] }).runs;
+    }
+
+    const runs: BootstrapRunRecord[] = [];
+    for (const value of candidateRuns) {
+      if (!value || typeof value !== 'object') continue;
+      const record = value as Record<string, unknown>;
+      const runId = typeof record.runId === 'string' ? record.runId : '';
+      const workspace = typeof record.workspace === 'string' ? record.workspace : '';
+      const startedAt = typeof record.startedAt === 'string' ? record.startedAt : '';
+      if (!runId || !workspace || !startedAt) continue;
+      const startedAtMs = Date.parse(startedAt);
+      if (!Number.isFinite(startedAtMs)) continue;
+      const rawCompletedAt = typeof record.completedAt === 'string' ? record.completedAt : undefined;
+      const completedAt = rawCompletedAt && Number.isFinite(Date.parse(rawCompletedAt)) ? rawCompletedAt : undefined;
+      const statsRaw = record.stats;
+      const statsObj = statsRaw && typeof statsRaw === 'object'
+        ? (statsRaw as Record<string, unknown>)
+        : {};
+      runs.push({
+        runId,
+        workspace: path.resolve(workspace),
+        startedAt,
+        completedAt,
+        success: record.success === true,
+        durationMs: Math.max(0, toFinite(record.durationMs, 0)),
+        stats: {
+          filesProcessed: Math.max(0, toFinite(statsObj.filesProcessed, 0)),
+          functionsIndexed: Math.max(0, toFinite(statsObj.functionsIndexed, 0)),
+          contextPacksCreated: Math.max(0, toFinite(statsObj.contextPacksCreated, 0)),
+          averageConfidence: toFinite(statsObj.averageConfidence, 0),
+        },
+        error: typeof record.error === 'string' ? record.error : undefined,
+      });
+    }
+
+    runs.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+    return runs;
+  }
+
+  private async getBootstrapRunHistory(storage: LibrarianStorage): Promise<BootstrapRunRecord[]> {
+    const raw = await storage.getState(BOOTSTRAP_RUN_HISTORY_STATE_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return this.normalizeBootstrapRunHistory(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  private async setBootstrapRunHistory(storage: LibrarianStorage, runs: BootstrapRunRecord[]): Promise<void> {
+    const payload = {
+      schemaVersion: BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION,
+      runs: runs.slice(0, MAX_PERSISTED_BOOTSTRAP_RUNS),
+    };
+    await storage.setState(BOOTSTRAP_RUN_HISTORY_STATE_KEY, JSON.stringify(payload));
+  }
+
+  private async persistBootstrapRunRecord(
+    workspacePath: string,
+    record: BootstrapRunRecord,
+    storageHint?: LibrarianStorage
+  ): Promise<void> {
+    let storage = storageHint;
+    if (!storage) {
+      try {
+        storage = await this.getOrCreateStorage(workspacePath);
+      } catch {
+        return;
+      }
+    }
+
+    const history = await this.getBootstrapRunHistory(storage);
+    const merged = [record, ...history.filter((entry) => entry.runId !== record.runId)];
+    await this.setBootstrapRunHistory(storage, merged);
+  }
+
+  private async findBootstrapRunRecord(
+    runId: string,
+    preferredWorkspace?: string
+  ): Promise<BootstrapRunRecord | null> {
+    for (const workspacePath of this.getWorkspaceSearchOrder(preferredWorkspace)) {
+      try {
+        const storage = await this.getOrCreateStorage(workspacePath);
+        const history = await this.getBootstrapRunHistory(storage);
+        const match = history.find((entry) => entry.runId === runId);
+        if (match) return match;
+      } catch {
+        // Ignore inaccessible/uninitialized workspaces while searching.
+      }
+    }
+    return null;
+  }
+
   private async executeBootstrap(input: BootstrapToolInput): Promise<unknown> {
     const startTime = Date.now();
     const runId = this.generateId();
@@ -1021,6 +2305,7 @@ export class LibrarianMCPServer {
       // Get status after bootstrap
       const status = await librarian.getStatus();
       const storage = librarian.getStorage() ?? undefined;
+      const storageStats = storage ? await storage.getStats().catch(() => null) : null;
 
       // Validate autoWatch is actually running if enabled
       const actuallyWatching = librarian.isWatching();
@@ -1040,11 +2325,29 @@ export class LibrarianMCPServer {
         watching: actuallyWatching,
       });
 
+      const completedAt = new Date();
+      const durationMs = Math.max(0, completedAt.getTime() - startTime);
+      const runRecord: BootstrapRunRecord = {
+        runId,
+        workspace: workspacePath,
+        startedAt: new Date(startTime).toISOString(),
+        completedAt: completedAt.toISOString(),
+        success: status.bootstrapped,
+        durationMs,
+        stats: {
+          filesProcessed: status.stats.totalModules,
+          functionsIndexed: status.stats.totalFunctions,
+          contextPacksCreated: status.stats.totalContextPacks,
+          averageConfidence: storageStats?.averageConfidence ?? 0,
+        },
+      };
+      await this.persistBootstrapRunRecord(workspacePath, runRecord, storage ?? undefined);
+
       return {
         success: status.bootstrapped,
         runId,
         workspace: workspacePath,
-        durationMs: Date.now() - startTime,
+        durationMs,
         stats: {
           filesProcessed: status.stats.totalModules,
           functionsIndexed: status.stats.totalFunctions,
@@ -1058,11 +2361,31 @@ export class LibrarianMCPServer {
         },
       };
     } catch (error) {
+      const workspacePath = typeof input.workspace === 'string' ? path.resolve(input.workspace) : undefined;
+      const completedAt = new Date();
+      const durationMs = Math.max(0, completedAt.getTime() - startTime);
+      if (workspacePath) {
+        await this.persistBootstrapRunRecord(workspacePath, {
+          runId,
+          workspace: workspacePath,
+          startedAt: new Date(startTime).toISOString(),
+          completedAt: completedAt.toISOString(),
+          success: false,
+          durationMs,
+          stats: {
+            filesProcessed: 0,
+            functionsIndexed: 0,
+            contextPacksCreated: 0,
+            averageConfidence: 0,
+          },
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       return {
         success: false,
         runId,
         workspace: input.workspace,
-        durationMs: Date.now() - startTime,
+        durationMs,
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -1251,7 +2574,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListVerificationPlans(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListVerificationPlans(input: ListVerificationPlansToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1280,15 +2603,37 @@ export class LibrarianMCPServer {
       }
 
       const plans = await workspace.librarian.listVerificationPlans();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmedPlans = limit ? plans.slice(0, limit) : plans;
+      const { items: pagedPlans, pagination } = this.paginateItems(plans, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            plans: pagedPlans,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        plans: trimmedPlans,
+        plans: pagedPlans,
         total: plans.length,
-        limited: limit ? trimmedPlans.length : undefined,
+        limited: input.limit ? pagedPlans.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1298,7 +2643,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListEpisodes(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListEpisodes(input: ListEpisodesToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1327,15 +2672,37 @@ export class LibrarianMCPServer {
       }
 
       const episodes = await workspace.librarian.listEpisodes();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmedEpisodes = limit ? episodes.slice(0, limit) : episodes;
+      const { items: pagedEpisodes, pagination } = this.paginateItems(episodes, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            episodes: pagedEpisodes,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        episodes: trimmedEpisodes,
+        episodes: pagedEpisodes,
         total: episodes.length,
-        limited: limit ? trimmedEpisodes.length : undefined,
+        limited: input.limit ? pagedEpisodes.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1345,7 +2712,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListTechniquePrimitives(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListTechniquePrimitives(input: ListTechniquePrimitivesToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1374,15 +2741,37 @@ export class LibrarianMCPServer {
       }
 
       const primitives = await workspace.librarian.listTechniquePrimitives();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmed = limit ? primitives.slice(0, limit) : primitives;
+      const { items: pagedPrimitives, pagination } = this.paginateItems(primitives, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            primitives: pagedPrimitives,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        primitives: trimmed,
+        primitives: pagedPrimitives,
         total: primitives.length,
-        limited: limit ? trimmed.length : undefined,
+        limited: input.limit ? pagedPrimitives.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1392,7 +2781,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListTechniqueCompositions(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListTechniqueCompositions(input: ListTechniqueCompositionsToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1421,15 +2810,37 @@ export class LibrarianMCPServer {
       }
 
       const compositions = await workspace.librarian.listTechniqueCompositions();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmed = limit ? compositions.slice(0, limit) : compositions;
+      const { items: pagedCompositions, pagination } = this.paginateItems(compositions, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            compositions: pagedCompositions,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        compositions: trimmed,
+        compositions: pagedCompositions,
         total: compositions.length,
-        limited: limit ? trimmed.length : undefined,
+        limited: input.limit ? pagedCompositions.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1440,8 +2851,10 @@ export class LibrarianMCPServer {
   }
 
   private async executeSelectTechniqueCompositions(
-    input: { intent: string; workspace?: string; limit?: number }
+    input: SelectTechniqueCompositionsToolInput
   ): Promise<unknown> {
+    const startTime = Date.now();
+    const runId = this.generateId();
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1473,14 +2886,45 @@ export class LibrarianMCPServer {
       const selections = selectTechniqueCompositions(input.intent, compositions);
       const limit = input.limit && input.limit > 0 ? input.limit : undefined;
       const trimmed = limit ? selections.slice(0, limit) : selections;
-
-      return {
-        success: true,
-        workspace: workspacePath,
+      const output = {
         intent: input.intent,
         compositions: trimmed,
         total: selections.length,
         limited: limit ? trimmed.length : undefined,
+      };
+      const validated = this.validateConstructionOutputOrError(
+        'select_technique_compositions',
+        'SelectTechniqueCompositionsOutputSchema',
+        SelectTechniqueCompositionsOutputSchema,
+        output
+      );
+      if (!validated.ok) {
+        return {
+          success: false,
+          error: validated.error,
+          workspace: workspacePath,
+          runId,
+        };
+      }
+      const constructionResult = this.buildConstructionResultEnvelope({
+        output: validated.data,
+        schemaName: 'SelectTechniqueCompositionsOutputSchema',
+        runId,
+        durationMs: Date.now() - startTime,
+        trivialResult: trimmed.length <= 1,
+        meta: {
+          constructionId: 'select_technique_compositions',
+          workspace: workspacePath,
+          intent: input.intent,
+        },
+      });
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        ...validated.data,
+        runId,
+        constructionResult,
       };
     } catch (error) {
       return {
@@ -1491,8 +2935,10 @@ export class LibrarianMCPServer {
   }
 
   private async executeCompileTechniqueComposition(
-    input: { compositionId: string; workspace?: string; includePrimitives?: boolean }
+    input: CompileTechniqueCompositionToolInput
   ): Promise<unknown> {
+    const startTime = Date.now();
+    const runId = this.generateId();
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1539,14 +2985,46 @@ export class LibrarianMCPServer {
             error: `Unknown technique composition: ${input.compositionId}`,
           };
         }
-
-        return {
-          success: true,
-          workspace: workspacePath,
+        const output = {
           compositionId: input.compositionId,
           template: bundle.template,
           primitives: bundle.primitives,
           missingPrimitiveIds: bundle.missingPrimitiveIds,
+        };
+        const validated = this.validateConstructionOutputOrError(
+          'compile_technique_composition',
+          'CompileTechniqueCompositionOutputSchema',
+          CompileTechniqueCompositionOutputSchema,
+          output
+        );
+        if (!validated.ok) {
+          return {
+            success: false,
+            error: validated.error,
+            workspace: workspacePath,
+            runId,
+            compositionId: input.compositionId,
+          };
+        }
+        const constructionResult = this.buildConstructionResultEnvelope({
+          output: validated.data,
+          schemaName: 'CompileTechniqueCompositionOutputSchema',
+          runId,
+          durationMs: Date.now() - startTime,
+          trivialResult: bundle.primitives.length <= 1,
+          meta: {
+            constructionId: 'compile_technique_composition',
+            workspace: workspacePath,
+            compositionId: input.compositionId,
+          },
+        });
+
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...validated.data,
+          runId,
+          constructionResult,
         };
       }
 
@@ -1561,13 +3039,45 @@ export class LibrarianMCPServer {
           error: `Unknown technique composition: ${input.compositionId}`,
         };
       }
+      const output = {
+        compositionId: input.compositionId,
+        template: result.template,
+        missingPrimitiveIds: result.missingPrimitiveIds,
+      };
+      const validated = this.validateConstructionOutputOrError(
+        'compile_technique_composition',
+        'CompileTechniqueCompositionOutputSchema',
+        CompileTechniqueCompositionOutputSchema,
+        output
+      );
+      if (!validated.ok) {
+        return {
+          success: false,
+          error: validated.error,
+          workspace: workspacePath,
+          runId,
+          compositionId: input.compositionId,
+        };
+      }
+      const constructionResult = this.buildConstructionResultEnvelope({
+        output: validated.data,
+        schemaName: 'CompileTechniqueCompositionOutputSchema',
+        runId,
+        durationMs: Date.now() - startTime,
+        trivialResult: result.missingPrimitiveIds.length === 0,
+        meta: {
+          constructionId: 'compile_technique_composition',
+          workspace: workspacePath,
+          compositionId: input.compositionId,
+        },
+      });
 
       return {
         success: true,
         workspace: workspacePath,
-        compositionId: input.compositionId,
-        template: result.template,
-        missingPrimitiveIds: result.missingPrimitiveIds,
+        ...validated.data,
+        runId,
+        constructionResult,
       };
     } catch (error) {
       return {
@@ -1578,8 +3088,10 @@ export class LibrarianMCPServer {
   }
 
   private async executeCompileIntentBundles(
-    input: { intent: string; workspace?: string; limit?: number; includePrimitives?: boolean }
+    input: CompileIntentBundlesToolInput
   ): Promise<unknown> {
+    const startTime = Date.now();
+    const runId = this.generateId();
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1621,14 +3133,46 @@ export class LibrarianMCPServer {
       const trimmedBundles = input.includePrimitives === false
         ? trimmed.map(({ template, missingPrimitiveIds }) => ({ template, missingPrimitiveIds }))
         : trimmed;
-
-      return {
-        success: true,
-        workspace: workspacePath,
+      const output = {
         intent: input.intent,
         bundles: trimmedBundles,
         total: bundles.length,
         limited: limit ? trimmedBundles.length : undefined,
+      };
+      const validated = this.validateConstructionOutputOrError(
+        'compile_intent_bundles',
+        'CompileIntentBundlesOutputSchema',
+        CompileIntentBundlesOutputSchema,
+        output
+      );
+      if (!validated.ok) {
+        return {
+          success: false,
+          error: validated.error,
+          workspace: workspacePath,
+          runId,
+          intent: input.intent,
+        };
+      }
+      const constructionResult = this.buildConstructionResultEnvelope({
+        output: validated.data,
+        schemaName: 'CompileIntentBundlesOutputSchema',
+        runId,
+        durationMs: Date.now() - startTime,
+        trivialResult: trimmedBundles.length <= 1,
+        meta: {
+          constructionId: 'compile_intent_bundles',
+          workspace: workspacePath,
+          intent: input.intent,
+        },
+      });
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        ...validated.data,
+        runId,
+        constructionResult,
       };
     } catch (error) {
       return {
@@ -1638,7 +3182,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeQuery(input: QueryToolInput): Promise<unknown> {
+  private async executeQuery(input: QueryToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
     try {
       // Find workspace - use specified or find first ready
       let workspace: WorkspaceState | undefined;
@@ -1646,54 +3190,85 @@ export class LibrarianMCPServer {
         const resolvedPath = path.resolve(input.workspace);
         workspace = this.state.workspaces.get(resolvedPath);
         if (!workspace) {
+          const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([
+            `unverified_by_trace(workspace_unavailable): ${input.workspace ?? 'unknown workspace'}`,
+          ]);
           return {
             packs: [],
             totalConfidence: 0,
+            retrievalStatus: 'insufficient',
+            retrievalEntropy: 0,
+            retrievalInsufficient: true,
+            suggestedClarifyingQuestions: [],
             error: `Specified workspace not registered: ${input.workspace}. Available: ${Array.from(this.state.workspaces.keys()).join(', ') || 'none'}`,
             intent: input.intent,
-            disclosures: [
-              `unverified_by_trace(workspace_unavailable): ${input.workspace ?? 'unknown workspace'}`,
-            ],
+            disclosures: userDisclosures,
+            fix: buildQueryFixCommands('workspace_unavailable', input.workspace),
             adequacy: undefined,
             verificationPlan: undefined,
-            traceId: 'unverified_by_trace(replay_unavailable)',
+            traceId: 'replay_unavailable',
             constructionPlan: undefined,
+            epistemicsDebug,
           };
         }
         if (workspace.indexState !== 'ready') {
+          const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([
+            `unverified_by_trace(bootstrap_required): Workspace not ready (${workspace.indexState}).`,
+          ]);
           return {
             packs: [],
             totalConfidence: 0,
+            retrievalStatus: 'insufficient',
+            retrievalEntropy: 0,
+            retrievalInsufficient: true,
+            suggestedClarifyingQuestions: [],
             error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
             intent: input.intent,
             workspace: resolvedPath,
-            disclosures: [
-              `unverified_by_trace(bootstrap_required): Workspace not ready (${workspace.indexState}).`,
-            ],
+            disclosures: userDisclosures,
+            fix: buildQueryFixCommands('bootstrap_required', input.workspace),
             adequacy: undefined,
             verificationPlan: undefined,
-            traceId: 'unverified_by_trace(replay_unavailable)',
+            traceId: 'replay_unavailable',
             constructionPlan: undefined,
+            epistemicsDebug,
           };
         }
       } else {
         workspace = this.findReadyWorkspace();
         if (!workspace) {
+          const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([
+            'unverified_by_trace(bootstrap_required): No indexed workspace available.',
+          ]);
           return {
             packs: [],
             totalConfidence: 0,
+            retrievalStatus: 'insufficient',
+            retrievalEntropy: 0,
+            retrievalInsufficient: true,
+            suggestedClarifyingQuestions: [],
             error: 'No indexed workspace available. Run bootstrap first.',
             intent: input.intent,
-            disclosures: ['unverified_by_trace(bootstrap_required): No indexed workspace available.'],
+            disclosures: userDisclosures,
+            fix: buildQueryFixCommands('bootstrap_required', input.workspace),
             adequacy: undefined,
             verificationPlan: undefined,
-            traceId: 'unverified_by_trace(replay_unavailable)',
+            traceId: 'replay_unavailable',
             constructionPlan: undefined,
+            epistemicsDebug,
           };
         }
       }
 
       const storage = await this.getOrCreateStorage(workspace.path);
+      const sessionState = this.resolveQuerySessionState({
+        workspacePath: workspace.path,
+        input,
+        context,
+      });
+      const preLoopMetrics = sessionState
+        ? this.collectLoopMetrics(sessionState.queryHistory, input.intent, workspace.path)
+        : null;
 
       // Build query object
       const query = {
@@ -1703,6 +3278,9 @@ export class LibrarianMCPServer {
         minConfidence: input.minConfidence,
         depth: (input.depth as 'L0' | 'L1' | 'L2' | 'L3') ?? 'L1',
       };
+      if (sessionState && preLoopMetrics && this.config.loopDetection.autoEscalateStrategy) {
+        this.applyFutileRepeatEscalation(query, preLoopMetrics.futileCount);
+      }
 
       // Execute query
       const response = await queryLibrarian(
@@ -1716,41 +3294,271 @@ export class LibrarianMCPServer {
         }
       );
 
-      // Transform response for MCP
-      return {
-        packs: response.packs.map((pack) => ({
-          packId: pack.packId,
-          packType: pack.packType,
-          targetId: pack.targetId,
-          summary: pack.summary,
-          keyFacts: pack.keyFacts,
-          relatedFiles: pack.relatedFiles,
-          confidence: pack.confidence,
-        })),
-        disclosures: response.disclosures,
+      const transformedPacks = response.packs.map((pack) => ({
+        packId: pack.packId,
+        packType: pack.packType,
+        targetId: pack.targetId,
+        summary: pack.summary,
+        keyFacts: pack.keyFacts,
+        relatedFiles: pack.relatedFiles,
+        confidence: pack.confidence,
+      }));
+      const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
+      const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
+      const retrievalEntropy = response.retrievalEntropy
+        ?? computeRetrievalEntropy(response.packs.map((pack) => ({ confidence: pack.confidence ?? 0 })));
+      const retrievalStatus = response.retrievalStatus
+        ?? categorizeRetrievalStatus({
+          totalConfidence: response.totalConfidence,
+          packCount: response.packs.length,
+        });
+      const retrievalInsufficient = response.retrievalInsufficient ?? retrievalStatus === 'insufficient';
+
+      const baseResult = {
+        disclosures: userDisclosures,
         adequacy: response.adequacy,
         verificationPlan: response.verificationPlan,
-        traceId: response.traceId,
+        traceId: sanitizeTraceId(response.traceId) ?? 'replay_unavailable',
         constructionPlan: response.constructionPlan,
         totalConfidence: response.totalConfidence,
+        retrievalStatus,
+        retrievalEntropy,
+        retrievalInsufficient,
+        suggestedClarifyingQuestions: response.suggestedClarifyingQuestions,
         cacheHit: response.cacheHit,
         latencyMs: response.latencyMs,
         drillDownHints: response.drillDownHints,
         synthesis: response.synthesis,
+        synthesisMode: response.synthesisMode,
+        llmError: response.llmError ? parseEpistemicMessage(response.llmError).userMessage : response.llmError,
         intent: input.intent,
+        pagination,
+        sortOrder: 'retrieval_score_desc',
+        epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
+        loopDetection: sessionState
+          ? this.recordQueryAndBuildLoopDetection({
+            sessionState,
+            workspacePath: workspace.path,
+            intent: input.intent,
+            resultCount: transformedPacks.length,
+          })
+          : undefined,
+      };
+      const humanReviewRecommendation = this.buildHumanReviewRecommendation({
+        workspace,
+        queryInput: input,
+        packs: transformedPacks,
+        totalConfidence: response.totalConfidence,
+        loopDetection: baseResult.loopDetection,
+      });
+      const resultWithHumanReview = {
+        ...baseResult,
+        humanReviewRecommendation,
+      };
+      const baseWithAlias = {
+        ...resultWithHumanReview,
+        loop_detection: resultWithHumanReview.loopDetection,
+        human_review_recommendation: resultWithHumanReview.humanReviewRecommendation,
+      };
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            ...baseWithAlias,
+            packs: pagedPacks,
+          },
+          pagination,
+          workspace.path
+        );
+        return {
+          ...baseWithAlias,
+          ...reference,
+        };
+      }
+
+      // Transform response for MCP
+      return {
+        ...baseWithAlias,
+        packs: pagedPacks,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const parsedError = parseEpistemicMessage(message);
+      const rawDisclosure = message.startsWith('unverified_by_trace')
+        ? message
+        : `unverified_by_trace(query_failed): ${message}`;
+      const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([rawDisclosure]);
       return {
         packs: [],
         totalConfidence: 0,
-        error: message,
+        retrievalStatus: 'insufficient',
+        retrievalEntropy: 0,
+        retrievalInsufficient: true,
+        suggestedClarifyingQuestions: [],
+        error: parsedError.userMessage || 'Query failed.',
         intent: input.intent,
-        disclosures: [message.startsWith('unverified_by_trace') ? message : `unverified_by_trace(query_failed): ${message}`],
+        disclosures: userDisclosures,
+        fix: buildQueryFixCommands(parsedError.code ?? 'query_failed', input.workspace),
         adequacy: undefined,
         verificationPlan: undefined,
-        traceId: 'unverified_by_trace(replay_unavailable)',
+        traceId: 'replay_unavailable',
         constructionPlan: undefined,
+        epistemicsDebug,
+      };
+    }
+  }
+
+  private async executeResetSessionState(
+    input: ResetSessionStateToolInput,
+    context: ToolExecutionContext = {}
+  ): Promise<unknown> {
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const authSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const workspaceHint = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const anonymousFallback = workspaceHint ? this.buildAnonymousSessionId(workspaceHint) : undefined;
+    const sessionId = explicitSessionId ?? authSessionId ?? anonymousFallback;
+
+    if (!sessionId) {
+      return {
+        success: false,
+        sessionId: 'unknown',
+        clearedQueries: 0,
+        message: 'No sessionId provided and no auth session available for reset.',
+      };
+    }
+
+    const state = this.state.sessions.get(sessionId);
+    const clearedQueries = state?.queryHistory.length ?? 0;
+    if (state) {
+      state.queryHistory = [];
+      state.lastActivity = new Date().toISOString();
+      state.requestCount += 1;
+    }
+
+    return {
+      success: true,
+      sessionId,
+      clearedQueries,
+      message: clearedQueries > 0
+        ? `Cleared ${clearedQueries} query history records for session ${sessionId}.`
+        : `No query history records found for session ${sessionId}.`,
+    };
+  }
+
+  private async appendHumanReviewAuditLog(workspaceRoot: string, record: Record<string, unknown>): Promise<void> {
+    const logPath = path.join(workspaceRoot, '.librainian', 'audit-log.jsonl');
+    await fs.mkdir(path.dirname(logPath), { recursive: true });
+    await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  private async executeRequestHumanReview(input: RequestHumanReviewToolInput): Promise<unknown> {
+    const reviewRequestId = `rev_${this.generateId()}`;
+    const workspaceRoot = this.findReadyWorkspace()?.path
+      ?? this.state.workspaces.keys().next().value
+      ?? process.cwd();
+    const timeoutSeconds = Math.max(
+      30,
+      this.config.humanReview?.defaultReviewTimeoutSeconds
+        ?? DEFAULT_MCP_SERVER_CONFIG.humanReview.defaultReviewTimeoutSeconds
+    );
+    const status = input.blocking ? 'pending' : 'advisory';
+    const heading = input.blocking ? 'Agent paused for review' : 'Advisory human review requested';
+    const humanReadableSummary = [
+      `WARNING: ${heading}`,
+      '',
+      `Reason: ${input.reason}`,
+      `Risk: ${input.risk_level}`,
+      `Confidence tier: ${input.confidence_tier}`,
+      '',
+      'Context summary:',
+      input.context_summary,
+      '',
+      `Proposed action: ${input.proposed_action}`,
+      '',
+      'To proceed: reply "proceed". To abort: reply "abort". To rephrase: provide an alternative query.',
+    ].join('\n');
+
+    await this.appendHumanReviewAuditLog(workspaceRoot, {
+      ts: new Date().toISOString(),
+      review_id: reviewRequestId,
+      reason: input.reason,
+      outcome: 'pending',
+      blocking: input.blocking,
+      confidence_tier: input.confidence_tier,
+      risk_level: input.risk_level,
+      proposed_action: input.proposed_action,
+      workspace: workspaceRoot,
+    });
+
+    return {
+      review_request_id: reviewRequestId,
+      status,
+      human_readable_summary: humanReadableSummary,
+      blocking: input.blocking,
+      expires_in_seconds: timeoutSeconds,
+    };
+  }
+
+  private async executeSubmitFeedback(input: SubmitFeedbackToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        workspacePath = this.findReadyWorkspace()?.path
+          ?? this.state.workspaces.keys().next().value
+          ?? this.config.workspaces[0];
+      }
+
+      if (!workspacePath) {
+        return {
+          feedbackToken: input.feedbackToken,
+          outcome: input.outcome,
+          success: false,
+          adjustmentsApplied: 0,
+          error: 'No workspace available. Provide workspace or run bootstrap first.',
+        };
+      }
+
+      const resolvedWorkspace = path.resolve(workspacePath);
+      if (!this.state.workspaces.has(resolvedWorkspace)) {
+        this.registerWorkspace(resolvedWorkspace);
+      }
+
+      const storage = await this.getOrCreateStorage(resolvedWorkspace);
+      const result = await submitQueryFeedback(
+        input.feedbackToken,
+        input.outcome,
+        storage,
+        {
+          agentId: input.agentId,
+          missingContext: input.missingContext,
+          customRatings: input.customRatings,
+        }
+      );
+
+      return {
+        feedbackToken: input.feedbackToken,
+        outcome: input.outcome,
+        success: result.success,
+        adjustmentsApplied: result.adjustmentsApplied,
+        error: result.error,
+        workspace: resolvedWorkspace,
+      };
+    } catch (error) {
+      return {
+        feedbackToken: input.feedbackToken,
+        outcome: input.outcome,
+        success: false,
+        adjustmentsApplied: 0,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -1820,6 +3628,61 @@ export class LibrarianMCPServer {
     }
   }
 
+  private async executeGetChangeImpact(input: GetChangeImpactToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        const first = this.state.workspaces.keys().next();
+        workspacePath = first.done ? undefined : first.value;
+      }
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          error: 'No workspace specified and no workspaces registered',
+          registeredWorkspaces: 0,
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          error: `Workspace not registered: ${workspacePath}`,
+          registeredWorkspaces: this.state.workspaces.size,
+          availableWorkspaces: Array.from(this.state.workspaces.keys()),
+        };
+      }
+
+      const storage = workspace.librarian?.getStorage() ?? workspace.storage;
+      if (!storage) {
+        return {
+          success: false,
+          error: `Workspace storage not initialized: ${workspacePath}`,
+        };
+      }
+
+      const report = await computeChangeImpactReport(storage, {
+        target: input.target,
+        depth: input.depth,
+        maxResults: input.maxResults,
+        changeType: input.changeType,
+      });
+
+      return {
+        workspace: workspacePath,
+        ...report,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   private async executeRunAudit(input: RunAuditToolInput): Promise<unknown> {
     const auditId = this.generateId();
     const startTime = Date.now();
@@ -1878,6 +3741,20 @@ export class LibrarianMCPServer {
               message: 'No context packs generated',
             });
           }
+          const lastIndexing = await storage.getLastIndexingResult();
+          if (lastIndexing?.filesSkipped && lastIndexing.filesSkipped > 0) {
+            const sampleSkipped = lastIndexing.errors
+              .map((error) => error.path)
+              .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0)
+              .slice(0, 3);
+            findings.push({
+              severity: 'warning',
+              category: 'coverage',
+              message: sampleSkipped.length > 0
+                ? `${lastIndexing.filesSkipped} files were skipped during the last indexing run (examples: ${sampleSkipped.join(', ')})`
+                : `${lastIndexing.filesSkipped} files were skipped during the last indexing run`,
+            });
+          }
           break;
         }
         case 'freshness': {
@@ -1894,15 +3771,86 @@ export class LibrarianMCPServer {
               });
             }
           }
+          const lastIndexedAt = metadata?.lastIndexing;
+          if (lastIndexedAt) {
+            const files = await storage.getFiles();
+            const staleFiles: string[] = [];
+            for (const file of files.slice(0, 250)) {
+              const filePath = path.isAbsolute(file.path)
+                ? file.path
+                : path.join(workspace.path, file.path);
+              try {
+                const stat = await fs.stat(filePath);
+                if (stat.mtime > lastIndexedAt) {
+                  staleFiles.push(file.path);
+                }
+              } catch {
+                // Ignore files we cannot stat during freshness checks.
+              }
+              if (staleFiles.length >= 10) break;
+            }
+            if (staleFiles.length > 0) {
+              findings.push({
+                severity: 'warning',
+                category: 'freshness',
+                message: `Detected ${staleFiles.length} files newer than last indexing time (examples: ${staleFiles.slice(0, 5).join(', ')})`,
+              });
+            }
+          }
           break;
         }
         case 'security': {
-          // Security-focused audit
-          findings.push({
-            severity: 'info',
-            category: 'security',
-            message: 'Security audit checks authorization scopes and access patterns',
-          });
+          const packs = await storage.getContextPacks({ limit: 200 });
+          const suspiciousPatterns: Array<{ pattern: RegExp; label: string }> = [
+            { pattern: /\b(api[_-]?key|access[_-]?token|secret|password|private[_-]?key)\b\s*[:=]\s*['"][^'"\s]{12,}/i, label: 'credential_assignment' },
+            { pattern: /\bsk_(?:live|test)_[a-z0-9]{16,}\b/i, label: 'stripe_key' },
+            { pattern: /\bAKIA[0-9A-Z]{16}\b/, label: 'aws_access_key' },
+          ];
+
+          for (const pack of packs) {
+            const content = [pack.summary, ...pack.keyFacts].join('\n');
+            const matchedPattern = suspiciousPatterns.find(({ pattern }) => pattern.test(content));
+            if (!matchedPattern) continue;
+            findings.push({
+              severity: 'warning',
+              category: 'security',
+              message: `Potential hardcoded secret pattern (${matchedPattern.label}) in pack ${pack.packId} for ${pack.targetId}`,
+              file: pack.relatedFiles[0],
+            });
+          }
+
+          const deniedAuthAttempts = this.state.auditLog.filter((entry) => {
+            if (entry.operation !== 'authorization') return false;
+            if (entry.status !== 'denied') return false;
+            const ageMs = Date.now() - new Date(entry.timestamp).getTime();
+            return Number.isFinite(ageMs) && ageMs <= 24 * 60 * 60 * 1000;
+          }).length;
+          if (deniedAuthAttempts > 0) {
+            findings.push({
+              severity: 'info',
+              category: 'security',
+              message: `${deniedAuthAttempts} authorization denials observed in the last 24h`,
+            });
+          }
+
+          const riskyScopes = this.config.authorization.enabledScopes.filter(
+            (scope) => scope === 'admin' || scope === 'network' || scope === 'execute'
+          );
+          if (riskyScopes.length > 0 && !this.config.authorization.requireConsent) {
+            findings.push({
+              severity: 'warning',
+              category: 'security',
+              message: `High-privilege scopes enabled without consent gate: ${riskyScopes.join(', ')}`,
+            });
+          }
+
+          if (findings.length === 0) {
+            findings.push({
+              severity: 'info',
+              category: 'security',
+              message: `No security findings detected across ${packs.length} context packs and recent authorization logs`,
+            });
+          }
           break;
         }
       }
@@ -1931,59 +3879,86 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeDiffRuns(input: DiffRunsToolInput): Promise<unknown> {
+  private async executeListRuns(input: ListRunsToolInput): Promise<unknown> {
     try {
-      // Find workspaces with matching run IDs
-      let workspaceA: WorkspaceState | undefined;
-      let workspaceB: WorkspaceState | undefined;
-
-      for (const [, ws] of this.state.workspaces) {
-        if (ws.lastBootstrapRunId === input.runIdA) workspaceA = ws;
-        if (ws.lastBootstrapRunId === input.runIdB) workspaceB = ws;
-      }
-
-      if (!workspaceA || !workspaceB) {
+      const candidateWorkspaces = this.getWorkspaceSearchOrder(input.workspace);
+      const workspacePath = candidateWorkspaces[0];
+      if (!workspacePath) {
         return {
-          summary: 'One or both runs not found',
-          runIdA: input.runIdA,
-          runIdB: input.runIdB,
-          error: 'Run IDs must match recent bootstrap runs in registered workspaces',
+          success: false,
+          error: 'No workspace specified and no workspaces available',
+          totalRuns: 0,
+          runs: [],
         };
       }
 
-      const storageA = await this.getOrCreateStorage(workspaceA.path);
-      const storageB = await this.getOrCreateStorage(workspaceB.path);
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const runs = await this.getBootstrapRunHistory(storage);
+      const requestedLimit = Number(input.limit ?? DEFAULT_RUN_LIST_LIMIT);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.max(1, Math.min(MAX_RUN_LIST_LIMIT, Math.trunc(requestedLimit)))
+        : DEFAULT_RUN_LIST_LIMIT;
 
-      const statsA = await storageA.getStats();
-      const statsB = await storageB.getStats();
+      return {
+        success: true,
+        workspace: workspacePath,
+        totalRuns: runs.length,
+        runs: runs.slice(0, limit),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        totalRuns: 0,
+        runs: [],
+      };
+    }
+  }
+
+  private async executeDiffRuns(input: DiffRunsToolInput): Promise<unknown> {
+    try {
+      const runA = await this.findBootstrapRunRecord(input.runIdA, input.workspace);
+      const runB = await this.findBootstrapRunRecord(input.runIdB, input.workspace);
+      if (!runA || !runB) {
+        return {
+          summary: 'One or both runs not found',
+          workspace: input.workspace ? path.resolve(input.workspace) : undefined,
+          runIdA: input.runIdA,
+          runIdB: input.runIdB,
+          error: 'Run IDs were not found in persisted bootstrap history. Use list_runs to discover available run IDs.',
+        };
+      }
 
       const diff = {
         functions: {
-          before: statsA.totalFunctions,
-          after: statsB.totalFunctions,
-          delta: statsB.totalFunctions - statsA.totalFunctions,
+          before: runA.stats.functionsIndexed,
+          after: runB.stats.functionsIndexed,
+          delta: runB.stats.functionsIndexed - runA.stats.functionsIndexed,
         },
         modules: {
-          before: statsA.totalModules,
-          after: statsB.totalModules,
-          delta: statsB.totalModules - statsA.totalModules,
+          before: runA.stats.filesProcessed,
+          after: runB.stats.filesProcessed,
+          delta: runB.stats.filesProcessed - runA.stats.filesProcessed,
         },
         contextPacks: {
-          before: statsA.totalContextPacks,
-          after: statsB.totalContextPacks,
-          delta: statsB.totalContextPacks - statsA.totalContextPacks,
+          before: runA.stats.contextPacksCreated,
+          after: runB.stats.contextPacksCreated,
+          delta: runB.stats.contextPacksCreated - runA.stats.contextPacksCreated,
         },
         avgConfidence: {
-          before: statsA.averageConfidence,
-          after: statsB.averageConfidence,
-          delta: statsB.averageConfidence - statsA.averageConfidence,
+          before: runA.stats.averageConfidence,
+          after: runB.stats.averageConfidence,
+          delta: runB.stats.averageConfidence - runA.stats.averageConfidence,
         },
       };
 
       return {
         summary: `Diff between ${input.runIdA} and ${input.runIdB}`,
+        workspace: input.workspace ? path.resolve(input.workspace) : undefined,
         runIdA: input.runIdA,
         runIdB: input.runIdB,
+        runA,
+        runB,
         diff,
         detailed: input.detailed ? diff : undefined,
       };
@@ -2131,36 +4106,71 @@ export class LibrarianMCPServer {
       }
 
       // Apply token budget if specified
-      let truncated = false;
+      let truncatedByTokens = false;
+      let tokenFilteredPacks = bundledPacks;
       if (input.maxTokens) {
         let estimatedTokens = 0;
         const filteredPacks: unknown[] = [];
         for (const pack of bundledPacks) {
-          const packTokens = JSON.stringify(pack).length / 4; // Rough estimate
+          const packTokens = estimateTokens(JSON.stringify(pack));
           if (estimatedTokens + packTokens <= input.maxTokens) {
             filteredPacks.push(pack);
             estimatedTokens += packTokens;
           } else {
-            truncated = true;
+            truncatedByTokens = true;
             break;
           }
         }
+        tokenFilteredPacks = filteredPacks;
+      }
+
+      const { items: pagedPacks, pagination } = this.paginateItems(tokenFilteredPacks, input);
+      const estimatedTokens = Math.round(
+        (pagedPacks as unknown[]).reduce<number>(
+          (sum, pack) => sum + estimateTokens(JSON.stringify(pack)),
+          0
+        )
+      );
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            bundleId,
+            entityIds: input.entityIds,
+            bundleType: input.bundleType ?? 'minimal',
+            packs: pagedPacks,
+            pagination,
+            truncated: truncatedByTokens,
+            truncatedByTokens,
+            estimatedTokens,
+            sortOrder: 'entity_then_pack_type',
+          },
+          pagination,
+          workspace.path
+        );
         return {
           bundleId,
-          packs: filteredPacks,
           entityIds: input.entityIds,
           bundleType: input.bundleType ?? 'minimal',
-          truncated,
-          estimatedTokens: Math.round(estimatedTokens),
+          truncated: truncatedByTokens,
+          truncatedByTokens,
+          estimatedTokens,
+          sortOrder: 'entity_then_pack_type',
+          ...reference,
         };
       }
 
       return {
         bundleId,
-        packs: bundledPacks,
+        packs: pagedPacks,
         entityIds: input.entityIds,
         bundleType: input.bundleType ?? 'minimal',
-        truncated: false,
+        truncated: truncatedByTokens,
+        truncatedByTokens,
+        estimatedTokens,
+        pagination,
+        sortOrder: 'entity_then_pack_type',
       };
     } catch (error) {
       return {
@@ -2604,6 +4614,9 @@ export class LibrarianMCPServer {
    */
   revokeAuthSession(sessionId: string): boolean {
     const result = this.state.authManager.revokeSession(sessionId);
+    if (result) {
+      this.state.sessions.delete(sessionId);
+    }
 
     if (result) {
       this.logAudit({
@@ -2698,9 +4711,10 @@ export async function startStdioServer(
  * Main entry point for CLI invocation.
  */
 export async function main(): Promise<void> {
+  const writeEnabled = process.argv.includes('--write');
   const config: Partial<LibrarianMCPServerConfig> = {
     authorization: {
-      enabledScopes: ['read', 'write'],
+      enabledScopes: writeEnabled ? ['read', 'write'] : ['read'],
       requireConsent: true,
     },
   };

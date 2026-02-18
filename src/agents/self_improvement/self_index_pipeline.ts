@@ -260,7 +260,7 @@ export class SelfIndexPipeline {
     const filesToIndex = files.slice(0, config.maxFiles);
 
     if (this.verbose) {
-      console.log(`[SelfIndexPipeline] Found ${files.length} files, indexing ${filesToIndex.length}`);
+      console.error(`[SelfIndexPipeline] Found ${files.length} files, indexing ${filesToIndex.length}`);
     }
 
     // Phase 2: Indexing
@@ -340,9 +340,9 @@ export class SelfIndexPipeline {
       qualityScore = report.score;
 
       if (this.verbose) {
-        console.log(`[SelfIndexPipeline] Quality score: ${(qualityScore * 100).toFixed(1)}%`);
+        console.error(`[SelfIndexPipeline] Quality score: ${(qualityScore * 100).toFixed(1)}%`);
         for (const issue of report.issues) {
-          console.log(`  Issue: ${issue}`);
+          console.error(`  Issue: ${issue}`);
         }
       }
     }
@@ -625,7 +625,7 @@ export class SelfIndexPipeline {
     await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
 
     if (this.verbose) {
-      console.log(`[SelfIndexPipeline] Index persisted to ${indexPath}`);
+      console.error(`[SelfIndexPipeline] Index persisted to ${indexPath}`);
     }
   }
 

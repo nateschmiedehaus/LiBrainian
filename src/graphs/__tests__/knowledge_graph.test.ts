@@ -23,7 +23,7 @@ import {
   extractSubgraph,
 } from '../knowledge_graph.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, KnowledgeGraphEdge, CloneEntry, DebtMetrics, BlameEntry } from '../../storage/types.js';
+import type { LibrarianStorage, KnowledgeGraphEdge, CloneEntry, DebtMetrics, BlameEntry, GraphEdge } from '../../storage/types.js';
 
 // Helper to create complete DebtMetrics with defaults
 function createDebtMetrics(partial: Partial<DebtMetrics> & Pick<DebtMetrics, 'entityId' | 'entityType' | 'totalDebt' | 'trend'>): DebtMetrics {
@@ -619,6 +619,39 @@ describe('Knowledge Graph', () => {
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
       expect(result.edgesByType).toBeDefined();
       expect(typeof result.nodesDiscovered).toBe('number');
+    });
+
+    it('should preserve class and interface entity types for implements edges', async () => {
+      const graphEdges: GraphEdge[] = [
+        {
+          fromId: 'class:PaymentService',
+          fromType: 'class',
+          toId: 'interface:IPaymentGateway',
+          toType: 'interface',
+          edgeType: 'implements',
+          sourceFile: 'src/payment_service.ts',
+          sourceLine: 8,
+          confidence: 0.95,
+          computedAt: new Date(),
+        },
+      ];
+      await storage.upsertGraphEdges(graphEdges);
+
+      await buildKnowledgeGraph({
+        workspace: testDir,
+        storage,
+        includeClones: false,
+        includeImports: true,
+        includeCalls: true,
+        includeCochange: false,
+        includeAuthorship: false,
+        includeDebt: false,
+      });
+
+      const implementsEdges = await storage.getKnowledgeEdges({ edgeType: 'implements' });
+      expect(implementsEdges).toHaveLength(1);
+      expect(implementsEdges[0].sourceType).toBe('class');
+      expect(implementsEdges[0].targetType).toBe('interface');
     });
   });
 });

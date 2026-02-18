@@ -1,18 +1,67 @@
-import { spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 
 export interface CochangeEdge { fileA: string; fileB: string; changeCount: number; totalChanges: number; strength: number; }
 export interface TemporalGraph { edges: CochangeEdge[]; commitCount: number; fileChangeCounts: Record<string, number>; }
-export interface TemporalGraphOptions { maxCommits?: number; maxFilesPerCommit?: number; }
+export interface TemporalGraphOptions { maxCommits?: number; maxFilesPerCommit?: number; signal?: AbortSignal; }
 
 const DEFAULT_MAX_COMMITS = 200;
 const DEFAULT_MAX_FILES = 50;
+const EMPTY_TEMPORAL_GRAPH: TemporalGraph = { edges: [], commitCount: 0, fileChangeCounts: {} };
 
-export function buildTemporalGraph(workspace: string, options: TemporalGraphOptions = {}): TemporalGraph {
+async function readGitLog(workspace: string, maxCommits: number, signal?: AbortSignal): Promise<string | null> {
+  return await new Promise<string | null>((resolve) => {
+    const child = spawn(
+      'git',
+      ['log', '--name-only', '--pretty=format:%H', '-n', String(maxCommits)],
+      { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+
+    let stdout = '';
+    let settled = false;
+    const finish = (value: string | null): void => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const handleAbort = () => {
+      try {
+        child.kill();
+      } catch {
+        // Ignore process termination failures
+      }
+      finish(null);
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        handleAbort();
+        return;
+      }
+      signal.addEventListener('abort', handleAbort, { once: true });
+    }
+
+    child.stdout?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.on('error', () => finish(null));
+    child.on('close', (code) => {
+      if (signal) signal.removeEventListener('abort', handleAbort);
+      if (code !== 0) {
+        finish(null);
+        return;
+      }
+      finish(stdout);
+    });
+  });
+}
+
+export async function buildTemporalGraph(workspace: string, options: TemporalGraphOptions = {}): Promise<TemporalGraph> {
   const maxCommits = options.maxCommits ?? DEFAULT_MAX_COMMITS;
   const maxFilesPerCommit = options.maxFilesPerCommit ?? DEFAULT_MAX_FILES;
-  const result = spawnSync('git', ['log', '--name-only', '--pretty=format:%H', '-n', String(maxCommits)], { cwd: workspace, encoding: 'utf8' });
-  if (result.status !== 0 || typeof result.stdout !== 'string') return { edges: [], commitCount: 0, fileChangeCounts: {} };
-  const lines = result.stdout.split(/\r?\n/);
+  const stdout = await readGitLog(workspace, maxCommits, options.signal);
+  if (!stdout) return { ...EMPTY_TEMPORAL_GRAPH };
+  const lines = stdout.split(/\r?\n/);
   const commits: string[][] = [];
   let current: string[] = [];
   for (const line of lines) {

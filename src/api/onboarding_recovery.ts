@@ -4,7 +4,11 @@ import * as path from 'node:path';
 import type { LibrarianStorage } from '../storage/types.js';
 import type { AllProviderStatus } from './provider_check.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import { attemptStorageRecovery, isRecoverableStorageError } from '../storage/storage_recovery.js';
+import {
+  attemptStorageRecovery,
+  cleanupWorkspaceLocks,
+  isRecoverableStorageError,
+} from '../storage/storage_recovery.js';
 import { checkAllProviders } from './provider_check.js';
 import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from './bootstrap.js';
 import { planBootstrapRecovery } from '../bootstrap/bootstrap_recovery.js';
@@ -57,6 +61,15 @@ export interface OnboardingStorageRecoveryResult {
   recovered: boolean;
   actions: string[];
   errors: string[];
+  workspaceLocks?: {
+    lockDirs: string[];
+    scannedFiles: number;
+    staleFiles: number;
+    activePidFiles: number;
+    unknownFreshFiles: number;
+    removedFiles: number;
+    errors: string[];
+  };
 }
 
 export interface OnboardingBootstrapResult {
@@ -86,6 +99,7 @@ export interface OnboardingRecoveryOptions {
   allowDegradedEmbeddings?: boolean;
   bootstrapMode?: 'full' | 'fast';
   emitBaseline?: boolean;
+  updateAgentDocs?: boolean;
   forceBootstrap?: boolean;
   storage?: LibrarianStorage;
 }
@@ -101,6 +115,7 @@ export async function runOnboardingRecovery(
     allowDegradedEmbeddings = true,
     bootstrapMode = 'full',
     emitBaseline = false,
+    updateAgentDocs = false,
     forceBootstrap = false,
     storage: providedStorage,
   } = options;
@@ -198,6 +213,41 @@ export async function runOnboardingRecovery(
 
   result.storageRecovery = storageRecovery;
 
+  const workspaceLockCleanup = await cleanupWorkspaceLocks(activeWorkspace).catch((error) => ({
+    lockDirs: [
+      path.join(activeWorkspace, '.librarian', 'locks'),
+      path.join(activeWorkspace, '.librarian', 'swarm', 'locks'),
+    ],
+    scannedFiles: 0,
+    staleFiles: 0,
+    activePidFiles: 0,
+    unknownFreshFiles: 0,
+    stalePaths: [],
+    removedFiles: 0,
+    errors: [String(error)],
+  }));
+  storageRecovery.workspaceLocks = {
+    lockDirs: workspaceLockCleanup.lockDirs,
+    scannedFiles: workspaceLockCleanup.scannedFiles,
+    staleFiles: workspaceLockCleanup.staleFiles,
+    activePidFiles: workspaceLockCleanup.activePidFiles,
+    unknownFreshFiles: workspaceLockCleanup.unknownFreshFiles,
+    removedFiles: workspaceLockCleanup.removedFiles,
+    errors: workspaceLockCleanup.errors,
+  };
+  if (workspaceLockCleanup.staleFiles > 0 || workspaceLockCleanup.errors.length > 0) {
+    storageRecovery.attempted = true;
+  }
+  if (workspaceLockCleanup.removedFiles > 0) {
+    storageRecovery.recovered = true;
+    storageRecovery.actions.push(`removed_workspace_locks:${workspaceLockCleanup.removedFiles}`);
+  }
+  if (workspaceLockCleanup.errors.length > 0) {
+    for (const error of workspaceLockCleanup.errors) {
+      storageRecovery.errors.push(`workspace_lock_cleanup:${error}`);
+    }
+  }
+
   try {
     const targetQualityTier = bootstrapMode === 'full' ? 'full' : 'mvp';
     const bootstrapCheck = await isBootstrapRequired(activeWorkspace, storage, { targetQualityTier });
@@ -260,6 +310,7 @@ export async function runOnboardingRecovery(
       llmProvider,
       llmModelId,
       emitBaseline,
+      updateAgentDocs,
     });
 
     bootstrapResult.attempted = true;

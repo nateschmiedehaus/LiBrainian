@@ -24,24 +24,34 @@ function run(command, args, options = {}) {
 function parseArgs(argv) {
   let keep = false;
   let workspace = process.cwd();
-  const separatorIndex = argv.indexOf('--');
-  const scriptArgs = separatorIndex >= 0 ? argv.slice(0, separatorIndex) : argv;
-  const cliArgs = separatorIndex >= 0 ? argv.slice(separatorIndex + 1) : [];
+  let cliArgs = [];
 
-  for (let index = 0; index < scriptArgs.length; index += 1) {
-    const arg = scriptArgs[index];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--') {
+      cliArgs = argv.slice(index + 1);
+      break;
+    }
     if (arg === '--keep') {
       keep = true;
       continue;
     }
     if (arg === '--workspace') {
-      const next = scriptArgs[index + 1];
+      const next = argv[index + 1];
       if (!next) throw new Error('--workspace requires a value');
       workspace = path.resolve(next);
       index += 1;
       continue;
     }
-    throw new Error(`Unknown argument: ${arg}`);
+    if (arg === '-w') {
+      const next = argv[index + 1];
+      if (!next) throw new Error('-w requires a value');
+      workspace = path.resolve(next);
+      index += 1;
+      continue;
+    }
+    cliArgs = argv.slice(index);
+    break;
   }
 
   return { keep, workspace, cliArgs };
@@ -68,15 +78,12 @@ async function main() {
   const commandArgs = cliArgs.length > 0
     ? [...cliArgs]
     : ['status', '--format', 'json'];
-
-  if (!commandArgs.includes('--workspace')) {
-    commandArgs.push('--workspace', workspace);
-  }
+  const binPath = path.join(sandboxDir, 'node_modules', '.bin', 'librainian');
 
   try {
     run('npm', ['install', '--no-save', tarballPath], { cwd: sandboxDir, stdio: 'inherit' });
-    run(process.execPath, ['./node_modules/.bin/librainian', ...commandArgs], {
-      cwd: sandboxDir,
+    run(process.execPath, [binPath, ...commandArgs], {
+      cwd: workspace,
       stdio: 'inherit',
     });
 

@@ -3,6 +3,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 vi.mock('../../../api/query.js', () => ({
   queryLibrarian: vi.fn().mockResolvedValue({
@@ -74,14 +77,18 @@ vi.mock('../../../api/provider_check.js', () => ({
 
 describe('queryCommand LLM resolution', () => {
   const prevEnv = { ...process.env };
+  let logSpy: ReturnType<typeof vi.spyOn> | null = null;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     delete process.env.LIBRARIAN_LLM_PROVIDER;
     delete process.env.LIBRARIAN_LLM_MODEL;
   });
 
   afterEach(() => {
+    logSpy?.mockRestore();
+    logSpy = null;
     process.env = { ...prevEnv };
   });
 
@@ -131,5 +138,313 @@ describe('queryCommand LLM resolution', () => {
     })).rejects.toMatchObject({ code: 'NOT_BOOTSTRAPPED' });
 
     expect(bootstrapProject).not.toHaveBeenCalled();
+  });
+
+  it('parses intent from command args when raw argv includes pre-command globals', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: ['hello world', '--json'],
+      rawArgs: ['--workspace', '/tmp/workspace', 'query', 'hello world', '--json'],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.intent).toBe('hello world');
+  });
+
+  it('maps --strategy heuristic to disabled embeddings and synthesis', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--strategy', 'heuristic', '--json'],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.embeddingRequirement).toBe('disabled');
+    expect(call?.llmRequirement).toBe('disabled');
+  });
+
+  it('applies --limit to JSON output packs', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'hello world', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 't1', summary: 'a', keyFacts: [], relatedFiles: [], codeSnippets: [], confidence: 0.8, createdAt: new Date(), version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() } },
+        { packId: 'p2', packType: 'function_context', targetId: 't2', summary: 'b', keyFacts: [], relatedFiles: [], codeSnippets: [], confidence: 0.7, createdAt: new Date(), version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() } },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--limit', '1', '--json'],
+    });
+
+    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.startsWith('{'));
+    expect(jsonOutput).toBeDefined();
+    const parsed = JSON.parse(jsonOutput ?? '{}');
+    expect(parsed.packs).toHaveLength(1);
+  });
+
+  it('writes JSON output to --out path', async () => {
+    const { queryCommand } = await import('../query.js');
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-out-'));
+    const outPath = path.join(tmpDir, 'query.json');
+
+    try {
+      await queryCommand({
+        workspace: '/tmp/workspace',
+        args: [],
+        rawArgs: ['query', 'hello world', '--json', '--out', outPath],
+      });
+
+      const raw = await fs.readFile(outPath, 'utf8');
+      const parsed = JSON.parse(raw) as { strategy?: string };
+      expect(typeof parsed.strategy).toBe('string');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('sanitizes unverified trace markers in JSON output fields', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'hello world', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: ['unverified_by_trace(storage_write_degraded): Session degraded due to lock contention.'],
+      traceId: 'unverified_by_trace(replay_unavailable)',
+      llmError: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
+      coverageGaps: ['unverified_by_trace(provider_unavailable): Embedding provider unavailable'],
+      methodHints: ['unverified_by_trace(provider_unavailable): Try provider diagnostics.'],
+      drillDownHints: ['unverified_by_trace(provider_unavailable): Retry after provider setup.'],
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'function_context',
+          targetId: 't1',
+          summary: 'unverified_by_trace(provider_unavailable): Structural-only summary.',
+          keyFacts: ['unverified_by_trace(provider_unavailable): fact'],
+          relatedFiles: [],
+          codeSnippets: [],
+          confidence: 0.8,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json'],
+    });
+
+    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+    expect(jsonOutput).toBeDefined();
+    const parsed = JSON.parse(jsonOutput ?? '{}');
+
+    expect(parsed.disclosures).toEqual(['Session degraded due to lock contention.']);
+    expect(parsed.traceId).toBe('replay_unavailable');
+    expect(parsed.llmError).toBe('Embedding provider unavailable');
+    expect(parsed.coverageGaps?.[0]).toBe('Embedding provider unavailable');
+    expect(parsed.methodHints?.[0]).toBe('Try provider diagnostics.');
+    expect(parsed.drillDownHints?.[0]).toBe('Retry after provider setup.');
+    expect(parsed.packs?.[0]?.summary).toBe('Structural-only summary.');
+    expect(parsed.packs?.[0]?.keyFacts?.[0]).toBe('fact');
+  });
+
+  it('rejects --out without --json', async () => {
+    const { queryCommand } = await import('../query.js');
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--out', '/tmp/query.json'],
+    })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
+  it('starts a persistent session with --session new', async () => {
+    const { queryCommand } = await import('../query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+
+      const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      expect(jsonOutput).toBeDefined();
+      const parsed = JSON.parse(jsonOutput ?? '{}') as { mode?: string; sessionId?: string };
+      expect(parsed.mode).toBe('start');
+      expect(parsed.sessionId).toMatch(/^sess_/);
+
+      const sessionPath = path.join(workspace, '.librarian', 'query_sessions', `${parsed.sessionId}.json`);
+      const stored = JSON.parse(await fs.readFile(sessionPath, 'utf8')) as { session?: { sessionId?: string } };
+      expect(stored.session?.sessionId).toBe(parsed.sessionId);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('continues a persisted session with follow-up intent', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
+      expect(started.sessionId).toBeTruthy();
+
+      logSpy?.mockClear();
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'token refresh details', '--session', started.sessionId!, '--json'],
+      });
+      const followUpOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const followUp = JSON.parse(followUpOutput ?? '{}') as { mode?: string; sessionId?: string };
+      expect(followUp.mode).toBe('follow_up');
+      expect(followUp.sessionId).toBe(started.sessionId);
+
+      const intents = vi.mocked(queryLibrarian).mock.calls.map((call) => call[0]?.intent);
+      expect(intents).toContain('token refresh details');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('supports drill-down in persisted sessions without requiring intent text', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
+      expect(started.sessionId).toBeTruthy();
+
+      logSpy?.mockClear();
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', '--session', started.sessionId!, '--drill-down', 'src/auth/session.ts', '--json'],
+      });
+      const drillOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const drill = JSON.parse(drillOutput ?? '{}') as { mode?: string };
+      expect(drill.mode).toBe('drill_down');
+
+      const intents = vi.mocked(queryLibrarian).mock.calls.map((call) => call[0]?.intent);
+      expect(intents).toContain('Drill down: src/auth/session.ts');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('surfaces critical storage and synthesis warnings before coverage gaps', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'hello world', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [
+        'unverified_by_trace(storage_write_degraded): Session degraded: results were returned but could not be persisted.',
+      ],
+      drillDownHints: [
+        'Session degraded: results were returned but could not be persisted (storage lock compromised). Run `librarian doctor --heal` to recover.',
+      ],
+      coverageGaps: [
+        'Synthesis failed: Claude CLI error',
+      ],
+      llmError: 'Claude CLI error: auth expired',
+      synthesisMode: 'heuristic',
+      packs: [],
+      synthesis: undefined,
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world'],
+    });
+
+    const lines = logSpy?.mock.calls.map((call) => String(call[0])) ?? [];
+    const criticalWarningsIndex = lines.findIndex((line) => line.includes('Critical Warnings:'));
+    const coverageGapsIndex = lines.findIndex((line) => line.includes('Coverage Gaps:'));
+
+    expect(criticalWarningsIndex).toBeGreaterThan(-1);
+    expect(coverageGapsIndex).toBeGreaterThan(-1);
+    expect(criticalWarningsIndex).toBeLessThan(coverageGapsIndex);
+    expect(lines.some((line) => line.includes('LLM synthesis error: Claude CLI error: auth expired'))).toBe(true);
+    expect(lines.some((line) => line.includes('Session degraded: results were returned but could not be persisted'))).toBe(true);
+    expect(lines.some((line) => line.includes('LLM synthesis unavailable: results are structural-only'))).toBe(true);
+  });
+
+  it('surfaces partial-index and low-confidence quality warnings at top', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'hello world', depth: 'L1' },
+      totalConfidence: 0.094,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: ['coherence_warning: result set appears scattered'],
+      drillDownHints: ['Result coherence: Results appear scattered/incoherent (36%).'],
+      coverageGaps: ['Index structural scan (19% complete). Results may be incomplete.'],
+      packs: [],
+      synthesis: undefined,
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world'],
+    });
+
+    const lines = logSpy?.mock.calls.map((call) => String(call[0])) ?? [];
+    const criticalWarningsIndex = lines.findIndex((line) => line.includes('Critical Warnings:'));
+    const coverageGapsIndex = lines.findIndex((line) => line.includes('Coverage Gaps:'));
+
+    expect(criticalWarningsIndex).toBeGreaterThan(-1);
+    expect(coverageGapsIndex).toBeGreaterThan(-1);
+    expect(criticalWarningsIndex).toBeLessThan(coverageGapsIndex);
+    expect(lines.some((line) => line.includes('Index structural scan (19% complete). Results may be incomplete.'))).toBe(true);
+    expect(lines.some((line) => line.includes('Low confidence (0.094)'))).toBe(true);
+    expect(lines.some((line) => line.includes('Result coherence:'))).toBe(true);
   });
 });

@@ -66,6 +66,7 @@ export const DEFAULT_NLP_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
 
 // Current active model
 let currentModelId: EmbeddingModelId = DEFAULT_CODE_MODEL;
+const INVALID_EMBEDDING_NORM_TOLERANCE = 1e-10;
 
 // Embedding dimension (depends on model)
 export function getEmbeddingDimension(modelId: EmbeddingModelId = currentModelId): number {
@@ -161,6 +162,53 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
   return loading;
 }
 
+function assertValidEmbeddingInput(text: string): void {
+  if (text.trim().length === 0) {
+    throw new Error('unverified_by_trace(provider_invalid_output): embedding input is empty or whitespace-only');
+  }
+}
+
+function toFloat32Embedding(data: unknown): Float32Array {
+  if (data instanceof Float32Array) {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return new Float32Array(data);
+  }
+  if (ArrayBuffer.isView(data)) {
+    const vectorLike = data as unknown as { [index: number]: number; length?: number };
+    if (typeof vectorLike.length !== 'number') {
+      throw new Error('unverified_by_trace(provider_invalid_output): provider returned non-indexable typed array payload');
+    }
+    return new Float32Array(Array.from({ length: vectorLike.length }, (_, i) => vectorLike[i] ?? 0));
+  }
+  throw new Error('unverified_by_trace(provider_invalid_output): provider returned non-vector embedding payload');
+}
+
+function validateEmbeddingVector(
+  embedding: Float32Array,
+  context: string
+): Float32Array {
+  if (embedding.length === 0) {
+    throw new Error(`unverified_by_trace(provider_invalid_output): ${context} returned empty embedding`);
+  }
+
+  let normSq = 0;
+  for (let i = 0; i < embedding.length; i++) {
+    const value = embedding[i];
+    if (!Number.isFinite(value)) {
+      throw new Error(`unverified_by_trace(provider_invalid_output): ${context} returned non-finite embedding values`);
+    }
+    normSq += value * value;
+  }
+
+  if (normSq <= INVALID_EMBEDDING_NORM_TOLERANCE) {
+    throw new Error(`unverified_by_trace(provider_invalid_output): ${context} returned zero-norm embedding`);
+  }
+
+  return embedding;
+}
+
 /**
  * Check if @xenova/transformers is available.
  */
@@ -203,6 +251,7 @@ export async function generateXenovaEmbedding(
   text: string,
   modelId: EmbeddingModelId = currentModelId
 ): Promise<Float32Array> {
+  assertValidEmbeddingInput(text);
   const pipe = await getXenovaPipeline(modelId);
 
   // Generate embedding
@@ -212,14 +261,8 @@ export async function generateXenovaEmbedding(
   });
 
   // Extract the embedding data
-  const embedding = output.data;
-
-  if (!(embedding instanceof Float32Array)) {
-    // Convert to Float32Array if needed
-    return new Float32Array(Array.from(embedding as number[]));
-  }
-
-  return embedding;
+  const embedding = toFloat32Embedding(output?.data);
+  return validateEmbeddingVector(embedding, `xenova:${modelId}`);
 }
 
 /**
@@ -232,6 +275,7 @@ export async function generateSentenceTransformerEmbedding(
   text: string,
   modelId: EmbeddingModelId = currentModelId
 ): Promise<Float32Array> {
+  assertValidEmbeddingInput(text);
   const model = EMBEDDING_MODELS[modelId];
 
   return new Promise((resolve, reject) => {
@@ -263,10 +307,12 @@ print(json.dumps(embedding.tolist()))
       }
 
       try {
-        const embedding = JSON.parse(stdout.trim());
-        resolve(new Float32Array(embedding));
+        const parsed = JSON.parse(stdout.trim()) as unknown;
+        const embedding = toFloat32Embedding(parsed);
+        resolve(validateEmbeddingVector(embedding, `sentence-transformers:${modelId}`));
       } catch (error) {
-        reject(new Error(`Failed to parse embedding: ${error}`));
+        const message = error instanceof Error ? error.message : String(error);
+        reject(new Error(`unverified_by_trace(provider_invalid_output): failed to parse embedding output (${message})`));
       }
     });
 

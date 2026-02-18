@@ -9,12 +9,19 @@ describe('MCP tool registry consistency', () => {
       audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
     });
 
-    const serverTools: string[] = ((server as any).getAvailableTools() as Array<{ name: string }>).map(
-      (tool) => tool.name
-    );
+    const toolEntries = (server as any).getAvailableTools() as Array<Record<string, any>>;
+    const serverTools: string[] = toolEntries.map((tool) => tool.name);
     const schemaTools = listToolSchemas();
 
     expect(new Set(serverTools)).toEqual(new Set(schemaTools));
+
+    for (const tool of toolEntries) {
+      expect(typeof tool.annotations?.readOnlyHint).toBe('boolean');
+      expect(typeof tool._meta?.requiresIndex).toBe('boolean');
+      expect(typeof tool._meta?.requiresEmbeddings).toBe('boolean');
+      expect(typeof tool._meta?.estimatedTokens).toBe('number');
+      expect(typeof tool._meta?.outputSchema).toBe('object');
+      expect(tool._meta?.outputSchema).not.toBeNull();
+    }
   });
 });
-

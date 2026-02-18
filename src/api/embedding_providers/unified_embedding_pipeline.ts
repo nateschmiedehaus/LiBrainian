@@ -223,21 +223,21 @@ export class UnifiedEmbeddingPipeline {
    * Initialize the pipeline with repository context.
    */
   async initialize(repoPath: string): Promise<void> {
-    console.log('[pipeline] Initializing unified embedding pipeline...');
+    console.error('[pipeline] Initializing unified embedding pipeline...');
 
     // Build co-change matrix from git history
     if (this.config.enableCoChange) {
-      console.log('[pipeline] Extracting commit history...');
+      console.error('[pipeline] Extracting commit history...');
       const commits = extractCommitHistory(repoPath, {
         maxCommits: 500,
         daysBack: 180,
       });
       this.coChangeMatrix = buildCoChangeMatrix(commits);
-      console.log(`[pipeline] Built co-change matrix from ${commits.length} commits`);
+      console.error(`[pipeline] Built co-change matrix from ${commits.length} commits`);
     }
 
     this.initialized = true;
-    console.log('[pipeline] Initialization complete');
+    console.error('[pipeline] Initialization complete');
   }
 
   // ========================================================================
@@ -262,7 +262,7 @@ export class UnifiedEmbeddingPipeline {
       return existing;
     }
 
-    console.log(`[pipeline] Indexing ${filePath}...`);
+    console.error(`[pipeline] Indexing ${filePath}...`);
 
     // Extract metadata
     const metadata = extractMetadata(filePath, content);
@@ -366,9 +366,26 @@ export class UnifiedEmbeddingPipeline {
       minScore = 0,
     } = config;
 
+    if (queryText.trim().length === 0) {
+      return Array.from(this.indexedFiles.entries())
+        .map(([filePath, indexed]) => ({
+          filePath,
+          semanticScore: 0,
+          keywordScore: 0,
+          multiVectorScore: 0,
+          coChangeBoost: 0,
+          finalScore: 0,
+          matchedAspects: [],
+          purpose: indexed.purpose?.purpose,
+          bestChunks: [],
+        }))
+        .sort((a, b) => a.filePath.localeCompare(b.filePath))
+        .slice(0, this.config.returnTopK);
+    }
+
     // Step 1: Expand query
     const expandedQuery = expandQuery(queryText);
-    console.log(`[pipeline] Query: "${queryText}" → "${expandedQuery}"`);
+    console.error(`[pipeline] Query: "${queryText}" → "${expandedQuery}"`);
 
     // Step 2: Generate query embedding
     const queryResult = await generateRealEmbedding(expandedQuery, this.config.embeddingModel);

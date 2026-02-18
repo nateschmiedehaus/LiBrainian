@@ -6,6 +6,8 @@
  * recovery suggestions.
  */
 
+import { sanitizeTraceMarkerMessage } from './user_messages.js';
+
 // ============================================================================
 // Error Envelope Types
 // ============================================================================
@@ -489,8 +491,9 @@ export function classifyError(error: unknown): ErrorEnvelope {
 
   // Standard Error
   if (error instanceof Error) {
-    const message = error.message;
-    const errorCode = inferErrorCodeFromMessage(message);
+    const rawMessage = error.message;
+    const errorCode = inferErrorCodeFromMessage(rawMessage);
+    const message = sanitizeTraceMarkerMessage(rawMessage);
     return createErrorEnvelope(errorCode, message, {
       context: {
         originalError: error.name,
@@ -616,7 +619,7 @@ export function formatError(error: unknown): string {
       return `Error [EFILE_NOT_FOUND]: File or directory not found: ${message}`;
     }
 
-    return `Error: ${message}`;
+    return `Error: ${sanitizeTraceMarkerMessage(message)}`;
   }
   return `Error: ${String(error)}`;
 }
@@ -626,7 +629,7 @@ export function formatError(error: unknown): string {
  */
 export function formatErrorWithHints(envelope: ErrorEnvelope): string {
   const lines: string[] = [
-    `Error [${envelope.code}]: ${envelope.message}`,
+    `Error [${envelope.code}]: ${sanitizeTraceMarkerMessage(envelope.message)}`,
     '',
   ];
 

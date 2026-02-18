@@ -5,6 +5,7 @@
  * Research basis: docs/research/MULTI-PERSPECTIVE-VIEWS-RESEARCH.md
  *
  * Perspectives allow agents to request context from specific viewpoints:
+ * - navigation: Focus on locating files/symbols/callers quickly
  * - debugging: Focus on error handling, call paths, test failures
  * - security: Focus on auth flows, input validation, secrets
  * - performance: Focus on complexity, async patterns, I/O
@@ -58,6 +59,39 @@ export interface PerspectiveConfig {
 // ============================================================================
 // PERSPECTIVE CONFIGURATIONS
 // ============================================================================
+
+/**
+ * Navigation perspective: Focus on finding code locations and relationships quickly.
+ * Maps to navigation-heavy T-patterns.
+ */
+const NAVIGATION_PERSPECTIVE: PerspectiveConfig = {
+  id: 'navigation',
+  description: 'Code navigation and location discovery',
+  tPatternIds: ['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'T-06', 'T-16'],
+  tPatternCategories: ['navigation'],
+  entityTypeWeights: {
+    function: 1.0,
+    module: 1.0,
+    document: 0.6,
+  },
+  signalModifiers: {
+    semantic: 1.1,
+    keyword: 1.2,
+    structural: 1.4,
+    dependency: 1.3,
+    domain: 1.0,
+    history: 0.8,
+    risk: 0.5,
+    test: 0.7,
+  },
+  boostKeywords: [
+    'where', 'find', 'locate', 'file', 'module', 'path', 'entry', 'entrypoint',
+    'import', 'export', 'caller', 'callers', 'reference', 'references', 'uses',
+    'navigation',
+  ],
+  penaltyKeywords: [],
+  focusPrompt: 'Focus on pinpointing where relevant code lives, how it is connected, and the fastest path to navigate it.',
+};
 
 /**
  * Debugging perspective: Focus on bug investigation patterns.
@@ -287,6 +321,7 @@ const UNDERSTANDING_PERSPECTIVE: PerspectiveConfig = {
  * Registry of all perspective configurations indexed by perspective ID.
  */
 export const PERSPECTIVE_CONFIGS: Readonly<Record<Perspective, PerspectiveConfig>> = {
+  navigation: NAVIGATION_PERSPECTIVE,
   debugging: DEBUGGING_PERSPECTIVE,
   security: SECURITY_PERSPECTIVE,
   performance: PERFORMANCE_PERSPECTIVE,
@@ -313,6 +348,7 @@ export function getPerspectiveConfig(perspective: Perspective): PerspectiveConfi
  */
 export const TASK_TYPE_TO_PERSPECTIVE: Readonly<Record<string, Perspective>> = {
   // Direct mappings
+  'code_navigation': 'navigation',
   'security_audit': 'security',
   'debugging': 'debugging',
   'performance_audit': 'performance',

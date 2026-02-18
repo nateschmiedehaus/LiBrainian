@@ -131,7 +131,7 @@ async function getCrossEncoder(
 
   // Start loading and store promise to prevent concurrent loads for THIS model
   const loadingPromise = (async () => {
-    console.log(`[cross-encoder] Loading ${modelId}...`);
+    console.error(`[cross-encoder] Loading ${modelId}...`);
     const startTime = Date.now();
 
     // Load tokenizer and model directly for proper logit access
@@ -142,7 +142,7 @@ async function getCrossEncoder(
     );
 
     const loaded = { tokenizer, model };
-    console.log(`[cross-encoder] Model loaded in ${Date.now() - startTime}ms`);
+    console.error(`[cross-encoder] Model loaded in ${Date.now() - startTime}ms`);
 
     return loaded;
   })();

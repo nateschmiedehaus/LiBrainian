@@ -355,6 +355,12 @@ export function validateConstructableDefinitions(
     if (!Number.isFinite(definition.basePriority) || definition.basePriority < 0 || definition.basePriority > 100) {
       warnings.push(`priority_out_of_range:${definition.id}`);
     }
+    if (definition.availability === 'experimental') {
+      warnings.push(`experimental_constructable:${definition.id}`);
+    }
+    if (definition.availability === 'stub') {
+      warnings.push(`stub_constructable:${definition.id}`);
+    }
   }
 
   return { valid: errors.length === 0, errors, warnings };

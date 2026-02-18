@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 describe('MCP Server tool adapter wiring', () => {
-  it('records tool calls to the workspace evidence ledger', async () => {
+  it('does not create workspace instrumentation for read-only tools', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-'));
 
     try {
@@ -20,6 +20,32 @@ describe('MCP Server tool adapter wiring', () => {
       // callTool is private; this is an intentional integration test of the wiring
       await (server as any).callTool('status', { workspace });
 
+      const librarianRoot = path.join(workspace, '.librarian');
+      await expect(fs.access(librarianRoot)).rejects.toThrow();
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('records tool calls to the workspace evidence ledger for write tools', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-'));
+
+    try {
+      const server = await createLibrarianMCPServer({
+        name: 'tool-adapter-test-server',
+        authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
+        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      });
+
+      server.registerWorkspace(workspace);
+
+      // submit_feedback writes state and should initialize persistent instrumentation.
+      await (server as any).callTool('submit_feedback', {
+        workspace,
+        feedbackToken: 'tok-write-test',
+        outcome: 'partial',
+      });
+
       const state = (server as any).state;
       const ws = state.workspaces.get(path.resolve(workspace));
       expect(ws).toBeTruthy();
@@ -29,7 +55,7 @@ describe('MCP Server tool adapter wiring', () => {
       }
 
       const entries = await ws.evidenceLedger.query({ kinds: ['tool_call'] });
-      expect(entries.some((entry: any) => entry.payload?.toolName === 'status')).toBe(true);
+      expect(entries.some((entry: any) => entry.payload?.toolName === 'submit_feedback')).toBe(true);
 
       await ws.evidenceLedger.close();
     } finally {

@@ -6,14 +6,16 @@ import { parseArgs } from 'node:util';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
 import { runProviderReadinessGate } from '../../api/provider_gate.js';
 import { printKeyValue, printTable } from '../progress.js';
+import { emitJsonOutput } from '../json_output.js';
 
 export interface CheckProvidersCommandOptions {
   workspace: string;
   format?: 'text' | 'json';
+  out?: string;
 }
 
 export async function checkProvidersCommand(options: CheckProvidersCommandOptions): Promise<void> {
-  const { workspace, format = 'text' } = options;
+  const { workspace, format = 'text', out } = options;
 
   const gateResult = await runProviderReadinessGate(workspace, { emitReport: false });
   const status = await checkAllProviders({ workspaceRoot: workspace });
@@ -36,7 +38,7 @@ export async function checkProvidersCommand(options: CheckProvidersCommandOption
         return acc;
       }, {}),
     };
-    console.log(JSON.stringify(payload));
+    await emitJsonOutput(payload, out);
     return;
   }
 

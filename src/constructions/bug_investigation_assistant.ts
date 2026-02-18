@@ -943,6 +943,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       intent: `Get context around ${userFrame.file}:${userFrame.line}`,
       affectedFiles: [userFrame.file],
       depth: 'L1',
+      perspective: 'debugging',
     });
 
     let context = `at ${userFrame.function}`;
@@ -1129,6 +1130,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       affectedFiles: [suspect.file],
       depth: 'L2',
       taskType: 'debug',
+      perspective: 'debugging',
     });
 
     if (!queryResult.packs || queryResult.packs.length === 0) {
@@ -1319,6 +1321,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       intent: `Find code similar to this bug pattern: ${bugReport.description}`,
       depth: 'L1',
       taskType: 'understand',
+      perspective: 'debugging',
     });
 
     if (queryResult.packs) {
@@ -1339,6 +1342,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
         intent: `Find code that handles or produces errors like: ${bugReport.errorMessage}`,
         depth: 'L1',
         taskType: 'debug',
+        perspective: 'debugging',
       });
 
       if (errorQueryResult.packs) {
@@ -1455,6 +1459,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       intent: `Find files with similar code patterns: ${patterns.join(', ')}`,
       depth: 'L1',
       taskType: 'understand',
+      perspective: 'debugging',
     });
 
     if (queryResult.packs) {
@@ -1688,6 +1693,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
         intent: `Find code that handles or throws ${signature.errorType} errors`,
         depth: 'L1',
         taskType: 'debug',
+        perspective: 'debugging',
       });
 
       if (queryResult.packs) {
@@ -1712,6 +1718,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
         affectedFiles: signature.affectedModules,
         depth: 'L1',
         taskType: 'debug',
+        perspective: 'debugging',
       });
 
       if (queryResult.packs) {
@@ -1784,6 +1791,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
           affectedFiles: [candidateFile, primarySuspectFile],
           depth: 'L1',
           taskType: 'understand',
+          perspective: 'debugging',
         });
 
         if (queryResult.packs && queryResult.packs.length > 0) {

@@ -826,14 +826,14 @@ export async function planFix(
   } = options;
 
   if (verbose) {
-    console.log(`[planFix] Planning fix for issue: ${issue.id}`);
+    console.error(`[planFix] Planning fix for issue: ${issue.id}`);
   }
 
   // Generate proposed changes
   const proposedChanges = generateProposedChanges(issue, maxChanges);
 
   if (verbose) {
-    console.log(`[planFix] Generated ${proposedChanges.length} proposed changes`);
+    console.error(`[planFix] Generated ${proposedChanges.length} proposed changes`);
   }
 
   // Generate test plan
@@ -879,7 +879,7 @@ export async function planFix(
   };
 
   if (verbose) {
-    console.log(`[planFix] Plan complete. Risk: ${riskAssessment.overallRisk}`);
+    console.error(`[planFix] Plan complete. Risk: ${riskAssessment.overallRisk}`);
   }
 
   return {

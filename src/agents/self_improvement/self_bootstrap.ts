@@ -251,7 +251,7 @@ export async function selfBootstrap(
   const isSelfReferential = await isSelfReferentialBootstrap(rootDir);
 
   if (verbose && isSelfReferential) {
-    console.log('[selfBootstrap] Detected self-referential bootstrap - indexing Librarian itself');
+    console.error('[selfBootstrap] Detected self-referential bootstrap - indexing Librarian itself');
   }
 
   // Discover files to index

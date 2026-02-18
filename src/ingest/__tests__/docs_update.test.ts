@@ -4,11 +4,11 @@
  * agent documentation files with librarian usage information.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { updateRepoDocs, isDocsUpdateNeeded } from '../docs_update.js';
+import { updateRepoDocs, isDocsUpdateNeeded, ejectInjectedDocs } from '../docs_update.js';
 import type { BootstrapReport, BootstrapCapabilities } from '../../types.js';
 
 describe('Docs Update Module', () => {
@@ -191,6 +191,102 @@ Existing section.
       expect(result.filesUpdated).toContain('docs/AGENTS.md');
     });
 
+    it('should announce CLAUDE.md writes with section name and line count', async () => {
+      const claudePath = path.join(tempDir, 'CLAUDE.md');
+      await fs.writeFile(claudePath, '# Claude\n\nProject notes.\n');
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        const result = await updateRepoDocs({
+          workspace: tempDir,
+          report: createTestReport(),
+          capabilities: createTestCapabilities(),
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.filesUpdated).toContain('CLAUDE.md');
+        const joined = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
+        expect(joined).toContain('[librainian] Writing docs to CLAUDE.md');
+        expect(joined).toContain('section: LIBRARIAN_DOCS');
+        expect(joined).toContain('npx librainian eject-docs');
+        expect(joined).toMatch(/,\s*\d+\s+lines\)/);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it('should skip CLAUDE.md updates when noClaudeMd is enabled', async () => {
+      const claudePath = path.join(tempDir, 'CLAUDE.md');
+      const agentsPath = path.join(tempDir, 'AGENTS.md');
+      await fs.writeFile(claudePath, '# Claude\n\nDo not modify.\n');
+      await fs.writeFile(agentsPath, '# Agents\n\nSafe to modify.\n');
+
+      const result = await updateRepoDocs({
+        workspace: tempDir,
+        report: createTestReport(),
+        capabilities: createTestCapabilities(),
+        noClaudeMd: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.filesUpdated).toContain('AGENTS.md');
+      expect(result.filesSkipped).toContain('CLAUDE.md');
+
+      const claude = await fs.readFile(claudePath, 'utf-8');
+      const agents = await fs.readFile(agentsPath, 'utf-8');
+      expect(claude).not.toContain('LIBRARIAN_DOCS_START');
+      expect(agents).toContain('LIBRARIAN_DOCS_START');
+    });
+
+    it('should store CLAUDE.md hash in .librarian/state.json after successful write', async () => {
+      const claudePath = path.join(tempDir, 'CLAUDE.md');
+      await fs.writeFile(claudePath, '# Claude\n');
+
+      const result = await updateRepoDocs({
+        workspace: tempDir,
+        report: createTestReport(),
+        capabilities: createTestCapabilities(),
+      });
+
+      expect(result.success).toBe(true);
+      const statePath = path.join(tempDir, '.librarian', 'state.json');
+      const rawState = await fs.readFile(statePath, 'utf-8');
+      const state = JSON.parse(rawState) as {
+        docs?: { claudeFileHashes?: Record<string, string> };
+      };
+      expect(state.docs?.claudeFileHashes?.['CLAUDE.md']).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('should skip CLAUDE.md overwrite when hash mismatches stored state', async () => {
+      const claudePath = path.join(tempDir, 'CLAUDE.md');
+      await fs.writeFile(claudePath, '# Claude\n\nTrusted content.\n');
+
+      await updateRepoDocs({
+        workspace: tempDir,
+        report: createTestReport({ totalFilesProcessed: 10 }),
+        capabilities: createTestCapabilities(),
+      });
+
+      await fs.appendFile(claudePath, '\nUser edit after injection.\n');
+
+      const logSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const result = await updateRepoDocs({
+          workspace: tempDir,
+          report: createTestReport({ totalFilesProcessed: 999 }),
+          capabilities: createTestCapabilities(),
+        });
+
+        expect(result.filesSkipped).toContain('CLAUDE.md');
+        expect(result.warnings.some((warning) => warning.includes('hash mismatch'))).toBe(true);
+        const content = await fs.readFile(claudePath, 'utf-8');
+        expect(content).not.toContain('**Files processed**: 999');
+        expect(content).toContain('User edit after injection.');
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
     it('should not write files in dry run mode', async () => {
       const agentsPath = path.join(tempDir, 'AGENTS.md');
       await fs.writeFile(agentsPath, '# Agents\n');
@@ -309,6 +405,33 @@ Section content.
 
       const needed = await isDocsUpdateNeeded(tempDir);
       expect(needed).toBe(true);
+    });
+  });
+
+  describe('ejectInjectedDocs', () => {
+    it('removes injected sections from CLAUDE.md and is idempotent', async () => {
+      const claudePath = path.join(tempDir, 'CLAUDE.md');
+      await fs.writeFile(claudePath, '# Claude\n\nUser intro.\n');
+
+      await updateRepoDocs({
+        workspace: tempDir,
+        report: createTestReport(),
+        capabilities: createTestCapabilities(),
+      });
+
+      const first = await ejectInjectedDocs({ workspace: tempDir });
+      expect(first.success).toBe(true);
+      expect(first.filesUpdated).toContain('CLAUDE.md');
+
+      const contentAfterFirst = await fs.readFile(claudePath, 'utf-8');
+      expect(contentAfterFirst).toContain('User intro.');
+      expect(contentAfterFirst).not.toContain('LIBRARIAN_DOCS_START');
+      expect(contentAfterFirst).not.toContain('LIBRARIAN_DOCS_END');
+
+      const second = await ejectInjectedDocs({ workspace: tempDir });
+      expect(second.success).toBe(true);
+      expect(second.filesUpdated).toHaveLength(0);
+      expect(second.filesSkipped).toContain('CLAUDE.md');
     });
   });
 

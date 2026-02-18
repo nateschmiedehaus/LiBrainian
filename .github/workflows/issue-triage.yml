@@ -1,0 +1,182 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply triage labels and missing-field flags
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue = context.payload.issue;
+            const body = issue.body ?? '';
+            const existingLabels = new Set((issue.labels ?? []).map((label) => label.name));
+
+            const labelDefs = [
+              { name: 'severity: critical', color: 'B60205', description: 'Critical severity issue' },
+              { name: 'severity: high', color: 'D93F0B', description: 'High severity issue' },
+              { name: 'severity: medium', color: 'FBCA04', description: 'Medium severity issue' },
+              { name: 'severity: low', color: '0E8A16', description: 'Low severity issue' },
+              { name: 'area: cli', color: '1D76DB', description: 'CLI area' },
+              { name: 'area: mcp', color: '1D76DB', description: 'MCP area' },
+              { name: 'area: indexing', color: '1D76DB', description: 'Indexing area' },
+              { name: 'area: retrieval', color: '1D76DB', description: 'Retrieval/query area' },
+              { name: 'area: bootstrap', color: '1D76DB', description: 'Bootstrap area' },
+              { name: 'area: docs', color: '1D76DB', description: 'Documentation area' },
+              { name: 'area: ci-release', color: '1D76DB', description: 'CI/release area' },
+              { name: 'area: evaluation', color: '1D76DB', description: 'Evaluation area' },
+              { name: 'area: security', color: '1D76DB', description: 'Security area' },
+              { name: 'area: process', color: '1D76DB', description: 'Process area' },
+              { name: 'evidence-needed: repro-required', color: '5319E7', description: 'Needs deterministic repro evidence' },
+              { name: 'evidence-needed: traces-required', color: '5319E7', description: 'Needs traces/log evidence' },
+              { name: 'evidence-needed: benchmark-required', color: '5319E7', description: 'Needs benchmark evidence' },
+              { name: 'user-impact: blocker', color: 'B60205', description: 'Blocks core user workflow' },
+              { name: 'user-impact: degraded', color: 'D93F0B', description: 'Degraded but usable' },
+              { name: 'user-impact: minor', color: 'FBCA04', description: 'Minor workflow impact' },
+              { name: 'user-impact: request', color: '0E8A16', description: 'Feature request level impact' },
+              { name: 'triage/missing-essentials', color: 'E99695', description: 'Missing required triage information' },
+              { name: 'triage/ready', color: '0E8A16', description: 'Issue includes required triage essentials' },
+            ];
+
+            async function ensureLabel(def) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: def.name });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: def.name,
+                  color: def.color,
+                  description: def.description,
+                });
+              }
+            }
+
+            for (const labelDef of labelDefs) {
+              await ensureLabel(labelDef);
+            }
+
+            function escapeRegex(value) {
+              return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function cleanSectionValue(value) {
+              const normalized = String(value ?? '')
+                .replace(/\r/g, '')
+                .trim();
+              if (!normalized) return '';
+              if (normalized === '_No response_') return '';
+              return normalized;
+            }
+
+            function getSection(title) {
+              const pattern = new RegExp(
+                `###\\s+${escapeRegex(title)}\\s*\\n([\\s\\S]*?)(?=\\n###\\s+|$)`,
+                'i'
+              );
+              const match = body.match(pattern);
+              return cleanSectionValue(match?.[1] ?? '');
+            }
+
+            function normalizeChoice(value) {
+              const firstLine = cleanSectionValue(value)
+                .split('\n')
+                .map((line) => line.replace(/^-+\s*/, '').trim())
+                .find(Boolean) ?? '';
+              return firstLine.toLowerCase().replace(/\s+/g, '-');
+            }
+
+            const labelCandidates = [
+              `severity: ${normalizeChoice(getSection('Severity'))}`,
+              `area: ${normalizeChoice(getSection('Area'))}`,
+              `evidence-needed: ${normalizeChoice(getSection('Evidence needed'))}`,
+              `user-impact: ${normalizeChoice(getSection('User impact'))}`,
+            ];
+
+            const knownLabels = new Set(labelDefs.map((entry) => entry.name));
+            const labelsToAdd = Array.from(
+              new Set(labelCandidates.filter((name) => knownLabels.has(name)))
+            ).filter((name) => !existingLabels.has(name));
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issue.number,
+                labels: labelsToAdd,
+              });
+            }
+
+            const hasImpact = getSection('Impact').length > 0;
+            const hasReproEvidence = getSection('Reproduction steps').length > 0 || getSection('Repro evidence').length > 0;
+            const hasAcceptance = getSection('Acceptance criteria').length > 0;
+
+            const missing = [];
+            if (!hasImpact) missing.push('Impact');
+            if (!hasReproEvidence) missing.push('Repro evidence');
+            if (!hasAcceptance) missing.push('Acceptance criteria');
+
+            if (missing.length > 0) {
+              if (!existingLabels.has('triage/missing-essentials')) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  labels: ['triage/missing-essentials'],
+                });
+              }
+              if (existingLabels.has('triage/ready')) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  name: 'triage/ready',
+                });
+              }
+
+              const marker = '<!-- triage-checklist -->';
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+              const alreadyCommented = comments.some((comment) =>
+                comment.user?.type === 'Bot' && (comment.body ?? '').includes(marker)
+              );
+              if (!alreadyCommented) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  body: `${marker}\nTriage guardrail: this issue is missing required intake fields (${missing.join(', ')}).\n\nPlease update the issue body with:\n- Impact\n- Repro evidence (steps/logs/trace)\n- Acceptance criteria\n\nOnce completed, the triage workflow will mark it as ready.`,
+                });
+              }
+            } else {
+              if (existingLabels.has('triage/missing-essentials')) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  name: 'triage/missing-essentials',
+                });
+              }
+              if (!existingLabels.has('triage/ready')) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  labels: ['triage/ready'],
+                });
+              }
+            }

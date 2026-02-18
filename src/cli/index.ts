@@ -5,14 +5,19 @@
  * Commands:
  *   librarian status              - Show current librarian status
  *   librarian query <intent>      - Run a query against the knowledge base
+ *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
- *   librarian index --force <...> - Incrementally index specific files
+ *   librarian mcp                 - Start MCP stdio server / print client config
+ *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
+ *   librarian index --force <...> - Incrementally index specific files or git-selected changes
  *   librarian inspect <module>    - Inspect a module's knowledge
  *   librarian confidence <entity> - Show confidence scores for an entity
  *   librarian validate <file>     - Validate constraints for a file
  *   librarian check-providers     - Check provider availability
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
+ *   librarian setup               - Quickstart alias (setup-oriented naming)
+ *   librarian init                - Quickstart alias (init-oriented naming)
  *   librarian smoke               - Run external repo smoke harness
  *   librarian journey             - Run agentic journey simulations
  *   librarian live-fire           - Run continuous objective trial matrix
@@ -36,7 +41,10 @@ import { parseArgs } from 'node:util';
 import { showHelp } from './help.js';
 import { statusCommand } from './commands/status.js';
 import { queryCommand } from './commands/query.js';
+import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
+import { mcpCommand } from './commands/mcp.js';
+import { ejectDocsCommand } from './commands/eject_docs.js';
 import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
 import { validateCommand } from './commands/validate.js';
@@ -75,7 +83,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'bootstrap' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -100,15 +108,27 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean): void 
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
     description: 'Show current librarian status',
-    usage: 'librarian status [--verbose] [--format text|json]',
+    usage: 'librarian status [--verbose] [--format text|json] [--out <path>]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--no-bootstrap]',
+    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+  },
+  'feedback': {
+    description: 'Submit task outcome feedback for a prior query',
+    usage: 'librarian feedback <feedbackToken> --outcome success|failure|partial [--missing-context "..."] [--json]',
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
-    usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars]',
+    usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+  },
+  'mcp': {
+    description: 'Start MCP stdio server or print client config snippets',
+    usage: 'librarian mcp [--print-config] [--client claude|cursor|vscode|windsurf|gemini] [--launcher installed|npx] [--json]',
+  },
+  'eject-docs': {
+    description: 'Remove injected librarian docs from CLAUDE.md files',
+    usage: 'librarian eject-docs [--dry-run] [--json]',
   },
   'inspect': {
     description: 'Inspect a module or function\'s knowledge',
@@ -124,7 +144,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'check-providers': {
     description: 'Check provider availability and authentication',
-    usage: 'librarian check-providers [--format text|json]',
+    usage: 'librarian check-providers [--format text|json] [--out <path>]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
@@ -136,7 +156,15 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'quickstart': {
     description: 'Smooth onboarding and recovery flow',
-    usage: 'librarian quickstart [--mode fast|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline]',
+    usage: 'librarian quickstart [--mode fast|full|--depth quick|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline] [--ci] [--no-mcp]',
+  },
+  'setup': {
+    description: 'Setup-oriented alias for quickstart onboarding',
+    usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
+  },
+  'init': {
+    description: 'Init-oriented alias for quickstart onboarding',
+    usage: 'librarian init [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'smoke': {
     description: 'Run external repo smoke harness',
@@ -183,12 +211,12 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
   },
   'compose': {
-    description: 'Compile technique bundles from intent',
-    usage: 'librarian compose "<intent>" [--limit N] [--include-primitives] [--pretty]',
+    description: 'Compose construction pipelines or technique bundles from intent',
+    usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty]',
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
-    usage: 'librarian index --force <file...> [--verbose]',
+    usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'analyze': {
     description: 'Run static analysis (dead code, complexity)',
@@ -200,7 +228,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'doctor': {
     description: 'Run health diagnostics to identify issues',
-    usage: 'librarian doctor [--verbose] [--json] [--heal] [--install-grammars] [--risk-tolerance safe|low|medium]',
+    usage: 'librarian doctor [--verbose] [--json] [--heal] [--fix] [--install-grammars] [--risk-tolerance safe|low|medium]',
   },
   'publish-gate': {
     description: 'Run strict publish-readiness gate checks',
@@ -297,15 +325,30 @@ async function main(): Promise<void> {
   try {
     switch (command) {
       case 'status':
-        await statusCommand({ workspace, verbose, format: defaultFormat as 'text' | 'json' });
+        await statusCommand({
+          workspace,
+          verbose,
+          format: defaultFormat as 'text' | 'json',
+          out: getStringArg(args, '--out') ?? undefined,
+        });
         break;
 
       case 'query':
         await queryCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
+      case 'feedback':
+        await feedbackCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+
       case 'bootstrap':
         await bootstrapCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'mcp':
+        await mcpCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'eject-docs':
+        await ejectDocsCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'inspect':
@@ -321,7 +364,11 @@ async function main(): Promise<void> {
         break;
 
       case 'check-providers':
-        await checkProvidersCommand({ workspace, format: defaultFormat as 'text' | 'json' });
+        await checkProvidersCommand({
+          workspace,
+          format: defaultFormat as 'text' | 'json',
+          out: getStringArg(args, '--out') ?? undefined,
+        });
         break;
 
       case 'visualize':
@@ -331,6 +378,8 @@ async function main(): Promise<void> {
         await coverageCommand({ workspace, args: commandArgs });
         break;
       case 'quickstart':
+      case 'setup':
+      case 'init':
         await quickstartCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'smoke':
@@ -424,12 +473,28 @@ async function main(): Promise<void> {
         });
         break;
       case 'index':
-        await indexCommand({
-          workspace,
-          verbose,
-          force: args.includes('--force'),
-          files: commandArgs.filter(arg => arg !== '--force'),
-        });
+        {
+          const since = getStringArg(args, '--since');
+          if (args.includes('--since') && !since) {
+            throw new CliError('Missing value for --since <ref>.', 'INVALID_ARGUMENT');
+          }
+          const normalizedFiles = commandArgs.filter((arg) =>
+            arg !== '--force'
+            && arg !== '--incremental'
+            && arg !== '--staged'
+            && (!since || arg !== since)
+          );
+
+          await indexCommand({
+            workspace,
+            verbose,
+            force: args.includes('--force'),
+            files: normalizedFiles,
+            incremental: args.includes('--incremental'),
+            staged: args.includes('--staged'),
+            since: since ?? undefined,
+          });
+        }
         break;
       case 'analyze':
         await analyzeCommand({
@@ -456,21 +521,23 @@ async function main(): Promise<void> {
           process.exitCode = 1;
         }
         break;
-	      case 'doctor':
-	        {
-	          const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
-	          const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
-	            ? riskToleranceRaw
-	            : undefined;
-	          await doctorCommand({
-	            workspace,
-	            verbose,
-	            json: jsonMode,
-	            heal: args.includes('--heal'),
-	            installGrammars: args.includes('--install-grammars'),
-	            riskTolerance,
-	          });
-	        }
+		      case 'doctor':
+		        {
+		          const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
+		          const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
+		            ? riskToleranceRaw
+		            : undefined;
+              const fix = args.includes('--fix');
+		          await doctorCommand({
+		            workspace,
+		            verbose,
+		            json: jsonMode,
+		            heal: args.includes('--heal'),
+                fix,
+		            installGrammars: args.includes('--install-grammars'),
+		            riskTolerance,
+		          });
+		        }
 	        break;
       case 'publish-gate':
         await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });
@@ -499,7 +566,7 @@ async function main(): Promise<void> {
   }
 }
 
-const CLI_NON_EXITING_COMMANDS = new Set(['watch']);
+const CLI_NON_EXITING_COMMANDS = new Set(['watch', 'mcp']);
 
 main()
   .catch((error) => {

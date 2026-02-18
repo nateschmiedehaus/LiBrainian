@@ -14,6 +14,7 @@ import type {
   LlmRequired,
   LlmResult,
 } from '../types.js';
+import { sanitizeLibrarianResponse } from '../types.js';
 import type { AgentKnowledgeContext, ContextAssemblyOptions } from './context_assembly.js';
 import { createStorageSlices } from '../storage/slices.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
@@ -126,8 +127,7 @@ import {
 import { bayesianDelta } from '../knowledge/confidence_updater.js';
 import { LibrarianViewsDelegate, type PersonaType } from './librarian_views.js';
 import type { PersonaView, GlanceCard } from '../views/persona_views.js';
-import type { DiagramRequest, DiagramResult } from '../visualization/mermaid_generator.js';
-import type { ASCIIResult } from '../visualization/ascii_diagrams.js';
+import type { DiagramRequest, DiagramResult, ASCIIResult } from './librarian_views.js';
 import type { ActivationSummary } from '../knowledge/defeater_activation.js';
 import type { RefactoringRecommendation } from '../recommendations/refactoring_advisor.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
@@ -140,6 +140,30 @@ import {
   type ConfigHealthReport,
   type HealingResult,
 } from '../config/self_healing.js';
+
+export interface LibrarianDependencyOverrides {
+  createEmbeddingService?: (ctx: { governorConfig: GovernorConfig | null; config: LibrarianConfig }) => EmbeddingService;
+  createStorage?: (ctx: { dbPath: string; workspace: string; config: LibrarianConfig }) => LibrarianStorage;
+  createKnowledge?: (ctx: { storage: LibrarianStorage; config: LibrarianConfig }) => Knowledge;
+  createKnowledgeSynthesizer?: (ctx: { storage: LibrarianStorage; config: LibrarianConfig }) => KnowledgeSynthesizer;
+  createEngines?: (ctx: {
+    storage: LibrarianStorage;
+    workspaceRoot: string;
+    embeddingService?: EmbeddingService;
+    reindex: (scope: string[]) => Promise<void>;
+    config: LibrarianConfig;
+  }) => LibrarianEngineToolkit;
+  createViewsDelegate?: (ctx: { storage: LibrarianStorage; workspaceRoot: string; config: LibrarianConfig }) => LibrarianViewsDelegate;
+  createIndexer?: (ctx: {
+    embeddingService?: EmbeddingService;
+    governorConfig: GovernorConfig | null;
+    config: LibrarianConfig;
+  }) => IndexLibrarian;
+  createContextSessionManager?: (ctx: {
+    query: (query: LibrarianQuery) => Promise<LibrarianResponse>;
+    config: LibrarianConfig;
+  }) => ContextAssemblySessionManager;
+}
 
 export interface LibrarianConfig {
   workspace: string;
@@ -154,7 +178,8 @@ export interface LibrarianConfig {
    * - Stale settings
    * - Suboptimal performance configurations
    *
-   * Defaults to false for backward compatibility.
+   * Defaults to false to avoid mutating repository configuration unless explicitly requested.
+   * CLI onboarding commands (`quickstart`, `doctor --heal`, `config heal`) enable this deliberately.
    */
   autoHealConfig?: boolean;
   /**
@@ -185,6 +210,8 @@ export interface LibrarianConfig {
   llmProvider?: 'claude' | 'codex';
   llmModelId?: string;
   embeddingService?: EmbeddingService;
+  /** Optional dependency seams for testing and controlled composition. */
+  dependencyOverrides?: LibrarianDependencyOverrides;
 }
 
 export interface LibrarianStatus {
@@ -256,14 +283,21 @@ export class Librarian {
     if (this.config.embeddingService) {
       this.embeddingService = this.config.embeddingService;
     } else {
-      // Use real embedding providers (xenova/sentence-transformers)
-      // NOT LLM-generated embeddings (they're hallucinated numbers)
-      this.embeddingService = new EmbeddingService({
+      this.embeddingService = this.config.dependencyOverrides?.createEmbeddingService?.({
+        governorConfig: this.governorConfig,
+        config: this.config,
+      }) ?? new EmbeddingService({
+        // Use real embedding providers (xenova/sentence-transformers)
+        // NOT LLM-generated embeddings (they're hallucinated numbers)
         maxBatchSize: this.governorConfig?.maxEmbeddingsPerBatch,
       });
     }
 
-    this.storage = createSqliteStorage(dbPath, this.config.workspace);
+    this.storage = this.config.dependencyOverrides?.createStorage?.({
+      dbPath,
+      workspace: this.config.workspace,
+      config: this.config,
+    }) ?? createSqliteStorage(dbPath, this.config.workspace);
     try {
       await this.storage.initialize();
     } catch (error) {
@@ -271,7 +305,11 @@ export class Librarian {
       if (!canRecover) throw error;
       const recovery = await attemptStorageRecovery(dbPath, { error });
       if (!recovery.recovered) throw error;
-      this.storage = createSqliteStorage(dbPath, this.config.workspace);
+      this.storage = this.config.dependencyOverrides?.createStorage?.({
+        dbPath,
+        workspace: this.config.workspace,
+        config: this.config,
+      }) ?? createSqliteStorage(dbPath, this.config.workspace);
       await this.storage.initialize();
     }
     // Resolve LLM configuration from stored defaults or provider discovery when not explicitly set.
@@ -354,24 +392,44 @@ export class Librarian {
       });
       this.storageCapabilities = null;
     }
-    this.knowledge = new Knowledge(this.storage);
-    this.knowledgeSynthesizer = new KnowledgeSynthesizer(this.storage, {
+    this.knowledge = this.config.dependencyOverrides?.createKnowledge?.({
+      storage: this.storage,
+      config: this.config,
+    }) ?? new Knowledge(this.storage);
+    this.knowledgeSynthesizer = this.config.dependencyOverrides?.createKnowledgeSynthesizer?.({
+      storage: this.storage,
+      config: this.config,
+    }) ?? new KnowledgeSynthesizer(this.storage, {
       llmProvider: this.config.llmProvider,
       llmModelId: this.config.llmModelId,
       workspaceRoot: this.config.workspace,
     });
-    this.engines = new LibrarianEngineToolkit({
+    this.engines = this.config.dependencyOverrides?.createEngines?.({
+      storage: this.storage,
+      workspaceRoot: this.config.workspace,
+      embeddingService: this.embeddingService ?? undefined,
+      reindex: async (scope) => this.reindexFiles(scope),
+      config: this.config,
+    }) ?? new LibrarianEngineToolkit({
       storage: this.storage,
       workspaceRoot: this.config.workspace,
       embeddingService: this.embeddingService ?? undefined,
       reindex: async (scope) => this.reindexFiles(scope),
     });
-    this.viewsDelegate = new LibrarianViewsDelegate({
+    this.viewsDelegate = this.config.dependencyOverrides?.createViewsDelegate?.({
+      storage: this.storage,
+      workspaceRoot: this.config.workspace,
+      config: this.config,
+    }) ?? new LibrarianViewsDelegate({
       storage: this.storage,
       workspaceRoot: this.config.workspace,
     });
 
-    this.indexer = new IndexLibrarian({
+    this.indexer = this.config.dependencyOverrides?.createIndexer?.({
+      embeddingService: this.embeddingService ?? undefined,
+      governorConfig: this.governorConfig,
+      config: this.config,
+    }) ?? new IndexLibrarian({
       embeddingBatchSize: this.governorConfig?.maxEmbeddingsPerBatch,
       llmProvider: this.config.llmProvider,
       llmModelId: this.config.llmModelId,
@@ -905,10 +963,7 @@ export class Librarian {
       { evidenceLedger: this.evidenceLedger ?? undefined }
     );
     const engines = await this.buildEngineResults(query, response);
-    if (engines) {
-      return { ...response, engines };
-    }
-    return response;
+    return sanitizeLibrarianResponse(engines ? { ...response, engines } : response);
   }
 
   async embedIntent(intent: string): Promise<Float32Array> {
@@ -1408,7 +1463,10 @@ export class Librarian {
 
   private getContextSessionManager(): ContextAssemblySessionManager {
     if (!this.contextSessions) {
-      this.contextSessions = new ContextAssemblySessionManager({
+      this.contextSessions = this.config.dependencyOverrides?.createContextSessionManager?.({
+        query: (query) => this.query(query),
+        config: this.config,
+      }) ?? new ContextAssemblySessionManager({
         query: (query) => this.query(query),
       });
     }

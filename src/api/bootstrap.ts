@@ -2,7 +2,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { getErrorMessage } from '../utils/errors.js';
 import { getCurrentGitSha } from '../utils/git.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
@@ -72,7 +72,7 @@ import { CodebaseCompositionAdvisor } from './codebase_advisor.js';
 import { preloadMethodPacks } from '../methods/method_pack_service.js';
 import { integrateWithBootstrap as selectConstructables, type ManualOverrides } from '../constructions/auto_selector.js';
 import { sanitizePath } from '../security/sanitization.js';
-import { updateWatchState } from '../state/watch_state.js';
+import { getWatchState, updateWatchState } from '../state/watch_state.js';
 import type { MethodFamilyId } from '../methods/method_guidance.js';
 import {
   extractFileKnowledge,
@@ -90,7 +90,7 @@ import {
   type GovernorConfig,
 } from './governors.js';
 import { GovernorContext, createGovernorRunState, type GovernorRunState } from './governor_context.js';
-import { safeJsonParse, getResultErrorMessage } from '../utils/safe_json.js';
+import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
 import {
   getAllIncludePatterns,
   UNIVERSAL_EXCLUDES,
@@ -100,9 +100,9 @@ import {
   getParserType,
   shouldGenerateEmbeddings,
 } from '../universal_patterns.js';
-import { buildTemporalGraph } from '../graphs/temporal_graph.js';
+import { buildTemporalGraph, type TemporalGraph } from '../graphs/temporal_graph.js';
 import { createIndexStateWriter, type IndexState, type IndexStateWriter } from '../state/index_state.js';
-import { computeChecksum16 } from '../utils/checksums.js';
+import { computeFileChecksum } from '../utils/checksums.js';
 import {
   globalEventBus,
   createBootstrapStartedEvent,
@@ -167,6 +167,42 @@ interface BootstrapRecoveryState {
   last_error?: string;
 }
 
+interface BootstrapArtifactSnapshot {
+  path: string;
+  exists: boolean;
+  size_bytes?: number;
+  mtime_ms?: number;
+}
+
+interface BootstrapConsistencyState {
+  kind: 'BootstrapConsistencyState.v1';
+  schema_version: 1;
+  workspace: string;
+  generation_id: string;
+  status: 'in_progress' | 'complete' | 'failed';
+  started_at: string;
+  updated_at: string;
+  completed_at?: string;
+  artifacts: {
+    librarian: BootstrapArtifactSnapshot;
+    knowledge: BootstrapArtifactSnapshot;
+    evidence: BootstrapArtifactSnapshot;
+  };
+  last_error?: string;
+}
+
+interface BootstrapArtifactBackupState {
+  kind: 'BootstrapArtifactBackupState.v1';
+  schema_version: 1;
+  workspace: string;
+  generation_id: string;
+  created_at: string;
+  files: Array<{
+    original_path: string;
+    backup_path: string;
+  }>;
+}
+
 /**
  * Checkpoint for external repo bootstrap recovery.
  * Tracks per-file progress within a bootstrap operation.
@@ -207,6 +243,8 @@ const bootstrapStates = new Map<string, BootstrapState>();
 
 const GOVERNOR_CONFIG_FILENAME = 'governor.json';
 const BOOTSTRAP_STATE_FILENAME = 'bootstrap_state.json';
+const BOOTSTRAP_CONSISTENCY_FILENAME = 'bootstrap_consistency.json';
+const BOOTSTRAP_ARTIFACT_BACKUP_FILENAME = 'bootstrap_artifact_backup.json';
 const BOOTSTRAP_CHECKPOINT_FILE_INTERVAL = 100;
 const BOOTSTRAP_CHECKPOINT_TIME_INTERVAL_MS = 5 * 60_000;
 const BOOTSTRAP_STATE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -229,6 +267,165 @@ const METHOD_PACK_PRELOAD_FAMILIES: MethodFamilyId[] = [
 
 function bootstrapStatePath(workspace: string): string {
   return path.join(workspace, '.librarian', BOOTSTRAP_STATE_FILENAME);
+}
+
+function bootstrapConsistencyPath(workspace: string): string {
+  return path.join(workspace, '.librarian', BOOTSTRAP_CONSISTENCY_FILENAME);
+}
+
+function bootstrapArtifactBackupPath(workspace: string): string {
+  return path.join(workspace, '.librarian', BOOTSTRAP_ARTIFACT_BACKUP_FILENAME);
+}
+
+function getBootstrapArtifactPaths(workspace: string): {
+  librarian: string;
+  knowledge: string;
+  evidence: string;
+} {
+  const root = path.join(workspace, '.librarian');
+  return {
+    librarian: path.join(root, 'librarian.sqlite'),
+    knowledge: path.join(root, 'knowledge.db'),
+    evidence: path.join(root, 'evidence_ledger.db'),
+  };
+}
+
+async function buildArtifactSnapshot(filePath: string): Promise<BootstrapArtifactSnapshot> {
+  try {
+    const stats = await fs.stat(filePath);
+    return {
+      path: filePath,
+      exists: true,
+      size_bytes: stats.size,
+      mtime_ms: stats.mtimeMs,
+    };
+  } catch {
+    return { path: filePath, exists: false };
+  }
+}
+
+async function collectBootstrapArtifacts(workspace: string): Promise<BootstrapConsistencyState['artifacts']> {
+  const paths = getBootstrapArtifactPaths(workspace);
+  const [librarian, knowledge, evidence] = await Promise.all([
+    buildArtifactSnapshot(paths.librarian),
+    buildArtifactSnapshot(paths.knowledge),
+    buildArtifactSnapshot(paths.evidence),
+  ]);
+  return { librarian, knowledge, evidence };
+}
+
+async function createBootstrapArtifactBackup(workspace: string, generationId: string): Promise<void> {
+  const artifacts = getBootstrapArtifactPaths(workspace);
+  const files: Array<{ original_path: string; backup_path: string }> = [];
+  const extensions = ['', '-wal', '-shm'];
+
+  for (const artifactPath of Object.values(artifacts)) {
+    for (const extension of extensions) {
+      const sourcePath = `${artifactPath}${extension}`;
+      const backupPath = `${sourcePath}.bak.${generationId}`;
+      try {
+        await fs.copyFile(sourcePath, backupPath);
+        files.push({ original_path: sourcePath, backup_path: backupPath });
+      } catch {
+        // Ignore missing files.
+      }
+    }
+  }
+
+  const backupState: BootstrapArtifactBackupState = {
+    kind: 'BootstrapArtifactBackupState.v1',
+    schema_version: 1,
+    workspace,
+    generation_id: generationId,
+    created_at: new Date().toISOString(),
+    files,
+  };
+  const statePath = bootstrapArtifactBackupPath(workspace);
+  const tempPath = `${statePath}.tmp.${process.pid}`;
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+  await fs.writeFile(tempPath, JSON.stringify(backupState, null, 2) + '\n', 'utf8');
+  await fs.rename(tempPath, statePath);
+}
+
+async function readBootstrapArtifactBackup(workspace: string): Promise<BootstrapArtifactBackupState | null> {
+  const statePath = bootstrapArtifactBackupPath(workspace);
+  try {
+    const raw = await fs.readFile(statePath, 'utf8');
+    const parsed = safeJsonParse<unknown>(raw);
+    if (!parsed.ok || !isRecord(parsed.value)) return null;
+    const value = parsed.value;
+    if (value.kind !== 'BootstrapArtifactBackupState.v1' || value.schema_version !== 1) return null;
+    if (value.workspace !== workspace || !Array.isArray(value.files)) return null;
+    const files = value.files
+      .filter(isRecord)
+      .filter((entry) => typeof entry.original_path === 'string' && typeof entry.backup_path === 'string')
+      .map((entry) => ({ original_path: String(entry.original_path), backup_path: String(entry.backup_path) }));
+    return {
+      kind: 'BootstrapArtifactBackupState.v1',
+      schema_version: 1,
+      workspace,
+      generation_id: typeof value.generation_id === 'string' ? value.generation_id : 'unknown',
+      created_at: typeof value.created_at === 'string' ? value.created_at : new Date(0).toISOString(),
+      files,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function clearBootstrapArtifactBackup(workspace: string): Promise<void> {
+  const backupState = await readBootstrapArtifactBackup(workspace);
+  if (backupState) {
+    await Promise.all(
+      backupState.files.map(async (entry) => {
+        try {
+          await fs.unlink(entry.backup_path);
+        } catch {
+          // Ignore cleanup errors.
+        }
+      })
+    );
+  }
+  try {
+    await fs.unlink(bootstrapArtifactBackupPath(workspace));
+  } catch {
+    // Ignore cleanup errors.
+  }
+}
+
+async function restoreBootstrapArtifactBackup(workspace: string): Promise<boolean> {
+  const backupState = await readBootstrapArtifactBackup(workspace);
+  if (!backupState || backupState.files.length === 0) {
+    return false;
+  }
+
+  let restored = false;
+  for (const entry of backupState.files) {
+    try {
+      await fs.copyFile(entry.backup_path, entry.original_path);
+      restored = true;
+    } catch {
+      // Skip individual restore failures.
+    }
+  }
+  return restored;
+}
+
+async function recoverStaleBootstrapArtifactBackup(
+  workspace: string,
+  consistencyState: BootstrapConsistencyState | null
+): Promise<boolean> {
+  const backupState = await readBootstrapArtifactBackup(workspace);
+  if (!backupState) return false;
+
+  if (consistencyState?.status === 'complete') {
+    await clearBootstrapArtifactBackup(workspace);
+    return false;
+  }
+
+  const restored = await restoreBootstrapArtifactBackup(workspace);
+  await clearBootstrapArtifactBackup(workspace);
+  return restored;
 }
 
 async function readBootstrapRecoveryState(workspace: string): Promise<BootstrapRecoveryState | null> {
@@ -278,6 +475,38 @@ async function writeBootstrapRecoveryState(workspace: string, state: BootstrapRe
   }
 }
 
+async function readBootstrapConsistencyState(workspace: string): Promise<BootstrapConsistencyState | null> {
+  const statePath = bootstrapConsistencyPath(workspace);
+  try {
+    const raw = await fs.readFile(statePath, 'utf8');
+    const parsed = safeJsonParse<unknown>(raw);
+    if (!parsed.ok || !isBootstrapConsistencyState(parsed.value)) {
+      return null;
+    }
+    return parsed.value;
+  } catch {
+    return null;
+  }
+}
+
+async function writeBootstrapConsistencyState(workspace: string, state: BootstrapConsistencyState): Promise<void> {
+  const statePath = bootstrapConsistencyPath(workspace);
+  const tempPath = `${statePath}.tmp.${process.pid}`;
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+
+  try {
+    await fs.writeFile(tempPath, JSON.stringify(state, null, 2) + '\n', 'utf8');
+    await fs.rename(tempPath, statePath);
+  } catch (error) {
+    try {
+      await fs.unlink(tempPath);
+    } catch {
+      // Ignore cleanup errors.
+    }
+    throw error;
+  }
+}
+
 async function clearBootstrapRecoveryState(workspace: string): Promise<void> {
   const statePath = bootstrapStatePath(workspace);
   try {
@@ -313,6 +542,32 @@ function isBootstrapRecoveryState(value: unknown): value is BootstrapRecoverySta
   );
 }
 
+function isBootstrapArtifactSnapshot(value: unknown): value is BootstrapArtifactSnapshot {
+  if (!isRecord(value)) return false;
+  if (typeof value.path !== 'string') return false;
+  if (typeof value.exists !== 'boolean') return false;
+  if (value.size_bytes !== undefined && typeof value.size_bytes !== 'number') return false;
+  if (value.mtime_ms !== undefined && typeof value.mtime_ms !== 'number') return false;
+  return true;
+}
+
+function isBootstrapConsistencyState(value: unknown): value is BootstrapConsistencyState {
+  if (!isRecord(value)) return false;
+  if (value.kind !== 'BootstrapConsistencyState.v1' || value.schema_version !== 1) return false;
+  if (typeof value.workspace !== 'string') return false;
+  if (typeof value.generation_id !== 'string') return false;
+  if (value.status !== 'in_progress' && value.status !== 'complete' && value.status !== 'failed') return false;
+  if (typeof value.started_at !== 'string' || typeof value.updated_at !== 'string') return false;
+  if (value.completed_at !== undefined && typeof value.completed_at !== 'string') return false;
+  if (value.last_error !== undefined && typeof value.last_error !== 'string') return false;
+  if (!isRecord(value.artifacts)) return false;
+  return (
+    isBootstrapArtifactSnapshot(value.artifacts.librarian)
+    && isBootstrapArtifactSnapshot(value.artifacts.knowledge)
+    && isBootstrapArtifactSnapshot(value.artifacts.evidence)
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -341,6 +596,105 @@ const FINGERPRINT_EXCLUDE_PATTERNS = ['**/.librarian/**', '**/.git/**'];
 function buildFingerprintExcludes(exclude: string[]): string[] {
   const combined = [...exclude, ...FINGERPRINT_EXCLUDE_PATTERNS];
   return Array.from(new Set(combined));
+}
+
+function dedupePatterns(patterns: string[]): string[] {
+  return Array.from(new Set(patterns.filter((pattern) => pattern.trim().length > 0)));
+}
+
+function normalizeIgnorePattern(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) return [];
+
+  const raw = trimmed.replace(/^\.\//, '').replace(/\/+$/, '');
+  if (!raw) return [];
+
+  const anchored = raw.startsWith('/');
+  const pattern = anchored ? raw.slice(1) : raw;
+  const hasWildcard = /[*?[{\]]/.test(pattern);
+  const directoryHint = trimmed.endsWith('/') || (!hasWildcard && !pattern.includes('.'));
+
+  if (!pattern) return [];
+
+  if (hasWildcard) {
+    const variants = [pattern];
+    if (!anchored && !pattern.startsWith('**/')) {
+      variants.push(`**/${pattern}`);
+    }
+    if (directoryHint && !pattern.endsWith('/**')) {
+      variants.push(`${pattern}/**`);
+      if (!anchored && !pattern.startsWith('**/')) {
+        variants.push(`**/${pattern}/**`);
+      }
+    }
+    return dedupePatterns(variants);
+  }
+
+  if (directoryHint) {
+    const variants = [`${pattern}/**`];
+    if (!anchored) {
+      variants.push(`**/${pattern}/**`);
+    }
+    return dedupePatterns(variants);
+  }
+
+  const variants = [pattern];
+  if (!anchored) {
+    variants.push(`**/${pattern}`);
+  }
+  return dedupePatterns(variants);
+}
+
+async function loadGitIgnorePatterns(workspace: string): Promise<string[]> {
+  const gitIgnorePath = path.join(workspace, '.gitignore');
+  try {
+    const content = await fs.readFile(gitIgnorePath, 'utf-8');
+    const patterns = content
+      .split(/\r?\n/)
+      .flatMap((line) => normalizeIgnorePattern(line));
+    return dedupePatterns(patterns);
+  } catch {
+    return [];
+  }
+}
+
+async function loadWorkspaceIgnorePatterns(workspace: string): Promise<{ patterns: string[]; warnings: string[] }> {
+  const warnings: string[] = [];
+  const patterns: string[] = [];
+  const configPath = path.join(workspace, '.librainian.json');
+
+  try {
+    const rawConfig = await fs.readFile(configPath, 'utf-8');
+    const parsed = safeJsonParseOrNull<Record<string, unknown>>(rawConfig);
+    if (parsed === null && rawConfig.trim().length > 0) {
+      warnings.push('Failed to load .librainian.json ignore patterns: invalid JSON.');
+    }
+    if (parsed && typeof parsed === 'object' && 'ignore' in parsed) {
+      const ignore = (parsed as { ignore?: unknown }).ignore;
+      if (Array.isArray(ignore)) {
+        for (const entry of ignore) {
+          if (typeof entry === 'string' && entry.trim().length > 0) {
+            patterns.push(...normalizeIgnorePattern(entry));
+          }
+        }
+      } else if (ignore !== undefined) {
+        warnings.push('.librainian.json ignore must be an array of strings.');
+      }
+    }
+  } catch (error) {
+    if (!(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'ENOENT')) {
+      const message = getErrorMessage(error);
+      warnings.push(`Failed to load .librainian.json ignore patterns: ${message}`);
+    }
+  }
+
+  const gitIgnorePatterns = await loadGitIgnorePatterns(workspace);
+  patterns.push(...gitIgnorePatterns);
+
+  return {
+    patterns: dedupePatterns(patterns),
+    warnings,
+  };
 }
 
 async function computeWorkspaceFingerprint(options: {
@@ -993,15 +1347,15 @@ export async function loadGovernorConfig(workspace: string): Promise<GovernorCon
 
         // Log the auto-detection reasoning
         const resources = detectSystemResources();
-        console.log(`\n📊 Auto-detected concurrency: ${config.maxConcurrentWorkers} workers`);
-        console.log(`   System: ${resources.cpuCores} CPUs, ${resources.freeMemoryGB.toFixed(1)}GB free RAM, load ${resources.loadAverage.toFixed(2)}`);
+        console.error(`\n📊 Auto-detected concurrency: ${config.maxConcurrentWorkers} workers`);
+        console.error(`   System: ${resources.cpuCores} CPUs, ${resources.freeMemoryGB.toFixed(1)}GB free RAM, load ${resources.loadAverage.toFixed(2)}`);
         for (const reason of recommendation.reasoning.slice(0, 3)) {
-          console.log(`   → ${reason}`);
+          console.error(`   → ${reason}`);
         }
         for (const constraint of recommendation.constraints) {
-          console.log(`   ⚠ ${constraint}`);
+          console.error(`   ⚠ ${constraint}`);
         }
-        console.log('');
+        console.error('');
       }
     } catch (error) {
       // Log auto-detection failure - user explicitly requested auto mode (0), should know why it failed
@@ -1113,6 +1467,33 @@ export async function isBootstrapRequired(
       reason: `Previous bootstrap incomplete (last recorded phase: ${recovery.phase_name}). Resume with \`librarian bootstrap\` or restart with \`librarian bootstrap --force\`.`,
     };
   }
+  const consistency = await readBootstrapConsistencyState(workspace);
+  if (consistency && consistency.status !== 'complete') {
+    const statusReason = consistency.status === 'failed'
+      ? `last attempt failed: ${consistency.last_error ?? 'unknown error'}`
+      : 'last attempt was interrupted before consistency commit';
+    return {
+      required: true,
+      reason: `Bootstrap consistency marker is ${consistency.status} (${statusReason}). Run \`librarian bootstrap --force\` to restore cross-database consistency.`,
+    };
+  }
+  if (consistency?.status === 'complete') {
+    const expectedArtifacts = Object.values(consistency.artifacts).filter((artifact) => artifact.exists);
+    const missingArtifacts: string[] = [];
+    for (const artifact of expectedArtifacts) {
+      try {
+        await fs.stat(artifact.path);
+      } catch {
+        missingArtifacts.push(path.basename(artifact.path));
+      }
+    }
+    if (missingArtifacts.length > 0) {
+      return {
+        required: true,
+        reason: `Bootstrap artifacts missing (${missingArtifacts.join(', ')}); run \`librarian bootstrap --force\` to restore consistent state.`,
+      };
+    }
+  }
   const existingVersion = await detectLibrarianVersion(storage);
   const targetQualityTier = options?.targetQualityTier ?? 'full';
   const targetVersion = getTargetVersion(targetQualityTier);
@@ -1157,6 +1538,38 @@ export async function isBootstrapRequired(
       required: true,
       reason: 'Previous bootstrap did not complete successfully',
     };
+  }
+
+  const watchState = await getWatchState(storage).catch((err) => {
+    logWarning('[bootstrap] Failed to read watch state for freshness check', { error: getErrorMessage(err) });
+    return null;
+  });
+
+  if (watchState?.needs_catchup) {
+    return {
+      required: true,
+      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+    };
+  }
+
+  if (watchState?.cursor?.kind === 'git') {
+    const indexedSha = watchState.cursor.lastIndexedCommitSha;
+    const headSha = getCurrentGitSha(workspace);
+    if (headSha && indexedSha && headSha !== indexedSha) {
+      await updateWatchState(storage, (prev) => ({
+        ...(prev ?? watchState),
+        schema_version: 1,
+        workspace_root: prev?.workspace_root || watchState.workspace_root || workspace,
+        cursor: watchState.cursor,
+        needs_catchup: true,
+      })).catch((err) => {
+        logWarning('[bootstrap] Failed to mark watch state as needing catch-up', { error: getErrorMessage(err) });
+      });
+      return {
+        required: true,
+        reason: `Index is stale relative to git HEAD (${indexedSha.slice(0, 12)} -> ${headSha.slice(0, 12)})`,
+      };
+    }
   }
 
   return {
@@ -1220,6 +1633,7 @@ export async function bootstrapProject(
   config: BootstrapConfig,
   storage: LibrarianStorage
 ): Promise<BootstrapReport> {
+  const workspaceConfigWarnings: string[] = [];
   const configuredWorkspace = path.resolve(config.workspace);
   let workspace = configuredWorkspace;
   try {
@@ -1233,6 +1647,14 @@ export async function bootstrapProject(
       workspace,
     };
   }
+  const workspaceIgnore = await loadWorkspaceIgnorePatterns(workspace);
+  if (workspaceIgnore.patterns.length > 0) {
+    config = {
+      ...config,
+      exclude: dedupePatterns([...config.exclude, ...workspaceIgnore.patterns]),
+    };
+  }
+  workspaceConfigWarnings.push(...workspaceIgnore.warnings);
   const workspaceRoot = path.resolve(workspace);
   // Providers are optional: Librarian can bootstrap in degraded mode (AST-only / keyword-only)
   // when embeddings or LLM providers are unavailable.
@@ -1289,6 +1711,10 @@ export async function bootstrapProject(
     version: getTargetVersion(config.bootstrapMode === 'full' ? 'full' : 'mvp'),
     success: false,
   };
+  if (workspaceConfigWarnings.length > 0) {
+    report.warnings = report.warnings ?? [];
+    report.warnings.push(...workspaceConfigWarnings);
+  }
   let indexStateWriter: IndexStateWriter | null = null;
   const writeIndexState = async (next: IndexState, options: { force?: boolean } = {}): Promise<void> => {
     if (indexStateWriter) {
@@ -1362,6 +1788,26 @@ export async function bootstrapProject(
     totalPhases,
     startedAt: recoveryStartedAt,
     workspaceFingerprint: effectiveFingerprint,
+  });
+  const existingConsistency = await readBootstrapConsistencyState(workspace);
+  const recoveredFromStaleBackup = await recoverStaleBootstrapArtifactBackup(workspace, existingConsistency);
+  if (recoveredFromStaleBackup) {
+    logWarning('Bootstrap: restored stale pre-bootstrap artifact backup before starting new run', {
+      workspace,
+      previousConsistencyStatus: existingConsistency?.status ?? 'missing',
+    });
+  }
+  const consistencyGenerationId = randomUUID();
+  await createBootstrapArtifactBackup(workspace, consistencyGenerationId);
+  await writeBootstrapConsistencyState(workspace, {
+    kind: 'BootstrapConsistencyState.v1',
+    schema_version: 1,
+    workspace,
+    generation_id: consistencyGenerationId,
+    status: 'in_progress',
+    started_at: recoveryStartedAt,
+    updated_at: new Date().toISOString(),
+    artifacts: await collectBootstrapArtifacts(workspace),
   });
 
   try {
@@ -1635,6 +2081,18 @@ export async function bootstrapProject(
     state.completedAt = report.completedAt;
     bootstrapStates.set(workspace, state);
     await clearBootstrapRecoveryState(workspace);
+    await writeBootstrapConsistencyState(workspace, {
+      kind: 'BootstrapConsistencyState.v1',
+      schema_version: 1,
+      workspace,
+      generation_id: consistencyGenerationId,
+      status: 'complete',
+      started_at: recoveryStartedAt,
+      updated_at: new Date().toISOString(),
+      completed_at: report.completedAt.toISOString(),
+      artifacts: await collectBootstrapArtifacts(workspace),
+    });
+    await clearBootstrapArtifactBackup(workspace);
 
     // Emit bootstrap:complete event
     const totalDurationMs = report.completedAt!.getTime() - report.startedAt.getTime();
@@ -1653,23 +2111,31 @@ export async function bootstrapProject(
     }
     await indexStateWriter?.flush();
 
-    // Update repo documentation with librarian usage info
-    try {
-      const docsResult = await updateRepoDocs({
-        workspace,
-        report,
-        capabilities: report.capabilities,
-        skipIfExists: false, // Update if content is stale
-      });
-      if (docsResult.filesUpdated.length > 0) {
-        report.warnings.push(`Librarian docs updated: ${docsResult.filesUpdated.join(', ')}`);
+    // Update repo documentation only when explicitly enabled.
+    if (config.updateAgentDocs) {
+      try {
+        const docsResult = await updateRepoDocs({
+          workspace,
+          report,
+          capabilities: report.capabilities,
+          skipIfExists: false, // Update if content is stale
+          noClaudeMd: config.noClaudeMd,
+        });
+        if (docsResult.filesUpdated.length > 0) {
+          report.warnings.push(`Librarian docs updated: ${docsResult.filesUpdated.join(', ')}`);
+        }
+        if (docsResult.warnings.length > 0) {
+          report.warnings.push(`Docs update warnings: ${docsResult.warnings.join('; ')}`);
+        }
+        if (docsResult.errors.length > 0) {
+          report.warnings.push(`Docs update errors: ${docsResult.errors.join('; ')}`);
+        }
+      } catch (docsError) {
+        // Non-fatal - log but don't fail bootstrap
+        report.warnings.push(`Failed to update repo docs: ${getErrorMessage(docsError)}`);
       }
-      if (docsResult.errors.length > 0) {
-        report.warnings.push(`Docs update errors: ${docsResult.errors.join('; ')}`);
-      }
-    } catch (docsError) {
-      // Non-fatal - log but don't fail bootstrap
-      report.warnings.push(`Failed to update repo docs: ${getErrorMessage(docsError)}`);
+    } else {
+      report.warnings.push('Agent docs auto-update skipped (opt-in via --update-agent-docs).');
     }
 
     return report;
@@ -1697,6 +2163,20 @@ export async function bootstrapProject(
     void globalEventBus.emit(createBootstrapCompleteEvent(workspace, false, failedDurationMs, report.error));
     const phaseIndex = state.currentPhase ? BOOTSTRAP_PHASES.indexOf(state.currentPhase) : startPhaseIndex;
     const phaseName = state.currentPhase?.name ?? 'unknown';
+    let restoredFromBackup = false;
+    try {
+      await storage.close();
+    } catch {
+      // Best effort - continue with restore attempt.
+    }
+    try {
+      restoredFromBackup = await restoreBootstrapArtifactBackup(workspace);
+      if (restoredFromBackup) {
+        await clearBootstrapArtifactBackup(workspace);
+      }
+    } catch {
+      restoredFromBackup = false;
+    }
     const checkpointSnapshot = checkpointWriter.getSnapshot();
     const phaseProgress = checkpointSnapshot && checkpointSnapshot.phaseIndex === phaseIndex
       ? checkpointSnapshot.progress
@@ -1719,9 +2199,31 @@ export async function bootstrapProject(
     } catch {
       // Keep original error as the primary failure signal.
     }
+    try {
+      await writeBootstrapConsistencyState(workspace, {
+        kind: 'BootstrapConsistencyState.v1',
+        schema_version: 1,
+        workspace,
+        generation_id: consistencyGenerationId,
+        status: restoredFromBackup ? 'complete' : 'failed',
+        started_at: recoveryStartedAt,
+        updated_at: new Date().toISOString(),
+        completed_at: report.completedAt.toISOString(),
+        artifacts: await collectBootstrapArtifacts(workspace),
+        last_error: restoredFromBackup
+          ? `bootstrap_failed_restored_previous_state: ${report.error}`
+          : report.error,
+      });
+    } catch {
+      // Keep original error as the primary failure signal.
+    }
 
     try {
-      await writeIndexState({ phase: 'uninitialized' }, { force: true });
+      if (restoredFromBackup) {
+        await writeIndexState({ phase: 'ready' }, { force: true });
+      } else {
+        await writeIndexState({ phase: 'uninitialized' }, { force: true });
+      }
       await indexStateWriter?.flush();
     } catch {
       // Ignore index state errors during failure handling.
@@ -2217,7 +2719,7 @@ async function runFileDirectoryKnowledgeExtraction(
             try {
               const raw = await fs.readFile(filePath);
               if (!isProbablyBinary(raw)) {
-                const checksum = computeChecksum16(raw.toString('utf8'));
+                const checksum = computeFileChecksum(raw.toString('utf8'));
                 if (checksum === existing.checksum) {
                   fileChecksumByPath.set(filePath, existing.checksum);
                   const assessment = assessFile({ file: existing });
@@ -2572,7 +3074,7 @@ async function runRelationshipMapping(
 
   const cochangeStore = storage as LibrarianStorage & {
     getCochangeEdgeCount?: () => Promise<number>;
-    storeCochangeEdges?: (edges: ReturnType<typeof buildTemporalGraph>['edges'], computedAt?: string) => Promise<void>;
+    storeCochangeEdges?: (edges: TemporalGraph['edges'], computedAt?: string) => Promise<void>;
     deleteCochangeEdges?: () => Promise<void>;
   };
   if (cochangeStore.storeCochangeEdges) {
@@ -2583,7 +3085,7 @@ async function runRelationshipMapping(
       if (config.forceReindex && cochangeStore.deleteCochangeEdges) {
         await cochangeStore.deleteCochangeEdges();
       }
-      const temporal = buildTemporalGraph(config.workspace);
+      const temporal = await buildTemporalGraph(config.workspace);
       if (temporal.edges.length) {
         await cochangeStore.storeCochangeEdges(temporal.edges);
       }
@@ -3527,6 +4029,8 @@ export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
   forceResume: false,
   autoRecover: true,
   skipEmbeddings: false,
+  updateAgentDocs: false,
+  noClaudeMd: false,
 
   // Composition suggestions (codebase-aware recommendations after bootstrap)
   compositionSuggestions: { enabled: true },
@@ -3767,6 +4271,8 @@ export const __testing = {
   createBootstrapCheckpointWriter,
   computeWorkspaceFingerprint,
   fingerprintsMatch,
+  normalizeIgnorePattern,
+  loadWorkspaceIgnorePatterns,
   applyIngestionResults,
   persistIngestionItems,
   materializeIngestionItems,

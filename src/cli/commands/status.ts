@@ -6,15 +6,21 @@ import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
+import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
+import type { LibrarianStorage } from '../../storage/types.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import { printKeyValue, formatTimestamp, formatBytes, formatDuration } from '../progress.js';
 import { safeJsonParse } from '../../utils/safe_json.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
+import { emitJsonOutput } from '../json_output.js';
+import { collectVerificationProvenance, type VerificationProvenanceReport } from '../verification_provenance.js';
+import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 
 export interface StatusCommandOptions {
   workspace: string;
   verbose?: boolean;
   format?: 'text' | 'json';
+  out?: string;
 }
 
 type StatusReport = {
@@ -49,6 +55,13 @@ type StatusReport = {
     state: ReturnType<typeof getWatchState> extends Promise<infer T> ? T : unknown;
     health: ReturnType<typeof deriveWatchHealth>;
   } | null;
+  locks?: {
+    lockDirs: string[];
+    scannedFiles: number;
+    staleFiles: number;
+    activePidFiles: number;
+    unknownFreshFiles: number;
+  };
   stats?: {
     totalFunctions: number;
     totalModules: number;
@@ -70,6 +83,15 @@ type StatusReport = {
     status: AllProviderStatus | null;
     error?: string;
   };
+  freshness?: {
+    totalIndexedFiles: number;
+    freshFiles: number;
+    staleFiles: number;
+    missingFiles: number;
+    newFiles: number;
+    selector: 'git-status';
+  } | null;
+  provenance?: VerificationProvenanceReport;
 };
 
 function toSafeDate(value: unknown): Date | null {
@@ -97,7 +119,7 @@ function computeDurationMs(startedAt: unknown, completedAt: unknown): number | n
 }
 
 export async function statusCommand(options: StatusCommandOptions): Promise<void> {
-  const { workspace, verbose, format = 'text' } = options;
+  const { workspace, verbose, format = 'text', out } = options;
   let workspaceRoot = path.resolve(workspace);
   if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
     const resolution = resolveWorkspaceRoot(workspaceRoot);
@@ -115,6 +137,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
     version: { cli: LIBRARIAN_VERSION.string },
     storage: { status: 'not_initialized' },
   };
+  report.provenance = await collectVerificationProvenance(workspaceRoot);
 
   if (format === 'text') {
     console.log('Librarian Status');
@@ -122,6 +145,22 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
 
     console.log('Version Information:');
     printKeyValue([{ key: 'CLI Version', value: LIBRARIAN_VERSION.string }, { key: 'Workspace', value: workspaceRoot }]);
+    console.log();
+
+    console.log('Verification Provenance:');
+    printKeyValue([
+      { key: 'Status', value: report.provenance.status },
+      { key: 'Evidence Generated At', value: report.provenance.evidenceGeneratedAt ?? 'unknown' },
+      { key: 'STATUS Unverified Markers', value: report.provenance.statusUnverifiedMarkers },
+      {
+        key: 'Gates Unverified',
+        value: `${report.provenance.gatesUnverifiedTasks}/${report.provenance.gatesTotalTasks}`,
+      },
+      { key: 'Release Evidence Ready', value: report.provenance.evidencePrerequisitesSatisfied },
+    ]);
+    if (report.provenance.notes.length > 0) {
+      printKeyValue([{ key: 'Notes', value: report.provenance.notes.join(' | ') }]);
+    }
     console.log();
   }
 
@@ -137,7 +176,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       reason: error instanceof Error ? error.message : 'Unknown error',
     };
     if (format === 'json') {
-      console.log(JSON.stringify(report));
+      await emitJsonOutput(report, out);
       return;
     }
     console.log('Storage Status:');
@@ -284,6 +323,28 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       console.log();
     }
 
+    const workspaceLocks = await inspectWorkspaceLocks(workspaceRoot);
+    report.locks = {
+      lockDirs: workspaceLocks.lockDirs,
+      scannedFiles: workspaceLocks.scannedFiles,
+      staleFiles: workspaceLocks.staleFiles,
+      activePidFiles: workspaceLocks.activePidFiles,
+      unknownFreshFiles: workspaceLocks.unknownFreshFiles,
+    };
+    if (format === 'text') {
+      console.log('Lock Hygiene:');
+      printKeyValue([
+        { key: 'Lock Files Scanned', value: workspaceLocks.scannedFiles },
+        { key: 'Stale Lock Files', value: workspaceLocks.staleFiles },
+        { key: 'Active PID Locks', value: workspaceLocks.activePidFiles },
+        { key: 'Fresh Unknown Locks', value: workspaceLocks.unknownFreshFiles },
+      ]);
+      if (workspaceLocks.staleFiles > 0) {
+        console.log('\nTip: Run `librarian doctor --heal` to remove stale lock files.');
+      }
+      console.log();
+    }
+
     const stats = await storage.getStats();
     report.stats = {
       totalFunctions: stats.totalFunctions,
@@ -303,6 +364,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
           totalFiles: metadata.totalFiles,
         }
       : null;
+    report.freshness = await collectGitFreshnessSummary({
+      workspaceRoot,
+      storage,
+      totalIndexedFiles: metadata?.totalFiles ?? 0,
+    });
 
     try {
       const rawDefaults = await storage.getState('librarian.llm_defaults.v1');
@@ -330,7 +396,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
     }
 
     if (format === 'json') {
-      console.log(JSON.stringify(report));
+      await emitJsonOutput(report, out);
       return;
     }
 
@@ -355,6 +421,21 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
         { key: 'Last Indexing', value: formatTimestamp(toSafeDate(metadata.lastIndexing)) },
         { key: 'Total Files', value: metadata.totalFiles },
       ]);
+      console.log();
+    }
+
+    if (report.freshness) {
+      console.log('Index Freshness:');
+      printKeyValue([
+        { key: 'Indexed Files', value: report.freshness.totalIndexedFiles },
+        { key: 'Fresh', value: report.freshness.freshFiles },
+        { key: 'Stale', value: report.freshness.staleFiles },
+        { key: 'Missing', value: report.freshness.missingFiles },
+        { key: 'New (Unindexed)', value: report.freshness.newFiles },
+      ]);
+      if (report.freshness.staleFiles + report.freshness.missingFiles + report.freshness.newFiles > 0) {
+        printKeyValue([{ key: 'Suggested Command', value: 'librarian index --force --incremental' }]);
+      }
       console.log();
     }
 
@@ -407,4 +488,65 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
   } finally {
     await storage.close();
   }
+}
+
+async function collectGitFreshnessSummary(params: {
+  workspaceRoot: string;
+  storage: LibrarianStorage;
+  totalIndexedFiles: number;
+}): Promise<StatusReport['freshness']> {
+  const { workspaceRoot, storage, totalIndexedFiles } = params;
+  if (!isGitRepo(workspaceRoot)) return null;
+
+  const changes = await getGitStatusChanges(workspaceRoot);
+  if (!changes) {
+    return {
+      totalIndexedFiles,
+      freshFiles: Math.max(totalIndexedFiles, 0),
+      staleFiles: 0,
+      missingFiles: 0,
+      newFiles: 0,
+      selector: 'git-status',
+    };
+  }
+
+  const addedOrModified = dedupePaths([...changes.added, ...changes.modified])
+    .map((relPath) => path.resolve(workspaceRoot, relPath));
+  const deleted = dedupePaths(changes.deleted).map((relPath) => path.resolve(workspaceRoot, relPath));
+
+  let staleFiles = 0;
+  let newFiles = 0;
+  let missingFiles = 0;
+
+  for (const filePath of addedOrModified) {
+    const indexed = await storage.getFileByPath(filePath);
+    if (indexed) staleFiles += 1;
+    else newFiles += 1;
+  }
+  for (const filePath of deleted) {
+    const indexed = await storage.getFileByPath(filePath);
+    if (indexed) missingFiles += 1;
+  }
+
+  const freshFiles = Math.max(totalIndexedFiles - staleFiles - missingFiles, 0);
+  return {
+    totalIndexedFiles,
+    freshFiles,
+    staleFiles,
+    missingFiles,
+    newFiles,
+    selector: 'git-status',
+  };
+}
+
+function dedupePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const value of paths) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    deduped.push(trimmed);
+  }
+  return deduped;
 }

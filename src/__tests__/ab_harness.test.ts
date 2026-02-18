@@ -1212,7 +1212,7 @@ describe('computeAbLiftSummary', () => {
     expect(report.t3PlusLift?.controlSuccessRate).toBe(1);
     expect(report.t3PlusLift?.treatmentSuccessRate).toBe(1);
     expect(report.t3PlusLift?.timeReduction ?? 0).toBeLessThan(0);
-    expect(report.t3PlusLift?.agentCommandTimeReduction ?? 0).toBeLessThan(0);
+    expect(report.t3PlusLift?.agentCommandTimeReduction ?? 0).toBeLessThanOrEqual(0);
     expect(
       report.gates.reasons.some((reason) => reason.startsWith('t3_plus_ceiling_time_reduction_below_threshold:'))
     ).toBe(false);

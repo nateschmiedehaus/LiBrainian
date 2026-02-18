@@ -2,6 +2,8 @@ const WORKSPACE_POSITIONAL_COMMANDS = new Set([
   'status',
   'bootstrap',
   'quickstart',
+  'setup',
+  'init',
   'doctor',
   'publish-gate',
   'diagnose',

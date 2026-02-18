@@ -8,7 +8,7 @@ import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { getIndexState, setIndexState } from '../state/index_state.js';
 import { getWatchState, updateWatchState, type WatchCursor, type WatchStateConfig } from '../state/watch_state.js';
-import { computeChecksum16 } from '../utils/checksums.js';
+import { computeFileChecksum } from '../utils/checksums.js';
 import { getCurrentGitSha, getGitDiffNames, getGitStatusChanges } from '../utils/git.js';
 import {
   globalEventBus,
@@ -985,7 +985,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
     if (!this.storage) return false;
     try {
       const content = await fs.promises.readFile(absolutePath, 'utf8');
-      const checksum = computeChecksum16(content);
+      const checksum = computeFileChecksum(content);
       const existing = await this.storage.getFileChecksum(absolutePath);
       return Boolean(existing && existing === checksum);
     } catch (error: unknown) {

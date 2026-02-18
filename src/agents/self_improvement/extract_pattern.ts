@@ -698,7 +698,7 @@ export async function extractPattern(
   } = options;
 
   if (verbose) {
-    console.log(`[extractPattern] Extracting pattern from improvement: ${improvement.id}`);
+    console.error(`[extractPattern] Extracting pattern from improvement: ${improvement.id}`);
   }
 
   // Check if improvement was successful enough
@@ -740,7 +740,7 @@ export async function extractPattern(
   const { template, confidence: detectionConfidence } = detectPatternType(improvement);
 
   if (verbose) {
-    console.log(`[extractPattern] Detected template: ${template?.name ?? 'none'} (confidence: ${detectionConfidence.toFixed(2)})`);
+    console.error(`[extractPattern] Detected template: ${template?.name ?? 'none'} (confidence: ${detectionConfidence.toFixed(2)})`);
   }
 
   // Analyze metric changes
@@ -841,7 +841,7 @@ export async function extractPattern(
   const expectedBenefit = estimateBenefit(improvement, metricChanges);
 
   if (verbose) {
-    console.log(`[extractPattern] Successfully extracted pattern: ${pattern.name}`);
+    console.error(`[extractPattern] Successfully extracted pattern: ${pattern.name}`);
   }
 
   return {

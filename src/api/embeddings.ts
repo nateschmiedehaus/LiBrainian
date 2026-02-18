@@ -24,7 +24,6 @@ import {
   cosineSimilarity,
   EMBEDDING_MODELS,
   setEmbeddingModel,
-  getCurrentModel,
   type EmbeddingModelId,
 } from './embedding_providers/real_embeddings.js';
 import { getErrorMessage } from '../utils/errors.js';
@@ -333,6 +332,7 @@ export class EmbeddingService {
   private readonly provider: EmbeddingProvider;
   private readonly modelId: string;
   private readonly embeddingDimension: number;
+  private readonly contextWindowTokens: number;
   private readonly maxBatchSize: number;
   private readonly maxConcurrentBatches: number;
   private readonly batchDelayMs: number;
@@ -344,9 +344,21 @@ export class EmbeddingService {
   private readonly now: () => Date;
 
   constructor(options: EmbeddingServiceOptions = {}) {
-    this.provider = options.provider ?? 'xenova';
-    this.modelId = options.modelId ?? 'all-MiniLM-L6-v2';
-    this.embeddingDimension = options.embeddingDimension ?? DEFAULT_EMBEDDING_DIMENSION;
+    const explicitModelId = options.modelId ?? process.env.LIBRARIAN_EMBEDDING_MODEL;
+    let modelConfig: EmbeddingConfig;
+    let resolvedModelId: string;
+    try {
+      modelConfig = getEmbeddingConfig(explicitModelId);
+      resolvedModelId = modelConfig.model;
+    } catch {
+      modelConfig = getEmbeddingConfig('all-MiniLM-L6-v2');
+      resolvedModelId = explicitModelId ?? modelConfig.model;
+    }
+
+    this.provider = options.provider ?? modelConfig.provider;
+    this.modelId = resolvedModelId;
+    this.embeddingDimension = options.embeddingDimension ?? modelConfig.dimensions;
+    this.contextWindowTokens = modelConfig.contextWindow;
     this.maxBatchSize = resolveQuantifiedValue(options.maxBatchSize ?? DEFAULT_BATCH_SIZE);
     this.maxConcurrentBatches = resolveQuantifiedValue(
       options.maxConcurrentBatches ?? DEFAULT_MAX_CONCURRENT_BATCHES
@@ -370,10 +382,10 @@ export class EmbeddingService {
 
   /**
    * Returns the dimension of embeddings produced by this service.
-   * @returns The embedding vector dimension (currently 384 for all-MiniLM-L6-v2)
+   * @returns The embedding vector dimension for the configured model.
    */
   getEmbeddingDimension(): number {
-    return REAL_EMBEDDING_DIMENSION;
+    return this.embeddingDimension;
   }
 
   /**
@@ -490,13 +502,13 @@ export class EmbeddingService {
         try {
           governorContext?.checkBudget();
 
-          const result = await generateRealEmbedding(item.text);
+          const result = await this.generateEmbeddingWithContextWindow(item.text, governorContext ?? null);
           const embedding = normalizeEmbeddingIfNeeded(result.embedding, this.normalizationConfig);
           const generatedAt = this.now().toISOString();
 
           results.push({
             embedding,
-            modelId: 'all-MiniLM-L6-v2',
+            modelId: this.modelId,
             provider: result.provider,
             generatedAt,
             tokenCount: requestTokens[index] ?? estimateTokenCount(item.text),
@@ -538,6 +550,38 @@ export class EmbeddingService {
 
     return results;
   }
+
+  private async generateEmbeddingWithContextWindow(
+    text: string,
+    governorContext: GovernorContextLike | null
+  ): Promise<{ embedding: Float32Array; provider: EmbeddingProvider }> {
+    const modelId = this.modelId as EmbeddingModelId;
+    const requestTokens = estimateTokenCount(text);
+
+    if (requestTokens <= this.contextWindowTokens) {
+      const result = await generateRealEmbedding(text, modelId);
+      return {
+        embedding: result.embedding,
+        provider: result.provider,
+      };
+    }
+
+    const chunks = chunkTextForEmbedding(text, this.contextWindowTokens);
+    const chunkEmbeddings: Float32Array[] = [];
+    let provider: EmbeddingProvider = this.provider;
+
+    for (const chunk of chunks) {
+      governorContext?.checkBudget();
+      const chunkResult = await generateRealEmbedding(chunk, modelId);
+      chunkEmbeddings.push(chunkResult.embedding);
+      provider = chunkResult.provider;
+    }
+
+    return {
+      embedding: mergeChunkEmbeddings(chunkEmbeddings),
+      provider,
+    };
+  }
 }
 
 function chunkRequests<T>(requests: T[], size: number): T[][] {
@@ -552,6 +596,57 @@ function estimateTokenCount(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 1;
   return Math.max(1, Math.ceil(trimmed.length / 4));
+}
+
+function chunkTextForEmbedding(
+  text: string,
+  contextWindowTokens: number
+): string[] {
+  const safeContextTokens = Math.max(1, Math.floor(contextWindowTokens));
+  const maxCharsPerChunk = safeContextTokens * 4;
+  if (text.length <= maxCharsPerChunk) {
+    return [text];
+  }
+
+  // Keep overlap so boundaries do not lose semantics across neighboring windows.
+  const overlapChars = Math.min(
+    maxCharsPerChunk - 1,
+    Math.max(1, Math.floor(maxCharsPerChunk * 0.2))
+  );
+
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const end = Math.min(text.length, start + maxCharsPerChunk);
+    chunks.push(text.slice(start, end));
+    if (end >= text.length) break;
+    start = Math.max(0, end - overlapChars);
+  }
+
+  return chunks;
+}
+
+function mergeChunkEmbeddings(embeddings: Float32Array[]): Float32Array {
+  if (embeddings.length === 0) {
+    throw new Error('unverified_by_trace(provider_invalid_output): no chunk embeddings to merge');
+  }
+
+  const dimension = embeddings[0].length;
+  const merged = new Float32Array(dimension);
+  for (const embedding of embeddings) {
+    if (embedding.length !== dimension) {
+      throw new Error('unverified_by_trace(provider_invalid_output): chunk embeddings have inconsistent dimensions');
+    }
+    for (let i = 0; i < dimension; i++) {
+      merged[i] += embedding[i];
+    }
+  }
+
+  for (let i = 0; i < dimension; i++) {
+    merged[i] /= embeddings.length;
+  }
+
+  return merged;
 }
 
 function delay(ms: number): Promise<void> {
@@ -761,6 +856,8 @@ export const __testing = {
   normalizeEmbeddingIfNeeded,
   computeEmbeddingNorm,
   normalizeEmbeddingWithNorm,
+  chunkTextForEmbedding,
+  mergeChunkEmbeddings,
   DEFAULT_EMBEDDING_RETRY_CONFIG,
   DEFAULT_EMBEDDING_NORMALIZATION_CONFIG,
 };

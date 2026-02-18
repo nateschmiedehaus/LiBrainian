@@ -224,7 +224,7 @@ async function buildFromCochange(
   const edges: KnowledgeGraphEdge[] = [];
   const now = new Date().toISOString();
 
-  const temporal = buildTemporalGraph(workspace, { maxCommits });
+  const temporal = await buildTemporalGraph(workspace, { maxCommits });
 
   for (const cochange of temporal.edges) {
     // Only include significant co-change relationships
@@ -404,8 +404,8 @@ function mapEntityType(type: string): KnowledgeGraphEdge['sourceType'] {
     module: 'module',
     file: 'file',
     directory: 'directory',
-    class: 'module',
-    interface: 'module',
+    class: 'class',
+    interface: 'interface',
   };
   return typeMap[type] || 'file';
 }

@@ -626,6 +626,7 @@ export class SecurityAuditHelper {
       affectedFiles: files,
       depth: 'L2',
       taskType: 'security_audit',
+      perspective: 'security',
     });
 
     if (queryResult.packs) {
@@ -652,6 +653,7 @@ export class SecurityAuditHelper {
         affectedFiles: [file],
         depth: 'L1',
         taskType: 'security_audit',
+        perspective: 'security',
       });
 
       if (fileResult.packs) {

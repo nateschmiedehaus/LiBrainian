@@ -45,6 +45,85 @@ interface HNSWNode {
   connections: Map<number, string[]>;
 }
 
+interface ScoredNode {
+  id: string;
+  distance: number;
+}
+
+class BinaryHeap<T> {
+  private items: T[] = [];
+  private readonly shouldSwap: (parent: T, child: T) => boolean;
+
+  constructor(shouldSwap: (parent: T, child: T) => boolean) {
+    this.shouldSwap = shouldSwap;
+  }
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  peek(): T | undefined {
+    return this.items[0];
+  }
+
+  push(item: T): void {
+    this.items.push(item);
+    this.siftUp(this.items.length - 1);
+  }
+
+  pop(): T | undefined {
+    if (this.items.length === 0) return undefined;
+    const root = this.items[0];
+    const last = this.items.pop()!;
+    if (this.items.length > 0) {
+      this.items[0] = last;
+      this.siftDown(0);
+    }
+    return root;
+  }
+
+  toArray(): T[] {
+    return [...this.items];
+  }
+
+  private siftUp(index: number): void {
+    let current = index;
+    while (current > 0) {
+      const parent = Math.floor((current - 1) / 2);
+      if (this.shouldSwap(this.items[parent]!, this.items[current]!)) {
+        break;
+      }
+      [this.items[parent], this.items[current]] = [this.items[current]!, this.items[parent]!];
+      current = parent;
+    }
+  }
+
+  private siftDown(index: number): void {
+    let current = index;
+    const length = this.items.length;
+
+    while (true) {
+      const left = current * 2 + 1;
+      const right = left + 1;
+      let best = current;
+
+      if (left < length && !this.shouldSwap(this.items[best]!, this.items[left]!)) {
+        best = left;
+      }
+      if (right < length && !this.shouldSwap(this.items[best]!, this.items[right]!)) {
+        best = right;
+      }
+
+      if (best === current) {
+        break;
+      }
+
+      [this.items[current], this.items[best]] = [this.items[best]!, this.items[current]!];
+      current = best;
+    }
+  }
+}
+
 /**
  * HNSW Index for approximate nearest neighbor search.
  *
@@ -116,15 +195,13 @@ export class HNSWIndex {
    * @param entityType - Type of entity (function, module, document)
    */
   insert(id: string, vector: Float32Array, entityType: VectorIndexEntityType): void {
-    // Skip if already exists
+    this.dimensions.add(vector.length);
+
+    // Reinsert existing nodes so neighborhood links are rebuilt for the new vector.
     if (this.nodes.has(id)) {
-      // Update existing node's vector
-      const existing = this.nodes.get(id)!;
-      existing.vector = vector;
-      return;
+      this.remove(id);
     }
 
-    this.dimensions.add(vector.length);
     const level = this.getRandomLevel();
     const node: HNSWNode = {
       id,
@@ -277,31 +354,32 @@ export class HNSWIndex {
     entryId: string,
     ef: number,
     layer: number
-  ): Array<{ id: string; distance: number }> {
+  ): ScoredNode[] {
+    if (ef <= 0) return [];
+
     const visited = new Set<string>();
-    const candidates: Array<{ id: string; distance: number }> = [];
-    const results: Array<{ id: string; distance: number }> = [];
+    const candidates = new BinaryHeap<ScoredNode>((parent, child) => parent.distance <= child.distance); // min-heap
+    const results = new BinaryHeap<ScoredNode>((parent, child) => parent.distance >= child.distance); // max-heap
 
     const entryNode = this.nodes.get(entryId);
     if (!entryNode) return [];
 
     const entryDist = this.cosineDistance(query, entryNode.vector);
-    candidates.push({ id: entryId, distance: entryDist });
-    results.push({ id: entryId, distance: entryDist });
+    const entry: ScoredNode = { id: entryId, distance: entryDist };
+    candidates.push(entry);
+    results.push(entry);
     visited.add(entryId);
 
-    while (candidates.length > 0) {
+    while (candidates.size > 0) {
       // Get closest unprocessed candidate
-      candidates.sort((a, b) => a.distance - b.distance);
-      const current = candidates.shift()!;
+      const current = candidates.pop()!;
 
       // Get the farthest result
-      results.sort((a, b) => a.distance - b.distance);
-      const farthest = results[results.length - 1];
+      const farthest = results.peek();
 
       // Stop if current candidate is farther than the farthest result
       // and we have enough results
-      if (farthest && current.distance > farthest.distance && results.length >= ef) {
+      if (farthest && current.distance > farthest.distance && results.size >= ef) {
         break;
       }
 
@@ -318,23 +396,22 @@ export class HNSWIndex {
         if (!connNode) continue;
 
         const dist = this.cosineDistance(query, connNode.vector);
-        const resultFarthest = results[results.length - 1];
+        const resultFarthest = results.peek();
 
         // Add to candidates and results if close enough
-        if (results.length < ef || (resultFarthest && dist < resultFarthest.distance)) {
+        if (results.size < ef || (resultFarthest && dist < resultFarthest.distance)) {
           candidates.push({ id: connId, distance: dist });
           results.push({ id: connId, distance: dist });
 
           // Keep results bounded to ef
-          if (results.length > ef) {
-            results.sort((a, b) => a.distance - b.distance);
+          if (results.size > ef) {
             results.pop();
           }
         }
       }
     }
 
-    return results.sort((a, b) => a.distance - b.distance);
+    return results.toArray().sort((a, b) => a.distance - b.distance);
   }
 
   /**
@@ -465,7 +542,7 @@ export class HNSWIndex {
 // cold-start latency (e.g. CLI one-shot queries). For small/medium corpora,
 // brute-force cosine similarity is typically fast enough and avoids multi-second
 // index build time.
-export const HNSW_AUTO_THRESHOLD = 50_000;
+export const HNSW_AUTO_THRESHOLD = 5_000;
 
 export interface VectorIndexConfig {
   /** Use HNSW index for O(log n) search. Auto-enabled when size > HNSW_AUTO_THRESHOLD */
@@ -528,7 +605,12 @@ export class VectorIndex {
    * More efficient than reloading for incremental updates.
    */
   add(item: VectorIndexItem): void {
-    this.items.push(item);
+    const existingIndex = this.items.findIndex((existing) => existing.entityId === item.entityId);
+    if (existingIndex >= 0) {
+      this.items[existingIndex] = item;
+    } else {
+      this.items.push(item);
+    }
     this.dimensions.add(item.embedding.length);
 
     // Check if we should switch to HNSW mode

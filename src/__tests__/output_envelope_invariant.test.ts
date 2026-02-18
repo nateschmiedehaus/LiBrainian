@@ -72,9 +72,17 @@ describe('Output envelope invariant', () => {
     expect(normalized.constructionPlan).toBeDefined();
     expect(normalized.adequacy).toBeUndefined();
     expect(normalized.verificationPlan).toBeUndefined();
-    expect(normalized.disclosures).toContain('unverified_by_trace(construction_plan_missing)');
-    expect(normalized.disclosures).toContain('unverified_by_trace(adequacy_missing)');
-    expect(normalized.disclosures).toContain('unverified_by_trace(verification_plan_missing)');
+    expect(normalized.disclosures).toContain('Construction plan missing; generated default plan.');
+    expect(normalized.disclosures).toContain('Adequacy report missing; verification completeness is unknown.');
+    expect(normalized.disclosures).toContain('Verification plan missing; follow-up checks may be incomplete.');
+    expect(normalized.disclosures.join(' ')).not.toContain('unverified_by_trace');
+    expect(normalized.epistemicsDebug).toEqual(
+      expect.arrayContaining([
+        'unverified_by_trace(construction_plan_missing)',
+        'unverified_by_trace(adequacy_missing)',
+        'unverified_by_trace(verification_plan_missing)',
+      ])
+    );
   });
 
   it('preserves provided envelope fields', () => {

@@ -40,6 +40,11 @@ export const AuditTypeSchema = z.enum(['full', 'claims', 'coverage', 'security',
 /** Bundle type options */
 export const BundleTypeSchema = z.enum(['minimal', 'standard', 'comprehensive']);
 
+/** Shared pagination/output controls */
+const PageSizeSchema = z.number().int().min(1).max(200);
+const PageIdxSchema = z.number().int().min(0);
+const OutputFileSchema = z.string().min(1);
+
 /**
  * Bootstrap tool input schema
  */
@@ -61,12 +66,64 @@ export const BootstrapToolInputSchema = z.object({
 export const QueryToolInputSchema = z.object({
   intent: z.string().min(1).max(2000).describe('The query intent or question'),
   workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive query behavior'),
   intentType: QueryIntentSchema.optional().describe('Typed query intent for routing optimization'),
   affectedFiles: z.array(z.string()).optional().describe('File paths to scope the query to'),
   minConfidence: z.number().min(0).max(1).optional().default(0.5).describe('Minimum confidence threshold (0-1)'),
   depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
   includeEngines: z.boolean().optional().default(false).describe('Include engine results in response'),
   includeEvidence: z.boolean().optional().default(false).describe('Include evidence graph summary'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
+}).strict();
+
+/**
+ * get_change_impact tool input schema
+ */
+export const GetChangeImpactToolInputSchema = z.object({
+  target: z.string().min(1).describe('Changed file/module/function identifier to analyze'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  depth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive depth for propagation (default: 3)'),
+  maxResults: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum impacted files to return (default: 200)'),
+  changeType: z.enum(['modify', 'delete', 'rename', 'move']).optional().describe('Optional change type to refine risk scoring'),
+}).strict();
+
+/**
+ * Submit feedback tool input schema
+ */
+export const SubmitFeedbackToolInputSchema = z.object({
+  feedbackToken: z.string().min(1).describe('Feedback token from query response'),
+  outcome: z.enum(['success', 'failure', 'partial']).describe('Task outcome'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  agentId: z.string().optional().describe('Agent identifier'),
+  missingContext: z.string().optional().describe('Description of missing context'),
+  customRatings: z.array(z.object({
+    packId: z.string().min(1),
+    relevant: z.boolean(),
+    usefulness: z.number().min(0).max(1).optional(),
+    reason: z.string().optional(),
+  }).strict()).optional().describe('Optional per-pack relevance ratings'),
+}).strict();
+
+/**
+ * Reset session state tool input schema
+ */
+export const ResetSessionStateToolInputSchema = z.object({
+  sessionId: z.string().min(1).optional().describe('Session ID to reset (optional if auth token is provided)'),
+  workspace: z.string().optional().describe('Workspace hint used for anonymous session reset fallback'),
+}).strict().default({});
+
+/**
+ * Request human review tool input schema
+ */
+export const RequestHumanReviewToolInputSchema = z.object({
+  reason: z.string().min(1).describe('Why human review is needed'),
+  context_summary: z.string().min(1).describe('Summary of uncertain or conflicting context'),
+  proposed_action: z.string().min(1).describe('Action the agent was about to take'),
+  confidence_tier: z.enum(['low', 'uncertain']).describe('Confidence tier requiring escalation'),
+  risk_level: z.enum(['low', 'medium', 'high']).describe('Risk if the proposed action is wrong'),
+  blocking: z.boolean().describe('Whether the agent should pause for human response'),
 }).strict();
 
 /**
@@ -87,9 +144,18 @@ export const RunAuditToolInputSchema = z.object({
 }).strict();
 
 /**
+ * List runs tool input schema
+ */
+export const ListRunsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  limit: z.number().int().positive().max(100).optional().describe('Maximum number of runs to return (default: 10, max: 100)'),
+}).strict().default({});
+
+/**
  * Diff runs tool input schema
  */
 export const DiffRunsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path used to resolve persisted run history'),
   runIdA: z.string().min(1).describe('ID of the first run'),
   runIdB: z.string().min(1).describe('ID of the second run'),
   detailed: z.boolean().optional().default(false).describe('Include detailed diff information'),
@@ -112,6 +178,9 @@ export const GetContextPackBundleToolInputSchema = z.object({
   entityIds: z.array(z.string()).min(1).describe('Entity IDs to bundle context for'),
   bundleType: BundleTypeSchema.optional().default('standard').describe('Type of bundle to create'),
   maxTokens: z.number().int().min(100).max(100000).optional().describe('Maximum token budget for the bundle'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict();
 
 /**
@@ -120,6 +189,9 @@ export const GetContextPackBundleToolInputSchema = z.object({
 export const ListVerificationPlansToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of plans returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -128,6 +200,9 @@ export const ListVerificationPlansToolInputSchema = z.object({
 export const ListEpisodesToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of episodes returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -136,6 +211,9 @@ export const ListEpisodesToolInputSchema = z.object({
 export const ListTechniquePrimitivesToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of primitives returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -144,6 +222,9 @@ export const ListTechniquePrimitivesToolInputSchema = z.object({
 export const ListTechniqueCompositionsToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of compositions returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -201,8 +282,13 @@ export const StatusToolInputSchema = z.object({
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
+export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
+export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
+export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
+export type ListRunsToolInputType = z.infer<typeof ListRunsToolInputSchema>;
 export type DiffRunsToolInputType = z.infer<typeof DiffRunsToolInputSchema>;
 export type ExportIndexToolInputType = z.infer<typeof ExportIndexToolInputSchema>;
 export type GetContextPackBundleToolInputType = z.infer<typeof GetContextPackBundleToolInputSchema>;
@@ -228,8 +314,13 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
+  reset_session_state: ResetSessionStateToolInputSchema,
+  request_human_review: RequestHumanReviewToolInputSchema,
+  get_change_impact: GetChangeImpactToolInputSchema,
+  submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   run_audit: RunAuditToolInputSchema,
+  list_runs: ListRunsToolInputSchema,
   diff_runs: DiffRunsToolInputSchema,
   export_index: ExportIndexToolInputSchema,
   get_context_pack_bundle: GetContextPackBundleToolInputSchema,
@@ -304,14 +395,90 @@ export const queryToolJsonSchema: JSONSchema = {
   type: 'object',
   properties: {
     intent: { type: 'string', description: 'The query intent or question', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive query behavior', minLength: 1 },
     intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Typed query intent' },
     affectedFiles: { type: 'array', items: { type: 'string' }, description: 'File paths to scope the query to' },
     minConfidence: { type: 'number', description: 'Minimum confidence threshold', minimum: 0, maximum: 1, default: 0.5 },
     depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
     includeEngines: { type: 'boolean', description: 'Include engine results', default: false },
     includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },
+    pageSize: { type: 'number', description: 'Items per page (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+    pageIdx: { type: 'number', description: 'Zero-based page index (default: 0)', minimum: 0, default: 0 },
+    outputFile: { type: 'string', description: 'Write paged response payload to file and return a file reference', minLength: 1 },
   },
   required: ['intent'],
+  additionalProperties: false,
+};
+
+/** get_change_impact tool JSON Schema */
+export const getChangeImpactToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-change-impact-tool-input',
+  title: 'GetChangeImpactToolInput',
+  description: 'Input for get_change_impact - ranked blast-radius and risk analysis for a proposed change',
+  type: 'object',
+  properties: {
+    target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    depth: { type: 'number', description: 'Maximum transitive depth for propagation (default: 3, max: 8)', minimum: 1, maximum: 8, default: 3 },
+    maxResults: { type: 'number', description: 'Maximum impacted files to return (default: 200, max: 1000)', minimum: 1, maximum: 1000, default: 200 },
+    changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+  },
+  required: ['target'],
+  additionalProperties: false,
+};
+
+/** Submit feedback tool JSON Schema */
+export const submitFeedbackToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/submit-feedback-tool-input',
+  title: 'SubmitFeedbackToolInput',
+  description: 'Input for the submit_feedback tool - records agent feedback for a query',
+  type: 'object',
+  properties: {
+    feedbackToken: { type: 'string', description: 'Feedback token from query response', minLength: 1 },
+    outcome: { type: 'string', enum: ['success', 'failure', 'partial'], description: 'Task outcome' },
+    workspace: { type: 'string', description: 'Workspace path' },
+    agentId: { type: 'string', description: 'Agent identifier' },
+    missingContext: { type: 'string', description: 'Description of missing context' },
+    customRatings: { type: 'array', items: { type: 'string' }, description: 'Optional per-pack ratings' },
+  },
+  required: ['feedbackToken', 'outcome'],
+  additionalProperties: false,
+};
+
+/** Reset session state tool JSON Schema */
+export const resetSessionStateToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/reset-session-state-tool-input',
+  title: 'ResetSessionStateToolInput',
+  description: 'Input for reset_session_state - clears session-scoped query loop detection history',
+  type: 'object',
+  properties: {
+    sessionId: { type: 'string', description: 'Session ID to reset', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace hint for anonymous session fallback' },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** Request human review tool JSON Schema */
+export const requestHumanReviewToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/request-human-review-tool-input',
+  title: 'RequestHumanReviewToolInput',
+  description: 'Input for request_human_review - structured human escalation for uncertain or risky agent actions',
+  type: 'object',
+  properties: {
+    reason: { type: 'string', description: 'Why human review is needed', minLength: 1 },
+    context_summary: { type: 'string', description: 'Summary of uncertain or conflicting context', minLength: 1 },
+    proposed_action: { type: 'string', description: 'Action the agent was about to take', minLength: 1 },
+    confidence_tier: { type: 'string', enum: ['low', 'uncertain'], description: 'Confidence tier requiring escalation' },
+    risk_level: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Risk if the action is wrong' },
+    blocking: { type: 'boolean', description: 'Whether the agent should pause for human response' },
+  },
+  required: ['reason', 'context_summary', 'proposed_action', 'confidence_tier', 'risk_level', 'blocking'],
   additionalProperties: false,
 };
 
@@ -319,6 +486,10 @@ export const queryToolJsonSchema: JSONSchema = {
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   query: queryToolJsonSchema,
+  reset_session_state: resetSessionStateToolJsonSchema,
+  request_human_review: requestHumanReviewToolJsonSchema,
+  get_change_impact: getChangeImpactToolJsonSchema,
+  submit_feedback: submitFeedbackToolJsonSchema,
 };
 
 // ============================================================================
