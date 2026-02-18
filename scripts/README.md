@@ -21,6 +21,15 @@ LiBrainian scripts are grouped by function:
   - `repo-folder-audit.mjs`
 - **GitHub automation**
   - `gh-autoland.mjs` (push current branch, create/reuse PR, enable squash auto-merge, watch checks)
+    - Supports `--issue <N>` to auto-link `Fixes #N` in PR body
+    - Supports `--dispatch-publish verify|publish` after merge to main (workflow dispatch)
+
+## Fast Paths
+
+- `npm run gh:ship`
+  - Runs `validate:fast`, then autolands current branch.
+- `npm run gh:autoland -- --issue 299`
+  - Opens/reuses PR linked to issue #299 and comments the issue with the PR URL.
 
 ## Conventions
 
