@@ -47,12 +47,18 @@ const createStorageStub = (statsOverrides: Partial<{
   averageConfidence: number;
   cacheHitRate: number;
   storageSizeBytes: number;
+}> = {}, metadataOverrides: Partial<{
+  version: { string: string };
+  qualityTier: string;
+  lastIndexing: string | Date | null;
 }> = {}): LibrarianStorage => ({
   initialize: vi.fn().mockResolvedValue(undefined) as Mock,
   close: vi.fn().mockResolvedValue(undefined) as Mock,
   getMetadata: vi.fn().mockResolvedValue({
     version: { string: '1.0.0' },
     qualityTier: 'full',
+    lastIndexing: new Date().toISOString(),
+    ...metadataOverrides,
   }) as Mock,
   getStats: vi.fn().mockResolvedValue({
     totalFunctions: 10,
@@ -74,10 +80,19 @@ const createStorageStub = (statsOverrides: Partial<{
   getState: vi.fn().mockResolvedValue(null) as Mock,
 } as unknown as LibrarianStorage);
 
+function parseJsonReport(consoleLogSpy: ReturnType<typeof vi.spyOn>): any {
+  const raw = consoleLogSpy.mock.calls
+    .map((call) => call[0])
+    .find((value) => typeof value === 'string') as string | undefined;
+  expect(raw).toBeTruthy();
+  return JSON.parse(raw!);
+}
+
 describe('doctorCommand', () => {
   const workspace = '/tmp/librarian-doctor-workspace';
   let dbPath: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  const originalHome = process.env.HOME;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -148,6 +163,7 @@ describe('doctorCommand', () => {
   afterEach(() => {
     consoleLogSpy.mockRestore();
     vi.useRealTimers();
+    process.env.HOME = originalHome;
     try {
       fs.unlinkSync(dbPath);
     } catch {
@@ -305,6 +321,101 @@ describe('doctorCommand', () => {
     expect(watchCheck.status).toBe('WARNING');
     expect(watchCheck.message).toContain('last error');
     vi.useRealTimers();
+  });
+
+  it('flags stale index freshness when source files are newer than the index', async () => {
+    const now = new Date('2026-02-06T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-freshness-'));
+    fs.mkdirSync(path.join(dynamicWorkspace, 'src'), { recursive: true });
+    const sourceFile = path.join(dynamicWorkspace, 'src', 'app.ts');
+    fs.writeFileSync(sourceFile, 'export const health = true;\n', 'utf8');
+
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: dynamicWorkspace,
+      workspace: dynamicWorkspace,
+      changed: false,
+      sourceFileCount: 1,
+      reason: 'explicit',
+    });
+    vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub({}, {
+      lastIndexing: new Date(now.getTime() - (72 * 60 * 60_000)).toISOString(),
+    }));
+
+    await doctorCommand({ workspace: dynamicWorkspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const freshness = report.checks.find((check: any) => check.name === 'Index Freshness');
+    expect(freshness).toBeTruthy();
+    expect(freshness.status).toBe('WARNING');
+    expect(freshness.message).toContain('stale');
+
+    fs.rmSync(dynamicWorkspace, { recursive: true, force: true });
+    vi.useRealTimers();
+  });
+
+  it('reports stale lock files in lock directories', async () => {
+    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-locks-'));
+    const locksDir = path.join(dynamicWorkspace, '.librarian', 'locks');
+    fs.mkdirSync(locksDir, { recursive: true });
+    fs.writeFileSync(path.join(locksDir, 'stale.lock'), JSON.stringify({ pid: 999999 }), 'utf8');
+
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: dynamicWorkspace,
+      workspace: dynamicWorkspace,
+      changed: false,
+      sourceFileCount: 0,
+      reason: 'explicit',
+    });
+
+    await doctorCommand({ workspace: dynamicWorkspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const lockCheck = report.checks.find((check: any) => check.name === 'Lock File Staleness');
+    expect(lockCheck).toBeTruthy();
+    expect(lockCheck.status).toBe('WARNING');
+    expect(lockCheck.message).toContain('stale lock');
+
+    fs.rmSync(dynamicWorkspace, { recursive: true, force: true });
+  });
+
+  it('flags missing librarian MCP registration when config exists', async () => {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-home-'));
+    process.env.HOME = homeDir;
+    const claudeDir = path.join(homeDir, '.claude');
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify({
+      mcpServers: {
+        otherTool: { command: 'node', args: ['other.js'] },
+      },
+    }), 'utf8');
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const mcpCheck = report.checks.find((check: any) => check.name === 'MCP Registration');
+    expect(mcpCheck).toBeTruthy();
+    expect(mcpCheck.status).toBe('WARNING');
+    expect(mcpCheck.message).toContain('not registered');
+
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  });
+
+  it('marks embedding coverage below 20% as error', async () => {
+    vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub({
+      totalFunctions: 10,
+      totalEmbeddings: 1,
+    }));
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const embeddingCheck = report.checks.find((check: any) => check.name === 'Functions/Embeddings Correlation');
+    expect(embeddingCheck).toBeTruthy();
+    expect(embeddingCheck.status).toBe('ERROR');
+    expect(embeddingCheck.message).toContain('Critical embedding coverage');
   });
 
   it('emits machine-actionable actions for failing checks', async () => {
