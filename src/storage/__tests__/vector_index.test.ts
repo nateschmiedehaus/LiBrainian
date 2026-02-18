@@ -9,12 +9,13 @@
  */
 
 import os from 'node:os';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   VectorIndex,
   HNSWIndex,
   HNSWConfig,
   DEFAULT_HNSW_CONFIG,
+  HNSW_AUTO_THRESHOLD,
   type VectorIndexItem,
 } from '../vector_index.js';
 
@@ -198,6 +199,19 @@ describe('HNSWIndex', () => {
       expect(results[0]?.id).toBe('node_1');
       expect(results[0]?.similarity).toBeGreaterThan(0.99);
     });
+
+    it('should replace entity type when reinserting an existing node id', () => {
+      const vec1 = randomVector(384);
+      const vec2 = randomVector(384);
+
+      index.insert('node_1', vec1, 'function');
+      index.insert('node_1', vec2, 'module');
+
+      const results = index.search(vec2, 1);
+      expect(results[0]?.id).toBe('node_1');
+      expect(results[0]?.entityType).toBe('module');
+      expect(results[0]?.similarity).toBeGreaterThan(0.99);
+    });
   });
 
   describe('search', () => {
@@ -270,6 +284,20 @@ describe('HNSWIndex', () => {
       // Most results should be from the "similar" group
       const similarCount = results.filter(r => r.id.startsWith('similar') || r.id === 'base').length;
       expect(similarCount).toBeGreaterThanOrEqual(10); // At least 50% recall
+    });
+
+    it('should avoid excessive Array.sort calls during layer traversal', () => {
+      const perfIndex = new HNSWIndex({ efSearch: 80 });
+      for (let i = 0; i < 400; i++) {
+        perfIndex.insert(`node_${i}`, randomVector(128), 'function');
+      }
+
+      const sortSpy = vi.spyOn(Array.prototype, 'sort');
+      perfIndex.search(randomVector(128), 10);
+      const sortCalls = sortSpy.mock.calls.length;
+      sortSpy.mockRestore();
+
+      expect(sortCalls).toBeLessThan(10);
     });
   });
 
@@ -540,6 +568,32 @@ describe('VectorIndex', () => {
       expect(index.isUsingHNSW()).toBe(true);
     });
 
+    it('should replace existing items by entityId instead of duplicating them', () => {
+      const index = new VectorIndex({ useHNSW: true });
+      index.load([]);
+
+      const original = randomVector(128);
+      const updated = randomVector(128);
+
+      index.add({
+        entityId: 'entity_a',
+        entityType: 'function',
+        embedding: original,
+      });
+
+      index.add({
+        entityId: 'entity_a',
+        entityType: 'module',
+        embedding: updated,
+      });
+
+      expect(index.size()).toBe(1);
+      const results = index.search(updated, { limit: 1, minSimilarity: 0 });
+      expect(results[0]?.entityId).toBe('entity_a');
+      expect(results[0]?.entityType).toBe('module');
+      expect(results[0]?.similarity).toBeGreaterThan(0.99);
+    });
+
     it('should auto-upgrade to HNSW when threshold crossed', () => {
       const index = new VectorIndex({ useHNSW: 'auto', hnswAutoThreshold: TEST_HNSW_AUTO_THRESHOLD });
       const initialItems = generateItems(TEST_HNSW_AUTO_THRESHOLD - 10);
@@ -794,6 +848,10 @@ describe('Edge Cases', () => {
 // ============================================================================
 
 describe('Performance Characteristics', () => {
+  it('should use a practical default HNSW auto threshold', () => {
+    expect(HNSW_AUTO_THRESHOLD).toBe(5_000);
+  });
+
   it('should build HNSW index in reasonable time', () => {
     const index = new VectorIndex({ useHNSW: true });
     const items = generateItems(1000, 128);
