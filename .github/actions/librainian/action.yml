@@ -48,8 +48,8 @@ runs:
         export LIBRARIAN_SKIP_PROVIDER_CHECK=1
 
         if [ ! -x "${tsx_bin}" ]; then
-          echo "[librainian-action] Installing action dependencies."
-          npm ci --prefix "${repo_root}" --ignore-scripts
+          echo "[librainian-action] Installing repository dependencies."
+          npm ci --prefix "${repo_root}"
         fi
 
         if [ ! -d "${workspace}/.librainian" ]; then
