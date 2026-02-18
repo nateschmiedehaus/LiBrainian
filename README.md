@@ -251,6 +251,26 @@ npm run package:assert-identity
 npm run package:install-smoke
 ```
 
+## GitHub Action (CI Index Refresh)
+
+Use the first-party composite action to restore cache, run incremental index refresh, and optionally upload index artifacts:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - name: Index codebase with LiBrainian
+    uses: nateschmiedehaus/LiBrainian/.github/actions/librainian@main
+    with:
+      workspace-root: ${{ github.workspace }}
+      cache-key: librainian-${{ runner.os }}-${{ hashFiles('**/*.ts', '**/*.js', 'package-lock.json') }}
+      restore-keys: |
+        librainian-${{ runner.os }}-
+      upload-artifact: true
+      artifact-name: librainian-index
+```
+
+This repository dogfoods the action in `.github/workflows/librainian-action-dogfood.yml`.
+
 ## Release Provenance
 
 LiBrainian enforces publish provenance before release:

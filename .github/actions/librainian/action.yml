@@ -1,0 +1,72 @@
+name: "LiBrainian CI Index"
+description: "Restore cached LiBrainian index, run incremental refresh, and optionally upload artifacts."
+
+inputs:
+  workspace-root:
+    description: "Workspace directory to index."
+    required: false
+    default: "."
+  cache-key:
+    description: "Cache key for .librainian directory."
+    required: true
+  restore-keys:
+    description: "Optional newline-delimited restore keys."
+    required: false
+    default: ""
+  cache-path:
+    description: "Path to cache (relative to workspace root)."
+    required: false
+    default: ".librainian"
+  upload-artifact:
+    description: "Upload index artifacts for cross-job sharing."
+    required: false
+    default: "false"
+  artifact-name:
+    description: "Artifact name when upload-artifact is true."
+    required: false
+    default: "librainian-index"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Restore LiBrainian cache
+      id: restore-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ inputs.workspace-root }}/${{ inputs.cache-path }}
+        key: ${{ inputs.cache-key }}
+        restore-keys: ${{ inputs.restore-keys }}
+
+    - name: Refresh LiBrainian index
+      shell: bash
+      run: |
+        set -euo pipefail
+        workspace="${{ inputs.workspace-root }}"
+        export LIBRARIAN_SKIP_PROVIDER_CHECK=1
+
+        if [ ! -d "${workspace}/.librainian" ]; then
+          echo "[librainian-action] No existing index found, running bootstrap."
+          npx -y librainian --workspace "${workspace}" bootstrap --no-claude-md --force-resume
+        fi
+
+        if ! npx -y librainian --workspace "${workspace}" update --incremental; then
+          echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
+          npx -y librainian --workspace "${workspace}" bootstrap --no-claude-md --force
+        fi
+
+    - name: Save LiBrainian cache
+      if: steps.restore-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ inputs.workspace-root }}/${{ inputs.cache-path }}
+        key: ${{ inputs.cache-key }}
+
+    - name: Upload LiBrainian artifacts
+      if: inputs.upload-artifact == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        if-no-files-found: warn
+        path: |
+          ${{ inputs.workspace-root }}/${{ inputs.cache-path }}/librarian.sqlite
+          ${{ inputs.workspace-root }}/${{ inputs.cache-path }}/state.json

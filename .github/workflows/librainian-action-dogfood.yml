@@ -1,0 +1,34 @@
+name: librainian-action-dogfood
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  dogfood-action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run LiBrainian action
+        uses: ./.github/actions/librainian
+        with:
+          workspace-root: ${{ github.workspace }}
+          cache-key: librainian-${{ runner.os }}-${{ hashFiles('**/*.ts', '**/*.js', 'package-lock.json') }}
+          restore-keys: |
+            librainian-${{ runner.os }}-
+          upload-artifact: true
+          artifact-name: librainian-dogfood-index
