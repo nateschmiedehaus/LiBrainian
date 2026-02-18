@@ -38,6 +38,7 @@ import {
   type StatusToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
+  type RequestHumanReviewToolInput,
   type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
   type VerifyClaimToolInput,
@@ -274,6 +275,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
   reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
+  request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
@@ -302,6 +304,8 @@ const MAX_PAGE_SIZE = 200;
 const DEFAULT_RUN_LIST_LIMIT = 10;
 const MAX_RUN_LIST_LIMIT = 100;
 const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
+const LOW_CONFIDENCE_THRESHOLD = 0.35;
+const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
 const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
@@ -869,6 +873,22 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace hint for anonymous session fallback' },
           },
           required: [],
+        },
+      },
+      {
+        name: 'request_human_review',
+        description: 'Signal uncertain or risky context and request structured human review before proceeding',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            reason: { type: 'string', description: 'Why human review is needed' },
+            context_summary: { type: 'string', description: 'Summary of uncertain or conflicting context' },
+            proposed_action: { type: 'string', description: 'Action the agent was about to take' },
+            confidence_tier: { type: 'string', enum: ['low', 'uncertain'], description: 'Confidence tier requiring escalation' },
+            risk_level: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Risk if the action is wrong' },
+            blocking: { type: 'boolean', description: 'Whether the agent should pause for human response' },
+          },
+          required: ['reason', 'context_summary', 'proposed_action', 'confidence_tier', 'risk_level', 'blocking'],
         },
       },
       {
@@ -1721,6 +1741,106 @@ export class LibrarianMCPServer {
     return intersection / union;
   }
 
+  private classifyConfidenceTier(confidence: number): 'low' | 'uncertain' | 'strong' {
+    if (confidence <= LOW_CONFIDENCE_THRESHOLD) return 'low';
+    if (confidence <= UNCERTAIN_CONFIDENCE_THRESHOLD) return 'uncertain';
+    return 'strong';
+  }
+
+  private isSecuritySensitiveIntent(intent: string): boolean {
+    return /\b(auth|token|crypto|secret|password|permission|access|delete|drop|rm)\b/i.test(intent);
+  }
+
+  private isWriteIntent(input: QueryToolInput): boolean {
+    if (input.intentType === 'refactor' || input.intentType === 'impact') return true;
+    return /\b(write|modify|edit|delete|remove|refactor|rename|migrate|update|create)\b/i.test(input.intent);
+  }
+
+  private isWorkspaceStaleForHumanReview(workspace: WorkspaceState): boolean {
+    if (workspace.indexState === 'stale') return true;
+    if (!workspace.indexedAt) return false;
+    const staleMinutes = this.config.humanReview?.staleIndexThresholdMinutes
+      ?? DEFAULT_MCP_SERVER_CONFIG.humanReview.staleIndexThresholdMinutes;
+    const thresholdMs = Math.max(1, staleMinutes) * 60_000;
+    const indexedAtMs = Date.parse(workspace.indexedAt);
+    if (!Number.isFinite(indexedAtMs)) return false;
+    return (Date.now() - indexedAtMs) > thresholdMs;
+  }
+
+  private buildHumanReviewRecommendation(input: {
+    workspace: WorkspaceState;
+    queryInput: QueryToolInput;
+    packs: Array<{ confidence?: number }>;
+    totalConfidence: number;
+    loopDetection?: LoopDetectionResult;
+  }): {
+    recommended: boolean;
+    tool: 'request_human_review';
+    reason: string;
+    confidenceTier: 'low' | 'uncertain';
+    riskLevel: 'low' | 'medium' | 'high';
+    blockingSuggested: boolean;
+  } | undefined {
+    const reasons: string[] = [];
+    let riskLevel: 'low' | 'medium' | 'high' = 'low';
+    let blockingSuggested = false;
+    let tier: 'low' | 'uncertain' | undefined;
+
+    const perPackConfidences = input.packs
+      .map((pack) => pack.confidence)
+      .filter((value): value is number => typeof value === 'number');
+    const allUncertainPacks = perPackConfidences.length > 0
+      && perPackConfidences.every((value) => this.classifyConfidenceTier(value) === 'uncertain');
+    const overallTier = this.classifyConfidenceTier(input.totalConfidence);
+
+    if (overallTier === 'low') {
+      tier = 'low';
+      reasons.push('Overall retrieval confidence is low.');
+      riskLevel = 'medium';
+      blockingSuggested = true;
+    } else if (overallTier === 'uncertain') {
+      tier = 'uncertain';
+    }
+
+    if (allUncertainPacks) {
+      tier = tier ?? 'uncertain';
+      reasons.push('All retrieved packs are in the uncertain confidence band.');
+      riskLevel = riskLevel === 'low' ? 'medium' : riskLevel;
+    }
+
+    if ((input.loopDetection?.occurrences ?? 0) >= 3) {
+      reasons.push(`Loop detection fired ${input.loopDetection?.occurrences} times in this session.`);
+      riskLevel = 'high';
+      blockingSuggested = true;
+      tier = tier ?? 'uncertain';
+    }
+
+    if (this.isSecuritySensitiveIntent(input.queryInput.intent) && overallTier !== 'strong') {
+      reasons.push('Intent appears security-sensitive while confidence is below strong.');
+      riskLevel = 'high';
+      blockingSuggested = true;
+      tier = tier ?? 'uncertain';
+    }
+
+    if (this.isWorkspaceStaleForHumanReview(input.workspace) && this.isWriteIntent(input.queryInput)) {
+      reasons.push('Workspace index appears stale for a write-oriented intent.');
+      riskLevel = 'high';
+      blockingSuggested = true;
+      tier = tier ?? 'uncertain';
+    }
+
+    if (reasons.length === 0 || !tier) return undefined;
+
+    return {
+      recommended: true,
+      tool: 'request_human_review',
+      reason: reasons.join(' '),
+      confidenceTier: tier,
+      riskLevel,
+      blockingSuggested,
+    };
+  }
+
   private paginateItems<T>(items: T[], options: PaginationOptions = {}): { items: T[]; pagination: PaginationMetadata } {
     const rawPageSize = options.pageSize ?? options.limit ?? DEFAULT_PAGE_SIZE;
     const pageSize = Number.isFinite(rawPageSize)
@@ -1885,6 +2005,8 @@ export class LibrarianMCPServer {
         return this.executeQuery(args as QueryToolInput, context);
       case 'reset_session_state':
         return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
+      case 'request_human_review':
+        return this.executeRequestHumanReview(args as RequestHumanReviewToolInput);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'submit_feedback':
@@ -3222,9 +3344,21 @@ export class LibrarianMCPServer {
           })
           : undefined,
       };
-      const baseWithAlias = {
+      const humanReviewRecommendation = this.buildHumanReviewRecommendation({
+        workspace,
+        queryInput: input,
+        packs: transformedPacks,
+        totalConfidence: response.totalConfidence,
+        loopDetection: baseResult.loopDetection,
+      });
+      const resultWithHumanReview = {
         ...baseResult,
-        loop_detection: baseResult.loopDetection,
+        humanReviewRecommendation,
+      };
+      const baseWithAlias = {
+        ...resultWithHumanReview,
+        loop_detection: resultWithHumanReview.loopDetection,
+        human_review_recommendation: resultWithHumanReview.humanReviewRecommendation,
       };
 
       if (input.outputFile) {
@@ -3315,6 +3449,60 @@ export class LibrarianMCPServer {
       message: clearedQueries > 0
         ? `Cleared ${clearedQueries} query history records for session ${sessionId}.`
         : `No query history records found for session ${sessionId}.`,
+    };
+  }
+
+  private async appendHumanReviewAuditLog(workspaceRoot: string, record: Record<string, unknown>): Promise<void> {
+    const logPath = path.join(workspaceRoot, '.librainian', 'audit-log.jsonl');
+    await fs.mkdir(path.dirname(logPath), { recursive: true });
+    await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  private async executeRequestHumanReview(input: RequestHumanReviewToolInput): Promise<unknown> {
+    const reviewRequestId = `rev_${this.generateId()}`;
+    const workspaceRoot = this.findReadyWorkspace()?.path
+      ?? this.state.workspaces.keys().next().value
+      ?? process.cwd();
+    const timeoutSeconds = Math.max(
+      30,
+      this.config.humanReview?.defaultReviewTimeoutSeconds
+        ?? DEFAULT_MCP_SERVER_CONFIG.humanReview.defaultReviewTimeoutSeconds
+    );
+    const status = input.blocking ? 'pending' : 'advisory';
+    const heading = input.blocking ? 'Agent paused for review' : 'Advisory human review requested';
+    const humanReadableSummary = [
+      `WARNING: ${heading}`,
+      '',
+      `Reason: ${input.reason}`,
+      `Risk: ${input.risk_level}`,
+      `Confidence tier: ${input.confidence_tier}`,
+      '',
+      'Context summary:',
+      input.context_summary,
+      '',
+      `Proposed action: ${input.proposed_action}`,
+      '',
+      'To proceed: reply "proceed". To abort: reply "abort". To rephrase: provide an alternative query.',
+    ].join('\n');
+
+    await this.appendHumanReviewAuditLog(workspaceRoot, {
+      ts: new Date().toISOString(),
+      review_id: reviewRequestId,
+      reason: input.reason,
+      outcome: 'pending',
+      blocking: input.blocking,
+      confidence_tier: input.confidence_tier,
+      risk_level: input.risk_level,
+      proposed_action: input.proposed_action,
+      workspace: workspaceRoot,
+    });
+
+    return {
+      review_request_id: reviewRequestId,
+      status,
+      human_readable_summary: humanReadableSummary,
+      blocking: input.blocking,
+      expires_in_seconds: timeoutSeconds,
     };
   }
 

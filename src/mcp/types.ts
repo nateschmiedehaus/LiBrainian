@@ -550,6 +550,16 @@ export interface QueryToolOutput {
     }>;
     humanReviewSuggested: boolean;
   };
+
+  /** Optional recommendation to escalate to a human review tool call */
+  humanReviewRecommendation?: {
+    recommended: boolean;
+    tool: 'request_human_review';
+    reason: string;
+    confidenceTier: 'low' | 'uncertain';
+    riskLevel: 'low' | 'medium' | 'high';
+    blockingSuggested: boolean;
+  };
 }
 
 /** Reset session state tool input */
@@ -567,6 +577,36 @@ export interface ResetSessionStateToolOutput {
   sessionId: string;
   clearedQueries: number;
   message: string;
+}
+
+/** Request human review tool input */
+export interface RequestHumanReviewToolInput {
+  /** Why human review is needed */
+  reason: string;
+
+  /** Summary of uncertain or conflicting context */
+  context_summary: string;
+
+  /** Action the agent was about to take */
+  proposed_action: string;
+
+  /** Confidence tier forcing escalation */
+  confidence_tier: 'low' | 'uncertain';
+
+  /** Risk if the action is wrong */
+  risk_level: 'low' | 'medium' | 'high';
+
+  /** Whether the agent should pause for response */
+  blocking: boolean;
+}
+
+/** Request human review tool output */
+export interface RequestHumanReviewToolOutput {
+  review_request_id: string;
+  status: 'pending' | 'advisory';
+  human_readable_summary: string;
+  blocking: boolean;
+  expires_in_seconds: number;
 }
 
 /** Change impact tool input */
@@ -1085,6 +1125,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  request_human_review: {
+    tool: 'request_human_review',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_change_impact: {
     tool: 'get_change_impact',
     requiredScopes: ['read'],
@@ -1274,6 +1320,15 @@ export interface LibrarianMCPServerConfig {
     /** Whether to auto-adjust retrieval strategy on repeated futile queries */
     autoEscalateStrategy: boolean;
   };
+
+  /** Human review escalation settings */
+  humanReview: {
+    /** Threshold in minutes where stale index should trigger recommendation for write-intent queries */
+    staleIndexThresholdMinutes: number;
+
+    /** Default expiration timeout included in review requests */
+    defaultReviewTimeoutSeconds: number;
+  };
 }
 
 /** Default server configuration */
@@ -1308,6 +1363,10 @@ export const DEFAULT_MCP_SERVER_CONFIG: LibrarianMCPServerConfig = {
     maxSessionHistory: 20,
     autoEscalateStrategy: true,
   },
+  humanReview: {
+    staleIndexThresholdMinutes: 30,
+    defaultReviewTimeoutSeconds: 300,
+  },
 };
 
 // ============================================================================
@@ -1340,6 +1399,19 @@ export function isResetSessionStateToolInput(value: unknown): value is ResetSess
   const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return sessionIdOk && workspaceOk;
+}
+
+/** Type guard for RequestHumanReviewToolInput */
+export function isRequestHumanReviewToolInput(value: unknown): value is RequestHumanReviewToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const reasonOk = typeof obj.reason === 'string';
+  const summaryOk = typeof obj.context_summary === 'string';
+  const actionOk = typeof obj.proposed_action === 'string';
+  const confidenceOk = obj.confidence_tier === 'low' || obj.confidence_tier === 'uncertain';
+  const riskOk = obj.risk_level === 'low' || obj.risk_level === 'medium' || obj.risk_level === 'high';
+  const blockingOk = typeof obj.blocking === 'boolean';
+  return reasonOk && summaryOk && actionOk && confidenceOk && riskOk && blockingOk;
 }
 
 /** Type guard for GetChangeImpactToolInput */

@@ -19,6 +19,7 @@ import {
   BootstrapToolInputSchema,
   QueryToolInputSchema,
   ResetSessionStateToolInputSchema,
+  RequestHumanReviewToolInputSchema,
   SubmitFeedbackToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
@@ -32,6 +33,7 @@ import {
   isBootstrapToolInput,
   isQueryToolInput,
   isResetSessionStateToolInput,
+  isRequestHumanReviewToolInput,
   isSubmitFeedbackToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
@@ -57,6 +59,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('status');
       expect(schemas).toContain('query');
       expect(schemas).toContain('reset_session_state');
+      expect(schemas).toContain('request_human_review');
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
@@ -72,7 +75,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
-      expect(schemas).toHaveLength(21);
+      expect(schemas).toHaveLength(22);
     });
 
     it('should return schema for known tools', () => {
@@ -276,6 +279,51 @@ describe('MCP Schema', () => {
       expect(isResetSessionStateToolInput({ sessionId: 'sess_123' })).toBe(true);
       expect(isResetSessionStateToolInput({ workspace: '/tmp/workspace' })).toBe(true);
       expect(isResetSessionStateToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Request Human Review Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('request_human_review', {
+        reason: 'Ambiguous function ownership across two modules',
+        context_summary: 'Two candidate implementations returned with conflicting confidence.',
+        proposed_action: 'Patch auth/session.ts to alter token refresh behavior',
+        confidence_tier: 'uncertain',
+        risk_level: 'high',
+        blocking: true,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      const result = validateToolInput('request_human_review', {
+        reason: 'Need approval',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should reject invalid enum values', () => {
+      const result = validateToolInput('request_human_review', {
+        reason: 'Need approval',
+        context_summary: 'Low confidence retrieval',
+        proposed_action: 'Delete module',
+        confidence_tier: 'medium',
+        risk_level: 'critical',
+        blocking: true,
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isRequestHumanReviewToolInput({
+        reason: 'Need approval',
+        context_summary: 'Low confidence retrieval',
+        proposed_action: 'Modify auth flow',
+        confidence_tier: 'low',
+        risk_level: 'medium',
+        blocking: false,
+      })).toBe(true);
+      expect(isRequestHumanReviewToolInput(null)).toBe(false);
     });
   });
 

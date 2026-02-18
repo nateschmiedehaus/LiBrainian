@@ -285,6 +285,47 @@ describe('MCP query and context bundle pagination', () => {
     expect(reset.clearedQueries).toBeGreaterThanOrEqual(2);
   });
 
+  it('adds human review recommendation when retrieval confidence is uncertain', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'auth update', keyFacts: [], relatedFiles: [], confidence: 0.45 },
+        { packId: 'p2', packType: 'function_context', targetId: 'b', summary: 'auth update alt', keyFacts: [], relatedFiles: [], confidence: 0.42 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-review',
+      constructionPlan: undefined,
+      totalConfidence: 0.48,
+      cacheHit: false,
+      latencyMs: 7,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'delete auth token refresh implementation',
+      intentType: 'refactor',
+    });
+
+    expect(result.humanReviewRecommendation?.recommended).toBe(true);
+    expect(result.humanReviewRecommendation?.tool).toBe('request_human_review');
+    expect(result.humanReviewRecommendation?.riskLevel).toBe('high');
+    expect(result.human_review_recommendation?.recommended).toBe(true);
+  });
+
   it('returns actionable fixes when workspace is not registered', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

@@ -115,6 +115,18 @@ export const ResetSessionStateToolInputSchema = z.object({
 }).strict().default({});
 
 /**
+ * Request human review tool input schema
+ */
+export const RequestHumanReviewToolInputSchema = z.object({
+  reason: z.string().min(1).describe('Why human review is needed'),
+  context_summary: z.string().min(1).describe('Summary of uncertain or conflicting context'),
+  proposed_action: z.string().min(1).describe('Action the agent was about to take'),
+  confidence_tier: z.enum(['low', 'uncertain']).describe('Confidence tier requiring escalation'),
+  risk_level: z.enum(['low', 'medium', 'high']).describe('Risk if the proposed action is wrong'),
+  blocking: z.boolean().describe('Whether the agent should pause for human response'),
+}).strict();
+
+/**
  * Verify claim tool input schema
  */
 export const VerifyClaimToolInputSchema = z.object({
@@ -273,6 +285,7 @@ export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
+export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
 export type ListRunsToolInputType = z.infer<typeof ListRunsToolInputSchema>;
@@ -302,6 +315,7 @@ export const TOOL_INPUT_SCHEMAS = {
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
   reset_session_state: ResetSessionStateToolInputSchema,
+  request_human_review: RequestHumanReviewToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
@@ -449,11 +463,31 @@ export const resetSessionStateToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Request human review tool JSON Schema */
+export const requestHumanReviewToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/request-human-review-tool-input',
+  title: 'RequestHumanReviewToolInput',
+  description: 'Input for request_human_review - structured human escalation for uncertain or risky agent actions',
+  type: 'object',
+  properties: {
+    reason: { type: 'string', description: 'Why human review is needed', minLength: 1 },
+    context_summary: { type: 'string', description: 'Summary of uncertain or conflicting context', minLength: 1 },
+    proposed_action: { type: 'string', description: 'Action the agent was about to take', minLength: 1 },
+    confidence_tier: { type: 'string', enum: ['low', 'uncertain'], description: 'Confidence tier requiring escalation' },
+    risk_level: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Risk if the action is wrong' },
+    blocking: { type: 'boolean', description: 'Whether the agent should pause for human response' },
+  },
+  required: ['reason', 'context_summary', 'proposed_action', 'confidence_tier', 'risk_level', 'blocking'],
+  additionalProperties: false,
+};
+
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   query: queryToolJsonSchema,
   reset_session_state: resetSessionStateToolJsonSchema,
+  request_human_review: requestHumanReviewToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
 };
