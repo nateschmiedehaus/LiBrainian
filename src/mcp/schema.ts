@@ -78,6 +78,17 @@ export const QueryToolInputSchema = z.object({
 }).strict();
 
 /**
+ * get_change_impact tool input schema
+ */
+export const GetChangeImpactToolInputSchema = z.object({
+  target: z.string().min(1).describe('Changed file/module/function identifier to analyze'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  depth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive depth for propagation (default: 3)'),
+  maxResults: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum impacted files to return (default: 200)'),
+  changeType: z.enum(['modify', 'delete', 'rename', 'move']).optional().describe('Optional change type to refine risk scoring'),
+}).strict();
+
+/**
  * Submit feedback tool input schema
  */
 export const SubmitFeedbackToolInputSchema = z.object({
@@ -250,6 +261,7 @@ export const StatusToolInputSchema = z.object({
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
@@ -279,6 +291,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
+  get_change_impact: GetChangeImpactToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   run_audit: RunAuditToolInputSchema,
@@ -372,6 +385,24 @@ export const queryToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** get_change_impact tool JSON Schema */
+export const getChangeImpactToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-change-impact-tool-input',
+  title: 'GetChangeImpactToolInput',
+  description: 'Input for get_change_impact - ranked blast-radius and risk analysis for a proposed change',
+  type: 'object',
+  properties: {
+    target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    depth: { type: 'number', description: 'Maximum transitive depth for propagation (default: 3, max: 8)', minimum: 1, maximum: 8, default: 3 },
+    maxResults: { type: 'number', description: 'Maximum impacted files to return (default: 200, max: 1000)', minimum: 1, maximum: 1000, default: 200 },
+    changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+  },
+  required: ['target'],
+  additionalProperties: false,
+};
+
 /** Submit feedback tool JSON Schema */
 export const submitFeedbackToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -395,6 +426,7 @@ export const submitFeedbackToolJsonSchema: JSONSchema = {
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   query: queryToolJsonSchema,
+  get_change_impact: getChangeImpactToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
 };
 

@@ -37,6 +37,7 @@ import {
   type BootstrapToolInput,
   type StatusToolInput,
   type QueryToolInput,
+  type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
@@ -88,6 +89,7 @@ import {
   queryLibrarian,
 } from '../api/index.js';
 import { estimateTokens } from '../api/token_budget.js';
+import { computeChangeImpactReport } from '../api/change_impact_tool.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
 import {
   compileTechniqueCompositionTemplateWithGapsFromStorage,
@@ -232,6 +234,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   compile_technique_composition: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
+  get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
@@ -812,6 +815,21 @@ export class LibrarianMCPServer {
             outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'get_change_impact',
+        description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            target: { type: 'string', description: 'Changed file/module/function identifier to analyze' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            depth: { type: 'number', description: 'Maximum transitive depth for propagation (default 3, max 8)' },
+            maxResults: { type: 'number', description: 'Maximum impacted files to return (default 200, max 1000)' },
+            changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+          },
+          required: ['target'],
         },
       },
       {
@@ -1612,6 +1630,8 @@ export class LibrarianMCPServer {
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput);
+      case 'get_change_impact':
+        return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'verify_claim':
@@ -3066,6 +3086,61 @@ export class LibrarianMCPServer {
       return {
         claimId: input.claimId,
         verified: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeGetChangeImpact(input: GetChangeImpactToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        const first = this.state.workspaces.keys().next();
+        workspacePath = first.done ? undefined : first.value;
+      }
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          error: 'No workspace specified and no workspaces registered',
+          registeredWorkspaces: 0,
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          error: `Workspace not registered: ${workspacePath}`,
+          registeredWorkspaces: this.state.workspaces.size,
+          availableWorkspaces: Array.from(this.state.workspaces.keys()),
+        };
+      }
+
+      const storage = workspace.librarian?.getStorage() ?? workspace.storage;
+      if (!storage) {
+        return {
+          success: false,
+          error: `Workspace storage not initialized: ${workspacePath}`,
+        };
+      }
+
+      const report = await computeChangeImpactReport(storage, {
+        target: input.target,
+        depth: input.depth,
+        maxResults: input.maxResults,
+        changeType: input.changeType,
+      });
+
+      return {
+        workspace: workspacePath,
+        ...report,
+      };
+    } catch (error) {
+      return {
+        success: false,
         error: error instanceof Error ? error.message : String(error),
       };
     }

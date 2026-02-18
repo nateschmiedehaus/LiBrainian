@@ -68,7 +68,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('select_technique_compositions');
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
-      expect(schemas).toHaveLength(19);
+      expect(schemas).toContain('get_change_impact');
+      expect(schemas).toHaveLength(20);
     });
 
     it('should return schema for known tools', () => {

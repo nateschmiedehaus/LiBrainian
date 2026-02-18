@@ -522,6 +522,54 @@ export interface QueryToolOutput {
   cacheHit: boolean;
 }
 
+/** Change impact tool input */
+export interface GetChangeImpactToolInput {
+  /** Changed file/module/function identifier to analyze */
+  target: string;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum transitive depth for propagation (default: 3) */
+  depth?: number;
+
+  /** Maximum impacted files to return (default: 200) */
+  maxResults?: number;
+
+  /** Optional change type to refine risk scoring */
+  changeType?: 'modify' | 'delete' | 'rename' | 'move';
+}
+
+export interface GetChangeImpactToolOutput {
+  success: boolean;
+  target: string;
+  resolvedTarget?: string;
+  depth: number;
+  impacted: Array<{
+    file: string;
+    depth: number;
+    direct: boolean;
+    relationship: 'imports';
+    impactScore: number;
+    confidence: number;
+    reason: string;
+    reasonFlags: string[];
+    testCoversChanged: boolean;
+    coChangeWeight: number;
+  }>;
+  summary: {
+    totalImpacted: number;
+    directCount: number;
+    transitiveCount: number;
+    testsFlagged: number;
+    maxImpactScore: number;
+    durationMs: number;
+    riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+    riskScore?: number;
+  };
+  error?: string;
+}
+
 /** Submit feedback tool input */
 export interface SubmitFeedbackToolInput {
   /** Feedback token from query response */
@@ -984,6 +1032,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  get_change_impact: {
+    tool: 'get_change_impact',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   submit_feedback: {
     tool: 'submit_feedback',
     requiredScopes: ['read', 'write'],
@@ -1190,6 +1244,18 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
   const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
   return intentOk && pageSizeOk && pageIdxOk && outputFileOk;
+}
+
+/** Type guard for GetChangeImpactToolInput */
+export function isGetChangeImpactToolInput(value: unknown): value is GetChangeImpactToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const targetOk = typeof obj.target === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const depthOk = typeof obj.depth === 'number' || typeof obj.depth === 'undefined';
+  const maxResultsOk = typeof obj.maxResults === 'number' || typeof obj.maxResults === 'undefined';
+  const changeTypeOk = obj.changeType === 'modify' || obj.changeType === 'delete' || obj.changeType === 'rename' || obj.changeType === 'move' || typeof obj.changeType === 'undefined';
+  return targetOk && workspaceOk && depthOk && maxResultsOk && changeTypeOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */
