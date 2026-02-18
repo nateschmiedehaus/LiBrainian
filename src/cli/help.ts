@@ -21,6 +21,7 @@ COMMANDS:
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
+    eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
     watch               Watch for file changes and auto-reindex
     compose             Compose construction pipelines or technique bundles
@@ -218,6 +219,7 @@ OPTIONS:
     --mode <name>       Bootstrap mode: fast | full (default: full)
     --emit-baseline     Write OnboardingBaseline.v1 after successful bootstrap
     --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
+    --no-claude-md      Skip CLAUDE.md injection even when updating agent docs
     --install-grammars  Install missing tree-sitter grammar packages
     --llm-provider <p>  Force LLM provider: claude | codex (default: auto)
     --llm-model <id>    Force LLM model id (default: daily selection)
@@ -247,6 +249,30 @@ EXAMPLES:
     librarian bootstrap --scope librarian
     librarian bootstrap --scope librarian --llm-provider codex --llm-model gpt-4o-mini
     librarian bootstrap --emit-baseline
+`,
+
+  'eject-docs': `
+librarian eject-docs - Remove injected librarian docs from CLAUDE.md files
+
+USAGE:
+    librarian eject-docs [options]
+
+OPTIONS:
+    --dry-run           Report files that would be changed without writing
+    --json              Output results as JSON
+
+DESCRIPTION:
+    Removes all sections between:
+    - <!-- LIBRARIAN_DOCS_START -->
+    - <!-- LIBRARIAN_DOCS_END -->
+
+    from CLAUDE.md files while preserving user-authored content.
+    Safe to run multiple times.
+
+EXAMPLES:
+    librarian eject-docs
+    librarian eject-docs --dry-run
+    librarian eject-docs --json
 `,
 
   quickstart: `

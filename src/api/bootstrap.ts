@@ -2119,9 +2119,13 @@ export async function bootstrapProject(
           report,
           capabilities: report.capabilities,
           skipIfExists: false, // Update if content is stale
+          noClaudeMd: config.noClaudeMd,
         });
         if (docsResult.filesUpdated.length > 0) {
           report.warnings.push(`Librarian docs updated: ${docsResult.filesUpdated.join(', ')}`);
+        }
+        if (docsResult.warnings.length > 0) {
+          report.warnings.push(`Docs update warnings: ${docsResult.warnings.join('; ')}`);
         }
         if (docsResult.errors.length > 0) {
           report.warnings.push(`Docs update errors: ${docsResult.errors.join('; ')}`);
@@ -4026,6 +4030,7 @@ export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
   autoRecover: true,
   skipEmbeddings: false,
   updateAgentDocs: false,
+  noClaudeMd: false,
 
   // Composition suggestions (codebase-aware recommendations after bootstrap)
   compositionSuggestions: { enabled: true },

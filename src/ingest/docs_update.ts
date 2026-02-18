@@ -12,7 +12,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { glob } from 'glob';
+import { createHash } from 'node:crypto';
 import type { BootstrapCapabilities, BootstrapReport } from '../types.js';
 
 export interface DocsUpdateConfig {
@@ -26,6 +26,8 @@ export interface DocsUpdateConfig {
   dryRun?: boolean;
   /** Skip if section already exists (default: false - update if stale) */
   skipIfExists?: boolean;
+  /** Skip CLAUDE.md updates even when agent docs updates are enabled */
+  noClaudeMd?: boolean;
 }
 
 export interface DocsUpdateResult {
@@ -33,14 +35,31 @@ export interface DocsUpdateResult {
   filesUpdated: string[];
   /** Files that were checked but not updated */
   filesSkipped: string[];
+  /** Non-fatal warnings (e.g., hash mismatch protection) */
+  warnings: string[];
   /** Any errors encountered */
   errors: string[];
   /** Whether the update was successful */
   success: boolean;
 }
 
+export interface EjectInjectedDocsConfig {
+  workspace: string;
+  dryRun?: boolean;
+}
+
+export interface EjectInjectedDocsResult {
+  filesUpdated: string[];
+  filesSkipped: string[];
+  warnings: string[];
+  errors: string[];
+  success: boolean;
+}
+
 const LIBRARIAN_SECTION_START = '<!-- LIBRARIAN_DOCS_START -->';
 const LIBRARIAN_SECTION_END = '<!-- LIBRARIAN_DOCS_END -->';
+const LIBRARIAN_SECTION_NAME = 'LIBRARIAN_DOCS';
+const LIBRARIAN_STATE_PATH = ['.librarian', 'state.json'];
 
 const AGENT_DOC_PATTERNS = [
   'AGENTS.md',
@@ -52,6 +71,15 @@ const AGENT_DOC_PATTERNS = [
   '.github/AGENTS.md',
 ];
 
+interface LibrarianState {
+  schema_version?: number;
+  docs?: {
+    claudeFileHashes?: Record<string, string>;
+    updatedAt?: string;
+  };
+  [key: string]: unknown;
+}
+
 /**
  * Update repo documentation with librarian usage information.
  * Called automatically after successful bootstrap.
@@ -60,11 +88,12 @@ export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpda
   const result: DocsUpdateResult = {
     filesUpdated: [],
     filesSkipped: [],
+    warnings: [],
     errors: [],
     success: true,
   };
 
-  const { workspace, report, capabilities, dryRun, skipIfExists } = config;
+  const { workspace, report, capabilities, dryRun, skipIfExists, noClaudeMd } = config;
 
   // Find agent documentation files
   const agentDocs = await findAgentDocs(workspace);
@@ -76,19 +105,121 @@ export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpda
 
   // Generate the librarian section content
   const sectionContent = generateLibrarianSection(report, capabilities);
+  const sectionLineCount = sectionContent.split('\n').length;
+  const state = await readLibrarianState(workspace);
+  const claudeFileHashes = state.docs?.claudeFileHashes ?? {};
+  let stateChanged = false;
 
   for (const docPath of agentDocs) {
+    const relativePath = toStatePath(workspace, docPath);
     try {
-      const updated = await updateDocFile(docPath, sectionContent, { dryRun, skipIfExists });
-      if (updated) {
-        result.filesUpdated.push(path.relative(workspace, docPath));
+      if (noClaudeMd && isClaudeDoc(docPath)) {
+        result.filesSkipped.push(relativePath);
+        continue;
+      }
+
+      const existingContent = await fs.readFile(docPath, 'utf-8');
+      if (isClaudeDoc(docPath)) {
+        const storedHash = claudeFileHashes[relativePath];
+        const currentHash = sha256(existingContent);
+        if (storedHash && storedHash !== currentHash) {
+          const warning = `Skipped ${relativePath}: hash mismatch since last librarian inject.`;
+          result.warnings.push(warning);
+          console.warn(`[librainian] ${warning}`);
+          result.filesSkipped.push(relativePath);
+          continue;
+        }
+      }
+
+      const updateResult = await updateDocFile(docPath, sectionContent, {
+        dryRun,
+        skipIfExists,
+        existingContent,
+        onWrite: isClaudeDoc(docPath)
+          ? () => {
+              console.log(
+                `[librainian] Writing docs to ${relativePath} (section: ${LIBRARIAN_SECTION_NAME}, ${sectionLineCount} lines). To remove: npx librainian eject-docs`
+              );
+            }
+          : undefined,
+      });
+      if (updateResult.updated) {
+        result.filesUpdated.push(relativePath);
+        if (!dryRun && isClaudeDoc(docPath)) {
+          claudeFileHashes[relativePath] = sha256(updateResult.content);
+          stateChanged = true;
+        }
       } else {
-        result.filesSkipped.push(path.relative(workspace, docPath));
+        result.filesSkipped.push(relativePath);
       }
     } catch (error) {
-      result.errors.push(`${path.relative(workspace, docPath)}: ${error instanceof Error ? error.message : String(error)}`);
+      result.errors.push(`${relativePath}: ${error instanceof Error ? error.message : String(error)}`);
       result.success = false;
     }
+  }
+
+  if (!dryRun && stateChanged) {
+    state.schema_version = state.schema_version ?? 1;
+    state.docs = state.docs ?? {};
+    state.docs.claudeFileHashes = claudeFileHashes;
+    state.docs.updatedAt = new Date().toISOString();
+    await writeLibrarianState(workspace, state);
+  }
+
+  return result;
+}
+
+export async function ejectInjectedDocs(config: EjectInjectedDocsConfig): Promise<EjectInjectedDocsResult> {
+  const result: EjectInjectedDocsResult = {
+    filesUpdated: [],
+    filesSkipped: [],
+    warnings: [],
+    errors: [],
+    success: true,
+  };
+
+  const { workspace, dryRun } = config;
+  const claudeDocs = (await findAgentDocs(workspace)).filter((docPath) => isClaudeDoc(docPath));
+  const state = await readLibrarianState(workspace);
+  const claudeFileHashes = state.docs?.claudeFileHashes ?? {};
+  let stateChanged = false;
+
+  if (claudeDocs.length === 0) {
+    result.filesSkipped.push('(no claude docs found)');
+    return result;
+  }
+
+  for (const docPath of claudeDocs) {
+    const relativePath = toStatePath(workspace, docPath);
+    try {
+      const content = await fs.readFile(docPath, 'utf-8');
+      const stripped = stripInjectedSections(content);
+      if (stripped.removedCount === 0) {
+        result.filesSkipped.push(relativePath);
+        continue;
+      }
+
+      if (!dryRun) {
+        await fs.writeFile(docPath, stripped.content, 'utf-8');
+        if (relativePath in claudeFileHashes) {
+          delete claudeFileHashes[relativePath];
+          stateChanged = true;
+        }
+      }
+
+      result.filesUpdated.push(relativePath);
+    } catch (error) {
+      result.errors.push(`${relativePath}: ${error instanceof Error ? error.message : String(error)}`);
+      result.success = false;
+    }
+  }
+
+  if (!dryRun && stateChanged) {
+    state.schema_version = state.schema_version ?? 1;
+    state.docs = state.docs ?? {};
+    state.docs.claudeFileHashes = claudeFileHashes;
+    state.docs.updatedAt = new Date().toISOString();
+    await writeLibrarianState(workspace, state);
   }
 
   return result;
@@ -219,14 +350,19 @@ function formatCapabilityName(name: string): string {
 async function updateDocFile(
   filePath: string,
   sectionContent: string,
-  options: { dryRun?: boolean; skipIfExists?: boolean }
-): Promise<boolean> {
-  const content = await fs.readFile(filePath, 'utf-8');
+  options: {
+    dryRun?: boolean;
+    skipIfExists?: boolean;
+    existingContent?: string;
+    onWrite?: () => void;
+  }
+): Promise<{ updated: boolean; content: string }> {
+  const content = options.existingContent ?? await fs.readFile(filePath, 'utf-8');
 
   const hasSection = content.includes(LIBRARIAN_SECTION_START);
 
   if (hasSection && options.skipIfExists) {
-    return false;
+    return { updated: false, content };
   }
 
   let newContent: string;
@@ -254,14 +390,15 @@ async function updateDocFile(
 
   // Check if content actually changed
   if (newContent === content) {
-    return false;
+    return { updated: false, content };
   }
 
   if (!options.dryRun) {
+    options.onWrite?.();
     await fs.writeFile(filePath, newContent, 'utf-8');
   }
 
-  return true;
+  return { updated: true, content: newContent };
 }
 
 /**
@@ -282,4 +419,68 @@ export async function isDocsUpdateNeeded(workspace: string): Promise<boolean> {
   }
 
   return false;
+}
+
+function isClaudeDoc(filePath: string): boolean {
+  return path.basename(filePath).toLowerCase() === 'claude.md';
+}
+
+function toStatePath(workspace: string, filePath: string): string {
+  return path.relative(workspace, filePath).split(path.sep).join('/');
+}
+
+function sha256(input: string): string {
+  return createHash('sha256').update(input, 'utf8').digest('hex');
+}
+
+async function readLibrarianState(workspace: string): Promise<LibrarianState> {
+  const statePath = path.join(workspace, ...LIBRARIAN_STATE_PATH);
+  try {
+    const raw = await fs.readFile(statePath, 'utf-8');
+    const parsed = JSON.parse(raw) as LibrarianState;
+    if (!parsed || typeof parsed !== 'object') {
+      return { schema_version: 1 };
+    }
+    return parsed;
+  } catch {
+    return { schema_version: 1 };
+  }
+}
+
+async function writeLibrarianState(workspace: string, state: LibrarianState): Promise<void> {
+  const stateDir = path.join(workspace, '.librarian');
+  const statePath = path.join(stateDir, 'state.json');
+  const tmpPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
+  await fs.mkdir(stateDir, { recursive: true });
+  await fs.writeFile(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf-8');
+  await fs.rename(tmpPath, statePath);
+}
+
+function stripInjectedSections(content: string): { content: string; removedCount: number } {
+  let next = content;
+  let removedCount = 0;
+
+  while (true) {
+    const start = next.indexOf(LIBRARIAN_SECTION_START);
+    if (start === -1) {
+      break;
+    }
+    const end = next.indexOf(LIBRARIAN_SECTION_END, start);
+    let removalStart = start;
+    const separator = '\n\n---\n\n';
+    if (removalStart >= separator.length && next.slice(removalStart - separator.length, removalStart) === separator) {
+      removalStart -= separator.length;
+    }
+    let removalEnd = end === -1 ? next.length : end + LIBRARIAN_SECTION_END.length;
+    while (removalEnd < next.length && (next[removalEnd] === '\n' || next[removalEnd] === '\r')) {
+      removalEnd += 1;
+    }
+    next = `${next.slice(0, removalStart)}${next.slice(removalEnd)}`;
+    removedCount += 1;
+  }
+
+  return {
+    content: next.replace(/\n{3,}/g, '\n\n'),
+    removedCount,
+  };
 }

@@ -399,6 +399,10 @@ export interface BootstrapConfig {
    */
   updateAgentDocs?: boolean;
   /**
+   * When true, skip CLAUDE.md writes even if updateAgentDocs is enabled.
+   */
+  noClaudeMd?: boolean;
+  /**
    * Automatically recover from stale bootstrap checkpoints by restarting clean.
    * When false, stale checkpoints throw and require manual force-resume.
    */

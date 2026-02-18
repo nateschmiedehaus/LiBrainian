@@ -7,6 +7,7 @@
  *   librarian query <intent>      - Run a query against the knowledge base
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
+ *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
  *   librarian index --force <...> - Incrementally index specific files
  *   librarian inspect <module>    - Inspect a module's knowledge
  *   librarian confidence <entity> - Show confidence scores for an entity
@@ -39,6 +40,7 @@ import { statusCommand } from './commands/status.js';
 import { queryCommand } from './commands/query.js';
 import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
+import { ejectDocsCommand } from './commands/eject_docs.js';
 import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
 import { validateCommand } from './commands/validate.js';
@@ -77,7 +79,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -114,7 +116,11 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
-    usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars]',
+    usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+  },
+  'eject-docs': {
+    description: 'Remove injected librarian docs from CLAUDE.md files',
+    usage: 'librarian eject-docs [--dry-run] [--json]',
   },
   'inspect': {
     description: 'Inspect a module or function\'s knowledge',
@@ -321,6 +327,9 @@ async function main(): Promise<void> {
 
       case 'bootstrap':
         await bootstrapCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'eject-docs':
+        await ejectDocsCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'inspect':
