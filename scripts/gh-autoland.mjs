@@ -66,7 +66,9 @@ function canFallbackFromAutoMergeError(message) {
   return normalized.includes('enablepullrequestautomerge')
     || normalized.includes('auto merge')
     || normalized.includes('auto-merge')
-    || normalized.includes('protected branch rules not configured');
+    || normalized.includes('protected branch rules not configured')
+    || normalized.includes('pull request is not mergeable')
+    || normalized.includes('not mergeable (mergepullrequest)');
 }
 
 function main() {
