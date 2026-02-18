@@ -220,6 +220,51 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.pagination.pageCount).toBe(2);
   });
 
+  it('uses token_budget estimator when enforcing get_context_pack_bundle maxTokens', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+
+    const heavySummary = 'x'.repeat(360);
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getContextPackForTarget: vi.fn().mockResolvedValue({
+        packId: 'entity-a-function_context',
+        packType: 'function_context',
+        targetId: 'entity-a',
+        summary: heavySummary,
+        keyFacts: ['const handler = async () => { return "token-heavy-code-path"; }'],
+        relatedFiles: ['src/api/heavy.ts'],
+        confidence: 0.9,
+      }),
+    });
+
+    const projectedPack = {
+      packId: 'entity-a-function_context',
+      packType: 'function_context',
+      targetId: 'entity-a',
+      summary: heavySummary,
+      keyFacts: ['const handler = async () => { return "token-heavy-code-path"; }'],
+      relatedFiles: ['src/api/heavy.ts'],
+      confidence: 0.9,
+    };
+
+    const legacyEstimate = Math.ceil(JSON.stringify(projectedPack).length / 4);
+    const result = await (server as any).executeGetContextPackBundle({
+      entityIds: ['entity-a'],
+      bundleType: 'minimal',
+      maxTokens: legacyEstimate,
+    });
+
+    // With the shared token_budget estimator (~chars/3.5), this pack no longer fits.
+    expect(result.truncatedByTokens).toBe(true);
+    expect(result.packs).toHaveLength(0);
+    expect(result.estimatedTokens).toBe(0);
+  });
+
   it('writes get_context_pack_bundle page payload to outputFile', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

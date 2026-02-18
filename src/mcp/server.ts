@@ -86,6 +86,7 @@ import {
   getBootstrapStatus,
   queryLibrarian,
 } from '../api/index.js';
+import { estimateTokens } from '../api/token_budget.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
 import {
   compileTechniqueCompositionTemplateWithGapsFromStorage,
@@ -3128,7 +3129,7 @@ export class LibrarianMCPServer {
         let estimatedTokens = 0;
         const filteredPacks: unknown[] = [];
         for (const pack of bundledPacks) {
-          const packTokens = JSON.stringify(pack).length / 4; // Rough estimate
+          const packTokens = estimateTokens(JSON.stringify(pack));
           if (estimatedTokens + packTokens <= input.maxTokens) {
             filteredPacks.push(pack);
             estimatedTokens += packTokens;
@@ -3143,7 +3144,7 @@ export class LibrarianMCPServer {
       const { items: pagedPacks, pagination } = this.paginateItems(tokenFilteredPacks, input);
       const estimatedTokens = Math.round(
         (pagedPacks as unknown[]).reduce<number>(
-          (sum, pack) => sum + (JSON.stringify(pack).length / 4),
+          (sum, pack) => sum + estimateTokens(JSON.stringify(pack)),
           0
         )
       );
