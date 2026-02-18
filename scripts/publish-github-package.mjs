@@ -41,6 +41,37 @@ function sanitizePackageName(rawName) {
   return normalized;
 }
 
+function resolveGithubRepository(packageJson) {
+  const envRepo = String(process.env.GITHUB_REPOSITORY ?? '').trim();
+  if (/^[^/\s]+\/[^/\s]+$/.test(envRepo)) {
+    const [owner, repo] = envRepo.split('/');
+    return {
+      owner: owner.toLowerCase(),
+      repo,
+      slug: `${owner.toLowerCase()}/${repo}`,
+    };
+  }
+
+  const repositoryValue = typeof packageJson.repository === 'string'
+    ? packageJson.repository
+    : packageJson.repository?.url;
+  const repositoryText = String(repositoryValue ?? '').trim();
+  const match = repositoryText.match(/github\.com[:/](?<owner>[^/\s]+)\/(?<repo>[^/\s.]+)(?:\.git)?/i);
+  if (match?.groups?.owner && match?.groups?.repo) {
+    const owner = match.groups.owner.toLowerCase();
+    const repo = match.groups.repo;
+    return {
+      owner,
+      repo,
+      slug: `${owner}/${repo}`,
+    };
+  }
+
+  throw new Error(
+    'Missing GitHub repository metadata. Set GITHUB_REPOSITORY=owner/repo or provide package.json repository.url.'
+  );
+}
+
 function resolveScopedName(packageJson) {
   const scope = sanitizeScope(process.env.LIBRARIAN_GH_PACKAGE_SCOPE || process.env.GITHUB_REPOSITORY_OWNER || '');
   if (!scope) {
@@ -85,6 +116,7 @@ function main() {
   const packagePath = path.join(root, 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const scopedName = resolveScopedName(packageJson);
+  const githubRepo = resolveGithubRepository(packageJson);
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-ghpkg-'));
   const stagingDir = path.join(tempRoot, 'package');
@@ -99,6 +131,14 @@ function main() {
     const stagedPackageJson = {
       ...packageJson,
       name: scopedName,
+      repository: {
+        type: 'git',
+        url: `git+https://github.com/${githubRepo.slug}.git`,
+      },
+      bugs: {
+        url: `https://github.com/${githubRepo.slug}/issues`,
+      },
+      homepage: `https://github.com/${githubRepo.slug}#readme`,
       publishConfig: {
         ...(packageJson.publishConfig ?? {}),
         registry: `${registryUrl.origin}/`,
@@ -130,6 +170,8 @@ function main() {
     });
 
     console.log(`[release:github-packages] published ${scopedName}@${stagedPackageJson.version}`);
+    console.log(`[release:github-packages] package listing: https://github.com/${githubRepo.slug}/packages`);
+    console.log(`[release:github-packages] owner packages: https://github.com/${githubRepo.owner}?tab=packages`);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

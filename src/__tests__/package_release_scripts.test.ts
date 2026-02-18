@@ -32,6 +32,15 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
   });
 
+  it('publishes GitHub packages with repository-linked metadata for package visibility', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'publish-github-package.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('GITHUB_REPOSITORY');
+    expect(script).toContain('Missing GitHub repository metadata');
+    expect(script).toContain('git+https://github.com/');
+    expect(script).toContain('?tab=packages');
+  });
+
   it('runs dogfood commands from target workspace without mutating CLI args', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs');
     const script = fs.readFileSync(scriptPath, 'utf8');
