@@ -345,6 +345,201 @@ function buildQueryFixCommands(code: string | undefined, workspace: string | und
   }
 }
 
+function normalizeErrorCode(rawCode: string | undefined, fallback = 'tool_execution_failed'): string {
+  const candidate = String(rawCode ?? '').trim().toLowerCase();
+  if (!candidate) return fallback;
+  const normalized = candidate.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return normalized || fallback;
+}
+
+function inferErrorCode(message: string, parsedCode?: string): string {
+  if (parsedCode) return normalizeErrorCode(parsedCode);
+  const normalized = message.trim().toLowerCase();
+  if (normalized.includes('workspace not registered') || normalized.includes('workspace_unavailable')) {
+    return 'workspace_not_registered';
+  }
+  if (
+    normalized.includes('workspace not ready')
+    || normalized.includes('no indexed workspace')
+    || normalized.includes('bootstrap first')
+    || normalized.includes('not bootstrapped')
+    || normalized.includes('bootstrap_required')
+  ) {
+    return 'workspace_not_bootstrapped';
+  }
+  if (normalized.includes('authorization denied') || normalized.includes('missing required scopes')) {
+    return 'authorization_denied';
+  }
+  if (normalized.includes('invalid input') || normalized.includes('schema_validation_failed')) {
+    return 'invalid_input';
+  }
+  if (normalized.includes('claim not found') || normalized.includes('claim_not_found')) {
+    return 'claim_not_found';
+  }
+  if (normalized.includes('workspace not found') || normalized.includes('workspace not accessible')) {
+    return 'workspace_not_found';
+  }
+  if (normalized.includes('unknown tool')) return 'tool_not_found';
+  return 'tool_execution_failed';
+}
+
+function getWorkspaceArg(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object') return undefined;
+  const workspace = (args as Record<string, unknown>).workspace;
+  if (typeof workspace !== 'string') return undefined;
+  const trimmed = workspace.trim();
+  return trimmed || undefined;
+}
+
+function buildAgentNextSteps(code: string, toolName: string, workspace: string | undefined): {
+  nextSteps: string[];
+  recoverWith?: { tool: string; args: Record<string, unknown> };
+} {
+  const workspaceArg = workspace ?? '<workspace>';
+  switch (code) {
+    case 'workspace_not_registered':
+      return {
+        nextSteps: [
+          `Call bootstrap({ workspace: "${workspaceArg}" }) to register and index this workspace.`,
+          `After bootstrap succeeds, retry ${toolName}.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
+    case 'workspace_not_bootstrapped':
+      return {
+        nextSteps: [
+          `Call bootstrap({ workspace: "${workspaceArg}" }) to build the index before using ${toolName}.`,
+          `Retry ${toolName} after bootstrap completes.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
+    case 'authorization_denied':
+      return {
+        nextSteps: [
+          'Start the MCP server with the required scopes enabled for this tool.',
+          'Retry the tool call after scope configuration is updated.',
+        ],
+      };
+    case 'invalid_input':
+      return {
+        nextSteps: [
+          'Check tool argument requirements via list_tools.',
+          `Retry ${toolName} with all required fields and valid value types.`,
+        ],
+      };
+    case 'claim_not_found':
+      return {
+        nextSteps: [
+          'Use query to discover relevant claim IDs first.',
+          'Retry verify_claim with a valid claimId from query output.',
+        ],
+      };
+    default:
+      return {
+        nextSteps: [
+          'Retry the tool call once to rule out transient errors.',
+          'If the error persists, run `librarian doctor --json` and apply suggested fixes.',
+        ],
+      };
+  }
+}
+
+function toAgentErrorPayload(params: {
+  toolName: string;
+  args?: unknown;
+  message: string;
+  basePayload?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const base = params.basePayload ? { ...params.basePayload } : {};
+  const parsedMessage = parseEpistemicMessage(params.message);
+  const disclosures = Array.isArray(base.disclosures)
+    ? base.disclosures.filter((value): value is string => typeof value === 'string')
+    : [];
+  const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(disclosures);
+  const existingDebug = Array.isArray(base.epistemicsDebug)
+    ? base.epistemicsDebug.filter((value): value is string => typeof value === 'string')
+    : [];
+  const debug = [...existingDebug, ...epistemicsDebug];
+  if (parsedMessage.code) {
+    debug.push(parsedMessage.rawMessage);
+  }
+  const code = normalizeErrorCode(
+    typeof base.code === 'string' ? base.code : undefined,
+    inferErrorCode(params.message, parsedMessage.code)
+  );
+  const { nextSteps, recoverWith } = buildAgentNextSteps(
+    code,
+    params.toolName,
+    getWorkspaceArg(params.args)
+  );
+  const suppliedNextSteps = Array.isArray(base.nextSteps)
+    ? base.nextSteps.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  const suppliedRecoverWith = base.recoverWith
+    && typeof base.recoverWith === 'object'
+    && !Array.isArray(base.recoverWith)
+    ? base.recoverWith as { tool?: unknown; args?: unknown }
+    : undefined;
+  const normalizedRecoverWith = suppliedRecoverWith
+    && typeof suppliedRecoverWith.tool === 'string'
+    && suppliedRecoverWith.tool.trim()
+    && suppliedRecoverWith.args
+    && typeof suppliedRecoverWith.args === 'object'
+    && !Array.isArray(suppliedRecoverWith.args)
+    ? {
+      tool: suppliedRecoverWith.tool.trim(),
+      args: suppliedRecoverWith.args as Record<string, unknown>,
+    }
+    : recoverWith;
+
+  return {
+    ...base,
+    error: true,
+    code,
+    message: parsedMessage.userMessage || 'Tool execution failed.',
+    nextSteps: suppliedNextSteps.length > 0 ? suppliedNextSteps : nextSteps,
+    recoverWith: normalizedRecoverWith,
+    disclosures: userDisclosures.length > 0 ? userDisclosures : base.disclosures,
+    traceId: sanitizeTraceId(typeof base.traceId === 'string' ? base.traceId : undefined) ?? base.traceId,
+    llmError: typeof base.llmError === 'string' ? parseEpistemicMessage(base.llmError).userMessage : base.llmError,
+    epistemicsDebug: debug.length > 0 ? Array.from(new Set(debug)) : base.epistemicsDebug,
+  };
+}
+
+function normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+  const base = result as Record<string, unknown>;
+
+  if (base.error === true && typeof base.message === 'string') {
+    return toAgentErrorPayload({
+      toolName,
+      args,
+      message: base.message,
+      basePayload: base,
+    });
+  }
+
+  if (typeof base.error === 'string') {
+    return toAgentErrorPayload({
+      toolName,
+      args,
+      message: base.error,
+      basePayload: base,
+    });
+  }
+
+  if (base.success === false && typeof base.message === 'string') {
+    return toAgentErrorPayload({
+      toolName,
+      args,
+      message: base.message,
+      basePayload: base,
+    });
+  }
+
+  return null;
+}
+
 // ============================================================================
 // SERVER IMPLEMENTATION
 // ============================================================================
@@ -915,6 +1110,30 @@ export class LibrarianMCPServer {
           )
         : await this.executeTool(name, validation.data);
 
+      const normalizedError = normalizeToolErrorResult(name, validation.data, result);
+      if (normalizedError) {
+        this.logAudit({
+          id: entryId,
+          timestamp: new Date().toISOString(),
+          operation: 'tool_call',
+          name,
+          input: sanitizedInput,
+          status: 'failure',
+          durationMs: Date.now() - startTime,
+          error: String(normalizedError.message ?? 'Tool execution failed'),
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(normalizedError, null, 2),
+            },
+          ],
+          isError: true,
+        };
+      }
+
       // Log success
       this.logAudit({
         id: entryId,
@@ -946,14 +1165,17 @@ export class LibrarianMCPServer {
         error: error instanceof Error ? error.message : String(error),
       });
 
+      const normalizedError = toAgentErrorPayload({
+        toolName: name,
+        args,
+        message: error instanceof Error ? error.message : String(error),
+      });
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              error: true,
-              message: error instanceof Error ? error.message : String(error),
-            }),
+            text: JSON.stringify(normalizedError, null, 2),
           },
         ],
         isError: true,

@@ -21,11 +21,14 @@ describe('MCP submit_feedback tool', () => {
         outcome: 'failure',
       });
 
-      expect(result.isError).not.toBe(true);
+      expect(result.isError).toBe(true);
       const payload = JSON.parse(result.content?.[0]?.text ?? '{}');
       expect(payload.success).toBe(false);
       expect(payload.adjustmentsApplied).toBe(0);
-      expect(String(payload.error ?? '')).toMatch(/Unknown feedbackToken/);
+      expect(payload.error).toBe(true);
+      expect(payload.code).toBeTruthy();
+      expect(Array.isArray(payload.nextSteps)).toBe(true);
+      expect(String(payload.message ?? '')).toMatch(/Unknown feedbackToken/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
