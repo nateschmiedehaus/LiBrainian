@@ -90,6 +90,7 @@ import {
 } from '../api/index.js';
 import { estimateTokens } from '../api/token_budget.js';
 import { computeChangeImpactReport } from '../api/change_impact_tool.js';
+import { categorizeRetrievalStatus, computeRetrievalEntropy } from '../api/retrieval_escalation.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
 import {
   compileTechniqueCompositionTemplateWithGapsFromStorage,
@@ -2819,6 +2820,10 @@ export class LibrarianMCPServer {
           return {
             packs: [],
             totalConfidence: 0,
+            retrievalStatus: 'insufficient',
+            retrievalEntropy: 0,
+            retrievalInsufficient: true,
+            suggestedClarifyingQuestions: [],
             error: `Specified workspace not registered: ${input.workspace}. Available: ${Array.from(this.state.workspaces.keys()).join(', ') || 'none'}`,
             intent: input.intent,
             disclosures: userDisclosures,
@@ -2837,6 +2842,10 @@ export class LibrarianMCPServer {
           return {
             packs: [],
             totalConfidence: 0,
+            retrievalStatus: 'insufficient',
+            retrievalEntropy: 0,
+            retrievalInsufficient: true,
+            suggestedClarifyingQuestions: [],
             error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
             intent: input.intent,
             workspace: resolvedPath,
@@ -2858,6 +2867,10 @@ export class LibrarianMCPServer {
           return {
             packs: [],
             totalConfidence: 0,
+            retrievalStatus: 'insufficient',
+            retrievalEntropy: 0,
+            retrievalInsufficient: true,
+            suggestedClarifyingQuestions: [],
             error: 'No indexed workspace available. Run bootstrap first.',
             intent: input.intent,
             disclosures: userDisclosures,
@@ -2905,6 +2918,14 @@ export class LibrarianMCPServer {
       }));
       const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
       const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
+      const retrievalEntropy = response.retrievalEntropy
+        ?? computeRetrievalEntropy(response.packs.map((pack) => ({ confidence: pack.confidence ?? 0 })));
+      const retrievalStatus = response.retrievalStatus
+        ?? categorizeRetrievalStatus({
+          totalConfidence: response.totalConfidence,
+          packCount: response.packs.length,
+        });
+      const retrievalInsufficient = response.retrievalInsufficient ?? retrievalStatus === 'insufficient';
 
       const baseResult = {
         disclosures: userDisclosures,
@@ -2913,6 +2934,10 @@ export class LibrarianMCPServer {
         traceId: sanitizeTraceId(response.traceId) ?? 'replay_unavailable',
         constructionPlan: response.constructionPlan,
         totalConfidence: response.totalConfidence,
+        retrievalStatus,
+        retrievalEntropy,
+        retrievalInsufficient,
+        suggestedClarifyingQuestions: response.suggestedClarifyingQuestions,
         cacheHit: response.cacheHit,
         latencyMs: response.latencyMs,
         drillDownHints: response.drillDownHints,
@@ -2956,6 +2981,10 @@ export class LibrarianMCPServer {
       return {
         packs: [],
         totalConfidence: 0,
+        retrievalStatus: 'insufficient',
+        retrievalEntropy: 0,
+        retrievalInsufficient: true,
+        suggestedClarifyingQuestions: [],
         error: parsedError.userMessage || 'Query failed.',
         intent: input.intent,
         disclosures: userDisclosures,

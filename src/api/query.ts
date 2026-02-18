@@ -1,5 +1,6 @@
 // Query API for Librarian.
 import path from 'node:path';
+import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { LibrarianStorage, SimilarityResult, QueryCacheEntry, MultiVectorRecord, MultiVectorQueryOptions, StorageCapabilities, EmbeddableEntityType } from '../storage/types.js';
 import type {
@@ -166,6 +167,13 @@ import {
   type BugReport,
 } from '../constructions/bug_investigation_assistant.js';
 import {
+  buildClarifyingQuestions,
+  categorizeRetrievalStatus,
+  computeRetrievalEntropy,
+  decideRetrievalEscalation,
+  expandEscalationIntent,
+} from './retrieval_escalation.js';
+import {
   SecurityAuditHelper,
   createSecurityAuditHelper,
   type SecurityReport,
@@ -201,6 +209,18 @@ export interface QueryTraceOptions {
   evidenceLedger?: IEvidenceLedger;
   sessionId?: SessionId;
 }
+
+interface RetrievalEscalationState {
+  attempts: number;
+  maxDepth: number;
+}
+
+interface QueryExecutionOptions {
+  escalationState?: RetrievalEscalationState;
+}
+
+const DEFAULT_MAX_ESCALATION_DEPTH = 2;
+const MAX_ALLOWED_ESCALATION_DEPTH = 8;
 const q = (value: number, range: [number, number], rationale: string): number =>
   resolveQuantifiedValue(configurable(value, range, rationale));
 
@@ -1461,7 +1481,8 @@ export async function queryLibrarian(
   embeddingService: EmbeddingService = defaultEmbeddingService,
   governorContext?: GovernorContext,
   onStage?: QueryStageObserver,
-  traceOptions: QueryTraceOptions = {}
+  traceOptions: QueryTraceOptions = {},
+  executionOptions: QueryExecutionOptions = {}
 ): Promise<LibrarianResponse> {
   // Initialize deterministic context if deterministic mode is enabled
   const deterministicCtx: DeterministicContext | null = query.deterministic
@@ -1520,6 +1541,11 @@ export async function queryLibrarian(
         : onStage
     );
     const workspaceRoot = await resolveWorkspaceRoot(storage);
+    const configuredMaxEscalationDepth = await resolveMaxEscalationDepth(workspaceRoot, query.maxEscalationDepth);
+    const escalationState = executionOptions.escalationState ?? {
+      attempts: 0,
+      maxDepth: configuredMaxEscalationDepth,
+    };
     const extractionSnapshot = await checkExtractionSnapshot({
       workspaceRoot,
       discloseMissingMetadata: false,
@@ -1714,6 +1740,18 @@ export async function queryLibrarian(
       cachedResponse.synthesisMode = 'cache';
       if (query.showLlmErrors === false) {
         cachedResponse.llmError = undefined;
+      }
+      cachedResponse.retrievalEntropy = cachedResponse.retrievalEntropy
+        ?? computeRetrievalEntropy(cachedResponse.packs);
+      cachedResponse.retrievalStatus = cachedResponse.retrievalStatus
+        ?? categorizeRetrievalStatus({
+          totalConfidence: cachedResponse.totalConfidence,
+          packCount: cachedResponse.packs.length,
+        });
+      cachedResponse.retrievalInsufficient = cachedResponse.retrievalInsufficient
+        ?? ((query.depth ?? 'L1') === 'L3' && cachedResponse.totalConfidence < 0.3);
+      if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
+        cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
       }
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
@@ -2538,6 +2576,70 @@ export async function queryLibrarian(
   if (coherenceAnalysis.warnings.length > 0) {
     disclosures.push(...coherenceAnalysis.warnings.map(w => `coherence_warning: ${w}`));
   }
+  const currentDepth = query.depth ?? 'L1';
+  const retrievalEntropy = computeRetrievalEntropy(finalPacks);
+  const escalationDecision = decideRetrievalEscalation({
+    depth: currentDepth,
+    totalConfidence,
+    retrievalEntropy,
+    escalationAttempts: escalationState.attempts,
+    maxEscalationDepth: escalationState.maxDepth,
+    packCount: finalPacks.length,
+  });
+
+  if (escalationDecision.shouldEscalate) {
+    const expandedIntent = escalationDecision.expandQuery
+      ? expandEscalationIntent(query.intent ?? '', finalPacks)
+      : (query.intent ?? '');
+    const nextQuery: LibrarianQuery = {
+      ...query,
+      depth: escalationDecision.nextDepth,
+      intent: expandedIntent,
+    };
+    const unchangedIntent = nextQuery.intent === query.intent;
+    const unchangedDepth = nextQuery.depth === currentDepth;
+
+    if (!(unchangedIntent && unchangedDepth)) {
+      await logRetrievalEscalationEvent(workspaceRoot, {
+        intent: query.intent,
+        fromDepth: currentDepth,
+        toDepth: nextQuery.depth,
+        totalConfidence,
+        retrievalEntropy,
+        reasons: escalationDecision.reasons,
+        attempt: escalationState.attempts + 1,
+        maxEscalationDepth: escalationState.maxDepth,
+      });
+
+      const escalatedResponse = await queryLibrarian(
+        nextQuery,
+        storage,
+        embeddingService,
+        governorContext,
+        onStage,
+        traceOptions,
+        {
+          escalationState: {
+            attempts: escalationState.attempts + 1,
+            maxDepth: escalationState.maxDepth,
+          },
+        }
+      );
+      escalatedResponse.disclosures = [
+        ...escalatedResponse.disclosures,
+        `retrieval_escalation: ${currentDepth} -> ${nextQuery.depth} (${escalationDecision.reasons.join(', ') || 'policy_triggered'})`,
+      ];
+      return escalatedResponse;
+    }
+  }
+  const retrievalStatus = categorizeRetrievalStatus({
+    totalConfidence,
+    packCount: finalPacks.length,
+  });
+  const retrievalInsufficient = currentDepth === 'L3' && totalConfidence < 0.3;
+  const suggestedClarifyingQuestions = retrievalInsufficient
+    ? buildClarifyingQuestions(query.intent ?? '')
+    : undefined;
 
   // CONFIDENCE THRESHOLD CHECK: Return "no results" for low-confidence matches
   // It's better to say "I don't know" than to return confidently wrong answers.
@@ -2558,6 +2660,12 @@ export async function queryLibrarian(
         totalConfidence: 0,
         calibration: summarizeCalibration(calibration),
         uncertainty: computeUncertaintyMetrics(0),
+        retrievalStatus: 'insufficient',
+        retrievalEntropy,
+        retrievalInsufficient: currentDepth === 'L3',
+        suggestedClarifyingQuestions: currentDepth === 'L3'
+          ? buildClarifyingQuestions(query.intent ?? '')
+          : undefined,
         cacheHit: false,
         latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
         version,
@@ -2834,6 +2942,10 @@ export async function queryLibrarian(
     totalConfidence,
     calibration: summarizeCalibration(calibration),
     uncertainty: computeUncertaintyMetrics(totalConfidence),
+    retrievalStatus,
+    retrievalEntropy,
+    retrievalInsufficient,
+    suggestedClarifyingQuestions,
     cacheHit,
     // Use fixed latency (0) in deterministic mode for reproducibility
     latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
@@ -6870,6 +6982,71 @@ async function resolveWorkspaceRoot(storage: LibrarianStorage): Promise<string> 
   }
   return process.cwd();
 }
+async function resolveMaxEscalationDepth(workspaceRoot: string, override?: number): Promise<number> {
+  if (typeof override === 'number' && Number.isFinite(override)) {
+    return normalizeEscalationDepth(override);
+  }
+
+  const configPaths = [
+    path.join(workspaceRoot, 'librainian.config.json'),
+    path.join(workspaceRoot, '.librarian', 'config.json'),
+  ];
+
+  for (const configPath of configPaths) {
+    try {
+      const raw = await fs.readFile(configPath, 'utf8');
+      const parsed = safeJsonParse<Record<string, unknown>>(raw);
+      if (!parsed.ok || !parsed.value || typeof parsed.value !== 'object') continue;
+
+      const topLevel = parsed.value.max_escalation_depth;
+      const retrievalScoped = (parsed.value.retrieval as { max_escalation_depth?: unknown } | undefined)?.max_escalation_depth;
+      const candidate = typeof topLevel === 'number' ? topLevel : (typeof retrievalScoped === 'number' ? retrievalScoped : undefined);
+      if (candidate !== undefined) {
+        return normalizeEscalationDepth(candidate);
+      }
+    } catch {
+      // Optional config file; ignore read/parse failures.
+    }
+  }
+
+  return DEFAULT_MAX_ESCALATION_DEPTH;
+}
+
+function normalizeEscalationDepth(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_MAX_ESCALATION_DEPTH;
+  return Math.max(0, Math.min(MAX_ALLOWED_ESCALATION_DEPTH, Math.floor(value)));
+}
+
+async function logRetrievalEscalationEvent(workspaceRoot: string, event: {
+  intent: string;
+  fromDepth: LibrarianQuery['depth'];
+  toDepth: LibrarianQuery['depth'];
+  totalConfidence: number;
+  retrievalEntropy: number;
+  reasons: string[];
+  attempt: number;
+  maxEscalationDepth: number;
+}): Promise<void> {
+  try {
+    const logPath = path.join(workspaceRoot, '.librarian', 'retrieval_confidence_log.jsonl');
+    await fs.mkdir(path.dirname(logPath), { recursive: true });
+    const record = {
+      timestamp: new Date().toISOString(),
+      escalation_reason: event.reasons.join('|') || 'policy_triggered',
+      intent: event.intent,
+      from_depth: event.fromDepth,
+      to_depth: event.toDepth,
+      confidence_score: Number(event.totalConfidence.toFixed(4)),
+      retrieval_entropy: Number(event.retrievalEntropy.toFixed(4)),
+      attempt: event.attempt,
+      max_escalation_depth: event.maxEscalationDepth,
+    };
+    await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  } catch {
+    // Logging must never break query execution.
+  }
+}
+
 function normalizeCochangePath(value: string, workspaceRoot: string): string | null {
   if (!value) return null;
   const normalized = value.replace(/\\/g, '/');

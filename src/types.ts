@@ -950,6 +950,12 @@ export interface LibrarianQuery {
   disableCache?: boolean;
 
   /**
+   * Maximum number of automatic retrieval escalations for this query.
+   * Defaults to 2 when not provided.
+   */
+  maxEscalationDepth?: number;
+
+  /**
    * Edge types to filter knowledge graph traversal.
    * When specified, only edges of these types are considered during graph
    * expansion and relation discovery.
@@ -1062,6 +1068,8 @@ export interface UncertaintyMetrics {
   variance: number;
 }
 
+export type RetrievalStatus = 'sufficient' | 'partial' | 'insufficient';
+
 /**
  * Structured follow-up query suggestion.
  * Provides actionable queries agents can execute directly, rather than
@@ -1100,6 +1108,10 @@ export interface LibrarianResponse {
   totalConfidence: number;
   calibration?: ConfidenceCalibrationSummary;
   uncertainty?: UncertaintyMetrics;
+  retrievalStatus?: RetrievalStatus;
+  retrievalEntropy?: number;
+  retrievalInsufficient?: boolean;
+  suggestedClarifyingQuestions?: string[];
   cacheHit: boolean;
   latencyMs: number;
   version: LibrarianVersion;

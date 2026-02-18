@@ -163,6 +163,43 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.disclosures.join(' ')).not.toContain('unverified_by_trace');
   });
 
+  it('returns retrievalStatus even when query response omits it', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.2 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-1',
+      constructionPlan: undefined,
+      totalConfidence: 0.2,
+      cacheHit: false,
+      latencyMs: 12,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'users get logged out randomly',
+    });
+
+    expect(result.retrievalStatus).toBe('insufficient');
+    expect(result.retrievalInsufficient).toBe(true);
+  });
+
   it('returns actionable fixes when workspace is not registered', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

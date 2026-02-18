@@ -494,6 +494,18 @@ export interface QueryToolOutput {
   /** Total confidence */
   totalConfidence: number;
 
+  /** Retrieval sufficiency classification */
+  retrievalStatus?: 'sufficient' | 'partial' | 'insufficient';
+
+  /** Retrieval entropy over returned confidence distribution */
+  retrievalEntropy?: number;
+
+  /** True when retrieval quality remains insufficient after escalation */
+  retrievalInsufficient?: boolean;
+
+  /** Clarifying questions to recover from insufficient retrieval */
+  suggestedClarifyingQuestions?: string[];
+
   /** Synthesized answer (if LLM available) */
   synthesis?: string;
 
