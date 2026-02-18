@@ -57,7 +57,12 @@ ADVANCED:
 GLOBAL OPTIONS:
     -h, --help          Show help information
     -v, --version       Show version information
+    -y, --yes           Non-interactive defaults (assume yes for confirmations)
+    -q, --quiet         Suppress non-error output (ignored with --json)
     -w, --workspace     Set workspace directory (default: current directory)
+    --ci                Force CI/non-interactive runtime mode
+    --no-progress       Disable spinner/progress output
+    --no-color          Disable ANSI colors (also respects NO_COLOR)
     --verbose           Enable verbose output
     --json              Enable JSON output for errors (agent friendly)
 

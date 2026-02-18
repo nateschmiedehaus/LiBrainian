@@ -73,6 +73,7 @@ import { publishGateCommand } from './commands/publish_gate.js';
 import { ralphCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
+import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
   CliError,
   formatError,
@@ -262,6 +263,11 @@ async function main(): Promise<void> {
     options: {
       help: { type: 'boolean', short: 'h', default: false },
       version: { type: 'boolean', short: 'v', default: false },
+      yes: { type: 'boolean', short: 'y', default: false },
+      quiet: { type: 'boolean', short: 'q', default: false },
+      ci: { type: 'boolean', default: false },
+      'no-progress': { type: 'boolean', default: false },
+      'no-color': { type: 'boolean', default: false },
       workspace: { type: 'string', short: 'w', default: process.cwd() },
       verbose: { type: 'boolean', default: false },
     },
@@ -291,6 +297,8 @@ async function main(): Promise<void> {
 
   // Check for --json flag early for structured error output
   const jsonMode = hasJsonFlag(args);
+  const runtimeMode = deriveCliRuntimeMode({ args, jsonMode });
+  const restoreConsole = applyCliRuntimeMode(runtimeMode);
   // In JSON mode, stdout is reserved for machine-readable output. Silence logs by default
   // unless the caller explicitly set a log level.
   if (jsonMode && !process.env.LIBRARIAN_LOG_LEVEL) {
@@ -555,7 +563,7 @@ async function main(): Promise<void> {
 	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
 	        break;
 	    }
-	  } catch (error) {
+  } catch (error) {
     // Convert error to structured envelope for programmatic handling
     const envelope = classifyError(error);
 
@@ -569,6 +577,8 @@ async function main(): Promise<void> {
 
     // Set exit code based on error type
     process.exitCode = getExitCode(envelope);
+  } finally {
+    restoreConsole();
   }
 }
 
