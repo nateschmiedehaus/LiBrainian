@@ -554,6 +554,8 @@ export class LibrarianMCPServer {
   private config: LibrarianMCPServerConfig;
   private state: ServerState;
   private transport: StdioServerTransport | null = null;
+  private inFlightToolCalls = 0;
+  private readonly inFlightBootstraps = new Map<string, Promise<unknown>>();
 
   constructor(config: Partial<LibrarianMCPServerConfig> = {}) {
     this.config = { ...DEFAULT_MCP_SERVER_CONFIG, ...config };
@@ -1099,16 +1101,57 @@ export class LibrarianMCPServer {
           ? (sanitizedInput as Record<string, unknown>)
           : { value: sanitizedInput };
 
+      const maxConcurrent = Math.max(1, Number(this.config.performance.maxConcurrent ?? 1));
+      if (this.inFlightToolCalls >= maxConcurrent) {
+        const retryAfterMs = Math.max(200, Math.min(5000, Math.floor((this.config.performance.timeoutMs ?? 1000) / 10)));
+        const busyPayload = toAgentErrorPayload({
+          toolName: name,
+          args: validation.data,
+          message: `Server busy: ${this.inFlightToolCalls} tool calls in flight. Retry in ${retryAfterMs}ms.`,
+          basePayload: {
+            code: 'server_busy',
+            retryAfterMs,
+            nextSteps: [
+              `Retry ${name} after ${retryAfterMs}ms.`,
+              'Reduce concurrent tool calls or increase performance.maxConcurrent.',
+            ],
+          },
+        });
+        this.logAudit({
+          id: entryId,
+          timestamp: new Date().toISOString(),
+          operation: 'tool_call',
+          name,
+          input: sanitizedInput,
+          status: 'failure',
+          durationMs: Date.now() - startTime,
+          error: `Server busy: ${this.inFlightToolCalls}/${maxConcurrent} in flight`,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(busyPayload, null, 2),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      this.inFlightToolCalls += 1;
+
       // Execute tool
       const workspaceHint = this.resolveWorkspaceHint(validation.data);
       const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
       const instrumentation = await this.ensureWorkspaceInstrumentation(workspace);
-      const result = instrumentation?.toolAdapter
-        ? await instrumentation.toolAdapter.call(
+      const executionPromise = instrumentation?.toolAdapter
+        ? instrumentation.toolAdapter.call(
             { operation: name, input: inputRecord, workspace },
             () => this.executeTool(name, validation.data)
           )
-        : await this.executeTool(name, validation.data);
+        : this.executeTool(name, validation.data);
+      const timeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
+      const result = await this.executeWithTimeout(executionPromise, timeoutMs, name);
 
       const normalizedError = normalizeToolErrorResult(name, validation.data, result);
       if (normalizedError) {
@@ -1180,7 +1223,41 @@ export class LibrarianMCPServer {
         ],
         isError: true,
       };
+    } finally {
+      this.inFlightToolCalls = Math.max(0, this.inFlightToolCalls - 1);
     }
+  }
+
+  private async executeWithTimeout<T>(promise: Promise<T>, timeoutMs: number, toolName: string): Promise<T> {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Tool execution timed out after ${timeoutMs}ms (${toolName})`));
+      }, timeoutMs);
+      void promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          reject(error);
+        }
+      );
+    });
+  }
+
+  private executeBootstrapDeduped(input: BootstrapToolInput): Promise<unknown> {
+    const workspacePath = path.resolve(input.workspace);
+    const inFlight = this.inFlightBootstraps.get(workspacePath);
+    if (inFlight) return inFlight;
+    const execution = this.executeBootstrap(input).finally(() => {
+      if (this.inFlightBootstraps.get(workspacePath) === execution) {
+        this.inFlightBootstraps.delete(workspacePath);
+      }
+    });
+    this.inFlightBootstraps.set(workspacePath, execution);
+    return execution;
   }
 
   private resolveWorkspaceHint(args: unknown): string | undefined {
@@ -1403,7 +1480,7 @@ export class LibrarianMCPServer {
   private async executeTool(name: string, args: unknown): Promise<unknown> {
     switch (name) {
       case 'bootstrap':
-        return this.executeBootstrap(args as BootstrapToolInput);
+        return this.executeBootstrapDeduped(args as BootstrapToolInput);
       case 'status':
         return this.executeStatus(args as StatusToolInput);
       case 'system_contract':
