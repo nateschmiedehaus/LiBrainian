@@ -12,6 +12,7 @@ describe('package release scripts', () => {
 
     expect(scripts['package:assert-identity']).toBe('node scripts/assert-package-identity.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
+    expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');
     expect(scripts.prepublishOnly).toContain('npm run package:assert-identity');
     expect(scripts.prepublishOnly).toContain('npm run package:install-smoke');
   });
@@ -20,6 +21,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-package-identity.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
   });
 
   it('defines staged validation scripts for daily, PR, and release gates', () => {

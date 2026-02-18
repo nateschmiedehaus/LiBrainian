@@ -145,6 +145,7 @@
     "evidence:refresh": "node scripts/refresh-final-verification.mjs --max-samples 6 --benchmark-timeout-ms 45000 && npm run evidence:manifest && npm run evidence:reconcile",
     "release:pack": "npm run package:assert-identity && npm run clean && npm run build && npm run package:install-smoke && npm pack",
     "release:dry-run": "npm run release:pack",
+    "dogfood": "node scripts/dogfood-sandbox.mjs",
     "prepublishOnly": "npm run package:assert-identity && npm run clean && npm run build && npm run package:install-smoke",
     "release:qualify": "npm run validate:full && npm run test:agentic:strict",
     "release:github": "npm publish --provenance --access public",

@@ -49,6 +49,18 @@ CLI binaries:
 - `librainian` (primary)
 - `librarian` (compatibility alias)
 
+## Dogfood (Safe Sandbox)
+
+Run the packaged CLI in an isolated temp sandbox (no self-install into this repo):
+
+```bash
+# default command: status --format json
+npm run dogfood
+
+# pass any CLI command after --
+npm run dogfood -- query "Where is auth enforced?"
+```
+
 ## GitHub → First Win (2-Minute Flow)
 
 ```bash
