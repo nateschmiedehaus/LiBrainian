@@ -30,6 +30,7 @@
  *   librarian eval                - Produce FitnessReport.v1
  *   librarian replay              - Replay evolution cycle or variant
  *   librarian analyze             - Run static analysis (dead code, complexity)
+ *   librarian update              - Hook-friendly alias for incremental indexing
  *   librarian config heal         - Auto-detect and fix suboptimal config
  *   librarian doctor              - Run health diagnostics to identify issues
  *   librarian publish-gate        - Run strict publish-readiness gate checks
@@ -83,7 +84,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -217,6 +218,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
     usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
+  },
+  'update': {
+    description: 'Hook-friendly alias for incremental indexing (implies --force)',
+    usage: 'librarian update <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'analyze': {
     description: 'Run static analysis (dead code, complexity)',
@@ -473,6 +478,7 @@ async function main(): Promise<void> {
         });
         break;
       case 'index':
+      case 'update':
         {
           const since = getStringArg(args, '--since');
           if (args.includes('--since') && !since) {
@@ -488,7 +494,7 @@ async function main(): Promise<void> {
           await indexCommand({
             workspace,
             verbose,
-            force: args.includes('--force'),
+            force: command === 'update' ? true : args.includes('--force'),
             files: normalizedFiles,
             incremental: args.includes('--incremental'),
             staged: args.includes('--staged'),

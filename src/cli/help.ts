@@ -48,6 +48,7 @@ ADVANCED:
     eval                Produce FitnessReport.v1 for current state
     replay              Replay an evolution cycle or variant
     index --force ...        Incrementally index explicit files or git-selected changes
+    update              Hook-friendly alias for incremental index updates
     analyze             Run static analysis (dead code, complexity)
     config heal         Auto-detect and fix suboptimal configuration
     ralph               Run DETECT->FIX->VERIFY loop and write an audit report
@@ -830,6 +831,32 @@ EXAMPLES:
     librarian index --force --incremental
     librarian index --force --staged
     librarian index --force --since origin/main
+`,
+
+  update: `
+librarian update - Hook-friendly alias for incremental indexing
+
+USAGE:
+    librarian update <file...> [options]
+    librarian update --incremental [options]
+    librarian update --staged [options]
+    librarian update --since <ref> [options]
+
+OPTIONS:
+    --incremental       Index changed files from git status (modified + added + untracked)
+    --staged            Index only staged files from git diff --cached
+    --since <ref>       Index files changed since a git ref (for CI branch comparison)
+    --verbose           Show detailed indexing output
+
+DESCRIPTION:
+    Equivalent to \`librarian index --force ...\` and intended for pre-commit
+    tooling (lint-staged, lefthook, pre-commit). This command still performs
+    context-pack invalidation/rebuild behavior from indexCommand.
+
+EXAMPLES:
+    librarian update --staged
+    librarian update src/auth/session.ts src/api/mcp.ts
+    librarian update --since origin/main
 `,
 
   analyze: `

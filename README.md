@@ -204,6 +204,26 @@ npm run test:agentic:strict
 `validate:fast` is the default developer path and CI path for pull requests.
 `validate:full` and `test:agentic:strict` are required for release-grade confidence.
 
+## Pre-Commit Hook Integration
+
+LiBrainian supports staged-file incremental indexing for commit-time freshness:
+
+```bash
+# index only staged files
+npx librainian update --staged
+
+# index explicit changed files (lint-staged style)
+npx librainian update src/api/query.ts src/cli/index.ts
+```
+
+Built-in integration options:
+
+- `lint-staged` (already configured in `package.json`): runs `librainian update` with staged filenames
+- `lefthook` (already configured in `lefthook.yml`): runs `librainian update {staged_files}`
+- Python `pre-commit` users: use the repo-level `.pre-commit-hooks.yaml` hook `librainian-update-staged`
+
+These hook integrations are best-effort and non-blocking for known setup failures (for example, repo not bootstrapped yet).
+
 ## Development and Validation
 
 ```bash
