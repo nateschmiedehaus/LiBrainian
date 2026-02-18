@@ -148,28 +148,34 @@ function ensureIssueLinkedInPrBody(prNumber, issueNumber) {
 
 function ensureIssueCommentHasPrLink(repo, issueNumber, prUrl) {
   if (!issueNumber || !prUrl) return;
-  const issue = parseJson('gh', [
-    'issue',
-    'view',
-    String(issueNumber),
-    '--repo',
-    repo,
-    '--json',
-    'comments',
-  ]);
-  const comments = Array.isArray(issue.comments) ? issue.comments : [];
-  const alreadyLinked = comments.some((comment) => String(comment?.body ?? '').includes(prUrl));
-  if (alreadyLinked) return;
-  run('gh', [
-    'issue',
-    'comment',
-    String(issueNumber),
-    '--repo',
-    repo,
-    '--body',
-    `Tracking in ${prUrl}`,
-  ], { stdio: 'inherit' });
-  console.log(`[gh:autoland] Linked issue #${issueNumber} to ${prUrl}`);
+  try {
+    const issue = parseJson('gh', [
+      'issue',
+      'view',
+      String(issueNumber),
+      '--repo',
+      repo,
+      '--json',
+      'comments',
+    ]);
+    const comments = Array.isArray(issue.comments) ? issue.comments : [];
+    const alreadyLinked = comments.some((comment) => String(comment?.body ?? '').includes(prUrl));
+    if (alreadyLinked) return;
+    run('gh', [
+      'issue',
+      'comment',
+      String(issueNumber),
+      '--repo',
+      repo,
+      '--body',
+      `Tracking in ${prUrl}`,
+    ], { stdio: 'inherit' });
+    console.log(`[gh:autoland] Linked issue #${issueNumber} to ${prUrl}`);
+  } catch (error) {
+    console.warn(
+      `[gh:autoland] Warning: unable to link issue #${issueNumber} comment (continuing): ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }
 
 function dispatchPublishWorkflow({ mode, workflow, npmTag }) {
