@@ -13,6 +13,7 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-identity']).toBe('node scripts/assert-package-identity.mjs');
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
+    expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
     expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');
@@ -26,6 +27,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-release-provenance.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'evidence-drift-guard.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
   });
@@ -63,22 +65,6 @@ describe('package release scripts', () => {
     expect(files).toEqual([
       'dist/**/*.js',
       'dist/**/*.d.ts',
-      '!dist/epistemics/belief_functions.js',
-      '!dist/epistemics/belief_functions.d.ts',
-      '!dist/epistemics/belief_revision.js',
-      '!dist/epistemics/belief_revision.d.ts',
-      '!dist/epistemics/calibration_laws.js',
-      '!dist/epistemics/calibration_laws.d.ts',
-      '!dist/epistemics/causal_reasoning.js',
-      '!dist/epistemics/causal_reasoning.d.ts',
-      '!dist/epistemics/conative_attitudes.js',
-      '!dist/epistemics/conative_attitudes.d.ts',
-      '!dist/epistemics/credal_sets.js',
-      '!dist/epistemics/credal_sets.d.ts',
-      '!dist/epistemics/intuitive_grounding.js',
-      '!dist/epistemics/intuitive_grounding.d.ts',
-      '!dist/epistemics/experimental/index.js',
-      '!dist/epistemics/experimental/index.d.ts',
       'dist/migrations/*.sql',
       '!dist/**/*.map',
       '!dist/test/**',

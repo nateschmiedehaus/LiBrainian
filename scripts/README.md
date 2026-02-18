@@ -4,6 +4,7 @@ LiBrainian scripts are grouped by function:
 
 - **Release integrity**
   - `assert-package-identity.mjs`
+  - `publish-github-package.mjs`
   - `package-install-smoke.mjs`
   - `refresh-final-verification.mjs`
 - **Evaluation orchestration**
