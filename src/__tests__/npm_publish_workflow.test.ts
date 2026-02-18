@@ -13,9 +13,12 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('release:');
     expect(workflow).toContain('types:');
     expect(workflow).toContain('published');
+    expect(workflow).toContain('packages: write');
     expect(workflow).toContain('npm run evidence:sync');
     expect(workflow).toContain('npm run evidence:drift-check');
     expect(workflow).toContain('npm run release:pack');
     expect(workflow).toContain('npm publish --provenance --access public');
+    expect(workflow).toContain('npm run release:github-packages');
+    expect(workflow).toContain('https://npm.pkg.github.com');
   });
 });

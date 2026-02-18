@@ -20,6 +20,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 concurrency:
   group: publish-npm
@@ -120,6 +121,13 @@ jobs:
           printf "registry=https://registry.npmjs.org/\n" > "$trusted_npmrc"
           NPM_CONFIG_USERCONFIG="$trusted_npmrc" NODE_AUTH_TOKEN= NPM_TOKEN= npm publish --provenance --access public --ignore-scripts
 
+      - name: Publish to GitHub Packages
+        run: npm run release:github-packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          LIBRARIAN_GH_PACKAGE_REGISTRY: https://npm.pkg.github.com
+
   publish-manual:
     if: github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: verify
@@ -180,4 +188,12 @@ jobs:
           printf "registry=https://registry.npmjs.org/\n" > "$trusted_npmrc"
           NPM_CONFIG_USERCONFIG="$trusted_npmrc" NODE_AUTH_TOKEN= NPM_TOKEN= npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
         env:
+          NPM_TAG: ${{ inputs.npm_tag }}
+
+      - name: Publish to GitHub Packages (manual)
+        run: npm run release:github-packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          LIBRARIAN_GH_PACKAGE_REGISTRY: https://npm.pkg.github.com
           NPM_TAG: ${{ inputs.npm_tag }}

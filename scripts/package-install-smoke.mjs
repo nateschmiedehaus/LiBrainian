@@ -39,8 +39,8 @@ async function main() {
 
   try {
     run('npm', ['install', '--no-save', tarballPath], { cwd: sandboxDir });
-    run(process.execPath, ['./node_modules/.bin/librainian', '--version'], { cwd: sandboxDir });
-    run(process.execPath, ['./node_modules/.bin/librarian', '--version'], { cwd: sandboxDir });
+    run('npx', ['--no-install', 'librainian', '--version'], { cwd: sandboxDir });
+    run('npx', ['--no-install', 'librarian', '--version'], { cwd: sandboxDir });
     run(
       process.execPath,
       ['--input-type=module', '-e', 'import("librainian").then(() => process.exit(0)).catch(() => process.exit(1));'],
