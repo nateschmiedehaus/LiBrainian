@@ -73,7 +73,9 @@ describe('canonical npm scripts', () => {
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-discipline');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-tracker');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:publish-gate');
-    expect(scripts['prepublishOnly']).toContain('npm run test:agentic:strict');
+    expect(scripts['prepublishOnly']).not.toContain('npm run test:agentic:strict');
+    expect(scripts['release:qualify']).toContain('npm run validate:full');
+    expect(scripts['release:qualify']).toContain('npm run test:agentic:strict');
   });
 
   it('forbids temporary inspection scripts in scripts/', () => {

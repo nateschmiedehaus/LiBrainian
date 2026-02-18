@@ -75,7 +75,8 @@ LiBrainian is an agent cognition system, not a static utility library. Its launc
 - `npm run eval:use-cases:agentic` must execute broad, docs-derived use-case intents against real external repos, use a release-approved selection mode (`selectionMode=balanced` or `selectionMode=probabilistic`), and emit `AgenticUseCaseReviewReport.v1` with `evidenceProfile=release`.
 - `npm run eval:use-cases:agentic` must run progressive prerequisites before target examples (dependency chain from `USE_CASE_MATRIX.md`), then fail closed if target runs are not dependency-ready.
 - `npm run eval:publish-gate` runs deterministic hygiene gates first (`npm run canon:guard`, `npm run complexity:check`), then strict publish mode (`--zero-warning`), and blocks publish when any required signal is missing/imperfect **or** when `docs/LiBrainian/GATES.json` / `docs/LiBrainian/STATUS.md` still contain strict failure markers (for example `unverified_by_trace(...)`).
-- `prepublishOnly` runs `eval:publish-gate`, so package publish cannot proceed without strict release evidence.
+- `prepublishOnly` is packaging-only (`package:assert-identity`, `build`, `package:install-smoke`) so `npm publish` is stable and fast.
+- Strict release evidence remains mandatory, but runs explicitly via `npm run release:qualify` and CI publish gates.
 
 ### Agentic Use-Case Review (Real Projects)
 
