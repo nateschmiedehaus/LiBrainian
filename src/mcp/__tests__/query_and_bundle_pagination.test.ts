@@ -119,6 +119,72 @@ describe('MCP query and context bundle pagination', () => {
     expect(saved.pagination.totalItems).toBe(2);
   });
 
+  it('sanitizes epistemic disclosures and traceId in query output', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.9 },
+      ],
+      disclosures: ['unverified_by_trace(storage_write_degraded): Session degraded due to lock contention.'],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'unverified_by_trace(replay_unavailable)',
+      constructionPlan: undefined,
+      totalConfidence: 0.7,
+      cacheHit: false,
+      latencyMs: 11,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'test',
+    });
+
+    expect(result.disclosures).toEqual(['Session degraded due to lock contention.']);
+    expect(result.traceId).toBe('replay_unavailable');
+    expect(result.llmError).toBe('Embedding provider unavailable');
+    expect(result.epistemicsDebug).toEqual(
+      expect.arrayContaining([
+        'unverified_by_trace(storage_write_degraded): Session degraded due to lock contention.',
+      ])
+    );
+    expect(result.disclosures.join(' ')).not.toContain('unverified_by_trace');
+  });
+
+  it('returns actionable fixes when workspace is not registered', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const missingWorkspace = '/tmp/not-registered-workspace';
+    const result = await (server as any).executeQuery({
+      workspace: missingWorkspace,
+      intent: 'test',
+    });
+
+    expect(result.error).toContain('Specified workspace not registered');
+    expect(result.disclosures.join(' ')).not.toContain('unverified_by_trace');
+    expect(result.fix).toEqual(
+      expect.arrayContaining([
+        `Run \`librarian bootstrap --workspace ${missingWorkspace}\` to register and index this workspace.`,
+      ])
+    );
+    expect(result.epistemicsDebug.join(' ')).toContain('unverified_by_trace(workspace_unavailable)');
+    expect(result.traceId).toBe('replay_unavailable');
+  });
+
   it('paginates get_context_pack_bundle pack output', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

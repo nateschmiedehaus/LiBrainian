@@ -274,6 +274,77 @@ interface PaginationMetadata {
   showing: string;
 }
 
+const TRACE_MESSAGE_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
+
+interface ParsedEpistemicMessage {
+  code?: string;
+  userMessage: string;
+  rawMessage: string;
+}
+
+function parseEpistemicMessage(message: string): ParsedEpistemicMessage {
+  const rawMessage = String(message ?? '').trim();
+  const match = rawMessage.match(TRACE_MESSAGE_PATTERN);
+  if (!match) {
+    return {
+      userMessage: rawMessage,
+      rawMessage,
+    };
+  }
+  const code = (match[1] ?? '').trim();
+  const detail = (match[2] ?? '').trim();
+  return {
+    code,
+    userMessage: detail || code.replace(/_/g, ' '),
+    rawMessage,
+  };
+}
+
+function sanitizeDisclosures(disclosures: string[] | undefined): {
+  userDisclosures: string[];
+  epistemicsDebug: string[];
+} {
+  const userDisclosures: string[] = [];
+  const epistemicsDebug: string[] = [];
+  const seen = new Set<string>();
+  for (const disclosure of disclosures ?? []) {
+    const parsed = parseEpistemicMessage(disclosure);
+    if (parsed.code) {
+      epistemicsDebug.push(parsed.rawMessage);
+    }
+    const normalized = parsed.userMessage.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    userDisclosures.push(normalized);
+  }
+  return { userDisclosures, epistemicsDebug };
+}
+
+function sanitizeTraceId(traceId: string | undefined): string | undefined {
+  if (!traceId) return traceId;
+  const parsed = parseEpistemicMessage(traceId);
+  return parsed.code ?? traceId;
+}
+
+function buildQueryFixCommands(code: string | undefined, workspace: string | undefined): string[] {
+  const workspaceArg = workspace?.trim() ? workspace.trim() : '<workspace>';
+  switch (code) {
+    case 'workspace_unavailable':
+      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` to register and index this workspace.`];
+    case 'bootstrap_required':
+      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` before running query.`];
+    case 'provider_unavailable':
+      return ['Run `librarian check-providers` to diagnose provider setup and authentication.'];
+    case 'query_failed':
+      return [
+        'Run `librarian doctor` to diagnose storage/workspace issues.',
+        'Retry with a narrower intent after confirming providers are healthy.',
+      ];
+    default:
+      return ['Run `librarian doctor` to diagnose this query failure.'];
+  }
+}
+
 // ============================================================================
 // SERVER IMPLEMENTATION
 // ============================================================================
@@ -2145,49 +2216,60 @@ export class LibrarianMCPServer {
         const resolvedPath = path.resolve(input.workspace);
         workspace = this.state.workspaces.get(resolvedPath);
         if (!workspace) {
+          const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([
+            `unverified_by_trace(workspace_unavailable): ${input.workspace ?? 'unknown workspace'}`,
+          ]);
           return {
             packs: [],
             totalConfidence: 0,
             error: `Specified workspace not registered: ${input.workspace}. Available: ${Array.from(this.state.workspaces.keys()).join(', ') || 'none'}`,
             intent: input.intent,
-            disclosures: [
-              `unverified_by_trace(workspace_unavailable): ${input.workspace ?? 'unknown workspace'}`,
-            ],
+            disclosures: userDisclosures,
+            fix: buildQueryFixCommands('workspace_unavailable', input.workspace),
             adequacy: undefined,
             verificationPlan: undefined,
-            traceId: 'unverified_by_trace(replay_unavailable)',
+            traceId: 'replay_unavailable',
             constructionPlan: undefined,
+            epistemicsDebug,
           };
         }
         if (workspace.indexState !== 'ready') {
+          const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([
+            `unverified_by_trace(bootstrap_required): Workspace not ready (${workspace.indexState}).`,
+          ]);
           return {
             packs: [],
             totalConfidence: 0,
             error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
             intent: input.intent,
             workspace: resolvedPath,
-            disclosures: [
-              `unverified_by_trace(bootstrap_required): Workspace not ready (${workspace.indexState}).`,
-            ],
+            disclosures: userDisclosures,
+            fix: buildQueryFixCommands('bootstrap_required', input.workspace),
             adequacy: undefined,
             verificationPlan: undefined,
-            traceId: 'unverified_by_trace(replay_unavailable)',
+            traceId: 'replay_unavailable',
             constructionPlan: undefined,
+            epistemicsDebug,
           };
         }
       } else {
         workspace = this.findReadyWorkspace();
         if (!workspace) {
+          const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([
+            'unverified_by_trace(bootstrap_required): No indexed workspace available.',
+          ]);
           return {
             packs: [],
             totalConfidence: 0,
             error: 'No indexed workspace available. Run bootstrap first.',
             intent: input.intent,
-            disclosures: ['unverified_by_trace(bootstrap_required): No indexed workspace available.'],
+            disclosures: userDisclosures,
+            fix: buildQueryFixCommands('bootstrap_required', input.workspace),
             adequacy: undefined,
             verificationPlan: undefined,
-            traceId: 'unverified_by_trace(replay_unavailable)',
+            traceId: 'replay_unavailable',
             constructionPlan: undefined,
+            epistemicsDebug,
           };
         }
       }
@@ -2225,12 +2307,13 @@ export class LibrarianMCPServer {
         confidence: pack.confidence,
       }));
       const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
+      const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
 
       const baseResult = {
-        disclosures: response.disclosures,
+        disclosures: userDisclosures,
         adequacy: response.adequacy,
         verificationPlan: response.verificationPlan,
-        traceId: response.traceId,
+        traceId: sanitizeTraceId(response.traceId) ?? 'replay_unavailable',
         constructionPlan: response.constructionPlan,
         totalConfidence: response.totalConfidence,
         cacheHit: response.cacheHit,
@@ -2238,10 +2321,11 @@ export class LibrarianMCPServer {
         drillDownHints: response.drillDownHints,
         synthesis: response.synthesis,
         synthesisMode: response.synthesisMode,
-        llmError: response.llmError,
+        llmError: response.llmError ? parseEpistemicMessage(response.llmError).userMessage : response.llmError,
         intent: input.intent,
         pagination,
         sortOrder: 'retrieval_score_desc',
+        epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
       };
 
       if (input.outputFile) {
@@ -2267,16 +2351,23 @@ export class LibrarianMCPServer {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const parsedError = parseEpistemicMessage(message);
+      const rawDisclosure = message.startsWith('unverified_by_trace')
+        ? message
+        : `unverified_by_trace(query_failed): ${message}`;
+      const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([rawDisclosure]);
       return {
         packs: [],
         totalConfidence: 0,
-        error: message,
+        error: parsedError.userMessage || 'Query failed.',
         intent: input.intent,
-        disclosures: [message.startsWith('unverified_by_trace') ? message : `unverified_by_trace(query_failed): ${message}`],
+        disclosures: userDisclosures,
+        fix: buildQueryFixCommands(parsedError.code ?? 'query_failed', input.workspace),
         adequacy: undefined,
         verificationPlan: undefined,
-        traceId: 'unverified_by_trace(replay_unavailable)',
+        traceId: 'replay_unavailable',
         constructionPlan: undefined,
+        epistemicsDebug,
       };
     }
   }
