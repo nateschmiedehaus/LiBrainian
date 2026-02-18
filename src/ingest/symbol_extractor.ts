@@ -75,9 +75,13 @@ export function extractSymbolsFromSource(
   const symbols: SymbolEntry[] = [];
 
   function visit(node: ts.Node): void {
-    const entry = extractSymbolFromNode(node, sourceFile, filePath, options);
-    if (entry) {
-      symbols.push(entry);
+    if (options.includeVariables && ts.isVariableStatement(node)) {
+      symbols.push(...extractVariableStatementSymbols(node, sourceFile, filePath, options));
+    } else {
+      const entry = extractSymbolFromNode(node, sourceFile, filePath, options);
+      if (entry) {
+        symbols.push(entry);
+      }
     }
 
     // Extract class members
@@ -215,27 +219,6 @@ function extractSymbolFromNode(
       description: getJSDocDescription(node, sourceFile),
       qualifiedName: buildQualifiedName(filePath, node.name.text),
     };
-  }
-
-  // Variable declaration (const/let/var)
-  if (options.includeVariables && ts.isVariableStatement(node)) {
-    const declaration = node.declarationList.declarations[0];
-    if (declaration && ts.isIdentifier(declaration.name)) {
-      const isConst =
-        (node.declarationList.flags & ts.NodeFlags.Const) !== 0;
-      const kind: SymbolKind = isConst ? 'const' : 'variable';
-
-      return {
-        name: declaration.name.text,
-        kind,
-        file: filePath,
-        line: lineNumber,
-        exported: isExported,
-        signature: getVariableSignature(declaration),
-        description: getJSDocDescription(node, sourceFile),
-        qualifiedName: buildQualifiedName(filePath, declaration.name.text),
-      };
-    }
   }
 
   // Namespace/Module declaration
@@ -476,8 +459,15 @@ function extractNamespaceMembers(
   // Extract members within namespace
   if (node.body && ts.isModuleBlock(node.body)) {
     for (const statement of node.body.statements) {
-      const memberEntry = extractSymbolFromNode(statement, sourceFile, filePath, options);
-      if (memberEntry) {
+      const memberEntries =
+        options.includeVariables && ts.isVariableStatement(statement)
+          ? extractVariableStatementSymbols(statement, sourceFile, filePath, options)
+          : (() => {
+              const entry = extractSymbolFromNode(statement, sourceFile, filePath, options);
+              return entry ? [entry] : [];
+            })();
+
+      for (const memberEntry of memberEntries) {
         // Prefix the member name with the namespace
         memberEntry.name = `${namespaceName}.${memberEntry.name}`;
         memberEntry.namespace = namespaceName;
@@ -583,11 +573,112 @@ function getFunctionSignature(node: ts.FunctionDeclaration): string {
   return `function ${name}(${params}${suffix})${returnType}`;
 }
 
-function getVariableSignature(declaration: ts.VariableDeclaration): string | undefined {
-  if (!ts.isIdentifier(declaration.name)) {
-    return undefined;
+type FunctionInitializer = ts.ArrowFunction | ts.FunctionExpression;
+
+interface NamedBindingIdentifier {
+  name: string;
+  node: ts.Identifier;
+}
+
+function extractVariableStatementSymbols(
+  node: ts.VariableStatement,
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  options: SymbolExtractionOptions
+): SymbolEntry[] {
+  const isExported = hasExportModifier(node) || isExportedDeclaration(node);
+  if (options.exportedOnly && !isExported) {
+    return [];
   }
-  const name = declaration.name.text;
+
+  const isConst = (node.declarationList.flags & ts.NodeFlags.Const) !== 0;
+  const defaultKind: SymbolKind = isConst ? 'const' : 'variable';
+  const description = getJSDocDescription(node, sourceFile);
+  const symbols: SymbolEntry[] = [];
+
+  for (const declaration of node.declarationList.declarations) {
+    const functionInitializer = isFunctionInitializer(declaration.initializer)
+      ? declaration.initializer
+      : null;
+    const bindingIdentifiers = extractBindingIdentifiers(declaration.name);
+
+    for (const binding of bindingIdentifiers) {
+      const { line } = sourceFile.getLineAndCharacterOfPosition(binding.node.getStart());
+      const endLine = functionInitializer
+        ? sourceFile.getLineAndCharacterOfPosition(functionInitializer.getEnd()).line + 1
+        : undefined;
+
+      symbols.push({
+        name: binding.name,
+        kind: functionInitializer ? 'function' : defaultKind,
+        file: filePath,
+        line: line + 1,
+        endLine,
+        exported: isExported,
+        parameters: functionInitializer
+          ? extractFunctionLikeParameters(functionInitializer)
+          : undefined,
+        signature: functionInitializer
+          ? getVariableFunctionSignature(binding.name, functionInitializer)
+          : getVariableSignature(declaration, binding.name),
+        description,
+        qualifiedName: buildQualifiedName(filePath, binding.name),
+      });
+    }
+  }
+
+  return symbols;
+}
+
+function isFunctionInitializer(
+  initializer: ts.Expression | undefined
+): initializer is FunctionInitializer {
+  return !!initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer));
+}
+
+function extractBindingIdentifiers(name: ts.BindingName): NamedBindingIdentifier[] {
+  if (ts.isIdentifier(name)) {
+    return [{ name: name.text, node: name }];
+  }
+
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    return name.elements.flatMap((element) => {
+      if (ts.isOmittedExpression(element)) {
+        return [];
+      }
+      return extractBindingIdentifiers(element.name);
+    });
+  }
+
+  return [];
+}
+
+function extractFunctionLikeParameters(func: FunctionInitializer): string[] {
+  return func.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : p.name.getText()));
+}
+
+function getVariableFunctionSignature(name: string, func: FunctionInitializer): string {
+  const params = func.parameters
+    .slice(0, 4)
+    .map((p) => {
+      const pName = ts.isIdentifier(p.name) ? p.name.text : p.name.getText();
+      const pType = p.type ? `: ${p.type.getText().slice(0, 30)}` : '';
+      return `${pName}${pType}`;
+    })
+    .join(', ');
+  const suffix = func.parameters.length > 4 ? ', ...' : '';
+  const returnType = func.type ? `: ${func.type.getText().slice(0, 30)}` : '';
+  return `function ${name}(${params}${suffix})${returnType}`;
+}
+
+function getVariableSignature(
+  declaration: ts.VariableDeclaration,
+  bindingName?: string
+): string | undefined {
+  if (!ts.isIdentifier(declaration.name)) {
+    return bindingName;
+  }
+  const name = bindingName ?? declaration.name.text;
   if (declaration.type) {
     return `${name}: ${declaration.type.getText().slice(0, 50)}`;
   }

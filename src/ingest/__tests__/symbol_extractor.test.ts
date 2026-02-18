@@ -73,6 +73,37 @@ describe('SymbolExtractor', () => {
         expect.objectContaining({ name: 'doSomething', kind: 'function', exported: true })
       );
     });
+
+    it('extracts function metadata for arrow functions assigned to variables', () => {
+      const code = `export const MyComponent = (props: Props): string => {
+  return props.title;
+};`;
+      const result = extractSymbols(code);
+      const symbol = result.find((s) => s.name === 'MyComponent');
+
+      expect(symbol).toBeDefined();
+      expect(symbol).toMatchObject({
+        kind: 'function',
+        exported: true,
+        line: 1,
+        endLine: 3,
+        parameters: ['props'],
+      });
+      expect(symbol?.signature).toContain('function MyComponent(props: Props)');
+      expect(symbol?.signature).toContain(': string');
+    });
+
+    it('extracts all destructured variable bindings', () => {
+      const code = `const [state, setState] = useState<string>('');`;
+      const result = extractSymbols(code);
+
+      expect(result).toContainEqual(
+        expect.objectContaining({ name: 'state', kind: 'const', exported: false })
+      );
+      expect(result).toContainEqual(
+        expect.objectContaining({ name: 'setState', kind: 'const', exported: false })
+      );
+    });
   });
 
   describe('class members', () => {
