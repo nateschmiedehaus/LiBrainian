@@ -66,6 +66,7 @@ export const BootstrapToolInputSchema = z.object({
 export const QueryToolInputSchema = z.object({
   intent: z.string().min(1).max(2000).describe('The query intent or question'),
   workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive query behavior'),
   intentType: QueryIntentSchema.optional().describe('Typed query intent for routing optimization'),
   affectedFiles: z.array(z.string()).optional().describe('File paths to scope the query to'),
   minConfidence: z.number().min(0).max(1).optional().default(0.5).describe('Minimum confidence threshold (0-1)'),
@@ -104,6 +105,14 @@ export const SubmitFeedbackToolInputSchema = z.object({
     reason: z.string().optional(),
   }).strict()).optional().describe('Optional per-pack relevance ratings'),
 }).strict();
+
+/**
+ * Reset session state tool input schema
+ */
+export const ResetSessionStateToolInputSchema = z.object({
+  sessionId: z.string().min(1).optional().describe('Session ID to reset (optional if auth token is provided)'),
+  workspace: z.string().optional().describe('Workspace hint used for anonymous session reset fallback'),
+}).strict().default({});
 
 /**
  * Verify claim tool input schema
@@ -263,6 +272,7 @@ export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
+export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
 export type ListRunsToolInputType = z.infer<typeof ListRunsToolInputSchema>;
@@ -291,6 +301,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
+  reset_session_state: ResetSessionStateToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
@@ -371,6 +382,7 @@ export const queryToolJsonSchema: JSONSchema = {
   properties: {
     intent: { type: 'string', description: 'The query intent or question', minLength: 1, maxLength: 2000 },
     workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive query behavior', minLength: 1 },
     intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Typed query intent' },
     affectedFiles: { type: 'array', items: { type: 'string' }, description: 'File paths to scope the query to' },
     minConfidence: { type: 'number', description: 'Minimum confidence threshold', minimum: 0, maximum: 1, default: 0.5 },
@@ -422,10 +434,26 @@ export const submitFeedbackToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Reset session state tool JSON Schema */
+export const resetSessionStateToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/reset-session-state-tool-input',
+  title: 'ResetSessionStateToolInput',
+  description: 'Input for reset_session_state - clears session-scoped query loop detection history',
+  type: 'object',
+  properties: {
+    sessionId: { type: 'string', description: 'Session ID to reset', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace hint for anonymous session fallback' },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   query: queryToolJsonSchema,
+  reset_session_state: resetSessionStateToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
 };

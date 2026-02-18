@@ -200,6 +200,91 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.retrievalInsufficient).toBe(true);
   });
 
+  it('detects futile repeated queries per session and escalates strategy', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const sessionId = 'sess-loop';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-loop',
+      constructionPlan: undefined,
+      totalConfidence: 0,
+      cacheHit: false,
+      latencyMs: 5,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const first = await (server as any).executeQuery({ workspace, intent: 'find jwt refresh token handler', sessionId });
+    const second = await (server as any).executeQuery({ workspace, intent: 'find jwt refresh token handler', sessionId });
+    const third = await (server as any).executeQuery({ workspace, intent: 'find jwt refresh token handler', sessionId });
+
+    expect(first.loopDetection).toBeUndefined();
+    expect(second.loopDetection?.detected).toBe(true);
+    expect(second.loopDetection?.pattern).toBe('futile_repeat');
+    expect(second.loop_detection?.detected).toBe(true);
+    expect(third.loopDetection?.occurrences).toBeGreaterThanOrEqual(3);
+    expect(queryLibrarianMock).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        depth: 'L2',
+        minConfidence: 0.2,
+      }),
+      expect.anything(),
+      undefined,
+      undefined,
+      undefined,
+      expect.anything()
+    );
+  });
+
+  it('resets loop detection state with reset_session_state', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const sessionId = 'sess-reset';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-reset',
+      constructionPlan: undefined,
+      totalConfidence: 0,
+      cacheHit: false,
+      latencyMs: 5,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    await (server as any).executeQuery({ workspace, intent: 'missing symbol one', sessionId });
+    await (server as any).executeQuery({ workspace, intent: 'missing symbol one', sessionId });
+
+    const reset = await (server as any).executeResetSessionState({ sessionId });
+    expect(reset.success).toBe(true);
+    expect(reset.clearedQueries).toBeGreaterThanOrEqual(2);
+  });
+
   it('returns actionable fixes when workspace is not registered', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

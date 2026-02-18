@@ -37,6 +37,7 @@ import {
   type BootstrapToolInput,
   type StatusToolInput,
   type QueryToolInput,
+  type ResetSessionStateToolInput,
   type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
   type VerifyClaimToolInput,
@@ -106,6 +107,7 @@ import {
   type SessionToken,
   type AuthorizationResult,
 } from './authentication.js';
+import { createHash } from 'node:crypto';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { createAuditLogger, type AuditLogger } from './audit.js';
@@ -180,6 +182,42 @@ export interface SessionState {
 
   /** Last activity */
   lastActivity: string;
+
+  /** Recent query records for repeated-query loop detection */
+  queryHistory: QueryRecord[];
+}
+
+interface QueryRecord {
+  fingerprint: string;
+  semanticHash: string;
+  normalizedIntent: string;
+  timestampMs: number;
+  resultCount: number;
+  workspace: string;
+}
+
+interface LoopDetectionResult {
+  detected: boolean;
+  pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat';
+  occurrences: number;
+  windowSeconds: number;
+  message: string;
+  alternativeStrategies: Array<{
+    tool: 'query' | 'get_context_pack_bundle' | 'list_runs' | 'run_audit' | 'status';
+    rationale: string;
+    topic?: string;
+  }>;
+  humanReviewSuggested: boolean;
+}
+
+interface ToolExecutionContext {
+  sessionId?: string;
+}
+
+interface LoopMetrics {
+  exactCount: number;
+  semanticCount: number;
+  futileCount: number;
 }
 
 /** Audit log entry */
@@ -235,6 +273,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   compile_technique_composition: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
+  reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
@@ -262,6 +301,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 200;
 const DEFAULT_RUN_LIST_LIMIT = 10;
 const MAX_RUN_LIST_LIMIT = 100;
+const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
@@ -805,6 +845,7 @@ export class LibrarianMCPServer {
           properties: {
             intent: { type: 'string', description: 'Query intent or question' },
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
             intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'] },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
             minConfidence: { type: 'number', description: 'Min confidence (0-1)' },
@@ -816,6 +857,18 @@ export class LibrarianMCPServer {
             outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'reset_session_state',
+        description: 'Reset session-scoped query loop detection state for a stuck agent workflow',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID to reset (optional if auth token is provided)' },
+            workspace: { type: 'string', description: 'Workspace hint for anonymous session fallback' },
+          },
+          required: [],
         },
       },
       {
@@ -1126,6 +1179,7 @@ export class LibrarianMCPServer {
     const startTime = Date.now();
     const entryId = this.generateId();
     const invocation = this.extractToolInvocationContext(args);
+    const executionContext: ToolExecutionContext = {};
 
     try {
       if (invocation.authTokenError) {
@@ -1162,6 +1216,9 @@ export class LibrarianMCPServer {
 
       if (invocation.authToken) {
         const authorization = this.authorizeToolCall(invocation.authToken, name, workspace);
+        if (authorization.sessionId) {
+          executionContext.sessionId = authorization.sessionId;
+        }
         const consentBypassed = authorization.requiresConsent === true && this.config.authorization.requireConsent === false;
         if (!authorization.authorized && !consentBypassed) {
           const missingScopes = authorization.missingScopes?.join(', ');
@@ -1236,9 +1293,9 @@ export class LibrarianMCPServer {
       const executionPromise = instrumentation?.toolAdapter
         ? instrumentation.toolAdapter.call(
             { operation: name, input: inputRecord, workspace },
-            () => this.executeTool(name, validation.data)
+            () => this.executeTool(name, validation.data, executionContext)
           )
-        : this.executeTool(name, validation.data);
+        : this.executeTool(name, validation.data, executionContext);
       const timeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
       const result = await this.executeWithTimeout(executionPromise, timeoutMs, name);
 
@@ -1469,6 +1526,201 @@ export class LibrarianMCPServer {
     return workspace;
   }
 
+  private resolveQuerySessionState(input: {
+    workspacePath: string;
+    context: ToolExecutionContext;
+    input: QueryToolInput;
+  }): SessionState | null {
+    if (!this.config.loopDetection.enabled) return null;
+    const explicitSessionId = typeof input.input.sessionId === 'string' && input.input.sessionId.trim().length > 0
+      ? input.input.sessionId.trim()
+      : undefined;
+    const sessionId = input.context.sessionId ?? explicitSessionId ?? this.buildAnonymousSessionId(input.workspacePath);
+    return this.getOrCreateSessionState(sessionId);
+  }
+
+  private buildAnonymousSessionId(workspacePath: string): string {
+    return `anon:${path.resolve(workspacePath)}`;
+  }
+
+  private getOrCreateSessionState(sessionId: string): SessionState {
+    const now = new Date().toISOString();
+    const existing = this.state.sessions.get(sessionId);
+    if (existing) {
+      existing.lastActivity = now;
+      existing.requestCount += 1;
+      return existing;
+    }
+
+    const created: SessionState = {
+      id: sessionId,
+      createdAt: now,
+      authorizedScopes: new Set<AuthorizationScope>(['read']),
+      requestCount: 1,
+      lastActivity: now,
+      queryHistory: [],
+    };
+    this.state.sessions.set(sessionId, created);
+    return created;
+  }
+
+  private collectLoopMetrics(history: QueryRecord[], intent: string, workspacePath: string): LoopMetrics {
+    const windowMs = Math.max(1, this.config.loopDetection.windowSeconds) * 1000;
+    const nowMs = Date.now();
+    const normalizedIntent = this.normalizeLoopIntent(intent);
+    const fingerprint = this.hashLoopValue(normalizedIntent);
+    const semanticHash = this.hashLoopValue(this.toSemanticHashSource(normalizedIntent));
+
+    const withinWindow = history.filter((record) =>
+      record.workspace === workspacePath && (nowMs - record.timestampMs) <= windowMs
+    );
+    const exactMatches = withinWindow.filter((record) => record.fingerprint === fingerprint);
+    const semanticMatches = withinWindow.filter((record) =>
+      record.semanticHash === semanticHash
+      || this.computeSemanticQuerySimilarity(record.normalizedIntent, normalizedIntent) >= LOOP_SEMANTIC_SIMILARITY_THRESHOLD
+    );
+    const futileMatches = exactMatches.filter((record) => record.resultCount === 0);
+
+    return {
+      exactCount: exactMatches.length,
+      semanticCount: semanticMatches.length,
+      futileCount: futileMatches.length,
+    };
+  }
+
+  private applyFutileRepeatEscalation(
+    query: {
+      intent: string;
+      intentType?: QueryToolInput['intentType'];
+      affectedFiles?: string[];
+      minConfidence?: number;
+      depth: 'L0' | 'L1' | 'L2' | 'L3';
+    },
+    futileCount: number
+  ): void {
+    const threshold = Math.max(1, this.config.loopDetection.futileRepeatThreshold);
+    if (futileCount < threshold) return;
+
+    query.minConfidence = Math.min(query.minConfidence ?? 0.5, 0.2);
+    if (query.depth === 'L0' || query.depth === 'L1') {
+      query.depth = 'L2';
+    } else if (query.depth === 'L2') {
+      query.depth = 'L3';
+    }
+
+    if (futileCount >= threshold + 1) {
+      query.minConfidence = 0;
+      query.depth = 'L3';
+    }
+  }
+
+  private recordQueryAndBuildLoopDetection(input: {
+    sessionState: SessionState;
+    workspacePath: string;
+    intent: string;
+    resultCount: number;
+  }): LoopDetectionResult | undefined {
+    const normalizedIntent = this.normalizeLoopIntent(input.intent);
+    const record: QueryRecord = {
+      fingerprint: this.hashLoopValue(normalizedIntent),
+      semanticHash: this.hashLoopValue(this.toSemanticHashSource(normalizedIntent)),
+      normalizedIntent,
+      timestampMs: Date.now(),
+      resultCount: input.resultCount,
+      workspace: input.workspacePath,
+    };
+    input.sessionState.queryHistory.push(record);
+    const maxHistory = Math.max(1, this.config.loopDetection.maxSessionHistory);
+    if (input.sessionState.queryHistory.length > maxHistory) {
+      input.sessionState.queryHistory.splice(0, input.sessionState.queryHistory.length - maxHistory);
+    }
+
+    const metrics = this.collectLoopMetrics(input.sessionState.queryHistory, input.intent, input.workspacePath);
+    const exactThreshold = Math.max(1, this.config.loopDetection.exactRepeatThreshold);
+    const semanticThreshold = Math.max(1, this.config.loopDetection.semanticRepeatThreshold);
+    const futileThreshold = Math.max(1, this.config.loopDetection.futileRepeatThreshold);
+
+    if (metrics.futileCount >= futileThreshold && record.resultCount === 0) {
+      return this.buildLoopDetectionResult('futile_repeat', metrics.futileCount, normalizedIntent, true);
+    }
+    if (metrics.exactCount >= exactThreshold) {
+      return this.buildLoopDetectionResult('identical_query', metrics.exactCount, normalizedIntent, false);
+    }
+    if (metrics.semanticCount >= semanticThreshold) {
+      return this.buildLoopDetectionResult('semantic_repeat', metrics.semanticCount, normalizedIntent, false);
+    }
+    return undefined;
+  }
+
+  private buildLoopDetectionResult(
+    pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat',
+    occurrences: number,
+    normalizedIntent: string,
+    humanReviewSuggested: boolean
+  ): LoopDetectionResult {
+    const windowSeconds = Math.max(1, this.config.loopDetection.windowSeconds);
+    const strategyTopic = normalizedIntent.split(/\s+/).slice(0, 6).join(' ');
+    const patternMessage = pattern === 'futile_repeat'
+      ? 'This query has repeatedly returned no useful results.'
+      : 'This query pattern has repeated in the current session.';
+
+    return {
+      detected: true,
+      pattern,
+      occurrences,
+      windowSeconds,
+      message: `${patternMessage} Seen ${occurrences} times in the last ${windowSeconds} seconds. Consider rephrasing, broadening scope, or switching tools.`,
+      alternativeStrategies: [
+        {
+          tool: 'query',
+          topic: strategyTopic || 'broader architecture context',
+          rationale: 'Try a broader intent phrase or omit specific identifiers to widen retrieval coverage.',
+        },
+        {
+          tool: 'get_context_pack_bundle',
+          rationale: 'Bundle context around related entities to inspect connected implementation details.',
+        },
+        {
+          tool: 'status',
+          rationale: 'Verify index freshness before retrying if results appear unexpectedly empty.',
+        },
+      ],
+      humanReviewSuggested,
+    };
+  }
+
+  private normalizeLoopIntent(intent: string): string {
+    return intent
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private toSemanticHashSource(normalizedIntent: string): string {
+    const tokens = normalizedIntent
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    const uniqueSorted = Array.from(new Set(tokens)).sort();
+    return uniqueSorted.join(' ');
+  }
+
+  private hashLoopValue(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  private computeSemanticQuerySimilarity(a: string, b: string): number {
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    const aTokens = new Set(a.split(' ').filter(Boolean));
+    const bTokens = new Set(b.split(' ').filter(Boolean));
+    const intersection = Array.from(aTokens).filter((token) => bTokens.has(token)).length;
+    const union = new Set([...aTokens, ...bTokens]).size;
+    if (union === 0) return 0;
+    return intersection / union;
+  }
+
   private paginateItems<T>(items: T[], options: PaginationOptions = {}): { items: T[]; pagination: PaginationMetadata } {
     const rawPageSize = options.pageSize ?? options.limit ?? DEFAULT_PAGE_SIZE;
     const pageSize = Number.isFinite(rawPageSize)
@@ -1605,7 +1857,7 @@ export class LibrarianMCPServer {
   /**
    * Execute a specific tool.
    */
-  private async executeTool(name: string, args: unknown): Promise<unknown> {
+  private async executeTool(name: string, args: unknown, context: ToolExecutionContext = {}): Promise<unknown> {
     switch (name) {
       case 'bootstrap':
         return this.executeBootstrapDeduped(args as BootstrapToolInput);
@@ -1630,7 +1882,9 @@ export class LibrarianMCPServer {
       case 'compile_intent_bundles':
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'query':
-        return this.executeQuery(args as QueryToolInput);
+        return this.executeQuery(args as QueryToolInput, context);
+      case 'reset_session_state':
+        return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'submit_feedback':
@@ -2806,7 +3060,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeQuery(input: QueryToolInput): Promise<unknown> {
+  private async executeQuery(input: QueryToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
     try {
       // Find workspace - use specified or find first ready
       let workspace: WorkspaceState | undefined;
@@ -2885,6 +3139,14 @@ export class LibrarianMCPServer {
       }
 
       const storage = await this.getOrCreateStorage(workspace.path);
+      const sessionState = this.resolveQuerySessionState({
+        workspacePath: workspace.path,
+        input,
+        context,
+      });
+      const preLoopMetrics = sessionState
+        ? this.collectLoopMetrics(sessionState.queryHistory, input.intent, workspace.path)
+        : null;
 
       // Build query object
       const query = {
@@ -2894,6 +3156,9 @@ export class LibrarianMCPServer {
         minConfidence: input.minConfidence,
         depth: (input.depth as 'L0' | 'L1' | 'L2' | 'L3') ?? 'L1',
       };
+      if (sessionState && preLoopMetrics && this.config.loopDetection.autoEscalateStrategy) {
+        this.applyFutileRepeatEscalation(query, preLoopMetrics.futileCount);
+      }
 
       // Execute query
       const response = await queryLibrarian(
@@ -2948,27 +3213,39 @@ export class LibrarianMCPServer {
         pagination,
         sortOrder: 'retrieval_score_desc',
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
+        loopDetection: sessionState
+          ? this.recordQueryAndBuildLoopDetection({
+            sessionState,
+            workspacePath: workspace.path,
+            intent: input.intent,
+            resultCount: transformedPacks.length,
+          })
+          : undefined,
+      };
+      const baseWithAlias = {
+        ...baseResult,
+        loop_detection: baseResult.loopDetection,
       };
 
       if (input.outputFile) {
         const reference = await this.writeOutputReference(
           input.outputFile,
           {
-            ...baseResult,
+            ...baseWithAlias,
             packs: pagedPacks,
           },
           pagination,
           workspace.path
         );
         return {
-          ...baseResult,
+          ...baseWithAlias,
           ...reference,
         };
       }
 
       // Transform response for MCP
       return {
-        ...baseResult,
+        ...baseWithAlias,
         packs: pagedPacks,
       };
     } catch (error) {
@@ -2996,6 +3273,49 @@ export class LibrarianMCPServer {
         epistemicsDebug,
       };
     }
+  }
+
+  private async executeResetSessionState(
+    input: ResetSessionStateToolInput,
+    context: ToolExecutionContext = {}
+  ): Promise<unknown> {
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const authSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const workspaceHint = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const anonymousFallback = workspaceHint ? this.buildAnonymousSessionId(workspaceHint) : undefined;
+    const sessionId = explicitSessionId ?? authSessionId ?? anonymousFallback;
+
+    if (!sessionId) {
+      return {
+        success: false,
+        sessionId: 'unknown',
+        clearedQueries: 0,
+        message: 'No sessionId provided and no auth session available for reset.',
+      };
+    }
+
+    const state = this.state.sessions.get(sessionId);
+    const clearedQueries = state?.queryHistory.length ?? 0;
+    if (state) {
+      state.queryHistory = [];
+      state.lastActivity = new Date().toISOString();
+      state.requestCount += 1;
+    }
+
+    return {
+      success: true,
+      sessionId,
+      clearedQueries,
+      message: clearedQueries > 0
+        ? `Cleared ${clearedQueries} query history records for session ${sessionId}.`
+        : `No query history records found for session ${sessionId}.`,
+    };
   }
 
   private async executeSubmitFeedback(input: SubmitFeedbackToolInput): Promise<unknown> {
@@ -4106,6 +4426,9 @@ export class LibrarianMCPServer {
    */
   revokeAuthSession(sessionId: string): boolean {
     const result = this.state.authManager.revokeSession(sessionId);
+    if (result) {
+      this.state.sessions.delete(sessionId);
+    }
 
     if (result) {
       this.logAudit({

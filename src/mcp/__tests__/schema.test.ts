@@ -18,6 +18,7 @@ import {
   safeParseToolInput,
   BootstrapToolInputSchema,
   QueryToolInputSchema,
+  ResetSessionStateToolInputSchema,
   SubmitFeedbackToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
@@ -30,6 +31,7 @@ import {
   MCP_SCHEMA_VERSION,
   isBootstrapToolInput,
   isQueryToolInput,
+  isResetSessionStateToolInput,
   isSubmitFeedbackToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
@@ -54,6 +56,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
       expect(schemas).toContain('query');
+      expect(schemas).toContain('reset_session_state');
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
@@ -69,7 +72,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
-      expect(schemas).toHaveLength(20);
+      expect(schemas).toHaveLength(21);
     });
 
     it('should return schema for known tools', () => {
@@ -244,6 +247,35 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'failure' })).toBe(true);
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'bad' })).toBe(false);
+    });
+  });
+
+  describe('Reset Session State Tool Schema', () => {
+    it('should validate empty input', () => {
+      const result = validateToolInput('reset_session_state', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('reset_session_state', {
+        sessionId: 'sess_123',
+        workspace: '/tmp/workspace',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject extra properties (strict mode)', () => {
+      const result = validateToolInput('reset_session_state', {
+        sessionId: 'sess_123',
+        unknownField: 'value',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isResetSessionStateToolInput({ sessionId: 'sess_123' })).toBe(true);
+      expect(isResetSessionStateToolInput({ workspace: '/tmp/workspace' })).toBe(true);
+      expect(isResetSessionStateToolInput(null)).toBe(false);
     });
   });
 

@@ -459,6 +459,9 @@ export interface QueryToolInput {
   /** Workspace path (optional, uses first ready workspace if not specified) */
   workspace?: string;
 
+  /** Optional session identifier for loop detection and adaptive retrieval behavior */
+  sessionId?: string;
+
   /** Typed query intent */
   intentType?: QueryIntent;
 
@@ -532,6 +535,38 @@ export interface QueryToolOutput {
 
   /** Cache hit */
   cacheHit: boolean;
+
+  /** Repeated-query loop detection and recovery guidance */
+  loopDetection?: {
+    detected: boolean;
+    pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat';
+    occurrences: number;
+    windowSeconds: number;
+    message: string;
+    alternativeStrategies: Array<{
+      tool: 'query' | 'get_context_pack_bundle' | 'list_runs' | 'run_audit' | 'status';
+      rationale: string;
+      topic?: string;
+    }>;
+    humanReviewSuggested: boolean;
+  };
+}
+
+/** Reset session state tool input */
+export interface ResetSessionStateToolInput {
+  /** Session ID to reset (optional if auth token is provided) */
+  sessionId?: string;
+
+  /** Optional workspace hint used for anonymous session reset fallback */
+  workspace?: string;
+}
+
+/** Reset session state tool output */
+export interface ResetSessionStateToolOutput {
+  success: boolean;
+  sessionId: string;
+  clearedQueries: number;
+  message: string;
 }
 
 /** Change impact tool input */
@@ -1044,6 +1079,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  reset_session_state: {
+    tool: 'reset_session_state',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_change_impact: {
     tool: 'get_change_impact',
     requiredScopes: ['read'],
@@ -1209,6 +1250,30 @@ export interface LibrarianMCPServerConfig {
     /** Debounce interval in ms for file change events */
     debounceMs: number;
   };
+
+  /** Loop detection and recovery settings */
+  loopDetection: {
+    /** Enable repeated-query loop detection */
+    enabled: boolean;
+
+    /** Detection window in seconds */
+    windowSeconds: number;
+
+    /** Fire identical query warnings after this many occurrences */
+    exactRepeatThreshold: number;
+
+    /** Fire semantic repeat warnings after this many occurrences */
+    semanticRepeatThreshold: number;
+
+    /** Fire futile repeat strategy escalation after this many zero-result repeats */
+    futileRepeatThreshold: number;
+
+    /** Maximum query records to retain per session */
+    maxSessionHistory: number;
+
+    /** Whether to auto-adjust retrieval strategy on repeated futile queries */
+    autoEscalateStrategy: boolean;
+  };
 }
 
 /** Default server configuration */
@@ -1234,6 +1299,15 @@ export const DEFAULT_MCP_SERVER_CONFIG: LibrarianMCPServerConfig = {
     enabled: true,
     debounceMs: 200,
   },
+  loopDetection: {
+    enabled: true,
+    windowSeconds: 60,
+    exactRepeatThreshold: 2,
+    semanticRepeatThreshold: 3,
+    futileRepeatThreshold: 2,
+    maxSessionHistory: 20,
+    autoEscalateStrategy: true,
+  },
 };
 
 // ============================================================================
@@ -1252,10 +1326,20 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   const intentOk = typeof obj.intent === 'string';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
   const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
   const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
   const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
-  return intentOk && pageSizeOk && pageIdxOk && outputFileOk;
+  return intentOk && sessionIdOk && pageSizeOk && pageIdxOk && outputFileOk;
+}
+
+/** Type guard for ResetSessionStateToolInput */
+export function isResetSessionStateToolInput(value: unknown): value is ResetSessionStateToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return sessionIdOk && workspaceOk;
 }
 
 /** Type guard for GetChangeImpactToolInput */
