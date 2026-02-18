@@ -18,6 +18,8 @@ LiBrainian scripts are grouped by function:
   - `complexity_check.mjs`
   - `check-file-sizes.mjs`
   - `repo-folder-audit.mjs`
+- **GitHub automation**
+  - `gh-autoland.mjs` (push current branch, create/reuse PR, enable squash auto-merge, watch checks)
 
 ## Conventions
 
