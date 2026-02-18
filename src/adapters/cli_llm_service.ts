@@ -108,6 +108,15 @@ function resolveForcedProvider(): CliProvider | null {
   return null;
 }
 
+function normalizeClaudeErrorMessage(raw: string): string {
+  const lowered = raw.toLowerCase();
+  const mentionsApiKey = lowered.includes('anthropic_api_key') || lowered.includes('api key');
+  if (mentionsApiKey && !process.env.ANTHROPIC_API_KEY) {
+    return 'ANTHROPIC_API_KEY not set - run `export ANTHROPIC_API_KEY=<key>` or set in ~/.claude/config';
+  }
+  return raw;
+}
+
 function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
   return {
     provider,
@@ -307,7 +316,7 @@ export class CliLlmService {
         reject: false,
       });
       if (result.exitCode !== 0) {
-        const errorMsg = String(result.stderr || result.stdout || 'Claude CLI error');
+        const errorMsg = normalizeClaudeErrorMessage(String(result.stderr || result.stdout || 'Claude CLI error'));
         logWarning('CLI LLM: Claude call failed', { error: errorMsg });
         await this.recordFailure('claude', errorMsg);
         throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);

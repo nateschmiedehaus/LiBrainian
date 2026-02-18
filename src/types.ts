@@ -875,6 +875,11 @@ export interface LibrarianQuery {
   minConfidence?: number;
   ucRequirements?: UCRequirementSet;
   llmRequirement?: LlmRequirement;
+  /**
+   * Surface raw LLM synthesis errors on the response when available.
+   * Defaults to true. Set false for backward-compatible silent mode.
+   */
+  showLlmErrors?: boolean;
   embeddingRequirement?: EmbeddingRequirement;
 
   /**
@@ -1082,6 +1087,8 @@ export interface QueryDiagnostics {
   suggestions: string[];
 }
 
+export type SynthesisMode = 'llm' | 'heuristic' | 'cache';
+
 export interface LibrarianResponse {
   query: LibrarianQuery;
   packs: ContextPack[];
@@ -1098,6 +1105,8 @@ export interface LibrarianResponse {
   version: LibrarianVersion;
   llmRequirement?: LlmRequirement;
   llmAvailable?: boolean;
+  synthesisMode?: SynthesisMode;
+  llmError?: string;
   drillDownHints: string[];
   /**
    * Structured follow-up queries agents can execute directly.

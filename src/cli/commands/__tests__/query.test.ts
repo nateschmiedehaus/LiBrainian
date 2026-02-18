@@ -337,6 +337,8 @@ describe('queryCommand LLM resolution', () => {
       coverageGaps: [
         'Synthesis failed: Claude CLI error',
       ],
+      llmError: 'Claude CLI error: auth expired',
+      synthesisMode: 'heuristic',
       packs: [],
       synthesis: undefined,
     } as any);
@@ -354,6 +356,7 @@ describe('queryCommand LLM resolution', () => {
     expect(criticalWarningsIndex).toBeGreaterThan(-1);
     expect(coverageGapsIndex).toBeGreaterThan(-1);
     expect(criticalWarningsIndex).toBeLessThan(coverageGapsIndex);
+    expect(lines.some((line) => line.includes('LLM synthesis error: Claude CLI error: auth expired'))).toBe(true);
     expect(lines.some((line) => line.includes('Session degraded: results were returned but could not be persisted'))).toBe(true);
     expect(lines.some((line) => line.includes('LLM synthesis unavailable: results are structural-only'))).toBe(true);
   });

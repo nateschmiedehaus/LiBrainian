@@ -788,7 +788,8 @@ function inferRetrievalStrategy(response: LibrarianResponse): {
   const hasSemanticSignal = (semanticStage?.results.outputCount ?? 0) > 0
     && semanticStage?.status !== 'failed'
     && semanticStage?.status !== 'skipped';
-  const hasSynthesis = Boolean(response.synthesis)
+  const hasSynthesis = response.synthesisMode === 'llm'
+    || Boolean(response.synthesis)
     || ((synthesisStage?.results.outputCount ?? 0) > 0 && synthesisStage?.status === 'success');
   const gaps = (response.coverageGaps ?? []).join(' ').toLowerCase();
 
@@ -863,6 +864,9 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
     || entry.includes('claude cli error')
     || entry.includes('llm unavailable')
   );
+  if (!response.synthesis && response.llmError) {
+    add(`LLM synthesis error: ${response.llmError}`);
+  }
   if (!response.synthesis && synthesisUnavailable) {
     add('LLM synthesis unavailable: results are structural-only. Run `librarian check-providers` to diagnose provider/config issues.');
   }

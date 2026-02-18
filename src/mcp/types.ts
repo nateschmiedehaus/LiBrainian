@@ -487,6 +487,12 @@ export interface QueryToolOutput {
   /** Synthesized answer (if LLM available) */
   synthesis?: string;
 
+  /** How synthesis was produced */
+  synthesisMode?: 'llm' | 'heuristic' | 'cache';
+
+  /** LLM synthesis error when fallback mode is active */
+  llmError?: string;
+
   /** Verification plan for follow-up validation */
   verificationPlan?: VerificationPlan;
 

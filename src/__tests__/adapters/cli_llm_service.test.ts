@@ -20,6 +20,7 @@ describe('CliLlmService provider routing', () => {
   const previousProvider = process.env.LIBRARIAN_LLM_PROVIDER;
   const previousWave0Provider = process.env.WAVE0_LLM_PROVIDER;
   const previousGenericProvider = process.env.LLM_PROVIDER;
+  const previousAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
   beforeEach(() => {
     execaMock.mockReset();
@@ -35,6 +36,8 @@ describe('CliLlmService provider routing', () => {
     else process.env.WAVE0_LLM_PROVIDER = previousWave0Provider;
     if (previousGenericProvider === undefined) delete process.env.LLM_PROVIDER;
     else process.env.LLM_PROVIDER = previousGenericProvider;
+    if (previousAnthropicApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = previousAnthropicApiKey;
   });
 
   it('uses requested provider when no override is configured', async () => {
@@ -72,5 +75,22 @@ describe('CliLlmService provider routing', () => {
     expect(result.provider).toBe('codex');
     expect(execaMock).toHaveBeenCalledTimes(1);
     expect(execaMock.mock.calls[0]?.[0]).toBe('codex');
+  });
+
+  it('maps missing ANTHROPIC_API_KEY failures to setup guidance', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    execaMock.mockResolvedValue({
+      exitCode: 1,
+      stdout: '',
+      stderr: 'Error: ANTHROPIC_API_KEY is required',
+    } as never);
+
+    const service = new CliLlmService();
+    await expect(service.chat({
+      provider: 'claude',
+      messages: [{ role: 'user', content: 'hello' }],
+    })).rejects.toThrow(
+      'unverified_by_trace(llm_execution_failed): ANTHROPIC_API_KEY not set - run `export ANTHROPIC_API_KEY=<key>` or set in ~/.claude/config'
+    );
   });
 });

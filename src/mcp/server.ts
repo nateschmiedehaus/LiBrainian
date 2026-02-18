@@ -1770,6 +1770,8 @@ export class LibrarianMCPServer {
         latencyMs: response.latencyMs,
         drillDownHints: response.drillDownHints,
         synthesis: response.synthesis,
+        synthesisMode: response.synthesisMode,
+        llmError: response.llmError,
         intent: input.intent,
       };
     } catch (error) {

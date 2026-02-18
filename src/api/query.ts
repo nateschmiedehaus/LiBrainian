@@ -21,6 +21,7 @@ import type {
   DeterministicContext,
   FollowUpQuery,
   QueryDiagnostics,
+  SynthesisMode,
 } from '../types.js';
 import { isProjectUnderstandingQuery, PROJECT_UNDERSTANDING_PATTERNS, handleProjectUnderstandingQuery } from './project_understanding.js';
 import { isArchitectureQuery, ARCHITECTURE_QUERY_PATTERNS, handleArchitectureQuery } from './architecture_overview.js';
@@ -234,6 +235,8 @@ const FALLBACK_MIN_CONFIDENCE_FULL = q(
   [0, 1],
   'Fallback minimum confidence for full packs.'
 );
+const FALLBACK_CANDIDATE_LIMIT = 80;
+const FALLBACK_RESULT_LIMIT = 6;
 const DEFAULT_MIN_CONFIDENCE = q(0.3, [0, 1], 'Default minimum confidence for pack retrieval.');
 const CANDIDATE_SCORE_FLOOR = q(0.85, [0, 1], 'Fallback candidate score floor.');
 const MIN_RESULT_CONFIDENCE_THRESHOLD = q(0.4, [0, 1], 'Minimum confidence threshold for returning results vs "not found".');
@@ -1540,6 +1543,7 @@ export async function queryLibrarian(
     let embeddingRequirement: EmbeddingRequirement =
       query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required');
     let llmAvailable = llmRequirement === 'required';
+    let llmProviderError: string | undefined;
     query = { ...query, llmRequirement, embeddingRequirement };
     const capabilities = resolveStorageCapabilities(storage);
   const stageTracker = createStageTracker(stageObserver);
@@ -1622,6 +1626,7 @@ export async function queryLibrarian(
     if (llmRequirement === 'optional') {
       llmAvailable = llmProviderReady;
       if (!llmAvailable) {
+        llmProviderError = providerSnapshot.status.llm.error ?? 'LLM provider unavailable';
         recordCoverageGap(
           'synthesis',
           `LLM unavailable: ${providerSnapshot.status.llm.error ?? 'not configured'}.`,
@@ -1706,6 +1711,10 @@ export async function queryLibrarian(
         disclosures,
         constructionPlan,
       } as CachedResponse;
+      cachedResponse.synthesisMode = 'cache';
+      if (query.showLlmErrors === false) {
+        cachedResponse.llmError = undefined;
+      }
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
         await cacheStore.recordQueryCacheAccess(cacheKey);
@@ -2647,7 +2656,7 @@ export async function queryLibrarian(
 
   // VISION REQUIREMENT: Synthesize understanding from retrieved knowledge
   // LLM synthesis is mandatory when LLM is available
-  let synthesis = await runSynthesisStage({
+  const synthesisStageResult = await runSynthesisStage({
     query,
     storage,
     finalPacks,
@@ -2657,7 +2666,15 @@ export async function queryLibrarian(
     synthesisEnabled,
     workspaceRoot,
   });
+  let synthesis = synthesisStageResult.synthesis;
+  let synthesisMode: SynthesisMode | undefined = synthesisStageResult.synthesisMode;
+  let llmError: string | undefined = synthesisStageResult.llmError;
+  if (!llmError && llmProviderError) {
+    llmError = llmProviderError;
+  }
   synthesis = applyAdequacyToSynthesis(synthesis, adequacyReport);
+  if (!synthesisMode && synthesis) synthesisMode = 'llm';
+  if (!synthesisMode && finalPacks.length > 0) synthesisMode = 'heuristic';
 
   // Apply token budget if specified - truncate by relevance to fit budget
   let tokenBudgetResult: import('../types.js').TokenBudgetResult | undefined;
@@ -2823,6 +2840,8 @@ export async function queryLibrarian(
     version,
     llmRequirement,
     llmAvailable,
+    synthesisMode,
+    llmError: query.showLlmErrors === false ? undefined : llmError,
     drillDownHints,
     followUpQueries: followUpQueries.length ? followUpQueries : undefined,
     methodHints: methodGuidance?.hints,
@@ -3814,11 +3833,12 @@ async function runCandidatePackStage(options: {
     const fallbackMinConfidence = version.qualityTier === 'mvp'
       ? FALLBACK_MIN_CONFIDENCE_MVP
       : FALLBACK_MIN_CONFIDENCE_FULL;
-    let fallback = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: 6 });
-    if (!fallback.length) fallback = await storage.getContextPacks({ limit: 6 });
+    let fallbackCandidates = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: FALLBACK_CANDIDATE_LIMIT });
+    if (!fallbackCandidates.length) fallbackCandidates = await storage.getContextPacks({ limit: FALLBACK_CANDIDATE_LIMIT });
+    const fallback = rankHeuristicFallbackPacks(fallbackCandidates, query.intent ?? '').slice(0, FALLBACK_RESULT_LIMIT);
     if (fallback.length) {
       allPacks.push(...fallback);
-      explanationParts.push('Fell back to general packs (semantic match unavailable).');
+      explanationParts.push('Applied heuristic fallback ranking (lexical + outcome-weighted) because semantic match was unavailable.');
       stageTracker.finish(fallbackStage, { outputCount: fallback.length, filteredCount: 0 });
     } else {
       recordCoverageGap(
@@ -3837,6 +3857,84 @@ async function runCandidatePackStage(options: {
     }
   }
   return { allPacks };
+}
+
+function rankHeuristicFallbackPacks(candidates: ContextPack[], intent: string): ContextPack[] {
+  if (candidates.length <= 1) return candidates;
+  const queryTerms = Array.from(new Set(tokenize(intent)));
+  if (queryTerms.length === 0) {
+    return candidates
+      .slice()
+      .sort((left, right) => {
+        const leftOutcome = (left.successCount + 1) / (left.successCount + left.failureCount + 2);
+        const rightOutcome = (right.successCount + 1) / (right.successCount + right.failureCount + 2);
+        return rightOutcome - leftOutcome || right.confidence - left.confidence;
+      });
+  }
+
+  const corpus = candidates.map((pack) => {
+    const text = [
+      pack.summary,
+      pack.packType,
+      pack.targetId,
+      ...pack.keyFacts,
+      ...pack.relatedFiles,
+    ].join(' ');
+    const terms = tokenize(text);
+    const termFreq = new Map<string, number>();
+    for (const term of terms) {
+      termFreq.set(term, (termFreq.get(term) ?? 0) + 1);
+    }
+    return {
+      pack,
+      termFreq,
+      length: Math.max(1, terms.length),
+    };
+  });
+
+  const averageDocLength = Math.max(
+    1,
+    corpus.reduce((sum, doc) => sum + doc.length, 0) / Math.max(1, corpus.length)
+  );
+  const docFrequency = new Map<string, number>();
+  for (const term of queryTerms) {
+    let df = 0;
+    for (const doc of corpus) {
+      if (doc.termFreq.has(term)) df += 1;
+    }
+    docFrequency.set(term, df);
+  }
+
+  const k1 = 1.2;
+  const b = 0.75;
+  const totalDocs = corpus.length;
+
+  return corpus
+    .map((doc) => {
+      let bm25 = 0;
+      for (const term of queryTerms) {
+        const tf = doc.termFreq.get(term) ?? 0;
+        if (tf === 0) continue;
+        const df = docFrequency.get(term) ?? 0;
+        const idf = Math.log(1 + ((totalDocs - df + 0.5) / (df + 0.5)));
+        const numerator = tf * (k1 + 1);
+        const denominator = tf + k1 * (1 - b + b * (doc.length / averageDocLength));
+        bm25 += idf * (numerator / Math.max(denominator, 1e-9));
+      }
+
+      const lexicalScore = bm25 / (bm25 + 1);
+      const outcomeScore = (doc.pack.successCount + 1) / (doc.pack.successCount + doc.pack.failureCount + 2);
+      const confidenceScore = Math.max(0, Math.min(1, doc.pack.confidence));
+      const finalScore = (lexicalScore * 0.65) + (outcomeScore * 0.2) + (confidenceScore * 0.15);
+
+      return { pack: doc.pack, finalScore };
+    })
+    .sort((left, right) =>
+      right.finalScore - left.finalScore
+      || right.pack.confidence - left.pack.confidence
+      || right.pack.accessCount - left.pack.accessCount
+    )
+    .map((entry) => entry.pack);
 }
 
 // ============================================================================
@@ -5558,6 +5656,16 @@ async function runMethodGuidanceStage(options: {
   return methodGuidance;
 }
 
+function stripTracePrefix(message: string): string {
+  return message.replace(/unverified_by_trace\([^)]+\):\s*/g, '').trim();
+}
+
+interface SynthesisStageResult {
+  synthesis?: SynthesizedResponse;
+  synthesisMode?: SynthesisMode;
+  llmError?: string;
+}
+
 async function runSynthesisStage(options: {
   query: LibrarianQuery;
   storage: LibrarianStorage;
@@ -5571,7 +5679,7 @@ async function runSynthesisStage(options: {
   canAnswerFromSummariesFn?: typeof canAnswerFromSummaries;
   createQuickAnswerFn?: typeof createQuickAnswer;
   synthesizeQueryAnswerFn?: typeof synthesizeQueryAnswer;
-}): Promise<SynthesizedResponse | undefined> {
+}): Promise<SynthesisStageResult> {
   const {
     query,
     storage,
@@ -5591,13 +5699,17 @@ async function runSynthesisStage(options: {
   const buildQuickAnswer = createQuickAnswerFn ?? createQuickAnswer;
   const synthesizeAnswer = synthesizeQueryAnswerFn ?? synthesizeQueryAnswer;
   let synthesis: SynthesizedResponse | undefined;
+  let synthesisMode: SynthesisMode | undefined = synthesisEnabled
+    ? undefined
+    : (finalPacks.length > 0 ? 'heuristic' : undefined);
+  let llmError: string | undefined;
   const synthesisStage = stageTracker.start('synthesis', synthesisEnabled && query.intent && finalPacks.length > 0 ? 1 : 0);
   if (synthesisEnabled && query.intent && finalPacks.length > 0) {
     const resolvedWorkspaceRoot = workspaceRoot?.trim() || await resolveWorkspace(storage);
     if (!resolvedWorkspaceRoot || !resolvedWorkspaceRoot.trim()) {
       recordCoverageGap('synthesis', 'Workspace root unavailable; skipping synthesis.', 'moderate');
       stageTracker.finish(synthesisStage, { outputCount: 0, filteredCount: 0, status: 'failed' });
-      return undefined;
+      return { synthesis: undefined, synthesisMode: 'heuristic', llmError };
     }
     try {
       const forceSummarySynthesis = query.forceSummarySynthesis === true;
@@ -5612,6 +5724,7 @@ async function runSynthesisStage(options: {
             keyInsights: quickAnswer.keyInsights,
             uncertainties: quickAnswer.uncertainties,
           };
+          synthesisMode = 'heuristic';
           explanationParts.push('Quick synthesis from pack summaries.');
         } catch (quickError) {
           if (!forceSummarySynthesis) {
@@ -5637,6 +5750,7 @@ async function runSynthesisStage(options: {
             keyInsights: topPack?.keyFacts?.slice(0, 3) ?? [],
             uncertainties: ['Answer synthesized from retrieved context summaries (forced quick mode).'],
           };
+          synthesisMode = 'heuristic';
           explanationParts.push('Forced quick synthesis from top retrieved context.');
         }
       } else {
@@ -5656,20 +5770,33 @@ async function runSynthesisStage(options: {
             keyInsights: synthesisResult.keyInsights,
             uncertainties: synthesisResult.uncertainties,
           };
+          synthesisMode = 'llm';
           explanationParts.push('LLM-synthesized understanding from retrieved knowledge.');
         } else {
           const reason = 'reason' in synthesisResult ? synthesisResult.reason : 'unverified_by_trace(synthesis_unavailable)';
           recordCoverageGap('synthesis', `Synthesis unavailable: ${reason}`, 'moderate');
+          synthesisMode = 'heuristic';
+          if (query.showLlmErrors !== false) {
+            llmError = stripTracePrefix(reason);
+          }
         }
       }
     } catch (synthesisError) {
       const message = synthesisError instanceof Error ? synthesisError.message : String(synthesisError);
       // Log but don't fail query if synthesis fails
-      recordCoverageGap('synthesis', `Synthesis failed: ${message.replace(/unverified_by_trace\([^)]+\):\s*/, '')}`, 'moderate');
+      const sanitized = stripTracePrefix(message);
+      recordCoverageGap('synthesis', `Synthesis failed: ${sanitized}`, 'moderate');
+      synthesisMode = 'heuristic';
+      if (query.showLlmErrors !== false) {
+        llmError = sanitized;
+      }
     }
   }
+  if (!synthesisMode && finalPacks.length > 0 && !synthesis) {
+    synthesisMode = 'heuristic';
+  }
   stageTracker.finish(synthesisStage, { outputCount: synthesis ? 1 : 0, filteredCount: 0 });
-  return synthesis;
+  return { synthesis, synthesisMode, llmError };
 }
 
 function applyAdequacyToSynthesis(
@@ -7128,6 +7255,7 @@ export const __testing = {
   runDefeaterStage,
   runMethodGuidanceStage,
   runSynthesisStage,
+  rankHeuristicFallbackPacks,
 };
 
 /**
