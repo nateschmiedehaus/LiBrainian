@@ -11,14 +11,17 @@ describe('package release scripts', () => {
     const scripts = packageJson.scripts ?? {};
 
     expect(scripts['package:assert-identity']).toBe('node scripts/assert-package-identity.mjs');
+    expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');
     expect(scripts.prepublishOnly).toContain('npm run package:assert-identity');
+    expect(scripts.prepublishOnly).toContain('npm run package:assert-release-provenance');
     expect(scripts.prepublishOnly).toContain('npm run package:install-smoke');
   });
 
   it('contains packaging guard script files', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-package-identity.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-release-provenance.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);

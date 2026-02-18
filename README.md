@@ -231,6 +231,27 @@ npm run package:assert-identity
 npm run package:install-smoke
 ```
 
+## Release Provenance
+
+LiBrainian enforces publish provenance before release:
+
+```bash
+npm run package:assert-release-provenance
+```
+
+This guard verifies:
+- `package.json` version is valid semver and newer than npm's latest published version
+- matching git tag (`v<version>`) exists locally
+- matching git tag points to `HEAD`
+
+Canonical release sequence:
+
+```bash
+npm version <patch|minor|major>
+git push --follow-tags
+npm publish --provenance --access public
+```
+
 PR process is in `CONTRIBUTING.md`.
 
 ## Examples
