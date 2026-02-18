@@ -16,6 +16,67 @@ body:
       placeholder: "New users struggle to understand whether quickstart completed correctly."
     validations:
       required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Who is affected and what workflow cost does this create?
+      placeholder: "Agents lose time during onboarding and cannot reliably confirm setup health."
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Prioritized urgency for this feature.
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Primary product area.
+      options:
+        - cli
+        - mcp
+        - indexing
+        - retrieval
+        - bootstrap
+        - docs
+        - ci-release
+        - evaluation
+        - security
+        - process
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence_needed
+    attributes:
+      label: Evidence needed
+      description: Evidence expected before we treat this as implementation-ready.
+      options:
+        - repro-required
+        - traces-required
+        - benchmark-required
+    validations:
+      required: true
+  - type: dropdown
+    id: user_impact
+    attributes:
+      label: User impact
+      description: Primary user impact category.
+      options:
+        - blocker
+        - degraded
+        - minor
+        - request
+    validations:
+      required: true
   - type: checkboxes
     id: user_journey
     attributes:
@@ -38,6 +99,14 @@ body:
     attributes:
       label: Alternatives considered
       placeholder: "Considered adding docs only, but command-level feedback is more reliable."
+  - type: textarea
+    id: repro_evidence
+    attributes:
+      label: Repro evidence
+      description: Include concrete evidence (current command output, logs, screenshots, metrics) showing the gap.
+      render: text
+    validations:
+      required: true
   - type: textarea
     id: acceptance
     attributes:

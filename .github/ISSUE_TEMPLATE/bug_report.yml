@@ -24,6 +24,59 @@ body:
       placeholder: "Our agent cannot retrieve auth-related context, blocking login feature work."
     validations:
       required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How serious is this issue?
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which product area is affected?
+      options:
+        - cli
+        - mcp
+        - indexing
+        - retrieval
+        - bootstrap
+        - docs
+        - ci-release
+        - evaluation
+        - security
+        - process
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence_needed
+    attributes:
+      label: Evidence needed
+      description: What evidence should be attached before implementation?
+      options:
+        - repro-required
+        - traces-required
+        - benchmark-required
+    validations:
+      required: true
+  - type: dropdown
+    id: user_impact
+    attributes:
+      label: User impact
+      description: Primary user impact category.
+      options:
+        - blocker
+        - degraded
+        - minor
+        - request
+    validations:
+      required: true
   - type: textarea
     id: repro
     attributes:
@@ -100,6 +153,19 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Logs / output
-      description: Paste relevant output, stack traces, or screenshots.
+      label: Repro evidence
+      description: Paste relevant command output, stack traces, or screenshots that prove the issue.
       render: text
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define measurable completion conditions.
+      placeholder: |
+        - Running <command> no longer fails in the repro case.
+        - A regression test is added for this failure mode.
+        - No new warnings/errors in related CLI output.
+    validations:
+      required: true
