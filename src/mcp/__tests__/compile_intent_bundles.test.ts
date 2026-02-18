@@ -71,6 +71,10 @@ describe('MCP compile intent bundles tool', () => {
     expect(result.bundles.map((bundle: { template: { id: string } | null }) => bundle.template?.id)).toEqual(
       expect.arrayContaining(['wt_tc_release_readiness'])
     );
+    expect(result.runId).toEqual(expect.any(String));
+    expect(result.constructionResult).toBeDefined();
+    expect(result.constructionResult.schema).toBe('CompileIntentBundlesOutputSchema');
+    expect(result.constructionResult.meta.constructionId).toBe('compile_intent_bundles');
   });
 
   it('limits bundles from intent', async () => {

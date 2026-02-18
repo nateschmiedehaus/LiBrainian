@@ -65,6 +65,16 @@ import {
   validateToolInput,
   type ValidationResult,
 } from './schema.js';
+import { z } from 'zod';
+import {
+  CompileIntentBundlesOutputSchema,
+  CompileTechniqueCompositionOutputSchema,
+  ConstructionOutputSchemaHints,
+  DefaultToolOutputSchemaHint,
+  SelectTechniqueCompositionsOutputSchema,
+  type ConstructionResultEnvelope,
+  validateConstructionOutput,
+} from './construction_results.js';
 
 // Librarian API imports
 import {
@@ -644,6 +654,7 @@ export class LibrarianMCPServer {
         requiresIndex: hints.requiresIndex,
         requiresEmbeddings: hints.requiresEmbeddings,
         estimatedTokens: hints.estimatedTokens,
+        outputSchema: ConstructionOutputSchemaHints[tool.name as keyof typeof ConstructionOutputSchemaHints] ?? DefaultToolOutputSchemaHint,
       },
     };
   }
@@ -1033,6 +1044,63 @@ export class LibrarianMCPServer {
       pageSize: pagination.pageSize,
       pageIdx: pagination.pageIdx,
       pagination,
+    };
+  }
+
+  private buildConstructionResultEnvelope<T>(params: {
+    output: T;
+    schemaName: string;
+    runId: string;
+    durationMs: number;
+    meta: {
+      constructionId: string;
+      workspace?: string;
+      intent?: string;
+      compositionId?: string;
+    };
+    evidence?: string[];
+    trivialResult?: boolean;
+  }): ConstructionResultEnvelope<T> {
+    const tokensUsed = Math.round(JSON.stringify(params.output).length / 4);
+    return {
+      success: true,
+      output: params.output,
+      schema: params.schemaName,
+      evidence: params.evidence ?? [],
+      runId: params.runId,
+      tokensUsed,
+      durationMs: params.durationMs,
+      trivialResult: params.trivialResult ?? false,
+      meta: {
+        constructionId: params.meta.constructionId,
+        schemaName: params.schemaName,
+        workspace: params.meta.workspace,
+        intent: params.meta.intent,
+        compositionId: params.meta.compositionId,
+      },
+    };
+  }
+
+  private validateConstructionOutputOrError<T>(
+    constructionId: string,
+    schemaName: string,
+    schema: z.ZodType<T>,
+    output: unknown
+  ): { ok: true; data: T } | { ok: false; error: string } {
+    const validation = validateConstructionOutput(schema, output);
+    if (validation.valid) {
+      return { ok: true, data: validation.data };
+    }
+    const error = new Error(`${validation.message}: ${validation.issues.join('; ')}`);
+    console.error('[mcp] Construction output schema validation failed', {
+      constructionId,
+      schema: schemaName,
+      issues: validation.issues,
+      stack: error.stack,
+    });
+    return {
+      ok: false,
+      error: `schema_validation_failed(${constructionId}): ${validation.issues.join('; ')}`,
     };
   }
 
@@ -1738,8 +1806,10 @@ export class LibrarianMCPServer {
   }
 
   private async executeSelectTechniqueCompositions(
-    input: { intent: string; workspace?: string; limit?: number }
+    input: SelectTechniqueCompositionsToolInput
   ): Promise<unknown> {
+    const startTime = Date.now();
+    const runId = this.generateId();
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1771,14 +1841,45 @@ export class LibrarianMCPServer {
       const selections = selectTechniqueCompositions(input.intent, compositions);
       const limit = input.limit && input.limit > 0 ? input.limit : undefined;
       const trimmed = limit ? selections.slice(0, limit) : selections;
-
-      return {
-        success: true,
-        workspace: workspacePath,
+      const output = {
         intent: input.intent,
         compositions: trimmed,
         total: selections.length,
         limited: limit ? trimmed.length : undefined,
+      };
+      const validated = this.validateConstructionOutputOrError(
+        'select_technique_compositions',
+        'SelectTechniqueCompositionsOutputSchema',
+        SelectTechniqueCompositionsOutputSchema,
+        output
+      );
+      if (!validated.ok) {
+        return {
+          success: false,
+          error: validated.error,
+          workspace: workspacePath,
+          runId,
+        };
+      }
+      const constructionResult = this.buildConstructionResultEnvelope({
+        output: validated.data,
+        schemaName: 'SelectTechniqueCompositionsOutputSchema',
+        runId,
+        durationMs: Date.now() - startTime,
+        trivialResult: trimmed.length <= 1,
+        meta: {
+          constructionId: 'select_technique_compositions',
+          workspace: workspacePath,
+          intent: input.intent,
+        },
+      });
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        ...validated.data,
+        runId,
+        constructionResult,
       };
     } catch (error) {
       return {
@@ -1789,8 +1890,10 @@ export class LibrarianMCPServer {
   }
 
   private async executeCompileTechniqueComposition(
-    input: { compositionId: string; workspace?: string; includePrimitives?: boolean }
+    input: CompileTechniqueCompositionToolInput
   ): Promise<unknown> {
+    const startTime = Date.now();
+    const runId = this.generateId();
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1837,14 +1940,46 @@ export class LibrarianMCPServer {
             error: `Unknown technique composition: ${input.compositionId}`,
           };
         }
-
-        return {
-          success: true,
-          workspace: workspacePath,
+        const output = {
           compositionId: input.compositionId,
           template: bundle.template,
           primitives: bundle.primitives,
           missingPrimitiveIds: bundle.missingPrimitiveIds,
+        };
+        const validated = this.validateConstructionOutputOrError(
+          'compile_technique_composition',
+          'CompileTechniqueCompositionOutputSchema',
+          CompileTechniqueCompositionOutputSchema,
+          output
+        );
+        if (!validated.ok) {
+          return {
+            success: false,
+            error: validated.error,
+            workspace: workspacePath,
+            runId,
+            compositionId: input.compositionId,
+          };
+        }
+        const constructionResult = this.buildConstructionResultEnvelope({
+          output: validated.data,
+          schemaName: 'CompileTechniqueCompositionOutputSchema',
+          runId,
+          durationMs: Date.now() - startTime,
+          trivialResult: bundle.primitives.length <= 1,
+          meta: {
+            constructionId: 'compile_technique_composition',
+            workspace: workspacePath,
+            compositionId: input.compositionId,
+          },
+        });
+
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...validated.data,
+          runId,
+          constructionResult,
         };
       }
 
@@ -1859,13 +1994,45 @@ export class LibrarianMCPServer {
           error: `Unknown technique composition: ${input.compositionId}`,
         };
       }
+      const output = {
+        compositionId: input.compositionId,
+        template: result.template,
+        missingPrimitiveIds: result.missingPrimitiveIds,
+      };
+      const validated = this.validateConstructionOutputOrError(
+        'compile_technique_composition',
+        'CompileTechniqueCompositionOutputSchema',
+        CompileTechniqueCompositionOutputSchema,
+        output
+      );
+      if (!validated.ok) {
+        return {
+          success: false,
+          error: validated.error,
+          workspace: workspacePath,
+          runId,
+          compositionId: input.compositionId,
+        };
+      }
+      const constructionResult = this.buildConstructionResultEnvelope({
+        output: validated.data,
+        schemaName: 'CompileTechniqueCompositionOutputSchema',
+        runId,
+        durationMs: Date.now() - startTime,
+        trivialResult: result.missingPrimitiveIds.length === 0,
+        meta: {
+          constructionId: 'compile_technique_composition',
+          workspace: workspacePath,
+          compositionId: input.compositionId,
+        },
+      });
 
       return {
         success: true,
         workspace: workspacePath,
-        compositionId: input.compositionId,
-        template: result.template,
-        missingPrimitiveIds: result.missingPrimitiveIds,
+        ...validated.data,
+        runId,
+        constructionResult,
       };
     } catch (error) {
       return {
@@ -1876,8 +2043,10 @@ export class LibrarianMCPServer {
   }
 
   private async executeCompileIntentBundles(
-    input: { intent: string; workspace?: string; limit?: number; includePrimitives?: boolean }
+    input: CompileIntentBundlesToolInput
   ): Promise<unknown> {
+    const startTime = Date.now();
+    const runId = this.generateId();
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1919,14 +2088,46 @@ export class LibrarianMCPServer {
       const trimmedBundles = input.includePrimitives === false
         ? trimmed.map(({ template, missingPrimitiveIds }) => ({ template, missingPrimitiveIds }))
         : trimmed;
-
-      return {
-        success: true,
-        workspace: workspacePath,
+      const output = {
         intent: input.intent,
         bundles: trimmedBundles,
         total: bundles.length,
         limited: limit ? trimmedBundles.length : undefined,
+      };
+      const validated = this.validateConstructionOutputOrError(
+        'compile_intent_bundles',
+        'CompileIntentBundlesOutputSchema',
+        CompileIntentBundlesOutputSchema,
+        output
+      );
+      if (!validated.ok) {
+        return {
+          success: false,
+          error: validated.error,
+          workspace: workspacePath,
+          runId,
+          intent: input.intent,
+        };
+      }
+      const constructionResult = this.buildConstructionResultEnvelope({
+        output: validated.data,
+        schemaName: 'CompileIntentBundlesOutputSchema',
+        runId,
+        durationMs: Date.now() - startTime,
+        trivialResult: trimmedBundles.length <= 1,
+        meta: {
+          constructionId: 'compile_intent_bundles',
+          workspace: workspacePath,
+          intent: input.intent,
+        },
+      });
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        ...validated.data,
+        runId,
+        constructionResult,
       };
     } catch (error) {
       return {

@@ -20,6 +20,8 @@ describe('MCP tool registry consistency', () => {
       expect(typeof tool._meta?.requiresIndex).toBe('boolean');
       expect(typeof tool._meta?.requiresEmbeddings).toBe('boolean');
       expect(typeof tool._meta?.estimatedTokens).toBe('number');
+      expect(typeof tool._meta?.outputSchema).toBe('object');
+      expect(tool._meta?.outputSchema).not.toBeNull();
     }
   });
 });
