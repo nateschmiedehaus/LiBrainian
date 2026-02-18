@@ -5,6 +5,7 @@
  * Commands:
  *   librarian status              - Show current librarian status
  *   librarian query <intent>      - Run a query against the knowledge base
+ *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
  *   librarian index --force <...> - Incrementally index specific files
  *   librarian inspect <module>    - Inspect a module's knowledge
@@ -36,6 +37,7 @@ import { parseArgs } from 'node:util';
 import { showHelp } from './help.js';
 import { statusCommand } from './commands/status.js';
 import { queryCommand } from './commands/query.js';
+import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
 import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
@@ -75,7 +77,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'bootstrap' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -100,11 +102,15 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean): void 
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
     description: 'Show current librarian status',
-    usage: 'librarian status [--verbose] [--format text|json]',
+    usage: 'librarian status [--verbose] [--format text|json] [--out <path>]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--no-bootstrap]',
+    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--json] [--out <path>] [--no-bootstrap]',
+  },
+  'feedback': {
+    description: 'Submit task outcome feedback for a prior query',
+    usage: 'librarian feedback <feedbackToken> --outcome success|failure|partial [--missing-context "..."] [--json]',
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
@@ -124,7 +130,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'check-providers': {
     description: 'Check provider availability and authentication',
-    usage: 'librarian check-providers [--format text|json]',
+    usage: 'librarian check-providers [--format text|json] [--out <path>]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
@@ -297,11 +303,20 @@ async function main(): Promise<void> {
   try {
     switch (command) {
       case 'status':
-        await statusCommand({ workspace, verbose, format: defaultFormat as 'text' | 'json' });
+        await statusCommand({
+          workspace,
+          verbose,
+          format: defaultFormat as 'text' | 'json',
+          out: getStringArg(args, '--out') ?? undefined,
+        });
         break;
 
       case 'query':
         await queryCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+
+      case 'feedback':
+        await feedbackCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'bootstrap':
@@ -321,7 +336,11 @@ async function main(): Promise<void> {
         break;
 
       case 'check-providers':
-        await checkProvidersCommand({ workspace, format: defaultFormat as 'text' | 'json' });
+        await checkProvidersCommand({
+          workspace,
+          format: defaultFormat as 'text' | 'json',
+          out: getStringArg(args, '--out') ?? undefined,
+        });
         break;
 
       case 'visualize':

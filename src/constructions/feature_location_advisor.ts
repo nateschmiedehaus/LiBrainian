@@ -142,6 +142,7 @@ export class FeatureLocationAdvisor {
       affectedFiles: affectedAreas,
       depth: 'L2',
       taskType: 'understand',
+      perspective: 'navigation',
     });
 
     const locations: FeatureLocation[] = [];
@@ -167,6 +168,7 @@ export class FeatureLocationAdvisor {
         intent: `Find code containing or related to: ${keyword}`,
         depth: 'L1',
         taskType: 'understand',
+        perspective: 'navigation',
       });
 
       if (queryResult.packs) {
@@ -199,6 +201,7 @@ export class FeatureLocationAdvisor {
         affectedFiles: [seed.file],
         depth: 'L1',
         taskType: 'understand',
+        perspective: 'navigation',
       });
 
       if (queryResult.packs) {

@@ -487,26 +487,7 @@ const checkSourceFiles: CheckFunction = async (options) => {
   const startTime = Date.now();
 
   try {
-    // Look for common source directories
-    const sourcePatterns = ['src', 'lib', 'app', 'packages'];
-    let foundSources = false;
-    let fileCount = 0;
-
-    for (const pattern of sourcePatterns) {
-      const sourcePath = path.join(options.workspaceRoot, pattern);
-      if (fs.existsSync(sourcePath)) {
-        foundSources = true;
-        // Count files recursively (limited depth)
-        fileCount += countFiles(sourcePath, 3);
-      }
-    }
-
-    // Also check root for source files
-    const rootFiles = fs.readdirSync(options.workspaceRoot);
-    const codeFiles = rootFiles.filter((f) =>
-      f.endsWith('.ts') || f.endsWith('.js') || f.endsWith('.py')
-    );
-    fileCount += codeFiles.length;
+    const fileCount = countSourceFilesRecursive(options.workspaceRoot);
 
     if (fileCount === 0) {
       return {
@@ -595,32 +576,60 @@ const checkMemory: CheckFunction = async (_options) => {
 // HELPER FUNCTIONS
 // ============================================================================
 
-function countFiles(dir: string, maxDepth: number, currentDepth = 0): number {
-  if (currentDepth >= maxDepth) return 0;
+function countSourceFilesRecursive(root: string): number {
+  const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.kt']);
+  const SKIP_DIRS = new Set([
+    'node_modules',
+    '.git',
+    '.hg',
+    '.svn',
+    '.librarian',
+    '.next',
+    '.turbo',
+    '.cache',
+    'dist',
+    'build',
+    'coverage',
+  ]);
+  const MAX_VISITED = 200_000;
 
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    let count = 0;
+  const stack: string[] = [root];
+  let count = 0;
+  let visited = 0;
 
-    for (const entry of entries) {
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') {
-        continue;
-      }
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (!dir) continue;
 
-      if (entry.isFile()) {
-        const ext = path.extname(entry.name);
-        if (['.ts', '.js', '.tsx', '.jsx', '.py', '.go', '.rs'].includes(ext)) {
-          count++;
-        }
-      } else if (entry.isDirectory()) {
-        count += countFiles(path.join(dir, entry.name), maxDepth, currentDepth + 1);
-      }
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
     }
 
-    return count;
-  } catch {
-    return 0;
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) continue;
+        stack.push(path.join(dir, entry.name));
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      visited += 1;
+      if (visited >= MAX_VISITED) {
+        return count;
+      }
+      const ext = path.extname(entry.name);
+      if (SOURCE_EXTENSIONS.has(ext)) {
+        count += 1;
+      }
+    }
   }
+
+  return count;
 }
 
 // ============================================================================

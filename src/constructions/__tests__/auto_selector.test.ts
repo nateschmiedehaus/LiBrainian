@@ -333,6 +333,34 @@ describe('selectConstructables', () => {
     expect(result.enabled).toContain('security-audit-helper');
   });
 
+  it('discloses experimental constructables and caps their confidence', () => {
+    const analysis: ProjectAnalysis = {
+      projectTypes: [],
+      frameworks: [],
+      patterns: [],
+      primaryLanguage: null,
+      languages: [],
+      hasTypeScript: false,
+      hasJavaScript: false,
+      isMonorepo: false,
+      hasTests: false,
+      testingFrameworks: [],
+      buildTools: [],
+      packageManagers: [],
+    };
+
+    const result = selectConstructables(analysis);
+    const experimentalEnabled = result.configurations.filter(
+      (config) => config.enabled && config.availability === 'experimental'
+    );
+    expect(experimentalEnabled.length).toBeGreaterThan(0);
+    expect(result.warnings.some((warning) => warning.startsWith('experimental_constructable_enabled:'))).toBe(true);
+    for (const config of experimentalEnabled) {
+      expect(config.confidence).toBeLessThanOrEqual(0.7);
+      expect(config.reason).toContain('availability: experimental');
+    }
+  });
+
   it('enables typescript-patterns for TypeScript projects', () => {
     const analysis: ProjectAnalysis = {
       projectTypes: [],
@@ -503,8 +531,8 @@ describe('detectOptimalConstructables', () => {
 
     const result = await detectOptimalConstructables(tempDir);
 
-    // Should have high confidence
-    expect(result.confidence).toBeGreaterThan(0.7);
+    // Should have high confidence (experimental caps can clamp this to 0.7).
+    expect(result.confidence).toBeGreaterThanOrEqual(0.7);
 
     // Should enable TypeScript, React, and Jest constructables
     expect(result.enabled).toContain('typescript-patterns');
@@ -568,6 +596,7 @@ describe('utility functions', () => {
         confidence: 0.9,
         analysis: {} as ProjectAnalysis,
         reasons: [],
+        warnings: [],
       };
 
       const validation = validateConstructableConfig(config);
@@ -584,6 +613,7 @@ describe('utility functions', () => {
         confidence: 0.9,
         analysis: {} as ProjectAnalysis,
         reasons: [],
+        warnings: [],
       };
 
       const validation = validateConstructableConfig(config);

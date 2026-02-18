@@ -24,6 +24,7 @@ import { isPerspective, PERSPECTIVES } from '../../types.js';
 describe('Perspective Type Validation', () => {
   it('should recognize all valid perspectives', () => {
     const validPerspectives: Perspective[] = [
+      'navigation',
       'debugging',
       'security',
       'performance',
@@ -46,8 +47,8 @@ describe('Perspective Type Validation', () => {
     expect(isPerspective(123)).toBe(false);
   });
 
-  it('should have exactly 7 perspectives in PERSPECTIVES constant', () => {
-    expect(PERSPECTIVES).toHaveLength(7);
+  it('should have exactly 8 perspectives in PERSPECTIVES constant', () => {
+    expect(PERSPECTIVES).toHaveLength(8);
   });
 });
 

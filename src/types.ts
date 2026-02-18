@@ -394,6 +394,11 @@ export interface BootstrapConfig {
    */
   emitBaseline?: boolean;
   /**
+   * Opt-in to mutating AGENTS.md / CLAUDE.md / CODEX.md with generated sections.
+   * Default is false to avoid surprising edits in instruction files.
+   */
+  updateAgentDocs?: boolean;
+  /**
    * Automatically recover from stale bootstrap checkpoints by restarting clean.
    * When false, stale checkpoints throw and require manual force-resume.
    */
@@ -629,6 +634,7 @@ export interface OnboardingBaseline {
  * Research basis: docs/research/MULTI-PERSPECTIVE-VIEWS-RESEARCH.md
  */
 export type Perspective =
+  | 'navigation'     // T-01 to T-06, T-16: Code/file navigation and location discovery
   | 'debugging'      // T-19 to T-24: Bug investigation patterns
   | 'security'       // T-27: Security vulnerability patterns
   | 'performance'    // T-28: Performance anti-patterns
@@ -641,6 +647,7 @@ export type Perspective =
  * All valid perspective values for validation.
  */
 export const PERSPECTIVES: readonly Perspective[] = [
+  'navigation',
   'debugging',
   'security',
   'performance',

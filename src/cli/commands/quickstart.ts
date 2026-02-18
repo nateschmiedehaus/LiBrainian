@@ -26,6 +26,7 @@ interface QuickstartReport {
   workspace: string;
   mode: 'fast' | 'full';
   baseline: boolean;
+  updateAgentDocs: boolean;
   warnings: string[];
   errors: string[];
   recovery: unknown;
@@ -79,6 +80,28 @@ function summarizeRecovery(recovery: {
   return { status, warnings, errors };
 }
 
+function describeCapabilityState(options: {
+  skip: boolean;
+  mode: 'fast' | 'full';
+  providerAvailable?: boolean | null;
+  providerError?: string | null;
+}): string {
+  const { skip, mode, providerAvailable, providerError } = options;
+  if (!skip) return 'enabled';
+
+  const providerDetail = providerAvailable === true
+    ? 'provider ready'
+    : providerAvailable === false
+      ? `provider unavailable${providerError ? `: ${providerError}` : ''}`
+      : 'provider unknown';
+
+  if (mode === 'fast') {
+    return `disabled (fast mode; ${providerDetail})`;
+  }
+
+  return `disabled (${providerDetail})`;
+}
+
 export async function quickstartCommand(options: QuickstartCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
 
@@ -89,6 +112,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       'risk-tolerance': { type: 'string' },
       force: { type: 'boolean', default: false },
       'skip-baseline': { type: 'boolean', default: false },
+      'update-agent-docs': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
     },
     allowPositionals: true,
@@ -110,6 +134,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
   const forceBootstrap = values.force as boolean;
   const skipBaseline = values['skip-baseline'] as boolean;
   const emitBaseline = !skipBaseline;
+  const updateAgentDocs = values['update-agent-docs'] as boolean;
   const json = values.json as boolean;
 
   const dbPath = await resolveDbPath(workspaceRoot);
@@ -122,6 +147,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     allowDegradedEmbeddings: true,
     bootstrapMode,
     emitBaseline,
+    updateAgentDocs,
     forceBootstrap,
   });
 
@@ -131,6 +157,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     workspace: workspaceRoot,
     mode: bootstrapMode,
     baseline: emitBaseline,
+    updateAgentDocs,
     warnings: summary.warnings,
     errors: summary.errors,
     recovery,
@@ -145,6 +172,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       { key: 'Workspace', value: workspaceRoot },
       { key: 'Mode', value: bootstrapMode },
       { key: 'Baseline', value: emitBaseline ? 'enabled' : 'disabled' },
+      { key: 'Agent Docs Update', value: updateAgentDocs ? 'enabled' : 'disabled' },
       { key: 'Status', value: summary.status.toUpperCase() },
     ]);
 
@@ -164,8 +192,24 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       { key: 'Config Heal', value: configSummary },
       { key: 'Storage Recovery', value: storageSummary },
       { key: 'Bootstrap', value: bootstrapSummary },
-      { key: 'Embeddings', value: recovery.bootstrap?.skipEmbeddings ? 'disabled' : 'enabled' },
-      { key: 'LLM', value: recovery.bootstrap?.skipLlm ? 'disabled' : 'enabled' },
+      {
+        key: 'Embeddings',
+        value: describeCapabilityState({
+          skip: recovery.bootstrap?.skipEmbeddings ?? false,
+          mode: bootstrapMode,
+          providerAvailable: recovery.providerStatus?.embedding?.available ?? null,
+          providerError: recovery.providerStatus?.embedding?.error ?? null,
+        }),
+      },
+      {
+        key: 'LLM',
+        value: describeCapabilityState({
+          skip: recovery.bootstrap?.skipLlm ?? false,
+          mode: bootstrapMode,
+          providerAvailable: recovery.providerStatus?.llm?.available ?? null,
+          providerError: recovery.providerStatus?.llm?.error ?? null,
+        }),
+      },
     ]);
 
     if (summary.warnings.length > 0) {

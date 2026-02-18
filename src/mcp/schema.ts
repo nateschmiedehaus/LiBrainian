@@ -70,6 +70,23 @@ export const QueryToolInputSchema = z.object({
 }).strict();
 
 /**
+ * Submit feedback tool input schema
+ */
+export const SubmitFeedbackToolInputSchema = z.object({
+  feedbackToken: z.string().min(1).describe('Feedback token from query response'),
+  outcome: z.enum(['success', 'failure', 'partial']).describe('Task outcome'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  agentId: z.string().optional().describe('Agent identifier'),
+  missingContext: z.string().optional().describe('Description of missing context'),
+  customRatings: z.array(z.object({
+    packId: z.string().min(1),
+    relevant: z.boolean(),
+    usefulness: z.number().min(0).max(1).optional(),
+    reason: z.string().optional(),
+  }).strict()).optional().describe('Optional per-pack relevance ratings'),
+}).strict();
+
+/**
  * Verify claim tool input schema
  */
 export const VerifyClaimToolInputSchema = z.object({
@@ -201,6 +218,7 @@ export const StatusToolInputSchema = z.object({
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
 export type DiffRunsToolInputType = z.infer<typeof DiffRunsToolInputSchema>;
@@ -228,6 +246,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
+  submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   run_audit: RunAuditToolInputSchema,
   diff_runs: DiffRunsToolInputSchema,
@@ -315,10 +334,30 @@ export const queryToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Submit feedback tool JSON Schema */
+export const submitFeedbackToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/submit-feedback-tool-input',
+  title: 'SubmitFeedbackToolInput',
+  description: 'Input for the submit_feedback tool - records agent feedback for a query',
+  type: 'object',
+  properties: {
+    feedbackToken: { type: 'string', description: 'Feedback token from query response', minLength: 1 },
+    outcome: { type: 'string', enum: ['success', 'failure', 'partial'], description: 'Task outcome' },
+    workspace: { type: 'string', description: 'Workspace path' },
+    agentId: { type: 'string', description: 'Agent identifier' },
+    missingContext: { type: 'string', description: 'Description of missing context' },
+    customRatings: { type: 'array', items: { type: 'string' }, description: 'Optional per-pack ratings' },
+  },
+  required: ['feedbackToken', 'outcome'],
+  additionalProperties: false,
+};
+
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   query: queryToolJsonSchema,
+  submit_feedback: submitFeedbackToolJsonSchema,
 };
 
 // ============================================================================

@@ -18,6 +18,7 @@ START HERE:
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
     query <intent>      Run a query against the knowledge base
+    feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
     check-providers     Check provider availability and authentication
@@ -75,6 +76,7 @@ OPTIONS:
     --verbose           Show detailed statistics
     --format text|json  Output format (default: text)
     --json              Alias for --format json
+    --out <path>        Write JSON output to file (requires --json/--format json)
 
 DESCRIPTION:
     Displays the current state of the librarian knowledge index, including:
@@ -87,6 +89,7 @@ DESCRIPTION:
 EXAMPLES:
     librarian status
     librarian status --verbose
+    librarian status --json --out /tmp/librarian-status.json
 `,
 
   query: `
@@ -114,6 +117,7 @@ OPTIONS:
     --transitive        Include transitive dependencies (with --exhaustive)
     --max-depth <n>     Maximum depth for transitive traversal (default: 10)
     --json              Output results as JSON
+    --out <path>        Write JSON output to file (requires --json)
 
 DESCRIPTION:
     Queries the librarian knowledge base for context packs matching your intent.
@@ -159,11 +163,41 @@ EXAMPLES:
     librarian query "What tests cover login?" --files src/auth/login.ts
     librarian query "Assess impact" --uc UC-041,UC-042 --uc-priority high
     librarian query "API endpoint structure" --json
+    librarian query "API endpoint structure" --json --out /tmp/librarian-query.json
     librarian query "Quick overview" --token-budget 2000 --token-reserve 500
     librarian query "Test reproducibility" --deterministic --json
     librarian query "list all CLI commands" --enumerate
     librarian query "how many test files" --enumerate --json
     librarian query "what depends on SqliteStorage" --exhaustive --transitive
+`,
+
+  feedback: `
+librarian feedback - Submit outcome feedback for a prior query
+
+USAGE:
+    librarian feedback <feedbackToken> --outcome <success|failure|partial> [options]
+
+OPTIONS:
+    --outcome <value>        Task outcome: success | failure | partial
+    --agent-id <id>          Agent identifier (e.g., codex-cli)
+    --missing-context <txt>  Missing context description
+    --ratings <json>         JSON array with per-pack ratings
+    --ratings-file <path>    Path to JSON file with per-pack ratings
+    --json                   Emit machine-readable JSON output
+
+DESCRIPTION:
+    Records feedback against a prior query result so LiBrainian can update
+    context-pack confidence and track retrieval gaps.
+
+    Notes:
+    - feedbackToken comes from librarian query output (feedbackToken field)
+    - Use --ratings/--ratings-file for explicit per-pack relevance control
+    - Without custom ratings, outcome-level feedback applies to all packs
+
+EXAMPLES:
+    librarian feedback fbk_123 --outcome success
+    librarian feedback fbk_123 --outcome failure --missing-context "Need auth token lifecycle docs"
+    librarian feedback fbk_123 --outcome partial --ratings-file state/ratings.json --json
 `,
 
   bootstrap: `
@@ -178,6 +212,7 @@ OPTIONS:
     --scope <name>      Bootstrap scope: full | librarian (default: full)
     --mode <name>       Bootstrap mode: fast | full (default: full)
     --emit-baseline     Write OnboardingBaseline.v1 after successful bootstrap
+    --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
     --install-grammars  Install missing tree-sitter grammar packages
     --llm-provider <p>  Force LLM provider: claude | codex (default: auto)
     --llm-model <id>    Force LLM model id (default: daily selection)
@@ -220,6 +255,7 @@ OPTIONS:
     --risk-tolerance <t>  Config heal risk: safe | low | medium (default: low)
     --force             Force bootstrap even if not required
     --skip-baseline     Skip writing OnboardingBaseline.v1
+    --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
     --json              Output results as JSON
 
 DESCRIPTION:
@@ -236,6 +272,7 @@ EXAMPLES:
     librarian quickstart
     librarian quickstart --mode full
     librarian quickstart --force --skip-baseline
+    librarian quickstart --update-agent-docs
     librarian quickstart --json
 `,
 
@@ -474,6 +511,7 @@ USAGE:
 OPTIONS:
     --json              Output results as JSON
     --format text|json  Output format (default: text)
+    --out <path>        Write JSON output to file (requires --json/--format json)
 
 DESCRIPTION:
     Checks the availability and authentication status of:
@@ -490,6 +528,7 @@ DESCRIPTION:
 EXAMPLES:
     librarian check-providers
     librarian check-providers --json
+    librarian check-providers --json --out /tmp/librarian-providers.json
 `,
 
   watch: `

@@ -506,6 +506,49 @@ export interface QueryToolOutput {
   cacheHit: boolean;
 }
 
+/** Submit feedback tool input */
+export interface SubmitFeedbackToolInput {
+  /** Feedback token from query response */
+  feedbackToken: string;
+
+  /** Task outcome */
+  outcome: 'success' | 'failure' | 'partial';
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Agent identifier */
+  agentId?: string;
+
+  /** Description of missing context */
+  missingContext?: string;
+
+  /** Optional per-pack ratings */
+  customRatings?: Array<{
+    packId: string;
+    relevant: boolean;
+    usefulness?: number;
+    reason?: string;
+  }>;
+}
+
+export interface SubmitFeedbackToolOutput {
+  /** Feedback token */
+  feedbackToken: string;
+
+  /** Outcome used */
+  outcome: 'success' | 'failure' | 'partial';
+
+  /** Whether processing succeeded */
+  success: boolean;
+
+  /** Number of confidence adjustments applied */
+  adjustmentsApplied: number;
+
+  /** Error message when processing fails */
+  error?: string;
+}
+
 export interface ContextPackSummary {
   /** Pack ID */
   packId: string;
@@ -868,6 +911,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  submit_feedback: {
+    tool: 'submit_feedback',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_context_pack_bundle: {
     tool: 'get_context_pack_bundle',
     requiredScopes: ['read'],
@@ -1058,6 +1107,19 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.intent === 'string';
+}
+
+/** Type guard for SubmitFeedbackToolInput */
+export function isSubmitFeedbackToolInput(value: unknown): value is SubmitFeedbackToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const tokenOk = typeof obj.feedbackToken === 'string';
+  const outcomeOk = obj.outcome === 'success' || obj.outcome === 'failure' || obj.outcome === 'partial';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const agentIdOk = typeof obj.agentId === 'string' || typeof obj.agentId === 'undefined';
+  const missingContextOk = typeof obj.missingContext === 'string' || typeof obj.missingContext === 'undefined';
+  const ratingsOk = Array.isArray(obj.customRatings) || typeof obj.customRatings === 'undefined';
+  return tokenOk && outcomeOk && workspaceOk && agentIdOk && missingContextOk && ratingsOk;
 }
 
 /** Type guard for VerifyClaimToolInput */

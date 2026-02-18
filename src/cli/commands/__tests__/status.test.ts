@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { statusCommand } from '../status.js';
 import { resolveDbPath } from '../../db_path.js';
 import { createSqliteStorage } from '../../../storage/sqlite_storage.js';
@@ -6,6 +9,7 @@ import { isBootstrapRequired, getBootstrapStatus } from '../../../api/bootstrap.
 import { getIndexState } from '../../../state/index_state.js';
 import { checkAllProviders } from '../../../api/provider_check.js';
 import { getWatchState } from '../../../state/watch_state.js';
+import { inspectWorkspaceLocks } from '../../../storage/storage_recovery.js';
 import { printKeyValue } from '../../progress.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
 import type { LibrarianStorage } from '../../../storage/types.js';
@@ -28,6 +32,9 @@ vi.mock('../../../api/provider_check.js', () => ({
 }));
 vi.mock('../../../state/watch_state.js', () => ({
   getWatchState: vi.fn(),
+}));
+vi.mock('../../../storage/storage_recovery.js', () => ({
+  inspectWorkspaceLocks: vi.fn(),
 }));
 vi.mock('../../../utils/workspace_resolver.js', () => ({
   resolveWorkspaceRoot: vi.fn(),
@@ -103,6 +110,14 @@ describe('statusCommand', () => {
     vi.mocked(checkAllProviders).mockResolvedValue({
       llm: { available: true, provider: 'claude', model: 'test-model', latencyMs: 120 },
       embedding: { available: true, provider: 'xenova', model: 'test-embed', latencyMs: 50 },
+    });
+    vi.mocked(inspectWorkspaceLocks).mockResolvedValue({
+      lockDirs: [],
+      scannedFiles: 0,
+      staleFiles: 0,
+      activePidFiles: 0,
+      unknownFreshFiles: 0,
+      stalePaths: [],
     });
   });
 
@@ -206,5 +221,40 @@ describe('statusCommand', () => {
     const parsed = JSON.parse(output ?? '{}') as { workspace?: string; workspaceOriginal?: string };
     expect(parsed.workspace).toBe('/resolved/workspace');
     expect(parsed.workspaceOriginal).toBe(workspace);
+  });
+
+  it('includes lock hygiene details in JSON output', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(inspectWorkspaceLocks).mockResolvedValue({
+      lockDirs: [`${workspace}/.librarian/locks`],
+      scannedFiles: 4,
+      staleFiles: 2,
+      activePidFiles: 1,
+      unknownFreshFiles: 1,
+      stalePaths: [`${workspace}/.librarian/locks/a.lock`, `${workspace}/.librarian/locks/b.lock`],
+    });
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as { locks?: { staleFiles?: number; scannedFiles?: number } };
+    expect(parsed.locks?.scannedFiles).toBe(4);
+    expect(parsed.locks?.staleFiles).toBe(2);
+  });
+
+  it('writes JSON report to --out path', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-status-out-'));
+    const outPath = path.join(tmpDir, 'status.json');
+
+    try {
+      await statusCommand({ workspace, verbose: false, format: 'json', out: outPath });
+      const raw = await fs.readFile(outPath, 'utf8');
+      const parsed = JSON.parse(raw) as { workspace?: string; storage?: { status?: string } };
+      expect(parsed.workspace).toBe(workspace);
+      expect(parsed.storage?.status).toBe('ready');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });

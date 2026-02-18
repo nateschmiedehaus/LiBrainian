@@ -18,6 +18,7 @@ import {
   safeParseToolInput,
   BootstrapToolInputSchema,
   QueryToolInputSchema,
+  SubmitFeedbackToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
   DiffRunsToolInputSchema,
@@ -29,6 +30,7 @@ import {
   MCP_SCHEMA_VERSION,
   isBootstrapToolInput,
   isQueryToolInput,
+  isSubmitFeedbackToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
   isDiffRunsToolInput,
@@ -52,6 +54,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
       expect(schemas).toContain('query');
+      expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
       expect(schemas).toContain('diff_runs');
@@ -64,7 +67,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('select_technique_compositions');
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
-      expect(schemas).toHaveLength(17);
+      expect(schemas).toHaveLength(18);
     });
 
     it('should return schema for known tools', () => {
@@ -191,6 +194,46 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isQueryToolInput({ intent: 'test' })).toBe(true);
       expect(isQueryToolInput({})).toBe(false);
+    });
+  });
+
+  describe('Submit Feedback Tool Schema', () => {
+    it('should validate correct input', () => {
+      const result = validateToolInput('submit_feedback', {
+        feedbackToken: 'fbk_123',
+        outcome: 'success',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate input with optional fields', () => {
+      const result = validateToolInput('submit_feedback', {
+        feedbackToken: 'fbk_123',
+        outcome: 'partial',
+        workspace: '/tmp/workspace',
+        agentId: 'codex-cli',
+        missingContext: 'Need auth lifecycle docs',
+        customRatings: [{ packId: 'pack-1', relevant: true, usefulness: 0.8 }],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      expect(validateToolInput('submit_feedback', { outcome: 'success' }).valid).toBe(false);
+      expect(validateToolInput('submit_feedback', { feedbackToken: 'fbk_123' }).valid).toBe(false);
+    });
+
+    it('should reject invalid outcome', () => {
+      const result = validateToolInput('submit_feedback', {
+        feedbackToken: 'fbk_123',
+        outcome: 'invalid',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'failure' })).toBe(true);
+      expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'bad' })).toBe(false);
     });
   });
 

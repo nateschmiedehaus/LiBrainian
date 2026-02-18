@@ -186,6 +186,7 @@ export class ArchitectureVerifier {
         intent: `Find all imports and dependencies in files matching: ${layer.patterns.join(', ')}`,
         depth: 'L2',
         taskType: 'understand',
+        perspective: 'architecture',
       });
 
       if (queryResult.packs) {
@@ -304,6 +305,7 @@ export class ArchitectureVerifier {
         intent: `Find dependencies between files: [${boundary.inside.join(', ')}] and [${boundary.outside.join(', ')}]`,
         depth: 'L2',
         taskType: 'understand',
+        perspective: 'architecture',
       });
 
       if (queryResult.packs) {
@@ -414,6 +416,7 @@ export class ArchitectureVerifier {
       intent: 'Find circular import dependencies in the codebase',
       depth: 'L3',
       taskType: 'understand',
+      perspective: 'architecture',
     });
 
     if (queryResult.packs) {
@@ -495,6 +498,7 @@ export class ArchitectureVerifier {
       intent: 'Find all exported functions and classes with their names',
       depth: 'L2',
       taskType: 'understand',
+      perspective: 'architecture',
     });
 
     if (queryResult.packs) {

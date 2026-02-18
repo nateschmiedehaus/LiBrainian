@@ -6,15 +6,18 @@ import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
+import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import { printKeyValue, formatTimestamp, formatBytes, formatDuration } from '../progress.js';
 import { safeJsonParse } from '../../utils/safe_json.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
+import { emitJsonOutput } from '../json_output.js';
 
 export interface StatusCommandOptions {
   workspace: string;
   verbose?: boolean;
   format?: 'text' | 'json';
+  out?: string;
 }
 
 type StatusReport = {
@@ -49,6 +52,13 @@ type StatusReport = {
     state: ReturnType<typeof getWatchState> extends Promise<infer T> ? T : unknown;
     health: ReturnType<typeof deriveWatchHealth>;
   } | null;
+  locks?: {
+    lockDirs: string[];
+    scannedFiles: number;
+    staleFiles: number;
+    activePidFiles: number;
+    unknownFreshFiles: number;
+  };
   stats?: {
     totalFunctions: number;
     totalModules: number;
@@ -97,7 +107,7 @@ function computeDurationMs(startedAt: unknown, completedAt: unknown): number | n
 }
 
 export async function statusCommand(options: StatusCommandOptions): Promise<void> {
-  const { workspace, verbose, format = 'text' } = options;
+  const { workspace, verbose, format = 'text', out } = options;
   let workspaceRoot = path.resolve(workspace);
   if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
     const resolution = resolveWorkspaceRoot(workspaceRoot);
@@ -137,7 +147,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       reason: error instanceof Error ? error.message : 'Unknown error',
     };
     if (format === 'json') {
-      console.log(JSON.stringify(report));
+      await emitJsonOutput(report, out);
       return;
     }
     console.log('Storage Status:');
@@ -284,6 +294,28 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       console.log();
     }
 
+    const workspaceLocks = await inspectWorkspaceLocks(workspaceRoot);
+    report.locks = {
+      lockDirs: workspaceLocks.lockDirs,
+      scannedFiles: workspaceLocks.scannedFiles,
+      staleFiles: workspaceLocks.staleFiles,
+      activePidFiles: workspaceLocks.activePidFiles,
+      unknownFreshFiles: workspaceLocks.unknownFreshFiles,
+    };
+    if (format === 'text') {
+      console.log('Lock Hygiene:');
+      printKeyValue([
+        { key: 'Lock Files Scanned', value: workspaceLocks.scannedFiles },
+        { key: 'Stale Lock Files', value: workspaceLocks.staleFiles },
+        { key: 'Active PID Locks', value: workspaceLocks.activePidFiles },
+        { key: 'Fresh Unknown Locks', value: workspaceLocks.unknownFreshFiles },
+      ]);
+      if (workspaceLocks.staleFiles > 0) {
+        console.log('\nTip: Run `librarian doctor --heal` to remove stale lock files.');
+      }
+      console.log();
+    }
+
     const stats = await storage.getStats();
     report.stats = {
       totalFunctions: stats.totalFunctions,
@@ -330,7 +362,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
     }
 
     if (format === 'json') {
-      console.log(JSON.stringify(report));
+      await emitJsonOutput(report, out);
       return;
     }
 

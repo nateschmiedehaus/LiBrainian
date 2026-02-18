@@ -3,7 +3,12 @@ import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { attemptStorageRecovery, isRecoverableStorageError } from '../storage_recovery.js';
+import {
+  attemptStorageRecovery,
+  cleanupWorkspaceLocks,
+  inspectWorkspaceLocks,
+  isRecoverableStorageError,
+} from '../storage_recovery.js';
 
 async function createTempDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-storage-recovery-'));
@@ -152,5 +157,45 @@ describe('attemptStorageRecovery', () => {
 
     const entries = await fs.readdir(dir);
     expect(entries.some((entry) => entry.startsWith('librarian.sqlite.corrupt.'))).toBe(true);
+  });
+
+  it('detects stale lock files under .librarian/locks and .librarian/swarm/locks', async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const lockDir = path.join(dir, '.librarian', 'locks');
+    const swarmLockDir = path.join(dir, '.librarian', 'swarm', 'locks');
+    await fs.mkdir(lockDir, { recursive: true });
+    await fs.mkdir(swarmLockDir, { recursive: true });
+
+    const stalePath = path.join(lockDir, 'stale.lock');
+    const freshPath = path.join(swarmLockDir, 'fresh.lock');
+    await fs.writeFile(stalePath, 'stale');
+    await fs.writeFile(freshPath, String(process.pid));
+
+    const staleDate = new Date(Date.now() - (3 * 60 * 60_000));
+    await fs.utimes(stalePath, staleDate, staleDate);
+
+    const inspection = await inspectWorkspaceLocks(dir);
+
+    expect(inspection.scannedFiles).toBe(2);
+    expect(inspection.staleFiles).toBe(1);
+    expect(inspection.activePidFiles).toBe(1);
+    expect(inspection.stalePaths).toContain(stalePath);
+  });
+
+  it('removes stale workspace lock files during cleanup', async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const lockDir = path.join(dir, '.librarian', 'locks');
+    await fs.mkdir(lockDir, { recursive: true });
+
+    const stalePath = path.join(lockDir, 'dead.lock');
+    await fs.writeFile(stalePath, JSON.stringify({ pid: 999999 }));
+
+    const result = await cleanupWorkspaceLocks(dir);
+
+    expect(result.removedFiles).toBe(1);
+    expect(result.staleFiles).toBe(1);
+    expect(existsSync(stalePath)).toBe(false);
   });
 });

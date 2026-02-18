@@ -37,6 +37,7 @@ import {
   type BootstrapToolInput,
   type StatusToolInput,
   type QueryToolInput,
+  type SubmitFeedbackToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
   type DiffRunsToolInput,
@@ -81,6 +82,7 @@ import {
   compileTechniqueCompositionBundleFromStorage,
 } from '../api/plan_compiler.js';
 import { compileTechniqueBundlesFromIntent } from '../api/plan_compiler.js';
+import { submitQueryFeedback } from '../integration/agent_protocol.js';
 import { createSqliteStorage, type LibrarianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
 import {
@@ -437,6 +439,35 @@ export class LibrarianMCPServer {
             includeEvidence: { type: 'boolean', description: 'Include evidence graph' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'submit_feedback',
+        description: 'Submit outcome feedback for a prior query feedbackToken',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            feedbackToken: { type: 'string', description: 'Feedback token from query response' },
+            outcome: { type: 'string', enum: ['success', 'failure', 'partial'], description: 'Task outcome' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            agentId: { type: 'string', description: 'Agent identifier' },
+            missingContext: { type: 'string', description: 'Description of missing context' },
+            customRatings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  packId: { type: 'string' },
+                  relevant: { type: 'boolean' },
+                  usefulness: { type: 'number' },
+                  reason: { type: 'string' },
+                },
+                required: ['packId', 'relevant'],
+              },
+              description: 'Optional per-pack relevance ratings',
+            },
+          },
+          required: ['feedbackToken', 'outcome'],
         },
       },
       {
@@ -857,6 +888,8 @@ export class LibrarianMCPServer {
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput);
+      case 'submit_feedback':
+        return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'verify_claim':
         return this.executeVerifyClaim(args as VerifyClaimToolInput);
       case 'run_audit':
@@ -1751,6 +1784,63 @@ export class LibrarianMCPServer {
         verificationPlan: undefined,
         traceId: 'unverified_by_trace(replay_unavailable)',
         constructionPlan: undefined,
+      };
+    }
+  }
+
+  private async executeSubmitFeedback(input: SubmitFeedbackToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        workspacePath = this.findReadyWorkspace()?.path
+          ?? this.state.workspaces.keys().next().value
+          ?? this.config.workspaces[0];
+      }
+
+      if (!workspacePath) {
+        return {
+          feedbackToken: input.feedbackToken,
+          outcome: input.outcome,
+          success: false,
+          adjustmentsApplied: 0,
+          error: 'No workspace available. Provide workspace or run bootstrap first.',
+        };
+      }
+
+      const resolvedWorkspace = path.resolve(workspacePath);
+      if (!this.state.workspaces.has(resolvedWorkspace)) {
+        this.registerWorkspace(resolvedWorkspace);
+      }
+
+      const storage = await this.getOrCreateStorage(resolvedWorkspace);
+      const result = await submitQueryFeedback(
+        input.feedbackToken,
+        input.outcome,
+        storage,
+        {
+          agentId: input.agentId,
+          missingContext: input.missingContext,
+          customRatings: input.customRatings,
+        }
+      );
+
+      return {
+        feedbackToken: input.feedbackToken,
+        outcome: input.outcome,
+        success: result.success,
+        adjustmentsApplied: result.adjustmentsApplied,
+        error: result.error,
+        workspace: resolvedWorkspace,
+      };
+    } catch (error) {
+      return {
+        feedbackToken: input.feedbackToken,
+        outcome: input.outcome,
+        success: false,
+        adjustmentsApplied: 0,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

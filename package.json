@@ -131,6 +131,7 @@
     "test:agentic:strict": "npm run eval:ab:agentic-bugfix:codex && npm run eval:use-cases:agentic && npm run eval:live-fire:hardcore && npm run smoke:external:all && npm run eval:testing-discipline && npm run eval:testing-tracker && npm run eval:publish-gate",
     "test:agentic:strict:quick": "npm run eval:ab:agentic-bugfix:quick && npm run eval:use-cases:agentic:quick && npm run eval:live-fire:quick && npm run smoke:external:sample",
     "ground-truth:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-ground-truth.ts",
+    "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --limit 200 --out state/plans/agent-issue-fix-plan.json",
     "smoke:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts",
     "smoke:external:sample": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts --repoNames typedriver-ts,token-explorer-py,tlsproxy-go --repoTimeoutMs 120000 --artifactRoot state/eval/smoke/external --runLabel sample-ts-py-go",
     "smoke:external:all": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts --artifactRoot state/eval/smoke/external --runLabel all-repos",

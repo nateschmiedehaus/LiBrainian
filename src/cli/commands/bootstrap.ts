@@ -58,6 +58,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       scope: { type: 'string', default: 'full' },
       mode: { type: 'string', default: 'full' },
       'emit-baseline': { type: 'boolean', default: false },
+      'update-agent-docs': { type: 'boolean', default: false },
       'install-grammars': { type: 'boolean', default: false },
       'llm-provider': { type: 'string' },
       'llm-model': { type: 'string' },
@@ -72,6 +73,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   const scope = typeof values.scope === 'string' ? values.scope.toLowerCase() : 'full';
   const bootstrapModeRaw = typeof values.mode === 'string' ? values.mode.toLowerCase().trim() : 'full';
   const emitBaseline = values['emit-baseline'] as boolean;
+  const updateAgentDocs = values['update-agent-docs'] as boolean;
   const installGrammars = values['install-grammars'] as boolean;
   const bootstrapMode = bootstrapModeRaw === 'full' || bootstrapModeRaw === 'fast'
     ? bootstrapModeRaw
@@ -103,6 +105,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   } else {
     console.log('LLM: auto (enabled when providers are ready)');
   }
+  console.log(`Agent docs update: ${updateAgentDocs ? 'enabled' : 'disabled (opt-in)'}`);
 
   const runBootstrapFlow = async (
     runWorkspaceRoot: string,
@@ -316,6 +319,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         llmProvider,
         llmModelId,
         emitBaseline,
+        updateAgentDocs,
         ...scopeOverrides,
         forceReindex: force,
         forceResume,

@@ -343,6 +343,29 @@ describe('Feedback Loop Integration', () => {
         expect(context?.packIds).toBeDefined();
       }
     });
+
+    it('restores feedbackToken context from storage after module reload', async () => {
+      const queryModule = await import('../query.js');
+      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
+      await storage.initialize();
+
+      await seedStorageForQuery(storage, 'src/feedback/reload_test.ts');
+      const result = await queryModule.queryLibrarian(
+        { intent: 'feedback reload query', depth: 'L1' },
+        storage
+      );
+
+      expect(result.feedbackToken).toBeDefined();
+
+      // Simulate fresh process/module state (in-memory cache cleared).
+      vi.resetModules();
+      const reloadedModule = await import('../query.js');
+      const restored = await reloadedModule.getFeedbackContext(result.feedbackToken as string, storage);
+
+      expect(restored).toBeDefined();
+      expect(restored?.feedbackToken).toBe(result.feedbackToken);
+      expect(restored?.packIds).toEqual(result.packs.map((pack) => pack.packId));
+    });
   });
 
   describe('confidence bounds', () => {

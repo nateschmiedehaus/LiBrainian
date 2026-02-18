@@ -32,6 +32,10 @@ import {
   type BlastRadiusEstimate,
   type CascadeResult,
 } from '../graphs/cascading_impact.js';
+import {
+  parseStructuralQueryIntent,
+  executeExhaustiveDependencyQuery,
+} from '../api/dependency_query.js';
 
 // ============================================================================
 // TYPE COMPATIBILITY TYPES
@@ -705,20 +709,46 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
    * Step 1: Find all usages of an entity.
    */
   private async findAllUsages(entityId: string): Promise<Usage[]> {
-    // Use librarian semantic search to find usages
-    const queryResult = await this.librarian.queryOptional({
-      intent: `Find all usages of ${entityId}`,
-      depth: 'L2',
-      taskType: 'understand',
-    });
-
     const usages: Usage[] = [];
 
-    // Extract usages from context packs
-    if (queryResult.packs) {
-      for (const pack of queryResult.packs) {
-        const extractedUsages = this.extractUsagesFromPack(pack, entityId);
-        usages.push(...extractedUsages);
+    // Prefer exhaustive graph traversal so refactoring impact is never top-k truncated.
+    const maybeGetStorage = (this.librarian as { getStorage?: () => unknown }).getStorage;
+    const storage =
+      typeof maybeGetStorage === 'function' ? maybeGetStorage.call(this.librarian) : undefined;
+    if (storage) {
+      try {
+        const intent = parseStructuralQueryIntent(`What depends on ${entityId}?`);
+        const exhaustive = await executeExhaustiveDependencyQuery(storage as LibrarianStorage, intent, {
+          includeTransitive: true,
+          maxDepth: 20,
+        });
+        for (const hit of exhaustive.results) {
+          usages.push({
+            file: hit.sourceFile || hit.entityId,
+            line: hit.sourceLine ?? 0,
+            column: 0,
+            context: `${hit.edgeType} dependency on ${entityId}`,
+            usageType: mapEdgeTypeToUsageType(hit.edgeType),
+          });
+        }
+      } catch {
+        // Fall back to semantic search when exhaustive traversal is unavailable.
+      }
+    }
+
+    if (usages.length === 0) {
+      const queryResult = await this.librarian.queryOptional({
+        intent: `Find all usages of ${entityId}`,
+        depth: 'L2',
+        taskType: 'understand',
+        perspective: 'modification',
+      });
+
+      if (queryResult.packs) {
+        for (const pack of queryResult.packs) {
+          const extractedUsages = this.extractUsagesFromPack(pack, entityId);
+          usages.push(...extractedUsages);
+        }
       }
     }
 
@@ -1127,6 +1157,21 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
       case 'absent':
         return 0;
     }
+  }
+}
+
+function mapEdgeTypeToUsageType(edgeType: string): Usage['usageType'] {
+  switch (edgeType) {
+    case 'imports':
+      return 'import';
+    case 'extends':
+      return 'extend';
+    case 'implements':
+      return 'implement';
+    case 'calls':
+      return 'call';
+    default:
+      return 'reference';
   }
 }
 

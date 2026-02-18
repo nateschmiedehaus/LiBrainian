@@ -1,6 +1,7 @@
 // Wave0 integration points for Librarian.
 
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import type { Librarian } from '../api/librarian.js';
 import type { LibrarianQuery, LibrarianResponse, ContextPack } from '../types.js';
 import type { LibrarianStorage } from '../storage/types.js';
@@ -73,9 +74,13 @@ export async function enrichTaskContext(
   try {
     const waitRaw = query.waitForIndexMs ?? Number.parseInt(process.env.LIBRARIAN_LIBRARIAN_WAIT_INDEX_MS ?? '', 10);
     const waitForIndexMs = Number.isFinite(waitRaw) && waitRaw > 0 ? waitRaw : undefined;
+    const affectedFiles = query.affectedFiles
+      ?.map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => path.isAbsolute(value) ? value : path.resolve(workspace, value));
     const response = await librarian.queryOptional({
       intent: query.intent,
-      affectedFiles: query.affectedFiles,
+      affectedFiles,
       taskType: query.taskType,
       depth: 'L1',
       waitForIndexMs,

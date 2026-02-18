@@ -2762,6 +2762,7 @@ export async function queryLibrarian(
   }
 
   const postProcessingStage = stageTracker.start('post_processing', 1);
+  let storageWriteDegraded = false;
   const verificationPlan = createQueryVerificationPlan({
     query,
     packs: finalPacks,
@@ -2774,7 +2775,15 @@ export async function queryLibrarian(
       await saveVerificationPlan(storage, verificationPlan, { adequacyReport });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      recordCoverageGap('post_processing', `Verification plan save failed: ${message}`, 'minor');
+      if (isStorageWriteDegradedError(message)) {
+        storageWriteDegraded = true;
+        const degradedMessage = createStorageWriteDegradedMessage(message);
+        disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
+        drillDownHints.unshift(degradedMessage);
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+      } else {
+        recordCoverageGap('post_processing', `Verification plan save failed: ${message}`, 'minor');
+      }
     }
   }
 
@@ -2783,13 +2792,13 @@ export async function queryLibrarian(
   const feedbackToken = generateUUID('fbk_');
 
   // Store feedback context for later attribution
-  storeFeedbackContext({
+  await storeFeedbackContext({
     feedbackToken,
     packIds: finalPacks.map(p => p.packId),
     queryIntent: query.intent ?? '',
     queryDepth: query.depth ?? 'L1',
     createdAt: getNow(),
-  });
+  }, storage);
 
   // Mark the first/best pack as the primary result for agent ergonomics
   // This gives agents a clear "start here" signal
@@ -2887,7 +2896,16 @@ export async function queryLibrarian(
     await recordQueryEpisode(storage, { query, response, durationMs: response.latencyMs });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    recordCoverageGap('post_processing', `Episode record failed: ${message}`, 'minor');
+    if (isStorageWriteDegradedError(message)) {
+      if (!storageWriteDegraded) {
+        const degradedMessage = createStorageWriteDegradedMessage(message);
+        disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
+        drillDownHints.unshift(degradedMessage);
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+      }
+    } else {
+      recordCoverageGap('post_processing', `Episode record failed: ${message}`, 'minor');
+    }
     response.coverageGaps = coverageGaps;
   }
   stageTracker.finish(postProcessingStage, { outputCount: 1, filteredCount: 0 });
@@ -3031,12 +3049,50 @@ export interface FeedbackContext {
 const FEEDBACK_CONTEXT_LIMIT = 500;
 const FEEDBACK_CONTEXT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const feedbackContextCache = new Map<string, FeedbackContext>();
+const FEEDBACK_CONTEXT_STATE_KEY = 'feedback_context_v1';
+
+function parseFeedbackContextList(raw: string | null): FeedbackContext[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is FeedbackContext => {
+      if (!value || typeof value !== 'object') return false;
+      const record = value as Partial<FeedbackContext>;
+      return (
+        typeof record.feedbackToken === 'string' &&
+        Array.isArray(record.packIds) &&
+        typeof record.queryIntent === 'string' &&
+        typeof record.queryDepth === 'string' &&
+        typeof record.createdAt === 'string'
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function pruneFeedbackContexts(contexts: FeedbackContext[]): FeedbackContext[] {
+  const now = Date.now();
+  const deduped = new Map<string, FeedbackContext>();
+
+  for (const context of contexts) {
+    const createdAtMs = Date.parse(context.createdAt);
+    if (!Number.isFinite(createdAtMs)) continue;
+    if (now - createdAtMs > FEEDBACK_CONTEXT_TTL_MS) continue;
+    deduped.set(context.feedbackToken, context);
+  }
+
+  return Array.from(deduped.values())
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+    .slice(-FEEDBACK_CONTEXT_LIMIT);
+}
 
 /**
  * Store feedback context for a query result.
  * Called internally when generating feedbackToken.
  */
-function storeFeedbackContext(context: FeedbackContext): void {
+async function storeFeedbackContext(context: FeedbackContext, storage?: LibrarianStorage): Promise<void> {
   feedbackContextCache.set(context.feedbackToken, context);
 
   // Prune old entries if over limit
@@ -3061,6 +3117,16 @@ function storeFeedbackContext(context: FeedbackContext): void {
         feedbackContextCache.delete(token);
       }
     }
+  }
+
+  if (!storage) return;
+
+  try {
+    const persisted = parseFeedbackContextList(await storage.getState(FEEDBACK_CONTEXT_STATE_KEY));
+    const merged = pruneFeedbackContexts([...persisted, context]);
+    await storage.setState(FEEDBACK_CONTEXT_STATE_KEY, JSON.stringify(merged));
+  } catch {
+    // Feedback persistence should never fail the main query path.
   }
 }
 
@@ -5630,19 +5696,30 @@ function applyAdequacyToSynthesis(
  */
 export async function getFeedbackContext(
   feedbackToken: string,
-  _storage: LibrarianStorage
+  storage: LibrarianStorage
 ): Promise<FeedbackContext | null> {
   const context = feedbackContextCache.get(feedbackToken);
-  if (!context) return null;
-
-  // Check if expired
-  const age = Date.now() - new Date(context.createdAt).getTime();
-  if (age > FEEDBACK_CONTEXT_TTL_MS) {
+  if (context) {
+    const age = Date.now() - new Date(context.createdAt).getTime();
+    if (age <= FEEDBACK_CONTEXT_TTL_MS) {
+      return context;
+    }
     feedbackContextCache.delete(feedbackToken);
-    return null;
   }
 
-  return context;
+  try {
+    const persisted = parseFeedbackContextList(await storage.getState(FEEDBACK_CONTEXT_STATE_KEY));
+    const pruned = pruneFeedbackContexts(persisted);
+    if (pruned.length !== persisted.length) {
+      await storage.setState(FEEDBACK_CONTEXT_STATE_KEY, JSON.stringify(pruned));
+    }
+    const match = pruned.find((entry) => entry.feedbackToken === feedbackToken);
+    if (!match) return null;
+    feedbackContextCache.set(match.feedbackToken, match);
+    return match;
+  } catch {
+    return null;
+  }
 }
 
 function resolveStorageCapabilities(storage: LibrarianStorage): StorageCapabilities {
@@ -6986,6 +7063,26 @@ function generateDrillDownHints(packs: ContextPack[], query: LibrarianQuery): Dr
 
   return { hints, followUpQueries };
 }
+
+function isStorageWriteDegradedError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('storage_lock_compromised')
+    || lower.includes('storage_locked')
+    || lower.includes('database is locked')
+    || lower.includes('sqlite_busy')
+    || lower.includes('unable to update lock within the stale threshold')
+  );
+}
+
+function createStorageWriteDegradedMessage(rawMessage: string): string {
+  const cleaned = rawMessage
+    .replace(/\bunverified_by_trace\([^)]+\):\s*/gi, '')
+    .trim();
+  const detail = cleaned.length > 0 ? cleaned : 'storage unavailable';
+  return `Session degraded: results were returned but could not be persisted (${detail}). Run \`librarian doctor --heal\` to recover.`;
+}
+
 function getCurrentVersion(): LibrarianVersion { return { major: LIBRARIAN_VERSION.major, minor: LIBRARIAN_VERSION.minor, patch: LIBRARIAN_VERSION.patch, string: LIBRARIAN_VERSION.string, qualityTier: 'full', indexedAt: new Date(), indexerVersion: LIBRARIAN_VERSION.string, features: [...LIBRARIAN_VERSION.features] }; }
 
 /**

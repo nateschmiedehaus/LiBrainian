@@ -154,7 +154,8 @@ export interface LibrarianConfig {
    * - Stale settings
    * - Suboptimal performance configurations
    *
-   * Defaults to false for backward compatibility.
+   * Defaults to false to avoid mutating repository configuration unless explicitly requested.
+   * CLI onboarding commands (`quickstart`, `doctor --heal`, `config heal`) enable this deliberately.
    */
   autoHealConfig?: boolean;
   /**

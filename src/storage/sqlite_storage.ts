@@ -110,6 +110,7 @@ import { LIBRARIAN_VERSION } from '../index.js';
 import { applyMigrations } from '../api/migrations.js';
 import { noResult } from '../api/empty_values.js';
 import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
+import { attemptStorageRecovery } from './storage_recovery.js';
 import {
   createEmptyRedactionCounts,
   createRedactionAuditReport,
@@ -257,6 +258,43 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     this.redactionTotals = createEmptyRedactionCounts();
   }
 
+  private async acquireProcessLock(): Promise<void> {
+    // IMPORTANT: proper-lockfile will throw an uncaught exception by default if it considers a lock compromised
+    // (e.g., event loop stalls preventing timely lock refresh). Always provide an onCompromised handler.
+    // Also: keep `stale` comfortably above any realistic "blocked event loop" window to avoid false positives
+    // during long synchronous work (SQLite WAL checkpoints, embedding model loads, etc.).
+    this.releaseLock = await lockfile.lock(this.dbPath, {
+      lockfilePath: this.lockPath,
+      stale: LOCK_STALE_TIMEOUT_MS,
+      update: LOCK_UPDATE_INTERVAL_MS,
+      onCompromised: (err) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.lockCompromisedError = error;
+        logWarning('SQLite lock compromised; treating storage as unsafe', {
+          path: this.lockPath,
+          error: error.message,
+        });
+        try {
+          if (this.db) {
+            this.db.close();
+            this.db = null;
+          }
+        } catch (closeError) {
+          logWarning('Failed to close DB after lock compromise', { path: this.dbPath, error: closeError });
+        }
+        void this.releaseLock?.().catch((releaseError) => {
+          logWarning('Failed to release lock after compromise', { path: this.lockPath, error: releaseError });
+        });
+      },
+      retries: {
+        retries: LOCK_MAX_RETRIES,
+        factor: 1.5,
+        minTimeout: 200,
+        maxTimeout: 10_000,
+      },
+    });
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) return;
     await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
@@ -269,6 +307,13 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
         // Lock exists but may be stale from a crashed process
         // The proper-lockfile library will handle this via the stale option
         logWarning('Existing lock detected, will attempt to acquire with stale recovery', { path: this.lockPath });
+        const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+        if (proactiveRecovery.recovered) {
+          logWarning('Recovered stale lock state before acquisition', {
+            path: this.lockPath,
+            actions: proactiveRecovery.actions,
+          });
+        }
       }
     } catch (checkError) {
       // Lock check failed, proceed with acquisition which will handle this case
@@ -279,43 +324,27 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     }
 
     try {
-      // IMPORTANT: proper-lockfile will throw an uncaught exception by default if it considers a lock compromised
-      // (e.g., event loop stalls preventing timely lock refresh). Always provide an onCompromised handler.
-      // Also: keep `stale` comfortably above any realistic "blocked event loop" window to avoid false positives
-      // during long synchronous work (SQLite WAL checkpoints, embedding model loads, etc.).
-      this.releaseLock = await lockfile.lock(this.dbPath, {
-        lockfilePath: this.lockPath,
-        stale: LOCK_STALE_TIMEOUT_MS,
-        update: LOCK_UPDATE_INTERVAL_MS,
-        onCompromised: (err) => {
-          const error = err instanceof Error ? err : new Error(String(err));
-          this.lockCompromisedError = error;
-          logWarning('SQLite lock compromised; treating storage as unsafe', {
-            path: this.lockPath,
-            error: error.message,
-          });
-          try {
-            if (this.db) {
-              this.db.close();
-              this.db = null;
-            }
-          } catch (closeError) {
-            logWarning('Failed to close DB after lock compromise', { path: this.dbPath, error: closeError });
-          }
-          void this.releaseLock?.().catch((releaseError) => {
-            logWarning('Failed to release lock after compromise', { path: this.lockPath, error: releaseError });
-          });
-        },
-        retries: {
-          retries: LOCK_MAX_RETRIES,
-          factor: 1.5,
-          minTimeout: 200,
-          maxTimeout: 10_000,
-        },
-      });
+      await this.acquireProcessLock();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+        recovered: false,
+        actions: [] as string[],
+        errors: [String(recoveryError)],
+      }));
+      if (!recovery.recovered) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      }
+      logWarning('Recovered storage lock state; retrying lock acquisition', {
+        path: this.lockPath,
+        actions: recovery.actions,
+      });
+      try {
+        await this.acquireProcessLock();
+      } catch (retryError) {
+        const message = retryError instanceof Error ? retryError.message : String(retryError);
+        throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      }
     }
 
     try {

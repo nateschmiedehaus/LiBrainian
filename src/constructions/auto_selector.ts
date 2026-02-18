@@ -24,6 +24,7 @@ import type {
   Framework,
   ProjectPattern,
   ConstructableId,
+  ConstructableAvailability,
 } from './constructable_types.js';
 import {
   listConstructableDefinitions,
@@ -100,6 +101,8 @@ export interface ConstructableConfig {
   priority: number;
   /** Configuration overrides */
   config?: Record<string, unknown>;
+  /** Availability status from registry. */
+  availability: ConstructableAvailability;
 }
 
 /**
@@ -148,6 +151,8 @@ export interface OptimalConstructableConfig {
   analysis: ProjectAnalysis;
   /** Reasons for recommendations */
   reasons: string[];
+  /** Runtime warnings about selected constructables. */
+  warnings: string[];
 }
 
 /**
@@ -970,6 +975,7 @@ export function selectConstructables(
 ): OptimalConstructableConfig {
   const configurations: ConstructableConfig[] = [];
   const reasons: string[] = [];
+  const warnings: string[] = [];
   const minConfidence = overrides?.minConfidence ?? 0.5;
 
   // Collect detected frameworks and languages for quick lookup
@@ -1038,6 +1044,7 @@ export function selectConstructables(
     // Apply manual overrides
     const forceEnabled = overrides?.forceEnable?.includes(mapping.id);
     const forceDisabled = overrides?.forceDisable?.includes(mapping.id);
+    const availability = getConstructableDefinition(mapping.id)?.availability ?? 'ready';
 
     if (forceEnabled) {
       confidence = 1.0;
@@ -1045,10 +1052,19 @@ export function selectConstructables(
     } else if (forceDisabled) {
       confidence = 0;
       matchReasons.push('manually disabled');
+    } else if (availability === 'experimental') {
+      confidence = Math.min(confidence, 0.7);
+      matchReasons.push('availability: experimental');
+    } else if (availability === 'stub') {
+      confidence = 0;
+      matchReasons.push('availability: stub');
     }
 
     const enabled = confidence >= minConfidence && !forceDisabled;
     const config = overrides?.configOverrides?.[mapping.id];
+    if (enabled && availability === 'experimental') {
+      warnings.push(`experimental_constructable_enabled:${mapping.id}`);
+    }
 
     configurations.push({
       id: mapping.id,
@@ -1057,6 +1073,7 @@ export function selectConstructables(
       reason: matchReasons.join(', ') || 'no matches',
       priority,
       config,
+      availability,
     });
 
     if (enabled && matchReasons.length > 0) {
@@ -1083,6 +1100,7 @@ export function selectConstructables(
     confidence: Math.round(overallConfidence * 100) / 100,
     analysis,
     reasons,
+    warnings,
   };
 }
 
@@ -1231,6 +1249,7 @@ export async function integrateWithBootstrap(
         packageManagers: [],
       },
       reasons: ['auto-selection disabled'],
+      warnings: [],
     };
   }
 

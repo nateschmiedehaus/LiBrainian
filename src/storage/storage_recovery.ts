@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import * as path from 'node:path';
 import { logWarning, logInfo } from '../telemetry/logger.js';
 
 export interface StorageRecoveryResult {
@@ -16,6 +17,22 @@ const LOCK_STALE_TIMEOUT_MS = 15 * 60_000;
 const LOCK_DIR_RECOVERY_TIMEOUT_MS = 2 * 60_000;
 const LOCK_EMPTY_DIR_RECOVERY_TIMEOUT_MS = 20_000;
 const LOCK_PID_UNKNOWN_RECOVERY_TIMEOUT_MS = 5_000;
+const WORKSPACE_LOCK_UNKNOWN_STALE_TIMEOUT_MS = 2 * 60 * 60_000;
+const WORKSPACE_LOCK_DIRECTORIES = ['.librarian/locks', '.librarian/swarm/locks'] as const;
+
+export interface WorkspaceLockInspection {
+  lockDirs: string[];
+  scannedFiles: number;
+  staleFiles: number;
+  activePidFiles: number;
+  unknownFreshFiles: number;
+  stalePaths: string[];
+}
+
+export interface WorkspaceLockCleanupResult extends WorkspaceLockInspection {
+  removedFiles: number;
+  errors: string[];
+}
 
 function isPidAlive(pid: number): boolean {
   try {
@@ -207,4 +224,93 @@ export async function attemptStorageRecovery(
   }
 
   return { recovered: actions.length > 0 && !lockBlocked, actions, errors };
+}
+
+async function inspectSingleWorkspaceLock(lockPath: string): Promise<{
+  stale: boolean;
+  activePid: boolean;
+}> {
+  const pid = await readLockPid(lockPath);
+  const ageMs = await lockAgeMs(lockPath);
+  if (pid !== null) {
+    return {
+      stale: !isPidAlive(pid),
+      activePid: isPidAlive(pid),
+    };
+  }
+  const stale = ageMs !== null && ageMs > WORKSPACE_LOCK_UNKNOWN_STALE_TIMEOUT_MS;
+  return {
+    stale,
+    activePid: false,
+  };
+}
+
+export async function inspectWorkspaceLocks(workspaceRoot: string): Promise<WorkspaceLockInspection> {
+  const lockDirs = WORKSPACE_LOCK_DIRECTORIES.map((relativeDir) => path.join(workspaceRoot, relativeDir));
+  const result: WorkspaceLockInspection = {
+    lockDirs,
+    scannedFiles: 0,
+    staleFiles: 0,
+    activePidFiles: 0,
+    unknownFreshFiles: 0,
+    stalePaths: [],
+  };
+
+  for (const lockDir of lockDirs) {
+    if (!existsSync(lockDir)) continue;
+    let entries: string[];
+    try {
+      entries = await fs.readdir(lockDir);
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.endsWith('.lock')) continue;
+      const lockPath = path.join(lockDir, entry);
+      result.scannedFiles += 1;
+      const inspection = await inspectSingleWorkspaceLock(lockPath);
+      if (inspection.activePid) {
+        result.activePidFiles += 1;
+        continue;
+      }
+      if (inspection.stale) {
+        result.staleFiles += 1;
+        result.stalePaths.push(lockPath);
+        continue;
+      }
+      result.unknownFreshFiles += 1;
+    }
+  }
+
+  return result;
+}
+
+export async function cleanupWorkspaceLocks(workspaceRoot: string): Promise<WorkspaceLockCleanupResult> {
+  const inspection = await inspectWorkspaceLocks(workspaceRoot);
+  const errors: string[] = [];
+  let removedFiles = 0;
+
+  for (const stalePath of inspection.stalePaths) {
+    try {
+      await removeLockPath(stalePath);
+      removedFiles += 1;
+    } catch (error) {
+      errors.push(`remove_failed:${stalePath}:${String(error)}`);
+    }
+  }
+
+  if (removedFiles > 0) {
+    logInfo('[storage-recovery] removed stale workspace lock files', {
+      workspaceRoot,
+      removedFiles,
+      staleFiles: inspection.staleFiles,
+    });
+  }
+
+  return {
+    ...inspection,
+    removedFiles,
+    errors,
+  };
 }
