@@ -23,7 +23,11 @@ function run(command, args, options = {}) {
 
 async function main() {
   const repoRoot = process.cwd();
-  const packedName = run('npm', ['pack', '--silent'], { cwd: repoRoot }).split('\n').pop()?.trim();
+  const rawPackOutput = run('npm', ['pack', '--json', '--silent'], { cwd: repoRoot });
+  const parsedPackOutput = JSON.parse(rawPackOutput);
+  const packedName = Array.isArray(parsedPackOutput)
+    ? parsedPackOutput[0]?.filename
+    : undefined;
   if (!packedName) {
     throw new Error('npm pack did not produce a tarball name');
   }
