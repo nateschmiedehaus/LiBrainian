@@ -16,6 +16,8 @@
  *   librarian check-providers     - Check provider availability
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
+ *   librarian setup               - Quickstart alias (setup-oriented naming)
+ *   librarian init                - Quickstart alias (init-oriented naming)
  *   librarian smoke               - Run external repo smoke harness
  *   librarian journey             - Run agentic journey simulations
  *   librarian live-fire           - Run continuous objective trial matrix
@@ -81,7 +83,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -154,7 +156,15 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'quickstart': {
     description: 'Smooth onboarding and recovery flow',
-    usage: 'librarian quickstart [--mode fast|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline]',
+    usage: 'librarian quickstart [--mode fast|full|--depth quick|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline] [--ci] [--no-mcp]',
+  },
+  'setup': {
+    description: 'Setup-oriented alias for quickstart onboarding',
+    usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
+  },
+  'init': {
+    description: 'Init-oriented alias for quickstart onboarding',
+    usage: 'librarian init [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'smoke': {
     description: 'Run external repo smoke harness',
@@ -368,6 +378,8 @@ async function main(): Promise<void> {
         await coverageCommand({ workspace, args: commandArgs });
         break;
       case 'quickstart':
+      case 'setup':
+      case 'init':
         await quickstartCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'smoke':

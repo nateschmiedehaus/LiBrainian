@@ -12,11 +12,14 @@ USAGE:
 
 START HERE:
     librainian quickstart
+    librainian setup --depth quick
     librainian query "How does authentication work?"
     librainian status --format json
 
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
+    setup               Alias for quickstart (setup-oriented naming)
+    init                Alias for quickstart (init-oriented naming)
     query <intent>      Run a query against the knowledge base
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
@@ -309,10 +312,13 @@ USAGE:
 
 OPTIONS:
     --mode <name>       Bootstrap mode: fast | full (default: fast)
+    --depth <name>      Setup depth alias: quick | full (quick maps to fast)
     --risk-tolerance <t>  Config heal risk: safe | low | medium (default: low)
     --force             Force bootstrap even if not required
     --skip-baseline     Skip writing OnboardingBaseline.v1
     --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
+    --ci                CI-friendly mode (non-interactive, skips MCP registration)
+    --no-mcp            Skip MCP registration/setup steps
     --json              Output results as JSON
 
 DESCRIPTION:
@@ -327,10 +333,43 @@ DESCRIPTION:
 
 EXAMPLES:
     librarian quickstart
+    librarian setup --depth quick --ci --no-mcp
+    librarian init --depth full
     librarian quickstart --mode full
     librarian quickstart --force --skip-baseline
     librarian quickstart --update-agent-docs
     librarian quickstart --json
+`,
+
+  setup: `
+librarian setup - Alias for quickstart onboarding
+
+USAGE:
+    librarian setup [options]
+
+DESCRIPTION:
+    Runs the same onboarding flow as:
+    librarian quickstart [options]
+
+    Common setup invocation:
+    librarian setup --depth quick --ci --no-mcp
+
+See:
+    librarian help quickstart
+`,
+
+  init: `
+librarian init - Alias for quickstart onboarding
+
+USAGE:
+    librarian init [options]
+
+DESCRIPTION:
+    Runs the same onboarding flow as:
+    librarian quickstart [options]
+
+See:
+    librarian help quickstart
 `,
 
   smoke: `

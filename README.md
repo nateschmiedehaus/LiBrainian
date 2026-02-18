@@ -80,6 +80,8 @@ If this query returns a summary + files + confidence, your install is healthy.
 ```bash
 # 1) Bootstrap + heal + baseline in one pass
 npx librainian quickstart
+# setup/init aliases (same flow, setup-oriented naming)
+npx librainian setup --depth quick
 
 # 2) Ask for context
 npx librainian query "Where is authentication enforced?"
@@ -165,6 +167,7 @@ LiBrainian auto-detects what is present and indexes only what is available in th
 
 ```bash
 # Day 0 / onboarding
+npx librainian setup --depth quick
 npx librainian quickstart
 npx librainian bootstrap .
 npx librainian doctor --heal

@@ -25,6 +25,12 @@ interface QuickstartReport {
   status: QuickstartStatus;
   workspace: string;
   mode: 'fast' | 'full';
+  ci: boolean;
+  mcp: {
+    enabled: boolean;
+    configured: boolean;
+    skipped: boolean;
+  };
   baseline: boolean;
   updateAgentDocs: boolean;
   warnings: string[];
@@ -43,6 +49,13 @@ function resolveRiskTolerance(raw?: string): 'safe' | 'low' | 'medium' {
   const normalized = raw.trim().toLowerCase();
   if (normalized === 'safe' || normalized === 'low' || normalized === 'medium') return normalized;
   throw createError('INVALID_ARGUMENT', `Unknown risk tolerance "${raw}" (use "safe", "low", or "medium").`);
+}
+
+function resolveDepth(raw?: string): 'quick' | 'full' | undefined {
+  if (!raw) return undefined;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'quick' || normalized === 'full') return normalized;
+  throw createError('INVALID_ARGUMENT', `Unknown depth "${raw}" (use "quick" or "full").`);
 }
 
 function summarizeRecovery(recovery: {
@@ -109,10 +122,13 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     args: rawArgs.slice(1),
     options: {
       mode: { type: 'string', default: 'fast' },
+      depth: { type: 'string' },
       'risk-tolerance': { type: 'string' },
       force: { type: 'boolean', default: false },
       'skip-baseline': { type: 'boolean', default: false },
       'update-agent-docs': { type: 'boolean', default: false },
+      ci: { type: 'boolean', default: false },
+      'no-mcp': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
     },
     allowPositionals: true,
@@ -129,12 +145,23 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     }
   }
 
-  const bootstrapMode = resolveBootstrapMode(String(values.mode ?? 'fast'));
+  const depth = resolveDepth(typeof values.depth === 'string' ? values.depth : undefined);
+  const modeFromFlag = resolveBootstrapMode(String(values.mode ?? 'fast'));
+  const modeFromDepth = depth === 'quick' ? 'fast' : depth === 'full' ? 'full' : undefined;
+  const bootstrapMode = modeFromDepth ?? modeFromFlag;
+  if (modeFromDepth && modeFromFlag !== modeFromDepth && rawArgs.slice(1).includes('--mode')) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Conflicting options: --mode ${modeFromFlag} does not match --depth ${depth}.`
+    );
+  }
   const riskTolerance = resolveRiskTolerance(typeof values['risk-tolerance'] === 'string' ? values['risk-tolerance'] : undefined);
   const forceBootstrap = values.force as boolean;
   const skipBaseline = values['skip-baseline'] as boolean;
   const emitBaseline = !skipBaseline;
   const updateAgentDocs = values['update-agent-docs'] as boolean;
+  const ci = values.ci as boolean;
+  const noMcp = values['no-mcp'] as boolean;
   const json = values.json as boolean;
 
   const dbPath = await resolveDbPath(workspaceRoot);
@@ -152,13 +179,25 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
   });
 
   const summary = summarizeRecovery(recovery as any);
+  const warnings = [...summary.warnings];
+  if (noMcp) {
+    warnings.push('MCP registration skipped (--no-mcp).');
+  } else if (ci) {
+    warnings.push('CI mode enabled: MCP auto-registration is skipped.');
+  }
   const report: QuickstartReport = {
     status: summary.status,
     workspace: workspaceRoot,
     mode: bootstrapMode,
+    ci,
+    mcp: {
+      enabled: !noMcp,
+      configured: false,
+      skipped: noMcp || ci,
+    },
     baseline: emitBaseline,
     updateAgentDocs,
-    warnings: summary.warnings,
+    warnings,
     errors: summary.errors,
     recovery,
   };
@@ -171,6 +210,8 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     printKeyValue([
       { key: 'Workspace', value: workspaceRoot },
       { key: 'Mode', value: bootstrapMode },
+      { key: 'CI Mode', value: ci ? 'enabled' : 'disabled' },
+      { key: 'MCP Registration', value: noMcp || ci ? 'skipped' : 'manual setup (run `librarian mcp --print-config`)' },
       { key: 'Baseline', value: emitBaseline ? 'enabled' : 'disabled' },
       { key: 'Agent Docs Update', value: updateAgentDocs ? 'enabled' : 'disabled' },
       { key: 'Status', value: summary.status.toUpperCase() },
@@ -212,9 +253,9 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       },
     ]);
 
-    if (summary.warnings.length > 0) {
+    if (warnings.length > 0) {
       console.log('\nWarnings:');
-      for (const warning of summary.warnings) {
+      for (const warning of warnings) {
         console.log(`  - ${warning}`);
       }
     }

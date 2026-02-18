@@ -83,6 +83,34 @@ describe('quickstartCommand', () => {
     expect(parsed.status).toBeTruthy();
   });
 
+  it('supports setup-compatible depth/ci/no-mcp flags', async () => {
+    await quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['setup', '--depth', 'quick', '--ci', '--no-mcp', '--json'],
+    });
+
+    expect(runOnboardingRecovery).toHaveBeenCalledWith(expect.objectContaining({
+      bootstrapMode: 'fast',
+    }));
+
+    const payload = consoleLogSpy.mock.calls
+      .map(call => call[0])
+      .find(value => typeof value === 'string' && value.includes('"mcp"')) as string | undefined;
+    expect(payload).toBeTruthy();
+    const parsed = JSON.parse(payload!);
+    expect(parsed.ci).toBe(true);
+    expect(parsed.mcp?.skipped).toBe(true);
+  });
+
+  it('throws on conflicting --mode and --depth values', async () => {
+    await expect(quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['setup', '--mode', 'full', '--depth', 'quick'],
+    })).rejects.toThrow(/Conflicting options/);
+  });
+
   it('surfaces bootstrap warnings in JSON output', async () => {
     vi.mocked(runOnboardingRecovery).mockResolvedValue({
       errors: [],
