@@ -220,7 +220,7 @@ export interface DocumentKnowledge {
   };
 }
 
-export type GraphEntityType = 'function' | 'module' | 'file' | 'directory';
+export type GraphEntityType = 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface';
 export type GraphEdgeType = 'calls' | 'imports' | 'extends' | 'implements';
 
 export interface GraphEdge {

@@ -404,8 +404,8 @@ function mapEntityType(type: string): KnowledgeGraphEdge['sourceType'] {
     module: 'module',
     file: 'file',
     directory: 'directory',
-    class: 'module',
-    interface: 'module',
+    class: 'class',
+    interface: 'interface',
   };
   return typeMap[type] || 'file';
 }
