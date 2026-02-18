@@ -132,4 +132,18 @@ describe('queryCommand LLM resolution', () => {
 
     expect(bootstrapProject).not.toHaveBeenCalled();
   });
+
+  it('parses intent from command args when raw argv includes pre-command globals', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: ['hello world', '--json'],
+      rawArgs: ['--workspace', '/tmp/workspace', 'query', 'hello world', '--json'],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.intent).toBe('hello world');
+  });
 });

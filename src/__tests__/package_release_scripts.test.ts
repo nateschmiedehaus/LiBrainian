@@ -24,6 +24,14 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
   });
 
+  it('runs dogfood commands from target workspace without mutating CLI args', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain("arg === '-w'");
+    expect(script).toContain('const binPath = path.join(sandboxDir, \'node_modules\', \'.bin\', \'librainian\')');
+    expect(script).toContain('cwd: workspace');
+  });
+
   it('defines staged validation scripts for daily, PR, and release gates', () => {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {

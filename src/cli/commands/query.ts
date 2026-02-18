@@ -30,11 +30,12 @@ export interface QueryCommandOptions {
 }
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
-  const { workspace, rawArgs } = options;
+  const { workspace, rawArgs, args } = options;
+  const commandArgs = args.length > 0 ? args : rawArgs.slice(1);
 
   // Parse command-specific options
   const { values, positionals } = parseArgs({
-    args: rawArgs.slice(1), // Skip 'query' command
+    args: commandArgs,
     options: {
       depth: { type: 'string', default: 'L1' },
       files: { type: 'string' },
