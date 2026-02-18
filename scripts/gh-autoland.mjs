@@ -61,6 +61,14 @@ function summarizeFailingChecks(checks) {
   return failures;
 }
 
+function canFallbackFromAutoMergeError(message) {
+  const normalized = String(message).toLowerCase();
+  return normalized.includes('enablepullrequestautomerge')
+    || normalized.includes('auto merge')
+    || normalized.includes('auto-merge')
+    || normalized.includes('protected branch rules not configured');
+}
+
 function main() {
   const { values } = parseArgs({
     args: process.argv.slice(2),
@@ -149,10 +157,25 @@ function main() {
     console.log(`[gh:autoland] Created PR #${prNumber}: ${prUrl}`);
   }
 
-  run('gh', ['pr', 'merge', String(prNumber), '--squash', '--auto']);
-  console.log(`[gh:autoland] Auto-merge enabled for PR #${prNumber}`);
+  let autoMergeEnabled = false;
+  try {
+    run('gh', ['pr', 'merge', String(prNumber), '--squash', '--auto']);
+    autoMergeEnabled = true;
+    console.log(`[gh:autoland] Auto-merge enabled for PR #${prNumber}`);
+  } catch (error) {
+    const message = String(error);
+    if (!canFallbackFromAutoMergeError(message)) {
+      throw error;
+    }
+    console.warn('[gh:autoland] Auto-merge not available in repository settings. Falling back to wait-then-merge mode.');
+  }
 
   if (values['no-watch']) {
+    if (!autoMergeEnabled) {
+      run('gh', ['pr', 'merge', String(prNumber), '--squash']);
+      console.log(`[gh:autoland] PR #${prNumber} merged with squash.`);
+      return;
+    }
     console.log(`[gh:autoland] Not watching checks. Track progress at: ${prUrl}`);
     return;
   }
@@ -183,6 +206,12 @@ function main() {
 
     const pending = checks.filter((check) => String(check.status ?? '').toLowerCase() !== 'completed');
     const mergeState = String(pr.mergeStateStatus ?? 'unknown');
+    if (!autoMergeEnabled && pending.length === 0) {
+      run('gh', ['pr', 'merge', String(prNumber), '--squash']);
+      console.log(`[gh:autoland] PR #${prNumber} merged with squash.`);
+      console.log(pr.url);
+      return;
+    }
     console.log(`[gh:autoland] Waiting... mergeState=${mergeState} pendingChecks=${pending.length} url=${pr.url}`);
     sleepSeconds(15);
   }
