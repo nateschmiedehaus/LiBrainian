@@ -14,6 +14,7 @@ import type {
   LlmRequired,
   LlmResult,
 } from '../types.js';
+import { sanitizeLibrarianResponse } from '../types.js';
 import type { AgentKnowledgeContext, ContextAssemblyOptions } from './context_assembly.js';
 import { createStorageSlices } from '../storage/slices.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
@@ -962,10 +963,7 @@ export class Librarian {
       { evidenceLedger: this.evidenceLedger ?? undefined }
     );
     const engines = await this.buildEngineResults(query, response);
-    if (engines) {
-      return { ...response, engines };
-    }
-    return response;
+    return sanitizeLibrarianResponse(engines ? { ...response, engines } : response);
   }
 
   async embedIntent(intent: string): Promise<Float32Array> {

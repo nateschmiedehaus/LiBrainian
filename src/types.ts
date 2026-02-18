@@ -1119,6 +1119,11 @@ export interface LibrarianResponse {
   methodHintSource?: 'uc' | 'taskType' | 'intent' | 'llm';
   explanation?: string;
   coverageGaps?: string[];
+  /**
+   * Raw epistemic trace markers removed from user-facing fields.
+   * Useful for diagnostics, verbose logs, and strict evidence checks.
+   */
+  epistemicsDebug?: string[];
   evidenceByPack?: Record<string, EvidenceRef[]>;
   engines?: LibrarianEngineResults;
   stages?: StageReport[];
@@ -1249,11 +1254,112 @@ export interface OutputEnvelope {
   traceId: string;
 }
 
+const TRACE_MARKER_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
+
+interface ParsedTraceMarkerMessage {
+  code?: string;
+  userMessage: string;
+  rawMessage: string;
+}
+
+function parseTraceMarkerMessage(message: string | undefined): ParsedTraceMarkerMessage {
+  const rawMessage = String(message ?? '').trim();
+  const match = rawMessage.match(TRACE_MARKER_PATTERN);
+  if (!match) {
+    return {
+      userMessage: rawMessage,
+      rawMessage,
+    };
+  }
+
+  const code = (match[1] ?? '').trim();
+  const detail = (match[2] ?? '').trim();
+  return {
+    code: code || undefined,
+    userMessage: detail || code.replace(/_/g, ' '),
+    rawMessage,
+  };
+}
+
+function sanitizeTraceMessageList(values: string[] | undefined, debug: string[]): string[] | undefined {
+  if (!Array.isArray(values)) return values;
+  const seen = new Set<string>();
+  const sanitized: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const parsed = parseTraceMarkerMessage(value);
+    if (parsed.code) debug.push(parsed.rawMessage);
+    const message = parsed.userMessage.trim();
+    if (!message || seen.has(message)) continue;
+    seen.add(message);
+    sanitized.push(message);
+  }
+  return sanitized;
+}
+
+function sanitizeTraceId(traceId: string | undefined, debug: string[]): string | undefined {
+  if (!traceId) return traceId;
+  const parsed = parseTraceMarkerMessage(traceId);
+  if (parsed.code) {
+    debug.push(parsed.rawMessage);
+    return parsed.code;
+  }
+  return parsed.userMessage || traceId;
+}
+
+export function sanitizeLibrarianResponse(response: LibrarianResponse): LibrarianResponse {
+  const debug = Array.isArray(response.epistemicsDebug)
+    ? response.epistemicsDebug.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  const disclosures = sanitizeTraceMessageList(response.disclosures, debug) ?? [];
+  const coverageGaps = sanitizeTraceMessageList(response.coverageGaps, debug);
+  const methodHints = sanitizeTraceMessageList(response.methodHints, debug);
+  const drillDownHints = sanitizeTraceMessageList(response.drillDownHints, debug) ?? [];
+  const parsedLlmError = response.llmError ? parseTraceMarkerMessage(response.llmError) : undefined;
+  const llmError = parsedLlmError?.userMessage;
+  if (parsedLlmError?.code) {
+    debug.push(parsedLlmError.rawMessage);
+  }
+  const followUpQueries = response.followUpQueries?.map((query) => ({
+    ...query,
+    reason: parseTraceMarkerMessage(query.reason).userMessage,
+  }));
+  const synthesis = response.synthesis
+    ? {
+      ...response.synthesis,
+      uncertainties: sanitizeTraceMessageList(response.synthesis.uncertainties, debug) ?? [],
+    }
+    : response.synthesis;
+
+  const sanitized = {
+    ...response,
+    disclosures,
+    coverageGaps,
+    methodHints,
+    drillDownHints,
+    llmError,
+    traceId: sanitizeTraceId(response.traceId, debug) ?? response.traceId,
+    followUpQueries,
+    synthesis,
+  };
+  const dedupedDebug = Array.from(new Set(debug));
+  if (dedupedDebug.length > 0) {
+    sanitized.epistemicsDebug = dedupedDebug;
+  } else {
+    sanitized.epistemicsDebug = undefined;
+  }
+  return sanitized;
+}
+
 export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResponse & OutputEnvelope {
   const disclosures = new Set(response.disclosures ?? []);
+  const epistemicsDebug = Array.isArray(response.epistemicsDebug)
+    ? response.epistemicsDebug.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
   let constructionPlan = response.constructionPlan;
   if (!constructionPlan) {
-    disclosures.add('unverified_by_trace(construction_plan_missing)');
+    disclosures.add('Construction plan missing; generated default plan.');
+    epistemicsDebug.push('unverified_by_trace(construction_plan_missing)');
     constructionPlan = {
       id: 'cp_unverified',
       templateId: 'T1',
@@ -1265,20 +1371,23 @@ export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResp
   }
   const adequacy = response.adequacy;
   if (!response.adequacy) {
-    disclosures.add('unverified_by_trace(adequacy_missing)');
+    disclosures.add('Adequacy report missing; verification completeness is unknown.');
+    epistemicsDebug.push('unverified_by_trace(adequacy_missing)');
   }
   const verificationPlan = response.verificationPlan;
   if (!response.verificationPlan) {
-    disclosures.add('unverified_by_trace(verification_plan_missing)');
+    disclosures.add('Verification plan missing; follow-up checks may be incomplete.');
+    epistemicsDebug.push('unverified_by_trace(verification_plan_missing)');
   }
 
-  return {
+  return sanitizeLibrarianResponse({
     ...response,
     constructionPlan,
     adequacy,
     verificationPlan,
     disclosures: Array.from(disclosures),
-  };
+    epistemicsDebug,
+  }) as LibrarianResponse & OutputEnvelope;
 }
 
 /**
