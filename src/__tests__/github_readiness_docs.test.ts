@@ -10,6 +10,8 @@ describe('github readiness docs', () => {
     expect(fs.existsSync(path.join(root, 'SECURITY.md'))).toBe(true);
     expect(fs.existsSync(path.join(root, '.github', 'CODEOWNERS'))).toBe(true);
     expect(fs.existsSync(path.join(root, '.github', 'ISSUE_TEMPLATE', 'config.yml'))).toBe(true);
+    expect(fs.existsSync(path.join(root, '.github', 'actions', 'librainian', 'action.yml'))).toBe(true);
+    expect(fs.existsSync(path.join(root, '.github', 'workflows', 'librainian-action-dogfood.yml'))).toBe(true);
   });
 
   it('links governance docs from README', () => {
@@ -18,6 +20,8 @@ describe('github readiness docs', () => {
     expect(readme).toContain('## Community Standards');
     expect(readme).toContain('[Code of Conduct](CODE_OF_CONDUCT.md)');
     expect(readme).toContain('[Security Policy](SECURITY.md)');
+    expect(readme).toContain('## GitHub Action (CI Index Refresh)');
+    expect(readme).toContain('uses: nateschmiedehaus/LiBrainian/.github/actions/librainian@main');
   });
 
   it('documents release-grade validation in contributing guide', () => {
