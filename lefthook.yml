@@ -1,0 +1,6 @@
+pre-commit:
+  parallel: true
+  commands:
+    librainian-update:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: node scripts/hook-update-index.mjs {staged_files}
