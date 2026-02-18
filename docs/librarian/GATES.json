@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-18T00:13:37.000Z",
+  "lastUpdated": "2026-02-18T16:42:17.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -1261,7 +1261,7 @@
     "validation": "unverified (evidence_manifest_missing)",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-18T00:13:37.000Z",
+    "lastVerified": "2026-02-18T16:42:17.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",

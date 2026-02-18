@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeGatesEvidenceShape, analyzeStatusEvidenceDrift } from '../drift_guard.js';
 
+function buildTrustCriticalTasks() {
+  return {
+    'layer5.retrievalRecall': { status: 'verified', note: 'covered', measured: { recallAt5: 0.82 } },
+    'layer5.retrievalPrecision': { status: 'verified', note: 'covered', measured: { precisionAt5: 0.74 } },
+    'layer5.hallucinationRate': { status: 'verified', note: 'covered', measured: { hallucinationRate: 0.03 } },
+    'layer7.metricsRAGAS': { status: 'verified', note: 'covered', measured: { faithfulness: 0.88 } },
+    'layer7.abExperiments': { status: 'verified', note: 'covered', measured: { t3Lift: 0.27 } },
+    'layer7.scenarioFamilies': { status: 'verified', note: 'covered', measured: { families: 6 } },
+    'layer7.performanceBenchmark': { status: 'verified', note: 'covered', measured: { memoryPerKLoc: 11.2 } },
+  };
+}
+
 describe('analyzeStatusEvidenceDrift', () => {
   it('passes when release claims are confined to autogen block', () => {
     const status = [
@@ -76,6 +88,18 @@ describe('analyzeStatusEvidenceDrift', () => {
     const findings = analyzeStatusEvidenceDrift(status);
     expect(findings).toEqual([]);
   });
+
+  it('flags unverified markers inside autogen block', () => {
+    const status = [
+      '# Status',
+      '<!-- EVIDENCE_AUTOGEN_START -->',
+      'unverified(provider_unavailable): metric output skipped',
+      '<!-- EVIDENCE_AUTOGEN_END -->',
+    ].join('\n');
+
+    const findings = analyzeStatusEvidenceDrift(status);
+    expect(findings.map((f) => f.code)).toContain('autogen_unverified_marker');
+  });
 });
 
 describe('analyzeGatesEvidenceShape', () => {
@@ -90,7 +114,23 @@ describe('analyzeGatesEvidenceShape', () => {
   });
 
   it('passes when tasks object exists', () => {
-    const findings = analyzeGatesEvidenceShape(JSON.stringify({ tasks: { a: { status: 'ok' } } }));
+    const findings = analyzeGatesEvidenceShape(JSON.stringify({ tasks: buildTrustCriticalTasks() }));
     expect(findings).toEqual([]);
+  });
+
+  it('flags missing trust-critical tasks', () => {
+    const findings = analyzeGatesEvidenceShape(JSON.stringify({ tasks: { 'layer5.retrievalRecall': { status: 'verified' } } }));
+    expect(findings.map((f) => f.code)).toContain('gates_trust_task_missing');
+  });
+
+  it('flags trust-critical tasks marked unverified', () => {
+    const tasks = buildTrustCriticalTasks();
+    tasks['layer7.metricsRAGAS'] = {
+      status: 'unverified',
+      note: 'unverified_by_trace(provider_unavailable): missing provider',
+      measured: { faithfulness: 'unverified(provider_unavailable)' },
+    };
+    const findings = analyzeGatesEvidenceShape(JSON.stringify({ tasks }));
+    expect(findings.map((f) => f.code)).toContain('gates_trust_task_unverified');
   });
 });

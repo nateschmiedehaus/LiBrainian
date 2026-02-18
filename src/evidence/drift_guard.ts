@@ -6,6 +6,16 @@ export interface DriftFinding {
 
 const EVIDENCE_AUTOGEN_START = '<!-- EVIDENCE_AUTOGEN_START -->';
 const EVIDENCE_AUTOGEN_END = '<!-- EVIDENCE_AUTOGEN_END -->';
+const UNVERIFIED_PATTERN = /unverified(?:_by_trace)?\s*\(/i;
+const TRUST_CRITICAL_TASK_KEYS = [
+  'layer5.retrievalRecall',
+  'layer5.retrievalPrecision',
+  'layer5.hallucinationRate',
+  'layer7.metricsRAGAS',
+  'layer7.abExperiments',
+  'layer7.scenarioFamilies',
+  'layer7.performanceBenchmark',
+];
 
 const RELEASE_CLAIM_PATTERN =
   /(Retrieval Recall@5|Context Precision|Hallucination Rate|Faithfulness|Answer Relevancy|A\/B Lift|Memory per 1K LOC|Scenario Families|\|\s*Metric\s*\|)/i;
@@ -39,10 +49,19 @@ export function analyzeStatusEvidenceDrift(statusContent: string): DriftFinding[
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const inAutogenBlock = i > startIdx && i < endIdx;
-    if (inAutogenBlock) continue;
+    if (inAutogenBlock) {
+      if (UNVERIFIED_PATTERN.test(line)) {
+        findings.push({
+          code: 'autogen_unverified_marker',
+          message: `Autogen block must not contain unverified markers: ${line.trim()}`,
+          line: i + 1,
+        });
+      }
+      continue;
+    }
     if (!RELEASE_CLAIM_PATTERN.test(line)) continue;
 
-    const hasUnverifiedContext = hasNearby(lines, i, /unverified(?:_by_trace)?\s*\(/i, 3)
+    const hasUnverifiedContext = hasNearby(lines, i, UNVERIFIED_PATTERN, 3)
       || hasNearby(lines, i, /table below is unverified/i, 12);
     const hasEvidenceReference = hasNearby(lines, i, EVIDENCE_REFERENCE_PATTERN, 3);
     if (hasUnverifiedContext || hasEvidenceReference) continue;
@@ -71,6 +90,34 @@ export function analyzeGatesEvidenceShape(gatesContent: string): DriftFinding[] 
       code: 'gates_tasks_missing',
       message: 'GATES.json must include a tasks object for evidence reconciliation.',
     });
+    return findings;
+  }
+
+  const tasks = parsed.tasks as Record<string, { status?: unknown; note?: unknown; measured?: unknown }>;
+  for (const key of TRUST_CRITICAL_TASK_KEYS) {
+    const task = tasks[key];
+    if (!task || typeof task !== 'object') {
+      findings.push({
+        code: 'gates_trust_task_missing',
+        message: `GATES.json must include trust-critical task: ${key}`,
+      });
+      continue;
+    }
+
+    const status = typeof task.status === 'string' ? task.status : '';
+    const note = typeof task.note === 'string' ? task.note : '';
+    const measured = JSON.stringify(task.measured ?? '');
+    if (
+      status.toLowerCase() === 'unverified'
+      || UNVERIFIED_PATTERN.test(status)
+      || UNVERIFIED_PATTERN.test(note)
+      || UNVERIFIED_PATTERN.test(measured)
+    ) {
+      findings.push({
+        code: 'gates_trust_task_unverified',
+        message: `Trust-critical task must be evidence-backed (not unverified): ${key}`,
+      });
+    }
   }
 
   return findings;
