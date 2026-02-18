@@ -24,6 +24,7 @@ COMMANDS:
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
+    uninstall           Remove LiBrainian bootstrap artifacts from workspace
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
@@ -70,6 +71,7 @@ EXAMPLES:
     librainian quickstart
     librainian query "How does the payment flow work?"
     librainian bootstrap --force
+    librainian uninstall --dry-run
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian publish-gate --profile release --json
@@ -260,6 +262,36 @@ EXAMPLES:
     librarian bootstrap --scope librarian
     librarian bootstrap --scope librarian --llm-provider codex --llm-model gpt-4o-mini
     librarian bootstrap --emit-baseline
+`,
+
+  uninstall: `
+librarian uninstall - Remove LiBrainian bootstrap artifacts
+
+USAGE:
+    librarian uninstall [options]
+
+OPTIONS:
+    --dry-run           Preview changes without modifying files
+    --keep-index        Keep .librarian index data while removing docs/config artifacts
+    --force             Skip confirmation prompt
+    --json              Output machine-readable JSON summary
+    --no-install        Skip npm install after package.json dependency removal
+
+DESCRIPTION:
+    Removes LiBrainian-managed workspace artifacts in one flow:
+    - Strips injected <!-- LIBRARIAN_DOCS_START --> blocks from known agent docs
+    - Removes librainian/librarian dependencies from package.json when present
+    - Deletes generated directories (.librarian, state) unless --keep-index
+    - Deletes .librainian-manifest.json uninstall record
+
+    If .librainian-manifest.json exists, uninstall uses it as source-of-truth.
+    If missing, uninstall falls back to a deterministic scan of known artifacts.
+
+EXAMPLES:
+    librarian uninstall --dry-run
+    librarian uninstall --force
+    librarian uninstall --force --keep-index
+    librarian uninstall --json --force
 `,
 
   mcp: `

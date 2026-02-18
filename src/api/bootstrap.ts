@@ -45,6 +45,7 @@ import { createOwnershipIngestionSource } from '../ingest/ownership_indexer.js';
 import { createAdrIngestionSource } from '../ingest/adr_indexer.js';
 import { createEntryPointIngestionSource } from '../ingest/entry_point_indexer.js';
 import { updateRepoDocs } from '../ingest/docs_update.js';
+import { writeInstallManifest } from './install_manifest.js';
 // Advanced Library Features (2025-2026 research)
 import { indexBlame } from '../ingest/blame_indexer.js';
 import { indexDiffs } from '../ingest/diff_indexer.js';
@@ -2111,6 +2112,7 @@ export async function bootstrapProject(
     }
     await indexStateWriter?.flush();
 
+    let docsUpdatedFiles: string[] = [];
     // Update repo documentation only when explicitly enabled.
     if (config.updateAgentDocs) {
       try {
@@ -2122,6 +2124,7 @@ export async function bootstrapProject(
           noClaudeMd: config.noClaudeMd,
         });
         if (docsResult.filesUpdated.length > 0) {
+          docsUpdatedFiles = docsResult.filesUpdated;
           report.warnings.push(`Librarian docs updated: ${docsResult.filesUpdated.join(', ')}`);
         }
         if (docsResult.warnings.length > 0) {
@@ -2136,6 +2139,22 @@ export async function bootstrapProject(
       }
     } else {
       report.warnings.push('Agent docs auto-update skipped (opt-in via --update-agent-docs).');
+    }
+
+    if (config.emitInstallManifest) {
+      try {
+        const manifest = await writeInstallManifest({
+          workspaceRoot,
+          packageVersion: report.version.string,
+          bootstrapMode: config.bootstrapMode === 'fast' ? 'fast' : 'full',
+          docsUpdatedFiles,
+        });
+        report.nextSteps = report.nextSteps ?? [];
+        report.nextSteps.push(`Install manifest written: ${path.relative(workspaceRoot, manifest.path)}`);
+      } catch (manifestError) {
+        report.warnings = report.warnings ?? [];
+        report.warnings.push(`Failed to write install manifest: ${getErrorMessage(manifestError)}`);
+      }
     }
 
     return report;
@@ -4031,6 +4050,7 @@ export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
   skipEmbeddings: false,
   updateAgentDocs: false,
   noClaudeMd: false,
+  emitInstallManifest: false,
 
   // Composition suggestions (codebase-aware recommendations after bootstrap)
   compositionSuggestions: { enabled: true },

@@ -170,6 +170,7 @@ LiBrainian auto-detects what is present and indexes only what is available in th
 npx librainian setup --depth quick
 npx librainian quickstart
 npx librainian bootstrap .
+npx librainian uninstall --dry-run
 npx librainian doctor --heal
 
 # Day 1 / normal work

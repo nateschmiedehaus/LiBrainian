@@ -184,6 +184,7 @@ describe('onboarding recovery', () => {
     expect(createBootstrapConfig).toHaveBeenCalledWith(workspace, expect.objectContaining({
       skipEmbeddings: true,
       skipLlm: true,
+      emitInstallManifest: true,
     }));
     expect(result.bootstrap?.skipEmbeddings).toBe(true);
     expect(result.bootstrap?.skipLlm).toBe(true);
