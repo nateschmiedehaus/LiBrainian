@@ -23,6 +23,7 @@ import {
   exportPrometheusMetrics as exportCompletenessPrometheus,
   type IndexCompletenessReport,
 } from '../../metrics/index_completeness.js';
+import { collectVerificationProvenance, type VerificationProvenanceReport } from '../verification_provenance.js';
 
 interface HealthOptions {
   workspace: string;
@@ -33,16 +34,18 @@ interface HealthOptions {
 
 export async function healthCommand(options: HealthOptions): Promise<void> {
   const { workspace, verbose = false, format = 'text', completeness = false } = options;
+  const workspaceRoot = path.resolve(workspace);
+  const provenance = await collectVerificationProvenance(workspaceRoot);
 
   let storage: Awaited<ReturnType<typeof createSqliteStorage>> | null = null;
 
   try {
     // Initialize storage (fail-closed: never throw from healthCommand)
-    const dbPath = await resolveDbPath(workspace);
-    storage = createSqliteStorage(dbPath, workspace);
+    const dbPath = await resolveDbPath(workspaceRoot);
+    storage = createSqliteStorage(dbPath, workspaceRoot);
     await storage.initialize();
 
-    const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: 'mvp' });
+    const bootstrapCheck = await isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'mvp' });
     if (bootstrapCheck.required) {
       outputHealthFailure(
         format,
@@ -52,7 +55,8 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
           message: bootstrapCheck.reason || 'Bootstrap required',
           suggestion: 'Run `librarian bootstrap` to initialize the index',
         },
-        verbose
+        verbose,
+        provenance
       );
       process.exitCode = 1;
       return;
@@ -60,8 +64,8 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
 
     // If completeness flag is set, show completeness report instead
     if (completeness) {
-      const completenessReport = await calculateIndexCompleteness(workspace, storage);
-      outputCompletenessReport(completenessReport, format, verbose);
+      const completenessReport = await calculateIndexCompleteness(workspaceRoot, storage);
+      outputCompletenessReport(completenessReport, format, verbose, provenance);
 
       // Exit code based on completeness
       if (completenessReport.completeness < 0.8) {
@@ -76,7 +80,7 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
     // Output based on format
     switch (format) {
       case 'json':
-        console.log(JSON.stringify(report, null, 2));
+        console.log(JSON.stringify({ ...report, provenance }, null, 2));
         break;
 
       case 'prometheus':
@@ -85,7 +89,7 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
 
       case 'text':
       default:
-        printTextReport(report, verbose);
+        printTextReport(report, verbose, provenance);
         break;
     }
 
@@ -103,7 +107,8 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
         message,
         suggestion: 'Run `librarian doctor --heal` or `librarian bootstrap --force` to recover',
       },
-      verbose
+      verbose,
+      provenance
     );
     process.exitCode = 1;
   } finally {
@@ -114,11 +119,13 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
 function outputHealthFailure(
   format: 'text' | 'json' | 'prometheus',
   payload: { status: 'unhealthy'; reason: string; message: string; suggestion?: string },
-  verbose: boolean
+  verbose: boolean,
+  provenance?: VerificationProvenanceReport,
 ): void {
   const enriched = {
     ...payload,
     generatedAt: new Date().toISOString(),
+    provenance,
   };
   switch (format) {
     case 'json':
@@ -134,6 +141,9 @@ function outputHealthFailure(
       console.log(`Reason: ${payload.reason}`);
       console.log(`Message: ${payload.message}`);
       if (payload.suggestion) console.log(`Suggestion: ${payload.suggestion}`);
+      if (provenance) {
+        console.log(`Verification Provenance: ${provenance.status} (${provenance.gatesUnverifiedTasks}/${provenance.gatesTotalTasks} gates unverified)`);
+      }
       if (verbose) console.log(`Generated: ${enriched.generatedAt}`);
       console.log('');
       break;
@@ -143,7 +153,8 @@ function outputHealthFailure(
 function outputCompletenessReport(
   report: IndexCompletenessReport,
   format: 'text' | 'json' | 'prometheus',
-  verbose: boolean
+  verbose: boolean,
+  provenance?: VerificationProvenanceReport,
 ): void {
   switch (format) {
     case 'json':
@@ -157,6 +168,7 @@ function outputCompletenessReport(
           indexedAt: f.indexedAt.toISOString(),
           modifiedAt: f.modifiedAt.toISOString(),
         })),
+        provenance,
       };
       console.log(JSON.stringify(jsonReport, null, 2));
       break;
@@ -168,11 +180,14 @@ function outputCompletenessReport(
     case 'text':
     default:
       console.log(formatCompletenessReport(report, verbose));
+      if (provenance) {
+        console.log(`Verification Provenance: ${provenance.status}`);
+      }
       break;
   }
 }
 
-function printTextReport(report: LibrarianStateReport, verbose: boolean): void {
+function printTextReport(report: LibrarianStateReport, verbose: boolean, provenance?: VerificationProvenanceReport): void {
   const statusEmoji: Record<string, string> = {
     healthy: '\u2705',
     degraded: '\u26A0\uFE0F',
@@ -184,6 +199,9 @@ function printTextReport(report: LibrarianStateReport, verbose: boolean): void {
   console.log(`Status: ${statusEmoji[report.health.status] ?? '\u2753'} ${report.health.status.toUpperCase()}`);
   console.log(`Recovery State: ${report.recoveryState}`);
   console.log(`Generated: ${report.generatedAt}\n`);
+  if (provenance) {
+    console.log(`Verification Provenance: ${provenance.status} (evidence ready=${provenance.evidencePrerequisitesSatisfied})\n`);
+  }
 
   // Health checks
   console.log('Health Checks:');

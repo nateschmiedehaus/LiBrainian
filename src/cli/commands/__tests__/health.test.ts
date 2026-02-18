@@ -85,10 +85,16 @@ describe('healthCommand', () => {
     expect(process.exitCode).toBe(1);
     const raw = consoleLogSpy.mock.calls.at(-1)?.[0];
     expect(typeof raw).toBe('string');
-    const parsed = JSON.parse(raw as string) as { status?: string; reason?: string; message?: string };
+    const parsed = JSON.parse(raw as string) as {
+      status?: string;
+      reason?: string;
+      message?: string;
+      provenance?: { status?: string };
+    };
     expect(parsed.status).toBe('unhealthy');
     expect(parsed.reason).toBe('bootstrap_required');
     expect(parsed.message).toContain('No indexed files found');
+    expect(parsed.provenance?.status).toBeDefined();
   });
 
   it('fails closed with exit code 1 when storage initialization fails', async () => {
@@ -102,8 +108,23 @@ describe('healthCommand', () => {
     expect(process.exitCode).toBe(1);
     const raw = consoleLogSpy.mock.calls.at(-1)?.[0];
     expect(typeof raw).toBe('string');
-    const parsed = JSON.parse(raw as string) as { reason?: string; message?: string };
+    const parsed = JSON.parse(raw as string) as {
+      reason?: string;
+      message?: string;
+      provenance?: { status?: string };
+    };
     expect(parsed.reason).toBe('storage_unavailable');
     expect(parsed.message).toContain('SQLITE_CANTOPEN');
+    expect(parsed.provenance?.status).toBeDefined();
+  });
+
+  it('includes verification provenance in healthy JSON output', async () => {
+    await expect(healthCommand({ workspace, format: 'json' })).resolves.toBeUndefined();
+
+    const raw = consoleLogSpy.mock.calls.at(-1)?.[0];
+    expect(typeof raw).toBe('string');
+    const parsed = JSON.parse(raw as string) as { health?: { status?: string }; provenance?: { status?: string } };
+    expect(parsed.health?.status).toBe('healthy');
+    expect(parsed.provenance?.status).toBeDefined();
   });
 });

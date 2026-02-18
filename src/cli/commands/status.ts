@@ -12,6 +12,7 @@ import { printKeyValue, formatTimestamp, formatBytes, formatDuration } from '../
 import { safeJsonParse } from '../../utils/safe_json.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { emitJsonOutput } from '../json_output.js';
+import { collectVerificationProvenance, type VerificationProvenanceReport } from '../verification_provenance.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -80,6 +81,7 @@ type StatusReport = {
     status: AllProviderStatus | null;
     error?: string;
   };
+  provenance?: VerificationProvenanceReport;
 };
 
 function toSafeDate(value: unknown): Date | null {
@@ -125,6 +127,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
     version: { cli: LIBRARIAN_VERSION.string },
     storage: { status: 'not_initialized' },
   };
+  report.provenance = await collectVerificationProvenance(workspaceRoot);
 
   if (format === 'text') {
     console.log('Librarian Status');
@@ -132,6 +135,22 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
 
     console.log('Version Information:');
     printKeyValue([{ key: 'CLI Version', value: LIBRARIAN_VERSION.string }, { key: 'Workspace', value: workspaceRoot }]);
+    console.log();
+
+    console.log('Verification Provenance:');
+    printKeyValue([
+      { key: 'Status', value: report.provenance.status },
+      { key: 'Evidence Generated At', value: report.provenance.evidenceGeneratedAt ?? 'unknown' },
+      { key: 'STATUS Unverified Markers', value: report.provenance.statusUnverifiedMarkers },
+      {
+        key: 'Gates Unverified',
+        value: `${report.provenance.gatesUnverifiedTasks}/${report.provenance.gatesTotalTasks}`,
+      },
+      { key: 'Release Evidence Ready', value: report.provenance.evidencePrerequisitesSatisfied },
+    ]);
+    if (report.provenance.notes.length > 0) {
+      printKeyValue([{ key: 'Notes', value: report.provenance.notes.join(' | ') }]);
+    }
     console.log();
   }
 

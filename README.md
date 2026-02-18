@@ -244,6 +244,14 @@ This guard verifies:
 - matching git tag (`v<version>`) exists locally
 - matching git tag points to `HEAD`
 
+Runtime trust/provenance visibility:
+- `npx librainian status --format json` includes verification provenance summary fields
+- `npx librainian health --format json` includes provenance status for release-evidence readiness
+- generated evidence artifacts:
+  - `state/audits/LiBrainian/manifest.json`
+  - `docs/LiBrainian/STATUS.md`
+  - `docs/LiBrainian/GATES.json`
+
 Canonical release sequence:
 
 ```bash

@@ -175,9 +175,14 @@ describe('statusCommand', () => {
 
     const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
     expect(typeof output).toBe('string');
-    const parsed = JSON.parse(output ?? '{}') as { workspace?: string; storage?: { status?: string } };
+    const parsed = JSON.parse(output ?? '{}') as {
+      workspace?: string;
+      storage?: { status?: string };
+      provenance?: { status?: string };
+    };
     expect(parsed.workspace).toBe(workspace);
     expect(parsed.storage?.status).toBe('ready');
+    expect(parsed.provenance?.status).toBeDefined();
   });
 
   it('handles serialized metadata timestamps from storage', async () => {
