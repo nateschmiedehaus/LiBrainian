@@ -20,6 +20,23 @@ interface GhIssue {
   comments?: Array<unknown>;
 }
 
+interface RestIssue {
+  number: number;
+  title: string;
+  html_url: string;
+  created_at: string;
+  updated_at: string;
+  labels?: Array<{ name?: string }>;
+  comments?: number;
+  pull_request?: unknown;
+}
+
+interface IssueLoadResult {
+  issues: AgentIssueSnapshot[];
+  source: 'gh' | 'github-rest';
+  warning?: string;
+}
+
 function parseRepoFromRemoteUrl(remoteUrl: string): string | null {
   const trimmed = remoteUrl.trim();
   if (!trimmed) return null;
@@ -50,7 +67,34 @@ function resolveRepo(defaultRepo?: string): string {
   return parsed;
 }
 
-function loadIssues(repo: string, state: string, limit: number): AgentIssueSnapshot[] {
+function mapIssueSnapshot(issue: {
+  number: number;
+  title: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  labels?: Array<{ name?: string }>;
+  comments?: Array<unknown> | number;
+}): AgentIssueSnapshot {
+  const commentCount = Array.isArray(issue.comments)
+    ? issue.comments.length
+    : (typeof issue.comments === 'number' ? issue.comments : 0);
+  return {
+    number: issue.number,
+    title: issue.title,
+    url: issue.url,
+    createdAt: issue.createdAt,
+    updatedAt: issue.updatedAt,
+    labels: Array.isArray(issue.labels)
+      ? issue.labels
+          .map((label) => (typeof label?.name === 'string' ? label.name.trim() : ''))
+          .filter((label) => label.length > 0)
+      : [],
+    comments: commentCount,
+  };
+}
+
+function loadIssuesViaGh(repo: string, state: string, limit: number): IssueLoadResult {
   const args = [
     'issue',
     'list',
@@ -63,23 +107,87 @@ function loadIssues(repo: string, state: string, limit: number): AgentIssueSnaps
   const gh = spawnSync('gh', args, { encoding: 'utf8' });
   if (gh.status !== 0) {
     const detail = String(gh.stderr || gh.stdout || '').trim();
-    throw new Error(`gh issue list failed: ${detail || `exit ${gh.status ?? 'unknown'}`}`);
+    throw new Error(detail || `exit ${gh.status ?? 'unknown'}`);
   }
 
   const parsed = JSON.parse(String(gh.stdout ?? '[]')) as GhIssue[];
-  return parsed.map((issue) => ({
-    number: issue.number,
-    title: issue.title,
-    url: issue.url,
-    createdAt: issue.createdAt,
-    updatedAt: issue.updatedAt,
-    labels: Array.isArray(issue.labels)
-      ? issue.labels
-          .map((label) => (typeof label?.name === 'string' ? label.name.trim() : ''))
-          .filter((label) => label.length > 0)
-      : [],
-    comments: Array.isArray(issue.comments) ? issue.comments.length : 0,
-  }));
+  return {
+    source: 'gh',
+    issues: parsed.map((issue) => mapIssueSnapshot({
+      number: issue.number,
+      title: issue.title,
+      url: issue.url,
+      createdAt: issue.createdAt,
+      updatedAt: issue.updatedAt,
+      labels: issue.labels,
+      comments: issue.comments,
+    })),
+  };
+}
+
+async function loadIssuesViaGitHubRest(repo: string, state: string, limit: number): Promise<IssueLoadResult> {
+  const allowedStates = new Set(['open', 'closed', 'all']);
+  const normalizedState = allowedStates.has(state) ? state : 'open';
+  const issues: AgentIssueSnapshot[] = [];
+  let page = 1;
+
+  while (issues.length < limit) {
+    const remaining = limit - issues.length;
+    const perPage = Math.min(100, Math.max(1, remaining));
+    const url = `https://api.github.com/repos/${repo}/issues?state=${encodeURIComponent(normalizedState)}&per_page=${perPage}&page=${page}&sort=updated&direction=desc`;
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'librainian-issue-feedback-loop',
+      },
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`GitHub REST issue fetch failed (${response.status}): ${detail.slice(0, 500)}`);
+    }
+
+    const payload = await response.json() as RestIssue[];
+    if (!Array.isArray(payload) || payload.length === 0) {
+      break;
+    }
+
+    for (const issue of payload) {
+      if (issue.pull_request) continue;
+      issues.push(mapIssueSnapshot({
+        number: issue.number,
+        title: issue.title,
+        url: issue.html_url,
+        createdAt: issue.created_at,
+        updatedAt: issue.updated_at,
+        labels: issue.labels,
+        comments: issue.comments ?? 0,
+      }));
+      if (issues.length >= limit) break;
+    }
+
+    if (payload.length < perPage) {
+      break;
+    }
+    page += 1;
+  }
+
+  return {
+    source: 'github-rest',
+    issues,
+  };
+}
+
+async function loadIssuesWithFallback(repo: string, state: string, limit: number): Promise<IssueLoadResult> {
+  try {
+    return loadIssuesViaGh(repo, state, limit);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const fallback = await loadIssuesViaGitHubRest(repo, state, limit);
+    return {
+      ...fallback,
+      warning: `gh issue list failed; used GitHub REST fallback (${detail})`,
+    };
+  }
 }
 
 function ensureParentDir(filePath: string): void {
@@ -122,7 +230,7 @@ function renderMarkdown(plan: IssueFixPlan, repo: string, state: string): string
   return lines.join('\n');
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
@@ -148,7 +256,8 @@ function main(): void {
     ? values.state.trim()
     : 'open';
 
-  const issues = loadIssues(repo, state, limit);
+  const loadResult = await loadIssuesWithFallback(repo, state, limit);
+  const issues = loadResult.issues;
   const plan = buildIssueFixPlan(issues);
 
   const jsonOut = path.resolve(String(values.out ?? 'state/plans/agent-issue-fix-plan.json'));
@@ -171,10 +280,14 @@ function main(): void {
 
   console.log('Agent issue fix plan generated');
   console.log(`Repo: ${repo}`);
+  console.log(`Issue source: ${loadResult.source}`);
   console.log(`Issues analyzed: ${plan.summary.totalIssues}`);
   console.log(`P0/P1/P2/P3: ${plan.summary.p0}/${plan.summary.p1}/${plan.summary.p2}/${plan.summary.p3}`);
   console.log(`JSON: ${jsonOut}`);
   console.log(`Markdown: ${markdownOut}`);
+  if (loadResult.warning) {
+    console.log(`Warning: ${loadResult.warning}`);
+  }
 
   const preview = plan.queue.slice(0, 5);
   if (preview.length > 0) {
@@ -185,4 +298,8 @@ function main(): void {
   }
 }
 
-main();
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`issue-feedback-loop failed: ${message}`);
+  process.exitCode = 1;
+});
