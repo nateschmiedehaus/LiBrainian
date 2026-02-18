@@ -72,7 +72,7 @@ import { CodebaseCompositionAdvisor } from './codebase_advisor.js';
 import { preloadMethodPacks } from '../methods/method_pack_service.js';
 import { integrateWithBootstrap as selectConstructables, type ManualOverrides } from '../constructions/auto_selector.js';
 import { sanitizePath } from '../security/sanitization.js';
-import { updateWatchState } from '../state/watch_state.js';
+import { getWatchState, updateWatchState } from '../state/watch_state.js';
 import type { MethodFamilyId } from '../methods/method_guidance.js';
 import {
   extractFileKnowledge,
@@ -1157,6 +1157,38 @@ export async function isBootstrapRequired(
       required: true,
       reason: 'Previous bootstrap did not complete successfully',
     };
+  }
+
+  const watchState = await getWatchState(storage).catch((err) => {
+    logWarning('[bootstrap] Failed to read watch state for freshness check', { error: getErrorMessage(err) });
+    return null;
+  });
+
+  if (watchState?.needs_catchup) {
+    return {
+      required: true,
+      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+    };
+  }
+
+  if (watchState?.cursor?.kind === 'git') {
+    const indexedSha = watchState.cursor.lastIndexedCommitSha;
+    const headSha = getCurrentGitSha(workspace);
+    if (headSha && indexedSha && headSha !== indexedSha) {
+      await updateWatchState(storage, (prev) => ({
+        ...(prev ?? watchState),
+        schema_version: 1,
+        workspace_root: prev?.workspace_root || watchState.workspace_root || workspace,
+        cursor: watchState.cursor,
+        needs_catchup: true,
+      })).catch((err) => {
+        logWarning('[bootstrap] Failed to mark watch state as needing catch-up', { error: getErrorMessage(err) });
+      });
+      return {
+        required: true,
+        reason: `Index is stale relative to git HEAD (${indexedSha.slice(0, 12)} -> ${headSha.slice(0, 12)})`,
+      };
+    }
   }
 
   return {
