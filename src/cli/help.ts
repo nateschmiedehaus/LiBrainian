@@ -896,6 +896,7 @@ OPTIONS:
     --verbose           Show detailed diagnostic information
     --json              Output results as JSON
     --heal              Attempt automatic healing (config + bootstrap)
+    --fix               Purge invalid embeddings and re-embed via bootstrap
     --install-grammars  Install missing tree-sitter grammar packages
     --risk-tolerance    Max risk for config fixes (safe|low|medium)
 
@@ -970,9 +971,10 @@ EXAMPLES:
     librarian doctor --json
     librarian doctor --verbose --json
     librarian doctor --heal
+    librarian doctor --fix
 	    librarian doctor --heal --risk-tolerance safe
 	    librarian doctor --install-grammars
-	`,
+		`,
 
 	  'publish-gate': `
 	librarian publish-gate - Run strict publish-readiness gate checks

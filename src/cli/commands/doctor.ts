@@ -4,7 +4,7 @@
  * Provides comprehensive health diagnostics for the Librarian system.
  * Checks database, embeddings, packs, vector index, graph edges, and bootstrap status.
  *
- * Usage: librarian doctor [--verbose] [--json]
+ * Usage: librarian doctor [--verbose] [--json] [--heal] [--fix]
  *
  * @packageDocumentation
  */
@@ -14,7 +14,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import { isBootstrapRequired, getBootstrapStatus } from '../../api/bootstrap.js';
+import { isBootstrapRequired, getBootstrapStatus, bootstrapProject, createBootstrapConfig } from '../../api/bootstrap.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import { printKeyValue, formatBytes } from '../progress.js';
@@ -75,6 +75,7 @@ export interface DoctorCommandOptions {
   verbose?: boolean;
   json?: boolean;
   heal?: boolean;
+  fix?: boolean;
   installGrammars?: boolean;
   riskTolerance?: 'safe' | 'low' | 'medium';
 }
@@ -135,6 +136,10 @@ const ACTION_BY_CHECK: Record<string, ActionTemplate> = {
   },
   'Vector Index': {
     command: 'librarian bootstrap --force',
+    expectedArtifact: 'state/audits/librarian/bootstrap',
+  },
+  'Embedding Integrity': {
+    command: 'librarian doctor --fix',
     expectedArtifact: 'state/audits/librarian/bootstrap',
   },
   'Graph Edges': {
@@ -240,6 +245,8 @@ const CONTEXT_PACK_REFERENCE_SCAN_LIMIT = 2_000;
 const WORKSPACE_LOCK_UNKNOWN_STALE_TIMEOUT_MS = 2 * 60 * 60_000;
 const SOURCE_SCAN_LIMIT = 8_000;
 const SOURCE_SCAN_DIR_LIMIT = 4_000;
+const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
+const EMBEDDING_INTEGRITY_SAMPLE_LIMIT = 20;
 const EXCLUDED_SCAN_DIRS = new Set([
   '.git',
   '.librarian',
@@ -258,6 +265,19 @@ const SOURCE_FILE_EXTENSIONS = new Set([
   '.cs', '.cpp', '.cc', '.c', '.h', '.hpp',
   '.swift', '.kt', '.kts', '.scala',
 ]);
+
+type EmbeddingIntegrityStorage = LibrarianStorage & {
+  inspectEmbeddingIntegrity?: (options?: { normTolerance?: number; sampleLimit?: number }) => Promise<{
+    totalEmbeddings: number;
+    invalidEmbeddings: number;
+    sampleEntityIds: string[];
+  }>;
+  purgeInvalidEmbeddings?: (options?: { normTolerance?: number; sampleLimit?: number }) => Promise<{
+    removedEmbeddings: number;
+    removedMultiVectors: number;
+    sampleEntityIds: string[];
+  }>;
+};
 
 function formatAge(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '0m';
@@ -737,6 +757,59 @@ async function checkVectorIndex(
   } catch (error) {
     check.status = 'ERROR';
     check.message = `Failed to check: ${error instanceof Error ? error.message : String(error)}`;
+    return check;
+  }
+}
+
+/**
+ * Check: invalid embedding vectors (zero norm / non-finite) in persistent storage.
+ */
+async function checkEmbeddingIntegrity(
+  workspace: string,
+  dbPath: string
+): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = {
+    name: 'Embedding Integrity',
+    status: 'OK',
+    message: '',
+  };
+
+  try {
+    const storage = createSqliteStorage(dbPath, workspace) as EmbeddingIntegrityStorage;
+    await storage.initialize();
+    const inspect = storage.inspectEmbeddingIntegrity;
+    if (typeof inspect !== 'function') {
+      await storage.close();
+      check.message = 'Embedding integrity scan unavailable for this storage backend';
+      return check;
+    }
+
+    const integrity = await inspect({
+      normTolerance: EMBEDDING_INVALID_NORM_TOLERANCE,
+      sampleLimit: EMBEDDING_INTEGRITY_SAMPLE_LIMIT,
+    });
+    await storage.close();
+
+    check.details = {
+      totalEmbeddings: integrity.totalEmbeddings,
+      invalidEmbeddings: integrity.invalidEmbeddings,
+      sampleEntityIds: integrity.sampleEntityIds,
+      normTolerance: EMBEDDING_INVALID_NORM_TOLERANCE,
+    };
+
+    if (integrity.invalidEmbeddings > 0) {
+      check.status = 'WARNING';
+      check.message = `Detected ${integrity.invalidEmbeddings} invalid embedding(s) (zero-norm or non-finite)`;
+      check.suggestion = 'Run `librarian doctor --fix` to purge and regenerate invalid embeddings';
+      return check;
+    }
+
+    check.message = 'All stored embeddings passed norm/integrity validation';
+    return check;
+  } catch (error) {
+    check.status = 'ERROR';
+    check.message = `Failed to check embedding integrity: ${error instanceof Error ? error.message : String(error)}`;
+    check.suggestion = 'Run `librarian bootstrap --force` to rebuild embeddings';
     return check;
   }
 }
@@ -1542,6 +1615,94 @@ async function checkWatchFreshness(
   }
 }
 
+async function runEmbeddingIntegrityFix(
+  workspace: string,
+  dbPath: string
+): Promise<DiagnosticCheck[]> {
+  const checks: DiagnosticCheck[] = [];
+  const storage = createSqliteStorage(dbPath, workspace) as EmbeddingIntegrityStorage;
+  await storage.initialize();
+
+  try {
+    if (typeof storage.inspectEmbeddingIntegrity !== 'function' || typeof storage.purgeInvalidEmbeddings !== 'function') {
+      checks.push({
+        name: 'Embedding Integrity Remediation',
+        status: 'WARNING',
+        message: 'Embedding integrity remediation unavailable for this storage backend',
+        suggestion: 'Run `librarian bootstrap --force` to regenerate embeddings',
+      });
+      return checks;
+    }
+
+    const integrity = await storage.inspectEmbeddingIntegrity({
+      normTolerance: EMBEDDING_INVALID_NORM_TOLERANCE,
+      sampleLimit: EMBEDDING_INTEGRITY_SAMPLE_LIMIT,
+    });
+
+    if (integrity.invalidEmbeddings === 0) {
+      checks.push({
+        name: 'Embedding Integrity Remediation',
+        status: 'OK',
+        message: 'No invalid embeddings detected; remediation not required',
+        details: {
+          totalEmbeddings: integrity.totalEmbeddings,
+          invalidEmbeddings: 0,
+        },
+      });
+      return checks;
+    }
+
+    const purge = await storage.purgeInvalidEmbeddings({
+      normTolerance: EMBEDDING_INVALID_NORM_TOLERANCE,
+      sampleLimit: EMBEDDING_INTEGRITY_SAMPLE_LIMIT,
+    });
+
+    checks.push({
+      name: 'Embedding Integrity Remediation',
+      status: 'OK',
+      message: `Removed ${purge.removedEmbeddings} invalid embedding(s) and ${purge.removedMultiVectors} multi-vector record(s)`,
+      details: {
+        removedEmbeddings: purge.removedEmbeddings,
+        removedMultiVectors: purge.removedMultiVectors,
+        sampleEntityIds: purge.sampleEntityIds,
+      },
+    });
+
+    const bootstrapConfig = createBootstrapConfig(workspace, {
+      bootstrapMode: 'fast',
+      forceReindex: true,
+      skipLlm: true,
+      skipEmbeddings: false,
+      emitBaseline: false,
+    });
+    const bootstrap = await bootstrapProject(bootstrapConfig, storage);
+    checks.push({
+      name: 'Embedding Re-embed',
+      status: bootstrap.success ? 'OK' : 'ERROR',
+      message: bootstrap.success
+        ? `Re-embedded via bootstrap (${bootstrap.totalFilesProcessed} files)`
+        : `Re-embed bootstrap failed: ${bootstrap.error ?? 'unknown error'}`,
+      details: {
+        success: bootstrap.success,
+        totalFilesProcessed: bootstrap.totalFilesProcessed,
+        totalFunctionsIndexed: bootstrap.totalFunctionsIndexed,
+      },
+      suggestion: bootstrap.success ? undefined : 'Run `librarian bootstrap --force` to complete re-embedding',
+    });
+  } catch (error) {
+    checks.push({
+      name: 'Embedding Integrity Remediation',
+      status: 'ERROR',
+      message: `Failed to remediate invalid embeddings: ${error instanceof Error ? error.message : String(error)}`,
+      suggestion: 'Run `librarian bootstrap --force` to rebuild embeddings',
+    });
+  } finally {
+    await storage.close();
+  }
+
+  return checks;
+}
+
 // ============================================================================
 // MAIN DOCTOR COMMAND
 // ============================================================================
@@ -1552,6 +1713,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     verbose = false,
     json = false,
     heal = false,
+    fix = false,
     installGrammars = false,
     riskTolerance = 'low',
   } = options;
@@ -1725,6 +1887,11 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     }
   }
 
+  if (fix) {
+    const embeddingFixChecks = await runEmbeddingIntegrityFix(workspaceRoot, dbPath);
+    healChecks.push(...embeddingFixChecks);
+  }
+
   // Run all diagnostic checks
   const checks = await Promise.all([
     checkDatabase(workspaceRoot),
@@ -1738,6 +1905,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     checkPacksCorrelation(workspaceRoot, dbPath),
     checkContextPackReferences(workspaceRoot, dbPath),
     checkVectorIndex(workspaceRoot, dbPath),
+    checkEmbeddingIntegrity(workspaceRoot, dbPath),
     checkGraphEdges(workspaceRoot, dbPath),
     checkConfidenceLevel(workspaceRoot, dbPath),
     checkEmbeddingProvider(workspaceRoot),

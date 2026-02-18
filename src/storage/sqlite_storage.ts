@@ -134,6 +134,21 @@ const LOCK_UPDATE_INTERVAL_MS = 60_000; // 1 minute
 
 /** Maximum lock acquisition retries */
 const LOCK_MAX_RETRIES = 12;
+const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
+
+function inspectEmbeddingVectorValues(embedding: Float32Array): { normSq: number; hasNonFinite: boolean } {
+  let normSq = 0;
+  let hasNonFinite = false;
+  for (let i = 0; i < embedding.length; i++) {
+    const value = embedding[i];
+    if (!Number.isFinite(value)) {
+      hasNonFinite = true;
+      break;
+    }
+    normSq += value * value;
+  }
+  return { normSq, hasNonFinite };
+}
 
 // ============================================================================
 // SQL INJECTION PREVENTION
@@ -2771,6 +2786,13 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     if (embedding.length === 0 || embedding.byteLength === 0 || embedding.buffer.byteLength === 0) {
       throw new Error('unverified_by_trace(provider_invalid_output): embedding buffer is empty');
     }
+    const { normSq, hasNonFinite } = inspectEmbeddingVectorValues(embedding);
+    if (hasNonFinite) {
+      throw new Error('unverified_by_trace(provider_invalid_output): embedding contains non-finite values');
+    }
+    if (normSq <= EMBEDDING_INVALID_NORM_TOLERANCE) {
+      throw new Error('unverified_by_trace(provider_invalid_output): embedding has zero norm');
+    }
     const buffer = Buffer.allocUnsafe(embedding.length * 4);
     const view = new Float32Array(buffer.buffer, buffer.byteOffset, embedding.length);
     view.set(embedding);
@@ -2875,6 +2897,102 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     `).all() as Array<{ dimension: number; count: number }>;
 
     return rows;
+  }
+
+  async inspectEmbeddingIntegrity(options: { normTolerance?: number; sampleLimit?: number } = {}): Promise<{
+    totalEmbeddings: number;
+    invalidEmbeddings: number;
+    sampleEntityIds: string[];
+  }> {
+    const db = this.ensureDb();
+    const tolerance = options.normTolerance ?? EMBEDDING_INVALID_NORM_TOLERANCE;
+    const sampleLimit = Math.max(1, options.sampleLimit ?? 20);
+    const rows = db.prepare('SELECT entity_id, embedding FROM librarian_embeddings').all() as Array<{
+      entity_id: string;
+      embedding: Buffer;
+    }>;
+    const sampleEntityIds: string[] = [];
+    let invalidEmbeddings = 0;
+    for (const row of rows) {
+      const view = new Float32Array(
+        row.embedding.buffer,
+        row.embedding.byteOffset,
+        row.embedding.length / Float32Array.BYTES_PER_ELEMENT
+      );
+      const { normSq, hasNonFinite } = inspectEmbeddingVectorValues(view);
+      if (hasNonFinite || normSq <= tolerance) {
+        invalidEmbeddings += 1;
+        if (sampleEntityIds.length < sampleLimit) {
+          sampleEntityIds.push(row.entity_id);
+        }
+      }
+    }
+
+    return {
+      totalEmbeddings: rows.length,
+      invalidEmbeddings,
+      sampleEntityIds,
+    };
+  }
+
+  async purgeInvalidEmbeddings(options: { normTolerance?: number; sampleLimit?: number } = {}): Promise<{
+    removedEmbeddings: number;
+    removedMultiVectors: number;
+    sampleEntityIds: string[];
+  }> {
+    const db = this.ensureDb();
+    const tolerance = options.normTolerance ?? EMBEDDING_INVALID_NORM_TOLERANCE;
+    const sampleLimit = Math.max(1, options.sampleLimit ?? 20);
+    const rows = db.prepare('SELECT entity_id, embedding FROM librarian_embeddings').all() as Array<{
+      entity_id: string;
+      embedding: Buffer;
+    }>;
+    const invalidEntityIds: string[] = [];
+    const sampleEntityIds: string[] = [];
+    for (const row of rows) {
+      const view = new Float32Array(
+        row.embedding.buffer,
+        row.embedding.byteOffset,
+        row.embedding.length / Float32Array.BYTES_PER_ELEMENT
+      );
+      const { normSq, hasNonFinite } = inspectEmbeddingVectorValues(view);
+      if (hasNonFinite || normSq <= tolerance) {
+        invalidEntityIds.push(row.entity_id);
+        if (sampleEntityIds.length < sampleLimit) {
+          sampleEntityIds.push(row.entity_id);
+        }
+      }
+    }
+
+    if (invalidEntityIds.length === 0) {
+      return {
+        removedEmbeddings: 0,
+        removedMultiVectors: 0,
+        sampleEntityIds,
+      };
+    }
+
+    const deleteEmbedding = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
+    const deleteMultiVector = db.prepare('DELETE FROM librarian_multi_vectors WHERE entity_id = ?');
+    const result = db.transaction(() => {
+      let removedEmbeddings = 0;
+      let removedMultiVectors = 0;
+      for (const entityId of invalidEntityIds) {
+        removedEmbeddings += deleteEmbedding.run(entityId).changes;
+        removedMultiVectors += deleteMultiVector.run(entityId).changes;
+      }
+      return { removedEmbeddings, removedMultiVectors };
+    })();
+
+    if (result.removedEmbeddings > 0 || result.removedMultiVectors > 0) {
+      this.vectorIndexDirty = true;
+    }
+
+    return {
+      removedEmbeddings: result.removedEmbeddings,
+      removedMultiVectors: result.removedMultiVectors,
+      sampleEntityIds,
+    };
   }
 
   async findSimilarByEmbedding(

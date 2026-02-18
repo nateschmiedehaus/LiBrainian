@@ -73,6 +73,16 @@ const createStorageStub = (statsOverrides: Partial<{
   getContextPacks: vi.fn().mockResolvedValue([]) as Mock,
   getMultiVectors: vi.fn().mockResolvedValue([]) as Mock,
   getGraphEdges: vi.fn().mockResolvedValue([]) as Mock,
+  inspectEmbeddingIntegrity: vi.fn().mockResolvedValue({
+    totalEmbeddings: 10,
+    invalidEmbeddings: 0,
+    sampleEntityIds: [],
+  }) as Mock,
+  purgeInvalidEmbeddings: vi.fn().mockResolvedValue({
+    removedEmbeddings: 0,
+    removedMultiVectors: 0,
+    sampleEntityIds: [],
+  }) as Mock,
   getLastBootstrapReport: vi.fn().mockResolvedValue({
     success: true,
     completedAt: new Date().toISOString(),
@@ -429,5 +439,50 @@ describe('doctorCommand', () => {
     expect(Array.isArray(report.actions)).toBe(true);
     expect(report.actions.length).toBeGreaterThan(0);
     expect(report.actions[0].command).toContain('librarian bootstrap --force');
+  });
+
+  it('reports invalid embeddings and suggests doctor --fix', async () => {
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as {
+        inspectEmbeddingIntegrity: Mock;
+      };
+      storage.inspectEmbeddingIntegrity = vi.fn().mockResolvedValue({
+        totalEmbeddings: 5,
+        invalidEmbeddings: 2,
+        sampleEntityIds: ['fn-1', 'fn-2'],
+      });
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const integrityCheck = report.checks.find((check: any) => check.name === 'Embedding Integrity');
+    expect(integrityCheck).toBeTruthy();
+    expect(integrityCheck.status).toBe('WARNING');
+    expect(integrityCheck.suggestion).toContain('--fix');
+  });
+
+  it('runs invalid-embedding remediation when fix is enabled', async () => {
+    const storage = createStorageStub() as unknown as {
+      inspectEmbeddingIntegrity: Mock;
+      purgeInvalidEmbeddings: Mock;
+    };
+    storage.inspectEmbeddingIntegrity = vi.fn().mockResolvedValue({
+      totalEmbeddings: 7,
+      invalidEmbeddings: 3,
+      sampleEntityIds: ['fn-1'],
+    });
+    storage.purgeInvalidEmbeddings = vi.fn().mockResolvedValue({
+      removedEmbeddings: 3,
+      removedMultiVectors: 1,
+      sampleEntityIds: ['fn-1'],
+    });
+    vi.mocked(createSqliteStorage).mockImplementation(() => storage as unknown as LibrarianStorage);
+
+    await doctorCommand({ workspace, json: true, fix: true });
+
+    expect(storage.purgeInvalidEmbeddings).toHaveBeenCalled();
+    expect(vi.mocked(bootstrapProject)).toHaveBeenCalled();
   });
 });

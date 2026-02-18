@@ -218,7 +218,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'doctor': {
     description: 'Run health diagnostics to identify issues',
-    usage: 'librarian doctor [--verbose] [--json] [--heal] [--install-grammars] [--risk-tolerance safe|low|medium]',
+    usage: 'librarian doctor [--verbose] [--json] [--heal] [--fix] [--install-grammars] [--risk-tolerance safe|low|medium]',
   },
   'publish-gate': {
     description: 'Run strict publish-readiness gate checks',
@@ -493,21 +493,23 @@ async function main(): Promise<void> {
           process.exitCode = 1;
         }
         break;
-	      case 'doctor':
-	        {
-	          const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
-	          const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
-	            ? riskToleranceRaw
-	            : undefined;
-	          await doctorCommand({
-	            workspace,
-	            verbose,
-	            json: jsonMode,
-	            heal: args.includes('--heal'),
-	            installGrammars: args.includes('--install-grammars'),
-	            riskTolerance,
-	          });
-	        }
+		      case 'doctor':
+		        {
+		          const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
+		          const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
+		            ? riskToleranceRaw
+		            : undefined;
+              const fix = args.includes('--fix');
+		          await doctorCommand({
+		            workspace,
+		            verbose,
+		            json: jsonMode,
+		            heal: args.includes('--heal'),
+                fix,
+		            installGrammars: args.includes('--install-grammars'),
+		            riskTolerance,
+		          });
+		        }
 	        break;
       case 'publish-gate':
         await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });

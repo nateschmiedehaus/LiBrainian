@@ -366,6 +366,23 @@ export class UnifiedEmbeddingPipeline {
       minScore = 0,
     } = config;
 
+    if (queryText.trim().length === 0) {
+      return Array.from(this.indexedFiles.entries())
+        .map(([filePath, indexed]) => ({
+          filePath,
+          semanticScore: 0,
+          keywordScore: 0,
+          multiVectorScore: 0,
+          coChangeBoost: 0,
+          finalScore: 0,
+          matchedAspects: [],
+          purpose: indexed.purpose?.purpose,
+          bestChunks: [],
+        }))
+        .sort((a, b) => a.filePath.localeCompare(b.filePath))
+        .slice(0, this.config.returnTopK);
+    }
+
     // Step 1: Expand query
     const expandedQuery = expandQuery(queryText);
     console.log(`[pipeline] Query: "${queryText}" → "${expandedQuery}"`);
