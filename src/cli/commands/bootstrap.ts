@@ -324,6 +324,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         llmProvider,
         llmModelId,
         emitBaseline,
+        emitInstallManifest: true,
         updateAgentDocs,
         noClaudeMd,
         ...scopeOverrides,

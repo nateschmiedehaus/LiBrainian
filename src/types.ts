@@ -394,6 +394,10 @@ export interface BootstrapConfig {
    */
   emitBaseline?: boolean;
   /**
+   * Write .librainian-manifest.json uninstall metadata after successful bootstrap.
+   */
+  emitInstallManifest?: boolean;
+  /**
    * Opt-in to mutating AGENTS.md / CLAUDE.md / CODEX.md with generated sections.
    * Default is false to avoid surprising edits in instruction files.
    */

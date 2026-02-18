@@ -170,6 +170,7 @@ LiBrainian auto-detects what is present and indexes only what is available in th
 npx librainian setup --depth quick
 npx librainian quickstart
 npx librainian bootstrap .
+npx librainian uninstall --dry-run
 npx librainian doctor --heal
 
 # Day 1 / normal work
@@ -203,6 +204,25 @@ npm run test:agentic:strict
 
 `validate:fast` is the default developer path and CI path for pull requests.
 `validate:full` and `test:agentic:strict` are required for release-grade confidence.
+
+## CI / Non-Interactive Mode
+
+LiBrainian now auto-detects CI/non-interactive runtime when:
+- `CI=true` or `GITHUB_ACTIONS=true`
+- stdout/stderr is not a TTY
+- `--ci` is passed explicitly
+
+In non-interactive mode, LiBrainian automatically:
+- disables progress UI
+- disables ANSI color output
+- assumes non-interactive confirmations (`--yes` behavior)
+
+Useful global flags:
+
+```bash
+npx librainian status --json --ci --quiet
+npx librainian bootstrap --mode fast --yes --no-progress --no-color
+```
 
 ## Pre-Commit Hook Integration
 

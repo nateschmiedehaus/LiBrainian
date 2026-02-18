@@ -310,6 +310,7 @@ export async function runOnboardingRecovery(
       llmProvider,
       llmModelId,
       emitBaseline,
+      emitInstallManifest: true,
       updateAgentDocs,
     });
 

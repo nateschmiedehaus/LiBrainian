@@ -22,6 +22,20 @@ function run(command, args, options = {}) {
   return String(result.stdout ?? '').trim();
 }
 
+function tryRun(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    stdio: 'pipe',
+    ...options,
+  });
+  return {
+    status: result.status ?? 1,
+    stdout: String(result.stdout ?? '').trim(),
+    stderr: String(result.stderr ?? '').trim(),
+  };
+}
+
 function parseJson(command, args) {
   const output = run(command, args);
   try {
@@ -29,6 +43,15 @@ function parseJson(command, args) {
   } catch (error) {
     throw new Error(`Failed to parse JSON from: ${command} ${args.join(' ')}\n${output}\n${String(error)}`);
   }
+}
+
+function checkGhAuth() {
+  const result = tryRun('gh', ['auth', 'status']);
+  if (result.status === 0) {
+    return { authenticated: true, detail: result.stdout };
+  }
+  const detail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+  return { authenticated: false, detail };
 }
 
 function parsePrNumberFromUrl(url) {
@@ -234,15 +257,11 @@ function main() {
   const publishWorkflow = String(values['publish-workflow'] ?? 'publish-npm.yml').trim() || 'publish-npm.yml';
   const npmTag = String(values['npm-tag'] ?? 'latest').trim() || 'latest';
 
-  run('gh', ['auth', 'status']);
-
   if (typeof values['preflight-npm-script'] === 'string' && values['preflight-npm-script'].trim().length > 0) {
     run('npm', ['run', values['preflight-npm-script'].trim()], { stdio: 'inherit' });
   }
 
   const repo = resolveRepo(values.repo);
-  const issue = issueNumber ? fetchIssue(repo, issueNumber) : null;
-
   const branch = getCurrentBranch();
   if (branch === 'main' || branch === 'master') {
     throw new Error(`Refusing to autoland from protected branch: ${branch}`);
@@ -252,6 +271,24 @@ function main() {
   if (Number.isFinite(dirtyCount) && dirtyCount > 0) {
     console.warn(`[gh:autoland] Warning: working tree has ${dirtyCount} uncommitted change(s). Continuing with remote PR operations.`);
   }
+
+  const ghAuth = checkGhAuth();
+  if (!ghAuth.authenticated) {
+    run('git', ['push', '-u', 'origin', branch], { stdio: 'inherit' });
+    const prUrl = `https://github.com/${repo}/pull/new/${encodeURIComponent(branch)}`;
+    console.warn('[gh:autoland] gh auth unavailable. Falling back to push-only mode.');
+    if (ghAuth.detail) {
+      console.warn(ghAuth.detail);
+    }
+    console.log(`[gh:autoland] Open PR: ${prUrl}`);
+    if (issueNumber) {
+      console.log(`[gh:autoland] Include in PR body: Fixes #${issueNumber}`);
+    }
+    console.log('[gh:autoland] To enable full auto-PR/merge behavior, run: gh auth login -h github.com');
+    return;
+  }
+
+  const issue = issueNumber ? fetchIssue(repo, issueNumber) : null;
 
   run('git', ['push', '-u', 'origin', branch], { stdio: 'inherit' });
 

@@ -7,6 +7,7 @@
  *   librarian query <intent>      - Run a query against the knowledge base
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
+ *   librarian uninstall           - Remove LiBrainian bootstrap artifacts
  *   librarian mcp                 - Start MCP stdio server / print client config
  *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
  *   librarian index --force <...> - Incrementally index specific files or git-selected changes
@@ -44,6 +45,7 @@ import { statusCommand } from './commands/status.js';
 import { queryCommand } from './commands/query.js';
 import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
+import { uninstallCommand } from './commands/uninstall.js';
 import { mcpCommand } from './commands/mcp.js';
 import { ejectDocsCommand } from './commands/eject_docs.js';
 import { inspectCommand } from './commands/inspect.js';
@@ -73,6 +75,7 @@ import { publishGateCommand } from './commands/publish_gate.js';
 import { ralphCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
+import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
   CliError,
   formatError,
@@ -84,7 +87,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -122,6 +125,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
     usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+  },
+  'uninstall': {
+    description: 'Remove LiBrainian-managed bootstrap artifacts',
+    usage: 'librarian uninstall [--dry-run] [--keep-index] [--force] [--json] [--no-install]',
   },
   'mcp': {
     description: 'Start MCP stdio server or print client config snippets',
@@ -262,6 +269,11 @@ async function main(): Promise<void> {
     options: {
       help: { type: 'boolean', short: 'h', default: false },
       version: { type: 'boolean', short: 'v', default: false },
+      yes: { type: 'boolean', short: 'y', default: false },
+      quiet: { type: 'boolean', short: 'q', default: false },
+      ci: { type: 'boolean', default: false },
+      'no-progress': { type: 'boolean', default: false },
+      'no-color': { type: 'boolean', default: false },
       workspace: { type: 'string', short: 'w', default: process.cwd() },
       verbose: { type: 'boolean', default: false },
     },
@@ -291,6 +303,8 @@ async function main(): Promise<void> {
 
   // Check for --json flag early for structured error output
   const jsonMode = hasJsonFlag(args);
+  const runtimeMode = deriveCliRuntimeMode({ args, jsonMode });
+  const restoreConsole = applyCliRuntimeMode(runtimeMode);
   // In JSON mode, stdout is reserved for machine-readable output. Silence logs by default
   // unless the caller explicitly set a log level.
   if (jsonMode && !process.env.LIBRARIAN_LOG_LEVEL) {
@@ -348,6 +362,9 @@ async function main(): Promise<void> {
 
       case 'bootstrap':
         await bootstrapCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'uninstall':
+        await uninstallCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'mcp':
         await mcpCommand({ workspace, args: commandArgs, rawArgs: args });
@@ -555,7 +572,7 @@ async function main(): Promise<void> {
 	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
 	        break;
 	    }
-	  } catch (error) {
+  } catch (error) {
     // Convert error to structured envelope for programmatic handling
     const envelope = classifyError(error);
 
@@ -569,6 +586,8 @@ async function main(): Promise<void> {
 
     // Set exit code based on error type
     process.exitCode = getExitCode(envelope);
+  } finally {
+    restoreConsole();
   }
 }
 
