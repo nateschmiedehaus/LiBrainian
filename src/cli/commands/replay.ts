@@ -17,6 +17,7 @@ import type {
   FitnessReport,
   StageResult,
 } from '../../evolution/types.js';
+import { sanitizeTraceStatus } from '../user_messages.js';
 
 interface ReplayOptions {
   workspace: string;
@@ -186,7 +187,7 @@ function replayVariant(
       const emoji = stage.result.status === 'passed' ? '\u2705' :
                     stage.result.status === 'skipped' ? '\u23E9' :
                     stage.result.status === 'unverified_by_trace' ? '\u2753' : '\u274C';
-      console.log(`    ${emoji} ${stage.name}: ${stage.result.status}`);
+      console.log(`    ${emoji} ${stage.name}: ${sanitizeTraceStatus(stage.result.status)}`);
 
       if (verbose && stage.result.metrics) {
         for (const [key, value] of Object.entries(stage.result.metrics)) {

@@ -114,7 +114,8 @@ export async function coverageCommand(options: CoverageCommandOptions): Promise<
         status: 'FAIL',
         evidence: {
           source: 'none',
-          reason: 'unverified_by_trace(uc_method_unmapped): No method family mapping for this UC',
+          reason:
+            'No method family mapping for this UC. Fix: update use-case method mappings, then re-run `librarian coverage --strict`.',
         },
       };
       entries.push(entry);
@@ -339,7 +340,8 @@ function collectEvidence(
   // No evidence found
   return {
     source: 'none',
-    reason: 'unverified_by_trace(coverage_unverified): No evidence found for this combination',
+    reason:
+      'No evidence found for this combination. Fix: run relevant tests and regenerate method-pack evidence before re-running `librarian coverage --strict`.',
   };
 }
 

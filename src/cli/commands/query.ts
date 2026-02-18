@@ -25,6 +25,7 @@ import {
 } from '../../constructions/enumeration.js';
 import { emitJsonOutput } from '../json_output.js';
 import { ContextAssemblySessionManager, type ContextSession } from '../../api/context_sessions.js';
+import { parseTraceMarkerMessage, sanitizeTraceMarkerMessage } from '../user_messages.js';
 
 export interface QueryCommandOptions {
   workspace: string;
@@ -35,7 +36,6 @@ export interface QueryCommandOptions {
 type QueryStrategyFlag = 'auto' | 'semantic' | 'heuristic';
 type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
 type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
-const TRACE_MARKER_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -759,25 +759,10 @@ function validateDepth(depth: string): 'L0' | 'L1' | 'L2' | 'L3' {
   throw createError('INVALID_ARGUMENT', `Invalid depth: ${depth}. Must be L0, L1, L2, or L3.`);
 }
 
-function sanitizeTraceMarkerMessage(message: string | undefined): string | undefined {
-  if (typeof message !== 'string') return message;
-  const raw = message.trim();
-  const match = raw.match(TRACE_MARKER_PATTERN);
-  if (!match) return raw;
-  const traceCode = (match[1] ?? '').trim();
-  const detail = (match[2] ?? '').trim();
-  if (detail) return detail;
-  if (traceCode) return traceCode.replace(/_/g, ' ');
-  return raw;
-}
-
 function sanitizeTraceId(traceId: string | undefined): string | undefined {
   if (!traceId) return traceId;
-  const parsed = sanitizeTraceMarkerMessage(traceId);
-  if (!parsed) return traceId;
-  const match = traceId.match(TRACE_MARKER_PATTERN);
-  const code = (match?.[1] ?? '').trim();
-  return code || parsed;
+  const parsed = parseTraceMarkerMessage(traceId);
+  return parsed.code || parsed.userMessage || traceId;
 }
 
 function sanitizeMessageList(values: string[] | undefined): string[] | undefined {
@@ -785,7 +770,7 @@ function sanitizeMessageList(values: string[] | undefined): string[] | undefined
   const seen = new Set<string>();
   const sanitized: string[] = [];
   for (const value of values) {
-    const normalized = sanitizeTraceMarkerMessage(value)?.trim();
+    const normalized = sanitizeTraceMarkerMessage(value).trim();
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     sanitized.push(normalized);
@@ -798,13 +783,13 @@ function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianR
     ...response,
     disclosures: sanitizeMessageList(response.disclosures) ?? response.disclosures,
     traceId: sanitizeTraceId(response.traceId) ?? response.traceId,
-    llmError: sanitizeTraceMarkerMessage(response.llmError),
+    llmError: response.llmError ? sanitizeTraceMarkerMessage(response.llmError) : response.llmError,
     coverageGaps: sanitizeMessageList(response.coverageGaps),
     methodHints: sanitizeMessageList(response.methodHints),
     drillDownHints: sanitizeMessageList(response.drillDownHints) ?? [],
     packs: response.packs.map((pack) => ({
       ...pack,
-      summary: sanitizeTraceMarkerMessage(pack.summary) ?? pack.summary,
+      summary: sanitizeTraceMarkerMessage(pack.summary),
       keyFacts: sanitizeMessageList(pack.keyFacts) ?? [],
     })),
   };
@@ -885,7 +870,7 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
   const warnings: string[] = [];
   const seen = new Set<string>();
   const add = (warning: string): void => {
-    const normalized = (sanitizeTraceMarkerMessage(warning) ?? warning).trim();
+    const normalized = sanitizeTraceMarkerMessage(warning).trim();
     if (!normalized || seen.has(normalized)) return;
     seen.add(normalized);
     warnings.push(normalized);

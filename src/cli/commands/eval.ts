@@ -22,6 +22,7 @@ import {
 } from '../../evolution/index.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 import { generateStateReport } from '../../measurement/observability.js';
+import { sanitizeTraceMarkerMessage, sanitizeTraceStatus } from '../user_messages.js';
 
 interface EvalOptions {
   workspace: string;
@@ -195,7 +196,7 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
     const emoji = stage.result.status === 'passed' ? '\u2705' :
                   stage.result.status === 'skipped' ? '\u23E9' :
                   stage.result.status === 'unverified_by_trace' ? '\u2753' : '\u274C';
-    console.log(`  ${emoji} ${stage.name}: ${stage.result.status}`);
+    console.log(`  ${emoji} ${stage.name}: ${sanitizeTraceStatus(stage.result.status)}`);
 
     if (verbose && stage.result.metrics) {
       for (const [key, value] of Object.entries(stage.result.metrics)) {
@@ -227,12 +228,12 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
 
   // Measurement integrity
   console.log('Scoring Integrity:');
-  console.log(`  Status: ${report.scoringIntegrity.status}`);
+  console.log(`  Status: ${sanitizeTraceStatus(report.scoringIntegrity.status)}`);
   console.log(`  Measured Families: ${report.scoringIntegrity.measuredFamilies}/${report.scoringIntegrity.totalFamilies}`);
   console.log(`  Coverage: ${(report.scoringIntegrity.coverageRatio * 100).toFixed(1)}%`);
   if (report.scoringIntegrity.reasons.length > 0) {
     for (const reason of report.scoringIntegrity.reasons) {
-      console.log(`  - ${reason}`);
+      console.log(`  - ${sanitizeTraceMarkerMessage(reason)}`);
     }
   }
   console.log();
@@ -259,7 +260,7 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
     warnings.push('Heavy LLM reliance - may fail when providers unavailable');
   }
   if (report.scoringIntegrity.status !== 'measured') {
-    warnings.push('Fitness scoring is unverified_by_trace - resolve missing measurement families before trusting the score');
+    warnings.push('Fitness scoring is not fully verified; resolve missing measurement families before trusting the score.');
   }
 
   if (warnings.length > 0) {

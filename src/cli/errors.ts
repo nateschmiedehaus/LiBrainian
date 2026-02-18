@@ -6,6 +6,8 @@
  * recovery suggestions.
  */
 
+import { sanitizeTraceMarkerMessage } from './user_messages.js';
+
 // ============================================================================
 // Error Envelope Types
 // ============================================================================
@@ -43,19 +45,6 @@ export interface ErrorContext {
   retryAfterMs?: number;
   /** Additional structured data */
   [key: string]: unknown;
-}
-
-const TRACE_MARKER_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
-
-function sanitizeTraceMarkerMessage(message: string): string {
-  const raw = String(message ?? '').trim();
-  const match = raw.match(TRACE_MARKER_PATTERN);
-  if (!match) return raw;
-  const traceCode = (match[1] ?? '').trim();
-  const detail = (match[2] ?? '').trim();
-  if (detail) return detail;
-  if (traceCode) return traceCode.replace(/_/g, ' ');
-  return raw;
 }
 
 // ============================================================================
