@@ -197,6 +197,37 @@ export interface AuditLogEntry {
   error?: string;
 }
 
+interface ToolHintMetadata {
+  readOnlyHint: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+  requiresIndex: boolean;
+  requiresEmbeddings: boolean;
+  estimatedTokens: number;
+}
+
+const TOOL_HINTS: Record<string, ToolHintMetadata> = {
+  bootstrap: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 12000 },
+  status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
+  list_episodes: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
+  list_technique_primitives: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  list_technique_compositions: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  select_technique_compositions: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
+  compile_technique_composition: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
+  submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
+  verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  run_audit: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
+  diff_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3500 },
+  export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
+  get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
+};
+
 interface ReadResourceRequestLike {
   params: {
     uri: string;
@@ -537,14 +568,43 @@ export class LibrarianMCPServer {
       },
     ];
 
-    // Filter tools based on authorized scopes
-    return tools.filter((tool) => {
-      const auth = TOOL_AUTHORIZATION[tool.name];
-      if (!auth) return true;
-      return auth.requiredScopes.every((scope) =>
-        this.config.authorization.enabledScopes.includes(scope)
-      );
-    });
+    // Filter tools based on authorized scopes and annotate capabilities for clients.
+    return tools
+      .filter((tool) => {
+        const auth = TOOL_AUTHORIZATION[tool.name];
+        if (!auth) return true;
+        return auth.requiredScopes.every((scope) =>
+          this.config.authorization.enabledScopes.includes(scope)
+        );
+      })
+      .map((tool) => this.withToolHints(tool));
+  }
+
+  private withToolHints(tool: Tool): Tool {
+    const hints = TOOL_HINTS[tool.name] ?? {
+      readOnlyHint: true,
+      openWorldHint: false,
+      requiresIndex: false,
+      requiresEmbeddings: false,
+      estimatedTokens: 1200,
+    };
+
+    return {
+      ...tool,
+      annotations: {
+        ...(tool.annotations ?? {}),
+        readOnlyHint: hints.readOnlyHint,
+        destructiveHint: hints.destructiveHint ?? !hints.readOnlyHint,
+        idempotentHint: hints.idempotentHint ?? hints.readOnlyHint,
+        openWorldHint: hints.openWorldHint ?? false,
+      },
+      _meta: {
+        ...(tool._meta ?? {}),
+        requiresIndex: hints.requiresIndex,
+        requiresEmbeddings: hints.requiresEmbeddings,
+        estimatedTokens: hints.estimatedTokens,
+      },
+    };
   }
 
   /**

@@ -21,6 +21,7 @@ COMMANDS:
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
+    mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
     watch               Watch for file changes and auto-reindex
@@ -60,6 +61,7 @@ EXAMPLES:
     librainian quickstart
     librainian query "How does the payment flow work?"
     librainian bootstrap --force
+    librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian publish-gate --profile release --json
 
@@ -249,6 +251,30 @@ EXAMPLES:
     librarian bootstrap --scope librarian
     librarian bootstrap --scope librarian --llm-provider codex --llm-model gpt-4o-mini
     librarian bootstrap --emit-baseline
+`,
+
+  mcp: `
+librarian mcp - Start MCP stdio server and print client setup snippets
+
+USAGE:
+    librarian mcp [options]
+
+OPTIONS:
+    --print-config        Print config snippets and exit (do not start server)
+    --client <name>       Target a single client: claude|cursor|vscode|windsurf|gemini
+    --launcher <mode>     Command style: installed|npx (default: installed)
+    --json                Emit JSON when used with --print-config
+    --stdio               Accepted for compatibility; stdio is always used
+
+DESCRIPTION:
+    Runs the LiBrainian MCP server over stdio for MCP-compatible clients.
+    Use --print-config to generate copy-ready JSON snippets for client setup.
+
+EXAMPLES:
+    librarian mcp
+    librarian mcp --print-config
+    librarian mcp --print-config --client claude
+    librarian mcp --print-config --launcher npx --json
 `,
 
   'eject-docs': `

@@ -4,6 +4,10 @@
 
 The LiBrainian MCP (Model Context Protocol) Server provides a standardized interface for AI agents to access repository knowledge. It implements the MCP specification with tools, resources, and comprehensive security controls.
 
+For end-to-end client setup (Claude/Cursor/VS Code/Windsurf/Gemini), use `docs/mcp-setup.md`.
+
+For end-to-end client setup (Claude/Cursor/VS Code/Windsurf/Gemini), use `docs/mcp-setup.md`.
+
 ## Quick Start
 
 ```typescript

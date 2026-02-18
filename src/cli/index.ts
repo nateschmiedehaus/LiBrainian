@@ -7,6 +7,7 @@
  *   librarian query <intent>      - Run a query against the knowledge base
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
+ *   librarian mcp                 - Start MCP stdio server / print client config
  *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
  *   librarian index --force <...> - Incrementally index specific files
  *   librarian inspect <module>    - Inspect a module's knowledge
@@ -40,6 +41,7 @@ import { statusCommand } from './commands/status.js';
 import { queryCommand } from './commands/query.js';
 import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
+import { mcpCommand } from './commands/mcp.js';
 import { ejectDocsCommand } from './commands/eject_docs.js';
 import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
@@ -79,7 +81,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -117,6 +119,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
     usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+  },
+  'mcp': {
+    description: 'Start MCP stdio server or print client config snippets',
+    usage: 'librarian mcp [--print-config] [--client claude|cursor|vscode|windsurf|gemini] [--launcher installed|npx] [--json]',
   },
   'eject-docs': {
     description: 'Remove injected librarian docs from CLAUDE.md files',
@@ -328,6 +334,9 @@ async function main(): Promise<void> {
       case 'bootstrap':
         await bootstrapCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
+      case 'mcp':
+        await mcpCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
       case 'eject-docs':
         await ejectDocsCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
@@ -527,7 +536,7 @@ async function main(): Promise<void> {
   }
 }
 
-const CLI_NON_EXITING_COMMANDS = new Set(['watch']);
+const CLI_NON_EXITING_COMMANDS = new Set(['watch', 'mcp']);
 
 main()
   .catch((error) => {

@@ -89,6 +89,16 @@ npx librainian status --format json
 npx librainian health --format json
 ```
 
+### MCP (agent clients)
+
+For Claude Code/Cursor/VS Code/Windsurf/Gemini client wiring, run:
+
+```bash
+npx librainian mcp --print-config
+```
+
+Then follow the full setup guide at `docs/mcp-setup.md`.
+
 ### Programmatic (recommended for agents)
 
 ```typescript

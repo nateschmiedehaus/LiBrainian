@@ -71,6 +71,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - `docs/librarian/EPISTEMICS.md` (epistemics framework guide - conative, temporal, intuitive, inference, quality gates)
 - `docs/librarian/AGENT_INTEGRATION.md` (agent integration patterns)
 - `docs/librarian/MCP_SERVER.md` (MCP server setup)
+- `docs/mcp-setup.md` (MCP client setup + troubleshooting)
 
 ### Verification Reports
 - `docs/librarian/test-verification-report.md` (780 tests across 10 new modules - 100% passing)

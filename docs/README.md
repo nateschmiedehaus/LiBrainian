@@ -10,6 +10,7 @@ Public docs (user-facing):
 - `/docs/librarian/API.md` — API reference
 - `/docs/librarian/AGENT_INTEGRATION.md` — integration patterns
 - `/docs/librarian/MCP_SERVER.md` — MCP usage
+- `/docs/mcp-setup.md` — end-to-end MCP client setup
 - `/docs/librarian/validation.md` — validation and gates
 
 Project docs:
