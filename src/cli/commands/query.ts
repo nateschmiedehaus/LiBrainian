@@ -35,6 +35,7 @@ export interface QueryCommandOptions {
 type QueryStrategyFlag = 'auto' | 'semantic' | 'heuristic';
 type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
 type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
+const TRACE_MARKER_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -581,6 +582,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       const rawResponse = await queryLibrarian(query, storage);
       const { response, droppedCount } = applyPackLimit(rawResponse, limit);
       const strategyInfo = inferRetrievalStrategy(response);
+      const displayResponse = sanitizeQueryResponseForOutput(response);
       const elapsed = Date.now() - startTime;
 
       spinner.succeed(`Query completed in ${formatDuration(elapsed)}`);
@@ -588,7 +590,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       if (outputJson) {
         const criticalWarnings = collectCriticalWarnings(response);
         await emitJsonOutput({
-          ...response,
+          ...displayResponse,
           strategy: strategyInfo.strategy,
           strategyReason: strategyInfo.reason,
           strategyWarning: strategyInfo.warning,
@@ -596,7 +598,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           resultLimit: limit
             ? {
                 requested: limit,
-                returned: response.packs.length,
+                returned: displayResponse.packs.length,
                 dropped: droppedCount,
               }
             : undefined,
@@ -621,10 +623,10 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         { key: 'Depth', value: depth },
         { key: 'Affected Files', value: affectedFiles?.join(', ') || 'None specified' },
         { key: 'UC Requirements', value: ucIds?.join(', ') || 'None specified' },
-        { key: 'Total Confidence', value: response.totalConfidence.toFixed(3) },
-        { key: 'Cache Hit', value: response.cacheHit },
-        { key: 'Latency', value: `${response.latencyMs}ms` },
-        { key: 'Packs Found', value: response.packs.length },
+        { key: 'Total Confidence', value: displayResponse.totalConfidence.toFixed(3) },
+        { key: 'Cache Hit', value: displayResponse.cacheHit },
+        { key: 'Latency', value: `${displayResponse.latencyMs}ms` },
+        { key: 'Packs Found', value: displayResponse.packs.length },
         { key: 'Strategy', value: strategyInfo.reason ? `${strategyInfo.strategy} (${strategyInfo.reason})` : strategyInfo.strategy },
       ];
       if (deterministic) {
@@ -634,7 +636,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         keyValues.push({ key: 'Token Budget', value: `${tokenBudget.maxTokens}${tokenBudget.reserveTokens ? ` (reserve: ${tokenBudget.reserveTokens})` : ''}` });
       }
       if (limit) {
-        keyValues.push({ key: 'Result Limit', value: `${response.packs.length} returned${droppedCount > 0 ? ` (${droppedCount} dropped)` : ''}` });
+        keyValues.push({ key: 'Result Limit', value: `${displayResponse.packs.length} returned${droppedCount > 0 ? ` (${droppedCount} dropped)` : ''}` });
       }
       printKeyValue(keyValues);
       console.log();
@@ -643,15 +645,15 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         console.log();
       }
 
-      if (response.explanation) {
+      if (displayResponse.explanation) {
         console.log('Explanation:');
-        console.log(`  ${response.explanation}`);
+        console.log(`  ${displayResponse.explanation}`);
         console.log();
       }
 
-      if (response.packs.length > 0) {
+      if (displayResponse.packs.length > 0) {
         console.log('Context Packs:');
-        for (const pack of response.packs) {
+        for (const pack of displayResponse.packs) {
           console.log(`\n  [${pack.packType}] ${pack.targetId}`);
           console.log(`  Confidence: ${pack.confidence.toFixed(3)}${pack.calibratedConfidence ? ` (calibrated: ${pack.calibratedConfidence.toFixed(3)})` : ''}`);
           console.log(`  Summary: ${pack.summary.substring(0, 100)}${pack.summary.length > 100 ? '...' : ''}`);
@@ -678,53 +680,53 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         }
       }
 
-      if (response.coverageGaps && response.coverageGaps.length > 0) {
+      if (displayResponse.coverageGaps && displayResponse.coverageGaps.length > 0) {
         console.log('Coverage Gaps:');
-        for (const gap of response.coverageGaps) {
+        for (const gap of displayResponse.coverageGaps) {
           console.log(`  - ${gap}`);
         }
         console.log();
       }
 
-      if (response.methodHints && response.methodHints.length > 0) {
+      if (displayResponse.methodHints && displayResponse.methodHints.length > 0) {
         console.log('Method Hints:');
-        for (const hint of response.methodHints) {
+        for (const hint of displayResponse.methodHints) {
           console.log(`  - ${hint}`);
         }
         console.log();
       }
 
-      if (response.drillDownHints.length > 0) {
+      if (displayResponse.drillDownHints.length > 0) {
         console.log('Drill-Down Hints:');
-        for (const hint of response.drillDownHints) {
+        for (const hint of displayResponse.drillDownHints) {
           console.log(`  - ${hint}`);
         }
         console.log();
       }
 
-      if (response.calibration) {
+      if (displayResponse.calibration) {
         console.log('Calibration Info:');
         printKeyValue([
-          { key: 'Buckets', value: response.calibration.bucketCount },
-          { key: 'Samples', value: response.calibration.sampleCount },
-          { key: 'Expected Error', value: response.calibration.expectedCalibrationError.toFixed(4) },
+          { key: 'Buckets', value: displayResponse.calibration.bucketCount },
+          { key: 'Samples', value: displayResponse.calibration.sampleCount },
+          { key: 'Expected Error', value: displayResponse.calibration.expectedCalibrationError.toFixed(4) },
         ]);
         console.log();
       }
 
-      if (response.uncertainty) {
+      if (displayResponse.uncertainty) {
         console.log('Uncertainty Metrics:');
         printKeyValue([
-          { key: 'Confidence', value: response.uncertainty.confidence.toFixed(3) },
-          { key: 'Entropy', value: response.uncertainty.entropy.toFixed(3) },
-          { key: 'Variance', value: response.uncertainty.variance.toFixed(3) },
+          { key: 'Confidence', value: displayResponse.uncertainty.confidence.toFixed(3) },
+          { key: 'Entropy', value: displayResponse.uncertainty.entropy.toFixed(3) },
+          { key: 'Variance', value: displayResponse.uncertainty.variance.toFixed(3) },
         ]);
         console.log();
       }
 
-      if (response.tokenBudgetResult) {
+      if (displayResponse.tokenBudgetResult) {
         console.log('Token Budget:');
-        const tbr = response.tokenBudgetResult;
+        const tbr = displayResponse.tokenBudgetResult;
         printKeyValue([
           { key: 'Truncated', value: tbr.truncated },
           { key: 'Tokens Used', value: tbr.tokensUsed },
@@ -755,6 +757,57 @@ function validateDepth(depth: string): 'L0' | 'L1' | 'L2' | 'L3' {
     return normalized;
   }
   throw createError('INVALID_ARGUMENT', `Invalid depth: ${depth}. Must be L0, L1, L2, or L3.`);
+}
+
+function sanitizeTraceMarkerMessage(message: string | undefined): string | undefined {
+  if (typeof message !== 'string') return message;
+  const raw = message.trim();
+  const match = raw.match(TRACE_MARKER_PATTERN);
+  if (!match) return raw;
+  const traceCode = (match[1] ?? '').trim();
+  const detail = (match[2] ?? '').trim();
+  if (detail) return detail;
+  if (traceCode) return traceCode.replace(/_/g, ' ');
+  return raw;
+}
+
+function sanitizeTraceId(traceId: string | undefined): string | undefined {
+  if (!traceId) return traceId;
+  const parsed = sanitizeTraceMarkerMessage(traceId);
+  if (!parsed) return traceId;
+  const match = traceId.match(TRACE_MARKER_PATTERN);
+  const code = (match?.[1] ?? '').trim();
+  return code || parsed;
+}
+
+function sanitizeMessageList(values: string[] | undefined): string[] | undefined {
+  if (!values) return values;
+  const seen = new Set<string>();
+  const sanitized: string[] = [];
+  for (const value of values) {
+    const normalized = sanitizeTraceMarkerMessage(value)?.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    sanitized.push(normalized);
+  }
+  return sanitized;
+}
+
+function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianResponse {
+  return {
+    ...response,
+    disclosures: sanitizeMessageList(response.disclosures) ?? response.disclosures,
+    traceId: sanitizeTraceId(response.traceId) ?? response.traceId,
+    llmError: sanitizeTraceMarkerMessage(response.llmError),
+    coverageGaps: sanitizeMessageList(response.coverageGaps),
+    methodHints: sanitizeMessageList(response.methodHints),
+    drillDownHints: sanitizeMessageList(response.drillDownHints) ?? [],
+    packs: response.packs.map((pack) => ({
+      ...pack,
+      summary: sanitizeTraceMarkerMessage(pack.summary) ?? pack.summary,
+      keyFacts: sanitizeMessageList(pack.keyFacts) ?? [],
+    })),
+  };
 }
 
 function applyPackLimit(
@@ -832,7 +885,7 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
   const warnings: string[] = [];
   const seen = new Set<string>();
   const add = (warning: string): void => {
-    const normalized = warning.trim();
+    const normalized = (sanitizeTraceMarkerMessage(warning) ?? warning).trim();
     if (!normalized || seen.has(normalized)) return;
     seen.add(normalized);
     warnings.push(normalized);

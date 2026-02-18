@@ -219,6 +219,58 @@ describe('queryCommand LLM resolution', () => {
     }
   });
 
+  it('sanitizes unverified trace markers in JSON output fields', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'hello world', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: ['unverified_by_trace(storage_write_degraded): Session degraded due to lock contention.'],
+      traceId: 'unverified_by_trace(replay_unavailable)',
+      llmError: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
+      coverageGaps: ['unverified_by_trace(provider_unavailable): Embedding provider unavailable'],
+      methodHints: ['unverified_by_trace(provider_unavailable): Try provider diagnostics.'],
+      drillDownHints: ['unverified_by_trace(provider_unavailable): Retry after provider setup.'],
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'function_context',
+          targetId: 't1',
+          summary: 'unverified_by_trace(provider_unavailable): Structural-only summary.',
+          keyFacts: ['unverified_by_trace(provider_unavailable): fact'],
+          relatedFiles: [],
+          codeSnippets: [],
+          confidence: 0.8,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json'],
+    });
+
+    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+    expect(jsonOutput).toBeDefined();
+    const parsed = JSON.parse(jsonOutput ?? '{}');
+
+    expect(parsed.disclosures).toEqual(['Session degraded due to lock contention.']);
+    expect(parsed.traceId).toBe('replay_unavailable');
+    expect(parsed.llmError).toBe('Embedding provider unavailable');
+    expect(parsed.coverageGaps?.[0]).toBe('Embedding provider unavailable');
+    expect(parsed.methodHints?.[0]).toBe('Try provider diagnostics.');
+    expect(parsed.drillDownHints?.[0]).toBe('Retry after provider setup.');
+    expect(parsed.packs?.[0]?.summary).toBe('Structural-only summary.');
+    expect(parsed.packs?.[0]?.keyFacts?.[0]).toBe('fact');
+  });
+
   it('rejects --out without --json', async () => {
     const { queryCommand } = await import('../query.js');
     await expect(queryCommand({
