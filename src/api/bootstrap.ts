@@ -100,7 +100,7 @@ import {
   getParserType,
   shouldGenerateEmbeddings,
 } from '../universal_patterns.js';
-import { buildTemporalGraph } from '../graphs/temporal_graph.js';
+import { buildTemporalGraph, type TemporalGraph } from '../graphs/temporal_graph.js';
 import { createIndexStateWriter, type IndexState, type IndexStateWriter } from '../state/index_state.js';
 import { computeFileChecksum } from '../utils/checksums.js';
 import {
@@ -3074,7 +3074,7 @@ async function runRelationshipMapping(
 
   const cochangeStore = storage as LibrarianStorage & {
     getCochangeEdgeCount?: () => Promise<number>;
-    storeCochangeEdges?: (edges: ReturnType<typeof buildTemporalGraph>['edges'], computedAt?: string) => Promise<void>;
+    storeCochangeEdges?: (edges: TemporalGraph['edges'], computedAt?: string) => Promise<void>;
     deleteCochangeEdges?: () => Promise<void>;
   };
   if (cochangeStore.storeCochangeEdges) {
@@ -3085,7 +3085,7 @@ async function runRelationshipMapping(
       if (config.forceReindex && cochangeStore.deleteCochangeEdges) {
         await cochangeStore.deleteCochangeEdges();
       }
-      const temporal = buildTemporalGraph(config.workspace);
+      const temporal = await buildTemporalGraph(config.workspace);
       if (temporal.edges.length) {
         await cochangeStore.storeCochangeEdges(temporal.edges);
       }

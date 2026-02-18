@@ -10,7 +10,7 @@ import { emptyArray, noResult } from '../api/empty_values.js';
 import { ensureLibrarianReady, getLibrarian, isLibrarianReady } from './first_run_gate.js';
 import { attributeFailure, recordPackOutcome, type AgentKnowledgeContext, type TaskOutcomeSummary } from './causal_attribution.js';
 import { getEmergencyModeState, recordConfidenceUpdateSkipped } from './emergency_mode.js';
-import { buildTemporalGraph } from '../graphs/temporal_graph.js';
+import { buildTemporalGraph, type TemporalGraph } from '../graphs/temporal_graph.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import { startFileWatcher, stopFileWatcher } from './file_watcher.js';
 import { resolveScenarioGuidance, type ScenarioGuidance } from './scenario_templates.js';
@@ -574,13 +574,13 @@ async function ensureTemporalGraph(librarian: Librarian, workspace: string): Pro
   const storage = (librarian as unknown as {
     storage?: LibrarianStorage & {
       getCochangeEdgeCount?: () => Promise<number>;
-      storeCochangeEdges?: (edges: ReturnType<typeof buildTemporalGraph>['edges'], computedAt?: string) => Promise<void>;
+      storeCochangeEdges?: (edges: TemporalGraph['edges'], computedAt?: string) => Promise<void>;
     };
   }).storage;
   if (!storage?.getCochangeEdgeCount || !storage.storeCochangeEdges) return;
   try {
     if ((await storage.getCochangeEdgeCount()) > 0) return;
-    const graph = buildTemporalGraph(workspace);
+    const graph = await buildTemporalGraph(workspace);
     if (graph.edges.length) await storage.storeCochangeEdges(graph.edges);
   } catch { /* ignore */ }
 }
