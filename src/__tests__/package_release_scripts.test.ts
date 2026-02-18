@@ -15,6 +15,8 @@ describe('package release scripts', () => {
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['gh:ship']).toBe('node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:branches:dry-run']).toBe('node scripts/gh-branch-hygiene.mjs --dry-run');
+    expect(scripts['gh:branches:cleanup']).toBe('node scripts/gh-branch-hygiene.mjs');
     expect(scripts['librainian:update']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update');
     expect(scripts['librainian:update:staged']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update --staged');
     expect(scripts['hooks:update-index']).toBe('node scripts/hook-update-index.mjs');
@@ -35,6 +37,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'hook-update-index.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'lefthook.yml'))).toBe(true);
@@ -72,6 +75,22 @@ describe('package release scripts', () => {
     expect(script).toContain("arg === '-w'");
     expect(script).toContain('const binPath = path.join(sandboxDir, \'node_modules\', \'.bin\', \'librainian\')');
     expect(script).toContain('cwd: workspace');
+  });
+
+  it('keeps autoland usable when gh auth is unavailable', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'gh-autoland.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('gh auth unavailable. Falling back to push-only mode.');
+    expect(script).toContain('To enable full auto-PR/merge behavior, run: gh auth login -h github.com');
+    expect(script).toContain('https://github.com/${repo}/pull/new/');
+  });
+
+  it('adds branch hygiene automation for stale codex branches', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('refs/remotes/origin/${prefix}*');
+    expect(script).toContain('Dry run: delete remote');
+    expect(script).toContain('GitHub API request failed');
   });
 
   it('defines staged validation scripts for daily, PR, and release gates', () => {

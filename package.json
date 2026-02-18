@@ -138,6 +138,8 @@
     "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --limit 200 --out state/plans/agent-issue-fix-plan.json",
     "gh:autoland": "node scripts/gh-autoland.mjs",
     "gh:ship": "node scripts/gh-autoland.mjs --preflight-npm-script validate:fast",
+    "gh:branches:dry-run": "node scripts/gh-branch-hygiene.mjs --dry-run",
+    "gh:branches:cleanup": "node scripts/gh-branch-hygiene.mjs",
     "librainian:update": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update",
     "librainian:update:staged": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update --staged",
     "hooks:update-index": "node scripts/hook-update-index.mjs",
