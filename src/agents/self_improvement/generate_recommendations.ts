@@ -768,7 +768,7 @@ export async function generateRecommendations(
   } = options;
 
   if (verbose) {
-    console.log(`[generateRecommendations] Starting recommendation generation`);
+    console.error(`[generateRecommendations] Starting recommendation generation`);
   }
 
   // Collect recommendations from all sources
@@ -779,7 +779,7 @@ export async function generateRecommendations(
       const archRecs = generateArchitectureRecommendations(analysisResults.architecture);
       allRecommendations.push(...archRecs);
       if (verbose) {
-        console.log(`[generateRecommendations] Generated ${archRecs.length} architecture recommendations`);
+        console.error(`[generateRecommendations] Generated ${archRecs.length} architecture recommendations`);
       }
     } catch (error) {
       errors.push(`Architecture recommendations failed: ${error}`);
@@ -791,7 +791,7 @@ export async function generateRecommendations(
       const consRecs = generateConsistencyRecommendations(analysisResults.consistency);
       allRecommendations.push(...consRecs);
       if (verbose) {
-        console.log(`[generateRecommendations] Generated ${consRecs.length} consistency recommendations`);
+        console.error(`[generateRecommendations] Generated ${consRecs.length} consistency recommendations`);
       }
     } catch (error) {
       errors.push(`Consistency recommendations failed: ${error}`);
@@ -803,7 +803,7 @@ export async function generateRecommendations(
       const calRecs = generateCalibrationRecommendations(analysisResults.calibration);
       allRecommendations.push(...calRecs);
       if (verbose) {
-        console.log(`[generateRecommendations] Generated ${calRecs.length} calibration recommendations`);
+        console.error(`[generateRecommendations] Generated ${calRecs.length} calibration recommendations`);
       }
     } catch (error) {
       errors.push(`Calibration recommendations failed: ${error}`);
@@ -844,7 +844,7 @@ export async function generateRecommendations(
   const roadmap = generateRoadmap(recommendations, dependencies);
 
   if (verbose) {
-    console.log(`[generateRecommendations] Generated ${recommendations.length} total recommendations`);
+    console.error(`[generateRecommendations] Generated ${recommendations.length} total recommendations`);
   }
 
   return {

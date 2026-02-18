@@ -374,7 +374,7 @@ export async function adversarialSelfTest(
   }
 
   if (verbose) {
-    console.log('[adversarialSelfTest] Starting adversarial self-test composition');
+    console.error('[adversarialSelfTest] Starting adversarial self-test composition');
   }
 
   // ============================================================================
@@ -385,7 +385,7 @@ export async function adversarialSelfTest(
 
   try {
     if (verbose) {
-      console.log('[adversarialSelfTest] Phase 1: Analyzing architecture');
+      console.error('[adversarialSelfTest] Phase 1: Analyzing architecture');
     }
 
     analysisResult = await analyzeArchitecture({
@@ -443,14 +443,14 @@ export async function adversarialSelfTest(
 
   try {
     if (verbose) {
-      console.log('[adversarialSelfTest] Phase 2: Identifying weaknesses');
+      console.error('[adversarialSelfTest] Phase 2: Identifying weaknesses');
     }
 
     weaknesses = extractWeaknessesFromArchitecture(analysisResult, focusAreas);
     weaknesses = weaknesses.slice(0, maxWeaknesses);
 
     if (verbose) {
-      console.log(`[adversarialSelfTest] Identified ${weaknesses.length} weaknesses`);
+      console.error(`[adversarialSelfTest] Identified ${weaknesses.length} weaknesses`);
     }
 
     phaseReports.push({
@@ -481,7 +481,7 @@ export async function adversarialSelfTest(
 
   try {
     if (verbose) {
-      console.log('[adversarialSelfTest] Phase 3: Generating adversarial tests');
+      console.error('[adversarialSelfTest] Phase 3: Generating adversarial tests');
     }
 
     for (const weakness of weaknesses) {
@@ -513,7 +513,7 @@ export async function adversarialSelfTest(
     }
 
     if (verbose) {
-      console.log(`[adversarialSelfTest] Generated ${testsGenerated.length} tests`);
+      console.error(`[adversarialSelfTest] Generated ${testsGenerated.length} tests`);
     }
 
     phaseReports.push({
@@ -565,7 +565,7 @@ export async function adversarialSelfTest(
         });
       } else {
         if (verbose) {
-          console.log('[adversarialSelfTest] Phase 4: Executing tests');
+          console.error('[adversarialSelfTest] Phase 4: Executing tests');
         }
 
         const executionResult = await testExecutor(allTestCases, {
@@ -619,7 +619,7 @@ export async function adversarialSelfTest(
   if (generateFixPlans && newIssues.length > 0) {
     try {
       if (verbose) {
-        console.log('[adversarialSelfTest] Phase 5: Generating fix plans');
+        console.error('[adversarialSelfTest] Phase 5: Generating fix plans');
       }
 
       for (const issue of newIssues.slice(0, 5)) { // Limit to first 5 issues
@@ -670,7 +670,7 @@ export async function adversarialSelfTest(
   if (shouldExtractPatterns && fixPlans.length > 0) {
     try {
       if (verbose) {
-        console.log('[adversarialSelfTest] Phase 6: Extracting patterns');
+        console.error('[adversarialSelfTest] Phase 6: Extracting patterns');
       }
 
       // Create a simulated improvement from the analysis for pattern extraction
@@ -752,10 +752,10 @@ export async function adversarialSelfTest(
     : 0;
 
   if (verbose) {
-    console.log('[adversarialSelfTest] Composition complete');
-    console.log(`  Weaknesses: ${weaknesses.length}`);
-    console.log(`  Tests: ${testsGenerated.length}`);
-    console.log(`  Robustness: ${(robustnessScore * 100).toFixed(1)}%`);
+    console.error('[adversarialSelfTest] Composition complete');
+    console.error(`  Weaknesses: ${weaknesses.length}`);
+    console.error(`  Tests: ${testsGenerated.length}`);
+    console.error(`  Robustness: ${(robustnessScore * 100).toFixed(1)}%`);
   }
 
   return {

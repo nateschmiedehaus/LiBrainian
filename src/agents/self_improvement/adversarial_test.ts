@@ -751,14 +751,14 @@ export async function generateAdversarialTests(
   } = options;
 
   if (verbose) {
-    console.log(`[generateAdversarialTests] Generating tests for weakness: ${weakness.id}`);
+    console.error(`[generateAdversarialTests] Generating tests for weakness: ${weakness.id}`);
   }
 
   // Generate test cases
   const tests = generateTestCases(weakness, options);
 
   if (verbose) {
-    console.log(`[generateAdversarialTests] Generated ${tests.length} test cases`);
+    console.error(`[generateAdversarialTests] Generated ${tests.length} test cases`);
   }
 
   // Identify failure modes
@@ -774,7 +774,7 @@ export async function generateAdversarialTests(
   const edgeCases = identifyEdgeCases(weakness, tests);
 
   if (verbose) {
-    console.log(`[generateAdversarialTests] Coverage: ${(coverageAnalysis.coverageScore * 100).toFixed(0)}%`);
+    console.error(`[generateAdversarialTests] Coverage: ${(coverageAnalysis.coverageScore * 100).toFixed(0)}%`);
   }
 
   return {

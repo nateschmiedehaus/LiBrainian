@@ -357,7 +357,7 @@ describe('resolveGettierCase', () => {
   });
 
   it('supports verbose logging', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await resolveGettierCase(testClaim, {
       storage: mockStorage,

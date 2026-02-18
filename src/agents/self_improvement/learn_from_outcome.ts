@@ -652,7 +652,7 @@ export async function learnFromOutcome(
   } = options;
 
   if (verbose) {
-    console.log(`[learnFromOutcome] Learning from prediction: ${prediction.id}`);
+    console.error(`[learnFromOutcome] Learning from prediction: ${prediction.id}`);
   }
 
   // Initialize or get calibration state (in production from storage)
@@ -665,7 +665,7 @@ export async function learnFromOutcome(
     calibrationUpdate = update;
 
     if (verbose) {
-      console.log(`[learnFromOutcome] ECE: ${update.previousECE.toFixed(4)} -> ${update.newECE.toFixed(4)}`);
+      console.error(`[learnFromOutcome] ECE: ${update.previousECE.toFixed(4)} -> ${update.newECE.toFixed(4)}`);
     }
   } else {
     calibrationUpdate = {
@@ -684,7 +684,7 @@ export async function learnFromOutcome(
     confidenceAdjustments.push(adjustment);
 
     if (verbose) {
-      console.log(`[learnFromOutcome] Confidence: ${adjustment.previous.score.toFixed(3)} -> ${adjustment.adjusted.score.toFixed(3)}`);
+      console.error(`[learnFromOutcome] Confidence: ${adjustment.previous.score.toFixed(3)} -> ${adjustment.adjusted.score.toFixed(3)}`);
     }
   }
 
@@ -692,7 +692,7 @@ export async function learnFromOutcome(
   const knowledgeUpdates = generateKnowledgeUpdates(prediction, outcome, context);
 
   if (verbose) {
-    console.log(`[learnFromOutcome] Generated ${knowledgeUpdates.length} knowledge updates`);
+    console.error(`[learnFromOutcome] Generated ${knowledgeUpdates.length} knowledge updates`);
   }
 
   // Extract patterns
@@ -701,7 +701,7 @@ export async function learnFromOutcome(
     patternsExtracted = extractPatterns(prediction, outcome, context, minPatternSupport);
 
     if (verbose && patternsExtracted.length > 0) {
-      console.log(`[learnFromOutcome] Extracted ${patternsExtracted.length} patterns`);
+      console.error(`[learnFromOutcome] Extracted ${patternsExtracted.length} patterns`);
     }
   }
 
@@ -709,7 +709,7 @@ export async function learnFromOutcome(
   const newDefeaters = identifyDefeaters(prediction, outcome);
 
   if (verbose && newDefeaters.length > 0) {
-    console.log(`[learnFromOutcome] Identified ${newDefeaters.length} defeaters`);
+    console.error(`[learnFromOutcome] Identified ${newDefeaters.length} defeaters`);
   }
 
   return {

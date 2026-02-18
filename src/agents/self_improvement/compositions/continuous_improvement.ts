@@ -391,7 +391,7 @@ async function runSingleCycle(
   } = options;
 
   if (verbose) {
-    console.log(`[continuousImprovement] Starting cycle ${cycleNumber}`);
+    console.error(`[continuousImprovement] Starting cycle ${cycleNumber}`);
   }
 
   // Track initial state for health calculation
@@ -405,7 +405,7 @@ async function runSingleCycle(
 
   try {
     if (verbose) {
-      console.log('[continuousImprovement] Phase 1: Self-refresh');
+      console.error('[continuousImprovement] Phase 1: Self-refresh');
     }
 
     refreshResult = await selfRefresh({
@@ -464,7 +464,7 @@ async function runSingleCycle(
 
   try {
     if (verbose) {
-      console.log('[continuousImprovement] Phase 2: Consistency check');
+      console.error('[continuousImprovement] Phase 2: Consistency check');
     }
 
     consistencyResult = await analyzeConsistency({
@@ -527,7 +527,7 @@ async function runSingleCycle(
 
   try {
     if (verbose) {
-      console.log('[continuousImprovement] Phase 3: Calibration check');
+      console.error('[continuousImprovement] Phase 3: Calibration check');
     }
 
     const calibrationResult = await verifyCalibration({
@@ -601,7 +601,7 @@ async function runSingleCycle(
   if (issuesToProcess.length > 0) {
     try {
       if (verbose) {
-        console.log(`[continuousImprovement] Phase 4: Planning fixes for ${issuesToProcess.length} issues`);
+        console.error(`[continuousImprovement] Phase 4: Planning fixes for ${issuesToProcess.length} issues`);
       }
 
       for (const issue of issuesToProcess) {
@@ -653,7 +653,7 @@ async function runSingleCycle(
   if (autoApplyFixes && fixesPlanned.length > 0) {
     try {
       if (verbose) {
-        console.log(`[continuousImprovement] Phase 5: Applying ${fixesPlanned.length} fixes`);
+        console.error(`[continuousImprovement] Phase 5: Applying ${fixesPlanned.length} fixes`);
       }
 
       if (!options.fixApplier) {
@@ -721,7 +721,7 @@ async function runSingleCycle(
   if (learningEnabled && fixesApplied.length > 0) {
     try {
       if (verbose) {
-        console.log('[continuousImprovement] Phase 6: Learning from outcomes');
+        console.error('[continuousImprovement] Phase 6: Learning from outcomes');
       }
 
       for (const fix of fixesApplied) {
@@ -804,7 +804,7 @@ async function runSingleCycle(
   if (shouldExtractPatterns && fixesApplied.filter((f) => f.success).length > 0) {
     try {
       if (verbose) {
-        console.log('[continuousImprovement] Phase 7: Extracting patterns');
+        console.error('[continuousImprovement] Phase 7: Extracting patterns');
       }
 
       const successfulFixes = fixesApplied.filter((f) => f.success && f.verified);
@@ -909,10 +909,10 @@ async function runSingleCycle(
   );
 
   if (verbose) {
-    console.log(`[continuousImprovement] Cycle ${cycleNumber} complete`);
-    console.log(`  Status: ${status}`);
-    console.log(`  Issues: ${issuesFound.length} found, ${fixedIssueIds.size} fixed`);
-    console.log(`  Health improvement: ${(healthImprovement * 100).toFixed(1)}%`);
+    console.error(`[continuousImprovement] Cycle ${cycleNumber} complete`);
+    console.error(`  Status: ${status}`);
+    console.error(`  Issues: ${issuesFound.length} found, ${fixedIssueIds.size} fixed`);
+    console.error(`  Health improvement: ${(healthImprovement * 100).toFixed(1)}%`);
   }
 
   return {
@@ -980,8 +980,8 @@ export async function runContinuousImprovement(
   }
 
   if (verbose) {
-    console.log('[continuousImprovement] Starting continuous improvement pipeline');
-    console.log(`  Max cycles: ${maxCycles}`);
+    console.error('[continuousImprovement] Starting continuous improvement pipeline');
+    console.error(`  Max cycles: ${maxCycles}`);
   }
 
   // For now, just run a single cycle

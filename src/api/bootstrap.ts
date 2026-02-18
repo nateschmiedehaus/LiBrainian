@@ -1347,15 +1347,15 @@ export async function loadGovernorConfig(workspace: string): Promise<GovernorCon
 
         // Log the auto-detection reasoning
         const resources = detectSystemResources();
-        console.log(`\n📊 Auto-detected concurrency: ${config.maxConcurrentWorkers} workers`);
-        console.log(`   System: ${resources.cpuCores} CPUs, ${resources.freeMemoryGB.toFixed(1)}GB free RAM, load ${resources.loadAverage.toFixed(2)}`);
+        console.error(`\n📊 Auto-detected concurrency: ${config.maxConcurrentWorkers} workers`);
+        console.error(`   System: ${resources.cpuCores} CPUs, ${resources.freeMemoryGB.toFixed(1)}GB free RAM, load ${resources.loadAverage.toFixed(2)}`);
         for (const reason of recommendation.reasoning.slice(0, 3)) {
-          console.log(`   → ${reason}`);
+          console.error(`   → ${reason}`);
         }
         for (const constraint of recommendation.constraints) {
-          console.log(`   ⚠ ${constraint}`);
+          console.error(`   ⚠ ${constraint}`);
         }
-        console.log('');
+        console.error('');
       }
     } catch (error) {
       // Log auto-detection failure - user explicitly requested auto mode (0), should know why it failed

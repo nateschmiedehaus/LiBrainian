@@ -280,7 +280,7 @@ export async function fullSelfAudit(
 
   // Stage 1: Bootstrap
   if (verbose) {
-    console.log('[fullSelfAudit] Stage 1: Bootstrap');
+    console.error('[fullSelfAudit] Stage 1: Bootstrap');
   }
   onProgress?.('bootstrap', 0);
 
@@ -298,7 +298,7 @@ export async function fullSelfAudit(
       coverage: { functions: 1, classes: 1, modules: 1, relationships: 1 },
     };
     if (verbose) {
-      console.log('[fullSelfAudit] Bootstrap skipped');
+      console.error('[fullSelfAudit] Bootstrap skipped');
     }
   } else {
     try {
@@ -337,7 +337,7 @@ export async function fullSelfAudit(
 
   // Stage 2: Parallel Analysis
   if (verbose) {
-    console.log('[fullSelfAudit] Stage 2: Analysis');
+    console.error('[fullSelfAudit] Stage 2: Analysis');
   }
   onProgress?.('analysis', 0);
 
@@ -487,7 +487,7 @@ export async function fullSelfAudit(
 
   // Stage 3: Generate Recommendations
   if (verbose) {
-    console.log('[fullSelfAudit] Stage 3: Recommendations');
+    console.error('[fullSelfAudit] Stage 3: Recommendations');
   }
   onProgress?.('recommendations', 0);
 
@@ -524,7 +524,7 @@ export async function fullSelfAudit(
 
   // Stage 4: Calculate Health Score
   if (verbose) {
-    console.log('[fullSelfAudit] Stage 4: Health Score');
+    console.error('[fullSelfAudit] Stage 4: Health Score');
   }
 
   const overallHealth = calculateHealthScore(
@@ -545,7 +545,7 @@ export async function fullSelfAudit(
   const duration = Date.now() - startTime;
 
   if (verbose) {
-    console.log(`[fullSelfAudit] Complete. Health: ${(overallHealth.overall * 100).toFixed(1)}%`);
+    console.error(`[fullSelfAudit] Complete. Health: ${(overallHealth.overall * 100).toFixed(1)}%`);
   }
 
   return {

@@ -218,7 +218,7 @@ async function analyzeTestConsistency(
   }
 
   if (verbose) {
-    console.log(`[analyzeConsistency] Found ${untestedClaims.length} untested claims`);
+    console.error(`[analyzeConsistency] Found ${untestedClaims.length} untested claims`);
   }
 
   return { mismatches, untestedClaims };
@@ -304,7 +304,7 @@ async function analyzeDocConsistency(
   }
 
   if (verbose) {
-    console.log(`[analyzeConsistency] Found ${mismatches.length} doc mismatches, ${docDrift.length} drift cases`);
+    console.error(`[analyzeConsistency] Found ${mismatches.length} doc mismatches, ${docDrift.length} drift cases`);
   }
 
   return { mismatches, docDrift, staleDocs };
@@ -370,7 +370,7 @@ async function findUnreferencedCode(
   }
 
   if (verbose) {
-    console.log(`[analyzeConsistency] Found ${unreferenced.length} unreferenced code entities`);
+    console.error(`[analyzeConsistency] Found ${unreferenced.length} unreferenced code entities`);
   }
 
   return unreferenced;
@@ -416,7 +416,7 @@ async function findPhantomClaims(
   }
 
   if (verbose) {
-    console.log(`[analyzeConsistency] Found ${phantomClaims.length} potential phantom claims`);
+    console.error(`[analyzeConsistency] Found ${phantomClaims.length} potential phantom claims`);
   }
 
   return phantomClaims;
@@ -559,7 +559,7 @@ export async function analyzeConsistency(
   }
 
   if (verbose) {
-    console.log(`[analyzeConsistency] Analyzing ${functions.length} functions and ${modules.length} modules`);
+    console.error(`[analyzeConsistency] Analyzing ${functions.length} functions and ${modules.length} modules`);
   }
 
   // Initialize results
