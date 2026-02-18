@@ -254,7 +254,7 @@ async function writeConversationInsightsFixture(root: string, options?: {
     '## Agent Failure Modes Observed',
     '- Endless test loops without concept-level diagnosis.',
     '',
-    '## OpenClaw Patterns to Borrow (Mapped to Librarian files)',
+    '## OpenClaw Patterns to Borrow (Mapped to LiBrainian files)',
     '- Strict release gates mapped to `src/cli/commands/publish_gate.ts`.',
     '',
     '## Action Items',

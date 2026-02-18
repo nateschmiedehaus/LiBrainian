@@ -19,6 +19,23 @@ describe('package release scripts', () => {
   it('contains packaging guard script files', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-package-identity.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
+  });
+
+  it('defines staged validation scripts for daily, PR, and release gates', () => {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    const scripts = packageJson.scripts ?? {};
+
+    expect(scripts['test:changed']).toBe(
+      'node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run --changed'
+    );
+    expect(scripts['validate:public']).toBe(
+      'npm run repo:audit && npm run public:pack && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'
+    );
+    expect(scripts['validate:fast']).toBe('npm run typecheck && npm run test:changed && npm run validate:public');
   });
 
   it('ships a focused npm package surface', () => {

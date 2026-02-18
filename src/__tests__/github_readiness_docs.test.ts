@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 
 describe('github readiness docs', () => {
   it('includes required governance files', () => {
@@ -49,5 +50,27 @@ describe('github readiness docs', () => {
     expect(fs.existsSync(path.join(root, 'docs', 'internal', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(root, 'docs', 'internal', 'archive'))).toBe(false);
     expect(fs.existsSync(path.join(root, '.github', 'README.md'))).toBe(false);
+  });
+
+  it('keeps public repo surface free of wip and vendored eval repos', () => {
+    const trackedFiles = execSync('git ls-files', {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const trackedWip = trackedFiles.filter(
+      (file) => file.endsWith('.wip') && fs.existsSync(path.join(process.cwd(), file))
+    );
+    expect(trackedWip).toEqual([]);
+
+    const trackedEvalRepoExtras = trackedFiles.filter(
+      (file) =>
+        file.startsWith('eval-corpus/external-repos/') &&
+        file !== 'eval-corpus/external-repos/manifest.json'
+    );
+    expect(trackedEvalRepoExtras).toEqual([]);
   });
 });

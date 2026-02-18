@@ -163,13 +163,45 @@ npx librainian publish-gate --profile release --json
 ## Editing Experience (Contributor Loop)
 
 ```bash
-# fast local loop
-npm run build
-npm test -- --run src/path/to/changed.test.ts
-npm run typecheck
+# day-to-day loop (changed files + public-surface checks)
+npm run validate:fast
 
-# before PR
+# optional focused test while iterating
+npm test -- --run src/path/to/changed.test.ts
+
+# before merge (deterministic full gate)
+npm run validate:full
+
+# release qualification (real-agent strict gate)
+npm run test:agentic:strict
+```
+
+`validate:fast` is the default developer path and CI path for pull requests.
+`validate:full` and `test:agentic:strict` are required for release-grade confidence.
+
+## Development and Validation
+
+```bash
+npm install
+npm run build
+
+# PR and everyday edits
+npm run validate:fast
+
+# full deterministic validation
+npm run validate:full
+
+# strict publish qualification
+npm run test:agentic:strict
+npm run eval:publish-gate -- --json
+```
+
+Equivalent explicit full deterministic command chain:
+
+```bash
 npm test -- --run
+npm run typecheck
+npm run repo:audit
 npm run package:assert-identity
 npm run package:install-smoke
 ```
@@ -208,18 +240,6 @@ npx tsx examples/feedback_loop_example.ts
 - Usage questions: [GitHub Discussions](https://github.com/nateschmiedehaus/LiBrainian/discussions)
 - Bugs: [GitHub Issues](https://github.com/nateschmiedehaus/LiBrainian/issues)
 - Security reports: [Security Advisories](https://github.com/nateschmiedehaus/LiBrainian/security/advisories/new)
-
-## Development and Validation
-
-```bash
-npm install
-npm run build
-npm test -- --run
-npm run typecheck
-npm run package:assert-identity
-npm run package:install-smoke
-npm run eval:publish-gate -- --json
-```
 
 ## Community Standards
 

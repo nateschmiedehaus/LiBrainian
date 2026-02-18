@@ -143,7 +143,7 @@ const REQUIRED_CONVERSATION_INSIGHTS_HEADINGS = [
   'Context Snapshot',
   'Non-Negotiable Product Signals',
   'Agent Failure Modes Observed',
-  'OpenClaw Patterns to Borrow (Mapped to Librarian files)',
+  'OpenClaw Patterns to Borrow (Mapped to LiBrainian files)',
   'Action Items',
   'Accepted Wording for Positioning',
   'Deferred Ideas',

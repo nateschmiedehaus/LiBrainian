@@ -2412,23 +2412,6 @@ export {
 } from './hotspot.js';
 
 // ============================================================================
-// IMPLEMENTATION FILES (Work In Progress)
-// ============================================================================
-//
-// The following implementation files are available in .wip format and need
-// alignment with the type definitions above before they can be exported:
-//
-// - storage.ts.wip: SQLite storage layer for strategic knowledge
-// - strategic_context.ts.wip: Strategic context manager (vision, bounded contexts)
-// - work_manager.ts.wip: Work primitives manager (epic/story/task hierarchy)
-// - prioritization_engine.ts.wip: Multi-factor prioritization engine
-// - conceptual_verifier.ts.wip: Conceptual error detection
-//
-// To complete implementation, align these files with the type definitions
-// exported from types.ts, work_primitives.ts, prioritization.ts, and
-// conceptual_verification.ts.
-
-// ============================================================================
 // MODULE DOCUMENTATION
 // ============================================================================
 

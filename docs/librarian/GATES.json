@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-17T15:51:36.000Z",
+  "lastUpdated": "2026-02-18T00:13:37.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -736,7 +736,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "measured": 0.82
     },
     "layer5.retrievalPrecision": {
@@ -749,7 +749,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "measured": 0.74
     },
     "layer5.hallucinationRate": {
@@ -762,7 +762,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "measured": 0.03
     },
     "layer5.synthesisAccuracyStructural": {
@@ -1005,7 +1005,7 @@
       "name": "RAGAS-Style Metrics Measurement (Phase 14)",
       "layer": 7,
       "status": "pass",
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "target": "Recall@5>=80%, Precision>=70%, Hallucination<5%, Faithfulness>=85%",
       "measured": {
         "recallAt5": 0.82,
@@ -1053,7 +1053,7 @@
       "name": "Scenario Family Testing SF-01 to SF-30 (Phase 16)",
       "layer": 7,
       "status": "pass",
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "target": "All 30 scenario families tested including HARD (SF-21 to SF-30)",
       "measured": "30/30",
       "spec": "docs/librarian/WORKPLAN.md#phase-16",
@@ -1083,7 +1083,7 @@
       "name": "A/B Worker Experiments (Phase 17)",
       "layer": 7,
       "status": "fail",
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "target": "Treatment >= 20% lift over Control, p < 0.05",
       "measured": "lift=0.20833333333333334 (p=0.09371405527122034)",
       "spec": "docs/librarian/WORKPLAN.md#phase-17",
@@ -1168,12 +1168,12 @@
       "name": "Performance Benchmarking (Phase 21)",
       "layer": 7,
       "status": "partial",
-      "lastRun": "2026-02-17",
+      "lastRun": "2026-02-18",
       "target": "p50 < 500ms, p99 < 2s, memory < 50MB/1K LOC",
       "measured": {
         "p50LatencyMs": 0,
         "p99LatencyMs": 1,
-        "memoryPerKLOC": 0.8981828401857475
+        "memoryPerKLOC": 0.8982833980068219
       },
       "note": "Latency targets missing: only memory targets are part of the manifest summary.",
       "spec": "docs/librarian/WORKPLAN.md#phase-21",
@@ -1261,7 +1261,7 @@
     "validation": "unverified (evidence_manifest_missing)",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-17T15:51:36.000Z",
+    "lastVerified": "2026-02-18T00:13:37.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",
@@ -1295,7 +1295,7 @@
       },
       "Memory per 1K LOC": {
         "target": "<=50 MB",
-        "measured": "0.8981828401857475 MB",
+        "measured": "0.8982833980068219 MB",
         "status": "MET"
       }
     },

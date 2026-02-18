@@ -27,6 +27,7 @@ This review covers both local `HEAD` and `origin/main` (top-level trees match).
    - `scripts/repo-folder-audit.mjs`
    - `npm run repo:audit`
 3. Linked examples directly in public docs (`README.md`) so onboarding is actionable.
+4. Removed tracked `src/strategic/*.wip` files and enforced `*.wip` ignore.
 
 ## Borrowed Patterns from Benchmarks
 
@@ -48,3 +49,4 @@ This review covers both local `HEAD` and `origin/main` (top-level trees match).
 2. **Config tracking policy**: decide which files in local `config/` become canonical tracked assets.
 3. **Examples hardening**: add one real external-repo walkthrough example with expected output artifacts.
 4. **Script lifecycle policy**: classify scripts as `core`, `diagnostic`, or `temporary`, and fail CI on temporary drift.
+5. **Public surface hygiene**: keep `eval-corpus/external-repos/*` untracked (manifest-only), and block new tracked `.wip` files.

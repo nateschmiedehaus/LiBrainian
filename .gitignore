@@ -17,6 +17,14 @@ eval-corpus/external-repos/*
 scenario-report.json
 debug_reach.ts
 .tmp/
+*.wip
+*.private.md
+*.draft.md
+
+# Private/publication-unsafe scratch areas
+docs/internal/private/
+docs/internal/drafts/
+docs/internal/tmp/
 
 # Internal planning artifacts (must stay out of public repo)
 /docs/internal/archive/
@@ -29,3 +37,5 @@ debug_reach.ts
 /HARD_STOP.md
 /LIBRARIAN_QUALITY_EVALUATION_PLAN.md
 /META_PROMPT_CRITICAL_EVALUATION.md
+/docs/PRIORITIZED-IMPLEMENTATION-PLAN.md
+/docs/WORLD_CLASS_TDD_PLAN.md

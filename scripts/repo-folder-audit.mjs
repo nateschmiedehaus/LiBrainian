@@ -143,10 +143,144 @@ function directoryAudit(directory, trackedFiles) {
   };
 }
 
+function summarizeSrcSurface(trackedFiles) {
+  const srcTsFiles = trackedFiles.filter((file) => file.startsWith('src/') && file.endsWith('.ts'));
+  const perTopLevel = new Map();
+
+  for (const file of srcTsFiles) {
+    const relative = file.slice('src/'.length);
+    const topLevel = relative.split('/')[0] ?? '';
+    const summary = perTopLevel.get(topLevel) ?? { folder: topLevel, runtimeTs: 0, testTs: 0 };
+    const isTest =
+      relative.startsWith('__tests__/') || relative.includes('/__tests__/') || relative.startsWith('test/');
+
+    if (isTest) {
+      summary.testTs += 1;
+    } else {
+      summary.runtimeTs += 1;
+    }
+    perTopLevel.set(topLevel, summary);
+  }
+
+  return Array.from(perTopLevel.values()).sort((left, right) => {
+    if (right.runtimeTs !== left.runtimeTs) return right.runtimeTs - left.runtimeTs;
+    if (right.testTs !== left.testTs) return right.testTs - left.testTs;
+    return left.folder.localeCompare(right.folder);
+  });
+}
+
+function summarizeScripts(trackedFiles) {
+  const scriptFiles = trackedFiles
+    .filter((file) => file.startsWith('scripts/'))
+    .map((file) => file.slice('scripts/'.length))
+    .sort((left, right) => left.localeCompare(right));
+
+  const releaseCriticalNames = new Set([
+    'assert-package-identity.mjs',
+    'build-evidence-manifest.mjs',
+    'package-install-smoke.mjs',
+    'reconcile_evidence.mjs',
+    'refresh-final-verification.mjs',
+    'run-with-tmpdir.mjs',
+  ]);
+
+  const releaseCritical = [];
+  const evalAndHarness = [];
+  const tooling = [];
+
+  for (const file of scriptFiles) {
+    if (
+      releaseCriticalNames.has(file) ||
+      file.includes('publish') ||
+      file.includes('evidence') ||
+      file.includes('package')
+    ) {
+      releaseCritical.push(file);
+      continue;
+    }
+
+    if (
+      file.startsWith('eval') ||
+      file.includes('harness') ||
+      file.includes('external') ||
+      file.includes('live-fire') ||
+      file.includes('agentic')
+    ) {
+      evalAndHarness.push(file);
+      continue;
+    }
+
+    tooling.push(file);
+  }
+
+  return {
+    all: scriptFiles,
+    releaseCritical,
+    evalAndHarness,
+    tooling,
+  };
+}
+
+function countLocalDirectories(rootPath, targets) {
+  if (!fs.existsSync(rootPath)) return {};
+
+  const counts = {};
+  const stack = [rootPath];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (targets.has(entry.name)) {
+        counts[entry.name] = (counts[entry.name] ?? 0) + 1;
+      }
+      stack.push(path.join(current, entry.name));
+    }
+  }
+
+  return counts;
+}
+
+function publicSurfaceRisks(trackedFiles) {
+  const trackedWip = trackedFiles.filter(
+    (file) => file.endsWith('.wip') && fs.existsSync(path.join(workspaceRoot, file))
+  );
+  const trackedEvalExternalRepoFiles = trackedFiles.filter(
+    (file) =>
+      file.startsWith('eval-corpus/external-repos/') &&
+      file !== 'eval-corpus/external-repos/manifest.json'
+  );
+
+  return {
+    trackedWip,
+    trackedEvalExternalRepoFiles,
+  };
+}
+
 function main() {
   const trackedFiles = runGit('git ls-files');
   const directories = collectTopLevelDirectories();
   const audits = directories.map((directory) => directoryAudit(directory, trackedFiles));
+  const srcSurface = summarizeSrcSurface(trackedFiles);
+  const scripts = summarizeScripts(trackedFiles);
+  const evalCorpusFiles = trackedFiles.filter((file) => file.startsWith('eval-corpus/'));
+  const localEvalArtifacts = countLocalDirectories(path.join(workspaceRoot, 'eval-corpus'), new Set([
+    '.git',
+    'node_modules',
+    '.librarian',
+    '.librarian-eval',
+    '.ab-harness-artifacts',
+    'state',
+  ]));
+  const risks = publicSurfaceRisks(trackedFiles);
 
   const report = {
     schema: 'RepoFolderAudit.v1',
@@ -157,8 +291,25 @@ function main() {
       keep: audits.filter((item) => item.action === 'keep').length,
       improve: audits.filter((item) => item.action === 'improve').length,
       cutOrArchive: audits.filter((item) => item.action === 'cut_or_archive').length,
+      trackedSrcTsFiles: trackedFiles.filter((file) => file.startsWith('src/') && file.endsWith('.ts'))
+        .length,
+      trackedTestTsFiles: trackedFiles.filter(
+        (file) =>
+          file.startsWith('src/') &&
+          file.endsWith('.ts') &&
+          (file.startsWith('src/__tests__/') || file.includes('/__tests__/') || file.startsWith('src/test/'))
+      ).length,
+      trackedScriptFiles: scripts.all.length,
+      trackedEvalCorpusFiles: evalCorpusFiles.length,
     },
     directories: audits.sort((left, right) => left.score - right.score),
+    srcSurface,
+    scripts,
+    evalCorpus: {
+      trackedFiles: evalCorpusFiles,
+      localArtifactDirectoryCounts: localEvalArtifacts,
+    },
+    risks,
   };
 
   const outPath = path.join(
@@ -178,7 +329,16 @@ function main() {
       `${item.directory.padEnd(14)} score=${String(item.score).padStart(3)} action=${item.action}${reasons}`
     );
   }
-  console.log(`\nrepo folder audit written to ${outPath}`);
+  const riskCount = report.risks.trackedWip.length + report.risks.trackedEvalExternalRepoFiles.length;
+  console.log(
+    `\nsrc tests/runtime: ${report.summary.trackedTestTsFiles}/${report.summary.trackedSrcTsFiles}`
+  );
+  console.log(
+    `scripts release/eval/tooling: ${report.scripts.releaseCritical.length}/${report.scripts.evalAndHarness.length}/${report.scripts.tooling.length}`
+  );
+  console.log(`eval-corpus tracked files: ${report.summary.trackedEvalCorpusFiles}`);
+  console.log(`public-surface risk markers: ${riskCount}`);
+  console.log(`repo folder audit written to ${outPath}`);
 }
 
 main();

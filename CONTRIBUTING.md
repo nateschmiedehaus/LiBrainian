@@ -144,7 +144,7 @@ test(quality): add tests for dead code detection
 2. **Make your changes** following our style guide
 3. **Add tests** for new functionality
 4. **Update docs** if needed
-5. **Run the full test suite**
+5. **Run staged validation (`npm run validate:fast`)**
 6. **Submit a PR**
 
 ## Submitting Changes
@@ -162,6 +162,9 @@ test(quality): add tests for dead code detection
 Run these before requesting final review:
 
 ```bash
+npm run validate:fast
+npm run validate:full
+npm run test:agentic:strict
 npm run typecheck
 npm test -- --run
 npm run repo:audit
@@ -170,20 +173,26 @@ npm run package:install-smoke
 npm run eval:publish-gate -- --json
 ```
 
+Validation ladder:
+- `npm run validate:fast` — typecheck + changed tests + public-surface checks (default PR path).
+- `npm run validate:full` — deterministic full gate before merge.
+- `npm run test:agentic:strict` — release-grade real-agent qualification.
+
 ### Streamlined npm Publish Flow
 
 For maintainers, npm publishing is wired to GitHub Actions so publishing does not depend on local machine state.
 
 1. Connect npm trusted publishing to this GitHub repo/workflow in npm settings (recommended).
-2. Optionally set `NPM_TOKEN` in GitHub secrets as a fallback path.
+2. Optionally set `NPM_TOKEN` or `NODE_AUTH_TOKEN` in GitHub secrets as a fallback path.
 3. Run the `publish-npm` workflow:
    - `publish=false` for verification-only.
    - `publish=true` to publish after verification.
 4. Or publish automatically by creating a GitHub Release (`published` event triggers the same flow).
 
 The workflow now auto-selects auth mode:
-- Uses `NPM_TOKEN` when present **and valid**.
+- Uses registry token auth when `NPM_TOKEN`/`NODE_AUTH_TOKEN` is present **and valid**.
 - Automatically switches to trusted publishing (OIDC) when token is missing/invalid.
+- Clears inherited token env on the trusted path to avoid accidental invalid-token publishes.
 
 Local verification helpers:
 
