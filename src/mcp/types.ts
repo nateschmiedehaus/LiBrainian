@@ -475,6 +475,15 @@ export interface QueryToolInput {
 
   /** Include evidence graph */
   includeEvidence?: boolean;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 export interface QueryToolOutput {
@@ -766,6 +775,15 @@ export interface GetContextPackBundleToolInput {
 
   /** Max token budget */
   maxTokens?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 export interface GetContextPackBundleToolOutput {
@@ -804,6 +822,15 @@ export interface ListVerificationPlansToolInput {
 
   /** Limit number of plans returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** List episodes tool input */
@@ -813,6 +840,15 @@ export interface ListEpisodesToolInput {
 
   /** Limit number of episodes returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** List technique primitives tool input */
@@ -822,6 +858,15 @@ export interface ListTechniquePrimitivesToolInput {
 
   /** Limit number of primitives returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** List technique compositions tool input */
@@ -831,6 +876,15 @@ export interface ListTechniqueCompositionsToolInput {
 
   /** Limit number of compositions returned */
   limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
 }
 
 /** Select technique compositions tool input */
@@ -1112,7 +1166,11 @@ export function isBootstrapToolInput(value: unknown): value is BootstrapToolInpu
 export function isQueryToolInput(value: unknown): value is QueryToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return typeof obj.intent === 'string';
+  const intentOk = typeof obj.intent === 'string';
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return intentOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */
@@ -1160,7 +1218,11 @@ export function isExportIndexToolInput(value: unknown): value is ExportIndexTool
 export function isGetContextPackBundleToolInput(value: unknown): value is GetContextPackBundleToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return Array.isArray(obj.entityIds);
+  const entityIdsOk = Array.isArray(obj.entityIds);
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return entityIdsOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for SystemContractToolInput */
@@ -1183,7 +1245,10 @@ export function isListVerificationPlansToolInput(value: unknown): value is ListV
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for ListEpisodesToolInput */
@@ -1192,7 +1257,10 @@ export function isListEpisodesToolInput(value: unknown): value is ListEpisodesTo
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for ListTechniquePrimitivesToolInput */
@@ -1201,7 +1269,10 @@ export function isListTechniquePrimitivesToolInput(value: unknown): value is Lis
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for ListTechniqueCompositionsToolInput */
@@ -1210,7 +1281,10 @@ export function isListTechniqueCompositionsToolInput(value: unknown): value is L
   const obj = value as Record<string, unknown>;
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
-  return workspaceOk && limitOk;
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
 }
 
 /** Type guard for SelectTechniqueCompositionsToolInput */

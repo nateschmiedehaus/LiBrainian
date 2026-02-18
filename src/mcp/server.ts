@@ -241,6 +241,29 @@ interface CallToolRequestLike {
   };
 }
 
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 200;
+
+interface PaginationOptions {
+  pageSize?: number;
+  pageIdx?: number;
+  limit?: number;
+}
+
+interface PaginationMetadata {
+  pageSize: number;
+  pageIdx: number;
+  totalItems: number;
+  pageCount: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextPageIdx?: number;
+  previousPageIdx?: number;
+  showingFrom: number;
+  showingTo: number;
+  showing: string;
+}
+
 // ============================================================================
 // SERVER IMPLEMENTATION
 // ============================================================================
@@ -369,48 +392,60 @@ export class LibrarianMCPServer {
       },
       {
         name: 'list_verification_plans',
-        description: 'List verification plans for a workspace',
+        description: 'List verification plans for a workspace (typically 1-8KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of plans returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
       },
       {
         name: 'list_episodes',
-        description: 'List verification episodes for a workspace',
+        description: 'List verification episodes for a workspace (typically 1-8KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of episodes returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
       },
       {
         name: 'list_technique_primitives',
-        description: 'List technique primitives for a workspace',
+        description: 'List technique primitives for a workspace (typically 2-12KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of primitives returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
       },
       {
         name: 'list_technique_compositions',
-        description: 'List technique compositions for a workspace',
+        description: 'List technique compositions for a workspace (typically 2-12KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             limit: { type: 'number', description: 'Limit number of compositions returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: [],
         },
@@ -456,7 +491,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'query',
-        description: 'Query the knowledge base for context and insights',
+        description: 'Query the knowledge base for context and insights (typically 3-15KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -468,6 +503,9 @@ export class LibrarianMCPServer {
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },
             includeEngines: { type: 'boolean', description: 'Include engine results' },
             includeEvidence: { type: 'boolean', description: 'Include evidence graph' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: ['intent'],
         },
@@ -555,13 +593,16 @@ export class LibrarianMCPServer {
       },
       {
         name: 'get_context_pack_bundle',
-        description: 'Get bundled context packs for entities',
+        description: 'Get bundled context packs for entities (typically 4-20KB per page at pageSize=20)',
         inputSchema: {
           type: 'object',
           properties: {
             entityIds: { type: 'array', items: { type: 'string' }, description: 'Entity IDs' },
             bundleType: { type: 'string', enum: ['minimal', 'standard', 'comprehensive'] },
             maxTokens: { type: 'number', description: 'Max token budget' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
           },
           required: ['entityIds'],
         },
@@ -917,6 +958,82 @@ export class LibrarianMCPServer {
     }
 
     return workspace;
+  }
+
+  private paginateItems<T>(items: T[], options: PaginationOptions = {}): { items: T[]; pagination: PaginationMetadata } {
+    const rawPageSize = options.pageSize ?? options.limit ?? DEFAULT_PAGE_SIZE;
+    const pageSize = Number.isFinite(rawPageSize)
+      ? Math.max(1, Math.min(MAX_PAGE_SIZE, Math.trunc(rawPageSize as number)))
+      : DEFAULT_PAGE_SIZE;
+
+    const rawPageIdx = options.pageIdx ?? 0;
+    const pageIdx = Number.isFinite(rawPageIdx)
+      ? Math.max(0, Math.trunc(rawPageIdx as number))
+      : 0;
+
+    const totalItems = items.length;
+    const pageCount = totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize);
+    const start = pageIdx * pageSize;
+    const end = Math.min(start + pageSize, totalItems);
+    const pageItems = start >= totalItems ? [] : items.slice(start, end);
+
+    const showingFrom = pageItems.length === 0 ? 0 : start + 1;
+    const showingTo = pageItems.length === 0 ? 0 : start + pageItems.length;
+    const hasNextPage = end < totalItems;
+    const hasPreviousPage = pageIdx > 0 && totalItems > 0;
+    const nextPageIdx = hasNextPage ? pageIdx + 1 : undefined;
+    const previousPageIdx = hasPreviousPage ? pageIdx - 1 : undefined;
+    const showing = `Showing ${showingFrom}-${showingTo} of ${totalItems}. Next: ${nextPageIdx !== undefined ? `pageIdx=${nextPageIdx}` : 'none'}. Total pages: ${pageCount}.`;
+
+    return {
+      items: pageItems,
+      pagination: {
+        pageSize,
+        pageIdx,
+        totalItems,
+        pageCount,
+        hasNextPage,
+        hasPreviousPage,
+        nextPageIdx,
+        previousPageIdx,
+        showingFrom,
+        showingTo,
+        showing,
+      },
+    };
+  }
+
+  private async writeOutputReference(
+    outputFile: string,
+    payload: unknown,
+    pagination: PaginationMetadata,
+    workspacePath?: string
+  ): Promise<{
+    filePath: string;
+    summary: string;
+    totalItems: number;
+    pageCount: number;
+    pageSize: number;
+    pageIdx: number;
+    pagination: PaginationMetadata;
+  }> {
+    const basePath = workspacePath ? path.resolve(workspacePath) : process.cwd();
+    const outputPath = path.isAbsolute(outputFile)
+      ? path.resolve(outputFile)
+      : path.resolve(basePath, outputFile);
+
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(outputPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
+
+    return {
+      filePath: outputPath,
+      summary: pagination.showing,
+      totalItems: pagination.totalItems,
+      pageCount: pagination.pageCount,
+      pageSize: pagination.pageSize,
+      pageIdx: pagination.pageIdx,
+      pagination,
+    };
   }
 
   /**
@@ -1344,7 +1461,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListVerificationPlans(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListVerificationPlans(input: ListVerificationPlansToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1373,15 +1490,37 @@ export class LibrarianMCPServer {
       }
 
       const plans = await workspace.librarian.listVerificationPlans();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmedPlans = limit ? plans.slice(0, limit) : plans;
+      const { items: pagedPlans, pagination } = this.paginateItems(plans, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            plans: pagedPlans,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        plans: trimmedPlans,
+        plans: pagedPlans,
         total: plans.length,
-        limited: limit ? trimmedPlans.length : undefined,
+        limited: input.limit ? pagedPlans.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1391,7 +1530,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListEpisodes(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListEpisodes(input: ListEpisodesToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1420,15 +1559,37 @@ export class LibrarianMCPServer {
       }
 
       const episodes = await workspace.librarian.listEpisodes();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmedEpisodes = limit ? episodes.slice(0, limit) : episodes;
+      const { items: pagedEpisodes, pagination } = this.paginateItems(episodes, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            episodes: pagedEpisodes,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        episodes: trimmedEpisodes,
+        episodes: pagedEpisodes,
         total: episodes.length,
-        limited: limit ? trimmedEpisodes.length : undefined,
+        limited: input.limit ? pagedEpisodes.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1438,7 +1599,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListTechniquePrimitives(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListTechniquePrimitives(input: ListTechniquePrimitivesToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1467,15 +1628,37 @@ export class LibrarianMCPServer {
       }
 
       const primitives = await workspace.librarian.listTechniquePrimitives();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmed = limit ? primitives.slice(0, limit) : primitives;
+      const { items: pagedPrimitives, pagination } = this.paginateItems(primitives, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            primitives: pagedPrimitives,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        primitives: trimmed,
+        primitives: pagedPrimitives,
         total: primitives.length,
-        limited: limit ? trimmed.length : undefined,
+        limited: input.limit ? pagedPrimitives.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1485,7 +1668,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeListTechniqueCompositions(input: { workspace?: string; limit?: number }): Promise<unknown> {
+  private async executeListTechniqueCompositions(input: ListTechniqueCompositionsToolInput): Promise<unknown> {
     try {
       let workspacePath: string | undefined;
       if (input.workspace) {
@@ -1514,15 +1697,37 @@ export class LibrarianMCPServer {
       }
 
       const compositions = await workspace.librarian.listTechniqueCompositions();
-      const limit = input.limit && input.limit > 0 ? input.limit : undefined;
-      const trimmed = limit ? compositions.slice(0, limit) : compositions;
+      const { items: pagedCompositions, pagination } = this.paginateItems(compositions, input);
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            compositions: pagedCompositions,
+            pagination,
+            sortOrder: 'storage_order',
+          },
+          pagination,
+          workspacePath
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'storage_order',
+        };
+      }
 
       return {
         success: true,
         workspace: workspacePath,
-        compositions: trimmed,
+        compositions: pagedCompositions,
         total: compositions.length,
-        limited: limit ? trimmed.length : undefined,
+        limited: input.limit ? pagedCompositions.length : undefined,
+        pagination,
+        sortOrder: 'storage_order',
       };
     } catch (error) {
       return {
@@ -1809,17 +2014,18 @@ export class LibrarianMCPServer {
         }
       );
 
-      // Transform response for MCP
-      return {
-        packs: response.packs.map((pack) => ({
-          packId: pack.packId,
-          packType: pack.packType,
-          targetId: pack.targetId,
-          summary: pack.summary,
-          keyFacts: pack.keyFacts,
-          relatedFiles: pack.relatedFiles,
-          confidence: pack.confidence,
-        })),
+      const transformedPacks = response.packs.map((pack) => ({
+        packId: pack.packId,
+        packType: pack.packType,
+        targetId: pack.targetId,
+        summary: pack.summary,
+        keyFacts: pack.keyFacts,
+        relatedFiles: pack.relatedFiles,
+        confidence: pack.confidence,
+      }));
+      const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
+
+      const baseResult = {
         disclosures: response.disclosures,
         adequacy: response.adequacy,
         verificationPlan: response.verificationPlan,
@@ -1833,6 +2039,30 @@ export class LibrarianMCPServer {
         synthesisMode: response.synthesisMode,
         llmError: response.llmError,
         intent: input.intent,
+        pagination,
+        sortOrder: 'retrieval_score_desc',
+      };
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            ...baseResult,
+            packs: pagedPacks,
+          },
+          pagination,
+          workspace.path
+        );
+        return {
+          ...baseResult,
+          ...reference,
+        };
+      }
+
+      // Transform response for MCP
+      return {
+        ...baseResult,
+        packs: pagedPacks,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -2283,7 +2513,8 @@ export class LibrarianMCPServer {
       }
 
       // Apply token budget if specified
-      let truncated = false;
+      let truncatedByTokens = false;
+      let tokenFilteredPacks = bundledPacks;
       if (input.maxTokens) {
         let estimatedTokens = 0;
         const filteredPacks: unknown[] = [];
@@ -2293,26 +2524,60 @@ export class LibrarianMCPServer {
             filteredPacks.push(pack);
             estimatedTokens += packTokens;
           } else {
-            truncated = true;
+            truncatedByTokens = true;
             break;
           }
         }
+        tokenFilteredPacks = filteredPacks;
+      }
+
+      const { items: pagedPacks, pagination } = this.paginateItems(tokenFilteredPacks, input);
+      const estimatedTokens = Math.round(
+        (pagedPacks as unknown[]).reduce<number>(
+          (sum, pack) => sum + (JSON.stringify(pack).length / 4),
+          0
+        )
+      );
+
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            bundleId,
+            entityIds: input.entityIds,
+            bundleType: input.bundleType ?? 'minimal',
+            packs: pagedPacks,
+            pagination,
+            truncated: truncatedByTokens,
+            truncatedByTokens,
+            estimatedTokens,
+            sortOrder: 'entity_then_pack_type',
+          },
+          pagination,
+          workspace.path
+        );
         return {
           bundleId,
-          packs: filteredPacks,
           entityIds: input.entityIds,
           bundleType: input.bundleType ?? 'minimal',
-          truncated,
-          estimatedTokens: Math.round(estimatedTokens),
+          truncated: truncatedByTokens,
+          truncatedByTokens,
+          estimatedTokens,
+          sortOrder: 'entity_then_pack_type',
+          ...reference,
         };
       }
 
       return {
         bundleId,
-        packs: bundledPacks,
+        packs: pagedPacks,
         entityIds: input.entityIds,
         bundleType: input.bundleType ?? 'minimal',
-        truncated: false,
+        truncated: truncatedByTokens,
+        truncatedByTokens,
+        estimatedTokens,
+        pagination,
+        sortOrder: 'entity_then_pack_type',
       };
     } catch (error) {
       return {

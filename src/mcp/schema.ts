@@ -40,6 +40,11 @@ export const AuditTypeSchema = z.enum(['full', 'claims', 'coverage', 'security',
 /** Bundle type options */
 export const BundleTypeSchema = z.enum(['minimal', 'standard', 'comprehensive']);
 
+/** Shared pagination/output controls */
+const PageSizeSchema = z.number().int().min(1).max(200);
+const PageIdxSchema = z.number().int().min(0);
+const OutputFileSchema = z.string().min(1);
+
 /**
  * Bootstrap tool input schema
  */
@@ -67,6 +72,9 @@ export const QueryToolInputSchema = z.object({
   depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
   includeEngines: z.boolean().optional().default(false).describe('Include engine results in response'),
   includeEvidence: z.boolean().optional().default(false).describe('Include evidence graph summary'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict();
 
 /**
@@ -129,6 +137,9 @@ export const GetContextPackBundleToolInputSchema = z.object({
   entityIds: z.array(z.string()).min(1).describe('Entity IDs to bundle context for'),
   bundleType: BundleTypeSchema.optional().default('standard').describe('Type of bundle to create'),
   maxTokens: z.number().int().min(100).max(100000).optional().describe('Maximum token budget for the bundle'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict();
 
 /**
@@ -137,6 +148,9 @@ export const GetContextPackBundleToolInputSchema = z.object({
 export const ListVerificationPlansToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of plans returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -145,6 +159,9 @@ export const ListVerificationPlansToolInputSchema = z.object({
 export const ListEpisodesToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of episodes returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -153,6 +170,9 @@ export const ListEpisodesToolInputSchema = z.object({
 export const ListTechniquePrimitivesToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of primitives returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -161,6 +181,9 @@ export const ListTechniquePrimitivesToolInputSchema = z.object({
 export const ListTechniqueCompositionsToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   limit: z.number().int().positive().optional().describe('Limit number of compositions returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
 }).strict().default({});
 
 /**
@@ -323,12 +346,16 @@ export const queryToolJsonSchema: JSONSchema = {
   type: 'object',
   properties: {
     intent: { type: 'string', description: 'The query intent or question', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
     intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Typed query intent' },
     affectedFiles: { type: 'array', items: { type: 'string' }, description: 'File paths to scope the query to' },
     minConfidence: { type: 'number', description: 'Minimum confidence threshold', minimum: 0, maximum: 1, default: 0.5 },
     depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
     includeEngines: { type: 'boolean', description: 'Include engine results', default: false },
     includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },
+    pageSize: { type: 'number', description: 'Items per page (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+    pageIdx: { type: 'number', description: 'Zero-based page index (default: 0)', minimum: 0, default: 0 },
+    outputFile: { type: 'string', description: 'Write paged response payload to file and return a file reference', minLength: 1 },
   },
   required: ['intent'],
   additionalProperties: false,

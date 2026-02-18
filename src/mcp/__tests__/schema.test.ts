@@ -148,6 +148,9 @@ describe('MCP Schema', () => {
         depth: 'L2',
         includeEngines: true,
         includeEvidence: true,
+        pageSize: 10,
+        pageIdx: 1,
+        outputFile: '/tmp/query.json',
       };
       const result = validateToolInput('query', input);
       expect(result.valid).toBe(true);
@@ -189,6 +192,11 @@ describe('MCP Schema', () => {
         depth: 'L5',
       });
       expect(result.valid).toBe(false);
+    });
+
+    it('should reject invalid pagination values', () => {
+      expect(validateToolInput('query', { intent: 'test', pageSize: 0 }).valid).toBe(false);
+      expect(validateToolInput('query', { intent: 'test', pageIdx: -1 }).valid).toBe(false);
     });
 
     it('should pass type guard', () => {
@@ -412,6 +420,9 @@ describe('MCP Schema', () => {
         entityIds: ['entity_1'],
         bundleType: 'comprehensive',
         maxTokens: 50000,
+        pageSize: 10,
+        pageIdx: 1,
+        outputFile: '/tmp/bundle.json',
       });
       expect(result.valid).toBe(true);
     });
@@ -450,10 +461,38 @@ describe('MCP Schema', () => {
       }).valid).toBe(false);
     });
 
+    it('should reject invalid pagination values', () => {
+      expect(validateToolInput('get_context_pack_bundle', {
+        entityIds: ['e1'],
+        pageSize: 0,
+      }).valid).toBe(false);
+      expect(validateToolInput('get_context_pack_bundle', {
+        entityIds: ['e1'],
+        pageIdx: -1,
+      }).valid).toBe(false);
+    });
+
     it('should pass type guard', () => {
       expect(isGetContextPackBundleToolInput({ entityIds: ['e1'] })).toBe(true);
       expect(isGetContextPackBundleToolInput({ entityIds: [] })).toBe(true); // Array.isArray passes
       expect(isGetContextPackBundleToolInput({})).toBe(false);
+    });
+  });
+
+  describe('List Tool Pagination Schema', () => {
+    it('accepts page controls and outputFile for list_verification_plans', () => {
+      const result = validateToolInput('list_verification_plans', {
+        workspace: '/tmp/workspace',
+        pageSize: 10,
+        pageIdx: 2,
+        outputFile: '/tmp/plans-page.json',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects invalid page controls for list_verification_plans', () => {
+      expect(validateToolInput('list_verification_plans', { pageSize: 0 }).valid).toBe(false);
+      expect(validateToolInput('list_verification_plans', { pageIdx: -1 }).valid).toBe(false);
     });
   });
 
