@@ -522,65 +522,6 @@ export {
   createDefeaterLedgerBridge,
 } from './defeater_ledger.js';
 
-// Causal Reasoning
-export {
-  // Core types
-  type CausalNode,
-  type CausalEdge,
-  type CausalGraph,
-  type CausalPath,
-  type CausalEvent,
-  type CausalNodeType,
-  type CausalEdgeType,
-  type EvidenceRef,
-  type CausalGraphMeta,
-  type TraversalOptions,
-
-  // Type guards
-  isCausalNode,
-  isCausalEdge,
-  isCausalGraph,
-
-  // Factory functions
-  createCausalNode,
-  createCausalEdge,
-  createEmptyCausalGraph,
-
-  // Graph manipulation
-  addNodeToGraph,
-  addEdgeToGraph,
-
-  // Graph building
-  buildCausalGraphFromFacts,
-
-  // Cause finding (backward traversal)
-  findCauses,
-  getDirectCauses,
-  findRootCauses,
-
-  // Effect finding (forward traversal)
-  findEffects,
-  getDirectEffects,
-  findTerminalEffects,
-
-  // Path explanation
-  explainCausation,
-  hasPath,
-
-  // Utilities
-  getCausalChainDepth,
-  getCycleNodes,
-
-  // Level 2 causal inference (WU-THIMPL-110)
-  type InterventionValue,
-  doIntervention,
-  doMultipleInterventions,
-
-  // D-separation (WU-THIMPL-111)
-  isDSeparated,
-  findMinimalSeparatingSet,
-} from './causal_reasoning.js';
-
 // Evidence Ledger Adapters (WU-LEDG-001 through WU-LEDG-004)
 export {
   // Types
@@ -754,41 +695,6 @@ export {
   createDerivedConfidenceWithProof,
 } from './formula_ast.js';
 
-// Calibration Laws (Algebraic Laws for Confidence Values)
-export {
-  // Semilattice law definitions
-  type SemilatticeLaw,
-  SEMILATTICE_LAWS,
-
-  // Law check result
-  type LawCheckResult,
-
-  // Law verification functions
-  checkAssociativity,
-  checkCommutativity,
-  checkIdempotence,
-  checkIdentity,
-  checkAbsorption,
-  verifyAllLaws,
-
-  // Calibration rules
-  type CalibrationRule,
-  CALIBRATION_RULES,
-  applyCalibrationRule,
-
-  // Calibration tracker
-  type CalibrationTrace,
-  CalibrationTracker,
-
-  // Semilattice structure
-  type Semilattice,
-  ConfidenceSemilattice,
-
-  // Helper functions
-  confidenceEquals,
-  createTestConfidence,
-} from './calibration_laws.js';
-
 // Task Validation - Epistemic grounding for agent tasks
 export {
   // Types
@@ -874,54 +780,6 @@ export {
   rankByAuthority,
 } from './multi_agent.js';
 
-// Dempster-Shafer Belief Functions
-export {
-  // Core types
-  type Frame,
-  type BeliefMassFunction,
-  type CombinationResult,
-  type MassAssignment,
-
-  // Subset serialization
-  serializeSubset,
-  deserializeSubset,
-
-  // Creation functions
-  createBeliefMass,
-  createVacuousMass,
-  createBayesianMass,
-
-  // Belief and plausibility measures
-  belief,
-  plausibility,
-  beliefInterval,
-  pignisticProbability,
-
-  // Dempster's rule of combination
-  combineDempster,
-  combineMultiple,
-
-  // Conflict handling
-  DEFAULT_CONFLICT_THRESHOLD,
-  isConflictTooHigh,
-  type ConflictSeverity,
-  analyzeConflict,
-  combineWithHighConflict,
-
-  // BoundedConfidence integration
-  toBoundedConfidence,
-  fromBoundedConfidence,
-
-  // Utility functions
-  getFocalElements,
-  specificity,
-  nonSpecificity,
-
-  // Type guards
-  isBeliefMassFunction,
-  isCombinationResult,
-} from './belief_functions.js';
-
 // Epistemic Progress Metrics (Information Theory)
 export {
   // Entropy metrics
@@ -954,105 +812,6 @@ export {
   measureRedundancy,
   estimateQueryValue,
 } from './progress_metrics.js';
-
-// AGM Belief Revision Theory
-export {
-  // Branded types
-  type ClaimId as BeliefClaimId,
-  createClaimId as createBeliefClaimId,
-
-  // Core types
-  type BeliefBase,
-  type RevisionOperation,
-  type RevisionResult,
-  type PostulateCheckResult,
-  type RevisionOptions,
-  DEFAULT_REVISION_OPTIONS,
-
-  // Belief base operations
-  createEmptyBeliefBase,
-  createBeliefBase,
-  cloneBeliefBase,
-  believes,
-  getEntrenchment,
-
-  // AGM operations
-  expand,
-  contract,
-  revise,
-
-  // Entrenchment computation
-  computeEntrenchment,
-  computeEntrenchmentFromConfidence,
-
-  // Selection for contraction
-  selectForContraction,
-  findMinimalRemovalSet,
-
-  // AGM postulate verification
-  checkAGMPostulates,
-
-  // Integration with confidence values
-  createRevisionConfidence,
-
-  // Batch operations
-  updateAllEntrenchment,
-  reviseMultiple,
-
-  // Type guards
-  isBeliefBase,
-  isRevisionResult,
-} from './belief_revision.js';
-
-// Credal Sets for Imprecise Probability
-export {
-  // Interval arithmetic
-  type Interval,
-  createInterval,
-  intervalContains,
-  addIntervals,
-  subtractIntervals,
-  multiplyIntervals,
-  complementInterval,
-  sequenceIntervals,
-  parallelIntervalsAnd,
-  parallelIntervalsOr,
-  intervalWidth,
-  intervalMidpoint,
-  isIntervalPrecise,
-  isIntervalVacuous,
-
-  // Credal set types
-  type CredalSet,
-  createCredalSet,
-  isInCredalSet,
-  vacuousCredal,
-  preciseCredal,
-  isVacuous,
-  isPrecise,
-  getOutcomeInterval,
-  credalImprecision,
-
-  // Credal operations
-  marginalize,
-  condition,
-  naturalExtension,
-
-  // BoundedConfidence integration
-  toCredalSet,
-  toBoundedFromCredal,
-  confidenceToInterval,
-  composeCredalBounds,
-  composeConfidenceCredal,
-
-  // Imprecision propagation
-  type ImprecisionPropagationResult,
-  trackImprecisionPropagation,
-
-  // Type guards
-  isInterval,
-  isCredalSet,
-} from './credal_sets.js';
 
 // Universal Coherence System
 export {
@@ -1167,95 +926,6 @@ export {
   storeNetworkAsEvidence,
 } from './universal_coherence.js';
 
-// Conative Attitudes (Action-directed epistemic attitudes)
-export {
-  // Schema version
-  CONATIVE_ATTITUDES_SCHEMA_VERSION,
-
-  // Extended attitude types
-  type ConativeAttitudeType,
-  type ExtendedAttitudeType,
-  type PreferenceOrdering,
-
-  // Type guards for attitude types
-  isConativeAttitudeType,
-  isExtendedAttitudeType,
-
-  // Conative attitude interface
-  type ConativeAttitude,
-  isConativeAttitude,
-  validateCommitmentStrength,
-  validateDesireIntensity,
-
-  // Conative attitude construction
-  type ConativeAttitudeOptions,
-  constructConativeAttitude,
-
-  // Intention type
-  type MeansEndRelation,
-  type Intention,
-  type IntentionStatus,
-  type CreateIntentionOptions,
-  isIntention,
-  createIntention,
-  addMeansToIntention,
-  addConditionToIntention,
-  updateIntentionStatus,
-  areConditionsSatisfied,
-
-  // Preference type
-  type Preference,
-  type CreatePreferenceOptions,
-  isPreference,
-  createPreference,
-  isPreferred,
-  getMostPreferred,
-  getLeastPreferred,
-  checkTransitivity,
-  validatePreferenceConsistency,
-
-  // Goal type
-  type Goal,
-  type GoalStatus,
-  type CreateGoalOptions,
-  isGoal,
-  createGoal,
-  addCriterionToGoal,
-  addSubgoal,
-  updateGoalStatus,
-  isGoalAchieved,
-  computeGoalProgress,
-
-  // Desire type (including hope and fear)
-  type Desire,
-  isDesire,
-  createDesire,
-  createHope,
-  createFear,
-
-  // BDI Agent State
-  type BDIAgentState,
-  type CreateBDIAgentOptions,
-  isBDIAgentState,
-  createBDIAgentState,
-  addBelief,
-  addDesireToAgent,
-  addIntentionToAgent,
-  addGoalToAgent,
-  addPreferenceToAgent,
-
-  // Practical reasoning
-  type PracticalReasoningResult,
-  evaluatePracticalCoherence,
-  isIntentionAchievable,
-  deriveIntentionFromGoal,
-
-  // Integration with epistemic objects
-  intentionToEpistemicObject,
-  goalToEpistemicObject,
-  preferenceToEpistemicObject,
-} from './conative_attitudes.js';
-
 // Temporal Grounding Validity (WU-REC-7.2)
 export {
   // Schema version
@@ -1303,53 +973,6 @@ export {
   groupByDecayFunction,
   sortByUrgency,
 } from './temporal_grounding.js';
-
-// Intuitive Grounding System (WU-REC-7.3)
-export {
-  // Schema version
-  INTUITIVE_GROUNDING_SCHEMA_VERSION,
-
-  // Types
-  type ExtendedGroundingTypeWithIntuitive,
-  type IntuitiveSource,
-  type Articulability,
-  type UpgradePath,
-  type IntuitiveGrounding,
-  type Evidence,
-
-  // Constants
-  DEFAULT_INTUITIVE_CONFIDENCE,
-  INTUITIVE_CONFIDENCE_BOUNDS,
-  DEFAULT_UPGRADE_PATHS,
-
-  // Factory functions
-  createIntuitiveGrounding,
-  getDefaultConfidence,
-
-  // Upgrade functions
-  canUpgrade,
-  findBestUpgradePath,
-  upgradeGrounding,
-
-  // Articulability functions
-  isArticulable,
-  getArticulabilityScore,
-
-  // Pattern recognition helpers
-  detectPattern,
-  analogyFromPrior,
-
-  // Confidence conversion
-  toConfidenceValue as intuitiveToConfidenceValue,
-
-  // Type guards
-  isIntuitiveGrounding,
-  isIntuitiveSource,
-  isArticulability,
-
-  // Validation
-  validateIntuitiveGrounding,
-} from './intuitive_grounding.js';
 
 // Inference Auditor (Bad Agentic Logic Detection)
 export {

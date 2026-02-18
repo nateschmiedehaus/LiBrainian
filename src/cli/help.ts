@@ -23,7 +23,7 @@ COMMANDS:
     bootstrap           Initialize or refresh the knowledge index
     check-providers     Check provider availability and authentication
     watch               Watch for file changes and auto-reindex
-    compose             Compile technique bundles from intent
+    compose             Compose construction pipelines or technique bundles
     doctor              Run diagnostics and recovery hints
     health              Show current LiBrainian health status
     smoke               Run external repo smoke harness
@@ -116,6 +116,8 @@ OPTIONS:
     --exhaustive        Enable exhaustive mode for dependency queries (returns all dependents)
     --transitive        Include transitive dependencies (with --exhaustive)
     --max-depth <n>     Maximum depth for transitive traversal (default: 10)
+    --session <id>      Session mode: "new" starts a session, existing id continues it
+    --drill-down <id>   Drill into an entity/file within an existing session
     --json              Output results as JSON
     --out <path>        Write JSON output to file (requires --json)
 
@@ -169,6 +171,9 @@ EXAMPLES:
     librarian query "list all CLI commands" --enumerate
     librarian query "how many test files" --enumerate --json
     librarian query "what depends on SqliteStorage" --exhaustive --transitive
+    librarian query "How does auth work?" --session new --json
+    librarian query "What about token refresh?" --session sess_abc123 --json
+    librarian query --session sess_abc123 --drill-down src/auth/session.ts --json
 `,
 
   feedback: `
@@ -405,24 +410,32 @@ EXAMPLES:
 `,
 
   compose: `
-librarian compose - Compile technique bundles from intent
+librarian compose - Compose construction pipelines or technique bundles
 
 USAGE:
     librarian compose "<intent>" [options]
 
 OPTIONS:
+    --mode <m>         Compose mode: constructions|techniques (default: constructions)
     --limit <n>         Limit number of bundles returned
     --include-primitives  Include primitive definitions in output
     --pretty            Pretty-print JSON output
 
 DESCRIPTION:
-    Compiles technique composition bundles from an intent using the plan compiler.
-    Outputs JSON for downstream automation or inspection.
+    constructions mode:
+    - Runs composable construction bricks with shared context and prior findings
+    - Produces normalized findings/recommendations across knowledge, refactoring, and security
+    - Reuses context through a single pipeline pass for agent workflows
+
+    techniques mode:
+    - Compiles technique composition bundles from intent using the plan compiler
+    - Outputs template + primitive bundles for downstream automation
 
 EXAMPLES:
-    librarian compose "Prepare a release plan"
-    librarian compose "Performance regression triage" --limit 2
-    librarian compose "Release readiness" --include-primitives --pretty
+    librarian compose "Investigate payment auth regression"
+    librarian compose "Prepare a release plan" --mode techniques
+    librarian compose "Performance regression triage" --mode techniques --limit 2
+    librarian compose "Release readiness" --mode techniques --include-primitives --pretty
 `,
 
   confidence: `

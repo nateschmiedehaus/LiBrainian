@@ -483,6 +483,31 @@ describe('Librarian Initialize', () => {
       await cleanupWorkspace(workspace);
     }
   });
+
+  it('supports dependency override seams for core initialization services', async () => {
+    const workspace = await createTempWorkspace();
+    const createEmbeddingService = vi.fn(() => new EmbeddingService({ maxBatchSize: 8 }));
+    const createStorageOverride = vi.fn((ctx: { dbPath: string; workspace: string }) =>
+      createSqliteStorage(ctx.dbPath, ctx.workspace)
+    );
+
+    try {
+      const librarian = new Librarian({
+        workspace,
+        autoBootstrap: false,
+        dependencyOverrides: {
+          createEmbeddingService,
+          createStorage: (ctx) => createStorageOverride({ dbPath: ctx.dbPath, workspace: ctx.workspace }),
+        },
+      });
+      await librarian.initialize();
+      expect(createEmbeddingService).toHaveBeenCalledTimes(1);
+      expect(createStorageOverride).toHaveBeenCalled();
+      await librarian.shutdown();
+    } finally {
+      await cleanupWorkspace(workspace);
+    }
+  });
 });
 
 describe('ParserRegistry', () => {

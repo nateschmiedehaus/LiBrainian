@@ -20,6 +20,9 @@ import { generateRefactoringRecommendations, type RefactoringRecommendation } fr
 import { analyzeArchitecture } from '../recommendations/architecture_advisor.js';
 import * as path from 'path';
 
+export type { DiagramRequest, DiagramResult } from '../visualization/mermaid_generator.js';
+export type { ASCIIResult } from '../visualization/ascii_diagrams.js';
+
 export type PersonaType = 'programmer' | 'engineer' | 'manager' | 'designer' | 'qa' | 'security' | 'scientist' | 'product';
 
 export interface LibrarianViewsConfig {

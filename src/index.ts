@@ -86,7 +86,7 @@ export type {
 
 // Core librarian interface
 export { Librarian, createLibrarian, createLibrarianSync } from './api/librarian.js';
-export type { LibrarianConfig, LibrarianStatus } from './api/librarian.js';
+export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './api/librarian.js';
 
 // Query interface
 export {

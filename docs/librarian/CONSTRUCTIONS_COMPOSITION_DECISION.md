@@ -23,12 +23,16 @@ Constructions were usable as isolated tools, but did not provide a clear composi
 Choose option 3.
 
 ## Implemented Direction
-- `librarian compose` is available as a primary composition entrypoint.
+- `librarian compose` defaults to `constructions` mode as the primary composition entrypoint.
 - Construction auto-selection now emits availability, confidence caps, and warnings for experimental modules.
 - Perspective routing is enforced in core constructions so composition stages get domain-aware retrieval behavior.
 - Refactoring safety now prefers exhaustive graph traversal to avoid top-k truncation in composed safety workflows.
 - Feedback loop plumbing (`librarian feedback`, MCP `submit_feedback`) closes the agent/report/fix loop.
+- Added a concrete Lego-style composition pipeline (`src/constructions/lego_pipeline.ts`) with:
+  - shared context (`retrievedPacks`, `priorFindings`, `focusEntity`)
+  - standardized outputs (`findings`, `recommendations`, `confidence`, `evidenceRefs`, `asContext()`)
+  - cross-brick execution through knowledge → refactoring → security composition.
 
 ## Follow-on Work
-- Introduce explicit shared construction context envelope (`findings` + `recommendations`) across all construction outputs.
-- Add session-memory-aware composition runs for multi-turn workflows.
+- Expand standardized output adapters to all remaining constructions.
+- Add explicit session-memory-aware composition runs for multi-turn workflows.

@@ -239,6 +239,17 @@ export {
   type ConstructableId,
 } from './auto_selector.js';
 
+// Composable Lego-style construction pipeline (shared context + standardized findings)
+export {
+  composeConstructions,
+  type SharedAgentContext,
+  type ConstructionFinding,
+  type ConstructionRecommendation,
+  type ConstructionOutput,
+  type ComposedConstructionReport,
+  type ComposeConstructionsOptions,
+} from './lego_pipeline.js';
+
 // Enumeration Construction - complete entity listing by category
 export {
   // Intent detection

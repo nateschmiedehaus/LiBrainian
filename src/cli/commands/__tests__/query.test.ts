@@ -228,6 +228,96 @@ describe('queryCommand LLM resolution', () => {
     })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
 
+  it('starts a persistent session with --session new', async () => {
+    const { queryCommand } = await import('../query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+
+      const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      expect(jsonOutput).toBeDefined();
+      const parsed = JSON.parse(jsonOutput ?? '{}') as { mode?: string; sessionId?: string };
+      expect(parsed.mode).toBe('start');
+      expect(parsed.sessionId).toMatch(/^sess_/);
+
+      const sessionPath = path.join(workspace, '.librarian', 'query_sessions', `${parsed.sessionId}.json`);
+      const stored = JSON.parse(await fs.readFile(sessionPath, 'utf8')) as { session?: { sessionId?: string } };
+      expect(stored.session?.sessionId).toBe(parsed.sessionId);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('continues a persisted session with follow-up intent', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
+      expect(started.sessionId).toBeTruthy();
+
+      logSpy?.mockClear();
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'token refresh details', '--session', started.sessionId!, '--json'],
+      });
+      const followUpOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const followUp = JSON.parse(followUpOutput ?? '{}') as { mode?: string; sessionId?: string };
+      expect(followUp.mode).toBe('follow_up');
+      expect(followUp.sessionId).toBe(started.sessionId);
+
+      const intents = vi.mocked(queryLibrarian).mock.calls.map((call) => call[0]?.intent);
+      expect(intents).toContain('token refresh details');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('supports drill-down in persisted sessions without requiring intent text', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
+      expect(started.sessionId).toBeTruthy();
+
+      logSpy?.mockClear();
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', '--session', started.sessionId!, '--drill-down', 'src/auth/session.ts', '--json'],
+      });
+      const drillOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const drill = JSON.parse(drillOutput ?? '{}') as { mode?: string };
+      expect(drill.mode).toBe('drill_down');
+
+      const intents = vi.mocked(queryLibrarian).mock.calls.map((call) => call[0]?.intent);
+      expect(intents).toContain('Drill down: src/auth/session.ts');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   it('surfaces critical storage and synthesis warnings before coverage gaps', async () => {
     const { queryCommand } = await import('../query.js');
     const { queryLibrarian } = await import('../../../api/query.js');

@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
@@ -23,6 +24,7 @@ import {
   formatEnumerationResult,
 } from '../../constructions/enumeration.js';
 import { emitJsonOutput } from '../json_output.js';
+import { ContextAssemblySessionManager, type ContextSession } from '../../api/context_sessions.js';
 
 export interface QueryCommandOptions {
   workspace: string;
@@ -32,6 +34,7 @@ export interface QueryCommandOptions {
 
 type QueryStrategyFlag = 'auto' | 'semantic' | 'heuristic';
 type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
+type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -66,13 +69,25 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       strategy: { type: 'string', default: 'auto' },
       limit: { type: 'string' },
       out: { type: 'string' },
+      session: { type: 'string' },
+      'drill-down': { type: 'string' },
     },
     allowPositionals: true,
     strict: false,
   });
 
-  const intent = positionals.join(' ');
-  if (!intent) {
+  const sessionFlagRaw = typeof values.session === 'string' ? values.session.trim() : '';
+  const sessionRequested = sessionFlagRaw.length > 0;
+  const drillDownTarget = typeof values['drill-down'] === 'string'
+    ? values['drill-down'].trim()
+    : '';
+  if (drillDownTarget && !sessionRequested) {
+    throw createError('INVALID_ARGUMENT', '--drill-down requires --session <id>.');
+  }
+
+  const intent = positionals.join(' ').trim();
+  const queryIntentRequired = !(sessionRequested && drillDownTarget);
+  if (!intent && queryIntentRequired) {
     throw createError('INVALID_ARGUMENT', 'Query intent is required. Usage: librarian query "<intent>"');
   }
 
@@ -153,6 +168,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
   // Enumeration mode option
   const explicitEnumerate = values.enumerate as boolean;
+  if (sessionRequested && (explicitEnumerate || explicitExhaustive)) {
+    throw createError('INVALID_ARGUMENT', '--session mode cannot be combined with --enumerate or --exhaustive.');
+  }
 
   // Initialize storage
   const dbPath = await resolveDbPath(workspace);
@@ -196,7 +214,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     }
 
     // Check if this is an enumeration query (explicit flag or auto-detected)
-    const enumerationIntent = detectEnumerationIntent(intent);
+    const enumerationIntent = sessionRequested
+      ? { isEnumeration: false, confidence: 0, category: undefined }
+      : detectEnumerationIntent(intent);
     const useEnumeration = explicitEnumerate || (enumerationIntent.isEnumeration && enumerationIntent.confidence >= 0.7);
 
     if (useEnumeration && enumerationIntent.category) {
@@ -248,7 +268,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     }
 
     // Check if this is an exhaustive query (explicit flag or auto-detected)
-    const autoDetectExhaustive = shouldUseExhaustiveMode(intent);
+    const autoDetectExhaustive = sessionRequested ? false : shouldUseExhaustiveMode(intent);
     const useExhaustive = explicitExhaustive || autoDetectExhaustive;
 
     if (useExhaustive) {
@@ -440,6 +460,122 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       tokenBudget,
       deterministic,
     };
+
+    if (sessionRequested) {
+      const sessionManager = new ContextAssemblySessionManager({
+        query: (sessionQuery) => queryLibrarian({
+          ...sessionQuery,
+          llmRequirement: sessionQuery.llmRequirement ?? llmRequirement,
+          embeddingRequirement: sessionQuery.embeddingRequirement ?? embeddingRequirement,
+          tokenBudget: sessionQuery.tokenBudget ?? tokenBudget,
+          deterministic,
+        }, storage),
+      });
+
+      const requestedSessionId = sessionFlagRaw.toLowerCase() === 'new' ? null : sessionFlagRaw;
+      if (requestedSessionId) {
+        const persisted = await loadQuerySession(workspace, requestedSessionId);
+        if (!persisted) {
+          throw createError('INVALID_ARGUMENT', `Session "${requestedSessionId}" was not found. Start one with --session new.`);
+        }
+        sessionManager.restore(persisted);
+      }
+
+      const spinner = createSpinner(
+        drillDownTarget
+          ? `Drill-down in session ${requestedSessionId ?? 'new'}`
+          : (requestedSessionId ? `Follow-up in session ${requestedSessionId}` : 'Starting new query session')
+      );
+
+      try {
+        const startTime = Date.now();
+        let mode: QuerySessionMode;
+        let session: ContextSession;
+        let answer: string;
+        let newPacksCount: number;
+        let suggestedFollowUps: string[] = [];
+        let drillDownSuggestions: string[] = [];
+
+        if (!requestedSessionId) {
+          mode = 'start';
+          session = await sessionManager.start(query);
+          answer = session.context.qaHistory.at(-1)?.answer ?? 'No synthesis available.';
+          newPacksCount = session.context.packs.length;
+          drillDownSuggestions = session.context.packs
+            .flatMap((pack) => pack.relatedFiles ?? [])
+            .filter((file, index, all) => Boolean(file) && all.indexOf(file) === index)
+            .slice(0, 5);
+        } else if (drillDownTarget) {
+          mode = 'drill_down';
+          const drillDown = await sessionManager.drillDown(requestedSessionId, drillDownTarget);
+          session = drillDown.session;
+          answer = drillDown.answer;
+          newPacksCount = drillDown.newPacks.length;
+          suggestedFollowUps = drillDown.suggestedFollowUps;
+        } else {
+          mode = 'follow_up';
+          const followUp = await sessionManager.followUp(requestedSessionId, intent);
+          session = followUp.session;
+          answer = followUp.answer;
+          newPacksCount = followUp.newPacks.length;
+          suggestedFollowUps = followUp.suggestedFollowUps;
+          drillDownSuggestions = followUp.drillDownSuggestions;
+        }
+
+        await saveQuerySession(workspace, session);
+        const elapsed = Date.now() - startTime;
+        spinner.succeed(`Session query completed in ${formatDuration(elapsed)}`);
+
+        const payload = {
+          mode,
+          sessionId: session.sessionId,
+          answer,
+          newPacksCount,
+          totalPacks: session.context.packs.length,
+          historyTurns: session.history.length,
+          suggestedFollowUps,
+          drillDownSuggestions,
+          lastUpdatedAt: session.updatedAt,
+        };
+        if (outputJson) {
+          await emitJsonOutput(payload, outputPath);
+          return;
+        }
+
+        console.log('\nSession Query Results:');
+        console.log('======================\n');
+        printKeyValue([
+          { key: 'Mode', value: mode },
+          { key: 'Session ID', value: session.sessionId },
+          { key: 'New Packs', value: newPacksCount },
+          { key: 'Total Session Packs', value: session.context.packs.length },
+          { key: 'Turns', value: session.history.length },
+        ]);
+        console.log();
+        console.log('Answer:');
+        console.log(`  ${answer}`);
+        console.log();
+        if (suggestedFollowUps.length > 0) {
+          console.log('Suggested Follow-ups:');
+          for (const item of suggestedFollowUps.slice(0, 8)) {
+            console.log(`  - ${item}`);
+          }
+          console.log();
+        }
+        if (drillDownSuggestions.length > 0) {
+          console.log('Drill-down Targets:');
+          for (const item of drillDownSuggestions.slice(0, 8)) {
+            console.log(`  - ${item}`);
+          }
+          console.log();
+        }
+        return;
+      } catch (error) {
+        spinner.fail('Session query failed');
+        throw error;
+      }
+    }
+
     try {
       const startTime = Date.now();
       const rawResponse = await queryLibrarian(query, storage);
@@ -751,4 +887,48 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
   }
 
   return warnings;
+}
+
+interface PersistedQuerySession {
+  schemaVersion: 1;
+  savedAt: string;
+  session: ContextSession;
+}
+
+function resolveQuerySessionsDir(workspace: string): string {
+  return path.resolve(workspace, '.librarian', 'query_sessions');
+}
+
+function resolveQuerySessionPath(workspace: string, sessionId: string): string {
+  const trimmed = sessionId.trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+    throw createError('INVALID_ARGUMENT', `Invalid session ID "${sessionId}".`);
+  }
+  return path.join(resolveQuerySessionsDir(workspace), `${trimmed}.json`);
+}
+
+async function loadQuerySession(workspace: string, sessionId: string): Promise<ContextSession | null> {
+  const filePath = resolveQuerySessionPath(workspace, sessionId);
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    const parsed = safeJsonParse<PersistedQuerySession>(raw);
+    if (!parsed.ok || !parsed.value?.session) return null;
+    return parsed.value.session;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('ENOENT')) return null;
+    throw error;
+  }
+}
+
+async function saveQuerySession(workspace: string, session: ContextSession): Promise<void> {
+  const sessionsDir = resolveQuerySessionsDir(workspace);
+  const filePath = resolveQuerySessionPath(workspace, session.sessionId);
+  const payload: PersistedQuerySession = {
+    schemaVersion: 1,
+    savedAt: new Date().toISOString(),
+    session,
+  };
+  await fs.mkdir(sessionsDir, { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }

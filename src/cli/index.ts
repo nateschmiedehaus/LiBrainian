@@ -106,7 +106,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--json] [--out <path>] [--no-bootstrap]',
+    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
   },
   'feedback': {
     description: 'Submit task outcome feedback for a prior query',
@@ -189,8 +189,8 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
   },
   'compose': {
-    description: 'Compile technique bundles from intent',
-    usage: 'librarian compose "<intent>" [--limit N] [--include-primitives] [--pretty]',
+    description: 'Compose construction pipelines or technique bundles from intent',
+    usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty]',
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
