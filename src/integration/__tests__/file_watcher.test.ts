@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { computeChecksum16 } from '../../utils/checksums.js';
+import { computeFileChecksum } from '../../utils/checksums.js';
 import { getCurrentGitSha, getGitDiffNames, getGitStatusChanges } from '../../utils/git.js';
 
 vi.mock('../../telemetry/logger.js', () => ({
@@ -74,7 +74,7 @@ describe('file_watcher', () => {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export const a = 1;\n', 'utf8');
 
-    const checksum = computeChecksum16(await fs.readFile(filePath, 'utf8'));
+    const checksum = computeFileChecksum(await fs.readFile(filePath, 'utf8'));
     const states = new Map<string, string>();
     const storage: StorageStub = {
       async getFileChecksum(fp) {
@@ -118,7 +118,7 @@ describe('file_watcher', () => {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export const a = 1;\n', 'utf8');
 
-    const checksum = computeChecksum16(await fs.readFile(filePath, 'utf8'));
+    const checksum = computeFileChecksum(await fs.readFile(filePath, 'utf8'));
     const states = new Map<string, string>();
     const storage: StorageStub = {
       async getFileChecksum(fp) {

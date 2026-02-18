@@ -18,7 +18,7 @@ import { createHash } from 'crypto';
 import type { FileKnowledge } from '../../types.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
 import { resolveLibrarianModelId } from '../../api/llm_env.js';
-import { computeChecksum16 } from '../../utils/checksums.js';
+import { computeFileChecksum } from '../../utils/checksums.js';
 import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 
 export interface FileExtractionInput {
@@ -113,7 +113,7 @@ export async function extractFileKnowledge(
   const directory = path.dirname(absolutePath);
 
   // Compute checksum for incremental updates
-  const checksum = computeChecksum16(content);
+  const checksum = computeFileChecksum(content);
 
   // Detect category
   const category = detectCategory(absolutePath);

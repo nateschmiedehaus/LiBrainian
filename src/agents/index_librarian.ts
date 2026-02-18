@@ -9,7 +9,7 @@ import { withTimeout, getResultError } from '../core/result.js';
 import { removeControlChars } from '../security/sanitization.js';
 import type { LibrarianStorage, MultiVectorRecord } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
-import { computeChecksum16 } from '../utils/checksums.js';
+import { computeFileChecksum } from '../utils/checksums.js';
 import { getLanguageFromPath } from '../utils/language.js';
 import type {
   IndexingAgent,
@@ -538,7 +538,7 @@ export class IndexLibrarian implements IndexingAgent {
       };
     }
 
-    const checksum = computeChecksum16(content);
+    const checksum = computeFileChecksum(content);
     const forceReindex = this.config.forceReindex ?? false;
     const previousChecksum = await this.storage!.getFileChecksum(filePath);
     if (!forceReindex && previousChecksum && previousChecksum === checksum) {

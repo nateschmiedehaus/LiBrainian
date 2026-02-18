@@ -102,7 +102,7 @@ import {
 } from '../universal_patterns.js';
 import { buildTemporalGraph } from '../graphs/temporal_graph.js';
 import { createIndexStateWriter, type IndexState, type IndexStateWriter } from '../state/index_state.js';
-import { computeChecksum16 } from '../utils/checksums.js';
+import { computeFileChecksum } from '../utils/checksums.js';
 import {
   globalEventBus,
   createBootstrapStartedEvent,
@@ -2719,7 +2719,7 @@ async function runFileDirectoryKnowledgeExtraction(
             try {
               const raw = await fs.readFile(filePath);
               if (!isProbablyBinary(raw)) {
-                const checksum = computeChecksum16(raw.toString('utf8'));
+                const checksum = computeFileChecksum(raw.toString('utf8'));
                 if (checksum === existing.checksum) {
                   fileChecksumByPath.set(filePath, existing.checksum);
                   const assessment = assessFile({ file: existing });
