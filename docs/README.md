@@ -11,6 +11,7 @@ Public docs (user-facing):
 - `/docs/librarian/AGENT_INTEGRATION.md` — integration patterns
 - `/docs/librarian/MCP_SERVER.md` — MCP usage
 - `/docs/mcp-setup.md` — end-to-end MCP client setup
+- `/docs/mcp-design-principles.md` — MCP tool design standards
 - `/docs/librarian/validation.md` — validation and gates
 
 Project docs:
