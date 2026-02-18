@@ -42,16 +42,23 @@ runs:
       run: |
         set -euo pipefail
         workspace="${{ inputs.workspace-root }}"
+        action_root="${{ github.action_path }}"
+        tsx_bin="${action_root}/node_modules/.bin/tsx"
         export LIBRARIAN_SKIP_PROVIDER_CHECK=1
+
+        if [ ! -x "${tsx_bin}" ]; then
+          echo "[librainian-action] Installing action dependencies."
+          npm ci --prefix "${action_root}" --ignore-scripts
+        fi
 
         if [ ! -d "${workspace}/.librainian" ]; then
           echo "[librainian-action] No existing index found, running bootstrap."
-          npx -y librainian --workspace "${workspace}" bootstrap --no-claude-md --force-resume
+          "${tsx_bin}" "${action_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --no-claude-md --force-resume
         fi
 
-        if ! npx -y librainian --workspace "${workspace}" update --incremental; then
+        if ! "${tsx_bin}" "${action_root}/src/cli/index.ts" --workspace "${workspace}" update --incremental; then
           echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
-          npx -y librainian --workspace "${workspace}" bootstrap --no-claude-md --force
+          "${tsx_bin}" "${action_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --no-claude-md --force
         fi
 
     - name: Save LiBrainian cache
