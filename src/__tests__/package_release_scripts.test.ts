@@ -41,6 +41,22 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), '.pre-commit-hooks.yaml'))).toBe(true);
   });
 
+  it('hardens public pack check against lifecycle log noise', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'public-pack-check.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('function parsePackOutput');
+    expect(script).toContain('may emit plain text before JSON');
+    expect(script).toContain('Unable to locate JSON payload in npm pack output');
+  });
+
+  it('hardens package install smoke against lifecycle log noise', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('function parsePackOutput');
+    expect(script).toContain('Lifecycle hooks can write plain text before npm\'s JSON payload');
+    expect(script).toContain('Unable to locate JSON payload in npm pack output');
+  });
+
   it('publishes GitHub packages with repository-linked metadata for package visibility', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'publish-github-package.mjs');
     const script = fs.readFileSync(scriptPath, 'utf8');

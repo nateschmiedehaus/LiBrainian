@@ -28,9 +28,40 @@ function isAllowedPackPath(filePath) {
   return false;
 }
 
+function parsePackOutput(rawOutput) {
+  const output = rawOutput.trim();
+  if (!output) {
+    throw new Error('npm pack --dry-run --json returned empty output');
+  }
+
+  try {
+    return JSON.parse(output);
+  } catch {
+    // npm lifecycle hooks (for example prepare) may emit plain text before JSON.
+    // Recover by slicing from the first JSON delimiter to the final matching terminator.
+    const firstArray = output.indexOf('[');
+    const firstObject = output.indexOf('{');
+    const startCandidates = [firstArray, firstObject].filter((index) => index >= 0);
+    if (startCandidates.length === 0) {
+      throw new Error(`Unable to locate JSON payload in npm pack output:\n${output}`);
+    }
+
+    const start = Math.min(...startCandidates);
+    const endArray = output.lastIndexOf(']');
+    const endObject = output.lastIndexOf('}');
+    const end = Math.max(endArray, endObject);
+    if (end < start) {
+      throw new Error(`Unable to locate JSON terminator in npm pack output:\n${output}`);
+    }
+
+    const candidate = output.slice(start, end + 1).trim();
+    return JSON.parse(candidate);
+  }
+}
+
 function main() {
   const raw = run('npm', ['pack', '--dry-run', '--json']);
-  const parsed = JSON.parse(raw);
+  const parsed = parsePackOutput(raw);
   const pack = Array.isArray(parsed) ? parsed[0] : null;
   if (!pack || !Array.isArray(pack.files)) {
     throw new Error('Unable to parse npm pack --dry-run --json output');

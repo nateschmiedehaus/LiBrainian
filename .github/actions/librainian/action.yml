@@ -42,16 +42,45 @@ runs:
       run: |
         set -euo pipefail
         workspace="${{ inputs.workspace-root }}"
+        action_root="${{ github.action_path }}"
+        repo_root="$(cd "${action_root}/../../.." && pwd)"
+        tsx_bin="${repo_root}/node_modules/.bin/tsx"
         export LIBRARIAN_SKIP_PROVIDER_CHECK=1
 
-        if [ ! -d "${workspace}/.librainian" ]; then
-          echo "[librainian-action] No existing index found, running bootstrap."
-          npx -y librainian --workspace "${workspace}" bootstrap --no-claude-md --force-resume
+        if [ ! -x "${tsx_bin}" ]; then
+          echo "[librainian-action] Installing repository dependencies."
+          npm ci --prefix "${repo_root}" --ignore-scripts
+          npm rebuild --prefix "${repo_root}" better-sqlite3
         fi
 
-        if ! npx -y librainian --workspace "${workspace}" update --incremental; then
-          echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
-          npx -y librainian --workspace "${workspace}" bootstrap --no-claude-md --force
+        did_bootstrap=0
+        if [ ! -d "${workspace}/.librainian" ]; then
+          echo "[librainian-action] No existing index found, running bootstrap."
+          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
+          did_bootstrap=1
+        fi
+
+        if [ "${did_bootstrap}" -eq 1 ]; then
+          echo "[librainian-action] Bootstrap completed; skipping incremental refresh."
+        else
+          set +e
+          update_output="$("${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" update --incremental 2>&1)"
+          update_status=$?
+          set -e
+
+          if [ "${update_status}" -eq 0 ]; then
+            if [ -n "${update_output}" ]; then
+              printf '%s\n' "${update_output}"
+            fi
+          elif printf '%s' "${update_output}" | grep -q "No modified files found to index"; then
+            echo "[librainian-action] Incremental refresh skipped (no modified files)."
+          else
+            if [ -n "${update_output}" ]; then
+              printf '%s\n' "${update_output}"
+            fi
+            echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
+            "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force
+          fi
         fi
 
     - name: Save LiBrainian cache

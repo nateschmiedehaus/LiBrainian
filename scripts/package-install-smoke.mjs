@@ -21,6 +21,33 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() ?? '';
 }
 
+function parsePackOutput(rawOutput) {
+  const output = rawOutput.trim();
+  if (!output) {
+    throw new Error('npm pack returned empty output');
+  }
+
+  try {
+    return JSON.parse(output);
+  } catch {
+    // Lifecycle hooks can write plain text before npm's JSON payload.
+    const firstArray = output.indexOf('[');
+    const firstObject = output.indexOf('{');
+    const startCandidates = [firstArray, firstObject].filter((index) => index >= 0);
+    if (startCandidates.length === 0) {
+      throw new Error(`Unable to locate JSON payload in npm pack output:\n${output}`);
+    }
+    const start = Math.min(...startCandidates);
+    const endArray = output.lastIndexOf(']');
+    const endObject = output.lastIndexOf('}');
+    const end = Math.max(endArray, endObject);
+    if (end < start) {
+      throw new Error(`Unable to locate JSON terminator in npm pack output:\n${output}`);
+    }
+    return JSON.parse(output.slice(start, end + 1).trim());
+  }
+}
+
 async function main() {
   const repoRoot = process.cwd();
   const cliEntry = path.join(repoRoot, 'dist', 'cli', 'index.js');
@@ -31,7 +58,7 @@ async function main() {
   }
 
   const rawPackOutput = run('npm', ['pack', '--json', '--silent'], { cwd: repoRoot });
-  const parsedPackOutput = JSON.parse(rawPackOutput);
+  const parsedPackOutput = parsePackOutput(rawPackOutput);
   const packedName = Array.isArray(parsedPackOutput)
     ? parsedPackOutput[0]?.filename
     : undefined;
