@@ -16,6 +16,7 @@ import { indexCommand, type IndexCommandOptions } from '../index.js';
 import { Librarian } from '../../../api/librarian.js';
 import { CliError } from '../../errors.js';
 import { globalEventBus } from '../../../events.js';
+import { getGitDiffNames, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 
 vi.mock('node:fs');
 vi.mock('../../../api/librarian.js');
@@ -31,6 +32,12 @@ vi.mock('../../../events.js', async () => {
     },
   };
 });
+vi.mock('../../../utils/git.js', () => ({
+  isGitRepo: vi.fn(() => true),
+  getGitStatusChanges: vi.fn(async () => null),
+  getGitStagedChanges: vi.fn(async () => null),
+  getGitDiffNames: vi.fn(async () => null),
+}));
 
 describe('indexCommand', () => {
   const mockWorkspace = '/test/workspace';
@@ -74,6 +81,10 @@ describe('indexCommand', () => {
     vi.mocked(fs.statSync).mockReturnValue({
       isFile: () => true,
     } as fs.Stats);
+    vi.mocked(isGitRepo).mockReturnValue(true);
+    vi.mocked(getGitStatusChanges).mockResolvedValue(null);
+    vi.mocked(getGitStagedChanges).mockResolvedValue(null);
+    vi.mocked(getGitDiffNames).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -105,6 +116,113 @@ describe('indexCommand', () => {
       };
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
+    });
+
+    it('should reject multiple git selectors at once', async () => {
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        incremental: true,
+        staged: true,
+      };
+
+      await expect(indexCommand(options)).rejects.toThrow(CliError);
+      await expect(indexCommand(options)).rejects.toThrow('Use only one selector');
+    });
+
+    it('should reject incremental selectors outside git repositories', async () => {
+      vi.mocked(isGitRepo).mockReturnValue(false);
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        incremental: true,
+      };
+
+      await expect(indexCommand(options)).rejects.toThrow(CliError);
+      await expect(indexCommand(options)).rejects.toThrow('require a git repository');
+    });
+  });
+
+  describe('Git selectors', () => {
+    it('indexes modified and added files for --incremental mode', async () => {
+      vi.mocked(getGitStatusChanges).mockResolvedValue({
+        added: ['src/new.ts'],
+        modified: ['src/changed.ts'],
+        deleted: ['src/deleted.ts'],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        incremental: true,
+      };
+
+      await indexCommand(options);
+
+      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/new.ts'),
+        path.resolve(mockWorkspace, 'src/changed.ts'),
+      ]);
+    });
+
+    it('indexes staged files for --staged mode', async () => {
+      vi.mocked(getGitStagedChanges).mockResolvedValue({
+        added: ['src/staged-new.ts'],
+        modified: ['src/staged-change.ts'],
+        deleted: [],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        staged: true,
+      };
+
+      await indexCommand(options);
+
+      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/staged-new.ts'),
+        path.resolve(mockWorkspace, 'src/staged-change.ts'),
+      ]);
+    });
+
+    it('indexes files changed since a ref for --since mode', async () => {
+      vi.mocked(getGitDiffNames).mockResolvedValue({
+        added: ['src/new-since.ts'],
+        modified: [],
+        deleted: [],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        since: 'origin/main',
+      };
+
+      await indexCommand(options);
+
+      expect(getGitDiffNames).toHaveBeenCalledWith(mockWorkspace, 'origin/main');
+      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/new-since.ts'),
+      ]);
+    });
+
+    it('fails when selector resolves no candidate files', async () => {
+      vi.mocked(getGitStatusChanges).mockResolvedValue(null);
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        incremental: true,
+      };
+
+      await expect(indexCommand(options)).rejects.toThrow(CliError);
+      await expect(indexCommand(options)).rejects.toThrow('No modified files found to index');
     });
   });
 

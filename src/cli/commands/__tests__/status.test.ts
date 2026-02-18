@@ -12,6 +12,7 @@ import { getWatchState } from '../../../state/watch_state.js';
 import { inspectWorkspaceLocks } from '../../../storage/storage_recovery.js';
 import { printKeyValue } from '../../progress.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
+import { getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 import type { LibrarianStorage } from '../../../storage/types.js';
 
 vi.mock('../../db_path.js', () => ({
@@ -39,6 +40,10 @@ vi.mock('../../../storage/storage_recovery.js', () => ({
 vi.mock('../../../utils/workspace_resolver.js', () => ({
   resolveWorkspaceRoot: vi.fn(),
 }));
+vi.mock('../../../utils/git.js', () => ({
+  isGitRepo: vi.fn(() => true),
+  getGitStatusChanges: vi.fn(async () => null),
+}));
 vi.mock('../../progress.js', async () => {
   const actual = await vi.importActual('../../progress.js');
   return {
@@ -60,6 +65,7 @@ describe('statusCommand', () => {
     getState: Mock;
     getContextPacks: Mock;
     getFunctions: Mock;
+    getFileByPath: Mock;
   };
 
   beforeEach(() => {
@@ -83,6 +89,7 @@ describe('statusCommand', () => {
       getState: vi.fn().mockResolvedValue(null),
       getContextPacks: vi.fn().mockResolvedValue([]),
       getFunctions: vi.fn().mockResolvedValue([]),
+      getFileByPath: vi.fn().mockResolvedValue(null),
     };
 
     vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
@@ -119,6 +126,8 @@ describe('statusCommand', () => {
       unknownFreshFiles: 0,
       stalePaths: [],
     });
+    vi.mocked(isGitRepo).mockReturnValue(true);
+    vi.mocked(getGitStatusChanges).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -183,6 +192,39 @@ describe('statusCommand', () => {
     expect(parsed.workspace).toBe(workspace);
     expect(parsed.storage?.status).toBe('ready');
     expect(parsed.provenance?.status).toBeDefined();
+  });
+
+  it('includes freshness counts in JSON output when git data is available', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.getMetadata.mockResolvedValue({
+      version: { major: 1, minor: 2, patch: 3, string: '1.2.3' },
+      qualityTier: 'full',
+      lastBootstrap: '2026-01-19T02:00:00.000Z',
+      lastIndexing: '2026-01-19T03:00:00.000Z',
+      totalFiles: 10,
+      workspace,
+      totalFunctions: 0,
+      totalContextPacks: 0,
+    });
+    vi.mocked(getGitStatusChanges).mockResolvedValue({
+      added: ['src/new.ts'],
+      modified: ['src/changed.ts'],
+      deleted: ['src/deleted.ts'],
+    });
+    mockStorage.getFileByPath.mockImplementation(async (filePath: string) => {
+      if (filePath.endsWith('changed.ts')) return { id: 'changed' };
+      if (filePath.endsWith('deleted.ts')) return { id: 'deleted' };
+      return null;
+    });
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as { freshness?: { freshFiles?: number; staleFiles?: number; missingFiles?: number; newFiles?: number } };
+    expect(parsed.freshness?.staleFiles).toBe(1);
+    expect(parsed.freshness?.missingFiles).toBe(1);
+    expect(parsed.freshness?.newFiles).toBe(1);
+    expect(parsed.freshness?.freshFiles).toBe(8);
   });
 
   it('handles serialized metadata timestamps from storage', async () => {

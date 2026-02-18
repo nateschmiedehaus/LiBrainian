@@ -7,12 +7,14 @@ import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
+import type { LibrarianStorage } from '../../storage/types.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import { printKeyValue, formatTimestamp, formatBytes, formatDuration } from '../progress.js';
 import { safeJsonParse } from '../../utils/safe_json.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { emitJsonOutput } from '../json_output.js';
 import { collectVerificationProvenance, type VerificationProvenanceReport } from '../verification_provenance.js';
+import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -81,6 +83,14 @@ type StatusReport = {
     status: AllProviderStatus | null;
     error?: string;
   };
+  freshness?: {
+    totalIndexedFiles: number;
+    freshFiles: number;
+    staleFiles: number;
+    missingFiles: number;
+    newFiles: number;
+    selector: 'git-status';
+  } | null;
   provenance?: VerificationProvenanceReport;
 };
 
@@ -354,6 +364,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
           totalFiles: metadata.totalFiles,
         }
       : null;
+    report.freshness = await collectGitFreshnessSummary({
+      workspaceRoot,
+      storage,
+      totalIndexedFiles: metadata?.totalFiles ?? 0,
+    });
 
     try {
       const rawDefaults = await storage.getState('librarian.llm_defaults.v1');
@@ -409,6 +424,21 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       console.log();
     }
 
+    if (report.freshness) {
+      console.log('Index Freshness:');
+      printKeyValue([
+        { key: 'Indexed Files', value: report.freshness.totalIndexedFiles },
+        { key: 'Fresh', value: report.freshness.freshFiles },
+        { key: 'Stale', value: report.freshness.staleFiles },
+        { key: 'Missing', value: report.freshness.missingFiles },
+        { key: 'New (Unindexed)', value: report.freshness.newFiles },
+      ]);
+      if (report.freshness.staleFiles + report.freshness.missingFiles + report.freshness.newFiles > 0) {
+        printKeyValue([{ key: 'Suggested Command', value: 'librarian index --force --incremental' }]);
+      }
+      console.log();
+    }
+
     console.log('Provider Status:');
     if (report.providers?.storedDefaults.provider && report.providers?.storedDefaults.model) {
       printKeyValue([
@@ -458,4 +488,65 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
   } finally {
     await storage.close();
   }
+}
+
+async function collectGitFreshnessSummary(params: {
+  workspaceRoot: string;
+  storage: LibrarianStorage;
+  totalIndexedFiles: number;
+}): Promise<StatusReport['freshness']> {
+  const { workspaceRoot, storage, totalIndexedFiles } = params;
+  if (!isGitRepo(workspaceRoot)) return null;
+
+  const changes = await getGitStatusChanges(workspaceRoot);
+  if (!changes) {
+    return {
+      totalIndexedFiles,
+      freshFiles: Math.max(totalIndexedFiles, 0),
+      staleFiles: 0,
+      missingFiles: 0,
+      newFiles: 0,
+      selector: 'git-status',
+    };
+  }
+
+  const addedOrModified = dedupePaths([...changes.added, ...changes.modified])
+    .map((relPath) => path.resolve(workspaceRoot, relPath));
+  const deleted = dedupePaths(changes.deleted).map((relPath) => path.resolve(workspaceRoot, relPath));
+
+  let staleFiles = 0;
+  let newFiles = 0;
+  let missingFiles = 0;
+
+  for (const filePath of addedOrModified) {
+    const indexed = await storage.getFileByPath(filePath);
+    if (indexed) staleFiles += 1;
+    else newFiles += 1;
+  }
+  for (const filePath of deleted) {
+    const indexed = await storage.getFileByPath(filePath);
+    if (indexed) missingFiles += 1;
+  }
+
+  const freshFiles = Math.max(totalIndexedFiles - staleFiles - missingFiles, 0);
+  return {
+    totalIndexedFiles,
+    freshFiles,
+    staleFiles,
+    missingFiles,
+    newFiles,
+    selector: 'git-status',
+  };
+}
+
+function dedupePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const value of paths) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    deduped.push(trimmed);
+  }
+  return deduped;
 }

@@ -9,7 +9,7 @@
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
  *   librarian mcp                 - Start MCP stdio server / print client config
  *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
- *   librarian index --force <...> - Incrementally index specific files
+ *   librarian index --force <...> - Incrementally index specific files or git-selected changes
  *   librarian inspect <module>    - Inspect a module's knowledge
  *   librarian confidence <entity> - Show confidence scores for an entity
  *   librarian validate <file>     - Validate constraints for a file
@@ -216,7 +216,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
-    usage: 'librarian index --force <file...> [--verbose]',
+    usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'analyze': {
     description: 'Run static analysis (dead code, complexity)',
@@ -473,12 +473,28 @@ async function main(): Promise<void> {
         });
         break;
       case 'index':
-        await indexCommand({
-          workspace,
-          verbose,
-          force: args.includes('--force'),
-          files: commandArgs.filter(arg => arg !== '--force'),
-        });
+        {
+          const since = getStringArg(args, '--since');
+          if (args.includes('--since') && !since) {
+            throw new CliError('Missing value for --since <ref>.', 'INVALID_ARGUMENT');
+          }
+          const normalizedFiles = commandArgs.filter((arg) =>
+            arg !== '--force'
+            && arg !== '--incremental'
+            && arg !== '--staged'
+            && (!since || arg !== since)
+          );
+
+          await indexCommand({
+            workspace,
+            verbose,
+            force: args.includes('--force'),
+            files: normalizedFiles,
+            incremental: args.includes('--incremental'),
+            staged: args.includes('--staged'),
+            since: since ?? undefined,
+          });
+        }
         break;
       case 'analyze':
         await analyzeCommand({

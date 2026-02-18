@@ -18,19 +18,23 @@ import * as path from 'node:path';
 import { Librarian } from '../../api/librarian.js';
 import { CliError } from '../errors.js';
 import { globalEventBus, type LibrarianEvent } from '../../events.js';
+import { getGitDiffNames, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 
 export interface IndexCommandOptions {
   workspace?: string;
   verbose?: boolean;
   force?: boolean;
   files: string[];
+  incremental?: boolean;
+  staged?: boolean;
+  since?: string;
 }
 
 export async function indexCommand(options: IndexCommandOptions): Promise<void> {
   const workspace = options.workspace || process.cwd();
   const verbose = options.verbose ?? false;
   const force = options.force ?? false;
-  const files = options.files;
+  const files = await resolveRequestedFiles(workspace, options);
 
   if (!files || files.length === 0) {
     throw new CliError(
@@ -55,6 +59,15 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
 
   console.log('\n=== Librarian Index ===\n');
   console.log(`Workspace: ${workspace}`);
+  if (options.since) {
+    console.log(`Selection mode: --since ${options.since}`);
+  } else if (options.staged) {
+    console.log('Selection mode: --staged');
+  } else if (options.incremental) {
+    console.log('Selection mode: --incremental');
+  } else {
+    console.log('Selection mode: explicit files');
+  }
   console.log(`Files to index: ${files.length}\n`);
 
   // Resolve workspace to its real path for symlink protection
@@ -268,4 +281,67 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
       }
     }
   }
+}
+
+async function resolveRequestedFiles(workspace: string, options: IndexCommandOptions): Promise<string[]> {
+  const explicitFiles = options.files ?? [];
+  const modeCount = [Boolean(options.incremental), Boolean(options.staged), Boolean(options.since)].filter(Boolean).length;
+
+  if (modeCount > 1) {
+    throw new CliError(
+      'Use only one selector at a time: --incremental, --staged, or --since <ref>.',
+      'INVALID_ARGUMENT'
+    );
+  }
+
+  if (modeCount === 0) {
+    return explicitFiles;
+  }
+
+  if (!isGitRepo(workspace)) {
+    throw new CliError(
+      'Incremental selectors require a git repository in the target workspace.',
+      'INVALID_ARGUMENT'
+    );
+  }
+
+  const fromGit = await resolveGitSelectedFiles(workspace, options);
+  const merged = dedupeStrings([...explicitFiles, ...fromGit]);
+  if (merged.length === 0) {
+    if (options.since) {
+      throw new CliError(`No changed files found for --since ${options.since}.`, 'INVALID_ARGUMENT');
+    }
+    if (options.staged) {
+      throw new CliError('No staged files found to index.', 'INVALID_ARGUMENT');
+    }
+    throw new CliError('No modified files found to index.', 'INVALID_ARGUMENT');
+  }
+
+  return merged;
+}
+
+async function resolveGitSelectedFiles(workspace: string, options: IndexCommandOptions): Promise<string[]> {
+  const changes = options.since
+    ? await getGitDiffNames(workspace, options.since)
+    : options.staged
+      ? await getGitStagedChanges(workspace)
+      : await getGitStatusChanges(workspace);
+
+  if (!changes) return [];
+  if (changes.deleted.length > 0) {
+    console.log(`WARNING: Skipping ${changes.deleted.length} deleted file(s).`);
+  }
+
+  return [...changes.added, ...changes.modified].map((file) => path.resolve(workspace, file));
+}
+
+function dedupeStrings(items: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const item of items) {
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    deduped.push(item);
+  }
+  return deduped;
 }

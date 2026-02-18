@@ -182,34 +182,19 @@ export async function getGitDiffNames(
   if (!baseSha || !isGitRepo(dir)) return null;
   try {
     const output = execSync(`git diff --name-status ${baseSha}..HEAD`, { cwd: dir, encoding: 'utf8' });
-    if (!output.trim()) return null;
-    const added: string[] = [];
-    const modified: string[] = [];
-    const deleted: string[] = [];
+    return parseNameStatusOutput(output);
+  } catch {
+    return null;
+  }
+}
 
-    for (const line of output.trim().split('\n').filter(Boolean)) {
-      const parts = line.split(/\s+/);
-      const status = parts[0] ?? '';
-      const pathA = parts[1];
-      const pathB = parts[2];
-
-      if (!status) continue;
-      if (status.startsWith('A') && pathA) {
-        added.push(pathA);
-      } else if (status.startsWith('D') && pathA) {
-        deleted.push(pathA);
-      } else if (status.startsWith('R')) {
-        if (pathA) deleted.push(pathA);
-        if (pathB) added.push(pathB);
-      } else if (status.startsWith('C') && pathB) {
-        added.push(pathB);
-      } else if (pathA) {
-        modified.push(pathA);
-      }
-    }
-
-    if (added.length === 0 && modified.length === 0 && deleted.length === 0) return null;
-    return { added, modified, deleted };
+export async function getGitStagedChanges(
+  dir: string
+): Promise<{ added: string[]; modified: string[]; deleted: string[] } | null> {
+  if (!isGitRepo(dir)) return null;
+  try {
+    const output = execSync('git diff --cached --name-status', { cwd: dir, encoding: 'utf8' });
+    return parseNameStatusOutput(output);
   } catch {
     return null;
   }
@@ -223,6 +208,39 @@ export async function getGitStatusChanges(
   const added = [...status.added, ...status.untracked];
   const modified = status.modified.slice();
   const deleted = status.deleted.slice();
+  if (added.length === 0 && modified.length === 0 && deleted.length === 0) return null;
+  return { added, modified, deleted };
+}
+
+function parseNameStatusOutput(
+  output: string
+): { added: string[]; modified: string[]; deleted: string[] } | null {
+  if (!output.trim()) return null;
+  const added: string[] = [];
+  const modified: string[] = [];
+  const deleted: string[] = [];
+
+  for (const line of output.trim().split('\n').filter(Boolean)) {
+    const parts = line.split(/\s+/);
+    const status = parts[0] ?? '';
+    const pathA = parts[1];
+    const pathB = parts[2];
+
+    if (!status) continue;
+    if (status.startsWith('A') && pathA) {
+      added.push(pathA);
+    } else if (status.startsWith('D') && pathA) {
+      deleted.push(pathA);
+    } else if (status.startsWith('R')) {
+      if (pathA) deleted.push(pathA);
+      if (pathB) added.push(pathB);
+    } else if (status.startsWith('C') && pathB) {
+      added.push(pathB);
+    } else if (pathA) {
+      modified.push(pathA);
+    }
+  }
+
   if (added.length === 0 && modified.length === 0 && deleted.length === 0) return null;
   return { added, modified, deleted };
 }

@@ -47,7 +47,7 @@ ADVANCED:
     evolve              Run evolutionary improvement loop
     eval                Produce FitnessReport.v1 for current state
     replay              Replay an evolution cycle or variant
-    index --force <file...>  Incrementally index specific files
+    index --force ...        Incrementally index explicit files or git-selected changes
     analyze             Run static analysis (dead code, complexity)
     config heal         Auto-detect and fix suboptimal configuration
     ralph               Run DETECT->FIX->VERIFY loop and write an audit report
@@ -789,9 +789,15 @@ librarian index - Incrementally index specific files
 
 USAGE:
     librarian index --force <file...> [options]
+    librarian index --force --incremental [options]
+    librarian index --force --staged [options]
+    librarian index --force --since <ref> [options]
 
 OPTIONS:
     --force             REQUIRED. Acknowledge risk of context pack loss on failure
+    --incremental       Index changed files from git status (modified + added + untracked)
+    --staged            Index only staged files from git diff --cached
+    --since <ref>       Index files changed since a git ref (for CI branch comparison)
     --verbose           Show detailed indexing output
 
 DESCRIPTION:
@@ -821,6 +827,9 @@ EXAMPLES:
     librarian index --force src/new_feature.ts
     librarian index --force src/auth/*.ts --verbose
     librarian index --force file1.ts file2.ts file3.ts
+    librarian index --force --incremental
+    librarian index --force --staged
+    librarian index --force --since origin/main
 `,
 
   analyze: `
