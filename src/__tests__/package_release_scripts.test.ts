@@ -15,6 +15,11 @@ describe('package release scripts', () => {
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['gh:ship']).toBe('node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['librainian:update']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update');
+    expect(scripts['librainian:update:staged']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update --staged');
+    expect(scripts['hooks:update-index']).toBe('node scripts/hook-update-index.mjs');
+    expect(scripts['hooks:install']).toBe('lefthook install');
+    expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
     expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');
@@ -31,6 +36,9 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'hook-update-index.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'lefthook.yml'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), '.pre-commit-hooks.yaml'))).toBe(true);
   });
 
   it('publishes GitHub packages with repository-linked metadata for package visibility', () => {
@@ -102,5 +110,16 @@ describe('package release scripts', () => {
     expect(npmignore).toContain('dist/**/*.map');
     expect(npmignore).toContain('dist/test/**');
     expect(npmignore).toContain('dist/**/__tests__/**');
+  });
+
+  it('defines lint-staged integration for staged incremental indexing', () => {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+      ['lint-staged']?: Record<string, string[]>;
+    };
+    const lintStaged = packageJson['lint-staged'] ?? {};
+    expect(lintStaged['*.{ts,tsx,js,jsx,mjs,cjs}']).toEqual([
+      'node scripts/hook-update-index.mjs',
+    ]);
   });
 });

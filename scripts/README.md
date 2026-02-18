@@ -19,6 +19,7 @@ LiBrainian scripts are grouped by function:
   - `complexity_check.mjs`
   - `check-file-sizes.mjs`
   - `repo-folder-audit.mjs`
+  - `hook-update-index.mjs` (best-effort staged index refresh for pre-commit flows)
 - **GitHub automation**
   - `gh-autoland.mjs` (push current branch, create/reuse PR, enable squash auto-merge, watch checks)
     - Supports `--issue <N>` to auto-link `Fixes #N` in PR body
@@ -30,6 +31,8 @@ LiBrainian scripts are grouped by function:
   - Runs `validate:fast`, then autolands current branch.
 - `npm run gh:autoland -- --issue 299`
   - Opens/reuses PR linked to issue #299 and comments the issue with the PR URL.
+- `npm run librainian:update:staged`
+  - Runs hook-friendly staged-file incremental index refresh (`librainian update --staged`).
 
 ## Conventions
 

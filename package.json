@@ -138,6 +138,11 @@
     "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --limit 200 --out state/plans/agent-issue-fix-plan.json",
     "gh:autoland": "node scripts/gh-autoland.mjs",
     "gh:ship": "node scripts/gh-autoland.mjs --preflight-npm-script validate:fast",
+    "librainian:update": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update",
+    "librainian:update:staged": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update --staged",
+    "hooks:update-index": "node scripts/hook-update-index.mjs",
+    "hooks:install": "lefthook install",
+    "prepare": "npm run hooks:install",
     "smoke:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts",
     "smoke:external:sample": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts --repoNames typedriver-ts,token-explorer-py,tlsproxy-go --repoTimeoutMs 120000 --artifactRoot state/eval/smoke/external --runLabel sample-ts-py-go",
     "smoke:external:all": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts --artifactRoot state/eval/smoke/external --runLabel all-repos",
@@ -239,9 +244,16 @@
     "@typescript-eslint/parser": "^8.0.0",
     "@vitest/coverage-v8": "^2.0.0",
     "eslint": "^9.0.0",
+    "lefthook": "^1.11.12",
+    "lint-staged": "^15.5.2",
     "prettier": "^3.3.0",
     "tsx": "^4.19.0",
     "vitest": "^2.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "node scripts/hook-update-index.mjs"
+    ]
   },
   "publishConfig": {
     "access": "public",
