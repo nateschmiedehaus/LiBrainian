@@ -232,7 +232,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
-  run_audit: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
+  run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
   diff_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3500 },
   export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
   get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
@@ -1006,7 +1006,7 @@ export class LibrarianMCPServer {
       const data = await this.getResourceData(parsed.workspace, parsed.resourceType);
 
       const auditWorkspace = parsed.workspace ? path.resolve(parsed.workspace) : undefined;
-      const instrumentation = await this.ensureWorkspaceInstrumentation(auditWorkspace);
+      const instrumentation = this.getWorkspaceStateForTool(auditWorkspace);
       instrumentation?.auditLogger?.logResourceAccess({
         operation: uri,
         status: 'success',
@@ -1037,7 +1037,7 @@ export class LibrarianMCPServer {
       try {
         const parsed = this.parseResourceUri(uri);
         const auditWorkspace = parsed?.workspace ? path.resolve(parsed.workspace) : undefined;
-        const instrumentation = await this.ensureWorkspaceInstrumentation(auditWorkspace);
+        const instrumentation = this.getWorkspaceStateForTool(auditWorkspace);
         instrumentation?.auditLogger?.logResourceAccess({
           operation: uri,
           status: 'failure',
@@ -1143,7 +1143,11 @@ export class LibrarianMCPServer {
       // Execute tool
       const workspaceHint = this.resolveWorkspaceHint(validation.data);
       const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
-      const instrumentation = await this.ensureWorkspaceInstrumentation(workspace);
+      const hint = TOOL_HINTS[name];
+      const shouldPersistInstrumentation = !(hint?.readOnlyHint ?? false);
+      const instrumentation = shouldPersistInstrumentation
+        ? await this.ensureWorkspaceInstrumentation(workspace)
+        : this.getWorkspaceStateForTool(workspace, { registerIfMissing: true });
       const executionPromise = instrumentation?.toolAdapter
         ? instrumentation.toolAdapter.call(
             { operation: name, input: inputRecord, workspace },
@@ -1274,6 +1278,20 @@ export class LibrarianMCPServer {
       if (typeof first === 'string' && first.trim()) return first;
     }
     return undefined;
+  }
+
+  private getWorkspaceStateForTool(
+    workspacePath: string | undefined,
+    options: { registerIfMissing?: boolean } = {}
+  ): WorkspaceState | null {
+    if (!workspacePath || !workspacePath.trim()) return null;
+    const resolvedWorkspace = path.resolve(workspacePath);
+    let workspace = this.state.workspaces.get(resolvedWorkspace);
+    if (!workspace && options.registerIfMissing) {
+      this.registerWorkspace(resolvedWorkspace);
+      workspace = this.state.workspaces.get(resolvedWorkspace);
+    }
+    return workspace ?? null;
   }
 
   private async ensureWorkspaceInstrumentation(
