@@ -111,7 +111,7 @@ describe('Docs Update Module', () => {
       const content = await fs.readFile(agentsPath, 'utf-8');
       expect(content).toContain('<!-- LIBRARIAN_DOCS_START -->');
       expect(content).toContain('<!-- LIBRARIAN_DOCS_END -->');
-      expect(content).toContain('## Librarian: Codebase Knowledge System');
+      expect(content).toContain('## LiBrainian: Codebase Knowledge System');
       expect(content).toContain('Existing content here.');
     });
 
@@ -447,9 +447,9 @@ Section content.
       });
 
       const content = await fs.readFile(agentsPath, 'utf-8');
-      expect(content).toContain("import { getLibrarian } from 'librainian'");
-      expect(content).toContain('const librarian = await getLibrarian(workspaceRoot)');
-      expect(content).toContain('librarian.query');
+      expect(content).toContain("import { initializeLibrarian } from 'librainian'");
+      expect(content).toContain('const librainian = await initializeLibrarian(workspaceRoot)');
+      expect(content).toContain('librainian.query');
     });
 
     it('should include reindex instructions', async () => {

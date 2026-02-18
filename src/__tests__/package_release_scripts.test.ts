@@ -14,6 +14,7 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
+    expect(scripts['gh:ship']).toBe('node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
     expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');

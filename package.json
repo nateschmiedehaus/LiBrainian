@@ -137,6 +137,7 @@
     "ground-truth:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-ground-truth.ts",
     "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --limit 200 --out state/plans/agent-issue-fix-plan.json",
     "gh:autoland": "node scripts/gh-autoland.mjs",
+    "gh:ship": "node scripts/gh-autoland.mjs --preflight-npm-script validate:fast",
     "smoke:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts",
     "smoke:external:sample": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts --repoNames typedriver-ts,token-explorer-py,tlsproxy-go --repoTimeoutMs 120000 --artifactRoot state/eval/smoke/external --runLabel sample-ts-py-go",
     "smoke:external:all": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-repo-smoke.ts --artifactRoot state/eval/smoke/external --runLabel all-repos",
