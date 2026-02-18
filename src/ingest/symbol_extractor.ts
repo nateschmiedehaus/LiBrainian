@@ -932,7 +932,7 @@ function getInterfaceMethodSignature(method: ts.MethodSignature, interfaceName: 
 // ============================================================================
 
 /**
- * Extract symbols from a TypeScript file.
+ * Extract symbols from a TypeScript/JavaScript file.
  */
 export async function extractSymbolsFromFile(
   filePath: string,
@@ -944,14 +944,14 @@ export async function extractSymbolsFromFile(
     content,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TSX
+    getScriptKindForPath(filePath)
   );
 
   return extractSymbolsFromSource(sourceFile, filePath, options);
 }
 
 /**
- * Extract symbols from multiple TypeScript files.
+ * Extract symbols from multiple TypeScript/JavaScript files.
  */
 export async function extractSymbolsFromFiles(
   filePaths: string[],
@@ -1030,7 +1030,7 @@ export async function extractSymbolsFromDirectory(
           continue;
         }
         await processDirectory(fullPath);
-      } else if (entry.isFile() && isTypeScriptFile(entry.name)) {
+      } else if (entry.isFile() && isSupportedSourceFile(entry.name)) {
         // Skip excluded files
         if (shouldExclude(fullPath, options.excludePatterns)) {
           continue;
@@ -1058,10 +1058,24 @@ export async function extractSymbolsFromDirectory(
 }
 
 /**
- * Check if a file is a TypeScript file.
+ * Check if a file is a supported source file for symbol extraction.
  */
-function isTypeScriptFile(filename: string): boolean {
-  return /\.(ts|tsx|mts|cts)$/.test(filename) && !filename.endsWith('.d.ts');
+function isSupportedSourceFile(filename: string): boolean {
+  return /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(filename) && !filename.endsWith('.d.ts');
+}
+
+function getScriptKindForPath(filePath: string): ts.ScriptKind {
+  const normalized = filePath.toLowerCase();
+  if (normalized.endsWith('.tsx')) return ts.ScriptKind.TSX;
+  if (normalized.endsWith('.jsx')) return ts.ScriptKind.JSX;
+  if (
+    normalized.endsWith('.js')
+    || normalized.endsWith('.mjs')
+    || normalized.endsWith('.cjs')
+  ) {
+    return ts.ScriptKind.JS;
+  }
+  return ts.ScriptKind.TS;
 }
 
 // ============================================================================
