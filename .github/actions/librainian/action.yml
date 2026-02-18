@@ -54,12 +54,12 @@ runs:
 
         if [ ! -d "${workspace}/.librainian" ]; then
           echo "[librainian-action] No existing index found, running bootstrap."
-          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --no-claude-md --force-resume
+          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
         fi
 
         if ! "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" update --incremental; then
           echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
-          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --no-claude-md --force
+          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force
         fi
 
     - name: Save LiBrainian cache
