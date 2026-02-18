@@ -39,8 +39,29 @@ async function main() {
 
   try {
     run('npm', ['install', '--no-save', tarballPath], { cwd: sandboxDir });
-    run('npx', ['--no-install', 'librainian', '--version'], { cwd: sandboxDir });
-    run('npx', ['--no-install', 'librarian', '--version'], { cwd: sandboxDir });
+    const installedPackageJsonPath = path.join(sandboxDir, 'node_modules', 'librainian', 'package.json');
+    const installedPackageJson = JSON.parse(await fs.readFile(installedPackageJsonPath, 'utf8'));
+    const bin = installedPackageJson?.bin;
+    const binMap = typeof bin === 'string'
+      ? { librainian: bin, librarian: bin }
+      : (bin ?? {});
+    const librainianBin = typeof binMap.librainian === 'string' ? binMap.librainian : null;
+    const librarianBin = typeof binMap.librarian === 'string' ? binMap.librarian : null;
+
+    if (!librainianBin || !librarianBin) {
+      throw new Error('Installed package is missing expected bin entries for librainian/librarian.');
+    }
+
+    run(
+      process.execPath,
+      [path.join(sandboxDir, 'node_modules', 'librainian', librainianBin), '--version'],
+      { cwd: sandboxDir },
+    );
+    run(
+      process.execPath,
+      [path.join(sandboxDir, 'node_modules', 'librainian', librarianBin), '--version'],
+      { cwd: sandboxDir },
+    );
     run(
       process.execPath,
       ['--input-type=module', '-e', 'import("librainian").then(() => process.exit(0)).catch(() => process.exit(1));'],
