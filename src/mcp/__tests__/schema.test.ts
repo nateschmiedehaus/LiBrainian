@@ -229,6 +229,12 @@ describe('MCP Schema', () => {
       expect(String(queryToolJsonSchema.description)).toContain('confidence_tier');
       expect(String(queryToolJsonSchema.description)).toContain('request_human_review');
     });
+
+    it('should provide agent-usable query guidance descriptions', () => {
+      expect(queryToolJsonSchema.description).toContain('semantic, cross-file retrieval');
+      expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
+      expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
+    });
   });
 
   describe('Submit Feedback Tool Schema', () => {

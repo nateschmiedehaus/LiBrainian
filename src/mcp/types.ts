@@ -457,7 +457,7 @@ export interface StatusToolInput {
 
 /** Query tool input */
 export interface QueryToolInput {
-  /** Query intent/question */
+  /** Goal-oriented semantic question (architecture, behavior, impact), not a direct file-read request */
   intent: string;
 
   /** Workspace path (optional, uses first ready workspace if not specified) */
@@ -466,7 +466,7 @@ export interface QueryToolInput {
   /** Optional session identifier for loop detection and adaptive retrieval behavior */
   sessionId?: string;
 
-  /** Typed query intent */
+  /** Intent mode: understand, impact, debug, refactor, security, test, document, navigate, or general */
   intentType?: QueryIntent;
 
   /** Affected files (for scoping) */
