@@ -19,7 +19,7 @@ START HERE:
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
     setup               Alias for quickstart (setup-oriented naming)
-    init                Alias for quickstart (init-oriented naming)
+    init                Scaffold templates or run quickstart/editor onboarding
     query <intent>      Run a query against the knowledge base
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
@@ -75,6 +75,9 @@ GLOBAL OPTIONS:
     --ci                Force CI/non-interactive runtime mode
     --no-progress       Disable spinner/progress output
     --no-color          Disable ANSI colors (also respects NO_COLOR)
+    --offline           Disable remote LLM/provider network calls (local embeddings only)
+    --no-telemetry      Disable local telemetry logging output
+    --local-only        Force fully local operation (implies --offline)
     --verbose           Enable verbose output
     --json              Enable JSON output for errors (agent friendly)
 
@@ -566,21 +569,40 @@ DESCRIPTION:
 See:
     librarian help quickstart
 `,
-
   init: `
-librarian init - Alias for quickstart onboarding
+librarian init - Scaffold constructions/MCP/CLAUDE.md with quickstart fallback
 
 USAGE:
-    librarian init [options]
+    librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json]
+    librarian init [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [quickstart options]
+    librarian init [quickstart options]
+
+OPTIONS:
+    --construction <name>  Create .librarian construction + test + docs scaffolding
+    --mcp-config           Create or merge .mcp.json with librainian MCP server entry
+    --claude-md            Create/update LIBRARIAN_DOCS section in CLAUDE.md
+    --force                Overwrite conflicting scaffold files/entries when safe
+    --json                 Emit machine-readable action report for scaffolding mode
 
 DESCRIPTION:
-    Runs the same onboarding flow as:
+    When one or more scaffolding flags are present, init creates opinionated
+    templates for extending LiBrainian:
+    - Construction source/test/docs skeleton
+    - MCP config entry for \`librainian mcp\`
+    - CLAUDE.md operating notes injection block
+
+    Without scaffolding flags, init falls back to:
     librarian quickstart [options]
+
+EXAMPLES:
+    librarian init --construction SafeRefactorAdvisor
+    librarian init --mcp-config --claude-md
+    librarian init --construction SafeRefactorAdvisor --mcp-config --json
+    librarian init --depth quick --ci --no-mcp
 
 See:
     librarian help quickstart
 `,
-
   smoke: `
 librarian smoke - Run external repo smoke harness
 

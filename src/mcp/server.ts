@@ -114,6 +114,7 @@ import {
   getBootstrapStatus,
   queryLibrarian,
 } from '../api/index.js';
+import type { ContextPack, FunctionKnowledge, GraphEdge } from '../types.js';
 import { estimateTokens } from '../api/token_budget.js';
 import {
   computeEmbeddingCoverage,
@@ -291,6 +292,14 @@ interface LoopDetectionResult {
 
 interface ToolExecutionContext {
   sessionId?: string;
+}
+
+type ProactiveToolName = 'read_file' | 'edit_file' | 'write_file';
+
+interface ProactiveContextCandidate {
+  workspaceRoot: string;
+  filePath: string;
+  toolName: ProactiveToolName;
 }
 
 interface LoopMetrics {
@@ -1157,6 +1166,10 @@ export class LibrarianMCPServer {
         ...DEFAULT_MCP_SERVER_CONFIG.humanReview,
         ...(config.humanReview ?? {}),
       },
+      proactiveInjection: {
+        ...DEFAULT_MCP_SERVER_CONFIG.proactiveInjection,
+        ...(config.proactiveInjection ?? {}),
+      },
       confidenceUx: {
         ...DEFAULT_MCP_SERVER_CONFIG.confidenceUx,
         ...(config.confidenceUx ?? {}),
@@ -1411,7 +1424,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'get_context_pack',
-        description: 'Token-budgeted task context assembly that compresses relevant function and module knowledge before file reads',
+        description: 'Intent-aware, token-budgeted task context assembly that adapts retrieval shape (bug-fix, architecture, feature, security, refactor) before file reads',
         inputSchema: {
           type: 'object',
           properties: {
@@ -5051,6 +5064,129 @@ export class LibrarianMCPServer {
     }
   }
 
+  private classifyContextPackIntent(intent: string): {
+    primaryIntent: 'bug_fix' | 'architecture' | 'feature_addition' | 'security_audit' | 'refactoring';
+    confidenceInIntent: number;
+    alternativeIntent?: 'bug_fix' | 'architecture' | 'feature_addition' | 'security_audit' | 'refactoring';
+    queryIntentType: NonNullable<QueryToolInput['intentType']>;
+    queryDepth: NonNullable<QueryToolInput['depth']>;
+  } {
+    const normalized = intent.toLowerCase();
+    const scorePatterns: Array<{
+      intent: 'bug_fix' | 'architecture' | 'feature_addition' | 'security_audit' | 'refactoring';
+      queryIntentType: NonNullable<QueryToolInput['intentType']>;
+      queryDepth: NonNullable<QueryToolInput['depth']>;
+      patterns: RegExp[];
+    }> = [
+      {
+        intent: 'bug_fix',
+        queryIntentType: 'debug',
+        queryDepth: 'L2',
+        patterns: [
+          /\bfix\b/i,
+          /\bbug\b/i,
+          /\berror\b/i,
+          /\bexception\b/i,
+          /\bfail(?:ing|ed)?\b/i,
+          /\bbroken\b/i,
+          /\bdebug\b/i,
+          /\bnull\s*pointer\b/i,
+        ],
+      },
+      {
+        intent: 'architecture',
+        queryIntentType: 'document',
+        queryDepth: 'L3',
+        patterns: [
+          /\barchitecture\b/i,
+          /\boverview\b/i,
+          /\bhow\s+does\b/i,
+          /\bhow\s+.*\bwork\b/i,
+          /\bsystem\b/i,
+          /\bdata\s+flow\b/i,
+          /\btrust\s+boundar(?:y|ies)\b/i,
+          /\blayers?\b/i,
+        ],
+      },
+      {
+        intent: 'feature_addition',
+        queryIntentType: 'understand',
+        queryDepth: 'L2',
+        patterns: [
+          /\badd\b/i,
+          /\bimplement\b/i,
+          /\bintroduce\b/i,
+          /\bnew\s+feature\b/i,
+          /\bextend\b/i,
+          /\bintegrat(?:e|ion)\b/i,
+        ],
+      },
+      {
+        intent: 'security_audit',
+        queryIntentType: 'security',
+        queryDepth: 'L3',
+        patterns: [
+          /\bsecurity\b/i,
+          /\baudit\b/i,
+          /\bvulnerab(?:ility|le)\b/i,
+          /\bpermission\b/i,
+          /\bauthori[sz]ation\b/i,
+          /\bauthentication\b/i,
+          /\bxss\b/i,
+          /\bcsrf\b/i,
+          /\binjection\b/i,
+          /\bencrypt\b/i,
+          /\bsanitiz(?:e|ation)\b/i,
+        ],
+      },
+      {
+        intent: 'refactoring',
+        queryIntentType: 'impact',
+        queryDepth: 'L3',
+        patterns: [
+          /\brefactor\b/i,
+          /\brename\b/i,
+          /\bextract\b/i,
+          /\bmove\b/i,
+          /\bmigrate\b/i,
+          /\bcleanup\b/i,
+          /\bblast\s+radius\b/i,
+          /\bimpact\b/i,
+          /\bwhat\s+breaks\b/i,
+        ],
+      },
+    ];
+
+    const scores = scorePatterns.map((entry) => ({
+      ...entry,
+      score: entry.patterns.reduce((acc, pattern) => acc + (pattern.test(normalized) ? 1 : 0), 0),
+    })).sort((a, b) => b.score - a.score);
+
+    const best = scores[0];
+    const alternate = scores[1];
+    if (!best || best.score <= 0) {
+      return {
+        primaryIntent: 'feature_addition',
+        confidenceInIntent: 0.35,
+        queryIntentType: 'understand',
+        queryDepth: 'L2',
+      };
+    }
+
+    let confidenceInIntent = Math.min(0.95, 0.45 + (best.score * 0.11));
+    if (alternate && alternate.score > 0 && alternate.score >= best.score * 0.75) {
+      confidenceInIntent = Math.max(0.35, confidenceInIntent - 0.12);
+    }
+
+    return {
+      primaryIntent: best.intent,
+      confidenceInIntent,
+      alternativeIntent: alternate?.score ? alternate.intent : undefined,
+      queryIntentType: best.queryIntentType,
+      queryDepth: best.queryDepth,
+    };
+  }
+
   private async executeGetContextPack(
     input: GetContextPackToolInput,
     context: ToolExecutionContext = {},
@@ -5098,13 +5234,14 @@ export class LibrarianMCPServer {
     }
 
     const tokenBudget = Math.max(100, Math.min(50000, Math.trunc(input.tokenBudget ?? 4000)));
+    const intentProfile = this.classifyContextPackIntent(input.intent);
     const base = await this.executeQuery(
       {
         intent: input.intent,
         workspace: workspacePath,
         affectedFiles: input.relevantFiles,
-        intentType: 'navigate',
-        depth: 'L2',
+        intentType: intentProfile.queryIntentType,
+        depth: intentProfile.queryDepth,
         pageSize: 50,
         pageIdx: 0,
       },
@@ -5229,20 +5366,49 @@ export class LibrarianMCPServer {
     const architecturalContext = selectedPacks.find((pack) => pack.packType === 'module_context')?.summary
       ?? (typeof payload.answer === 'string' ? payload.answer : '');
     const evidenceIds = selectedPacks.map((pack) => pack.packId);
+    const selectedByPackType = selectedPacks.reduce<Record<string, number>>((acc, pack) => {
+      acc[pack.packType] = (acc[pack.packType] ?? 0) + 1;
+      return acc;
+    }, {});
+    const selectedModeCounts = selectedPacks.reduce<{ full: number; summary: number }>((acc, pack) => {
+      if (pack.mode === 'full') {
+        acc.full += 1;
+      } else {
+        acc.summary += 1;
+      }
+      return acc;
+    }, { full: 0, summary: 0 });
+    const assembledContext = {
+      functions,
+      callGraphNeighbors,
+      keyContracts,
+      architecturalContext,
+      evidenceIds,
+    };
 
     return {
       success: true,
       tool: 'get_context_pack',
       workspace: workspacePath,
       intent: input.intent,
+      intentProfile,
+      confidenceInIntent: intentProfile.confidenceInIntent,
       tokenBudget,
+      tokensUsed: tokenCount,
       tokenCount,
       staleness,
-      functions,
-      callGraphNeighbors,
-      keyContracts,
-      architecturalContext,
-      evidenceIds,
+      context: assembledContext,
+      contextComposition: {
+        totalPacksEvaluated: packs.length,
+        selectedPackCount: selectedPacks.length,
+        selectedByPackType,
+        selectedModeCounts,
+      },
+      functions: assembledContext.functions,
+      callGraphNeighbors: assembledContext.callGraphNeighbors,
+      keyContracts: assembledContext.keyContracts,
+      architecturalContext: assembledContext.architecturalContext,
+      evidenceIds: assembledContext.evidenceIds,
     };
   }
 
@@ -8643,6 +8809,257 @@ export class LibrarianMCPServer {
     }
 
     return entries;
+  }
+
+  /**
+   * Proactive context hook for external tool calls (for example read_file/edit_file/write_file).
+   * Returns a context prelude to prepend, or null when injection should be skipped.
+   */
+  async onToolCall(toolName: string, args: Record<string, unknown>): Promise<string | null> {
+    const normalizedTool = this.normalizeProactiveToolName(toolName);
+    if (!normalizedTool) return null;
+
+    const candidate = this.resolveProactiveContextCandidate(normalizedTool, args);
+    if (!candidate) return null;
+
+    const enabled = await this.isProactiveInjectionEnabledForWorkspace(candidate.workspaceRoot);
+    if (!enabled) return null;
+
+    const storage = await this.getOrCreateStorage(candidate.workspaceRoot).catch(() => null);
+    if (!storage) return null;
+
+    const maxTokens = Math.max(
+      200,
+      Math.min(10000, Math.trunc(this.config.proactiveInjection.maxTokens ?? 2000))
+    );
+    const minCoverage = Math.max(
+      0,
+      Math.min(1, Number(this.config.proactiveInjection.minCoverage ?? 0.5))
+    );
+
+    return this.buildProactiveInjectionText({
+      candidate,
+      storage,
+      maxTokens,
+      minCoverage,
+    });
+  }
+
+  private normalizeProactiveToolName(name: string): ProactiveToolName | null {
+    const normalized = String(name ?? '').trim().toLowerCase();
+    if (normalized === 'read_file' || normalized === 'edit_file' || normalized === 'write_file') {
+      return normalized;
+    }
+    return null;
+  }
+
+  private resolveProactiveContextCandidate(
+    toolName: ProactiveToolName,
+    args: Record<string, unknown>,
+  ): ProactiveContextCandidate | null {
+    const workspaceHintRaw = typeof args.workspace === 'string' && args.workspace.trim().length > 0
+      ? args.workspace
+      : this.findReadyWorkspace()?.path
+        ?? this.state.workspaces.keys().next().value
+        ?? this.config.workspaces[0];
+    if (!workspaceHintRaw || typeof workspaceHintRaw !== 'string') return null;
+    const workspaceRoot = path.resolve(workspaceHintRaw);
+
+    const pathArg = this.resolveToolCallFilePathArg(args);
+    if (!pathArg) return null;
+    const filePath = path.isAbsolute(pathArg)
+      ? path.resolve(pathArg)
+      : path.resolve(workspaceRoot, pathArg);
+
+    return {
+      workspaceRoot,
+      filePath,
+      toolName,
+    };
+  }
+
+  private resolveToolCallFilePathArg(args: Record<string, unknown>): string | null {
+    const candidates = [
+      args.path,
+      args.filePath,
+      args.file,
+      args.targetPath,
+      args.target,
+    ];
+    for (const value of candidates) {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private async isProactiveInjectionEnabledForWorkspace(workspaceRoot: string): Promise<boolean> {
+    const workspaceSetting = await this.readWorkspaceProactiveInjectionSetting(workspaceRoot);
+    if (typeof workspaceSetting === 'boolean') return workspaceSetting;
+    return this.config.proactiveInjection.enabled;
+  }
+
+  private async readWorkspaceProactiveInjectionSetting(workspaceRoot: string): Promise<boolean | null> {
+    const configPath = path.join(workspaceRoot, '.librainian.json');
+    try {
+      const raw = await fs.readFile(configPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      const config = parsed as {
+        proactiveInjection?: unknown;
+        librarian?: { proactiveInjection?: unknown };
+        librainian?: { proactiveInjection?: unknown };
+      };
+      const nested = config.librainian?.proactiveInjection ?? config.librarian?.proactiveInjection;
+      if (typeof nested === 'boolean') return nested;
+      if (typeof config.proactiveInjection === 'boolean') return config.proactiveInjection;
+      return null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('ENOENT')) return null;
+      return null;
+    }
+  }
+
+  private async buildProactiveInjectionText(options: {
+    candidate: ProactiveContextCandidate;
+    storage: LibrarianStorage;
+    maxTokens: number;
+    minCoverage: number;
+  }): Promise<string | null> {
+    const { candidate, storage, maxTokens, minCoverage } = options;
+    const [packsRaw, fileFunctions] = await Promise.all([
+      storage.getContextPacks({
+        relatedFile: candidate.filePath,
+        includeInvalidated: false,
+        minConfidence: 0.2,
+        limit: 40,
+        orderBy: 'confidence',
+        orderDirection: 'desc',
+      }).catch(() => []),
+      storage.getFunctionsByPath(candidate.filePath).catch(() => []),
+    ]);
+
+    const packs = packsRaw.filter((pack) =>
+      typeof pack.summary === 'string'
+      || (Array.isArray(pack.keyFacts) && pack.keyFacts.length > 0)
+    );
+    if (packs.length === 0) return null;
+
+    const coverage = this.computeFileContextCoverage(candidate.filePath, fileFunctions, packs);
+    if (coverage < minCoverage) return null;
+
+    const lines: string[] = [
+      'LiBrainian Proactive Context',
+      `Tool: ${candidate.toolName}`,
+      `File: ${candidate.filePath}`,
+      `Coverage: ${(coverage * 100).toFixed(1)}%`,
+      '',
+      'Top Context Packs:',
+    ];
+
+    for (const pack of packs.slice(0, 6)) {
+      if (typeof pack.summary === 'string' && pack.summary.trim().length > 0) {
+        lines.push(`- ${pack.summary.trim()}`);
+      }
+      for (const fact of (pack.keyFacts ?? []).slice(0, 2)) {
+        if (typeof fact === 'string' && fact.trim().length > 0) {
+          lines.push(`  - ${fact.trim()}`);
+        }
+      }
+    }
+
+    if (candidate.toolName === 'edit_file' || candidate.toolName === 'write_file') {
+      const refactorSafety = await this.buildRefactorSafetySummary(storage, candidate.filePath, fileFunctions);
+      if (refactorSafety) {
+        lines.push('');
+        lines.push(refactorSafety);
+      }
+    }
+
+    return this.fitLinesToTokenBudget(lines, maxTokens);
+  }
+
+  private computeFileContextCoverage(
+    filePath: string,
+    functions: FunctionKnowledge[],
+    packs: ContextPack[],
+  ): number {
+    if (packs.length === 0) return 0;
+    if (functions.length === 0) return 1;
+
+    const functionIds = new Set(functions.map((fn) => fn.id));
+    const normalizedFile = path.resolve(filePath);
+    const coveredFunctionIds = new Set<string>();
+
+    for (const pack of packs) {
+      if (functionIds.has(pack.targetId)) {
+        coveredFunctionIds.add(pack.targetId);
+      }
+      const hasRelatedFile = (pack.relatedFiles ?? []).some((relatedFile) => path.resolve(relatedFile) === normalizedFile);
+      if (hasRelatedFile && functionIds.has(pack.targetId)) {
+        coveredFunctionIds.add(pack.targetId);
+      }
+    }
+
+    return coveredFunctionIds.size / functions.length;
+  }
+
+  private async buildRefactorSafetySummary(
+    storage: LibrarianStorage,
+    filePath: string,
+    functions: FunctionKnowledge[],
+  ): Promise<string | null> {
+    if (functions.length === 0) return 'Refactor Safety: no indexed functions found for this file.';
+
+    const functionIds = new Set(functions.map((fn) => fn.id));
+    const edges = await storage.getGraphEdges({
+      toIds: Array.from(functionIds),
+      edgeTypes: ['calls'],
+      limit: 5000,
+    }).catch(() => [] as GraphEdge[]);
+    const externalEdges = edges.filter((edge) => !functionIds.has(edge.fromId));
+    if (externalEdges.length === 0) {
+      return 'Refactor Safety: no external callers detected for indexed functions in this file.';
+    }
+
+    const callerIds = Array.from(new Set(externalEdges.map((edge) => edge.fromId).filter((id) => typeof id === 'string' && id.length > 0)));
+    const callerFiles = new Set(
+      externalEdges
+        .map((edge) => edge.sourceFile)
+        .filter((sourceFile) => typeof sourceFile === 'string' && sourceFile.length > 0 && path.resolve(sourceFile) !== path.resolve(filePath)),
+    );
+
+    const callerNameSamples = await Promise.all(
+      callerIds.slice(0, 3).map(async (callerId) => {
+        const fn = await storage.getFunction(callerId).catch(() => null);
+        return fn?.name ?? callerId;
+      }),
+    );
+
+    const callersLabel = callerNameSamples.length > 0
+      ? ` (sample: ${callerNameSamples.join(', ')})`
+      : '';
+    return `Refactor Safety: ${callerIds.length} external caller(s) across ${callerFiles.size} file(s) may be impacted${callersLabel}.`;
+  }
+
+  private fitLinesToTokenBudget(lines: string[], maxTokens: number): string {
+    const selected: string[] = [];
+    for (const line of lines) {
+      const candidate = [...selected, line].join('\n');
+      if (estimateTokens(candidate) > maxTokens) break;
+      selected.push(line);
+    }
+
+    if (selected.length < lines.length) {
+      while (selected.length > 0 && estimateTokens([...selected, '[truncated to token budget]'].join('\n')) > maxTokens) {
+        selected.pop();
+      }
+      selected.push('[truncated to token budget]');
+    }
+
+    return selected.join('\n');
   }
 
   // ============================================================================

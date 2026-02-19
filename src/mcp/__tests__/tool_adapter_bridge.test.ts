@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 describe('MCP Server tool adapter wiring', () => {
-  it('does not create workspace instrumentation for read-only tools', async () => {
+  it('does not initialize evidence instrumentation for read-only tools', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-'));
 
     try {
@@ -20,8 +20,12 @@ describe('MCP Server tool adapter wiring', () => {
       // callTool is private; this is an intentional integration test of the wiring
       await (server as any).callTool('status', { workspace });
 
-      const librarianRoot = path.join(workspace, '.librarian');
-      await expect(fs.access(librarianRoot)).rejects.toThrow();
+      const state = (server as any).state;
+      const ws = state.workspaces.get(path.resolve(workspace));
+      expect(ws).toBeTruthy();
+      expect(ws?.toolAdapter).toBeUndefined();
+      expect(ws?.auditLogger).toBeUndefined();
+      expect(ws?.evidenceLedger).toBeUndefined();
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }

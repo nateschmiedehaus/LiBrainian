@@ -17,6 +17,7 @@
  *
  * @packageDocumentation
  */
+import { isNetworkAccessDisabled } from '../utils/runtime_controls.js';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -373,6 +374,15 @@ class PackageVerifierImpl implements PackageVerifier {
     const cached = this.getFromCache(name, normalizedRegistry);
     if (cached) {
       return cached;
+    }
+
+    if (isNetworkAccessDisabled()) {
+      return {
+        name,
+        registry: normalizedRegistry as RegistryType,
+        exists: false,
+        verified: false,
+      };
     }
 
     // Check for pending request (deduplication)

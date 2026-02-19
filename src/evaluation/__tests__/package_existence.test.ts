@@ -704,6 +704,49 @@ describe('PackageVerifier - configuration', () => {
   });
 });
 
+describe('PackageVerifier - network controls', () => {
+  let verifier: PackageVerifier;
+  let mockFetch: ReturnType<typeof createMockFetch>;
+  let previousOffline: string | undefined;
+  let previousLocalOnly: string | undefined;
+
+  beforeEach(() => {
+    previousOffline = process.env.LIBRARIAN_OFFLINE;
+    previousLocalOnly = process.env.LIBRARIAN_LOCAL_ONLY;
+    mockFetch = createMockFetch();
+    vi.stubGlobal('fetch', mockFetch);
+    verifier = createPackageVerifier();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (typeof previousOffline === 'string') process.env.LIBRARIAN_OFFLINE = previousOffline;
+    else delete process.env.LIBRARIAN_OFFLINE;
+    if (typeof previousLocalOnly === 'string') process.env.LIBRARIAN_LOCAL_ONLY = previousLocalOnly;
+    else delete process.env.LIBRARIAN_LOCAL_ONLY;
+  });
+
+  it('skips registry lookups in offline mode', async () => {
+    process.env.LIBRARIAN_OFFLINE = '1';
+
+    const result = await verifier.checkPackage('lodash', 'npm');
+
+    expect(result.exists).toBe(false);
+    expect(result.verified).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('skips registry lookups in local-only mode', async () => {
+    process.env.LIBRARIAN_LOCAL_ONLY = '1';
+
+    const result = await verifier.checkPackage('requests', 'pypi');
+
+    expect(result.exists).toBe(false);
+    expect(result.verified).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
 // ============================================================================
 // EDGE CASES
 // ============================================================================

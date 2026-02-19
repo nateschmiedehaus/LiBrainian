@@ -119,6 +119,14 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     description: 'Comprehensive code quality assessment',
     tags: ['quality'],
   },
+  {
+    id: 'preflight-checker',
+    basePriority: 78,
+    isCore: true,
+    availability: READY,
+    description: 'Runs bootstrap pre-flight checks and summarizes blocking and warning findings',
+    tags: ['core', 'preflight', 'bootstrap'],
+  },
 
   // Strategic Constructions
   {

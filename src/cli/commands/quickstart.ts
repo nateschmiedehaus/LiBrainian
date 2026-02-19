@@ -12,6 +12,10 @@ import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { runOnboardingRecovery } from '../../api/onboarding_recovery.js';
 import { createError } from '../errors.js';
 import { printKeyValue } from '../progress.js';
+import {
+  type ConfigureEditorMcpForInitReport,
+  configureEditorMcpForInit,
+} from './init_editor_mcp.js';
 
 export interface QuickstartCommandOptions {
   workspace: string;
@@ -30,6 +34,19 @@ interface QuickstartReport {
     enabled: boolean;
     configured: boolean;
     skipped: boolean;
+    autoConfigured?: boolean;
+    dryRun?: boolean;
+    globalConfig?: boolean;
+    selectedEditors?: string[];
+    detectedEditors?: string[];
+    actions?: Array<{
+      editor: string;
+      path: string;
+      status: string;
+      reason?: string;
+      diff?: string;
+    }>;
+    nextSteps?: string[];
   };
   baseline: boolean;
   updateAgentDocs: boolean;
@@ -115,6 +132,39 @@ function describeCapabilityState(options: {
   return `disabled (${providerDetail})`;
 }
 
+function formatMcpRegistrationValue(
+  noMcp: boolean,
+  ci: boolean,
+  mcpReport: ConfigureEditorMcpForInitReport | null,
+): string {
+  if (noMcp || ci) return 'skipped';
+  if (!mcpReport) return 'manual setup (run `librarian mcp --print-config`)';
+
+  if (mcpReport.dryRun) {
+    return `dry-run (${mcpReport.wouldWrite} planned changes)`;
+  }
+  if (mcpReport.written > 0) {
+    return `auto-configured (${mcpReport.written} updated, ${mcpReport.alreadyConfigured} already configured)`;
+  }
+  if (mcpReport.alreadyConfigured > 0) {
+    return `already configured (${mcpReport.alreadyConfigured})`;
+  }
+  if (mcpReport.selectedEditors.length === 0) {
+    return 'no supported editors detected';
+  }
+
+  return 'no changes';
+}
+
+function hasAnyMcpInitFlag(rawArgs: string[]): boolean {
+  return rawArgs.some((arg) => (
+    arg === '--dry-run'
+    || arg === '--global'
+    || arg === '--editor'
+    || arg.startsWith('--editor=')
+  ));
+}
+
 export async function quickstartCommand(options: QuickstartCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
 
@@ -129,6 +179,9 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       'update-agent-docs': { type: 'boolean', default: false },
       ci: { type: 'boolean', default: false },
       'no-mcp': { type: 'boolean', default: false },
+      editor: { type: 'string' },
+      'dry-run': { type: 'boolean', default: false },
+      global: { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
     },
     allowPositionals: true,
@@ -163,6 +216,9 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
   const ci = values.ci as boolean;
   const noMcp = values['no-mcp'] as boolean;
   const json = values.json as boolean;
+  const mcpEditor = typeof values.editor === 'string' ? values.editor : undefined;
+  const mcpDryRun = values['dry-run'] as boolean;
+  const mcpGlobalConfig = values.global as boolean;
 
   const dbPath = await resolveDbPath(workspaceRoot);
 
@@ -180,20 +236,51 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
 
   const summary = summarizeRecovery(recovery as any);
   const warnings = [...summary.warnings];
-  if (noMcp) {
+  let status: QuickstartStatus = summary.status;
+
+  const invocation = (rawArgs[0] ?? '').toLowerCase();
+  const shouldAttemptMcpInit = invocation === 'init' || hasAnyMcpInitFlag(rawArgs);
+  let mcpReport: ConfigureEditorMcpForInitReport | null = null;
+
+  if (shouldAttemptMcpInit && !noMcp && !ci) {
+    mcpReport = await configureEditorMcpForInit({
+      workspace: workspaceRoot,
+      editor: mcpEditor,
+      dryRun: mcpDryRun,
+      globalConfig: mcpGlobalConfig,
+    });
+
+    if (mcpReport.warnings.length > 0) {
+      warnings.push(...mcpReport.warnings);
+    }
+
+    if (mcpReport.errors > 0 && status === 'ok') {
+      status = 'warning';
+    }
+  } else if (noMcp) {
     warnings.push('MCP registration skipped (--no-mcp).');
   } else if (ci) {
     warnings.push('CI mode enabled: MCP auto-registration is skipped.');
   }
+
   const report: QuickstartReport = {
-    status: summary.status,
+    status,
     workspace: workspaceRoot,
     mode: bootstrapMode,
     ci,
     mcp: {
       enabled: !noMcp,
-      configured: false,
+      configured: mcpReport
+        ? (mcpReport.written > 0 || mcpReport.alreadyConfigured > 0 || mcpReport.wouldWrite > 0)
+        : false,
       skipped: noMcp || ci,
+      autoConfigured: mcpReport ? true : undefined,
+      dryRun: mcpReport?.dryRun,
+      globalConfig: mcpReport?.globalConfig,
+      selectedEditors: mcpReport?.selectedEditors,
+      detectedEditors: mcpReport?.detectedEditors,
+      actions: mcpReport?.actions,
+      nextSteps: mcpReport?.nextSteps,
     },
     baseline: emitBaseline,
     updateAgentDocs,
@@ -211,10 +298,10 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       { key: 'Workspace', value: workspaceRoot },
       { key: 'Mode', value: bootstrapMode },
       { key: 'CI Mode', value: ci ? 'enabled' : 'disabled' },
-      { key: 'MCP Registration', value: noMcp || ci ? 'skipped' : 'manual setup (run `librarian mcp --print-config`)' },
+      { key: 'MCP Registration', value: formatMcpRegistrationValue(noMcp, ci, mcpReport) },
       { key: 'Baseline', value: emitBaseline ? 'enabled' : 'disabled' },
       { key: 'Agent Docs Update', value: updateAgentDocs ? 'enabled' : 'disabled' },
-      { key: 'Status', value: summary.status.toUpperCase() },
+      { key: 'Status', value: status.toUpperCase() },
     ]);
 
     console.log('\nRecovery Summary:');
@@ -253,6 +340,23 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       },
     ]);
 
+    if (mcpReport) {
+      console.log('\nMCP Auto-Config Actions:');
+      for (const action of mcpReport.actions) {
+        const details = action.reason ? ` (${action.reason})` : '';
+        console.log(`  - [${action.status}] ${action.editor}: ${action.path}${details}`);
+        if (mcpReport.dryRun && action.diff && action.diff.length > 0) {
+          console.log(`\n${action.diff}\n`);
+        }
+      }
+      if (mcpReport.nextSteps.length > 0) {
+        console.log('Next steps:');
+        for (const step of mcpReport.nextSteps) {
+          console.log(`  - ${step}`);
+        }
+      }
+    }
+
     if (warnings.length > 0) {
       console.log('\nWarnings:');
       for (const warning of warnings) {
@@ -273,7 +377,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     }
   }
 
-  if (summary.status === 'error') {
+  if (status === 'error') {
     process.exitCode = 1;
   }
 }

@@ -241,6 +241,12 @@ export {
   type ComprehensiveQualityReport,
 } from './comprehensive_quality_construction.js';
 
+export {
+  PreFlightChecker,
+  createPreFlightChecker,
+  type PreFlightSummary,
+} from './preflight_checker.js';
+
 // Strategic Constructions - wrapping strategic modules
 export {
   // Original Strategic Constructions (CalibratedConstruction pattern)

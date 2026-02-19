@@ -1,8 +1,13 @@
+import { isTelemetryDisabled } from '../utils/runtime_controls.js';
 type LogContext = Record<string, unknown>;
 
 type LoggerFn = (message: string, context?: LogContext) => void;
 
 function shouldEmit(level: 'info' | 'warn' | 'error' | 'debug'): boolean {
+  if (isTelemetryDisabled()) {
+    return false;
+  }
+
   const weights: Record<typeof level, number> = {
     debug: 10,
     info: 20,

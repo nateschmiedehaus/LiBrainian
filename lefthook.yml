@@ -6,3 +6,8 @@ pre-commit:
     librainian-update:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
       run: node scripts/hook-update-index.mjs {staged_files}
+pre-push:
+  parallel: true
+  commands:
+    git-hygiene:
+      run: node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link

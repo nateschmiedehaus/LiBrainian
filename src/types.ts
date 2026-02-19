@@ -537,6 +537,31 @@ export interface BootstrapCompositionSuggestionConfig {
   queryTimeoutMs?: number;
 }
 
+export type BootstrapBriefingFileRole =
+  | 'router'
+  | 'controller'
+  | 'service'
+  | 'model'
+  | 'util'
+  | 'test'
+  | 'config'
+  | 'unknown';
+
+export interface BootstrapBriefingRoleCount {
+  role: BootstrapBriefingFileRole;
+  count: number;
+}
+
+export interface BootstrapBriefingSummary {
+  path: string;
+  frameworks: string[];
+  primaryLanguage: string;
+  keyEntryPoints: string[];
+  monorepoPackages: string[];
+  roleCounts: BootstrapBriefingRoleCount[];
+  findings: string[];
+}
+
 export interface BootstrapReport {
   workspace: string;
   startedAt: Date;
@@ -567,6 +592,8 @@ export interface BootstrapReport {
     frameworks: string[];
     languages: string[];
   };
+  /** Bootstrap-time repository orientation persisted to .librarian/CODEBASE_BRIEFING.md */
+  codebaseBriefing?: BootstrapBriefingSummary;
 }
 
 export interface BootstrapPhaseMetrics {
@@ -1725,6 +1752,7 @@ export type LibrarianEventType =
   | 'index_file'
   | 'index_function'
   | 'index_complete'
+  | 'index_change'
   | 'understanding_generation_started'
   | 'understanding_generated'
   | 'understanding_generation_complete'

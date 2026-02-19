@@ -42,3 +42,6 @@ docs/internal/tmp/
 /META_PROMPT_CRITICAL_EVALUATION.md
 /docs/PRIORITIZED-IMPLEMENTATION-PLAN.md
 /docs/WORLD_CLASS_TDD_PLAN.md
+
+# Local-only operating policy docs (never publish/track)
+.local-policies/

@@ -43,11 +43,17 @@ export async function withinTransaction<T>(
   options: {
     contract?: Partial<ConcurrencyContract>;
     onConflict?: ConflictHandler;
+    backoffMs?: number;
+    maxBackoffMs?: number;
+    sleep?: (ms: number) => Promise<void>;
   } = {}
 ): Promise<T> {
   const contract = resolveConcurrencyContract(options.contract);
   const maxAttempts = Math.max(1, contract.maxRetries + 1);
   const conflictHandler = options.onConflict ?? defaultConflictHandler;
+  const baseBackoffMs = Math.max(0, Math.floor(options.backoffMs ?? 0));
+  const maxBackoffMs = Math.max(baseBackoffMs, Math.floor(options.maxBackoffMs ?? 1000));
+  const sleep = options.sleep ?? defaultSleep;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -56,6 +62,10 @@ export async function withinTransaction<T>(
       if (!isTransactionConflictError(error)) throw error;
       const strategy = conflictHandler({ error, attempt, contract });
       if (strategy === 'retry' && attempt < maxAttempts) {
+        const delayMs = computeRetryBackoffMs(attempt, baseBackoffMs, maxBackoffMs);
+        if (delayMs > 0) {
+          await sleep(delayMs);
+        }
         continue;
       }
       if (strategy === 'merge') {
@@ -93,7 +103,26 @@ function defaultConflictHandler(args: {
   return contract.onConflict;
 }
 
+function computeRetryBackoffMs(
+  attempt: number,
+  baseBackoffMs: number,
+  maxBackoffMs: number
+): number {
+  if (baseBackoffMs <= 0) return 0;
+  const exponent = Math.max(0, attempt - 1);
+  const computed = baseBackoffMs * (2 ** exponent);
+  if (!Number.isFinite(computed)) return maxBackoffMs;
+  return Math.min(maxBackoffMs, Math.floor(computed));
+}
+
+async function defaultSleep(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export const __testing = {
   resolveConcurrencyContract,
   coerceMaxRetries,
+  computeRetryBackoffMs,
 };
