@@ -67,6 +67,7 @@ export const DEFAULT_NLP_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
 // Current active model
 let currentModelId: EmbeddingModelId = DEFAULT_CODE_MODEL;
 const INVALID_EMBEDDING_NORM_TOLERANCE = 1e-10;
+const DEFAULT_EMBEDDING_BATCH_SIZE = 8;
 
 // Embedding dimension (depends on model)
 export function getEmbeddingDimension(modelId: EmbeddingModelId = currentModelId): number {
@@ -243,6 +244,38 @@ export async function isSentenceTransformersAvailable(): Promise<boolean> {
   });
 }
 
+function resolveEmbeddingBatchSize(): number {
+  const raw = process.env.LIBRARIAN_EMBEDDING_BATCH_SIZE;
+  if (!raw) return DEFAULT_EMBEDDING_BATCH_SIZE;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return DEFAULT_EMBEDDING_BATCH_SIZE;
+  }
+  return Math.min(parsed, 64);
+}
+
+async function mapWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  mapper: (item: TInput, index: number) => Promise<TOutput>
+): Promise<TOutput[]> {
+  const normalizedConcurrency = Math.max(1, Math.min(concurrency, items.length || 1));
+  const results: TOutput[] = new Array(items.length);
+  let cursor = 0;
+
+  const workers = Array.from({ length: normalizedConcurrency }, async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
 /**
  * Generate embeddings using @xenova/transformers.
  * Model dimension depends on the selected model.
@@ -395,22 +428,39 @@ export async function generateRealEmbeddings(
     return { embeddings: [], provider: 'xenova', dimension: expectedDim, model: modelId };
   }
 
-  // For now, process sequentially (could optimize with batching later)
-  const results: Float32Array[] = [];
-  let provider: 'xenova' | 'sentence-transformers' = 'xenova';
-
-  for (const text of texts) {
-    const result = await generateRealEmbedding(text, modelId);
-    results.push(result.embedding);
-    provider = result.provider;
+  const maxBatchSize = resolveEmbeddingBatchSize();
+  if (await isXenovaAvailable()) {
+    try {
+      const embeddings = await mapWithConcurrency(texts, maxBatchSize, (text) =>
+        generateXenovaEmbedding(text, modelId)
+      );
+      return {
+        embeddings,
+        provider: 'xenova',
+        dimension: embeddings[0]?.length ?? expectedDim,
+        model: modelId,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logWarning(`[librarian] Xenova batch embedding failed for ${modelId}; trying sentence-transformers`, { error: message });
+    }
   }
 
-  return {
-    embeddings: results,
-    provider,
-    dimension: results[0]?.length ?? expectedDim,
-    model: modelId,
-  };
+  if (await isSentenceTransformersAvailable()) {
+    const embeddings = await mapWithConcurrency(texts, maxBatchSize, (text) =>
+      generateSentenceTransformerEmbedding(text, modelId)
+    );
+    return {
+      embeddings,
+      provider: 'sentence-transformers',
+      dimension: embeddings[0]?.length ?? expectedDim,
+      model: modelId,
+    };
+  }
+
+  throw new Error(
+    'No embedding provider available. Install @xenova/transformers (npm) or sentence-transformers (Python).'
+  );
 }
 
 /**
@@ -458,3 +508,8 @@ export function normalizeEmbedding(embedding: Float32Array): Float32Array {
 
   return result;
 }
+
+export const __testing = {
+  resolveEmbeddingBatchSize,
+  mapWithConcurrency,
+};
