@@ -904,6 +904,27 @@ export interface PreCommitCheckToolInput {
   maxRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
 }
 
+/** claim_work_scope tool input */
+export interface ClaimWorkScopeToolInput {
+  /** Semantic scope identifier (file, module, symbol, or task scope key) */
+  scopeId: string;
+
+  /** Workspace path (optional, used to namespace scope claims) */
+  workspace?: string;
+
+  /** Optional session identifier for ownership */
+  sessionId?: string;
+
+  /** Optional owner label (agent name/id) */
+  owner?: string;
+
+  /** Claim operation mode */
+  mode?: 'claim' | 'release' | 'check';
+
+  /** Claim expiration window in seconds (claim mode only) */
+  ttlSeconds?: number;
+}
+
 export interface GetChangeImpactToolOutput {
   success: boolean;
   target: string;
@@ -1638,6 +1659,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  claim_work_scope: {
+    tool: 'claim_work_scope',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   submit_feedback: {
     tool: 'submit_feedback',
     requiredScopes: ['read', 'write'],
@@ -2132,6 +2159,22 @@ export function isPreCommitCheckToolInput(value: unknown): value is PreCommitChe
     || obj.maxRiskLevel === 'critical'
     || typeof obj.maxRiskLevel === 'undefined';
   return changedFilesOk && workspaceOk && strictOk && maxRiskLevelOk;
+}
+
+/** Type guard for ClaimWorkScopeToolInput */
+export function isClaimWorkScopeToolInput(value: unknown): value is ClaimWorkScopeToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const scopeIdOk = typeof obj.scopeId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const ownerOk = typeof obj.owner === 'string' || typeof obj.owner === 'undefined';
+  const modeOk = obj.mode === 'claim'
+    || obj.mode === 'release'
+    || obj.mode === 'check'
+    || typeof obj.mode === 'undefined';
+  const ttlOk = typeof obj.ttlSeconds === 'number' || typeof obj.ttlSeconds === 'undefined';
+  return scopeIdOk && workspaceOk && sessionIdOk && ownerOk && modeOk && ttlOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */

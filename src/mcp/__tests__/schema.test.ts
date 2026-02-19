@@ -23,6 +23,7 @@ import {
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
   PreCommitCheckToolInputSchema,
+  ClaimWorkScopeToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
   ListConstructionsToolInputSchema,
@@ -52,6 +53,7 @@ import {
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
   isPreCommitCheckToolInput,
+  isClaimWorkScopeToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
   isListConstructionsToolInput,
@@ -117,8 +119,9 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('pre_commit_check');
+      expect(schemas).toContain('claim_work_scope');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(36);
+      expect(schemas).toHaveLength(37);
     });
 
     it('should return schema for known tools', () => {
@@ -454,6 +457,43 @@ describe('MCP Schema', () => {
       expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'critical' })).toBe(true);
       expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'invalid' })).toBe(false);
       expect(isPreCommitCheckToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Claim Work Scope Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('claim_work_scope', {
+        scopeId: 'src/api/auth.ts',
+      });
+      expect(result.valid).toBe(true);
+      expect(ClaimWorkScopeToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('claim_work_scope', {
+        scopeId: 'src/api/auth.ts',
+        workspace: '/tmp/workspace',
+        sessionId: 'sess_1',
+        owner: 'agent-a',
+        mode: 'claim',
+        ttlSeconds: 600,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject invalid mode', () => {
+      const result = validateToolInput('claim_work_scope', {
+        scopeId: 'src/api/auth.ts',
+        mode: 'invalid',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts' })).toBe(true);
+      expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts', mode: 'release' })).toBe(true);
+      expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts', mode: 'invalid' })).toBe(false);
+      expect(isClaimWorkScopeToolInput(null)).toBe(false);
     });
   });
 

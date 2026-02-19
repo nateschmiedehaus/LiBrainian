@@ -50,6 +50,7 @@ import {
   type GetChangeImpactToolInput,
   type BlastRadiusToolInput,
   type PreCommitCheckToolInput,
+  type ClaimWorkScopeToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
   type FindUsagesToolInput,
@@ -154,6 +155,9 @@ export interface ServerState {
 
   /** Authentication manager */
   authManager: AuthenticationManager;
+
+  /** Active cross-session scope claims for parallel coordination */
+  scopeClaims: Map<string, ScopeClaimRecord>;
 }
 
 /** Workspace state */
@@ -229,6 +233,16 @@ interface PlanRecord {
   contextUsed: string[];
   workspace?: string;
   createdAt: string;
+}
+
+interface ScopeClaimRecord {
+  scopeKey: string;
+  scopeId: string;
+  workspace?: string;
+  sessionId: string;
+  owner?: string;
+  claimedAt: string;
+  expiresAt: string;
 }
 
 interface LoopDetectionResult {
@@ -321,6 +335,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
@@ -1116,6 +1131,7 @@ export class LibrarianMCPServer {
         maxSessionsPerClient: 10,
         allowScopeEscalation: false,
       }),
+      scopeClaims: new Map(),
     };
 
     // Initialize MCP server
@@ -1584,6 +1600,22 @@ export class LibrarianMCPServer {
             maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass (default high)' },
           },
           required: ['changedFiles'],
+        },
+      },
+      {
+        name: 'claim_work_scope',
+        description: 'Claim/check/release semantic work scopes for parallel agent coordination',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            scopeId: { type: 'string', description: 'Semantic scope identifier (file, module, symbol, or task scope key)' },
+            workspace: { type: 'string', description: 'Workspace path (optional, used to namespace scope claims)' },
+            sessionId: { type: 'string', description: 'Optional session identifier for ownership' },
+            owner: { type: 'string', description: 'Optional owner label (agent name/id)' },
+            mode: { type: 'string', enum: ['claim', 'release', 'check'], description: 'Claim operation mode (default claim)' },
+            ttlSeconds: { type: 'number', description: 'Claim expiration window in seconds (default 1800)' },
+          },
+          required: ['scopeId'],
         },
       },
       {
@@ -3010,6 +3042,8 @@ export class LibrarianMCPServer {
         return this.executeBlastRadius(args as BlastRadiusToolInput);
       case 'pre_commit_check':
         return this.executePreCommitCheck(args as PreCommitCheckToolInput);
+      case 'claim_work_scope':
+        return this.executeClaimWorkScope(args as ClaimWorkScopeToolInput, context);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
@@ -6384,6 +6418,159 @@ export class LibrarianMCPServer {
         highRiskCount,
       },
       recommendedActions,
+    };
+  }
+
+  private buildScopeClaimKey(scopeId: string, workspace?: string): string {
+    return `${workspace ?? 'global'}::${scopeId}`;
+  }
+
+  private pruneExpiredScopeClaims(nowMs = Date.now()): void {
+    for (const [key, claim] of this.state.scopeClaims) {
+      const expiresAtMs = Date.parse(claim.expiresAt);
+      if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs) {
+        this.state.scopeClaims.delete(key);
+      }
+    }
+  }
+
+  private async executeClaimWorkScope(
+    input: ClaimWorkScopeToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const scopeId = input.scopeId?.trim() ?? '';
+    if (scopeId.length === 0) {
+      return {
+        success: false,
+        claimed: false,
+        error: 'scopeId must be a non-empty string.',
+      };
+    }
+
+    const workspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? contextSessionId
+      ?? this.buildAnonymousSessionId(workspace ?? process.cwd());
+    const mode = input.mode ?? 'claim';
+    const ttlSeconds = Math.max(1, Math.min(86400, Math.trunc(input.ttlSeconds ?? 1800)));
+    const owner = typeof input.owner === 'string' && input.owner.trim().length > 0
+      ? input.owner.trim()
+      : undefined;
+
+    this.pruneExpiredScopeClaims();
+    const scopeKey = this.buildScopeClaimKey(scopeId, workspace);
+    const existing = this.state.scopeClaims.get(scopeKey);
+
+    if (mode === 'check') {
+      return {
+        success: true,
+        mode,
+        scopeId,
+        workspace,
+        available: !existing,
+        conflict: existing
+          ? {
+            sessionId: existing.sessionId,
+            owner: existing.owner,
+            expiresAt: existing.expiresAt,
+          }
+          : null,
+      };
+    }
+
+    if (mode === 'release') {
+      if (!existing) {
+        return {
+          success: true,
+          mode,
+          scopeId,
+          workspace,
+          released: false,
+          message: 'No active claim existed for this scope.',
+        };
+      }
+      if (existing.sessionId !== sessionId) {
+        return {
+          success: true,
+          mode,
+          scopeId,
+          workspace,
+          released: false,
+          message: 'Scope is claimed by another session.',
+          conflict: {
+            sessionId: existing.sessionId,
+            owner: existing.owner,
+            expiresAt: existing.expiresAt,
+          },
+        };
+      }
+      this.state.scopeClaims.delete(scopeKey);
+      return {
+        success: true,
+        mode,
+        scopeId,
+        workspace,
+        released: true,
+        message: 'Scope claim released.',
+      };
+    }
+
+    if (existing && existing.sessionId !== sessionId) {
+      return {
+        success: true,
+        mode,
+        scopeId,
+        workspace,
+        claimed: false,
+        message: 'Scope already claimed by another session.',
+        conflict: {
+          sessionId: existing.sessionId,
+          owner: existing.owner,
+          expiresAt: existing.expiresAt,
+        },
+      };
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+    const record: ScopeClaimRecord = {
+      scopeKey,
+      scopeId,
+      workspace,
+      sessionId,
+      owner,
+      claimedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+    this.state.scopeClaims.set(scopeKey, record);
+
+    const activeClaims = Array.from(this.state.scopeClaims.values())
+      .filter((claim) => claim.workspace === workspace)
+      .map((claim) => ({
+        scopeId: claim.scopeId,
+        sessionId: claim.sessionId,
+        owner: claim.owner,
+        expiresAt: claim.expiresAt,
+      }));
+
+    return {
+      success: true,
+      mode,
+      scopeId,
+      workspace,
+      claimed: true,
+      sessionId,
+      owner,
+      expiresAt: record.expiresAt,
+      activeClaims,
     };
   }
 

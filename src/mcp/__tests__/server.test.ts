@@ -208,6 +208,17 @@ describe('MCP Server', () => {
       expect(preCommitTool?.description?.toLowerCase()).toContain('semantic pre-submit gate');
     });
 
+    it('includes claim_work_scope for parallel coordination', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const claimTool = tools.find((tool) => tool.name === 'claim_work_scope');
+
+      expect(claimTool).toBeDefined();
+      expect(claimTool?.description).toContain('parallel agent coordination');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -380,6 +391,48 @@ describe('MCP Server', () => {
           expect.objectContaining({ tool: 'synthesize_plan' }),
         ]),
       );
+    });
+
+    it('claims, checks, and releases work scopes with conflict reporting', async () => {
+      const first = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        sessionId: 'sess_a',
+        owner: 'agent-a',
+      });
+      expect(first.success).toBe(true);
+      expect(first.claimed).toBe(true);
+
+      const conflict = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        sessionId: 'sess_b',
+        owner: 'agent-b',
+      });
+      expect(conflict.success).toBe(true);
+      expect(conflict.claimed).toBe(false);
+      expect(conflict.conflict?.sessionId).toBe('sess_a');
+
+      const check = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        mode: 'check',
+      });
+      expect(check.success).toBe(true);
+      expect(check.available).toBe(false);
+
+      const releaseDenied = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        mode: 'release',
+        sessionId: 'sess_b',
+      });
+      expect(releaseDenied.success).toBe(true);
+      expect(releaseDenied.released).toBe(false);
+
+      const release = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        mode: 'release',
+        sessionId: 'sess_a',
+      });
+      expect(release.success).toBe(true);
+      expect(release.released).toBe(true);
     });
   });
 

@@ -143,6 +143,18 @@ export const PreCommitCheckToolInputSchema = z.object({
 }).strict();
 
 /**
+ * claim_work_scope tool input schema
+ */
+export const ClaimWorkScopeToolInputSchema = z.object({
+  scopeId: z.string().min(1).describe('Semantic scope identifier (file, module, symbol, or task scope key)'),
+  workspace: z.string().optional().describe('Workspace path (optional, used to namespace scope claims)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier for ownership'),
+  owner: z.string().min(1).optional().describe('Optional owner label (agent name/id)'),
+  mode: z.enum(['claim', 'release', 'check']).optional().default('claim').describe('Claim operation mode'),
+  ttlSeconds: z.number().int().min(1).max(86400).optional().default(1800).describe('Claim expiration window in seconds (claim mode only)'),
+}).strict();
+
+/**
  * Submit feedback tool input schema
  */
 export const SubmitFeedbackToolInputSchema = z.object({
@@ -466,6 +478,7 @@ export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInput
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
+export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
@@ -523,6 +536,7 @@ export const TOOL_INPUT_SCHEMAS = {
   get_change_impact: GetChangeImpactToolInputSchema,
   blast_radius: BlastRadiusToolInputSchema,
   pre_commit_check: PreCommitCheckToolInputSchema,
+  claim_work_scope: ClaimWorkScopeToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_symbol: FindSymbolToolInputSchema,
@@ -709,6 +723,25 @@ export const preCommitCheckToolJsonSchema: JSONSchema = {
     maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass', default: 'high' },
   },
   required: ['changedFiles'],
+  additionalProperties: false,
+};
+
+/** claim_work_scope tool JSON Schema */
+export const claimWorkScopeToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/claim-work-scope-tool-input',
+  title: 'ClaimWorkScopeToolInput',
+  description: 'Input for claim_work_scope - semantic coordination primitive for parallel agents',
+  type: 'object',
+  properties: {
+    scopeId: { type: 'string', description: 'Semantic scope identifier (file, module, symbol, or task scope key)', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, used to namespace scope claims)' },
+    sessionId: { type: 'string', description: 'Optional session identifier for ownership', minLength: 1 },
+    owner: { type: 'string', description: 'Optional owner label (agent name/id)', minLength: 1 },
+    mode: { type: 'string', enum: ['claim', 'release', 'check'], description: 'Claim operation mode', default: 'claim' },
+    ttlSeconds: { type: 'number', description: 'Claim expiration window in seconds (claim mode only)', minimum: 1, maximum: 86400, default: 1800 },
+  },
+  required: ['scopeId'],
   additionalProperties: false,
 };
 
@@ -950,6 +983,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   get_change_impact: getChangeImpactToolJsonSchema,
   blast_radius: blastRadiusToolJsonSchema,
   pre_commit_check: preCommitCheckToolJsonSchema,
+  claim_work_scope: claimWorkScopeToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
 };
