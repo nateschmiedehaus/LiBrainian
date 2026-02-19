@@ -19,7 +19,7 @@ START HERE:
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
     setup               Alias for quickstart (setup-oriented naming)
-    init                Alias for quickstart (init-oriented naming)
+    init                Quickstart + editor MCP auto-config
     query <intent>      Run a query against the knowledge base
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
@@ -536,21 +536,24 @@ DESCRIPTION:
 See:
     librarian help quickstart
 `,
-
   init: `
-librarian init - Alias for quickstart onboarding
+librarian init - Quickstart onboarding with editor MCP auto-config
 
 USAGE:
-    librarian init [options]
+    librarian init [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [other quickstart options]
 
 DESCRIPTION:
-    Runs the same onboarding flow as:
-    librarian quickstart [options]
+    Runs onboarding recovery and auto-configures editor MCP settings.
+
+    Behavior:
+    - No --editor: detect installed editors and configure all detected targets
+    - --editor <name>: explicitly target one editor (or all)
+    - --dry-run: preview file diffs without writing
+    - --global: prefer user-level config locations where supported
 
 See:
     librarian help quickstart
 `,
-
   smoke: `
 librarian smoke - Run external repo smoke harness
 
