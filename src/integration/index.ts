@@ -189,3 +189,14 @@ export type {
   OpenclawOutcomeSignal,
   SharedCalibrationSnapshot,
 } from './openclaw_calibration.js';
+
+// OpenClaw integration benchmark suite
+export {
+  runOpenclawIntegrationSuite,
+} from './openclaw_integration_suite.js';
+export type {
+  OpenclawIntegrationSuiteOptions,
+  OpenclawIntegrationSuiteResult,
+  OpenclawScenarioId,
+  OpenclawScenarioResult,
+} from './openclaw_integration_suite.js';

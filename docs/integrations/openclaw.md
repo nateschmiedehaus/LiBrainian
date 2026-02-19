@@ -25,6 +25,21 @@ This command:
 2. Persists daemon lifecycle state to `~/.librainian/openclaw-daemon/state.json`.
 3. Supports `status` and `stop` actions for deterministic local lifecycle control.
 
+## Quantitative integration suite
+
+```bash
+librarian test-integration --suite openclaw --strict
+```
+
+The suite evaluates six scenarios with threshold-based pass/fail outputs:
+
+1. Cold start context efficiency
+2. Memory staleness detection
+3. Semantic navigation accuracy
+4. Context exhaustion prevention
+5. Malicious skill detection
+6. Calibration convergence
+
 ## Installed skill
 
 The canonical skill source in this repository:
@@ -63,3 +78,4 @@ librarian audit-skill ./SKILL.md
 Use `--json` for machine-readable verdicts in CI or pre-submission workflows.
 
 For calibration feedback loop wiring, see `docs/integrations/openclaw-calibration.md`.
+For quantitative integration suite results, see `docs/integrations/openclaw-benchmark-results.md`.

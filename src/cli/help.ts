@@ -27,6 +27,7 @@ COMMANDS:
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
     install-openclaw-skill Install official OpenClaw skill and config wiring
     openclaw-daemon     Manage OpenClaw daemon registration and state
+    test-integration    Run quantitative integration benchmark suites
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
@@ -84,6 +85,7 @@ EXAMPLES:
     librainian audit-skill ./SKILL.md --json
     librainian install-openclaw-skill --dry-run
     librainian openclaw-daemon start --json
+    librainian test-integration --suite openclaw --json
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian constructions search "security audit"
@@ -375,6 +377,35 @@ EXAMPLES:
     librarian openclaw-daemon start
     librarian openclaw-daemon status --json
     librarian openclaw-daemon stop --state-root /tmp/librainian-state
+`,
+
+  'test-integration': `
+librarian test-integration - Run quantitative integration benchmark suites
+
+USAGE:
+    librarian test-integration --suite openclaw [options]
+
+OPTIONS:
+    --suite <name>          Integration suite name (currently: openclaw)
+    --scenario <name>       Scenario selector: all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration
+    --fixtures-root <path>  Override fixture root (default: test/fixtures/openclaw)
+    --strict                Exit non-zero when any scenario fails thresholds
+    --json                  Emit machine-readable JSON report
+    --out <path>            Write report JSON to file
+
+DESCRIPTION:
+    Runs six quantitative OpenClaw integration scenarios:
+    1. cold-start context efficiency
+    2. memory staleness detection
+    3. semantic navigation accuracy
+    4. context exhaustion prevention
+    5. malicious skill detection
+    6. calibration convergence
+
+EXAMPLES:
+    librarian test-integration --suite openclaw
+    librarian test-integration --suite openclaw --scenario skill-audit --json
+    librarian test-integration --suite openclaw --strict --out state/eval/openclaw/benchmark.json
 `,
 
   mcp: `
