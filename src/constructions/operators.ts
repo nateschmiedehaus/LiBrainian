@@ -9,11 +9,18 @@ import {
   ConstructionTimeoutError,
 } from './base/construction_base.js';
 import type {
+  ConstructionPath,
   Construction,
+  CostSemiring,
   ConstructionDebugOptions,
   ConstructionExecutionTrace,
   ConstructionExecutionTraceStep,
   ConstructionFailureHint,
+  Either,
+  FixpointMetadata,
+  FixpointTerminationReason,
+  ProgressMetric,
+  SelectiveConstruction,
   Context,
 } from './types.js';
 
@@ -280,6 +287,120 @@ function withDiagnostics<I, O, E extends ConstructionError, R>(
   };
 }
 
+const ZERO_COST: CostSemiring = {
+  llmCalls: { min: 0, max: 0 },
+  tokens: { min: 0, max: 0 },
+  latencyMs: { min: 0, max: 0 },
+  networkRequests: false,
+  fileReads: { min: 0, max: 0 },
+};
+
+function addCost(a: CostSemiring, b: CostSemiring): CostSemiring {
+  return {
+    llmCalls: { min: a.llmCalls.min + b.llmCalls.min, max: a.llmCalls.max + b.llmCalls.max },
+    tokens: { min: a.tokens.min + b.tokens.min, max: a.tokens.max + b.tokens.max },
+    latencyMs: { min: a.latencyMs.min + b.latencyMs.min, max: a.latencyMs.max + b.latencyMs.max },
+    networkRequests: a.networkRequests || b.networkRequests,
+    fileReads: { min: a.fileReads.min + b.fileReads.min, max: a.fileReads.max + b.fileReads.max },
+  };
+}
+
+function minCost(a: CostSemiring, b: CostSemiring): CostSemiring {
+  return {
+    llmCalls: { min: Math.min(a.llmCalls.min, b.llmCalls.min), max: Math.min(a.llmCalls.max, b.llmCalls.max) },
+    tokens: { min: Math.min(a.tokens.min, b.tokens.min), max: Math.min(a.tokens.max, b.tokens.max) },
+    latencyMs: { min: Math.min(a.latencyMs.min, b.latencyMs.min), max: Math.min(a.latencyMs.max, b.latencyMs.max) },
+    networkRequests: a.networkRequests && b.networkRequests,
+    fileReads: { min: Math.min(a.fileReads.min, b.fileReads.min), max: Math.min(a.fileReads.max, b.fileReads.max) },
+  };
+}
+
+function maxCost(a: CostSemiring, b: CostSemiring): CostSemiring {
+  return {
+    llmCalls: { min: Math.max(a.llmCalls.min, b.llmCalls.min), max: Math.max(a.llmCalls.max, b.llmCalls.max) },
+    tokens: { min: Math.max(a.tokens.min, b.tokens.min), max: Math.max(a.tokens.max, b.tokens.max) },
+    latencyMs: { min: Math.max(a.latencyMs.min, b.latencyMs.min), max: Math.max(a.latencyMs.max, b.latencyMs.max) },
+    networkRequests: a.networkRequests || b.networkRequests,
+    fileReads: { min: Math.max(a.fileReads.min, b.fileReads.min), max: Math.max(a.fileReads.max, b.fileReads.max) },
+  };
+}
+
+function estimateConstructionMinCost<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>
+): CostSemiring {
+  const costTagged = construction as Construction<I, O, E, R> & { __cost?: CostSemiring };
+  if (costTagged.__cost) {
+    return costTagged.__cost;
+  }
+  const maybeSelective = construction as Partial<SelectiveConstruction<I, O, E, R>>;
+  if (typeof maybeSelective.minCost === 'function') {
+    return maybeSelective.minCost();
+  }
+  return ZERO_COST;
+}
+
+function estimateConstructionMaxCost<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>
+): CostSemiring {
+  const costTagged = construction as Construction<I, O, E, R> & { __cost?: CostSemiring };
+  if (costTagged.__cost) {
+    return costTagged.__cost;
+  }
+  const maybeSelective = construction as Partial<SelectiveConstruction<I, O, E, R>>;
+  if (typeof maybeSelective.maxCost === 'function') {
+    return maybeSelective.maxCost();
+  }
+  return ZERO_COST;
+}
+
+function dependencyUpper<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>
+): Set<string> {
+  const maybeSelective = construction as Partial<SelectiveConstruction<I, O, E, R>>;
+  if (typeof maybeSelective.dependencySetUpper === 'function') {
+    return maybeSelective.dependencySetUpper();
+  }
+  return new Set([construction.id]);
+}
+
+function dependencyLower<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>
+): Set<string> {
+  const maybeSelective = construction as Partial<SelectiveConstruction<I, O, E, R>>;
+  if (typeof maybeSelective.dependencySetLower === 'function') {
+    return maybeSelective.dependencySetLower();
+  }
+  return new Set([construction.id]);
+}
+
+export function left<A>(value: A): Either<A, never> {
+  return { tag: 'left', value };
+}
+
+export function right<B>(value: B): Either<never, B> {
+  return { tag: 'right', value };
+}
+
+export function isLeft<A, B>(value: Either<A, B>): value is { tag: 'left'; value: A } {
+  return value.tag === 'left';
+}
+
+export class ProtocolViolationError extends ConstructionError {
+  readonly kind = 'cycle_detected';
+
+  constructor(
+    constructionId: string,
+    public readonly cycleAtIteration: number,
+    public readonly stateHash: string
+  ) {
+    super(
+      `Cycle detected in ${constructionId} at iteration ${cycleAtIteration}`,
+      constructionId
+    );
+    this.name = 'ProtocolViolationError';
+  }
+}
+
 /**
  * Identity construction.
  */
@@ -368,6 +489,239 @@ export function fallback<I, O, E extends ConstructionError, R>(
     },
     getEstimatedConfidence: primary.getEstimatedConfidence ?? backup.getEstimatedConfidence,
   });
+}
+
+/**
+ * Selective conditional: execute `ifLeft` only when condition returns `left`.
+ */
+export function select<I, A, B, E extends ConstructionError, R>(
+  condition: Construction<I, Either<A, B>, E, R>,
+  ifLeft: Construction<A, B, E, R>,
+  id = `select:${condition.id}?${ifLeft.id}`,
+  name = `Select(${condition.name}, ${ifLeft.name})`
+): SelectiveConstruction<I, B, E, R> {
+  const base = withDiagnostics<I, B, E, R>({
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<B> {
+      const decision = await executeWithTrace(condition, input, context);
+      if (decision.tag === 'right') {
+        return decision.value;
+      }
+      return executeWithTrace(ifLeft, decision.value, context);
+    },
+    getEstimatedConfidence: ifLeft.getEstimatedConfidence ?? condition.getEstimatedConfidence,
+  }) as SelectiveConstruction<I, B, E, R>;
+
+  const paths: ConstructionPath[] = [
+    {
+      label: 'right_bypass',
+      constructionIds: [condition.id],
+    },
+    {
+      label: 'left_apply',
+      constructionIds: [condition.id, ifLeft.id],
+    },
+  ];
+
+  base.possiblePaths = () => paths;
+  base.dependencySetUpper = () => {
+    const upper = dependencyUpper(condition);
+    for (const dep of dependencyUpper(ifLeft)) upper.add(dep);
+    return upper;
+  };
+  base.dependencySetLower = () => dependencyLower(condition);
+  base.maxCost = () => addCost(
+    estimateConstructionMaxCost(condition),
+    estimateConstructionMaxCost(ifLeft)
+  );
+  base.minCost = () => addCost(
+    estimateConstructionMinCost(condition),
+    ZERO_COST
+  );
+  return base;
+}
+
+/**
+ * Full two-branch selective conditional.
+ */
+export function branch<I, A, B, C, E extends ConstructionError, R>(
+  predicate: Construction<I, Either<A, B>, E, R>,
+  ifLeft: Construction<A, C, E, R>,
+  ifRight: Construction<B, C, E, R>,
+  id = `branch:${predicate.id}?${ifLeft.id}:${ifRight.id}`,
+  name = `Branch(${predicate.name})`
+): SelectiveConstruction<I, C, E, R> {
+  const base = withDiagnostics<I, C, E, R>({
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<C> {
+      const decision = await executeWithTrace(predicate, input, context);
+      if (decision.tag === 'left') {
+        return executeWithTrace(ifLeft, decision.value, context);
+      }
+      return executeWithTrace(ifRight, decision.value, context);
+    },
+    getEstimatedConfidence:
+      ifLeft.getEstimatedConfidence ??
+      ifRight.getEstimatedConfidence ??
+      predicate.getEstimatedConfidence,
+  }) as SelectiveConstruction<I, C, E, R>;
+
+  const paths: ConstructionPath[] = [
+    {
+      label: 'left_branch',
+      constructionIds: [predicate.id, ifLeft.id],
+    },
+    {
+      label: 'right_branch',
+      constructionIds: [predicate.id, ifRight.id],
+    },
+  ];
+
+  base.possiblePaths = () => paths;
+  base.dependencySetUpper = () => {
+    const upper = dependencyUpper(predicate);
+    for (const dep of dependencyUpper(ifLeft)) upper.add(dep);
+    for (const dep of dependencyUpper(ifRight)) upper.add(dep);
+    return upper;
+  };
+  base.dependencySetLower = () => dependencyLower(predicate);
+  base.maxCost = () => addCost(
+    estimateConstructionMaxCost(predicate),
+    maxCost(estimateConstructionMaxCost(ifLeft), estimateConstructionMaxCost(ifRight))
+  );
+  base.minCost = () => addCost(
+    estimateConstructionMinCost(predicate),
+    minCost(estimateConstructionMinCost(ifLeft), estimateConstructionMinCost(ifRight))
+  );
+  return base;
+}
+
+/**
+ * Fixpoint iteration with monotone progress tracking and cycle detection.
+ */
+export function fix<I extends Record<string, unknown>, E extends ConstructionError, R>(
+  body: Construction<I, I, E, R>,
+  options: {
+    stop: (state: I) => boolean;
+    metric: ProgressMetric<I>;
+    maxIter?: number;
+    maxViolations?: number;
+  },
+  id = `fix:${body.id}`,
+  name = `Fix(${body.name})`
+): Construction<I, I & FixpointMetadata, E | ProtocolViolationError, R> {
+  return withDiagnostics({
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<I & FixpointMetadata> {
+      const maxIter = options.maxIter ?? 10;
+      const maxViolations = options.maxViolations ?? 0;
+      const hashState = options.metric.stateHash ?? ((state: I) => JSON.stringify(state));
+      const evidenceLedger = (context?.deps as Record<string, unknown> | undefined)?.evidenceLedger as {
+        append?: (entry: Record<string, unknown>) => Promise<unknown>;
+      } | undefined;
+
+      let state: I = input;
+      let iterations = 0;
+      let monotoneViolations = 0;
+      let cycleDetected = false;
+      let terminationReason: FixpointTerminationReason = 'budget_exhausted';
+      let previousMeasure = options.metric.measure(state);
+
+      const seen = new Set<string>([hashState(state)]);
+
+      while (iterations < maxIter) {
+        if (options.stop(state)) {
+          terminationReason = iterations === 0 ? 'stop_condition' : 'converged';
+          break;
+        }
+
+        if (previousMeasure >= options.metric.capacity) {
+          terminationReason = 'converged';
+          break;
+        }
+
+        const nextState = await executeWithTrace(body, state, context);
+        iterations += 1;
+        const nextMeasure = options.metric.measure(nextState);
+
+        if (nextMeasure < previousMeasure) {
+          monotoneViolations += 1;
+          await evidenceLedger?.append?.({
+            kind: 'outcome',
+            payload: {
+              type: 'monotone_violation',
+              constructionId: id,
+              iteration: iterations,
+              previousMeasure,
+              nextMeasure,
+            },
+            provenance: {
+              source: 'system_observation',
+              method: 'operators.fix',
+            },
+            relatedEntries: [],
+            sessionId: context?.sessionId,
+          });
+          if (monotoneViolations > maxViolations) {
+            state = nextState;
+            previousMeasure = nextMeasure;
+            terminationReason = 'monotone_violation_limit';
+            break;
+          }
+        }
+
+        const stateHash = hashState(nextState);
+        if (seen.has(stateHash)) {
+          cycleDetected = true;
+          if (maxViolations === 0) {
+            throw new ProtocolViolationError(id, iterations, stateHash);
+          }
+          state = nextState;
+          previousMeasure = nextMeasure;
+          terminationReason = 'cycle';
+          break;
+        }
+
+        seen.add(stateHash);
+        state = nextState;
+        previousMeasure = nextMeasure;
+      }
+
+      if (terminationReason === 'budget_exhausted' && options.stop(state)) {
+        terminationReason = 'converged';
+      }
+
+      let outputState: I = state;
+      if (monotoneViolations > 0) {
+        const maybeConfidence = (state as Record<string, unknown>).confidence as
+          | { value?: unknown }
+          | undefined;
+        if (maybeConfidence && typeof maybeConfidence.value === 'number') {
+          const penalty = Math.max(0, 1 - monotoneViolations / Math.max(1, maxIter));
+          outputState = {
+            ...state,
+            confidence: {
+              ...maybeConfidence,
+              value: Math.max(0, Math.min(1, maybeConfidence.value * penalty)),
+            },
+          };
+        }
+      }
+
+      return {
+        ...outputState,
+        iterations,
+        finalMeasure: previousMeasure,
+        monotoneViolations,
+        cycleDetected,
+        terminationReason,
+      };
+    },
+    getEstimatedConfidence: body.getEstimatedConfidence,
+  }) as Construction<I, I & FixpointMetadata, E | ProtocolViolationError, R>;
 }
 
 /**

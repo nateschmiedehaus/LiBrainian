@@ -225,6 +225,28 @@ export interface ConstructionDebugOptions {
   readonly includeSuccessfulSteps?: boolean;
 }
 
+export type Either<A, B> =
+  | { readonly tag: 'left'; readonly value: A }
+  | { readonly tag: 'right'; readonly value: B };
+
+export interface CostRange {
+  readonly min: number;
+  readonly max: number;
+}
+
+export interface CostSemiring {
+  readonly llmCalls: CostRange;
+  readonly tokens: CostRange;
+  readonly latencyMs: CostRange;
+  readonly networkRequests: boolean;
+  readonly fileReads: CostRange;
+}
+
+export interface ConstructionPath {
+  readonly label: string;
+  readonly constructionIds: readonly string[];
+}
+
 /**
  * Layer pattern: upgrade a context with additional requirement capabilities.
  */
@@ -255,6 +277,40 @@ export interface Construction<
   ): Construction<I, O, E, R> & { getLastTrace(): ConstructionExecutionTrace | undefined };
   whyFailed?(error: unknown): ConstructionFailureHint;
   readonly __errorType?: E;
+}
+
+export interface SelectiveConstruction<
+  I,
+  O,
+  E extends ConstructionError = ConstructionError,
+  R = LibrarianContext,
+> extends Construction<I, O, E, R> {
+  possiblePaths(): ConstructionPath[];
+  maxCost(): CostSemiring;
+  minCost(): CostSemiring;
+  dependencySetUpper(): Set<string>;
+  dependencySetLower(): Set<string>;
+}
+
+export interface ProgressMetric<S> {
+  measure: (state: S) => number;
+  capacity: number;
+  stateHash?: (state: S) => string;
+}
+
+export type FixpointTerminationReason =
+  | 'converged'
+  | 'stop_condition'
+  | 'budget_exhausted'
+  | 'cycle'
+  | 'monotone_violation_limit';
+
+export interface FixpointMetadata {
+  readonly iterations: number;
+  readonly finalMeasure: number;
+  readonly monotoneViolations: number;
+  readonly cycleDetected: boolean;
+  readonly terminationReason: FixpointTerminationReason;
 }
 
 export type CapabilityId = string;
