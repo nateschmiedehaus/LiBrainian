@@ -173,3 +173,19 @@ export type {
   WirableFileWatcher,
   AutoWiredFeedbackLoopHandle,
 } from './feedback_loop.js';
+
+// OpenClaw calibration bridge
+export {
+  classifyOpenclawOutcomeSignal,
+  registerOpenclawSessionPredictions,
+  applyOpenclawOutcomeSignal,
+  ingestOpenclawSessionEvent,
+  clearOpenclawSessionPredictions,
+  SharedCalibrationStore,
+  persistCurrentCalibrationSnapshot,
+} from './openclaw_calibration.js';
+export type {
+  OpenclawOutcomeMethod,
+  OpenclawOutcomeSignal,
+  SharedCalibrationSnapshot,
+} from './openclaw_calibration.js';

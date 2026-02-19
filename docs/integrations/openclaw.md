@@ -50,3 +50,5 @@ librarian audit-skill ./SKILL.md
 ```
 
 Use `--json` for machine-readable verdicts in CI or pre-submission workflows.
+
+For calibration feedback loop wiring, see `docs/integrations/openclaw-calibration.md`.
