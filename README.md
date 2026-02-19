@@ -382,6 +382,7 @@ npx tsx examples/feedback_loop_example.ts
 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
+- [Security Threat Model](docs/security.md)
 - [Contributing Guide](CONTRIBUTING.md)
 
 ## Roadmap Focus

@@ -24,6 +24,7 @@ Project docs:
 - `/CONTRIBUTING.md` — contributor workflow
 - `/ARCHITECTURE.md` — architecture overview
 - `/SECURITY.md` — security policy
+- `/docs/security.md` — data-flow threat model and network call controls
 
 Maintainer-only historical planning docs:
 
