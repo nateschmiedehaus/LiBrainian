@@ -844,6 +844,24 @@ export interface GetChangeImpactToolInput {
   changeType?: 'modify' | 'delete' | 'rename' | 'move';
 }
 
+/** blast_radius tool input */
+export interface BlastRadiusToolInput {
+  /** Changed file/module/function identifier to analyze */
+  target: string;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum transitive depth for propagation (default: 3) */
+  depth?: number;
+
+  /** Maximum impacted files to return (default: 200) */
+  maxResults?: number;
+
+  /** Optional change type to refine risk scoring */
+  changeType?: 'modify' | 'delete' | 'rename' | 'move';
+}
+
 export interface GetChangeImpactToolOutput {
   success: boolean;
   target: string;
@@ -1560,6 +1578,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  blast_radius: {
+    tool: 'blast_radius',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   submit_feedback: {
     tool: 'submit_feedback',
     requiredScopes: ['read', 'write'],
@@ -1992,6 +2016,18 @@ export function isCheckConstructionTypesToolInput(value: unknown): value is Chec
 
 /** Type guard for GetChangeImpactToolInput */
 export function isGetChangeImpactToolInput(value: unknown): value is GetChangeImpactToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const targetOk = typeof obj.target === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const depthOk = typeof obj.depth === 'number' || typeof obj.depth === 'undefined';
+  const maxResultsOk = typeof obj.maxResults === 'number' || typeof obj.maxResults === 'undefined';
+  const changeTypeOk = obj.changeType === 'modify' || obj.changeType === 'delete' || obj.changeType === 'rename' || obj.changeType === 'move' || typeof obj.changeType === 'undefined';
+  return targetOk && workspaceOk && depthOk && maxResultsOk && changeTypeOk;
+}
+
+/** Type guard for BlastRadiusToolInput */
+export function isBlastRadiusToolInput(value: unknown): value is BlastRadiusToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   const targetOk = typeof obj.target === 'string';

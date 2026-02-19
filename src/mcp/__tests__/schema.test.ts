@@ -20,6 +20,7 @@ import {
   GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
   SynthesizePlanToolInputSchema,
+  BlastRadiusToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
   ListConstructionsToolInputSchema,
@@ -46,6 +47,7 @@ import {
   isGetSessionBriefingToolInput,
   isQueryToolInput,
   isSynthesizePlanToolInput,
+  isBlastRadiusToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
   isListConstructionsToolInput,
@@ -108,8 +110,9 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
+      expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(33);
+      expect(schemas).toHaveLength(34);
     });
 
     it('should return schema for known tools', () => {
@@ -343,6 +346,38 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'failure' })).toBe(true);
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'bad' })).toBe(false);
+    });
+  });
+
+  describe('Blast Radius Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('blast_radius', {
+        target: 'src/api/auth.ts',
+      });
+      expect(result.valid).toBe(true);
+      expect(BlastRadiusToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('blast_radius', {
+        target: 'src/api/auth.ts',
+        depth: 4,
+        maxResults: 50,
+        changeType: 'modify',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing target', () => {
+      const result = validateToolInput('blast_radius', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts' })).toBe(true);
+      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'rename' })).toBe(true);
+      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'invalid' })).toBe(false);
+      expect(isBlastRadiusToolInput(null)).toBe(false);
     });
   });
 

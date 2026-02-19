@@ -47,6 +47,7 @@ import {
   type ExplainOperatorToolInput,
   type CheckConstructionTypesToolInput,
   type GetChangeImpactToolInput,
+  type BlastRadiusToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
   type FindUsagesToolInput,
@@ -315,6 +316,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   explain_operator: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
   check_construction_types: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1700 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
@@ -1521,6 +1523,21 @@ export class LibrarianMCPServer {
       {
         name: 'get_change_impact',
         description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            target: { type: 'string', description: 'Changed file/module/function identifier to analyze' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            depth: { type: 'number', description: 'Maximum transitive depth for propagation (default 3, max 8)' },
+            maxResults: { type: 'number', description: 'Maximum impacted files to return (default 200, max 1000)' },
+            changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+          },
+          required: ['target'],
+        },
+      },
+      {
+        name: 'blast_radius',
+        description: 'Pre-edit transitive impact analysis before changing a function/module (alias of get_change_impact)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2951,6 +2968,8 @@ export class LibrarianMCPServer {
         return this.executeCheckConstructionTypes(args as CheckConstructionTypesToolInput);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
+      case 'blast_radius':
+        return this.executeBlastRadius(args as BlastRadiusToolInput);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
@@ -6107,6 +6126,45 @@ export class LibrarianMCPServer {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  private async executeBlastRadius(input: BlastRadiusToolInput): Promise<unknown> {
+    const base = await this.executeGetChangeImpact({
+      target: input.target,
+      workspace: input.workspace,
+      depth: input.depth,
+      maxResults: input.maxResults,
+      changeType: input.changeType,
+    });
+
+    if (!base || typeof base !== 'object') {
+      return base;
+    }
+
+    const payload = base as Record<string, unknown>;
+    if (payload.success === false) {
+      return {
+        ...payload,
+        tool: 'blast_radius',
+        aliasOf: 'get_change_impact',
+      };
+    }
+
+    const summary = (payload.summary ?? {}) as Record<string, unknown>;
+    const riskLevel = summary.riskLevel;
+    const nextTools = riskLevel === 'critical' || riskLevel === 'high'
+      ? ['request_human_review', 'synthesize_plan']
+      : ['synthesize_plan', 'query'];
+
+    return {
+      ...payload,
+      tool: 'blast_radius',
+      aliasOf: 'get_change_impact',
+      preEditGuidance: {
+        recommendation: 'Run blast radius before edits; if risk is high, pause for review and create an explicit plan.',
+        nextTools,
+      },
+    };
   }
 
   private async executeRunAudit(input: RunAuditToolInput): Promise<unknown> {

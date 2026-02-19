@@ -2,7 +2,7 @@
  * @fileoverview Tests for MCP Server
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   LibrarianMCPServer,
   createLibrarianMCPServer,
@@ -175,6 +175,17 @@ describe('MCP Server', () => {
       expect(briefingTool?.inputSchema?.properties?.includeConstructions?.description).toContain('construction onboarding hints');
     });
 
+    it('includes blast_radius in available tools for pre-edit impact analysis', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const blastRadiusTool = tools.find((tool) => tool.name === 'blast_radius');
+
+      expect(blastRadiusTool).toBeDefined();
+      expect(blastRadiusTool?.description).toContain('Pre-edit transitive impact analysis');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -290,6 +301,22 @@ describe('MCP Server', () => {
       expect(Array.isArray(result.recommendedActions)).toBe(true);
       expect(result.recommendedActions[0]?.tool).toBe('bootstrap');
       expect(result.constructions?.quickstart).toBe('docs/constructions/quickstart.md');
+    });
+
+    it('wraps get_change_impact in blast_radius guidance', async () => {
+      vi.spyOn(server as any, 'executeGetChangeImpact').mockResolvedValue({
+        success: true,
+        summary: { riskLevel: 'high' },
+        impacted: [],
+      });
+
+      const result = await (server as any).executeBlastRadius({ target: 'src/api/auth.ts' });
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('blast_radius');
+      expect(result.aliasOf).toBe('get_change_impact');
+      expect(result.preEditGuidance?.nextTools).toEqual(
+        expect.arrayContaining(['request_human_review', 'synthesize_plan']),
+      );
     });
   });
 

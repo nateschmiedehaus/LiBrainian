@@ -108,6 +108,17 @@ export const GetChangeImpactToolInputSchema = z.object({
 }).strict();
 
 /**
+ * blast_radius tool input schema
+ */
+export const BlastRadiusToolInputSchema = z.object({
+  target: z.string().min(1).describe('Changed file/module/function identifier to analyze'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  depth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive depth for propagation (default: 3)'),
+  maxResults: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum impacted files to return (default: 200)'),
+  changeType: z.enum(['modify', 'delete', 'rename', 'move']).optional().describe('Optional change type to refine risk scoring'),
+}).strict();
+
+/**
  * Submit feedback tool input schema
  */
 export const SubmitFeedbackToolInputSchema = z.object({
@@ -428,6 +439,7 @@ export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
+export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
@@ -482,6 +494,7 @@ export const TOOL_INPUT_SCHEMAS = {
   explain_operator: ExplainOperatorToolInputSchema,
   check_construction_types: CheckConstructionTypesToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
+  blast_radius: BlastRadiusToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_symbol: FindSymbolToolInputSchema,
@@ -603,6 +616,24 @@ export const getChangeImpactToolJsonSchema: JSONSchema = {
   $id: 'librarian://schemas/get-change-impact-tool-input',
   title: 'GetChangeImpactToolInput',
   description: 'Input for get_change_impact - ranked blast-radius and risk analysis for a proposed change',
+  type: 'object',
+  properties: {
+    target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    depth: { type: 'number', description: 'Maximum transitive depth for propagation (default: 3, max: 8)', minimum: 1, maximum: 8, default: 3 },
+    maxResults: { type: 'number', description: 'Maximum impacted files to return (default: 200, max: 1000)', minimum: 1, maximum: 1000, default: 200 },
+    changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+  },
+  required: ['target'],
+  additionalProperties: false,
+};
+
+/** blast_radius tool JSON Schema */
+export const blastRadiusToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/blast-radius-tool-input',
+  title: 'BlastRadiusToolInput',
+  description: 'Input for blast_radius - pre-edit transitive impact analysis (alias for get_change_impact)',
   type: 'object',
   properties: {
     target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
@@ -850,6 +881,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   explain_operator: explainOperatorToolJsonSchema,
   check_construction_types: checkConstructionTypesToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
+  blast_radius: blastRadiusToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
 };
