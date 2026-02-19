@@ -212,7 +212,7 @@ describe('indexCommand', () => {
       ]);
     });
 
-    it('fails when selector resolves no candidate files', async () => {
+    it('treats empty selector result as no-op success', async () => {
       vi.mocked(getGitStatusChanges).mockResolvedValue(null);
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -221,8 +221,8 @@ describe('indexCommand', () => {
         incremental: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-      await expect(indexCommand(options)).rejects.toThrow('No modified files found to index');
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(mockLibrarian.reindexFiles).not.toHaveBeenCalled();
     });
   });
 

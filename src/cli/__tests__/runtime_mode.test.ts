@@ -17,6 +17,20 @@ describe('cli runtime mode', () => {
     expect(mode.assumeYes).toBe(true);
   });
 
+  it('detects CI mode from GITHUB_ACTIONS environment', () => {
+    const mode = deriveCliRuntimeMode({
+      args: [],
+      jsonMode: false,
+      env: { GITHUB_ACTIONS: 'true' },
+      stdoutIsTTY: true,
+      stderrIsTTY: true,
+    });
+
+    expect(mode.ci).toBe(true);
+    expect(mode.nonInteractive).toBe(true);
+    expect(mode.assumeYes).toBe(true);
+  });
+
   it('detects non-interactive mode when stdout/stderr are not TTY', () => {
     const mode = deriveCliRuntimeMode({
       args: [],
@@ -42,6 +56,18 @@ describe('cli runtime mode', () => {
     expect(mode.assumeYes).toBe(true);
     expect(mode.quiet).toBe(true);
     expect(mode.noProgress).toBe(true);
+    expect(mode.noColor).toBe(true);
+  });
+
+  it('respects NO_COLOR environment variable', () => {
+    const mode = deriveCliRuntimeMode({
+      args: [],
+      jsonMode: false,
+      env: { NO_COLOR: '1' },
+      stdoutIsTTY: true,
+      stderrIsTTY: true,
+    });
+
     expect(mode.noColor).toBe(true);
   });
 

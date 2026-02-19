@@ -855,6 +855,7 @@ DESCRIPTION:
     - Only processes the specified files
     - Does NOT overwrite the entire database
     - Is much faster for targeted updates
+    - Treats empty git selectors as a no-op success (CI-friendly)
 
     CAUTION: Context packs are invalidated BEFORE reindexing. If indexing
     fails mid-operation, context packs for target files will be PERMANENTLY
@@ -888,7 +889,8 @@ OPTIONS:
 DESCRIPTION:
     Equivalent to \`librarian index --force ...\` and intended for pre-commit
     tooling (lint-staged, lefthook, pre-commit). This command still performs
-    context-pack invalidation/rebuild behavior from indexCommand.
+    context-pack invalidation/rebuild behavior from indexCommand. Empty
+    selector results are treated as no-op success for CI stability.
 
 EXAMPLES:
     librarian update --staged
@@ -1177,17 +1179,60 @@ EXAMPLES:
 	`,
 	};
 
-export function showHelp(command?: string): void {
-  if (command && command in HELP_TEXT) {
-    console.log(HELP_TEXT[command as keyof typeof HELP_TEXT]);
-  } else if (command) {
-    console.log(`Unknown command: ${command}`);
-    console.log(HELP_TEXT.main);
-  } else {
-    console.log(HELP_TEXT.main);
+const DEFAULT_EXIT_CODES_SECTION = `
+EXIT CODES (DEFAULT):
+    0      Success
+    1      General failure (EUNKNOWN)
+    2      Internal failure (EINTERNAL)
+    3      Timeout (ETIMEOUT)
+    10-13  Storage/index failures (missing, stale, corrupt, locked)
+    20-23  Query failures
+    30-34  Provider failures
+    40-42  Bootstrap/preflight failures
+    50-53  Invalid arguments or file selection errors
+
+    In --json mode, inspect the "code" field for the exact machine-readable reason.
+`;
+
+const COMMAND_EXIT_CODE_APPENDIX: Partial<Record<keyof typeof HELP_TEXT, string>> = {
+  status: `
+STATUS EXIT CODES:
+    0  Storage ready and freshness drift <= 5%
+    1  Storage ready and freshness drift > 5%
+    2  Storage/index not initialized
+`,
+};
+
+function withExitCodes(command: keyof typeof HELP_TEXT, text: string): string {
+  if (/exit codes:/i.test(text)) {
+    return text;
   }
+
+  const sections = [text.trimEnd()];
+  const commandAppendix = COMMAND_EXIT_CODE_APPENDIX[command];
+  if (commandAppendix) {
+    sections.push(commandAppendix.trimEnd());
+  }
+  sections.push(DEFAULT_EXIT_CODES_SECTION.trimEnd());
+  return `${sections.join('\n\n')}\n`;
+}
+
+function renderHelp(command?: string): string {
+  if (command && command in HELP_TEXT) {
+    return withExitCodes(command as keyof typeof HELP_TEXT, HELP_TEXT[command as keyof typeof HELP_TEXT]);
+  }
+
+  if (command) {
+    return `Unknown command: ${command}\n${withExitCodes('main', HELP_TEXT.main)}`;
+  }
+
+  return withExitCodes('main', HELP_TEXT.main);
+}
+
+export function showHelp(command?: string): void {
+  console.log(renderHelp(command));
 }
 
 export function getCommandHelp(command: string): string {
-  return HELP_TEXT[command as keyof typeof HELP_TEXT] || HELP_TEXT.main;
+  return renderHelp(command);
 }
