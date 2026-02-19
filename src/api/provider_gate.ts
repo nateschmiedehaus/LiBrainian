@@ -4,7 +4,6 @@ import {
   getLlmServiceAdapter,
   type LlmServiceAdapter,
 } from '../adapters/llm_service.js';
-import { ensureWave0AdapterRegistration } from '../adapters/wave0_adapter_wiring.js';
 import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSuccessfulProvider, writeProviderStatusReport, type ProviderName } from './reporting.js';
 import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';
@@ -79,7 +78,6 @@ export async function runProviderReadinessGate(
   options: ProviderGateOptions = {}
 ): Promise<ProviderGateResult> {
   const startedAt = Date.now();
-  await ensureWave0AdapterRegistration(workspaceRoot);
   const authChecker = options.authChecker ?? new AuthChecker(workspaceRoot);
   const authStatus = await authChecker.checkAll();
   const guidance = authChecker.getAuthGuidance(authStatus);
