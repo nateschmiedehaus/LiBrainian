@@ -29,6 +29,7 @@ COMMANDS:
     openclaw-daemon     Manage OpenClaw daemon registration and state
     memory-bridge       Show MEMORY.md bridge annotation state
     test-integration    Run quantitative integration benchmark suites
+    benchmark           Run local performance SLA diagnostics
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
@@ -88,6 +89,7 @@ EXAMPLES:
     librainian openclaw-daemon start --json
     librainian memory-bridge status --json
     librainian test-integration --suite openclaw --json
+    librainian benchmark --json
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian constructions search "security audit"
@@ -430,6 +432,37 @@ EXAMPLES:
     librarian test-integration --suite openclaw
     librarian test-integration --suite openclaw --scenario skill-audit --json
     librarian test-integration --suite openclaw --strict --out state/eval/openclaw/benchmark.json
+`,
+
+  'benchmark': `
+librarian benchmark - Run local performance SLA diagnostics
+
+USAGE:
+    librarian benchmark [options]
+
+OPTIONS:
+    --queries <n>            Number of query samples to run (default: 8)
+    --incremental-files <n>  Number of files for incremental reindex benchmark (default: 10)
+    --no-bootstrap           Fail if index is missing instead of running fast local bootstrap
+    --fail-on <mode>         Failure threshold: never | alert | block (default: never)
+    --json                   Emit machine-readable JSON report
+    --out <path>             Write JSON report to path (requires --json)
+
+DESCRIPTION:
+    Runs SLA-oriented performance checks for:
+    - Query latency (cold-start, p50, p95, p99)
+    - Full index duration target by codebase size bucket
+    - Incremental reindex duration for sampled files
+    - Runtime and indexing RSS memory budgets
+
+    Alert policy:
+    - >20% over target => alert
+    - >100% over target (>2x) => block
+
+EXAMPLES:
+    librarian benchmark
+    librarian benchmark --queries 12 --incremental-files 10
+    librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
 `,
 
   mcp: `
