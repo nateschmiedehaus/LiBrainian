@@ -18,6 +18,7 @@ import {
   safeParseToolInput,
   BootstrapToolInputSchema,
   QueryToolInputSchema,
+  SynthesizePlanToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
   SubmitFeedbackToolInputSchema,
@@ -37,6 +38,7 @@ import {
   MCP_SCHEMA_VERSION,
   isBootstrapToolInput,
   isQueryToolInput,
+  isSynthesizePlanToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
   isSubmitFeedbackToolInput,
@@ -67,6 +69,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
       expect(schemas).toContain('query');
+      expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
       expect(schemas).toContain('request_human_review');
       expect(schemas).toContain('submit_feedback');
@@ -88,7 +91,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(26);
+      expect(schemas).toHaveLength(27);
     });
 
     it('should return schema for known tools', () => {
@@ -344,6 +347,38 @@ describe('MCP Schema', () => {
       expect(isResetSessionStateToolInput({ sessionId: 'sess_123' })).toBe(true);
       expect(isResetSessionStateToolInput({ workspace: '/tmp/workspace' })).toBe(true);
       expect(isResetSessionStateToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Synthesize Plan Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('synthesize_plan', {
+        task: 'Stabilize auth token refresh flow',
+        context_pack_ids: ['pack-auth-1', 'pack-auth-2'],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      expect(validateToolInput('synthesize_plan', {
+        task: 'Missing packs',
+      }).valid).toBe(false);
+
+      expect(validateToolInput('synthesize_plan', {
+        context_pack_ids: ['pack-auth-1'],
+      }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isSynthesizePlanToolInput({
+        task: 'Investigate auth race',
+        context_pack_ids: ['pack-1'],
+      })).toBe(true);
+      expect(isSynthesizePlanToolInput({
+        task: 'Invalid empty packs',
+        context_pack_ids: [],
+      })).toBe(false);
+      expect(SynthesizePlanToolInputSchema).toBeDefined();
     });
   });
 

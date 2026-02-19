@@ -36,6 +36,7 @@ import {
   type AuthorizationScope,
   type BootstrapToolInput,
   type StatusToolInput,
+  type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
   type RequestHumanReviewToolInput,
@@ -192,6 +193,9 @@ export interface SessionState {
 
   /** Recent query records for repeated-query loop detection */
   queryHistory: QueryRecord[];
+
+  /** Recent synthesized plans for explicit planning traces */
+  planHistory: PlanRecord[];
 }
 
 interface QueryRecord {
@@ -201,6 +205,15 @@ interface QueryRecord {
   timestampMs: number;
   resultCount: number;
   workspace: string;
+}
+
+interface PlanRecord {
+  planId: string;
+  task: string;
+  plan: string;
+  contextUsed: string[];
+  workspace?: string;
+  createdAt: string;
 }
 
 interface LoopDetectionResult {
@@ -280,6 +293,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   compile_technique_composition: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
+  synthesize_plan: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
@@ -1088,6 +1102,8 @@ export class LibrarianMCPServer {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier for session-scoped status details' },
+            planId: { type: 'string', description: 'Optional plan ID to retrieve a specific synthesized plan' },
           },
           required: [],
         },
@@ -1237,6 +1253,20 @@ export class LibrarianMCPServer {
             streamChunkSize: { type: 'number', description: 'Chunk size for stream metadata groups (default 5, max 200)' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'synthesize_plan',
+        description: 'Create and persist an explicit task plan grounded in prior context pack IDs before making high-impact edits',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: { type: 'string', description: 'Task description to plan for' },
+            context_pack_ids: { type: 'array', items: { type: 'string' }, description: 'Context pack IDs from prior query/get_context_pack_bundle calls' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier for plan persistence and retrieval' },
+          },
+          required: ['task', 'context_pack_ids'],
         },
       },
       {
@@ -2016,9 +2046,34 @@ export class LibrarianMCPServer {
       requestCount: 1,
       lastActivity: now,
       queryHistory: [],
+      planHistory: [],
     };
     this.state.sessions.set(sessionId, created);
     return created;
+  }
+
+  private toPlanView(record: PlanRecord): {
+    plan_id: string;
+    planId: string;
+    task: string;
+    plan: string;
+    context_used: string[];
+    contextUsed: string[];
+    workspace?: string;
+    created_at: string;
+    createdAt: string;
+  } {
+    return {
+      plan_id: record.planId,
+      planId: record.planId,
+      task: record.task,
+      plan: record.plan,
+      context_used: [...record.contextUsed],
+      contextUsed: [...record.contextUsed],
+      workspace: record.workspace,
+      created_at: record.createdAt,
+      createdAt: record.createdAt,
+    };
   }
 
   private collectLoopMetrics(history: QueryRecord[], intent: string, workspacePath: string): LoopMetrics {
@@ -2682,7 +2737,7 @@ export class LibrarianMCPServer {
       case 'bootstrap':
         return this.executeBootstrapDeduped(args as BootstrapToolInput);
       case 'status':
-        return this.executeStatus(args as StatusToolInput);
+        return this.executeStatus(args as StatusToolInput, context);
       case 'system_contract':
         return this.executeSystemContract(args as SystemContractToolInput);
       case 'diagnose_self':
@@ -2703,6 +2758,8 @@ export class LibrarianMCPServer {
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
+      case 'synthesize_plan':
+        return this.executeSynthesizePlan(args as SynthesizePlanToolInput, context);
       case 'explain_function':
         return this.executeExplainFunction(args as ExplainFunctionToolInput);
       case 'find_usages':
@@ -3099,7 +3156,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeStatus(input: { workspace?: string }): Promise<unknown> {
+  private async executeStatus(input: StatusToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
     try {
       // Resolve workspace path
       let workspacePath: string | undefined;
@@ -3166,6 +3223,22 @@ export class LibrarianMCPServer {
           : 'configured_but_inactive'
         : 'disabled';
 
+      const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+        ? input.sessionId.trim()
+        : undefined;
+      const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+        ? context.sessionId.trim()
+        : undefined;
+      const planSessionId = explicitSessionId ?? contextSessionId ?? this.buildAnonymousSessionId(workspacePath);
+      const planSession = this.state.sessions.get(planSessionId);
+      const recentPlanViews = (planSession?.planHistory ?? []).slice(-5).map((record) => this.toPlanView(record));
+      const requestedPlanId = typeof input.planId === 'string' && input.planId.trim().length > 0
+        ? input.planId.trim()
+        : undefined;
+      const planByIdRecord = requestedPlanId
+        ? planSession?.planHistory.find((record) => record.planId === requestedPlanId) ?? null
+        : undefined;
+
       return {
         success: true,
         workspace: workspacePath,
@@ -3188,6 +3261,16 @@ export class LibrarianMCPServer {
         serverConfig: {
           autoWatchEnabled: this.config.autoWatch?.enabled ?? true,
           autoWatchDebounceMs: this.config.autoWatch?.debounceMs ?? 200,
+        },
+        planTracking: {
+          sessionId: planSessionId,
+          session_id: planSessionId,
+          totalPlans: planSession?.planHistory.length ?? 0,
+          total_plans: planSession?.planHistory.length ?? 0,
+          recentPlans: recentPlanViews,
+          recent_plans: recentPlanViews,
+          planById: planByIdRecord ? this.toPlanView(planByIdRecord) : (requestedPlanId ? null : undefined),
+          plan_by_id: planByIdRecord ? this.toPlanView(planByIdRecord) : (requestedPlanId ? null : undefined),
         },
       };
     } catch (error) {
@@ -4320,23 +4403,97 @@ export class LibrarianMCPServer {
 
     const state = this.state.sessions.get(sessionId);
     const clearedQueries = state?.queryHistory.length ?? 0;
+    const clearedPlans = state?.planHistory.length ?? 0;
     if (state) {
       state.queryHistory = [];
+      state.planHistory = [];
       state.lastActivity = new Date().toISOString();
       state.requestCount += 1;
     }
+    const message = (clearedQueries > 0 || clearedPlans > 0)
+      ? `Cleared ${clearedQueries} query history record(s) and ${clearedPlans} plan record(s) for session ${sessionId}.`
+      : `No query history or plan records found for session ${sessionId}.`;
 
     return {
       success: true,
       sessionId,
       clearedQueries,
-      message: clearedQueries > 0
-        ? `Cleared ${clearedQueries} query history records for session ${sessionId}.`
-        : `No query history records found for session ${sessionId}.`,
+      clearedPlans,
+      message,
     };
   }
 
-  private async appendHumanReviewAuditLog(workspaceRoot: string, record: Record<string, unknown>): Promise<void> {
+  private buildSynthesizePlanText(task: string, contextPackIds: string[]): string {
+    const uniqueContextIds = Array.from(new Set(contextPackIds));
+    const contextSummary = uniqueContextIds.length > 0
+      ? uniqueContextIds.join(', ')
+      : 'none';
+    return [
+      `Task: ${task}`,
+      '',
+      'Plan:',
+      `1. Review context packs (${contextSummary}) to confirm scope and constraints.`,
+      '2. Identify the minimal safe change set and explicit rollback boundary.',
+      '3. Execute changes incrementally with verification checkpoints after each step.',
+      '4. Run targeted tests first, then broader regression checks before completion.',
+    ].join('\n');
+  }
+
+  private async executeSynthesizePlan(
+    input: SynthesizePlanToolInput,
+    context: ToolExecutionContext = {}
+  ): Promise<unknown> {
+    const resolvedWorkspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : this.findReadyWorkspace()?.path
+        ?? this.state.workspaces.keys().next().value;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const authSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? authSessionId
+      ?? (resolvedWorkspace ? this.buildAnonymousSessionId(resolvedWorkspace) : 'anon:global');
+
+    const sessionState = this.getOrCreateSessionState(sessionId);
+    const planId = `plan_${this.generateId()}`;
+    const createdAt = new Date().toISOString();
+    const contextUsed = Array.from(new Set(input.context_pack_ids.map((id) => id.trim()).filter((id) => id.length > 0)));
+    const planText = this.buildSynthesizePlanText(input.task.trim(), contextUsed);
+    const planRecord: PlanRecord = {
+      planId,
+      task: input.task.trim(),
+      plan: planText,
+      contextUsed,
+      workspace: resolvedWorkspace,
+      createdAt,
+    };
+    sessionState.planHistory.push(planRecord);
+    if (sessionState.planHistory.length > 25) {
+      sessionState.planHistory.splice(0, sessionState.planHistory.length - 25);
+    }
+
+    await this.appendWorkspaceAuditLog(resolvedWorkspace ?? process.cwd(), {
+      ts: createdAt,
+      event: 'synthesize_plan',
+      plan_id: planId,
+      task: planRecord.task,
+      plan: planRecord.plan,
+      context_used: contextUsed,
+      session_id: sessionId,
+      workspace: resolvedWorkspace ?? process.cwd(),
+    });
+
+    return {
+      ...this.toPlanView(planRecord),
+      session_id: sessionId,
+      sessionId,
+    };
+  }
+
+  private async appendWorkspaceAuditLog(workspaceRoot: string, record: Record<string, unknown>): Promise<void> {
     const logPath = path.join(workspaceRoot, '.librainian', 'audit-log.jsonl');
     await fs.mkdir(path.dirname(logPath), { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
@@ -4369,7 +4526,7 @@ export class LibrarianMCPServer {
       'To proceed: reply "proceed". To abort: reply "abort". To rephrase: provide an alternative query.',
     ].join('\n');
 
-    await this.appendHumanReviewAuditLog(workspaceRoot, {
+    await this.appendWorkspaceAuditLog(workspaceRoot, {
       ts: new Date().toISOString(),
       review_id: reviewRequestId,
       reason: input.reason,

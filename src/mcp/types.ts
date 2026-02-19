@@ -453,6 +453,63 @@ export interface BootstrapToolOutput {
 export interface StatusToolInput {
   /** Workspace path (optional, uses first available if not specified) */
   workspace?: string;
+
+  /** Optional session identifier for session-scoped status details */
+  sessionId?: string;
+
+  /** Optional plan ID to retrieve a specific synthesized plan from status */
+  planId?: string;
+}
+
+/** Synthesize plan tool input */
+export interface SynthesizePlanToolInput {
+  /** Task description to plan for */
+  task: string;
+
+  /** Context pack IDs that informed the plan */
+  context_pack_ids: string[];
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional session identifier used to persist and retrieve planning state */
+  sessionId?: string;
+}
+
+/** Synthesize plan tool output */
+export interface SynthesizePlanToolOutput {
+  /** Unique plan reference ID */
+  plan_id: string;
+
+  /** Camel-case alias for plan_id */
+  planId: string;
+
+  /** Planned task */
+  task: string;
+
+  /** Structured plan text */
+  plan: string;
+
+  /** Context pack IDs used to produce the plan */
+  context_used: string[];
+
+  /** Camel-case alias for context_used */
+  contextUsed: string[];
+
+  /** Session identifier that owns this plan */
+  session_id: string;
+
+  /** Camel-case alias for session_id */
+  sessionId: string;
+
+  /** Plan creation timestamp */
+  created_at: string;
+
+  /** Camel-case alias for created_at */
+  createdAt: string;
+
+  /** Workspace used for plan synthesis when available */
+  workspace?: string;
 }
 
 /** Query tool input */
@@ -644,6 +701,7 @@ export interface ResetSessionStateToolOutput {
   success: boolean;
   sessionId: string;
   clearedQueries: number;
+  clearedPlans?: number;
   message: string;
 }
 
@@ -1351,6 +1409,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  synthesize_plan: {
+    tool: 'synthesize_plan',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   reset_session_state: {
     tool: 'reset_session_state',
     requiredScopes: ['read'],
@@ -1677,6 +1741,19 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
     && explainMissesAliasOk
     && streamOk
     && streamChunkSizeOk;
+}
+
+/** Type guard for SynthesizePlanToolInput */
+export function isSynthesizePlanToolInput(value: unknown): value is SynthesizePlanToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const taskOk = typeof obj.task === 'string' && obj.task.trim().length > 0;
+  const contextOk = Array.isArray(obj.context_pack_ids)
+    && obj.context_pack_ids.length > 0
+    && obj.context_pack_ids.every((entry) => typeof entry === 'string' && entry.length > 0);
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  return taskOk && contextOk && workspaceOk && sessionIdOk;
 }
 
 /** Type guard for ResetSessionStateToolInput */
