@@ -133,6 +133,17 @@ export const EstimateBudgetToolInputSchema = z.object({
 }).strict();
 
 /**
+ * estimate_task_complexity tool input schema
+ */
+export const EstimateTaskComplexityToolInputSchema = z.object({
+  task: z.string().min(1).max(4000).describe('Task statement to classify for routing complexity'),
+  workdir: z.string().optional().describe('Working directory hint for workspace resolution'),
+  workspace: z.string().optional().describe('Workspace path alias for callers that already have it'),
+  recentFiles: z.array(z.string().min(1)).optional().describe('Optional recently touched files used as routing hints'),
+  functionId: z.string().min(1).optional().describe('Optional primary function target for blast-radius estimation'),
+}).strict();
+
+/**
  * get_change_impact tool input schema
  */
 export const GetChangeImpactToolInputSchema = z.object({
@@ -554,6 +565,7 @@ export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInputSchema>;
 export type GetContextPackToolInputType = z.infer<typeof GetContextPackToolInputSchema>;
 export type EstimateBudgetToolInputType = z.infer<typeof EstimateBudgetToolInputSchema>;
+export type EstimateTaskComplexityToolInputType = z.infer<typeof EstimateTaskComplexityToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
@@ -608,6 +620,7 @@ export const TOOL_INPUT_SCHEMAS = {
   semantic_search: SemanticSearchToolInputSchema,
   get_context_pack: GetContextPackToolInputSchema,
   estimate_budget: EstimateBudgetToolInputSchema,
+  estimate_task_complexity: EstimateTaskComplexityToolInputSchema,
   query: QueryToolInputSchema,
   synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
@@ -798,6 +811,24 @@ export const estimateBudgetToolJsonSchema: JSONSchema = {
     workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
   },
   required: ['taskDescription', 'availableTokens'],
+  additionalProperties: false,
+};
+
+/** estimate_task_complexity tool JSON Schema */
+export const estimateTaskComplexityToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/estimate-task-complexity-tool-input',
+  title: 'EstimateTaskComplexityToolInput',
+  description: 'Input for estimate_task_complexity - pre-dispatch routing estimate for complexity, model tier, and confidence',
+  type: 'object',
+  properties: {
+    task: { type: 'string', description: 'Task statement to classify for routing complexity', minLength: 1, maxLength: 4000 },
+    workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+    workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+    recentFiles: { type: 'array', items: { type: 'string' }, description: 'Optional recently touched files used as routing hints' },
+    functionId: { type: 'string', description: 'Optional primary function target for blast-radius estimation', minLength: 1 },
+  },
+  required: ['task'],
   additionalProperties: false,
 };
 
@@ -1189,6 +1220,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   semantic_search: semanticSearchToolJsonSchema,
   get_context_pack: getContextPackToolJsonSchema,
   estimate_budget: estimateBudgetToolJsonSchema,
+  estimate_task_complexity: estimateTaskComplexityToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
   find_callers: findCallersToolJsonSchema,

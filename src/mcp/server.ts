@@ -40,6 +40,7 @@ import {
   type SemanticSearchToolInput,
   type GetContextPackToolInput,
   type EstimateBudgetToolInput,
+  type EstimateTaskComplexityToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
@@ -338,6 +339,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   semantic_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4200 },
   get_context_pack: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 2600 },
   estimate_budget: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1300 },
+  estimate_task_complexity: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1500 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1423,6 +1425,21 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
           },
           required: ['taskDescription', 'availableTokens'],
+        },
+      },
+      {
+        name: 'estimate_task_complexity',
+        description: 'Model-routing estimator that predicts task complexity, expected token burn, and whether librainian can answer directly',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: { type: 'string', description: 'Task statement to classify for routing complexity' },
+            workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+            workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+            recentFiles: { type: 'array', items: { type: 'string' }, description: 'Optional recently touched files used as routing hints' },
+            functionId: { type: 'string', description: 'Optional primary function target for blast-radius estimation' },
+          },
+          required: ['task'],
         },
       },
       {
@@ -3152,6 +3169,8 @@ export class LibrarianMCPServer {
         return this.executeGetContextPack(args as GetContextPackToolInput, context);
       case 'estimate_budget':
         return this.executeEstimateBudget(args as EstimateBudgetToolInput);
+      case 'estimate_task_complexity':
+        return this.executeEstimateTaskComplexity(args as EstimateTaskComplexityToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
       case 'synthesize_plan':
@@ -5254,6 +5273,125 @@ export class LibrarianMCPServer {
       cheaperAlternative,
       riskFactors,
       evidenceIds: [`budget_${evidenceHash}`],
+      workspace: workspacePath,
+    };
+  }
+
+  private async executeEstimateTaskComplexity(input: EstimateTaskComplexityToolInput): Promise<unknown> {
+    const task = input.task?.trim() ?? '';
+    if (task.length === 0) {
+      return {
+        success: false,
+        tool: 'estimate_task_complexity',
+        error: 'task must be a non-empty string.',
+      };
+    }
+
+    const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : (typeof input.workdir === 'string' && input.workdir.trim().length > 0 ? path.resolve(input.workdir) : undefined);
+    const defaultAvailableTokens = 24_000;
+
+    const budgetEstimate = await this.executeEstimateBudget({
+      taskDescription: task,
+      availableTokens: defaultAvailableTokens,
+      workdir: input.workdir,
+      workspace: input.workspace,
+      pipeline: ['semantic_search', 'get_context_pack', 'pre_commit_check'],
+    }) as {
+      success?: boolean;
+      estimatedTokens?: { expected?: number; max?: number; min?: number };
+      riskFactors?: string[];
+    };
+
+    const estimatedTokens = Number.isFinite(budgetEstimate?.estimatedTokens?.expected)
+      ? Math.max(500, Math.trunc(budgetEstimate.estimatedTokens?.expected ?? 0))
+      : Math.max(500, estimateTokens(task) * 120);
+    const budgetRiskFactors = Array.isArray(budgetEstimate?.riskFactors)
+      ? budgetEstimate.riskFactors
+      : [];
+
+    const contextPackResult = await this.executeGetContextPack({
+      intent: task,
+      workspace: workspacePath,
+      workdir: input.workdir,
+      tokenBudget: 1400,
+      relevantFiles: input.recentFiles,
+    }) as {
+      success?: boolean;
+      functions?: unknown[];
+      tokenCount?: number;
+    };
+    const contextPackAvailable = contextPackResult?.success === true
+      && Array.isArray(contextPackResult.functions)
+      && contextPackResult.functions.length > 0;
+
+    let blastRadius: number | undefined;
+    const blastTarget = (typeof input.functionId === 'string' && input.functionId.trim().length > 0)
+      ? input.functionId
+      : (Array.isArray(input.recentFiles) && input.recentFiles.length > 0 ? input.recentFiles[0] : undefined);
+    if (blastTarget) {
+      const blast = await this.executeGetChangeImpact({
+        target: blastTarget,
+        workspace: workspacePath,
+      }) as { success?: boolean; summary?: { riskScore?: number } };
+      if (blast?.success === true && Number.isFinite(blast.summary?.riskScore)) {
+        blastRadius = Math.max(0, Math.min(100, Math.round(blast.summary?.riskScore ?? 0)));
+      }
+    }
+
+    let complexity: 'simple' | 'moderate' | 'complex' | 'expert' = 'simple';
+    if (estimatedTokens > 10_000 || (typeof blastRadius === 'number' && blastRadius > 70)) {
+      complexity = 'complex';
+    }
+    if (estimatedTokens > 20_000 || (typeof blastRadius === 'number' && blastRadius > 85)) {
+      complexity = 'expert';
+    }
+    if (estimatedTokens >= 2_000 && estimatedTokens <= 10_000 && complexity === 'simple') {
+      complexity = 'moderate';
+    }
+
+    const librainianCanAnswer = contextPackAvailable
+      && estimatedTokens < 2_000
+      && (typeof blastRadius !== 'number' || blastRadius < 30);
+    const recommendedModel = librainianCanAnswer
+      ? 'librainian-direct'
+      : (complexity === 'simple'
+        ? 'claude-haiku-3-5'
+        : complexity === 'moderate'
+          ? 'claude-sonnet-4'
+          : complexity === 'complex'
+            ? 'claude-sonnet-4'
+            : 'claude-opus-4');
+
+    const confidence = Math.max(
+      0.4,
+      Math.min(
+        0.98,
+        0.55
+          + (budgetEstimate?.success ? 0.15 : 0)
+          + (contextPackAvailable ? 0.2 : 0)
+          + (typeof blastRadius === 'number' ? 0.1 : 0),
+      ),
+    );
+
+    const reasoning = librainianCanAnswer
+      ? 'High-confidence context pack coverage indicates librainian can answer directly without dispatching a frontier model.'
+      : `Estimated ${estimatedTokens.toLocaleString()} tokens with complexity ${complexity}${typeof blastRadius === 'number' ? ` and blast radius ${blastRadius}` : ''}; route to ${recommendedModel}.`;
+
+    return {
+      success: true,
+      tool: 'estimate_task_complexity',
+      complexity,
+      estimatedTokens,
+      recommendedModel,
+      confidence,
+      reasoning,
+      contextPackAvailable,
+      blastRadius,
+      librainianCanAnswer,
+      libraininaCanAnswer: librainianCanAnswer,
+      riskFactors: budgetRiskFactors,
       workspace: workspacePath,
     };
   }

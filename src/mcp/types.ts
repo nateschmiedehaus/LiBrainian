@@ -587,6 +587,24 @@ export interface EstimateBudgetToolInput {
   workspace?: string;
 }
 
+/** estimate_task_complexity tool input */
+export interface EstimateTaskComplexityToolInput {
+  /** Task statement to classify for routing complexity */
+  task: string;
+
+  /** Working directory hint for workspace resolution */
+  workdir?: string;
+
+  /** Workspace path alias for callers that already have it */
+  workspace?: string;
+
+  /** Optional recently touched files used as routing hints */
+  recentFiles?: string[];
+
+  /** Optional primary function target for blast-radius estimation */
+  functionId?: string;
+}
+
 /** Query tool input */
 export interface QueryToolInput {
   /** Goal-oriented semantic question (architecture, behavior, impact), not a direct file-read request */
@@ -1728,6 +1746,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  estimate_task_complexity: {
+    tool: 'estimate_task_complexity',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   query: {
     tool: 'query',
     requiredScopes: ['read'],
@@ -2188,6 +2212,20 @@ export function isEstimateBudgetToolInput(value: unknown): value is EstimateBudg
     : typeof obj.pipeline === 'undefined';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return taskDescriptionOk && availableTokensOk && workdirOk && pipelineOk && workspaceOk;
+}
+
+/** Type guard for EstimateTaskComplexityToolInput */
+export function isEstimateTaskComplexityToolInput(value: unknown): value is EstimateTaskComplexityToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const taskOk = typeof obj.task === 'string';
+  const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const recentFilesOk = Array.isArray(obj.recentFiles)
+    ? obj.recentFiles.every((entry) => typeof entry === 'string')
+    : typeof obj.recentFiles === 'undefined';
+  const functionIdOk = typeof obj.functionId === 'string' || typeof obj.functionId === 'undefined';
+  return taskOk && workdirOk && workspaceOk && recentFilesOk && functionIdOk;
 }
 
 /** Type guard for QueryToolInput */

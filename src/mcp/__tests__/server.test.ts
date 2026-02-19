@@ -219,6 +219,17 @@ describe('MCP Server', () => {
       expect(estimateBudgetTool?.description?.toLowerCase()).toContain('feasibility');
     });
 
+    it('includes estimate_task_complexity as model-routing estimator', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const estimateComplexityTool = tools.find((tool) => tool.name === 'estimate_task_complexity');
+
+      expect(estimateComplexityTool).toBeDefined();
+      expect(estimateComplexityTool?.description?.toLowerCase()).toContain('routing');
+    });
+
     it('includes pre_commit_check as a semantic submit gate tool', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
@@ -481,6 +492,35 @@ describe('MCP Server', () => {
       expect(result.estimatedTokens?.max).toBeGreaterThan(12000);
       expect(result.cheaperAlternative).toBeDefined();
       expect(result.riskFactors.length).toBeGreaterThan(0);
+    });
+
+    it('estimates task complexity for model routing using budget and context signals', async () => {
+      vi.spyOn(server as any, 'executeEstimateBudget').mockResolvedValue({
+        success: true,
+        estimatedTokens: { min: 800, expected: 1400, max: 2200 },
+      });
+      vi.spyOn(server as any, 'executeGetContextPack').mockResolvedValue({
+        success: true,
+        functions: [{ id: 'fn_payment' }],
+        tokenCount: 700,
+      });
+      vi.spyOn(server as any, 'executeGetChangeImpact').mockResolvedValue({
+        success: true,
+        summary: { riskScore: 22 },
+      });
+
+      const result = await (server as any).executeEstimateTaskComplexity({
+        task: 'What does processPayment return?',
+        workspace: '/tmp/workspace',
+        functionId: 'fn_payment',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('estimate_task_complexity');
+      expect(result.complexity).toBe('simple');
+      expect(result.contextPackAvailable).toBe(true);
+      expect(result.recommendedModel).toBeDefined();
+      expect(typeof result.confidence).toBe('number');
     });
 
     it('evaluates changed files in pre_commit_check and surfaces pass/fail summary', async () => {

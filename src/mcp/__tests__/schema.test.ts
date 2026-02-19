@@ -21,6 +21,7 @@ import {
   QueryToolInputSchema,
   GetContextPackToolInputSchema,
   EstimateBudgetToolInputSchema,
+  EstimateTaskComplexityToolInputSchema,
   SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
@@ -58,6 +59,7 @@ import {
   isQueryToolInput,
   isGetContextPackToolInput,
   isEstimateBudgetToolInput,
+  isEstimateTaskComplexityToolInput,
   isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
@@ -106,6 +108,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('semantic_search');
       expect(schemas).toContain('get_context_pack');
       expect(schemas).toContain('estimate_budget');
+      expect(schemas).toContain('estimate_task_complexity');
       expect(schemas).toContain('query');
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
@@ -142,7 +145,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(44);
+      expect(schemas).toHaveLength(45);
     });
 
     it('should return schema for known tools', () => {
@@ -401,6 +404,38 @@ describe('MCP Schema', () => {
       expect(isEstimateBudgetToolInput({ taskDescription: 'x', availableTokens: 1000 })).toBe(true);
       expect(isEstimateBudgetToolInput({ taskDescription: 'x', availableTokens: 0 })).toBe(false);
       expect(isEstimateBudgetToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Estimate Task Complexity Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('estimate_task_complexity', {
+        task: 'What does processPayment return?',
+      });
+      expect(result.valid).toBe(true);
+      expect(EstimateTaskComplexityToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('estimate_task_complexity', {
+        task: 'Refactor authentication to support OAuth and OIDC',
+        workspace: '/tmp/workspace',
+        recentFiles: ['src/auth.ts'],
+        functionId: 'fn_auth_refresh',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing task', () => {
+      const result = validateToolInput('estimate_task_complexity', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isEstimateTaskComplexityToolInput({ task: 'test' })).toBe(true);
+      expect(isEstimateTaskComplexityToolInput({ task: 'test', recentFiles: ['src/a.ts'] })).toBe(true);
+      expect(isEstimateTaskComplexityToolInput({ task: 'test', recentFiles: [123] })).toBe(false);
+      expect(isEstimateTaskComplexityToolInput(null)).toBe(false);
     });
   });
 
