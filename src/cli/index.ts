@@ -19,7 +19,7 @@
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
  *   librarian setup               - Quickstart alias (setup-oriented naming)
- *   librarian init                - Quickstart alias (init-oriented naming)
+ *   librarian init                - Quickstart + editor MCP auto-config onboarding
  *   librarian smoke               - Run external repo smoke harness
  *   librarian journey             - Run agentic journey simulations
  *   librarian live-fire           - Run continuous objective trial matrix
@@ -191,8 +191,8 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'init': {
-    description: 'Init-oriented alias for quickstart onboarding',
-    usage: 'librarian init [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
+    description: 'Quickstart onboarding with editor MCP auto-config',
+    usage: 'librarian init [--depth quick|full] [--mode fast|full] [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [--ci] [--no-mcp]',
   },
   'smoke': {
     description: 'Run external repo smoke harness',
