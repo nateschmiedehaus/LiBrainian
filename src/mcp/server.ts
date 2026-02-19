@@ -41,6 +41,9 @@ import {
   type RequestHumanReviewToolInput,
   type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
+  type ExplainFunctionToolInput,
+  type FindUsagesToolInput,
+  type TraceImportsToolInput,
   type FindSymbolToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
@@ -281,6 +284,9 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
+  explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
+  trace_imports: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
   find_symbol: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1700 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
@@ -1086,6 +1092,46 @@ export class LibrarianMCPServer {
             explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'explain_function',
+        description: 'Explain a specific function by name or ID with callers, callees, and purpose',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Function name or function ID' },
+            filePath: { type: 'string', description: 'Optional file path for disambiguation' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'find_usages',
+        description: 'Find callsites/usages for a symbol name or function ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            symbol: { type: 'string', description: 'Function name or function ID to locate usages for' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            limit: { type: 'number', description: 'Maximum callsite records to return (default 100, max 500)' },
+          },
+          required: ['symbol'],
+        },
+      },
+      {
+        name: 'trace_imports',
+        description: 'Trace imports and/or importers for a file path with bounded depth',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: { type: 'string', description: 'File path to trace dependencies from' },
+            direction: { type: 'string', enum: ['imports', 'importedBy', 'both'], description: 'Trace imports, importers, or both' },
+            depth: { type: 'number', description: 'Maximum dependency depth (default 2, max 6)' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+          },
+          required: ['filePath'],
         },
       },
       {
@@ -2479,6 +2525,12 @@ export class LibrarianMCPServer {
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
+      case 'explain_function':
+        return this.executeExplainFunction(args as ExplainFunctionToolInput);
+      case 'find_usages':
+        return this.executeFindUsages(args as FindUsagesToolInput);
+      case 'trace_imports':
+        return this.executeTraceImports(args as TraceImportsToolInput);
       case 'reset_session_state':
         return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
       case 'request_human_review':
@@ -4084,6 +4136,404 @@ export class LibrarianMCPServer {
         outcome: input.outcome,
         success: false,
         adjustmentsApplied: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeExplainFunction(input: ExplainFunctionToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          found: false,
+          workspace: undefined,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          found: false,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          found: false,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const exact = await storage.getFunctionsByName(input.name).catch(() => []);
+      const fallbackPool = exact.length === 0
+        ? await storage.getFunctions({ limit: 1500, orderBy: 'name', orderDirection: 'asc' }).catch(() => [])
+        : [];
+
+      let candidates = exact.length > 0
+        ? exact
+        : fallbackPool.filter((fn) =>
+          this.scoreFindSymbolCandidate(
+            input.name,
+            `${fn.id} ${fn.name} ${fn.signature} ${fn.filePath}`
+          ) >= 0.45
+        );
+
+      if (input.filePath) {
+        const normalizedInputPath = this.normalizeFindSymbolText(input.filePath);
+        const filtered = candidates.filter((fn) =>
+          this.normalizeFindSymbolText(fn.filePath).includes(normalizedInputPath)
+        );
+        if (filtered.length > 0) candidates = filtered;
+      }
+
+      if (candidates.length === 0) {
+        return {
+          found: false,
+          workspace: workspacePath,
+          error: `Function not found: ${input.name}`,
+        };
+      }
+
+      const ranked = [...candidates].sort((a, b) => {
+        const scoreA = this.scoreFindSymbolCandidate(input.name, `${a.id} ${a.name} ${a.signature} ${a.filePath}`);
+        const scoreB = this.scoreFindSymbolCandidate(input.name, `${b.id} ${b.name} ${b.signature} ${b.filePath}`);
+        return scoreB - scoreA;
+      });
+      const selected = ranked[0]!;
+
+      const [callerEdges, calleeEdges] = await Promise.all([
+        storage.getGraphEdges({ toIds: [selected.id], edgeTypes: ['calls'], limit: 500 }).catch(() => []),
+        storage.getGraphEdges({ fromIds: [selected.id], edgeTypes: ['calls'], limit: 500 }).catch(() => []),
+      ]);
+
+      const uniqueCallers = Array.from(new Set(callerEdges.map((edge) => edge.fromId))).filter((id) => typeof id === 'string' && id.length > 0);
+      const uniqueCallees = Array.from(new Set(calleeEdges.map((edge) => edge.toId))).filter((id) => typeof id === 'string' && id.length > 0);
+
+      const [callers, callees] = await Promise.all([
+        Promise.all(uniqueCallers.map(async (id) => {
+          const fn = await storage.getFunction(id).catch(() => null);
+          return {
+            id,
+            name: fn?.name ?? id,
+            filePath: fn?.filePath ?? callerEdges.find((edge) => edge.fromId === id)?.sourceFile,
+          };
+        })),
+        Promise.all(uniqueCallees.map(async (id) => {
+          const fn = await storage.getFunction(id).catch(() => null);
+          return {
+            id,
+            name: fn?.name ?? id,
+            filePath: fn?.filePath ?? calleeEdges.find((edge) => edge.toId === id)?.sourceFile,
+          };
+        })),
+      ]);
+
+      const contextPack = await storage.getContextPackForTarget(selected.id, 'function_context').catch(() => null);
+
+      return {
+        found: true,
+        workspace: workspacePath,
+        function: {
+          id: selected.id,
+          name: selected.name,
+          signature: selected.signature,
+          filePath: selected.filePath,
+          summary: contextPack?.summary ?? selected.purpose,
+          purpose: selected.purpose,
+          callers,
+          callees,
+          confidence: Number.isFinite(selected.confidence) ? selected.confidence : (contextPack?.confidence ?? 0.5),
+        },
+      };
+    } catch (error) {
+      return {
+        found: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeFindUsages(input: FindUsagesToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          symbol: input.symbol,
+          matches: [],
+          totalMatches: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          symbol: input.symbol,
+          matches: [],
+          totalMatches: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          symbol: input.symbol,
+          matches: [],
+          totalMatches: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const exact = await storage.getFunctionsByName(input.symbol).catch(() => []);
+      const fallbackPool = exact.length === 0
+        ? await storage.getFunctions({ limit: 1500, orderBy: 'name', orderDirection: 'asc' }).catch(() => [])
+        : [];
+      const targets = exact.length > 0
+        ? exact
+        : fallbackPool.filter((fn) =>
+          this.scoreFindSymbolCandidate(
+            input.symbol,
+            `${fn.id} ${fn.name} ${fn.signature} ${fn.filePath}`
+          ) >= 0.45
+        );
+
+      const limit = Math.max(1, Math.min(500, Math.trunc(input.limit ?? 100)));
+      const matches: Array<{
+        id: string;
+        name: string;
+        filePath: string;
+        usageCount: number;
+        files: string[];
+        callers: Array<{ id: string; name: string; filePath?: string }>;
+      }> = [];
+
+      for (const target of targets) {
+        const edges = await storage.getGraphEdges({ toIds: [target.id], edgeTypes: ['calls'], limit }).catch(() => []);
+        const callerIds = Array.from(new Set(edges.map((edge) => edge.fromId))).filter((id) => typeof id === 'string' && id.length > 0);
+        const callers = await Promise.all(callerIds.map(async (id) => {
+          const fn = await storage.getFunction(id).catch(() => null);
+          return {
+            id,
+            name: fn?.name ?? id,
+            filePath: fn?.filePath ?? edges.find((edge) => edge.fromId === id)?.sourceFile,
+          };
+        }));
+
+        const files = Array.from(new Set(edges.map((edge) => edge.sourceFile))).filter((file): file is string => typeof file === 'string' && file.length > 0);
+        matches.push({
+          id: target.id,
+          name: target.name,
+          filePath: target.filePath,
+          usageCount: edges.length,
+          files,
+          callers,
+        });
+      }
+
+      matches.sort((a, b) => b.usageCount - a.usageCount || a.name.localeCompare(b.name));
+
+      return {
+        success: true,
+        symbol: input.symbol,
+        matches,
+        totalMatches: matches.length,
+        workspace: workspacePath,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        symbol: input.symbol,
+        matches: [],
+        totalMatches: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeTraceImports(input: TraceImportsToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          filePath: input.filePath,
+          direction: input.direction ?? 'both',
+          depth: input.depth ?? 2,
+          imports: [],
+          importedBy: [],
+          edges: [],
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          filePath: input.filePath,
+          direction: input.direction ?? 'both',
+          depth: input.depth ?? 2,
+          imports: [],
+          importedBy: [],
+          edges: [],
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          filePath: input.filePath,
+          direction: input.direction ?? 'both',
+          depth: input.depth ?? 2,
+          imports: [],
+          importedBy: [],
+          edges: [],
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const files = await storage.getFiles({ limit: 10000 }).catch(() => []);
+      type TraceFile = { path: string; relativePath?: string; imports?: string[]; importedBy?: string[] };
+      const normalizedFiles = files as TraceFile[];
+
+      const absoluteToRelative = new Map<string, string>();
+      const relativeToAbsolute = new Map<string, string>();
+      for (const file of normalizedFiles) {
+        const absolute = path.normalize(file.path);
+        const relative = file.relativePath
+          ? file.relativePath
+          : path.relative(workspacePath, absolute);
+        absoluteToRelative.set(absolute, relative);
+        relativeToAbsolute.set(path.normalize(relative), absolute);
+      }
+
+      const resolveAbsolute = (candidate: string): string | null => {
+        const normalized = path.normalize(candidate);
+        if (path.isAbsolute(normalized) && absoluteToRelative.has(normalized)) {
+          return normalized;
+        }
+        const asRelative = path.normalize(candidate.replace(/^\.\/+/, ''));
+        if (relativeToAbsolute.has(asRelative)) {
+          return relativeToAbsolute.get(asRelative) ?? null;
+        }
+        const joined = path.normalize(path.join(workspacePath, candidate));
+        if (absoluteToRelative.has(joined)) {
+          return joined;
+        }
+        const suffixMatch = Array.from(absoluteToRelative.keys()).find((absPath) => absPath.endsWith(normalized));
+        return suffixMatch ?? null;
+      };
+
+      const resolvedFileAbs = resolveAbsolute(input.filePath);
+      if (!resolvedFileAbs) {
+        return {
+          success: false,
+          filePath: input.filePath,
+          direction: input.direction ?? 'both',
+          depth: input.depth ?? 2,
+          imports: [],
+          importedBy: [],
+          edges: [],
+          workspace: workspacePath,
+          error: `File not found in indexed workspace: ${input.filePath}`,
+        };
+      }
+
+      const resolvedFileRel = absoluteToRelative.get(resolvedFileAbs) ?? path.relative(workspacePath, resolvedFileAbs);
+      const maxDepth = Math.max(1, Math.min(6, Math.trunc(input.depth ?? 2)));
+      const direction = input.direction ?? 'both';
+
+      const edges: Array<{ from: string; to: string; direction: 'imports' | 'importedBy'; depth: number }> = [];
+      const walkedImports = new Set<string>();
+      const walkedImportedBy = new Set<string>();
+
+      const walk = (
+        seedAbs: string,
+        relation: 'imports' | 'importedBy'
+      ): string[] => {
+        const discovered: string[] = [];
+        const queue: Array<{ abs: string; depth: number }> = [{ abs: seedAbs, depth: 0 }];
+        const visited = new Set<string>([seedAbs]);
+
+        while (queue.length > 0) {
+          const current = queue.shift();
+          if (!current) continue;
+          if (current.depth >= maxDepth) continue;
+          const currentRel = absoluteToRelative.get(current.abs) ?? path.relative(workspacePath, current.abs);
+          const currentFile = normalizedFiles.find((file) => path.normalize(file.path) === current.abs);
+          if (!currentFile) continue;
+          const neighbors = (relation === 'imports' ? currentFile.imports : currentFile.importedBy) ?? [];
+          for (const neighbor of neighbors) {
+            const neighborAbs = resolveAbsolute(neighbor);
+            if (!neighborAbs) continue;
+            const neighborRel = absoluteToRelative.get(neighborAbs) ?? path.relative(workspacePath, neighborAbs);
+
+            if (relation === 'imports') {
+              edges.push({ from: currentRel, to: neighborRel, direction: relation, depth: current.depth + 1 });
+            } else {
+              edges.push({ from: neighborRel, to: currentRel, direction: relation, depth: current.depth + 1 });
+            }
+
+            if (!discovered.includes(neighborRel)) {
+              discovered.push(neighborRel);
+            }
+
+            if (!visited.has(neighborAbs)) {
+              visited.add(neighborAbs);
+              queue.push({ abs: neighborAbs, depth: current.depth + 1 });
+            }
+          }
+        }
+
+        return discovered;
+      };
+
+      if (direction === 'imports' || direction === 'both') {
+        for (const item of walk(resolvedFileAbs, 'imports')) walkedImports.add(item);
+      }
+      if (direction === 'importedBy' || direction === 'both') {
+        for (const item of walk(resolvedFileAbs, 'importedBy')) walkedImportedBy.add(item);
+      }
+
+      return {
+        success: true,
+        filePath: input.filePath,
+        resolvedFile: resolvedFileRel,
+        direction,
+        depth: maxDepth,
+        imports: Array.from(walkedImports),
+        importedBy: Array.from(walkedImportedBy),
+        edges,
+        workspace: workspacePath,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        filePath: input.filePath,
+        direction: input.direction ?? 'both',
+        depth: input.depth ?? 2,
+        imports: [],
+        importedBy: [],
+        edges: [],
         error: error instanceof Error ? error.message : String(error),
       };
     }
