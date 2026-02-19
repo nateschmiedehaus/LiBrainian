@@ -142,7 +142,7 @@ describe('package release scripts', () => {
       'node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run --changed'
     );
     expect(scripts['validate:public']).toBe(
-      'npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'
+      'npm run hygiene:generated-artifacts && npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'
     );
     expect(scripts['validate:fast']).toBe('npm run typecheck && npm run test:changed && npm run validate:public');
   });

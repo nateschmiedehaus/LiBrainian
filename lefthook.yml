@@ -1,6 +1,8 @@
 pre-commit:
   parallel: true
   commands:
+    generated-artifacts:
+      run: npm run hygiene:generated-artifacts
     librainian-update:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
       run: node scripts/hook-update-index.mjs {staged_files}

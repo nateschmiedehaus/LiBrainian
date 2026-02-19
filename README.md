@@ -186,6 +186,25 @@ Built-in parsers and extraction paths cover major ecosystems, including:
 
 LiBrainian auto-detects what is present and indexes only what is available in the workspace.
 
+## Performance Characteristics
+
+LiBrainian tracks explicit SLA targets for query latency, indexing throughput, and memory budgets.
+
+- Query latency target: `p50 < 500ms`, `p95 < 2000ms`, `p99 < 5000ms`
+- Incremental indexing target: `10 changed files < 10s`
+- Runtime memory target: `< 512MB RSS`
+
+Run local diagnostics:
+
+```bash
+npx librainian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json
+# compatibility alias
+librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
+```
+
+SLA reference:
+- `docs/performance-sla.md`
+
 ## CLI Command Map
 
 ```bash

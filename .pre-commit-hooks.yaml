@@ -6,3 +6,11 @@
   pass_filenames: false
   stages:
     - pre-commit
+- id: generated-artifact-guard
+  name: Generated artifact guard
+  description: Fail when likely TypeScript emit artifacts appear in source-controlled paths.
+  entry: node scripts/guard-generated-artifacts.mjs
+  language: system
+  pass_filenames: false
+  stages:
+    - pre-commit

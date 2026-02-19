@@ -4897,7 +4897,7 @@ export class LibrarianMCPServer {
       });
       const resultWithHumanReview = {
         ...baseResult,
-        humanReviewRecommendation,
+        ...(humanReviewRecommendation ? { humanReviewRecommendation } : {}),
         timedOut: false,
         partial: false,
         timeoutMs: queryTimeoutMs,
@@ -4913,7 +4913,9 @@ export class LibrarianMCPServer {
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
-        human_review_recommendation: resultWithHumanReview.humanReviewRecommendation,
+        ...(resultWithHumanReview.humanReviewRecommendation
+          ? { human_review_recommendation: resultWithHumanReview.humanReviewRecommendation }
+          : {}),
         timed_out: resultWithHumanReview.timedOut,
         partial_result: resultWithHumanReview.partial,
         progress_view: resultWithHumanReview.progress,
