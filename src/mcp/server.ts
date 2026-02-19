@@ -313,6 +313,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 200;
 const DEFAULT_RUN_LIST_LIMIT = 10;
 const MAX_RUN_LIST_LIMIT = 100;
+const MIN_PARAMETER_DESCRIPTION_WORDS = 20;
 const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const LOW_CONFIDENCE_THRESHOLD = 0.35;
 const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
@@ -320,6 +321,139 @@ const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence tiers: definitive/high -> proce
 const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
+
+interface MutableToolSchemaNode {
+  type?: string;
+  description?: string;
+  enum?: unknown[];
+  default?: unknown;
+  properties?: Record<string, MutableToolSchemaNode>;
+  items?: MutableToolSchemaNode | MutableToolSchemaNode[];
+}
+
+const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
+  'query.depth': 'Context depth for retrieval scope. L0=summary only (fastest, ~500 tokens), L1=summary plus key facts (default, ~2000 tokens), L2=full pack with related files (~5000 tokens), L3=comprehensive cross-module context with richer call-graph evidence (~10000 tokens). Use L1 for routine work, L2 for impact analysis, and L3 only for deep architectural investigation.',
+  'query.affectedFiles': 'Absolute paths of files to include as a hard retrieval scope filter. Use this when you already know likely hotspots and need precise context. If omitted, LiBrainian searches the full indexed workspace. Example: ["/workspace/src/auth.ts", "/workspace/src/middleware/session.ts"].',
+};
+
+function countWords(value: string): number {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function ensureMinimumDescriptionWords(description: string): string {
+  if (countWords(description) >= MIN_PARAMETER_DESCRIPTION_WORDS) {
+    return description;
+  }
+  return `${description} This guidance is intentionally explicit so MCP prompt injection remains actionable without extra system-prompt scaffolding.`;
+}
+
+function formatParameterLabel(parameterPath: string[]): string {
+  const leaf = parameterPath[parameterPath.length - 1] ?? 'parameter';
+  return leaf
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase();
+}
+
+function inferFormatHint(parameterPath: string[], schema: MutableToolSchemaNode): string {
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+    return `One of: ${schema.enum.map((item) => JSON.stringify(item)).join(', ')}`;
+  }
+  switch (schema.type) {
+    case 'string':
+      return 'String value';
+    case 'number':
+    case 'integer':
+      return 'Numeric value';
+    case 'boolean':
+      return 'Boolean value (true or false)';
+    case 'array':
+      return 'Array value';
+    case 'object':
+      return `JSON object with nested fields${parameterPath[parameterPath.length - 1] === 'customRatings' ? ' for pack-level feedback ratings' : ''}`;
+    default:
+      return 'JSON value';
+  }
+}
+
+function inferExampleValue(parameterPath: string[], schema: MutableToolSchemaNode): string {
+  const leaf = parameterPath[parameterPath.length - 1] ?? '';
+  if (leaf === 'workspace') return '"/workspace"';
+  if (leaf === 'outputFile') return '"/workspace/.librarian/reports/page-0.json"';
+  if (leaf.toLowerCase().includes('path') || leaf.toLowerCase().includes('file')) return '"/workspace/src/example.ts"';
+  if (leaf.toLowerCase().includes('id')) return '"id_123"';
+  if (leaf === 'scope') return '["src/**/*.ts", "docs/**/*.md"]';
+  if (leaf === 'include' || leaf === 'exclude') return '["src/**/*.ts"]';
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+    return JSON.stringify(schema.enum[0]);
+  }
+  switch (schema.type) {
+    case 'string':
+      return '"example"';
+    case 'number':
+    case 'integer':
+      return '20';
+    case 'boolean':
+      return 'true';
+    case 'array':
+      return '["example"]';
+    case 'object':
+      return '{"key":"value"}';
+    default:
+      return '"example"';
+  }
+}
+
+function buildDetailedParameterDescription(
+  toolName: string,
+  parameterPath: string[],
+  schema: MutableToolSchemaNode,
+  existingDescription: string
+): string {
+  const specialKey = `${toolName}.${parameterPath.join('.')}`;
+  const special = SPECIAL_PARAMETER_DESCRIPTIONS[specialKey];
+  if (special) {
+    return special;
+  }
+
+  const label = formatParameterLabel(parameterPath);
+  const formatHint = inferFormatHint(parameterPath, schema);
+  const example = inferExampleValue(parameterPath, schema);
+  const base = existingDescription.trim().length > 0
+    ? existingDescription.trim()
+    : `Controls ${label} for the ${toolName} tool.`;
+  const whenToOverride = schema.default !== undefined
+    ? `Use a non-default value when the default (${JSON.stringify(schema.default)}) does not match the precision, cost, or safety profile required by this task.`
+    : 'Set this explicitly when you need to constrain scope, tune behavior, or override automatic defaults for this operation.';
+  return ensureMinimumDescriptionWords(
+    `${base} Format: ${formatHint}. ${whenToOverride} Example: ${example}.`
+  );
+}
+
+function enrichSchemaDescriptions(toolName: string, schemaNode: MutableToolSchemaNode, parameterPath: string[] = []): void {
+  if (!schemaNode || typeof schemaNode !== 'object') {
+    return;
+  }
+
+  if (parameterPath.length > 0) {
+    const existing = typeof schemaNode.description === 'string' ? schemaNode.description : '';
+    schemaNode.description = buildDetailedParameterDescription(toolName, parameterPath, schemaNode, existing);
+  }
+
+  if (schemaNode.properties) {
+    for (const [name, child] of Object.entries(schemaNode.properties)) {
+      enrichSchemaDescriptions(toolName, child, [...parameterPath, name]);
+    }
+  }
+
+  if (Array.isArray(schemaNode.items)) {
+    for (let idx = 0; idx < schemaNode.items.length; idx += 1) {
+      enrichSchemaDescriptions(toolName, schemaNode.items[idx], [...parameterPath, `items_${idx}`]);
+    }
+  } else if (schemaNode.items && typeof schemaNode.items === 'object') {
+    enrichSchemaDescriptions(toolName, schemaNode.items, [...parameterPath, 'items']);
+  }
+}
 
 interface BootstrapRunStatsSnapshot {
   filesProcessed: number;
@@ -1302,6 +1436,10 @@ export class LibrarianMCPServer {
         },
       },
     ];
+
+    for (const tool of tools) {
+      enrichSchemaDescriptions(tool.name, tool.inputSchema as MutableToolSchemaNode);
+    }
 
     // Filter tools based on authorized scopes and annotate capabilities for clients.
     return tools
