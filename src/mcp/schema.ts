@@ -155,6 +155,42 @@ export const ClaimWorkScopeToolInputSchema = z.object({
 }).strict();
 
 /**
+ * append_claim tool input schema
+ */
+export const AppendClaimToolInputSchema = z.object({
+  claim: z.string().min(1).describe('Claim text to persist for later retrieval and session harvest'),
+  workspace: z.string().optional().describe('Workspace path (optional, used for namespacing and audit logs)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier that owns this claim'),
+  tags: z.array(z.string().min(1)).optional().describe('Optional semantic tags for filtering and harvest summaries'),
+  evidence: z.array(z.string().min(1)).optional().describe('Optional evidence snippets, IDs, or citations supporting the claim'),
+  confidence: z.number().min(0).max(1).optional().default(0.6).describe('Optional confidence score in [0,1]'),
+  sourceTool: z.string().min(1).optional().describe('Optional source tool name that produced this claim'),
+}).strict();
+
+/**
+ * query_claims tool input schema
+ */
+export const QueryClaimsToolInputSchema = z.object({
+  query: z.string().min(1).max(2000).optional().describe('Optional text query over claim, evidence, and tag fields'),
+  workspace: z.string().optional().describe('Workspace path filter (optional)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier filter'),
+  tags: z.array(z.string().min(1)).optional().describe('Optional tags filter (matches any provided tag)'),
+  since: z.string().min(1).optional().describe('Optional ISO timestamp lower bound for createdAt filtering'),
+  limit: z.number().int().min(1).max(200).optional().default(20).describe('Maximum claims to return (default: 20, max: 200)'),
+}).strict().default({});
+
+/**
+ * harvest_session_knowledge tool input schema
+ */
+export const HarvestSessionKnowledgeToolInputSchema = z.object({
+  sessionId: z.string().min(1).optional().describe('Session to harvest claims from (optional)'),
+  workspace: z.string().optional().describe('Workspace path filter (optional)'),
+  maxItems: z.number().int().min(1).max(200).optional().default(20).describe('Maximum harvested claims to include (default: 20, max: 200)'),
+  minConfidence: z.number().min(0).max(1).optional().default(0).describe('Minimum confidence threshold in [0,1]'),
+  includeRecommendations: z.boolean().optional().default(true).describe('Include recommended next tools in output'),
+}).strict().default({});
+
+/**
  * Submit feedback tool input schema
  */
 export const SubmitFeedbackToolInputSchema = z.object({
@@ -479,6 +515,9 @@ export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInp
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
 export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
+export type AppendClaimToolInputType = z.infer<typeof AppendClaimToolInputSchema>;
+export type QueryClaimsToolInputType = z.infer<typeof QueryClaimsToolInputSchema>;
+export type HarvestSessionKnowledgeToolInputType = z.infer<typeof HarvestSessionKnowledgeToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
@@ -537,6 +576,9 @@ export const TOOL_INPUT_SCHEMAS = {
   blast_radius: BlastRadiusToolInputSchema,
   pre_commit_check: PreCommitCheckToolInputSchema,
   claim_work_scope: ClaimWorkScopeToolInputSchema,
+  append_claim: AppendClaimToolInputSchema,
+  query_claims: QueryClaimsToolInputSchema,
+  harvest_session_knowledge: HarvestSessionKnowledgeToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_symbol: FindSymbolToolInputSchema,
@@ -742,6 +784,63 @@ export const claimWorkScopeToolJsonSchema: JSONSchema = {
     ttlSeconds: { type: 'number', description: 'Claim expiration window in seconds (claim mode only)', minimum: 1, maximum: 86400, default: 1800 },
   },
   required: ['scopeId'],
+  additionalProperties: false,
+};
+
+/** append_claim tool JSON Schema */
+export const appendClaimToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/append-claim-tool-input',
+  title: 'AppendClaimToolInput',
+  description: 'Input for append_claim - persist session knowledge claims for later retrieval and harvest',
+  type: 'object',
+  properties: {
+    claim: { type: 'string', description: 'Claim text to persist for later retrieval and session harvest', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, used for namespacing and audit logs)' },
+    sessionId: { type: 'string', description: 'Optional session identifier that owns this claim', minLength: 1 },
+    tags: { type: 'array', items: { type: 'string' }, description: 'Optional semantic tags for filtering and harvest summaries' },
+    evidence: { type: 'array', items: { type: 'string' }, description: 'Optional evidence snippets, IDs, or citations supporting the claim' },
+    confidence: { type: 'number', description: 'Optional confidence score in [0,1]', minimum: 0, maximum: 1, default: 0.6 },
+    sourceTool: { type: 'string', description: 'Optional source tool name that produced this claim', minLength: 1 },
+  },
+  required: ['claim'],
+  additionalProperties: false,
+};
+
+/** query_claims tool JSON Schema */
+export const queryClaimsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/query-claims-tool-input',
+  title: 'QueryClaimsToolInput',
+  description: 'Input for query_claims - filter and retrieve previously appended knowledge claims',
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Optional text query over claim, evidence, and tag fields', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+    sessionId: { type: 'string', description: 'Optional session identifier filter', minLength: 1 },
+    tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags filter (matches any provided tag)' },
+    since: { type: 'string', description: 'Optional ISO timestamp lower bound for createdAt filtering', minLength: 1 },
+    limit: { type: 'number', description: 'Maximum claims to return (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** harvest_session_knowledge tool JSON Schema */
+export const harvestSessionKnowledgeToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/harvest-session-knowledge-tool-input',
+  title: 'HarvestSessionKnowledgeToolInput',
+  description: 'Input for harvest_session_knowledge - summarize high-confidence claims for a session/workspace',
+  type: 'object',
+  properties: {
+    sessionId: { type: 'string', description: 'Session to harvest claims from (optional)', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+    maxItems: { type: 'number', description: 'Maximum harvested claims to include (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+    minConfidence: { type: 'number', description: 'Minimum confidence threshold in [0,1]', minimum: 0, maximum: 1, default: 0 },
+    includeRecommendations: { type: 'boolean', description: 'Include recommended next tools in output', default: true },
+  },
+  required: [],
   additionalProperties: false,
 };
 
@@ -984,6 +1083,9 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   blast_radius: blastRadiusToolJsonSchema,
   pre_commit_check: preCommitCheckToolJsonSchema,
   claim_work_scope: claimWorkScopeToolJsonSchema,
+  append_claim: appendClaimToolJsonSchema,
+  query_claims: queryClaimsToolJsonSchema,
+  harvest_session_knowledge: harvestSessionKnowledgeToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
 };

@@ -925,6 +925,69 @@ export interface ClaimWorkScopeToolInput {
   ttlSeconds?: number;
 }
 
+/** append_claim tool input */
+export interface AppendClaimToolInput {
+  /** Claim text to persist for later retrieval */
+  claim: string;
+
+  /** Workspace path (optional, used for namespacing and audit logs) */
+  workspace?: string;
+
+  /** Optional session identifier that owns this claim */
+  sessionId?: string;
+
+  /** Optional semantic tags for filtering and harvesting */
+  tags?: string[];
+
+  /** Optional evidence snippets, IDs, or citations */
+  evidence?: string[];
+
+  /** Optional confidence score in [0,1] */
+  confidence?: number;
+
+  /** Optional source tool name that generated this claim */
+  sourceTool?: string;
+}
+
+/** query_claims tool input */
+export interface QueryClaimsToolInput {
+  /** Optional text query over claim/evidence/tag fields */
+  query?: string;
+
+  /** Workspace path (optional, used as a filter) */
+  workspace?: string;
+
+  /** Optional session identifier filter */
+  sessionId?: string;
+
+  /** Optional tags filter (matches any tag) */
+  tags?: string[];
+
+  /** Optional ISO timestamp filter (createdAt >= since) */
+  since?: string;
+
+  /** Maximum claims to return (default 20, max 200) */
+  limit?: number;
+}
+
+/** harvest_session_knowledge tool input */
+export interface HarvestSessionKnowledgeToolInput {
+  /** Session to harvest claims from (optional) */
+  sessionId?: string;
+
+  /** Workspace path filter (optional) */
+  workspace?: string;
+
+  /** Maximum harvested claims to include (default 20, max 200) */
+  maxItems?: number;
+
+  /** Minimum confidence threshold in [0,1] (default 0) */
+  minConfidence?: number;
+
+  /** Include next-step recommendations in output */
+  includeRecommendations?: boolean;
+}
+
 export interface GetChangeImpactToolOutput {
   success: boolean;
   target: string;
@@ -1665,6 +1728,24 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  append_claim: {
+    tool: 'append_claim',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  query_claims: {
+    tool: 'query_claims',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  harvest_session_knowledge: {
+    tool: 'harvest_session_knowledge',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   submit_feedback: {
     tool: 'submit_feedback',
     requiredScopes: ['read', 'write'],
@@ -2175,6 +2256,53 @@ export function isClaimWorkScopeToolInput(value: unknown): value is ClaimWorkSco
     || typeof obj.mode === 'undefined';
   const ttlOk = typeof obj.ttlSeconds === 'number' || typeof obj.ttlSeconds === 'undefined';
   return scopeIdOk && workspaceOk && sessionIdOk && ownerOk && modeOk && ttlOk;
+}
+
+/** Type guard for AppendClaimToolInput */
+export function isAppendClaimToolInput(value: unknown): value is AppendClaimToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const claimOk = typeof obj.claim === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const tagsOk = Array.isArray(obj.tags) ? obj.tags.every((entry) => typeof entry === 'string') : typeof obj.tags === 'undefined';
+  const evidenceOk = Array.isArray(obj.evidence) ? obj.evidence.every((entry) => typeof entry === 'string') : typeof obj.evidence === 'undefined';
+  const confidenceOk = typeof obj.confidence === 'number'
+    ? Number.isFinite(obj.confidence) && obj.confidence >= 0 && obj.confidence <= 1
+    : typeof obj.confidence === 'undefined';
+  const sourceToolOk = typeof obj.sourceTool === 'string' || typeof obj.sourceTool === 'undefined';
+  return claimOk && workspaceOk && sessionIdOk && tagsOk && evidenceOk && confidenceOk && sourceToolOk;
+}
+
+/** Type guard for QueryClaimsToolInput */
+export function isQueryClaimsToolInput(value: unknown): value is QueryClaimsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const queryOk = typeof obj.query === 'string' || typeof obj.query === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const tagsOk = Array.isArray(obj.tags) ? obj.tags.every((entry) => typeof entry === 'string') : typeof obj.tags === 'undefined';
+  const sinceOk = typeof obj.since === 'string' || typeof obj.since === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 200
+    : typeof obj.limit === 'undefined';
+  return queryOk && workspaceOk && sessionIdOk && tagsOk && sinceOk && limitOk;
+}
+
+/** Type guard for HarvestSessionKnowledgeToolInput */
+export function isHarvestSessionKnowledgeToolInput(value: unknown): value is HarvestSessionKnowledgeToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const maxItemsOk = typeof obj.maxItems === 'number'
+    ? Number.isFinite(obj.maxItems) && obj.maxItems >= 1 && obj.maxItems <= 200
+    : typeof obj.maxItems === 'undefined';
+  const minConfidenceOk = typeof obj.minConfidence === 'number'
+    ? Number.isFinite(obj.minConfidence) && obj.minConfidence >= 0 && obj.minConfidence <= 1
+    : typeof obj.minConfidence === 'undefined';
+  const includeRecommendationsOk = typeof obj.includeRecommendations === 'boolean' || typeof obj.includeRecommendations === 'undefined';
+  return sessionIdOk && workspaceOk && maxItemsOk && minConfidenceOk && includeRecommendationsOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */

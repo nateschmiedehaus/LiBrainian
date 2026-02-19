@@ -51,6 +51,9 @@ import {
   type BlastRadiusToolInput,
   type PreCommitCheckToolInput,
   type ClaimWorkScopeToolInput,
+  type AppendClaimToolInput,
+  type QueryClaimsToolInput,
+  type HarvestSessionKnowledgeToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
   type FindUsagesToolInput,
@@ -158,6 +161,9 @@ export interface ServerState {
 
   /** Active cross-session scope claims for parallel coordination */
   scopeClaims: Map<string, ScopeClaimRecord>;
+
+  /** Session knowledge claims persisted via append_claim */
+  knowledgeClaims: KnowledgeClaimRecord[];
 }
 
 /** Workspace state */
@@ -243,6 +249,18 @@ interface ScopeClaimRecord {
   owner?: string;
   claimedAt: string;
   expiresAt: string;
+}
+
+interface KnowledgeClaimRecord {
+  claimId: string;
+  claim: string;
+  workspace?: string;
+  sessionId: string;
+  tags: string[];
+  evidence: string[];
+  confidence: number;
+  sourceTool?: string;
+  createdAt: string;
 }
 
 interface LoopDetectionResult {
@@ -336,6 +354,9 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
+  append_claim: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  query_claims: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
+  harvest_session_knowledge: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
@@ -1132,6 +1153,7 @@ export class LibrarianMCPServer {
         allowScopeEscalation: false,
       }),
       scopeClaims: new Map(),
+      knowledgeClaims: [],
     };
 
     // Initialize MCP server
@@ -1616,6 +1638,54 @@ export class LibrarianMCPServer {
             ttlSeconds: { type: 'number', description: 'Claim expiration window in seconds (default 1800)' },
           },
           required: ['scopeId'],
+        },
+      },
+      {
+        name: 'append_claim',
+        description: 'Persist a session knowledge claim with confidence/tags/evidence for later retrieval and harvest',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            claim: { type: 'string', description: 'Claim text to persist for later retrieval and session harvest' },
+            workspace: { type: 'string', description: 'Workspace path (optional, used for namespacing and audit logs)' },
+            sessionId: { type: 'string', description: 'Optional session identifier that owns this claim' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'Optional semantic tags for filtering and harvest summaries' },
+            evidence: { type: 'array', items: { type: 'string' }, description: 'Optional evidence snippets, IDs, or citations supporting the claim' },
+            confidence: { type: 'number', description: 'Optional confidence score in [0,1] (default 0.6)' },
+            sourceTool: { type: 'string', description: 'Optional source tool name that generated this claim' },
+          },
+          required: ['claim'],
+        },
+      },
+      {
+        name: 'query_claims',
+        description: 'Filter and retrieve claims previously recorded via append_claim',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Optional text query over claim, evidence, and tags' },
+            workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+            sessionId: { type: 'string', description: 'Optional session identifier filter' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags filter (matches any provided tag)' },
+            since: { type: 'string', description: 'Optional ISO timestamp lower bound for createdAt filtering' },
+            limit: { type: 'number', description: 'Maximum claims to return (default 20, max 200)' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'harvest_session_knowledge',
+        description: 'Summarize high-confidence claims for a session/workspace and suggest next actions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session to harvest claims from (optional)' },
+            workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+            maxItems: { type: 'number', description: 'Maximum harvested claims to include (default 20, max 200)' },
+            minConfidence: { type: 'number', description: 'Minimum confidence threshold in [0,1]' },
+            includeRecommendations: { type: 'boolean', description: 'Include recommended next tools in output' },
+          },
+          required: [],
         },
       },
       {
@@ -3044,6 +3114,12 @@ export class LibrarianMCPServer {
         return this.executePreCommitCheck(args as PreCommitCheckToolInput);
       case 'claim_work_scope':
         return this.executeClaimWorkScope(args as ClaimWorkScopeToolInput, context);
+      case 'append_claim':
+        return this.executeAppendClaim(args as AppendClaimToolInput, context);
+      case 'query_claims':
+        return this.executeQueryClaims(args as QueryClaimsToolInput);
+      case 'harvest_session_knowledge':
+        return this.executeHarvestSessionKnowledge(args as HarvestSessionKnowledgeToolInput, context);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
@@ -6418,6 +6494,253 @@ export class LibrarianMCPServer {
         highRiskCount,
       },
       recommendedActions,
+    };
+  }
+
+  private normalizeClaimValues(values: string[] | undefined, maxItems = 32): string[] {
+    if (!Array.isArray(values)) return [];
+    const normalized = values
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const unique = Array.from(new Set(normalized));
+    return unique.slice(0, maxItems);
+  }
+
+  private async executeAppendClaim(
+    input: AppendClaimToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const claim = input.claim?.trim() ?? '';
+    if (claim.length === 0) {
+      return {
+        success: false,
+        tool: 'append_claim',
+        error: 'claim must be a non-empty string.',
+      };
+    }
+
+    const workspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? contextSessionId
+      ?? this.buildAnonymousSessionId(workspace ?? process.cwd());
+    const tags = this.normalizeClaimValues(input.tags?.map((tag) => tag.toLowerCase()), 24);
+    const evidence = this.normalizeClaimValues(input.evidence, 32);
+    const confidenceInput = typeof input.confidence === 'number' && Number.isFinite(input.confidence)
+      ? input.confidence
+      : 0.6;
+    const confidence = Math.max(0, Math.min(1, confidenceInput));
+    const sourceTool = typeof input.sourceTool === 'string' && input.sourceTool.trim().length > 0
+      ? input.sourceTool.trim()
+      : undefined;
+    const createdAt = new Date().toISOString();
+    const claimId = `clm_${this.generateId()}`;
+
+    const record: KnowledgeClaimRecord = {
+      claimId,
+      claim,
+      workspace,
+      sessionId,
+      tags,
+      evidence,
+      confidence,
+      sourceTool,
+      createdAt,
+    };
+    this.state.knowledgeClaims.push(record);
+    if (this.state.knowledgeClaims.length > 5000) {
+      this.state.knowledgeClaims.splice(0, this.state.knowledgeClaims.length - 5000);
+    }
+
+    await this.appendWorkspaceAuditLog(workspace ?? process.cwd(), {
+      ts: createdAt,
+      event: 'append_claim',
+      claim_id: claimId,
+      claim,
+      session_id: sessionId,
+      workspace: workspace ?? process.cwd(),
+      tags,
+      confidence,
+      source_tool: sourceTool,
+    });
+
+    return {
+      success: true,
+      tool: 'append_claim',
+      claimId,
+      claim,
+      sessionId,
+      workspace,
+      tags,
+      evidence,
+      confidence,
+      sourceTool,
+      storedAt: createdAt,
+      claimCount: this.state.knowledgeClaims.length,
+    };
+  }
+
+  private async executeQueryClaims(input: QueryClaimsToolInput): Promise<unknown> {
+    const workspaceFilter = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const sessionFilter = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const query = typeof input.query === 'string' ? input.query.trim().toLowerCase() : '';
+    const tagFilters = this.normalizeClaimValues(input.tags?.map((tag) => tag.toLowerCase()), 24);
+    const limit = Math.max(1, Math.min(200, Math.trunc(input.limit ?? 20)));
+
+    let sinceMs: number | undefined;
+    if (typeof input.since === 'string' && input.since.trim().length > 0) {
+      const parsed = Date.parse(input.since);
+      if (!Number.isFinite(parsed)) {
+        return {
+          success: false,
+          tool: 'query_claims',
+          error: 'since must be a valid ISO timestamp.',
+        };
+      }
+      sinceMs = parsed;
+    }
+
+    const filtered = this.state.knowledgeClaims
+      .filter((record) => !workspaceFilter || record.workspace === workspaceFilter)
+      .filter((record) => !sessionFilter || record.sessionId === sessionFilter)
+      .filter((record) => {
+        if (tagFilters.length === 0) return true;
+        return record.tags.some((tag) => tagFilters.includes(tag));
+      })
+      .filter((record) => {
+        if (typeof sinceMs !== 'number') return true;
+        const createdAtMs = Date.parse(record.createdAt);
+        return Number.isFinite(createdAtMs) && createdAtMs >= sinceMs;
+      })
+      .filter((record) => {
+        if (!query) return true;
+        const searchable = [
+          record.claim,
+          ...record.tags,
+          ...record.evidence,
+          record.sourceTool ?? '',
+        ].join(' ').toLowerCase();
+        return searchable.includes(query);
+      })
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+
+    const claims = filtered.slice(0, limit).map((record) => ({
+      claimId: record.claimId,
+      claim: record.claim,
+      workspace: record.workspace,
+      sessionId: record.sessionId,
+      tags: record.tags,
+      evidence: record.evidence,
+      confidence: record.confidence,
+      sourceTool: record.sourceTool,
+      createdAt: record.createdAt,
+    }));
+
+    return {
+      success: true,
+      tool: 'query_claims',
+      totalMatches: filtered.length,
+      returned: claims.length,
+      claims,
+      filters: {
+        query: query || undefined,
+        workspace: workspaceFilter,
+        sessionId: sessionFilter,
+        tags: tagFilters,
+        since: input.since,
+        limit,
+      },
+    };
+  }
+
+  private async executeHarvestSessionKnowledge(
+    input: HarvestSessionKnowledgeToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const workspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? contextSessionId
+      ?? this.buildAnonymousSessionId(workspace ?? process.cwd());
+    const maxItems = Math.max(1, Math.min(200, Math.trunc(input.maxItems ?? 20)));
+    const minConfidence = Math.max(0, Math.min(1, input.minConfidence ?? 0));
+    const includeRecommendations = input.includeRecommendations ?? true;
+
+    const matching = this.state.knowledgeClaims
+      .filter((record) => record.sessionId === sessionId)
+      .filter((record) => !workspace || record.workspace === workspace)
+      .filter((record) => record.confidence >= minConfidence)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const claims = matching.slice(0, maxItems).map((record) => ({
+      claimId: record.claimId,
+      claim: record.claim,
+      workspace: record.workspace,
+      sessionId: record.sessionId,
+      tags: record.tags,
+      evidence: record.evidence,
+      confidence: record.confidence,
+      sourceTool: record.sourceTool,
+      createdAt: record.createdAt,
+    }));
+
+    const tagCount = new Map<string, number>();
+    for (const record of matching) {
+      for (const tag of record.tags) {
+        tagCount.set(tag, (tagCount.get(tag) ?? 0) + 1);
+      }
+    }
+    const topTags = Array.from(tagCount.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => (b.count - a.count) || a.tag.localeCompare(b.tag))
+      .slice(0, 10);
+    const averageConfidence = matching.length > 0
+      ? matching.reduce((sum, record) => sum + record.confidence, 0) / matching.length
+      : 0;
+
+    return {
+      success: true,
+      tool: 'harvest_session_knowledge',
+      sessionId,
+      workspace,
+      minConfidence,
+      claims,
+      summary: {
+        totalClaims: matching.length,
+        returnedClaims: claims.length,
+        uniqueTags: tagCount.size,
+        topTags,
+        averageConfidence,
+        mostRecentAt: matching[0]?.createdAt,
+      },
+      recommendations: includeRecommendations
+        ? (matching.length === 0
+          ? [
+            { tool: 'append_claim', rationale: 'No claims were harvested; persist new claims as you resolve uncertain findings.' },
+            { tool: 'query', rationale: 'Run a focused query to gather stronger evidence before recording additional claims.' },
+          ]
+          : [
+            { tool: 'query_claims', rationale: 'Filter harvested knowledge by topic or timeframe for targeted planning.' },
+            { tool: 'synthesize_plan', rationale: 'Convert harvested claims into an explicit execution plan with traceable context.' },
+          ])
+        : [],
     };
   }
 

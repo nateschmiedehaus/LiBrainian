@@ -219,6 +219,23 @@ describe('MCP Server', () => {
       expect(claimTool?.description).toContain('parallel agent coordination');
     });
 
+    it('includes append_claim, query_claims, and harvest_session_knowledge tools', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const appendClaimTool = tools.find((tool) => tool.name === 'append_claim');
+      const queryClaimsTool = tools.find((tool) => tool.name === 'query_claims');
+      const harvestTool = tools.find((tool) => tool.name === 'harvest_session_knowledge');
+
+      expect(appendClaimTool).toBeDefined();
+      expect(appendClaimTool?.description?.toLowerCase()).toContain('claim');
+      expect(queryClaimsTool).toBeDefined();
+      expect(queryClaimsTool?.description?.toLowerCase()).toContain('claims');
+      expect(harvestTool).toBeDefined();
+      expect(harvestTool?.description?.toLowerCase()).toContain('session');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -433,6 +450,41 @@ describe('MCP Server', () => {
       });
       expect(release.success).toBe(true);
       expect(release.released).toBe(true);
+    });
+
+    it('appends, queries, and harvests session knowledge claims', async () => {
+      const appendedA = await (server as any).executeAppendClaim({
+        claim: 'Token refresh retries up to 3 attempts before forcing re-login.',
+        sessionId: 'sess_knowledge',
+        tags: ['auth', 'reliability'],
+        confidence: 0.85,
+      }, {});
+      const appendedB = await (server as any).executeAppendClaim({
+        claim: 'Rate limiting applies stricter thresholds to anonymous sessions.',
+        sessionId: 'sess_knowledge',
+        tags: ['auth', 'security'],
+        confidence: 0.75,
+      }, {});
+
+      expect(appendedA.success).toBe(true);
+      expect(appendedA.claimId).toMatch(/^clm_/);
+      expect(appendedB.success).toBe(true);
+
+      const queryResult = await (server as any).executeQueryClaims({
+        sessionId: 'sess_knowledge',
+        query: 'token',
+      });
+      expect(queryResult.success).toBe(true);
+      expect(queryResult.totalMatches).toBe(1);
+      expect(queryResult.claims[0]?.claim).toContain('Token refresh');
+
+      const harvested = await (server as any).executeHarvestSessionKnowledge({
+        sessionId: 'sess_knowledge',
+        minConfidence: 0.8,
+      }, {});
+      expect(harvested.success).toBe(true);
+      expect(harvested.summary?.totalClaims).toBe(1);
+      expect(harvested.summary?.topTags?.map((entry: { tag: string }) => entry.tag)).toContain('auth');
     });
   });
 

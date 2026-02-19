@@ -24,6 +24,9 @@ import {
   BlastRadiusToolInputSchema,
   PreCommitCheckToolInputSchema,
   ClaimWorkScopeToolInputSchema,
+  AppendClaimToolInputSchema,
+  QueryClaimsToolInputSchema,
+  HarvestSessionKnowledgeToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
   ListConstructionsToolInputSchema,
@@ -54,6 +57,9 @@ import {
   isBlastRadiusToolInput,
   isPreCommitCheckToolInput,
   isClaimWorkScopeToolInput,
+  isAppendClaimToolInput,
+  isQueryClaimsToolInput,
+  isHarvestSessionKnowledgeToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
   isListConstructionsToolInput,
@@ -120,8 +126,11 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('pre_commit_check');
       expect(schemas).toContain('claim_work_scope');
+      expect(schemas).toContain('append_claim');
+      expect(schemas).toContain('query_claims');
+      expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(37);
+      expect(schemas).toHaveLength(40);
     });
 
     it('should return schema for known tools', () => {
@@ -494,6 +503,48 @@ describe('MCP Schema', () => {
       expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts', mode: 'release' })).toBe(true);
       expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts', mode: 'invalid' })).toBe(false);
       expect(isClaimWorkScopeToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Session Knowledge Tools Schemas', () => {
+    it('validates append_claim required and optional fields', () => {
+      const result = validateToolInput('append_claim', {
+        claim: 'Auth token refresh retries after transient provider failures',
+        sessionId: 'sess_1',
+        tags: ['auth', 'reliability'],
+        confidence: 0.8,
+      });
+      expect(result.valid).toBe(true);
+      expect(AppendClaimToolInputSchema).toBeDefined();
+      expect(isAppendClaimToolInput({ claim: 'x' })).toBe(true);
+      expect(isAppendClaimToolInput({ claim: 'x', confidence: 2 })).toBe(false);
+      expect(isAppendClaimToolInput({})).toBe(false);
+    });
+
+    it('validates query_claims filters and type guard', () => {
+      const result = validateToolInput('query_claims', {
+        query: 'auth token',
+        tags: ['auth'],
+        limit: 20,
+      });
+      expect(result.valid).toBe(true);
+      expect(QueryClaimsToolInputSchema).toBeDefined();
+      expect(isQueryClaimsToolInput({})).toBe(true);
+      expect(isQueryClaimsToolInput({ limit: 0 })).toBe(false);
+      expect(isQueryClaimsToolInput(null)).toBe(false);
+    });
+
+    it('validates harvest_session_knowledge filters and type guard', () => {
+      const result = validateToolInput('harvest_session_knowledge', {
+        sessionId: 'sess_1',
+        maxItems: 10,
+        minConfidence: 0.6,
+      });
+      expect(result.valid).toBe(true);
+      expect(HarvestSessionKnowledgeToolInputSchema).toBeDefined();
+      expect(isHarvestSessionKnowledgeToolInput({})).toBe(true);
+      expect(isHarvestSessionKnowledgeToolInput({ minConfidence: -1 })).toBe(false);
+      expect(isHarvestSessionKnowledgeToolInput(null)).toBe(false);
     });
   });
 
