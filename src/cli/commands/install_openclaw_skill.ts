@@ -105,7 +105,7 @@ async function verifyMcpReachability(): Promise<boolean> {
   try {
     const server = await createLibrarianMCPServer({
       authorization: {
-        enabledScopes: ['read'],
+        enabledScopes: ['read', 'write'],
         requireConsent: false,
       },
     });

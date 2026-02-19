@@ -41,6 +41,7 @@
  *   librarian publish-gate        - Run strict publish-readiness gate checks
  *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
  *   librarian openclaw-daemon     - Manage OpenClaw daemon registration + state
+ *   librarian memory-bridge       - Show memory bridge annotation state
  *   librarian test-integration     - Run quantitative integration benchmark suites
  *
  * @packageDocumentation
@@ -87,6 +88,7 @@ import { ralphCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
 import { installOpenclawSkillCommand } from './commands/install_openclaw_skill.js';
 import { openclawDaemonCommand } from './commands/openclaw_daemon.js';
+import { memoryBridgeCommand } from './commands/memory_bridge.js';
 import { testIntegrationCommand } from './commands/test_integration.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
@@ -101,7 +103,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'test-integration' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -291,6 +293,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'openclaw-daemon': {
     description: 'Start/stop/status for OpenClaw daemon registration and local state',
     usage: 'librarian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]',
+  },
+  'memory-bridge': {
+    description: 'Show memory bridge entry and state-file health',
+    usage: 'librarian memory-bridge status [--memory-file <path>] [--json]',
   },
   'test-integration': {
     description: 'Run quantitative integration test suites (currently OpenClaw)',
@@ -642,6 +648,9 @@ async function main(): Promise<void> {
         break;
       case 'openclaw-daemon':
         await openclawDaemonCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'memory-bridge':
+        await memoryBridgeCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'test-integration':
         await testIntegrationCommand({ workspace, args: commandArgs, rawArgs: args });

@@ -221,6 +221,10 @@ export const HarvestSessionKnowledgeToolInputSchema = z.object({
   maxItems: z.number().int().min(1).max(200).optional().default(20).describe('Maximum harvested claims to include (default: 20, max: 200)'),
   minConfidence: z.number().min(0).max(1).optional().default(0).describe('Minimum confidence threshold in [0,1]'),
   includeRecommendations: z.boolean().optional().default(true).describe('Include recommended next tools in output'),
+  memoryFilePath: z.string().min(1).optional().describe('Optional explicit MEMORY.md path for memory-bridge sync'),
+  openclawRoot: z.string().min(1).optional().describe('Optional OpenClaw root path used when memoryFilePath is omitted'),
+  persistToMemory: z.boolean().optional().default(true).describe('Persist harvested claims to annotated MEMORY.md'),
+  source: z.enum(['openclaw-session', 'manual', 'harvest']).optional().default('harvest').describe('Memory-bridge source label'),
 }).strict().default({});
 
 /**
@@ -956,6 +960,10 @@ export const harvestSessionKnowledgeToolJsonSchema: JSONSchema = {
     maxItems: { type: 'number', description: 'Maximum harvested claims to include (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
     minConfidence: { type: 'number', description: 'Minimum confidence threshold in [0,1]', minimum: 0, maximum: 1, default: 0 },
     includeRecommendations: { type: 'boolean', description: 'Include recommended next tools in output', default: true },
+    memoryFilePath: { type: 'string', description: 'Optional explicit MEMORY.md path for memory-bridge sync', minLength: 1 },
+    openclawRoot: { type: 'string', description: 'Optional OpenClaw root path used when memoryFilePath is omitted', minLength: 1 },
+    persistToMemory: { type: 'boolean', description: 'Persist harvested claims to annotated MEMORY.md', default: true },
+    source: { type: 'string', enum: ['openclaw-session', 'manual', 'harvest'], description: 'Memory-bridge source label', default: 'harvest' },
   },
   required: [],
   additionalProperties: false,

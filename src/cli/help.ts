@@ -27,6 +27,7 @@ COMMANDS:
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
     install-openclaw-skill Install official OpenClaw skill and config wiring
     openclaw-daemon     Manage OpenClaw daemon registration and state
+    memory-bridge       Show MEMORY.md bridge annotation state
     test-integration    Run quantitative integration benchmark suites
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
@@ -85,6 +86,7 @@ EXAMPLES:
     librainian audit-skill ./SKILL.md --json
     librainian install-openclaw-skill --dry-run
     librainian openclaw-daemon start --json
+    librainian memory-bridge status --json
     librainian test-integration --suite openclaw --json
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
@@ -377,6 +379,28 @@ EXAMPLES:
     librarian openclaw-daemon start
     librarian openclaw-daemon status --json
     librarian openclaw-daemon stop --state-root /tmp/librainian-state
+`,
+
+  'memory-bridge': `
+librarian memory-bridge - Inspect memory bridge state for annotated MEMORY.md claims
+
+USAGE:
+    librarian memory-bridge status [options]
+
+OPTIONS:
+    --memory-file <path>    Override MEMORY.md location (default: <workspace>/.openclaw/memory/MEMORY.md)
+    --json                  Emit machine-readable JSON report
+
+DESCRIPTION:
+    Reads the memory-bridge state file adjacent to MEMORY.md and reports:
+    - total harvested entries
+    - active (non-defeated, non-expired) entries
+    - defeated entries
+    - state freshness metadata
+
+EXAMPLES:
+    librarian memory-bridge status
+    librarian memory-bridge status --memory-file /tmp/.openclaw/memory/MEMORY.md --json
 `,
 
   'test-integration': `

@@ -79,3 +79,4 @@ Use `--json` for machine-readable verdicts in CI or pre-submission workflows.
 
 For calibration feedback loop wiring, see `docs/integrations/openclaw-calibration.md`.
 For quantitative integration suite results, see `docs/integrations/openclaw-benchmark-results.md`.
+For MEMORY.md sync and stale-marking behavior, see `docs/integrations/openclaw-memory-bridge.md`.

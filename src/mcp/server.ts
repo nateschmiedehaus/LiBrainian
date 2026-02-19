@@ -139,6 +139,7 @@ import * as fs from 'fs/promises';
 import { createAuditLogger, type AuditLogger } from './audit.js';
 import { SqliteEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import { AuditBackedToolAdapter, type ToolAdapter } from '../adapters/tool_adapter.js';
+import { MemoryBridgeDaemon } from '../memory_bridge/daemon.js';
 import {
   CONSTRUCTION_REGISTRY,
   getConstructionManifest,
@@ -364,7 +365,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
   append_claim: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   query_claims: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
-  harvest_session_knowledge: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  harvest_session_knowledge: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_callers: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
@@ -1758,7 +1759,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'harvest_session_knowledge',
-        description: 'Summarize high-confidence claims for a session/workspace and suggest next actions',
+        description: 'Summarize high-confidence claims and optionally sync them into annotated MEMORY.md via memory bridge',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1767,6 +1768,10 @@ export class LibrarianMCPServer {
             maxItems: { type: 'number', description: 'Maximum harvested claims to include (default 20, max 200)' },
             minConfidence: { type: 'number', description: 'Minimum confidence threshold in [0,1]' },
             includeRecommendations: { type: 'boolean', description: 'Include recommended next tools in output' },
+            memoryFilePath: { type: 'string', description: 'Optional explicit MEMORY.md path for memory-bridge sync' },
+            openclawRoot: { type: 'string', description: 'Optional OpenClaw root used to resolve memoryFilePath when omitted' },
+            persistToMemory: { type: 'boolean', description: 'Persist harvested claims into annotated MEMORY.md (default true)' },
+            source: { type: 'string', enum: ['openclaw-session', 'manual', 'harvest'], description: 'Memory-bridge source label' },
           },
           required: [],
         },
@@ -7503,6 +7508,83 @@ export class LibrarianMCPServer {
       ? matching.reduce((sum, record) => sum + record.confidence, 0) / matching.length
       : 0;
 
+    let memoryBridge: {
+      memoryFilePath: string;
+      source: 'openclaw-session' | 'manual' | 'harvest';
+      written: number;
+      skipped: number;
+      entries: Array<{
+        evidenceId: string;
+        confidence: number;
+        memoryLineRange: [number, number];
+        defeatedBy?: string;
+      }>;
+      error?: string;
+    } | undefined;
+
+    const persistToMemory = input.persistToMemory ?? true;
+    if (persistToMemory) {
+      const workspaceRoot = workspace ?? process.cwd();
+      const memoryFilePath = this.resolveHarvestMemoryFilePath(input, workspaceRoot);
+      const source = input.source ?? 'harvest';
+      try {
+        const instrumentationWorkspace = await this.ensureWorkspaceInstrumentation(workspaceRoot);
+        const bridge = new MemoryBridgeDaemon({
+          workspaceRoot,
+          evidenceLedger: instrumentationWorkspace?.evidenceLedger,
+        });
+
+        const harvestResult = await bridge.harvestToMemory({
+          claims: matching.slice(0, maxItems).map((record) => ({
+            claimId: record.claimId,
+            claim: record.claim,
+            workspace: record.workspace,
+            sessionId: record.sessionId,
+            tags: record.tags,
+            evidence: record.evidence,
+            confidence: record.confidence,
+            sourceTool: record.sourceTool,
+            createdAt: record.createdAt,
+          })),
+          memoryFilePath,
+          source,
+        });
+
+        memoryBridge = {
+          memoryFilePath: harvestResult.memoryFilePath,
+          source: harvestResult.source,
+          written: harvestResult.written,
+          skipped: harvestResult.skipped,
+          entries: harvestResult.entries.map((entry) => ({
+            evidenceId: entry.evidenceId,
+            confidence: entry.confidence,
+            memoryLineRange: entry.memoryLineRange,
+            defeatedBy: entry.defeatedBy,
+          })),
+        };
+
+        await this.appendWorkspaceAuditLog(workspaceRoot, {
+          ts: new Date().toISOString(),
+          event: 'memory_bridge_harvest',
+          session_id: sessionId,
+          workspace: workspaceRoot,
+          memory_file: harvestResult.memoryFilePath,
+          written: harvestResult.written,
+          skipped: harvestResult.skipped,
+          source,
+        });
+      } catch (error) {
+        memoryBridge = {
+          memoryFilePath,
+          source,
+          written: 0,
+          skipped: 0,
+          entries: [],
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+
     return {
       success: true,
       tool: 'harvest_session_knowledge',
@@ -7529,7 +7611,21 @@ export class LibrarianMCPServer {
             { tool: 'synthesize_plan', rationale: 'Convert harvested claims into an explicit execution plan with traceable context.' },
           ])
         : [],
+      memoryBridge,
     };
+  }
+
+  private resolveHarvestMemoryFilePath(
+    input: HarvestSessionKnowledgeToolInput,
+    workspaceRoot: string,
+  ): string {
+    if (typeof input.memoryFilePath === 'string' && input.memoryFilePath.trim().length > 0) {
+      return path.resolve(input.memoryFilePath);
+    }
+    const openclawRoot = typeof input.openclawRoot === 'string' && input.openclawRoot.trim().length > 0
+      ? path.resolve(input.openclawRoot)
+      : path.join(workspaceRoot, '.openclaw');
+    return path.join(openclawRoot, 'memory', 'MEMORY.md');
   }
 
   private buildScopeClaimKey(scopeId: string, workspace?: string): string {

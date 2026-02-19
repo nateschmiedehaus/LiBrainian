@@ -40,6 +40,13 @@ export {
   type InvalidationOptions,
 } from './dependency_tracker.js';
 
+// Memory bridge stale-marking hook
+export {
+  applyMemoryBridgeDefeaters,
+  type MemoryBridgeHookOptions,
+  type MemoryBridgeHookResult,
+} from './memory_bridge_hook.js';
+
 // Re-export config self-healing for convenience
 export {
   diagnoseConfiguration,

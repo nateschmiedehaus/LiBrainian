@@ -1040,6 +1040,18 @@ export interface HarvestSessionKnowledgeToolInput {
 
   /** Include next-step recommendations in output */
   includeRecommendations?: boolean;
+
+  /** Optional explicit MEMORY.md path for memory-bridge sync */
+  memoryFilePath?: string;
+
+  /** Optional OpenClaw root (used when memoryFilePath is omitted) */
+  openclawRoot?: string;
+
+  /** Persist harvested claims into annotated MEMORY.md (default: true) */
+  persistToMemory?: boolean;
+
+  /** Harvest source label for memory-bridge entries */
+  source?: 'openclaw-session' | 'manual' | 'harvest';
 }
 
 export interface GetChangeImpactToolOutput {
@@ -1844,7 +1856,7 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   harvest_session_knowledge: {
     tool: 'harvest_session_knowledge',
-    requiredScopes: ['read'],
+    requiredScopes: ['read', 'write'],
     requiresConsent: false,
     riskLevel: 'low',
   },
@@ -2462,7 +2474,22 @@ export function isHarvestSessionKnowledgeToolInput(value: unknown): value is Har
     ? Number.isFinite(obj.minConfidence) && obj.minConfidence >= 0 && obj.minConfidence <= 1
     : typeof obj.minConfidence === 'undefined';
   const includeRecommendationsOk = typeof obj.includeRecommendations === 'boolean' || typeof obj.includeRecommendations === 'undefined';
-  return sessionIdOk && workspaceOk && maxItemsOk && minConfidenceOk && includeRecommendationsOk;
+  const memoryFilePathOk = typeof obj.memoryFilePath === 'string' || typeof obj.memoryFilePath === 'undefined';
+  const openclawRootOk = typeof obj.openclawRoot === 'string' || typeof obj.openclawRoot === 'undefined';
+  const persistToMemoryOk = typeof obj.persistToMemory === 'boolean' || typeof obj.persistToMemory === 'undefined';
+  const sourceOk = obj.source === 'openclaw-session'
+    || obj.source === 'manual'
+    || obj.source === 'harvest'
+    || typeof obj.source === 'undefined';
+  return sessionIdOk
+    && workspaceOk
+    && maxItemsOk
+    && minConfidenceOk
+    && includeRecommendationsOk
+    && memoryFilePathOk
+    && openclawRootOk
+    && persistToMemoryOk
+    && sourceOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */

@@ -14,6 +14,7 @@ export const OPENCLAW_REQUIRED_TOOL_NAMES = [
   'find_callees',
   'estimate_budget',
   'get_session_briefing',
+  'harvest_session_knowledge',
 ] as const;
 
 export type OpenclawRequiredToolName = typeof OPENCLAW_REQUIRED_TOOL_NAMES[number];
@@ -61,6 +62,11 @@ const ROUTING_TABLE: OpenclawToolRoutingEntry[] = [
     tool: 'get_session_briefing',
     insteadOf: '40-60k token cold-start dump',
   },
+  {
+    queryType: 'What should we remember from this coding session?',
+    tool: 'harvest_session_knowledge',
+    insteadOf: 'Manual MEMORY.md editing',
+  },
 ];
 
 const TOOL_DESCRIPTIONS: Record<OpenclawRequiredToolName, string> = {
@@ -70,6 +76,7 @@ const TOOL_DESCRIPTIONS: Record<OpenclawRequiredToolName, string> = {
   'find_callees': 'Find outbound call graph edges for a symbol.',
   'estimate_budget': 'Estimate token budget feasibility before retrieval.',
   'get_session_briefing': 'Generate concise repository orientation briefing.',
+  'harvest_session_knowledge': 'Harvest high-confidence session claims into annotated MEMORY.md entries.',
 };
 
 export function getOpenclawToolRoutingTable(): OpenclawToolRoutingEntry[] {

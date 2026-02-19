@@ -57,4 +57,5 @@ ${renderRoutingTable()}
 5. Use \`invoke_construction\` for construction-level operations (including blast-radius style analysis).
 6. Prefer evidence-backed answers: include file paths and symbol names.
 7. If confidence is low or retrieval is uncertain, surface uncertainty explicitly and request human review.
+8. At session wrap-up, call \`harvest_session_knowledge\` to sync validated claims into annotated MEMORY.md via the memory bridge.
 `;
