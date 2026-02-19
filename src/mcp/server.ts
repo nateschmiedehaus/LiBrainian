@@ -1072,14 +1072,14 @@ export class LibrarianMCPServer {
       },
       {
         name: 'query',
-        description: `Query the knowledge base for context and insights (typically 3-15KB per page at pageSize=20). ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+        description: `Use query for semantic, cross-file context (how systems work, impact paths, patterns, and unfamiliar modules). Do not use query for direct file reads when you already know the exact path; use your file-read tool for that. Call query before large refactors, cross-module debugging, or test planning in unfamiliar code. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
           type: 'object',
           properties: {
-            intent: { type: 'string', description: 'Query intent or question' },
+            intent: { type: 'string', description: 'Goal-oriented question for semantic retrieval (for example: "How does auth token refresh work?" or "What breaks if I change X?")' },
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
             sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
-            intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'] },
+            intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Intent mode: understand=explain, impact=blast radius, debug=root-cause, refactor=safe changes, security=risk review, test=coverage/tests, document=docs summary, navigate=where to look, general=fallback' },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
             minConfidence: { type: 'number', description: `Min confidence (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },

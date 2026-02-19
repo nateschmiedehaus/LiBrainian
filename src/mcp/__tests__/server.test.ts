@@ -161,6 +161,19 @@ describe('MCP Server', () => {
     });
   });
 
+  describe('tool metadata', () => {
+    it('documents query tool usage guidance', () => {
+      const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
+      const queryTool = tools.find((tool) => tool.name === 'query');
+
+      expect(queryTool).toBeDefined();
+      expect(queryTool?.description).toContain('Use query for semantic, cross-file context');
+      expect(queryTool?.description).toContain('Do not use query for direct file reads');
+      expect(queryTool?.inputSchema?.properties?.intent?.description).toContain('Goal-oriented question');
+      expect(queryTool?.inputSchema?.properties?.intentType?.description).toContain('understand=explain');
+    });
+  });
+
   // ============================================================================
   // CONFIGURATION
   // ============================================================================
