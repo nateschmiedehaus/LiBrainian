@@ -1,5 +1,5 @@
 import { sequenceConfidence } from '../epistemics/confidence.js';
-import type { ConstructionError } from './base/construction_base.js';
+import { ConstructionError } from './base/construction_base.js';
 import type { Construction, Context } from './types.js';
 
 /**
@@ -21,12 +21,12 @@ export function identity<T, R = unknown>(
 /**
  * Sequential composition (Kleisli sequence).
  */
-export function seq<I, M, O, E extends ConstructionError, R>(
-  first: Construction<I, M, E, R>,
-  second: Construction<M, O, E, R>,
+export function seq<I, M, O, E1 extends ConstructionError, E2 extends ConstructionError, R>(
+  first: Construction<I, M, E1, R>,
+  second: Construction<M, O, E2, R>,
   id = `seq:${first.id}>${second.id}`,
   name = `Seq(${first.name}, ${second.name})`
-): Construction<I, O, E, R> {
+): Construction<I, O, E1 | E2, R> {
   const firstEstimate = first.getEstimatedConfidence;
   const secondEstimate = second.getEstimatedConfidence;
   const estimatedConfidence = firstEstimate && secondEstimate
@@ -179,6 +179,37 @@ export function mapError<I, O, E extends ConstructionError, E2 extends Construct
         }
         throw error;
       }
+    },
+    getEstimatedConfidence: construction.getEstimatedConfidence,
+  };
+}
+
+/**
+ * Provide part of a construction's dependency requirements up front.
+ */
+export function provide<I, O, E extends ConstructionError, R extends Record<string, unknown>, RP extends Partial<R>>(
+  construction: Construction<I, O, E, R>,
+  providedDeps: RP,
+  id = `provide:${construction.id}`,
+  name = `Provide(${construction.name})`
+): Construction<I, O, E, Omit<R, keyof RP>> {
+  return {
+    id,
+    name,
+    async execute(input: I, context?: Context<Omit<R, keyof RP>>): Promise<O> {
+      if (!context) {
+        throw new ConstructionError(`Execution context is required for ${construction.id}`, construction.id);
+      }
+
+      const mergedContext: Context<R> = {
+        ...context,
+        deps: {
+          ...(context.deps as object),
+          ...(providedDeps as object),
+        } as R,
+      };
+
+      return construction.execute(input, mergedContext);
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
   };

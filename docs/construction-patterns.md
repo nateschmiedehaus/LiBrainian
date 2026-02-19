@@ -46,6 +46,7 @@ Canonical operator helpers:
 - `dimap(c, pre, post)`: full profunctor transform.
 - `mapAsync(c, f)`: async output adaptation with context access.
 - `mapError(c, f)`: typed error-channel transformation.
+- `provide(c, deps)`: satisfy part of `R` up front and execute with reduced dependency requirements.
 
 Migration status:
 - `src/constructions/types.ts` defines canonical `Construction<I, O, E, R>` and `Context<R>`.

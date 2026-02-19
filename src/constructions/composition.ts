@@ -1043,4 +1043,7 @@ export {
   ConstructionError,
   ConstructionTimeoutError,
   ConstructionCancelledError,
+  ConstructionInputError,
+  ConstructionCapabilityError,
+  ConstructionLLMError,
 } from './base/construction_base.js';

@@ -11,7 +11,9 @@
 export type {
   Construction,
   Context,
+  ConstructionRequirements,
   LibrarianContext,
+  Layer,
 } from './types.js';
 
 export {
@@ -24,6 +26,7 @@ export {
   map,
   mapAsync,
   mapError,
+  provide,
   mapConstruction,
 } from './operators.js';
 

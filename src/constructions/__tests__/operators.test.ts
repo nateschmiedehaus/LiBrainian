@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Construction } from '../types.js';
+import type { Construction, Context } from '../types.js';
 import { deterministic } from '../../epistemics/confidence.js';
 import {
   dimap,
@@ -8,9 +8,14 @@ import {
   mapAsync,
   mapConstruction,
   mapError,
+  provide,
   seq,
 } from '../operators.js';
-import { ConstructionCancelledError } from '../base/construction_base.js';
+import {
+  ConstructionError,
+  ConstructionCancelledError,
+  ConstructionTimeoutError,
+} from '../base/construction_base.js';
 
 function makeNumberConstruction(
   id: string,
@@ -159,5 +164,83 @@ describe('construction operators', () => {
     const viaAlias = mapConstruction(base, (value) => value * 10);
 
     await expect(viaMap.execute(2)).resolves.toBe(await viaAlias.execute(2));
+  });
+
+  it('unions typed error channels across seq composition', () => {
+    const first: Construction<number, number, ConstructionCancelledError> = {
+      id: 'cancel-first',
+      name: 'Cancel First',
+      async execute(input: number) {
+        return input + 1;
+      },
+    };
+
+    const second: Construction<number, number, ConstructionTimeoutError> = {
+      id: 'timeout-second',
+      name: 'Timeout Second',
+      async execute(input: number) {
+        return input * 2;
+      },
+    };
+
+    const composed = seq(first, second);
+
+    if (false) {
+      const unionTyped: Construction<
+        number,
+        number,
+        ConstructionCancelledError | ConstructionTimeoutError
+      > = composed;
+
+      // @ts-expect-error composed includes timeout errors and cannot narrow to cancelled-only
+      const narrowed: Construction<number, number, ConstructionCancelledError> = composed;
+
+      void unionTyped;
+      void narrowed;
+    }
+
+    expect(composed.id).toContain('seq:');
+  });
+
+  it('provide reduces dependency requirements at the execution boundary', async () => {
+    type NeedsLlm = {
+      librarian: { name: string };
+      llm: { model: string };
+    };
+
+    const requiresLlm: Construction<number, string, ConstructionError, NeedsLlm> = {
+      id: 'needs-llm',
+      name: 'Needs LLM',
+      async execute(_input: number, context?: Context<NeedsLlm>) {
+        if (!context) {
+          throw new ConstructionError('missing context', 'needs-llm');
+        }
+        return `${context.deps.librarian.name}:${context.deps.llm.model}`;
+      },
+    };
+
+    const provided = provide(requiresLlm, {
+      llm: { model: 'claude-haiku-3-5' },
+    });
+
+    if (false) {
+      const baseContext: Context<{ librarian: { name: string } }> = {
+        deps: { librarian: { name: 'base' } },
+        signal: new AbortController().signal,
+        sessionId: 'base-session',
+      };
+
+      // @ts-expect-error missing llm dependency for original construction
+      requiresLlm.execute(1, baseContext);
+      provided.execute(1, baseContext);
+    }
+
+    const result = await provided.execute(1, {
+      deps: { librarian: { name: 'librarian-core' } },
+      signal: new AbortController().signal,
+      sessionId: 'provide-session',
+    });
+
+    expect(result).toBe('librarian-core:claude-haiku-3-5');
   });
 });
