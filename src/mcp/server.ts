@@ -37,6 +37,7 @@ import {
   type BootstrapToolInput,
   type StatusToolInput,
   type GetSessionBriefingToolInput,
+  type SemanticSearchToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
@@ -297,6 +298,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   bootstrap: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 12000 },
   status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
   get_session_briefing: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  semantic_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4200 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1325,6 +1327,24 @@ export class LibrarianMCPServer {
             includePrimitives: { type: 'boolean', description: 'Include primitive definitions in output' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'semantic_search',
+        description: `Primary semantic code localization tool for finding relevant files/symbols by meaning. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Localization query for semantic code search' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive search behavior' },
+            minConfidence: { type: 'number', description: `Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
+            depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context' },
+            limit: { type: 'number', description: 'Maximum results to return (default 20, max 200)' },
+            includeEngines: { type: 'boolean', description: 'Include engine diagnostics in output' },
+            includeEvidence: { type: 'boolean', description: 'Include evidence graph summary' },
+          },
+          required: ['query'],
         },
       },
       {
@@ -2942,6 +2962,8 @@ export class LibrarianMCPServer {
         return this.executeCompileTechniqueComposition(args as CompileTechniqueCompositionToolInput);
       case 'compile_intent_bundles':
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
+      case 'semantic_search':
+        return this.executeSemanticSearch(args as SemanticSearchToolInput, context);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
       case 'synthesize_plan':
@@ -4698,6 +4720,59 @@ export class LibrarianMCPServer {
         epistemicsDebug,
       };
     }
+  }
+
+  private async executeSemanticSearch(
+    input: SemanticSearchToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const base = await this.executeQuery(
+      {
+        intent: input.query,
+        workspace: input.workspace,
+        sessionId: input.sessionId,
+        intentType: 'navigate',
+        minConfidence: input.minConfidence,
+        depth: input.depth,
+        includeEngines: input.includeEngines,
+        includeEvidence: input.includeEvidence,
+        pageSize: input.limit,
+        pageIdx: 0,
+      },
+      context,
+    );
+
+    if (!base || typeof base !== 'object') {
+      return base;
+    }
+
+    const payload = base as Record<string, unknown>;
+    const packs = Array.isArray(payload.packs) ? payload.packs : [];
+    const relatedFiles = Array.from(
+      new Set(
+        packs
+          .flatMap((pack) => {
+            if (!pack || typeof pack !== 'object') {
+              return [];
+            }
+            const files = (pack as { relatedFiles?: unknown }).relatedFiles;
+            return Array.isArray(files)
+              ? files.filter((file): file is string => typeof file === 'string')
+              : [];
+          }),
+      ),
+    );
+
+    return {
+      ...payload,
+      tool: 'semantic_search',
+      aliasOf: 'query',
+      searchQuery: input.query,
+      relatedFiles,
+      recommendedNextTools: relatedFiles.length > 0
+        ? ['find_symbol', 'trace_imports', 'get_change_impact']
+        : ['query', 'get_session_briefing'],
+    };
   }
 
   private async executeResetSessionState(

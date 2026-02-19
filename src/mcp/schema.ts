@@ -97,6 +97,20 @@ export const QueryToolInputSchema = z.object({
 }).strict();
 
 /**
+ * semantic_search tool input schema
+ */
+export const SemanticSearchToolInputSchema = z.object({
+  query: z.string().min(1).max(2000).describe('Localization query for semantic code search'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive search behavior'),
+  minConfidence: z.number().min(0).max(1).optional().default(0.4).describe(`Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}`),
+  depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
+  limit: PageSizeSchema.optional().default(20).describe('Maximum results to return (default: 20, max: 200)'),
+  includeEngines: z.boolean().optional().default(false).describe('Include engine diagnostics in output'),
+  includeEvidence: z.boolean().optional().default(false).describe('Include evidence graph summary'),
+}).strict();
+
+/**
  * get_change_impact tool input schema
  */
 export const GetChangeImpactToolInputSchema = z.object({
@@ -437,6 +451,7 @@ export const GetSessionBriefingToolInputSchema = z.object({
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
@@ -481,6 +496,7 @@ export const TOOL_INPUT_SCHEMAS = {
   system_contract: SystemContractToolInputSchema,
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
+  semantic_search: SemanticSearchToolInputSchema,
   query: QueryToolInputSchema,
   synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
@@ -607,6 +623,27 @@ export const queryToolJsonSchema: JSONSchema = {
     streamChunkSize: { type: 'number', description: 'Chunk size for stream view metadata (default: 5, max: 200)', minimum: 1, maximum: 200, default: 5 },
   },
   required: ['intent'],
+  additionalProperties: false,
+};
+
+/** semantic_search tool JSON Schema */
+export const semanticSearchToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/semantic-search-tool-input',
+  title: 'SemanticSearchToolInput',
+  description: `Input for semantic_search - primary semantic code localization. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Localization query for semantic code search', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive search behavior', minLength: 1 },
+    minConfidence: { type: 'number', description: `Minimum confidence threshold. ${CONFIDENCE_BEHAVIOR_CONTRACT}`, minimum: 0, maximum: 1, default: 0.4 },
+    depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
+    limit: { type: 'number', description: 'Maximum results to return (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+    includeEngines: { type: 'boolean', description: 'Include engine diagnostics in output', default: false },
+    includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },
+  },
+  required: ['query'],
   additionalProperties: false,
 };
 
@@ -868,6 +905,7 @@ export const findSymbolToolJsonSchema: JSONSchema = {
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   get_session_briefing: getSessionBriefingToolJsonSchema,
+  semantic_search: semanticSearchToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
   find_usages: findUsagesToolJsonSchema,

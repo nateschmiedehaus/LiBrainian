@@ -19,6 +19,7 @@ import {
   BootstrapToolInputSchema,
   GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
+  SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
   ResetSessionStateToolInputSchema,
@@ -46,6 +47,7 @@ import {
   isBootstrapToolInput,
   isGetSessionBriefingToolInput,
   isQueryToolInput,
+  isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
   isResetSessionStateToolInput,
@@ -83,6 +85,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('system_contract');
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
+      expect(schemas).toContain('semantic_search');
       expect(schemas).toContain('query');
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
@@ -112,7 +115,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(34);
+      expect(schemas).toHaveLength(35);
     });
 
     it('should return schema for known tools', () => {
@@ -306,6 +309,42 @@ describe('MCP Schema', () => {
       expect(queryToolJsonSchema.description).toContain('semantic, cross-file retrieval');
       expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
       expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
+    });
+  });
+
+  describe('Semantic Search Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('semantic_search', {
+        query: 'where is auth token refresh implemented',
+      });
+      expect(result.valid).toBe(true);
+      expect(SemanticSearchToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('semantic_search', {
+        query: 'auth middleware',
+        workspace: '/tmp/workspace',
+        sessionId: 'sess_1',
+        minConfidence: 0.6,
+        depth: 'L2',
+        limit: 25,
+        includeEngines: true,
+        includeEvidence: true,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing query', () => {
+      const result = validateToolInput('semantic_search', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isSemanticSearchToolInput({ query: 'auth flow' })).toBe(true);
+      expect(isSemanticSearchToolInput({ query: 'auth flow', depth: 'L3' })).toBe(true);
+      expect(isSemanticSearchToolInput({ query: 'auth flow', depth: 'invalid' })).toBe(false);
+      expect(isSemanticSearchToolInput(null)).toBe(false);
     });
   });
 

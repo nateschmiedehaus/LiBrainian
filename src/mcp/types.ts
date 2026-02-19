@@ -524,6 +524,33 @@ export interface SynthesizePlanToolOutput {
   workspace?: string;
 }
 
+/** semantic_search tool input */
+export interface SemanticSearchToolInput {
+  /** Localization question or concept to search for */
+  query: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Optional session identifier used for loop detection and adaptive query behavior */
+  sessionId?: string;
+
+  /** Minimum confidence threshold (0-1) */
+  minConfidence?: number;
+
+  /** Depth of context to retrieve */
+  depth?: 'L0' | 'L1' | 'L2' | 'L3';
+
+  /** Maximum results to return (maps to query pageSize, default 20, max 200) */
+  limit?: number;
+
+  /** Include engine diagnostics in output */
+  includeEngines?: boolean;
+
+  /** Include evidence metadata in output */
+  includeEvidence?: boolean;
+}
+
 /** Query tool input */
 export interface QueryToolInput {
   /** Goal-oriented semantic question (architecture, behavior, impact), not a direct file-read request */
@@ -1518,6 +1545,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  semantic_search: {
+    tool: 'semantic_search',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   query: {
     tool: 'query',
     requiredScopes: ['read'],
@@ -1878,6 +1911,32 @@ export function isGetSessionBriefingToolInput(value: unknown): value is GetSessi
   const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
   const includeConstructionsOk = typeof obj.includeConstructions === 'boolean' || typeof obj.includeConstructions === 'undefined';
   return workspaceOk && sessionIdOk && includeConstructionsOk;
+}
+
+/** Type guard for SemanticSearchToolInput */
+export function isSemanticSearchToolInput(value: unknown): value is SemanticSearchToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const queryOk = typeof obj.query === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const minConfidenceOk = typeof obj.minConfidence === 'number' || typeof obj.minConfidence === 'undefined';
+  const depthOk = obj.depth === 'L0'
+    || obj.depth === 'L1'
+    || obj.depth === 'L2'
+    || obj.depth === 'L3'
+    || typeof obj.depth === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  const includeEnginesOk = typeof obj.includeEngines === 'boolean' || typeof obj.includeEngines === 'undefined';
+  const includeEvidenceOk = typeof obj.includeEvidence === 'boolean' || typeof obj.includeEvidence === 'undefined';
+  return queryOk
+    && workspaceOk
+    && sessionIdOk
+    && minConfidenceOk
+    && depthOk
+    && limitOk
+    && includeEnginesOk
+    && includeEvidenceOk;
 }
 
 /** Type guard for QueryToolInput */

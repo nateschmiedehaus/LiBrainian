@@ -186,6 +186,17 @@ describe('MCP Server', () => {
       expect(blastRadiusTool?.description).toContain('Pre-edit transitive impact analysis');
     });
 
+    it('includes semantic_search as primary localization tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const semanticSearchTool = tools.find((tool) => tool.name === 'semantic_search');
+
+      expect(semanticSearchTool).toBeDefined();
+      expect(semanticSearchTool?.description).toContain('Primary semantic code localization');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -316,6 +327,24 @@ describe('MCP Server', () => {
       expect(result.aliasOf).toBe('get_change_impact');
       expect(result.preEditGuidance?.nextTools).toEqual(
         expect.arrayContaining(['request_human_review', 'synthesize_plan']),
+      );
+    });
+
+    it('wraps query in semantic_search with related files and next-tool guidance', async () => {
+      vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        packs: [
+          { relatedFiles: ['src/auth.ts', 'src/session.ts'] },
+          { relatedFiles: ['src/session.ts', 'src/routes.ts'] },
+        ],
+      });
+
+      const result = await (server as any).executeSemanticSearch({ query: 'auth token refresh' }, {});
+      expect(result.tool).toBe('semantic_search');
+      expect(result.aliasOf).toBe('query');
+      expect(result.searchQuery).toBe('auth token refresh');
+      expect(result.relatedFiles).toEqual(['src/auth.ts', 'src/session.ts', 'src/routes.ts']);
+      expect(result.recommendedNextTools).toEqual(
+        expect.arrayContaining(['find_symbol', 'trace_imports', 'get_change_impact']),
       );
     });
   });
