@@ -9,6 +9,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   RefactoringSafetyChecker,
   checkTypeCompatibility,
@@ -137,6 +140,100 @@ describe('RefactoringSafetyChecker', () => {
 
       // Should complete in under 5 seconds (generous for mocked)
       expect(result.analysisTimeMs).toBeLessThan(5000);
+    });
+
+    it('prefers exhaustive graph traversal over semantic fallback when storage is available', async () => {
+      const queryOptional = vi.fn().mockResolvedValue({ packs: [] });
+      const storage = {
+        getFunctionsByName: vi.fn().mockResolvedValue([
+          { id: 'func:testFunction', filePath: 'src/test.ts', name: 'testFunction' },
+        ]),
+        getModules: vi.fn().mockResolvedValue([]),
+        getFunctions: vi.fn().mockResolvedValue([]),
+        getGraphEdges: vi.fn().mockImplementation(async (options: { toIds?: string[] }) => {
+          if (options?.toIds?.includes('func:testFunction')) {
+            return [{
+              fromId: 'func:caller',
+              fromType: 'function',
+              toId: 'func:testFunction',
+              toType: 'function',
+              edgeType: 'calls',
+              sourceFile: 'src/caller.ts',
+              sourceLine: 12,
+              confidence: 1,
+              computedAt: new Date(),
+            }];
+          }
+          return [];
+        }),
+        getFiles: vi.fn().mockResolvedValue([]),
+      };
+
+      const librarian = {
+        queryOptional,
+        queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
+        query: vi.fn().mockResolvedValue({ packs: [] }),
+        getStorage: () => storage,
+        workspaceRoot: process.cwd(),
+      } as unknown as Librarian;
+
+      const graphChecker = new RefactoringSafetyChecker(librarian);
+      const result = await graphChecker.check({
+        entityId: 'testFunction',
+        refactoringType: 'rename',
+      });
+
+      expect(result.usages.length).toBeGreaterThan(0);
+      expect(queryOptional).not.toHaveBeenCalled();
+      expect(result.risks.some((risk) => risk.includes('semantic fallback'))).toBe(false);
+    });
+
+    it('adds explicit warning when workspace files are not fully indexed', async () => {
+      const workspaceRoot = mkdtempSync(join(tmpdir(), 'refactor-safety-coverage-'));
+      writeFileSync(join(workspaceRoot, 'a.ts'), 'export function a() { return 1; }\n');
+      writeFileSync(join(workspaceRoot, 'b.ts'), 'export function b() { return 2; }\n');
+      const queryOptional = vi.fn().mockResolvedValue({ packs: [] });
+      const storage = {
+        getFunctionsByName: vi.fn().mockResolvedValue([
+          { id: 'func:a', filePath: join(workspaceRoot, 'a.ts'), name: 'a' },
+        ]),
+        getModules: vi.fn().mockResolvedValue([]),
+        getFunctions: vi.fn().mockResolvedValue([]),
+        getGraphEdges: vi.fn().mockResolvedValue([
+          {
+            fromId: 'func:caller',
+            fromType: 'function',
+            toId: 'func:a',
+            toType: 'function',
+            edgeType: 'calls',
+            sourceFile: join(workspaceRoot, 'a.ts'),
+            sourceLine: 1,
+            confidence: 1,
+            computedAt: new Date(),
+          },
+        ]),
+        getFiles: vi.fn().mockResolvedValue([
+          { path: join(workspaceRoot, 'a.ts') },
+        ]),
+      };
+      const librarian = {
+        queryOptional,
+        queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
+        query: vi.fn().mockResolvedValue({ packs: [] }),
+        getStorage: () => storage,
+        workspaceRoot,
+      } as unknown as Librarian;
+      const graphChecker = new RefactoringSafetyChecker(librarian);
+
+      try {
+        const result = await graphChecker.check({
+          entityId: 'a',
+          refactoringType: 'rename',
+        });
+        expect(result.risks.some((risk) => risk.includes('files are unindexed'))).toBe(true);
+      } finally {
+        rmSync(workspaceRoot, { recursive: true, force: true });
+      }
     });
 
     it('should detect type-breaking changes when signatures are provided', async () => {

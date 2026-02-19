@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as ts from 'typescript';
+import { glob } from 'glob';
 import type { Librarian } from '../api/librarian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
@@ -518,8 +519,9 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Step 1: Find all usages via semantic search
-    const usages = await this.findAllUsages(target.entityId);
+    // Step 1: Find all usages via exhaustive graph traversal.
+    const usageDiscovery = await this.findAllUsages(target.entityId);
+    const usages = usageDiscovery.usages;
     evidenceRefs.push(`usage_search:${target.entityId}`);
 
     // Step 2: Analyze breaking change impact
@@ -555,6 +557,17 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
       confidence,
       graphImpact
     );
+    const safetyRisks = [...risks];
+    if (usageDiscovery.coverageWarning) {
+      safetyRisks.push(usageDiscovery.coverageWarning);
+      evidenceRefs.push('usage_coverage_warning');
+    }
+    if (usageDiscovery.usedSemanticFallback) {
+      safetyRisks.push(
+        'Caller discovery used semantic fallback because graph traversal was unavailable; caller count may be understated.'
+      );
+      evidenceRefs.push('usage_semantic_fallback');
+    }
 
     // Step 8: Record prediction for calibration tracking
     const predictionId = generatePredictionId(RefactoringSafetyChecker.CONSTRUCTION_ID);
@@ -586,7 +599,7 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
       graphImpact,
       riskScore,
       safe,
-      risks,
+      risks: safetyRisks,
       confidence,
       evidenceRefs,
       analysisTimeMs: Date.now() - startTime,
@@ -708,8 +721,14 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
   /**
    * Step 1: Find all usages of an entity.
    */
-  private async findAllUsages(entityId: string): Promise<Usage[]> {
+  private async findAllUsages(entityId: string): Promise<{
+    usages: Usage[];
+    usedSemanticFallback: boolean;
+    coverageWarning: string | null;
+  }> {
     const usages: Usage[] = [];
+    let usedSemanticFallback = false;
+    let coverageWarning: string | null = null;
 
     // Prefer exhaustive graph traversal so refactoring impact is never top-k truncated.
     const maybeGetStorage = (this.librarian as { getStorage?: () => unknown }).getStorage;
@@ -731,12 +750,13 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
             usageType: mapEdgeTypeToUsageType(hit.edgeType),
           });
         }
+        coverageWarning = await this.buildCallerCoverageWarning(storage as LibrarianStorage, entityId, usages.length);
       } catch {
-        // Fall back to semantic search when exhaustive traversal is unavailable.
+        coverageWarning = 'Exhaustive caller traversal failed; no semantic fallback was used to avoid top-k truncation.';
       }
     }
 
-    if (usages.length === 0) {
+    if (usages.length === 0 && !storage) {
       const queryResult = await this.librarian.queryOptional({
         intent: `Find all usages of ${entityId}`,
         depth: 'L2',
@@ -750,12 +770,51 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
           usages.push(...extractedUsages);
         }
       }
+      usedSemanticFallback = true;
     }
 
     // Cache for reuse
     this.usageCache.set(entityId, usages);
 
-    return usages;
+    return { usages, usedSemanticFallback, coverageWarning };
+  }
+
+  private async buildCallerCoverageWarning(
+    storage: LibrarianStorage,
+    entityId: string,
+    usageCount: number
+  ): Promise<string | null> {
+    const workspaceRoot = this.resolveWorkspaceRootForCoverage();
+    if (!workspaceRoot) return null;
+    try {
+      const [workspaceFiles, indexedFiles] = await Promise.all([
+        glob(['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py', '**/*.go'], {
+          cwd: workspaceRoot,
+          ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.librarian/**'],
+          nodir: true,
+          absolute: false,
+        }),
+        storage.getFiles({ limit: 200000 }),
+      ]);
+      const indexedSet = new Set(
+        indexedFiles
+          .map((file) => path.relative(workspaceRoot, path.resolve(workspaceRoot, file.path)))
+          .filter((relPath) => relPath.length > 0 && !relPath.startsWith('..')),
+      );
+      const unindexedCount = workspaceFiles.filter((filePath) => !indexedSet.has(filePath)).length;
+      if (unindexedCount <= 0) return null;
+      return `Found ${usageCount} callers in indexed code for ${entityId}; ${unindexedCount} files are unindexed — caller count may be understated.`;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveWorkspaceRootForCoverage(): string | null {
+    const fromLibrarian = (this.librarian as { workspaceRoot?: unknown }).workspaceRoot;
+    if (typeof fromLibrarian === 'string' && fromLibrarian.trim().length > 0) {
+      return path.resolve(fromLibrarian.trim());
+    }
+    return process.cwd();
   }
 
   /**
