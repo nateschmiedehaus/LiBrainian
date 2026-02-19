@@ -311,6 +311,8 @@ interface CallToolRequestLike {
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 200;
+const DEFAULT_STREAM_CHUNK_SIZE = 5;
+const MAX_STREAM_CHUNK_SIZE = 200;
 const DEFAULT_RUN_LIST_LIMIT = 10;
 const MAX_RUN_LIST_LIMIT = 100;
 const MIN_PARAMETER_DESCRIPTION_WORDS = 20;
@@ -508,6 +510,13 @@ interface PaginationMetadata {
   showingFrom: number;
   showingTo: number;
   showing: string;
+}
+
+interface QueryProgressEvent {
+  stage: string;
+  timestamp: string;
+  elapsedMs: number;
+  details?: Record<string, unknown>;
 }
 
 const TRACE_MESSAGE_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
@@ -1224,6 +1233,8 @@ export class LibrarianMCPServer {
             outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
             explainMisses: { type: 'boolean', description: 'Include near-miss retrieval diagnostics' },
             explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
+            stream: { type: 'boolean', description: 'Enable chunked stream metadata so clients can consume packs incrementally after the query completes' },
+            streamChunkSize: { type: 'number', description: 'Chunk size for stream metadata groups (default 5, max 200)' },
           },
           required: ['intent'],
         },
@@ -1739,7 +1750,10 @@ export class LibrarianMCPServer {
             () => this.executeTool(name, validation.data, executionContext)
           )
         : this.executeTool(name, validation.data, executionContext);
-      const timeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
+      const baseTimeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
+      const timeoutMs = name === 'query'
+        ? baseTimeoutMs + 100
+        : baseTimeoutMs;
       const result = await this.executeWithTimeout(executionPromise, timeoutMs, name);
 
       const normalizedError = normalizeToolErrorResult(name, validation.data, result);
@@ -2542,6 +2556,32 @@ export class LibrarianMCPServer {
         showing,
       },
     };
+  }
+
+  private coerceStreamChunkSize(raw: unknown): number {
+    if (!Number.isFinite(raw as number)) return DEFAULT_STREAM_CHUNK_SIZE;
+    return Math.max(1, Math.min(MAX_STREAM_CHUNK_SIZE, Math.trunc(raw as number)));
+  }
+
+  private buildQueryStreamChunks(
+    packs: Array<{ packId: string }>,
+    chunkSize: number
+  ): Array<{
+    chunkIndex: number;
+    packCount: number;
+    packIds: string[];
+  }> {
+    const normalizedChunkSize = Math.max(1, chunkSize);
+    const chunks: Array<{ chunkIndex: number; packCount: number; packIds: string[] }> = [];
+    for (let start = 0; start < packs.length; start += normalizedChunkSize) {
+      const segment = packs.slice(start, start + normalizedChunkSize);
+      chunks.push({
+        chunkIndex: chunks.length,
+        packCount: segment.length,
+        packIds: segment.map((pack) => pack.packId),
+      });
+    }
+    return chunks;
   }
 
   private async writeOutputReference(
@@ -3938,6 +3978,19 @@ export class LibrarianMCPServer {
         ? this.collectLoopMetrics(sessionState.queryHistory, input.intent, workspace.path)
         : null;
 
+      const streamEnabled = input.stream === true;
+      const streamChunkSize = this.coerceStreamChunkSize(input.streamChunkSize);
+      const queryStartMs = Date.now();
+      const progressEvents: QueryProgressEvent[] = [];
+      const recordProgress = (stage: string, details?: Record<string, unknown>): void => {
+        progressEvents.push({
+          stage,
+          timestamp: new Date().toISOString(),
+          elapsedMs: Math.max(0, Date.now() - queryStartMs),
+          details,
+        });
+      };
+
       // Build query object
       const query = {
         intent: input.intent,
@@ -3949,18 +4002,97 @@ export class LibrarianMCPServer {
       if (sessionState && preLoopMetrics && this.config.loopDetection.autoEscalateStrategy) {
         this.applyFutileRepeatEscalation(query, preLoopMetrics.futileCount);
       }
+      recordProgress('query_started', {
+        workspace: workspace.path,
+        intentType: query.intentType ?? 'general',
+        depth: query.depth,
+        streamEnabled,
+      });
 
-      // Execute query
-      const response = await queryLibrarian(
-        query,
-        storage,
-        undefined,
-        undefined,
-        undefined,
-        {
-          evidenceLedger: workspace.evidenceLedger,
-        }
-      );
+      // Execute query with an internal timeout for partial return semantics.
+      const configuredTimeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
+      const queryTimeoutMs = Math.max(1, configuredTimeoutMs - 25);
+      const timeoutToken = Symbol('query_timeout');
+      const responseOrTimeout = await Promise.race([
+        queryLibrarian(
+          query,
+          storage,
+          undefined,
+          undefined,
+          undefined,
+          {
+            evidenceLedger: workspace.evidenceLedger,
+          }
+        ),
+        new Promise<typeof timeoutToken>((resolve) => {
+          setTimeout(() => resolve(timeoutToken), queryTimeoutMs);
+        }),
+      ]);
+
+      if (responseOrTimeout === timeoutToken) {
+        recordProgress('query_timed_out', { timeoutMs: queryTimeoutMs });
+        const aggregateConfidence = this.buildAggregateConfidence([]);
+        const timeoutResult = {
+          packs: [],
+          totalConfidence: 0,
+          retrievalStatus: 'insufficient' as const,
+          retrievalEntropy: 0,
+          retrievalInsufficient: true,
+          suggestedClarifyingQuestions: [],
+          coverageGaps: [] as string[],
+          nearMisses: [] as Array<{ packId: string; reason: string }>,
+          disclosures: [`Query timed out after ${queryTimeoutMs}ms; returning partial result.`],
+          adequacy: undefined,
+          verificationPlan: undefined,
+          traceId: 'replay_unavailable',
+          constructionPlan: undefined,
+          intent: input.intent,
+          pagination: {
+            pageSize: input.pageSize ?? DEFAULT_PAGE_SIZE,
+            pageIdx: input.pageIdx ?? 0,
+            totalItems: 0,
+            pageCount: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            showingFrom: 0,
+            showingTo: 0,
+            showing: 'Showing 0-0 of 0. Next: none. Total pages: 0.',
+          },
+          sortOrder: 'retrieval_score_desc' as const,
+          aggregateConfidence,
+          timedOut: true,
+          partial: true,
+          timeoutMs: queryTimeoutMs,
+          progress: {
+            completed: false,
+            events: progressEvents,
+          },
+          stream: streamEnabled
+            ? {
+                enabled: true,
+                chunkSize: streamChunkSize,
+                totalChunks: 0,
+                chunks: [],
+              }
+            : undefined,
+        };
+        return {
+          ...timeoutResult,
+          coverage_gaps: timeoutResult.coverageGaps,
+          aggregate_confidence: this.toAggregateConfidenceAlias(timeoutResult.aggregateConfidence),
+          near_misses: timeoutResult.nearMisses,
+          timed_out: true,
+          partial_result: true,
+          progress_view: timeoutResult.progress,
+          stream_view: timeoutResult.stream,
+        };
+      }
+
+      const response = responseOrTimeout;
+      recordProgress('query_retrieval_complete', {
+        packCount: response.packs.length,
+        totalConfidence: response.totalConfidence,
+      });
 
       const transformedPacks = response.packs.map((pack) => {
         const confidenceTier = this.classifyExplainabilityConfidenceTier(pack.confidence ?? 0);
@@ -3991,7 +4123,16 @@ export class LibrarianMCPServer {
           coverage_note: coverageNote,
         };
       });
+      recordProgress('packs_transformed', {
+        transformedCount: transformedPacks.length,
+      });
       const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
+      recordProgress('pagination_applied', {
+        pageIdx: pagination.pageIdx,
+        pageSize: pagination.pageSize,
+        totalItems: pagination.totalItems,
+        pageCount: pagination.pageCount,
+      });
       const aggregateConfidence = this.buildAggregateConfidence(pagedPacks);
       const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
       const retrievalEntropy = response.retrievalEntropy
@@ -4057,9 +4198,32 @@ export class LibrarianMCPServer {
         totalConfidence: response.totalConfidence,
         loopDetection: baseResult.loopDetection,
       });
+      const stream = streamEnabled
+        ? {
+            enabled: true,
+            chunkSize: streamChunkSize,
+            totalChunks: 0,
+            chunks: this.buildQueryStreamChunks(pagedPacks, streamChunkSize),
+          }
+        : undefined;
+      if (stream) {
+        stream.totalChunks = stream.chunks.length;
+      }
+      recordProgress('query_ready', {
+        pagedPackCount: pagedPacks.length,
+        streamChunks: stream?.totalChunks ?? 0,
+      });
       const resultWithHumanReview = {
         ...baseResult,
         humanReviewRecommendation,
+        timedOut: false,
+        partial: false,
+        timeoutMs: queryTimeoutMs,
+        progress: {
+          completed: true,
+          events: progressEvents,
+        },
+        stream,
       };
       const baseWithAlias = {
         ...resultWithHumanReview,
@@ -4068,6 +4232,10 @@ export class LibrarianMCPServer {
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
         human_review_recommendation: resultWithHumanReview.humanReviewRecommendation,
+        timed_out: resultWithHumanReview.timedOut,
+        partial_result: resultWithHumanReview.partial,
+        progress_view: resultWithHumanReview.progress,
+        stream_view: resultWithHumanReview.stream,
       };
 
       if (input.outputFile) {

@@ -92,6 +92,8 @@ export const QueryToolInputSchema = z.object({
   outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
   explainMisses: z.boolean().optional().default(false).describe('Include near-miss retrieval diagnostics'),
   explain_misses: z.boolean().optional().describe('Alias for explainMisses'),
+  stream: z.boolean().optional().default(false).describe('Enable chunked stream view metadata for progressive result consumption'),
+  streamChunkSize: PageSizeSchema.optional().default(5).describe('Chunk size for stream view metadata (default: 5, max: 200)'),
 }).strict();
 
 /**
@@ -470,6 +472,8 @@ export const queryToolJsonSchema: JSONSchema = {
     outputFile: { type: 'string', description: 'Write paged response payload to file and return a file reference', minLength: 1 },
     explainMisses: { type: 'boolean', description: 'Include near-miss retrieval diagnostics', default: false },
     explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
+    stream: { type: 'boolean', description: 'Enable chunked stream view metadata for progressive result consumption', default: false },
+    streamChunkSize: { type: 'number', description: 'Chunk size for stream view metadata (default: 5, max: 200)', minimum: 1, maximum: 200, default: 5 },
   },
   required: ['intent'],
   additionalProperties: false,

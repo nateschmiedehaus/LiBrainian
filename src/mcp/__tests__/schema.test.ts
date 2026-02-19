@@ -177,6 +177,16 @@ describe('MCP Schema', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('should validate streaming options', () => {
+      const input = {
+        intent: 'Trace auth request lifecycle',
+        stream: true,
+        streamChunkSize: 3,
+      };
+      const result = validateToolInput('query', input);
+      expect(result.valid).toBe(true);
+    });
+
     it('should reject missing intent', () => {
       const result = validateToolInput('query', {});
       expect(result.valid).toBe(false);
@@ -218,6 +228,11 @@ describe('MCP Schema', () => {
     it('should reject invalid pagination values', () => {
       expect(validateToolInput('query', { intent: 'test', pageSize: 0 }).valid).toBe(false);
       expect(validateToolInput('query', { intent: 'test', pageIdx: -1 }).valid).toBe(false);
+    });
+
+    it('should reject invalid streaming chunk sizes', () => {
+      expect(validateToolInput('query', { intent: 'test', stream: true, streamChunkSize: 0 }).valid).toBe(false);
+      expect(validateToolInput('query', { intent: 'test', stream: true, streamChunkSize: 201 }).valid).toBe(false);
     });
 
     it('should pass type guard', () => {
