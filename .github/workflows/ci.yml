@@ -33,6 +33,25 @@ jobs:
 
       - name: Performance SLA benchmark gate
         run: node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts benchmark --queries 4 --incremental-files 5 --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
+  e2e-acceptance:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: E2E acceptance gate
+        run: npm run test:e2e:acceptance
 
   full-tier0:
     if: github.event_name != 'pull_request'

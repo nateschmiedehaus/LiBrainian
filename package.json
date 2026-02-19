@@ -106,6 +106,7 @@
     "test:evaluation": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=evaluation -- vitest",
     "test:heavy": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=heavy -- vitest",
     "test:system": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=system -- vitest",
+    "test:e2e:acceptance": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run src/__tests__/e2e_acceptance_gate.test.ts",
     "test:sequential": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_WORKERS=1 -- vitest",
     "test:conservative": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_RESOURCE_MODE=conservative -- vitest",
     "test:tier0": "npm test -- --run",
@@ -150,8 +151,14 @@
     "test:agentic:strict:quick": "npm run eval:ab:agentic-bugfix:quick && npm run eval:use-cases:agentic:quick && npm run eval:live-fire:quick && npm run smoke:external:sample",
     "ground-truth:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-ground-truth.ts",
     "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --limit 200 --out state/plans/agent-issue-fix-plan.json",
+    "policy:pull": "node scripts/gh-flow-policy-check.mjs --mode pull",
+    "policy:merge": "node scripts/gh-flow-policy-check.mjs --mode merge",
+    "policy:publish": "node scripts/gh-flow-policy-check.mjs --mode publish --require-clean",
     "gh:autoland": "node scripts/gh-autoland.mjs",
-    "gh:ship": "node scripts/gh-autoland.mjs --preflight-npm-script validate:fast",
+    "gh:ship": "npm run policy:merge && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast",
+    "gh:prs:stabilize:dry-run": "node scripts/gh-pr-stabilize.mjs --dry-run",
+    "gh:prs:stabilize": "node scripts/gh-pr-stabilize.mjs",
+    "gh:cadence": "npm run policy:pull && npm run gh:prs:stabilize && npm run gh:branches:cleanup",
     "gh:branches:dry-run": "node scripts/gh-branch-hygiene.mjs --dry-run",
     "gh:branches:cleanup": "node scripts/gh-branch-hygiene.mjs",
     "librainian:update": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update",
@@ -181,7 +188,7 @@
     "release:qualify": "npm run validate:full && npm run test:agentic:strict",
     "release:github-packages": "node scripts/publish-github-package.mjs",
     "release:github": "npm publish --provenance --access public && npm run release:github-packages",
-    "release": "npm run release:github"
+    "release": "npm run policy:publish && npm run release:github"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

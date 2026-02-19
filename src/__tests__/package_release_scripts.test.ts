@@ -14,7 +14,10 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
-    expect(scripts['gh:ship']).toBe('node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:ship']).toBe('npm run policy:merge && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:prs:stabilize:dry-run']).toBe('node scripts/gh-pr-stabilize.mjs --dry-run');
+    expect(scripts['gh:prs:stabilize']).toBe('node scripts/gh-pr-stabilize.mjs');
+    expect(scripts['gh:cadence']).toBe('npm run policy:pull && npm run gh:prs:stabilize && npm run gh:branches:cleanup');
     expect(scripts['gh:branches:dry-run']).toBe('node scripts/gh-branch-hygiene.mjs --dry-run');
     expect(scripts['gh:branches:cleanup']).toBe('node scripts/gh-branch-hygiene.mjs');
     expect(scripts['librainian:update']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update');
@@ -38,6 +41,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'hook-update-index.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'lefthook.yml'))).toBe(true);
@@ -91,6 +95,15 @@ describe('package release scripts', () => {
     expect(script).toContain('refs/remotes/origin/${prefix}*');
     expect(script).toContain('Dry run: delete remote');
     expect(script).toContain('GitHub API request failed');
+  });
+
+  it('adds PR stabilizer automation for frequent restack and merge cadence', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain("'update-branch'");
+    expect(script).toContain("'merge'");
+    expect(script).toContain('Dry run: update-branch');
+    expect(script).toContain('complete repo=');
   });
 
   it('defines staged validation scripts for daily, PR, and release gates', () => {

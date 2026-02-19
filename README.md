@@ -5,6 +5,7 @@
 ### The plug-in intelligence layer for serious coding agents
 
 [![CI](https://github.com/nateschmiedehaus/LiBrainian/actions/workflows/ci.yml/badge.svg)](https://github.com/nateschmiedehaus/LiBrainian/actions/workflows/ci.yml)
+[![E2E tests](https://img.shields.io/github/actions/workflow/status/nateschmiedehaus/LiBrainian/ci.yml?branch=main&label=E2E%20tests)](https://github.com/nateschmiedehaus/LiBrainian/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/librainian.svg)](https://www.npmjs.com/package/librainian)
 [![npm downloads](https://img.shields.io/npm/dm/librainian.svg)](https://www.npmjs.com/package/librainian)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
