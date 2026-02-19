@@ -25,7 +25,16 @@ describe('MCP agent-actionable errors', () => {
     const payload = parseToolPayload(result);
     expect(payload.error).toBe(true);
     expect(payload.code).toBe('workspace_not_bootstrapped');
+    expect(payload.error_type).toBe('INDEX_NOT_INITIALIZED');
+    expect(payload.severity).toBe('blocking');
+    expect(payload.retry_safe).toBe(true);
+    expect(payload.human_review_needed).toBe(false);
+    expect(String(payload.what_was_attempted)).toContain('query');
+    expect(String(payload.what_failed).length).toBeGreaterThan(0);
     expect(payload.nextSteps).toEqual(expect.arrayContaining([
+      expect.stringContaining('bootstrap'),
+    ]));
+    expect(payload.suggested_next_steps).toEqual(expect.arrayContaining([
       expect.stringContaining('bootstrap'),
     ]));
     expect(payload.recoverWith).toEqual({
@@ -48,6 +57,9 @@ describe('MCP agent-actionable errors', () => {
     const payload = parseToolPayload(result);
     expect(payload.error).toBe(true);
     expect(payload.code).toBe('invalid_input');
+    expect(payload.error_type).toBe('QUERY_TOO_VAGUE');
+    expect(payload.severity).toBe('recoverable');
+    expect(Array.isArray(payload.suggested_rephrasings)).toBe(true);
     expect(payload.nextSteps).toEqual(expect.arrayContaining([
       expect.stringContaining('list_tools'),
     ]));
