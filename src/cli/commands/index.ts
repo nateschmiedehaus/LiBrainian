@@ -35,6 +35,14 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   const verbose = options.verbose ?? false;
   const force = options.force ?? false;
   const files = await resolveRequestedFiles(workspace, options);
+  const selectorMode = Boolean(options.incremental || options.staged || options.since);
+
+  if (selectorMode && files.length === 0) {
+    if (verbose) {
+      console.log('No candidate files selected by git selector. Index is already up to date.');
+    }
+    return;
+  }
 
   if (!files || files.length === 0) {
     throw new CliError(
@@ -306,18 +314,7 @@ async function resolveRequestedFiles(workspace: string, options: IndexCommandOpt
   }
 
   const fromGit = await resolveGitSelectedFiles(workspace, options);
-  const merged = dedupeStrings([...explicitFiles, ...fromGit]);
-  if (merged.length === 0) {
-    if (options.since) {
-      throw new CliError(`No changed files found for --since ${options.since}.`, 'INVALID_ARGUMENT');
-    }
-    if (options.staged) {
-      throw new CliError('No staged files found to index.', 'INVALID_ARGUMENT');
-    }
-    throw new CliError('No modified files found to index.', 'INVALID_ARGUMENT');
-  }
-
-  return merged;
+  return dedupeStrings([...explicitFiles, ...fromGit]);
 }
 
 async function resolveGitSelectedFiles(workspace: string, options: IndexCommandOptions): Promise<string[]> {

@@ -224,6 +224,16 @@ npx librainian status --json --ci --quiet
 npx librainian bootstrap --mode fast --yes --no-progress --no-color
 ```
 
+GitHub Actions example:
+
+```yaml
+- name: Check index freshness (machine-readable)
+  run: npx librainian status --json --quiet | jq -e '.freshness.staleFiles == 0 and .freshness.missingFiles == 0'
+
+- name: Refresh index non-interactively
+  run: npx librainian index --force --incremental --yes --quiet
+```
+
 ## Pre-Commit Hook Integration
 
 LiBrainian supports staged-file incremental indexing for commit-time freshness:
