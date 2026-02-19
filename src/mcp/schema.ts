@@ -161,6 +161,16 @@ export const ResetSessionStateToolInputSchema = z.object({
 }).strict().default({});
 
 /**
+ * Synthesize plan tool input schema
+ */
+export const SynthesizePlanToolInputSchema = z.object({
+  task: z.string().min(1).max(2000).describe('Task description the agent is planning to execute'),
+  context_pack_ids: z.array(z.string().min(1)).min(1).max(100).describe('Context pack IDs from prior retrieval that informed the plan'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier used to persist and retrieve plan state'),
+}).strict();
+
+/**
  * Request human review tool input schema
  */
 export const RequestHumanReviewToolInputSchema = z.object({
@@ -330,6 +340,8 @@ export const DiagnoseSelfToolInputSchema = z.object({
  */
 export const StatusToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier used for session-scoped status details'),
+  planId: z.string().min(1).optional().describe('Optional plan ID to retrieve a specific synthesized plan'),
 }).strict();
 
 // ============================================================================
@@ -338,6 +350,7 @@ export const StatusToolInputSchema = z.object({
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
@@ -374,6 +387,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
+  synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
   find_usages: FindUsagesToolInputSchema,
   trace_imports: TraceImportsToolInputSchema,
@@ -580,6 +594,23 @@ export const resetSessionStateToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Synthesize plan tool JSON Schema */
+export const synthesizePlanToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/synthesize-plan-tool-input',
+  title: 'SynthesizePlanToolInput',
+  description: 'Input for synthesize_plan - persist an explicit task plan grounded in retrieved context packs',
+  type: 'object',
+  properties: {
+    task: { type: 'string', description: 'Task description the agent is planning to execute', minLength: 1, maxLength: 2000 },
+    context_pack_ids: { type: 'array', items: { type: 'string' }, description: 'Context pack IDs that informed the plan', minItems: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier used to persist and retrieve plan state', minLength: 1 },
+  },
+  required: ['task', 'context_pack_ids'],
+  additionalProperties: false,
+};
+
 /** Request human review tool JSON Schema */
 export const requestHumanReviewToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -623,6 +654,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   explain_function: explainFunctionToolJsonSchema,
   find_usages: findUsagesToolJsonSchema,
   trace_imports: traceImportsToolJsonSchema,
+  synthesize_plan: synthesizePlanToolJsonSchema,
   reset_session_state: resetSessionStateToolJsonSchema,
   request_human_review: requestHumanReviewToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
