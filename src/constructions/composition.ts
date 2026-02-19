@@ -35,6 +35,7 @@ import {
   ConstructionTimeoutError,
 } from './base/construction_base.js';
 import type { Construction, Context } from './types.js';
+import { registerGeneratedConstruction } from './registry.js';
 
 // ============================================================================
 // COMPOSABLE CONSTRUCTION INTERFACE
@@ -849,7 +850,7 @@ export function createConstruction<TInput, TData>(
     context?: Context<unknown>
   ) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: string[] }>
 ): ComposableConstruction<TInput, ConstructionResult & { data: TData }> {
-  return {
+  const construction: ComposableConstruction<TInput, ConstructionResult & { data: TData }> = {
     id,
     name,
     async execute(input: TInput, context?: Context<unknown>): Promise<ConstructionResult & { data: TData }> {
@@ -863,6 +864,10 @@ export function createConstruction<TInput, TData>(
       };
     },
   };
+  registerGeneratedConstruction(
+    construction as unknown as Construction<unknown, unknown, ConstructionError, unknown>,
+  );
+  return construction;
 }
 
 /**

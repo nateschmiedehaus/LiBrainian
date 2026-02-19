@@ -40,6 +40,8 @@ import {
   type QueryToolInput,
   type ResetSessionStateToolInput,
   type RequestHumanReviewToolInput,
+  type ListConstructionsToolInput,
+  type InvokeConstructionToolInput,
   type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
@@ -121,6 +123,11 @@ import * as fs from 'fs/promises';
 import { createAuditLogger, type AuditLogger } from './audit.js';
 import { SqliteEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import { AuditBackedToolAdapter, type ToolAdapter } from '../adapters/tool_adapter.js';
+import {
+  getConstructionManifest,
+  invokeConstruction,
+  listConstructions,
+} from '../constructions/registry.js';
 
 // ============================================================================
 // TYPES
@@ -296,6 +303,8 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   synthesize_plan: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  list_constructions: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  invoke_construction: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 4200 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
@@ -1349,6 +1358,33 @@ export class LibrarianMCPServer {
             blocking: { type: 'boolean', description: 'Whether the agent should pause for human response' },
           },
           required: ['reason', 'context_summary', 'proposed_action', 'confidence_tier', 'risk_level', 'blocking'],
+        },
+      },
+      {
+        name: 'list_constructions',
+        description: 'List registered constructions with manifests, schemas, trust metadata, and capability tags',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
+            capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capability filter' },
+            trustTier: { type: 'string', enum: ['official', 'partner', 'community'], description: 'Optional trust tier filter' },
+            availableOnly: { type: 'boolean', description: 'Only include constructions executable in this runtime' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'invoke_construction',
+        description: 'Invoke a registered construction by ID with runtime input payload',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            constructionId: { type: 'string', description: 'Construction ID returned by list_constructions' },
+            input: { type: 'object', description: 'Construction input payload' },
+            workspace: { type: 'string', description: 'Workspace path used for runtime dependencies' },
+          },
+          required: ['constructionId', 'input'],
         },
       },
       {
@@ -2770,6 +2806,10 @@ export class LibrarianMCPServer {
         return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
       case 'request_human_review':
         return this.executeRequestHumanReview(args as RequestHumanReviewToolInput);
+      case 'list_constructions':
+        return this.executeListConstructions(args as ListConstructionsToolInput);
+      case 'invoke_construction':
+        return this.executeInvokeConstruction(args as InvokeConstructionToolInput);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'submit_feedback':
@@ -4497,6 +4537,113 @@ export class LibrarianMCPServer {
     const logPath = path.join(workspaceRoot, '.librainian', 'audit-log.jsonl');
     await fs.mkdir(path.dirname(logPath), { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  private async executeListConstructions(input: ListConstructionsToolInput): Promise<unknown> {
+    const manifests = listConstructions({
+      tags: input.tags,
+      capabilities: input.capabilities,
+      trustTier: input.trustTier,
+      availableOnly: input.availableOnly,
+    });
+
+    return manifests.map((manifest) => ({
+      id: manifest.id,
+      name: manifest.name,
+      scope: manifest.scope,
+      version: manifest.version,
+      description: manifest.description,
+      agentDescription: manifest.agentDescription,
+      inputSchema: manifest.inputSchema,
+      outputSchema: manifest.outputSchema,
+      requiredCapabilities: manifest.requiredCapabilities,
+      tags: manifest.tags,
+      languages: manifest.languages,
+      frameworks: manifest.frameworks,
+      trustTier: manifest.trustTier,
+      examples: manifest.examples,
+      available: manifest.available !== false,
+      legacyIds: manifest.legacyIds,
+    }));
+  }
+
+  private async executeInvokeConstruction(input: InvokeConstructionToolInput): Promise<unknown> {
+    const manifest = getConstructionManifest(input.constructionId);
+    if (!manifest) {
+      throw new Error(
+        `Unknown Construction ID: ${input.constructionId}. Use list_constructions to discover IDs.`,
+      );
+    }
+    const requiresLibrarian = manifest.requiredCapabilities.includes('librarian');
+    let resolvedWorkspace: string | undefined;
+    let deps: Record<string, unknown> = {};
+
+    if (requiresLibrarian) {
+      const workspaceRoot = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path
+          ?? this.state.workspaces.keys().next().value
+          ?? this.config.workspaces[0];
+
+      if (!workspaceRoot) {
+        throw new Error(
+          `No workspace available for invoke_construction(${manifest.id}). Provide workspace or run bootstrap first.`,
+        );
+      }
+
+      resolvedWorkspace = path.resolve(workspaceRoot);
+      if (!this.state.workspaces.has(resolvedWorkspace)) {
+        this.registerWorkspace(resolvedWorkspace);
+      }
+
+      let workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
+
+      if (!workspaceState.librarian) {
+        const librarian = await createLibrarian({
+          workspace: resolvedWorkspace,
+          autoBootstrap: true,
+          autoWatch: false,
+        });
+        const status = await librarian.getStatus().catch(() => null);
+        this.updateWorkspaceState(resolvedWorkspace, {
+          librarian,
+          indexState: status?.bootstrapped ? 'ready' : 'stale',
+          indexedAt: status?.lastBootstrap ? status.lastBootstrap.toISOString() : undefined,
+          watching: false,
+        });
+        workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
+      }
+
+      const librarian = workspaceState.librarian;
+      if (!librarian) {
+        throw new Error(`Failed to initialize Librarian runtime for workspace: ${resolvedWorkspace}`);
+      }
+      deps = { librarian };
+    }
+
+    const controller = new AbortController();
+    const result = await invokeConstruction(
+      manifest.id,
+      input.input,
+      {
+        deps,
+        signal: controller.signal,
+        sessionId: `invoke_${this.generateId()}`,
+        metadata: {
+          tool: 'invoke_construction',
+          workspace: resolvedWorkspace,
+        },
+      },
+    );
+
+    return {
+      constructionId: manifest.id,
+      name: manifest.name,
+      success: true,
+      available: manifest.available !== false,
+      workspace: resolvedWorkspace,
+      result,
+    };
   }
 
   private async executeRequestHumanReview(input: RequestHumanReviewToolInput): Promise<unknown> {

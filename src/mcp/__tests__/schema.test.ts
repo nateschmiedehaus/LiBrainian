@@ -21,6 +21,8 @@ import {
   SynthesizePlanToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
+  ListConstructionsToolInputSchema,
+  InvokeConstructionToolInputSchema,
   SubmitFeedbackToolInputSchema,
   ExplainFunctionToolInputSchema,
   FindUsagesToolInputSchema,
@@ -41,6 +43,8 @@ import {
   isSynthesizePlanToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
+  isListConstructionsToolInput,
+  isInvokeConstructionToolInput,
   isSubmitFeedbackToolInput,
   isExplainFunctionToolInput,
   isFindUsagesToolInput,
@@ -72,6 +76,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
       expect(schemas).toContain('request_human_review');
+      expect(schemas).toContain('list_constructions');
+      expect(schemas).toContain('invoke_construction');
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('explain_function');
       expect(schemas).toContain('find_usages');
@@ -91,7 +97,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(27);
+      expect(schemas).toHaveLength(29);
     });
 
     it('should return schema for known tools', () => {
@@ -424,6 +430,44 @@ describe('MCP Schema', () => {
         blocking: false,
       })).toBe(true);
       expect(isRequestHumanReviewToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Construction Registry Tool Schemas', () => {
+    it('validates list_constructions input and type guard', () => {
+      const result = validateToolInput('list_constructions', {
+        tags: ['security'],
+        trustTier: 'official',
+        availableOnly: true,
+      });
+      expect(result.valid).toBe(true);
+      expect(isListConstructionsToolInput({
+        tags: ['security'],
+        trustTier: 'community',
+      })).toBe(true);
+      expect(isListConstructionsToolInput({
+        trustTier: 'invalid',
+      })).toBe(false);
+      expect(ListConstructionsToolInputSchema).toBeDefined();
+    });
+
+    it('validates invoke_construction input and type guard', () => {
+      const result = validateToolInput('invoke_construction', {
+        constructionId: 'librainian:security-audit-helper',
+        input: {
+          files: ['src/index.ts'],
+          checkTypes: ['injection'],
+        },
+      });
+      expect(result.valid).toBe(true);
+      expect(isInvokeConstructionToolInput({
+        constructionId: 'librainian:security-audit-helper',
+        input: {},
+      })).toBe(true);
+      expect(isInvokeConstructionToolInput({
+        constructionId: 'librainian:security-audit-helper',
+      })).toBe(false);
+      expect(InvokeConstructionToolInputSchema).toBeDefined();
     });
   });
 

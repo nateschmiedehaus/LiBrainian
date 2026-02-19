@@ -7,9 +7,10 @@ This document describes the patterns for building "constructions" - higher-level
 1. [Primitives Inventory](#primitives-inventory)
 2. [Confidence Derivation Rules](#confidence-derivation-rules)
 3. [Canonical Construction Pattern](#canonical-construction-pattern)
-4. [Construction Template](#construction-template)
-5. [Best Practices](#best-practices)
-6. [Anti-patterns to Avoid](#anti-patterns-to-avoid)
+4. [Registry and Discovery](#registry-and-discovery)
+5. [Construction Template](#construction-template)
+6. [Best Practices](#best-practices)
+7. [Anti-patterns to Avoid](#anti-patterns-to-avoid)
 
 ---
 
@@ -53,6 +54,39 @@ Migration status:
 - `BaseConstruction.toConstruction()` provides a non-breaking adapter.
 - `src/constructions/composition.ts` keeps `ComposableConstruction` as a deprecated compatibility alias to the canonical type.
 - `src/constructions/lego_pipeline.ts` uses `LegoPipelineBrick` to avoid type-name collisions.
+
+## Registry and Discovery
+
+LiBrainian now exposes a typed central registry for construction discovery:
+
+```typescript
+import {
+  CONSTRUCTION_REGISTRY,
+  isConstructionId,
+  listConstructions,
+  invokeConstruction,
+} from 'librainian/constructions';
+
+const available = listConstructions({
+  tags: ['security'],
+  trustTier: 'official',
+  availableOnly: true,
+});
+
+const id = 'librainian:security-audit-helper';
+if (isConstructionId(id) && CONSTRUCTION_REGISTRY.has(id)) {
+  const result = await invokeConstruction(id, {
+    files: ['src/auth/session.ts'],
+    checkTypes: ['injection', 'auth'],
+  });
+}
+```
+
+Registry guarantees:
+- Duplicate IDs are rejected by `CONSTRUCTION_REGISTRY.register(...)`.
+- `listConstructions(...)` supports filtering by tags, capabilities, trust tier, and availability.
+- `compatibilityScore(a, b)` estimates output/input schema fit for composition routing.
+- Runtime-generated constructions created via `createConstruction(...)` auto-register as community-scoped entries.
 
 ## Primitives Inventory
 

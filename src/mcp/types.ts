@@ -735,6 +735,33 @@ export interface RequestHumanReviewToolOutput {
   expires_in_seconds: number;
 }
 
+/** List constructions tool input */
+export interface ListConstructionsToolInput {
+  /** Optional tags used for filtering */
+  tags?: string[];
+
+  /** Optional required capabilities filter */
+  capabilities?: string[];
+
+  /** Optional trust tier filter */
+  trustTier?: 'official' | 'partner' | 'community';
+
+  /** Only include constructions executable in this runtime */
+  availableOnly?: boolean;
+}
+
+/** Invoke construction tool input */
+export interface InvokeConstructionToolInput {
+  /** Construction ID returned by list_constructions */
+  constructionId: string;
+
+  /** Construction input payload */
+  input: unknown;
+
+  /** Workspace used to resolve runtime dependencies */
+  workspace?: string;
+}
+
 /** Change impact tool input */
 export interface GetChangeImpactToolInput {
   /** Changed file/module/function identifier to analyze */
@@ -1427,6 +1454,18 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  list_constructions: {
+    tool: 'list_constructions',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  invoke_construction: {
+    tool: 'invoke_construction',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'medium',
+  },
   get_change_impact: {
     tool: 'get_change_impact',
     requiredScopes: ['read'],
@@ -1776,6 +1815,30 @@ export function isRequestHumanReviewToolInput(value: unknown): value is RequestH
   const riskOk = obj.risk_level === 'low' || obj.risk_level === 'medium' || obj.risk_level === 'high';
   const blockingOk = typeof obj.blocking === 'boolean';
   return reasonOk && summaryOk && actionOk && confidenceOk && riskOk && blockingOk;
+}
+
+/** Type guard for ListConstructionsToolInput */
+export function isListConstructionsToolInput(value: unknown): value is ListConstructionsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const tagsOk = Array.isArray(obj.tags) || typeof obj.tags === 'undefined';
+  const capabilitiesOk = Array.isArray(obj.capabilities) || typeof obj.capabilities === 'undefined';
+  const trustTierOk = obj.trustTier === 'official'
+    || obj.trustTier === 'partner'
+    || obj.trustTier === 'community'
+    || typeof obj.trustTier === 'undefined';
+  const availableOnlyOk = typeof obj.availableOnly === 'boolean' || typeof obj.availableOnly === 'undefined';
+  return tagsOk && capabilitiesOk && trustTierOk && availableOnlyOk;
+}
+
+/** Type guard for InvokeConstructionToolInput */
+export function isInvokeConstructionToolInput(value: unknown): value is InvokeConstructionToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const constructionIdOk = typeof obj.constructionId === 'string';
+  const inputOk = Object.prototype.hasOwnProperty.call(obj, 'input');
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return constructionIdOk && inputOk && workspaceOk;
 }
 
 /** Type guard for GetChangeImpactToolInput */

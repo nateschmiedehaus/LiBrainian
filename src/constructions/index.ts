@@ -9,12 +9,40 @@
  */
 
 export type {
+  CapabilityId,
   Construction,
+  ConstructionId,
+  ConstructionListFilter,
+  ConstructionManifest,
+  ConstructionManifestExample,
+  ConstructionScope,
+  ConstructionSchema,
+  ConstructionTrustTier,
   Context,
   ConstructionRequirements,
+  LegacyConstructionClassId,
+  LegacyConstructionId,
   LibrarianContext,
   Layer,
+  NamespacedOfficialConstructionId,
+  OfficialConstructionSlug,
+  ThirdPartyConstructionId,
 } from './types.js';
+
+export {
+  OFFICIAL_CONSTRUCTION_SLUGS,
+  LEGACY_CONSTRUCTION_CLASS_IDS,
+  LEGACY_CONSTRUCTION_ALIASES,
+  isConstructionId,
+  toCanonicalConstructionId,
+} from './types.js';
+
+export {
+  CONSTRUCTION_REGISTRY,
+  getConstructionManifest,
+  invokeConstruction,
+  listConstructions,
+} from './registry.js';
 
 export {
   identity,

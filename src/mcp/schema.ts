@@ -183,6 +183,25 @@ export const RequestHumanReviewToolInputSchema = z.object({
 }).strict();
 
 /**
+ * List constructions tool input schema
+ */
+export const ListConstructionsToolInputSchema = z.object({
+  tags: z.array(z.string()).optional().describe('Optional tags to filter constructions'),
+  capabilities: z.array(z.string()).optional().describe('Optional required capabilities filter'),
+  trustTier: z.enum(['official', 'partner', 'community']).optional().describe('Optional trust tier filter'),
+  availableOnly: z.boolean().optional().default(false).describe('Only return constructions executable in this runtime'),
+}).strict().default({});
+
+/**
+ * Invoke construction tool input schema
+ */
+export const InvokeConstructionToolInputSchema = z.object({
+  constructionId: z.string().min(1).describe('Construction ID from list_constructions'),
+  input: z.unknown().describe('Construction input payload'),
+  workspace: z.string().optional().describe('Workspace path used to resolve runtime dependencies'),
+}).strict();
+
+/**
  * Verify claim tool input schema
  */
 export const VerifyClaimToolInputSchema = z.object({
@@ -358,6 +377,8 @@ export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
 export type TraceImportsToolInputType = z.infer<typeof TraceImportsToolInputSchema>;
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
+export type ListConstructionsToolInputType = z.infer<typeof ListConstructionsToolInputSchema>;
+export type InvokeConstructionToolInputType = z.infer<typeof InvokeConstructionToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type FindSymbolToolInputType = z.infer<typeof FindSymbolToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
@@ -393,6 +414,8 @@ export const TOOL_INPUT_SCHEMAS = {
   trace_imports: TraceImportsToolInputSchema,
   reset_session_state: ResetSessionStateToolInputSchema,
   request_human_review: RequestHumanReviewToolInputSchema,
+  list_constructions: ListConstructionsToolInputSchema,
+  invoke_construction: InvokeConstructionToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
@@ -630,6 +653,39 @@ export const requestHumanReviewToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** List constructions tool JSON Schema */
+export const listConstructionsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/list-constructions-tool-input',
+  title: 'ListConstructionsToolInput',
+  description: 'Input for list_constructions - discover registered constructions and their manifests',
+  type: 'object',
+  properties: {
+    tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
+    capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capabilities filter' },
+    trustTier: { type: 'string', enum: ['official', 'partner', 'community'], description: 'Optional trust tier filter' },
+    availableOnly: { type: 'boolean', description: 'Only return constructions executable in this runtime', default: false },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** Invoke construction tool JSON Schema */
+export const invokeConstructionToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/invoke-construction-tool-input',
+  title: 'InvokeConstructionToolInput',
+  description: 'Input for invoke_construction - execute a registered construction by ID',
+  type: 'object',
+  properties: {
+    constructionId: { type: 'string', description: 'Construction ID from list_constructions', minLength: 1 },
+    input: { type: 'object', description: 'Construction input payload' },
+    workspace: { type: 'string', description: 'Workspace path used to resolve runtime dependencies' },
+  },
+  required: ['constructionId', 'input'],
+  additionalProperties: false,
+};
+
 /** Find symbol tool JSON Schema */
 export const findSymbolToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -657,6 +713,8 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   synthesize_plan: synthesizePlanToolJsonSchema,
   reset_session_state: resetSessionStateToolJsonSchema,
   request_human_review: requestHumanReviewToolJsonSchema,
+  list_constructions: listConstructionsToolJsonSchema,
+  invoke_construction: invokeConstructionToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
