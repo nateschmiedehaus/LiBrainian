@@ -492,6 +492,35 @@ describe('query pipeline definition', () => {
     expect(buildRanked[0]?.packId).toBe('build-pack');
   });
 
+  it('matches compound identifiers across camelCase and snake_case query forms', () => {
+    const sessionPack = createPack({
+      packId: 'session-pack',
+      summary: 'Handles userSessionRefreshToken lifecycle and retry policy',
+      keyFacts: ['userSessionRefreshToken is rotated on auth boundary'],
+      successCount: 2,
+      failureCount: 0,
+    });
+    const unrelatedPack = createPack({
+      packId: 'invoice-pack',
+      summary: 'Generates invoice totals and taxation reports',
+      keyFacts: ['invoice generation pipeline'],
+      successCount: 2,
+      failureCount: 0,
+    });
+
+    const snakeCaseRanked = __testing.rankHeuristicFallbackPacks(
+      [sessionPack, unrelatedPack],
+      'session_refresh_token'
+    );
+    const spacedRanked = __testing.rankHeuristicFallbackPacks(
+      [sessionPack, unrelatedPack],
+      'user session refresh token'
+    );
+
+    expect(snakeCaseRanked[0]?.packId).toBe('session-pack');
+    expect(spacedRanked[0]?.packId).toBe('session-pack');
+  });
+
   it('supports hiding llm errors with showLlmErrors=false', async () => {
     const stageTracker = __testing.createStageTracker();
     const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {

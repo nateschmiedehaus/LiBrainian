@@ -6347,11 +6347,39 @@ function buildKnowledgeSources(
 }
 
 function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^a-z0-9_./-]+/)
+  const rawTokens = text
+    .split(/[^A-Za-z0-9_./-]+/)
     .map((token) => token.trim())
-    .filter((token) => token.length > 2);
+    .filter((token) => token.length > 0);
+  const expanded = new Set<string>();
+  for (const token of rawTokens) {
+    const normalized = token.toLowerCase();
+    if (normalized.length > 2) {
+      expanded.add(normalized);
+    }
+    for (const segment of token.split(/[._/-]+/)) {
+      if (!segment) continue;
+      const normalizedSegment = segment.toLowerCase();
+      if (normalizedSegment.length > 2) {
+        expanded.add(normalizedSegment);
+      }
+      for (const part of splitCamelCase(segment)) {
+        if (part.length > 2) {
+          expanded.add(part);
+        }
+      }
+    }
+  }
+  return Array.from(expanded);
+}
+
+function splitCamelCase(value: string): string[] {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
 }
 
 function scoreTextRelevance(tokens: string[], summary: { summary: string; highlights: string[]; files: string[] }): number {
