@@ -8,6 +8,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
+import * as fsSync from 'node:fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import lockfile from 'proper-lockfile';
@@ -2731,7 +2732,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       }
     })();
 
-    this.vectorIndexDirty = true;
+    this.markVectorIndexDirty();
     await this.recordRedactions(fileResult.counts);
     return deletedCount;
   }
@@ -2823,7 +2824,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       tokenCount
     );
     await this.recordRedactions(counts);
-    this.vectorIndexDirty = true;
+    this.markVectorIndexDirty();
   }
 
   /**
@@ -2871,7 +2872,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     const totalDeleted = result.changes + multiVectorDeleted;
 
     if (totalDeleted > 0) {
-      this.vectorIndexDirty = true;
+      this.markVectorIndexDirty();
       logWarning('[librarian] Cleared mismatched embeddings for auto-recovery', {
         expectedDimension,
         embeddingsDeleted: result.changes,
@@ -2985,7 +2986,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     })();
 
     if (result.removedEmbeddings > 0 || result.removedMultiVectors > 0) {
-      this.vectorIndexDirty = true;
+      this.markVectorIndexDirty();
     }
 
     return {
@@ -3287,17 +3288,107 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   }
 
   private ensureVectorIndex(): VectorIndex | null {
-    if (!this.vectorIndex) this.vectorIndex = new VectorIndex();
+    if (!this.vectorIndex) this.vectorIndex = this.createVectorIndex();
     if (!this.vectorIndexDirty) return this.vectorIndex;
+
+    if (this.tryLoadSerializedVectorIndex(this.vectorIndex)) {
+      this.vectorIndexDirty = false;
+      return this.vectorIndex;
+    }
+
     const items = this.loadVectorIndexItems();
     if (!items.length) {
       this.vectorIndex.clear();
       this.vectorIndexDirty = false;
+      this.deleteSerializedVectorIndex();
       return noResult();
     }
     this.vectorIndex.load(items);
+    this.persistSerializedVectorIndex(this.vectorIndex);
     this.vectorIndexDirty = false;
     return this.vectorIndex;
+  }
+
+  private createVectorIndex(): VectorIndex {
+    const rawThreshold = process.env.LIBRARIAN_HNSW_AUTO_THRESHOLD;
+    const parsedThreshold = rawThreshold === undefined ? Number.NaN : Number.parseInt(rawThreshold, 10);
+    if (Number.isFinite(parsedThreshold) && parsedThreshold > 0) {
+      return new VectorIndex({ hnswAutoThreshold: parsedThreshold });
+    }
+    return new VectorIndex();
+  }
+
+  private resolveSerializedVectorIndexPath(): string | null {
+    if (this.dbPath === ':memory:') {
+      return null;
+    }
+    const root = this.workspaceRoot ?? path.dirname(this.dbPath);
+    return path.join(root, '.librarian', 'hnsw.bin');
+  }
+
+  private tryLoadSerializedVectorIndex(index: VectorIndex): boolean {
+    const serializedPath = this.resolveSerializedVectorIndexPath();
+    if (!serializedPath || !fsSync.existsSync(serializedPath)) {
+      return false;
+    }
+
+    try {
+      if (this.dbPath !== ':memory:' && fsSync.existsSync(this.dbPath)) {
+        const serializedStat = fsSync.statSync(serializedPath);
+        const dbStat = fsSync.statSync(this.dbPath);
+        if (serializedStat.mtimeMs < dbStat.mtimeMs) {
+          return false;
+        }
+      }
+
+      const payload = fsSync.readFileSync(serializedPath);
+      if (payload.length === 0) {
+        return false;
+      }
+      index.loadSerializedHNSW(payload);
+      return true;
+    } catch (error) {
+      logWarning('[librarian] Failed to load serialized vector index, rebuilding from SQLite', {
+        path: serializedPath,
+        error,
+      });
+      return false;
+    }
+  }
+
+  private persistSerializedVectorIndex(index: VectorIndex): void {
+    const serializedPath = this.resolveSerializedVectorIndexPath();
+    if (!serializedPath) return;
+    const payload = index.serializeHNSW();
+    if (!payload || payload.length === 0) return;
+
+    try {
+      fsSync.mkdirSync(path.dirname(serializedPath), { recursive: true });
+      fsSync.writeFileSync(serializedPath, payload);
+    } catch (error) {
+      logWarning('[librarian] Failed to persist serialized vector index', {
+        path: serializedPath,
+        error,
+      });
+    }
+  }
+
+  private deleteSerializedVectorIndex(): void {
+    const serializedPath = this.resolveSerializedVectorIndexPath();
+    if (!serializedPath || !fsSync.existsSync(serializedPath)) return;
+    try {
+      fsSync.rmSync(serializedPath, { force: true });
+    } catch (error) {
+      logWarning('[librarian] Failed to remove serialized vector index', {
+        path: serializedPath,
+        error,
+      });
+    }
+  }
+
+  private markVectorIndexDirty(): void {
+    this.vectorIndexDirty = true;
+    this.deleteSerializedVectorIndex();
   }
 
   private loadVectorIndexItems(): Array<{ entityId: string; entityType: EmbeddableEntityType; embedding: Float32Array }> { const db = this.ensureDb(); const rows = db.prepare('SELECT entity_id, entity_type, embedding FROM librarian_embeddings').all() as { entity_id: string; entity_type: string; embedding: Buffer; }[]; return rows.map((row) => { const view = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.length / 4); return { entityId: row.entity_id, entityType: row.entity_type as EmbeddableEntityType, embedding: new Float32Array(view) }; }); }

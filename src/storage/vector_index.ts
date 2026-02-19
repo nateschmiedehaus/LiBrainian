@@ -124,6 +124,96 @@ class BinaryHeap<T> {
   }
 }
 
+class BinaryWriter {
+  private chunks: Buffer[] = [];
+
+  writeFixedString(value: string): void {
+    this.chunks.push(Buffer.from(value, 'utf8'));
+  }
+
+  writeUint32(value: number): void {
+    const buffer = Buffer.allocUnsafe(4);
+    buffer.writeUInt32LE(value, 0);
+    this.chunks.push(buffer);
+  }
+
+  writeInt32(value: number): void {
+    const buffer = Buffer.allocUnsafe(4);
+    buffer.writeInt32LE(value, 0);
+    this.chunks.push(buffer);
+  }
+
+  writeString(value: string): void {
+    const encoded = Buffer.from(value, 'utf8');
+    this.writeUint32(encoded.byteLength);
+    this.chunks.push(encoded);
+  }
+
+  writeFloat32Array(values: Float32Array): void {
+    this.chunks.push(Buffer.from(values.buffer, values.byteOffset, values.byteLength));
+  }
+
+  toBuffer(): Buffer {
+    return Buffer.concat(this.chunks);
+  }
+}
+
+class BinaryReader {
+  private offset = 0;
+
+  constructor(private readonly buffer: Buffer) {}
+
+  readFixedString(length: number): string {
+    if (this.offset + length > this.buffer.length) {
+      throw new Error('Invalid HNSW payload: fixed string out of bounds');
+    }
+    const value = this.buffer.subarray(this.offset, this.offset + length).toString('utf8');
+    this.offset += length;
+    return value;
+  }
+
+  readUint32(): number {
+    if (this.offset + 4 > this.buffer.length) {
+      throw new Error('Invalid HNSW payload: uint32 out of bounds');
+    }
+    const value = this.buffer.readUInt32LE(this.offset);
+    this.offset += 4;
+    return value;
+  }
+
+  readInt32(): number {
+    if (this.offset + 4 > this.buffer.length) {
+      throw new Error('Invalid HNSW payload: int32 out of bounds');
+    }
+    const value = this.buffer.readInt32LE(this.offset);
+    this.offset += 4;
+    return value;
+  }
+
+  readString(): string {
+    const length = this.readUint32();
+    if (this.offset + length > this.buffer.length) {
+      throw new Error('Invalid HNSW payload: string out of bounds');
+    }
+    const value = this.buffer.subarray(this.offset, this.offset + length).toString('utf8');
+    this.offset += length;
+    return value;
+  }
+
+  readFloat32Array(length: number): Float32Array {
+    const byteLength = length * Float32Array.BYTES_PER_ELEMENT;
+    if (this.offset + byteLength > this.buffer.length) {
+      throw new Error('Invalid HNSW payload: float array out of bounds');
+    }
+    const view = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      view[i] = this.buffer.readFloatLE(this.offset + (i * Float32Array.BYTES_PER_ELEMENT));
+    }
+    this.offset += byteLength;
+    return view;
+  }
+}
+
 /**
  * HNSW Index for approximate nearest neighbor search.
  *
@@ -140,6 +230,8 @@ class BinaryHeap<T> {
  * ```
  */
 export class HNSWIndex {
+  private static readonly SERIALIZATION_MAGIC = 'LBH1';
+  private static readonly SERIALIZATION_VERSION = 1;
   private nodes: Map<string, HNSWNode> = new Map();
   private entryPoint: string | null = null;
   private maxLayer: number = 0;
@@ -477,6 +569,125 @@ export class HNSWIndex {
   }
 
   /**
+   * Returns a snapshot of all indexed items.
+   */
+  snapshotItems(): VectorIndexItem[] {
+    return Array.from(this.nodes.values(), (node) => ({
+      entityId: node.id,
+      entityType: node.entityType,
+      embedding: new Float32Array(node.vector),
+    }));
+  }
+
+  /**
+   * Serialize the graph into a binary payload for on-disk persistence.
+   */
+  serializeHNSW(): Buffer {
+    const writer = new BinaryWriter();
+    writer.writeFixedString(HNSWIndex.SERIALIZATION_MAGIC);
+    writer.writeUint32(HNSWIndex.SERIALIZATION_VERSION);
+    writer.writeUint32(this.config.M);
+    writer.writeUint32(this.config.efConstruction);
+    writer.writeUint32(this.config.efSearch);
+    writer.writeInt32(this.maxLayer);
+    writer.writeString(this.entryPoint ?? '');
+    writer.writeUint32(this.nodes.size);
+
+    const sortedNodes = Array.from(this.nodes.values()).sort((a, b) => a.id.localeCompare(b.id));
+    for (const node of sortedNodes) {
+      writer.writeString(node.id);
+      writer.writeString(node.entityType);
+      writer.writeUint32(node.vector.length);
+      writer.writeFloat32Array(node.vector);
+
+      const sortedLayers = Array.from(node.connections.entries()).sort((a, b) => a[0] - b[0]);
+      writer.writeUint32(sortedLayers.length);
+      for (const [layer, connections] of sortedLayers) {
+        writer.writeInt32(layer);
+        writer.writeUint32(connections.length);
+        for (const connectionId of connections) {
+          writer.writeString(connectionId);
+        }
+      }
+    }
+
+    return writer.toBuffer();
+  }
+
+  /**
+   * Deserialize a persisted graph payload.
+   */
+  static deserializeHNSW(payload: Uint8Array): HNSWIndex {
+    const buffer = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+    const reader = new BinaryReader(buffer);
+    const magic = reader.readFixedString(HNSWIndex.SERIALIZATION_MAGIC.length);
+    if (magic !== HNSWIndex.SERIALIZATION_MAGIC) {
+      throw new Error('Invalid HNSW payload: magic mismatch');
+    }
+
+    const version = reader.readUint32();
+    if (version !== HNSWIndex.SERIALIZATION_VERSION) {
+      throw new Error(`Invalid HNSW payload: unsupported version ${version}`);
+    }
+
+    const M = reader.readUint32();
+    const efConstruction = reader.readUint32();
+    const efSearch = reader.readUint32();
+    const maxLayer = reader.readInt32();
+    const rawEntryPoint = reader.readString();
+    const nodeCount = reader.readUint32();
+
+    const index = new HNSWIndex({ M, efConstruction, efSearch });
+    index.nodes.clear();
+    index.dimensions.clear();
+    index.maxLayer = maxLayer;
+    index.entryPoint = rawEntryPoint.length > 0 ? rawEntryPoint : null;
+
+    for (let i = 0; i < nodeCount; i++) {
+      const id = reader.readString();
+      const entityType = reader.readString() as VectorIndexEntityType;
+      const vectorLength = reader.readUint32();
+      const vector = reader.readFloat32Array(vectorLength);
+      const layerCount = reader.readUint32();
+
+      const connections = new Map<number, string[]>();
+      for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
+        const layer = reader.readInt32();
+        const connCount = reader.readUint32();
+        const layerConnections: string[] = [];
+        for (let connIndex = 0; connIndex < connCount; connIndex++) {
+          layerConnections.push(reader.readString());
+        }
+        connections.set(layer, layerConnections);
+      }
+
+      index.nodes.set(id, {
+        id,
+        entityType,
+        vector,
+        connections,
+      });
+      index.dimensions.add(vector.length);
+    }
+
+    if (index.nodes.size === 0) {
+      index.entryPoint = null;
+      index.maxLayer = 0;
+      return index;
+    }
+
+    if (!index.entryPoint || !index.nodes.has(index.entryPoint)) {
+      index.entryPoint = index.nodes.keys().next().value ?? null;
+    }
+
+    if (index.maxLayer < 0) {
+      index.maxLayer = 0;
+    }
+
+    return index;
+  }
+
+  /**
    * Remove a node from the index.
    * Note: This is a basic implementation that may leave orphaned connections.
    * For production use, consider rebuilding affected layers.
@@ -670,6 +881,25 @@ export class VectorIndex {
    */
   getHNSWStats(): ReturnType<HNSWIndex['getStats']> | null {
     return this.hnswIndex?.getStats() ?? null;
+  }
+
+  /**
+   * Serialize active HNSW graph, if available.
+   */
+  serializeHNSW(): Buffer | null {
+    if (!this.useHNSWMode || !this.hnswIndex) return null;
+    return this.hnswIndex.serializeHNSW();
+  }
+
+  /**
+   * Restore HNSW state from a serialized payload.
+   */
+  loadSerializedHNSW(payload: Uint8Array): void {
+    const restored = HNSWIndex.deserializeHNSW(payload);
+    this.hnswIndex = restored;
+    this.useHNSWMode = true;
+    this.items = restored.snapshotItems();
+    this.dimensions = new Set(this.items.map((item) => item.embedding.length));
   }
 
   /**
