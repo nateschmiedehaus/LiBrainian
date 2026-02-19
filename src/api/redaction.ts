@@ -7,7 +7,7 @@ export interface RedactionResult { text: string; counts: RedactionCounts; }
 export interface SnippetMinimizationConfig { maxChars?: number; contextLines?: number; }
 export interface SnippetMinimizationResult { text: string; truncated: boolean; originalLength: number; }
 export interface RedactionAuditReportV1 { kind: 'RedactionAuditReport.v1'; schema_version: 1; created_at: string; canon: Awaited<ReturnType<typeof computeCanonRef>>; environment: ReturnType<typeof computeEnvironmentRef>; workspace: string; redactions: RedactionCounts; }
-const REDACTION_PATTERNS: Array<{ type: RedactionType; regex: RegExp }> = [{ type: 'api_key', regex: /api[_-]?key\s*[:=]\s*['"][^'"]{20,}['"]/gi }, { type: 'password', regex: /password\s*[:=]\s*['"][^'"]+['"]/gi }, { type: 'token', regex: /token\s*[:=]\s*['"][A-Za-z0-9+/=]{20,}['"]/gi }, { type: 'aws_key', regex: /AKIA[0-9A-Z]{16}/g }, { type: 'private_key', regex: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC )?PRIVATE KEY-----/g }];
+const REDACTION_PATTERNS: Array<{ type: RedactionType; regex: RegExp }> = [{ type: 'api_key', regex: /api[_-]?key\s*[:=]\s*['"][^'"]{20,}['"]/gi }, { type: 'password', regex: /password\s*[:=]\s*['"][^'"]+['"]/gi }, { type: 'token', regex: /token\s*[:=]\s*['"][A-Za-z0-9+/=]{20,}['"]|gh[pousr]_[A-Za-z0-9]{20,}/gi }, { type: 'aws_key', regex: /AKIA[0-9A-Z]{16}/g }, { type: 'private_key', regex: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC )?PRIVATE KEY-----/g }];
 export const DEFAULT_SNIPPET_LIMITS = { maxChars: 2000, contextLines: 5 };
 const SNIPPET_GAP_MARKER = '... [snip] ...';
 const resolveAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librarian', 'redaction');

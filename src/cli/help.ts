@@ -29,6 +29,7 @@ COMMANDS:
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
     watch               Watch for file changes and auto-reindex
+    scan                Show security redaction scan results
     compose             Compose construction pipelines or technique bundles
     doctor              Run diagnostics and recovery hints
     health              Show current LiBrainian health status
@@ -50,6 +51,7 @@ ADVANCED:
     replay              Replay an evolution cycle or variant
     index --force ...        Incrementally index explicit files or git-selected changes
     update              Hook-friendly alias for incremental index updates
+    scan --secrets      Report secret redaction audit totals
     analyze             Run static analysis (dead code, complexity)
     config heal         Auto-detect and fix suboptimal configuration
     ralph               Run DETECT->FIX->VERIFY loop and write an audit report
@@ -896,6 +898,29 @@ EXAMPLES:
     librarian update --staged
     librarian update src/auth/session.ts src/api/mcp.ts
     librarian update --since origin/main
+`,
+
+  scan: `
+librarian scan - Security redaction scan reporting
+
+USAGE:
+    librarian scan --secrets [options]
+
+OPTIONS:
+    --secrets           Report secret redaction totals from latest audit report
+    --json              Emit machine-readable JSON output
+    --format text|json  Output format (default: text)
+
+DESCRIPTION:
+    Reports redaction totals captured by LiBrainian's secret-redaction pipeline.
+    This command reads the latest:
+      state/audits/librarian/redaction/*/RedactionAuditReport.v1.json
+
+    and prints total redactions plus per-type counts.
+
+EXAMPLES:
+    librarian scan --secrets
+    librarian scan --secrets --json
 `,
 
   analyze: `

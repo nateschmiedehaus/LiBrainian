@@ -266,11 +266,13 @@ it('redacts secrets and minimizes snippets', () => {
   const privateKeyFooter = ['-----END', 'PRIVATE', 'KEY-----'].join(' ');
   const apiKey = ['1234567890', '1234567890'].join('');
   const token = ['ABCD', '1234', 'EFGH', '5678', 'IJKL'].join('');
+  const githubToken = ['ghp_', '1234567890', 'abcdefghij', 'KLMNOPQRST'].join('');
   const awsKey = ['AKIA', '1234567890ABCDEF'].join('');
   const input = [
     `api_key: '${apiKey}'`,
     'password = "hunter2"',
     `token: '${token}'`,
+    githubToken,
     awsKey,
     privateKeyHeader,
     'abc',
@@ -278,9 +280,16 @@ it('redacts secrets and minimizes snippets', () => {
   ].join('\n');
 
   const result = redactText(input);
-  for (const type of ['api_key', 'password', 'token', 'aws_key', 'private_key'] as const) {
+  const expectedCounts = {
+    api_key: 1,
+    password: 1,
+    token: 2,
+    aws_key: 1,
+    private_key: 1,
+  } as const;
+  for (const type of Object.keys(expectedCounts) as Array<keyof typeof expectedCounts>) {
     expect(result.text).toContain(`[REDACTED:${type}]`);
-    expect(result.counts.by_type[type]).toBe(1);
+    expect(result.counts.by_type[type]).toBe(expectedCounts[type]);
   }
 
   const minimized = minimizeSnippet(
