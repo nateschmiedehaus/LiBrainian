@@ -498,6 +498,12 @@ export interface QueryToolInput {
 
   /** Snake-case alias for include near-miss retrieval diagnostics */
   explain_misses?: boolean;
+
+  /** Enable chunked stream view metadata for progressive result consumption */
+  stream?: boolean;
+
+  /** Chunk size used for stream view metadata (default: 5, max: 200) */
+  streamChunkSize?: number;
 }
 
 export type RetrievalConfidenceTier = 'definitive' | 'high' | 'medium' | 'low' | 'uncertain';
@@ -589,6 +595,38 @@ export interface QueryToolOutput {
     confidenceTier: 'low' | 'uncertain';
     riskLevel: 'low' | 'medium' | 'high';
     blockingSuggested: boolean;
+  };
+
+  /** True when query hit timeout budget and returned a partial payload */
+  timedOut?: boolean;
+
+  /** True when payload is intentionally partial rather than complete */
+  partial?: boolean;
+
+  /** Timeout budget used by the query execution path */
+  timeoutMs?: number;
+
+  /** Progress snapshots captured across query execution phases */
+  progress?: {
+    completed: boolean;
+    events: Array<{
+      stage: string;
+      elapsedMs: number;
+      timestamp: string;
+      details?: Record<string, unknown>;
+    }>;
+  };
+
+  /** Optional chunk metadata for agents that consume query results incrementally */
+  stream?: {
+    enabled: boolean;
+    chunkSize: number;
+    totalChunks: number;
+    chunks: Array<{
+      chunkIndex: number;
+      packCount: number;
+      packIds: string[];
+    }>;
   };
 }
 
@@ -1628,7 +1666,17 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
   const explainMissesOk = typeof obj.explainMisses === 'boolean' || typeof obj.explainMisses === 'undefined';
   const explainMissesAliasOk = typeof obj.explain_misses === 'boolean' || typeof obj.explain_misses === 'undefined';
-  return intentOk && sessionIdOk && pageSizeOk && pageIdxOk && outputFileOk && explainMissesOk && explainMissesAliasOk;
+  const streamOk = typeof obj.stream === 'boolean' || typeof obj.stream === 'undefined';
+  const streamChunkSizeOk = typeof obj.streamChunkSize === 'number' || typeof obj.streamChunkSize === 'undefined';
+  return intentOk
+    && sessionIdOk
+    && pageSizeOk
+    && pageIdxOk
+    && outputFileOk
+    && explainMissesOk
+    && explainMissesAliasOk
+    && streamOk
+    && streamChunkSizeOk;
 }
 
 /** Type guard for ResetSessionStateToolInput */

@@ -176,6 +176,99 @@ describe('MCP query and context bundle pagination', () => {
     expect(saved.pagination.totalItems).toBe(2);
   });
 
+  it('returns chunked stream metadata when stream mode is enabled', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.9 },
+        { packId: 'p2', packType: 'module_context', targetId: 'b', summary: 'two', keyFacts: [], relatedFiles: [], confidence: 0.8 },
+        { packId: 'p3', packType: 'function_context', targetId: 'c', summary: 'three', keyFacts: [], relatedFiles: [], confidence: 0.7 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-stream',
+      constructionPlan: undefined,
+      totalConfidence: 0.8,
+      cacheHit: false,
+      latencyMs: 12,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'stream me',
+      stream: true,
+      streamChunkSize: 1,
+      pageSize: 3,
+      pageIdx: 0,
+    });
+
+    expect(result.stream?.enabled).toBe(true);
+    expect(result.stream?.chunkSize).toBe(1);
+    expect(result.stream?.totalChunks).toBe(3);
+    expect(result.stream?.chunks?.[0]?.packIds).toEqual(['p1']);
+    expect(result.stream?.chunks?.[1]?.packIds).toEqual(['p2']);
+    expect(result.stream?.chunks?.[2]?.packIds).toEqual(['p3']);
+    expect(result.timedOut).toBe(false);
+  });
+
+  it('returns partial payload with timedOut flag when query exceeds timeout budget', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+      performance: { maxConcurrent: 5, timeoutMs: 20, cacheEnabled: true },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      return {
+        packs: [
+          { packId: 'late', packType: 'function_context', targetId: 'a', summary: 'late', keyFacts: [], relatedFiles: [], confidence: 0.5 },
+        ],
+        disclosures: [],
+        adequacy: undefined,
+        verificationPlan: undefined,
+        traceId: 'trace-late',
+        constructionPlan: undefined,
+        totalConfidence: 0.5,
+        cacheHit: false,
+        latencyMs: 60,
+        drillDownHints: [],
+        synthesis: undefined,
+        synthesisMode: 'heuristic',
+        llmError: undefined,
+      };
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'slow query',
+    });
+
+    expect(result.timedOut).toBe(true);
+    expect(result.partial).toBe(true);
+    expect(result.timeoutMs).toBeGreaterThan(0);
+    expect(result.packs).toEqual([]);
+    expect(Array.isArray(result.progress?.events)).toBe(true);
+    expect(result.progress?.events?.some((event: { stage?: string }) => event.stage === 'query_timed_out')).toBe(true);
+  });
+
   it('sanitizes epistemic disclosures and traceId in query output', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

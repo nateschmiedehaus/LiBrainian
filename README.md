@@ -11,6 +11,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
 
+<img src="docs/assets/librainian-repo-artwork.png" alt="LiBrainian character artwork" width="320" />
+
 **Auto-bootstrap. Auto-heal. Auto-query. Zero setup for day-one usefulness.**
 
 [Quick Start](#quick-start) · [CLI](#cli-command-map) · [Examples](#examples) · [Docs](#documentation-map) · [Contributing](CONTRIBUTING.md)
