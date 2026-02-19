@@ -29,10 +29,12 @@ COMMANDS:
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
     watch               Watch for file changes and auto-reindex
+    check               Run diff-aware CI integrity checks
     scan                Show security redaction scan results
     compose             Compose construction pipelines or technique bundles
     doctor              Run diagnostics and recovery hints
     health              Show current LiBrainian health status
+    check               Run CI integrity checks for changed files
     smoke               Run external repo smoke harness
     journey             Run agentic journey simulations
     live-fire           Run continuous objective trial matrix
@@ -73,6 +75,7 @@ EXAMPLES:
     librainian quickstart
     librainian query "How does the payment flow work?"
     librainian bootstrap --force
+    librainian check --diff HEAD~1..HEAD --format junit
     librainian uninstall --dry-run
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
@@ -725,6 +728,38 @@ EXAMPLES:
     librarian health
     librarian health --verbose
     librarian health --format json
+`,
+
+  check: `
+librarian check - Run diff-aware CI integrity checks
+
+USAGE:
+    librarian check [options]
+
+OPTIONS:
+    --diff <spec>       Diff selector: HEAD~1..HEAD | <base-ref> | working-tree (default: working-tree)
+    --format <fmt>      Output format: text | json | junit (default: text)
+    --json              Alias for --format json
+    --out <path>        Write output payload to file
+
+DESCRIPTION:
+    Evaluates changed files for agentic knowledge integrity before merge:
+    - stale context packs for changed files
+    - broken import edges after deletes/renames
+    - orphaned claim evidence tied to changed files
+    - context-pack coverage regression on changed files
+    - call-graph impact outside the current diff
+
+    Exit codes are CI-friendly:
+    - 0: pass/warn
+    - 1: fail
+    - 2: unchecked (bootstrap/index missing)
+
+EXAMPLES:
+    librarian check
+    librarian check --diff HEAD~1..HEAD --format text
+    librarian check --diff origin/main --json
+    librarian check --diff HEAD~1..HEAD --format junit --out reports/librarian-check.xml
 `,
 
   heal: `

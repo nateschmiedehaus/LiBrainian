@@ -27,6 +27,7 @@
  *   librarian contract            - Show system contract and provenance
  *   librarian diagnose            - Diagnose Librarian self-knowledge drift
  *   librarian health              - Show health status (EvolutionOps)
+ *   librarian check               - Run diff-aware CI integrity checks
  *   librarian heal                - Run homeostatic healing loop
  *   librarian evolve              - Run evolutionary improvement loop
  *   librarian eval                - Produce FitnessReport.v1
@@ -60,6 +61,7 @@ import { smokeCommand } from './commands/smoke.js';
 import { journeyCommand } from './commands/journey.js';
 import { liveFireCommand } from './commands/live_fire.js';
 import { healthCommand } from './commands/health.js';
+import { checkCommand } from './commands/check.js';
 import { healCommand } from './commands/heal.js';
 import { evolveCommand } from './commands/evolve.js';
 import { evalCommand } from './commands/eval.js';
@@ -89,7 +91,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -191,6 +193,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'health': {
     description: 'Show current Librarian health status',
     usage: 'librarian health [--verbose] [--completeness] [--format text|json|prometheus]',
+  },
+  'check': {
+    description: 'Run diff-aware CI integrity checks',
+    usage: 'librarian check [--diff HEAD~1..HEAD|<base-ref>|working-tree] [--format text|json|junit] [--out <path>]',
   },
   'heal': {
     description: 'Run homeostatic healing loop until healthy',
@@ -425,6 +431,13 @@ async function main(): Promise<void> {
           verbose,
           format: getFormatArg(args) as 'text' | 'json' | 'prometheus',
           completeness: args.includes('--completeness'),
+        });
+        break;
+      case 'check':
+        process.exitCode = await checkCommand({
+          workspace,
+          args: commandArgs,
+          rawArgs: args,
         });
         break;
       case 'heal':

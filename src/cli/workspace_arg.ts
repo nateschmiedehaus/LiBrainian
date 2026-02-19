@@ -6,6 +6,7 @@ const WORKSPACE_POSITIONAL_COMMANDS = new Set([
   'setup',
   'init',
   'doctor',
+  'check',
   'publish-gate',
   'diagnose',
   'health',

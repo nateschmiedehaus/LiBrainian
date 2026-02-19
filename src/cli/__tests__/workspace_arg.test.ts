@@ -73,4 +73,16 @@ describe('resolveWorkspaceArg', () => {
     expect(result.workspace).toBe('/tmp/project');
     expect(result.commandArgs).toEqual(['--depth', 'quick']);
   });
+
+  it('supports positional workspace for check command', () => {
+    const result = resolveWorkspaceArg({
+      command: 'check',
+      commandArgs: ['/tmp/project', '--diff', 'HEAD~1..HEAD'],
+      rawArgs: ['check', '/tmp/project', '--diff', 'HEAD~1..HEAD'],
+      defaultWorkspace: '/cwd',
+    });
+
+    expect(result.workspace).toBe('/tmp/project');
+    expect(result.commandArgs).toEqual(['--diff', 'HEAD~1..HEAD']);
+  });
 });
