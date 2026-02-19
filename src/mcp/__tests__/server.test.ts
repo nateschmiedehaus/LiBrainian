@@ -204,6 +204,71 @@ describe('MCP Server', () => {
       expect(exportTool?.annotations?.readOnlyHint).toBe(false);
       expect(exportTool?.annotations?.openWorldHint).toBe(false);
     });
+
+    it('ensures parameter descriptions are usage-guided for prompt injection clients', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        inputSchema?: {
+          properties?: Record<string, unknown>;
+        };
+      }>;
+
+      const collectDescriptions = (node: unknown): string[] => {
+        if (!node || typeof node !== 'object') {
+          return [];
+        }
+        const schema = node as {
+          description?: unknown;
+          properties?: Record<string, unknown>;
+          items?: unknown;
+        };
+        const descriptions: string[] = [];
+        if (typeof schema.description === 'string') {
+          descriptions.push(schema.description);
+        }
+        if (schema.properties) {
+          for (const value of Object.values(schema.properties)) {
+            descriptions.push(...collectDescriptions(value));
+          }
+        }
+        if (schema.items) {
+          descriptions.push(...collectDescriptions(schema.items));
+        }
+        return descriptions;
+      };
+
+      for (const tool of tools) {
+        const descriptions = collectDescriptions(tool.inputSchema);
+        expect(descriptions.length).toBeGreaterThan(0);
+        for (const description of descriptions) {
+          const words = description.trim().split(/\s+/).filter(Boolean);
+          expect(words.length).toBeGreaterThanOrEqual(20);
+        }
+      }
+    });
+
+    it('documents depth levels and affectedFiles path expectations for query', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        inputSchema?: { properties?: Record<string, { description?: string }> };
+      }>;
+      const queryTool = tools.find((tool) => tool.name === 'query');
+      const depthDescription = queryTool?.inputSchema?.properties?.depth?.description ?? '';
+      const affectedFilesDescription = queryTool?.inputSchema?.properties?.affectedFiles?.description ?? '';
+
+      expect(depthDescription).toContain('L0');
+      expect(depthDescription).toContain('L1');
+      expect(depthDescription).toContain('L2');
+      expect(depthDescription).toContain('L3');
+      expect(depthDescription).toContain('~500');
+      expect(depthDescription).toContain('~2000');
+      expect(depthDescription).toContain('~5000');
+      expect(depthDescription).toContain('~10000');
+
+      expect(affectedFilesDescription).toContain('Absolute paths');
+      expect(affectedFilesDescription).toContain('Example');
+      expect(affectedFilesDescription).toContain('/workspace/src/');
+    });
   });
 
   // ============================================================================
