@@ -476,6 +476,46 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.human_review_recommendation?.recommended).toBe(true);
   });
 
+  it('omits human review recommendation fields when escalation is not required', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'read docs flow', keyFacts: [], relatedFiles: ['src/docs.ts'], confidence: 0.93 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-no-review',
+      constructionPlan: undefined,
+      totalConfidence: 0.92,
+      cacheHit: false,
+      latencyMs: 6,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'summarize current module state',
+      intentType: 'navigate',
+    });
+
+    expect(result.humanReviewRecommendation).toBeUndefined();
+    expect(result.human_review_recommendation).toBeUndefined();
+    expect('humanReviewRecommendation' in result).toBe(false);
+    expect('human_review_recommendation' in result).toBe(false);
+  });
+
   it('returns actionable fixes when workspace is not registered', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
