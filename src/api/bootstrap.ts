@@ -1781,7 +1781,7 @@ export async function bootstrapProject(
   if (recovery && !recoveryValid) {
     await clearBootstrapRecoveryState(workspace);
   }
-  const startPhaseIndex = recoveryValid ? (recovery?.phase_index ?? 0) : 0;
+  let startPhaseIndex = recoveryValid ? (recovery?.phase_index ?? 0) : 0;
   const recoveryStartedAt = recovery?.started_at ?? state.startedAt?.toISOString() ?? new Date().toISOString();
   const checkpointWriter = createBootstrapCheckpointWriter({
     workspace,
@@ -1810,6 +1810,7 @@ export async function bootstrapProject(
     updated_at: new Date().toISOString(),
     artifacts: await collectBootstrapArtifacts(workspace),
   });
+  let forceReindexForRun = Boolean(config.forceReindex);
 
   try {
     // Check if upgrade is needed first
@@ -1819,11 +1820,23 @@ export async function bootstrapProject(
       if (upgrade.required) {
         state.status = 'upgrade_required';
         config.progressCallback?.(BOOTSTRAP_PHASES[0], 0);
+        const destructiveUpgrade = upgrade.upgradeType === 'quality_tier' || upgrade.upgradeType === 'major';
 
-        // Run upgrade
-        const upgradeReport = await runUpgrade(storage, existingVersion, report.version);
-        if (!upgradeReport.success) {
-          throw new Error(`Upgrade failed: ${upgradeReport.error}`);
+        if (destructiveUpgrade) {
+          // Preserve existing query availability by avoiding pre-bootstrap purges.
+          // We still run a full rebuild by forcing reindex in phase execution.
+          forceReindexForRun = true;
+          startPhaseIndex = 0;
+          await clearBootstrapRecoveryState(workspace);
+          report.warnings = report.warnings ?? [];
+          report.warnings.push(
+            `Preserving existing index during upgrade (${upgrade.upgradeType}); deferring destructive purge and forcing full rebuild before swap.`
+          );
+        } else {
+          const upgradeReport = await runUpgrade(storage, existingVersion, report.version);
+          if (!upgradeReport.success) {
+            throw new Error(`Upgrade failed: ${upgradeReport.error}`);
+          }
         }
       }
     }
@@ -1891,6 +1904,9 @@ export async function bootstrapProject(
     // Run each bootstrap phase
     for (let phaseIndex = startPhaseIndex; phaseIndex < totalPhases; phaseIndex += 1) {
       const phase = BOOTSTRAP_PHASES[phaseIndex]!;
+      const phaseConfig = forceReindexForRun === Boolean(config.forceReindex)
+        ? config
+        : { ...config, forceReindex: forceReindexForRun };
       state.currentPhase = phase;
       state.progress = phaseIndex / totalPhases;
       config.progressCallback?.(phase, state.progress);
@@ -1909,7 +1925,7 @@ export async function bootstrapProject(
 
       const phaseResult = await runBootstrapPhase(
         phase,
-        config,
+        phaseConfig,
         storage,
         report,
         governorConfig,
