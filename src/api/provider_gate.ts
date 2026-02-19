@@ -13,6 +13,7 @@ import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.j
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
 import { getActiveProviderFailures } from '../utils/provider_failures.js';
+import { isNetworkAccessDisabled } from '../utils/runtime_controls.js';
 
 type AuthStatusSummary = Awaited<ReturnType<AuthChecker['checkAll']>>;
 const PROVIDER_FALLBACK_CHAIN: ProviderName[] = ['claude', 'codex'];
@@ -83,34 +84,56 @@ export async function runProviderReadinessGate(
   const guidance = authChecker.getAuthGuidance(authStatus);
   const remediationSteps = buildRemediationSteps(authStatus);
   const fallbackChain = PROVIDER_FALLBACK_CHAIN.slice();
+  const networkDisabled = isNetworkAccessDisabled();
   let lastSuccessfulProvider = await readLastSuccessfulProvider(workspaceRoot);
   const emitReport = options.emitReport ?? true;
 
   let llmService: LlmServiceAdapter | null = null;
   let llmServiceError: string | null = null;
-  try {
-    const candidate = options.llmService ?? getLlmServiceAdapter();
-    if (candidate) {
-      if (!isLlmServiceAdapter(candidate)) {
-        throw new Error('unverified_by_trace(llm_adapter_invalid): Adapter missing health checks.');
+  if (networkDisabled) {
+    remediationSteps.push('Network-disabled runtime mode active; skipping remote LLM provider checks.');
+  } else {
+    try {
+      const candidate = options.llmService ?? getLlmServiceAdapter();
+      if (candidate) {
+        if (!isLlmServiceAdapter(candidate)) {
+          throw new Error('unverified_by_trace(llm_adapter_invalid): Adapter missing health checks.');
+        }
+        llmService = candidate;
+      } else {
+        const created = createDefaultLlmServiceAdapter();
+        if (!isLlmServiceAdapter(created)) {
+          throw new Error('unverified_by_trace(llm_adapter_invalid): Default adapter missing health checks.');
+        }
+        llmService = created;
       }
-      llmService = candidate;
-    } else {
-      const created = createDefaultLlmServiceAdapter();
-      if (!isLlmServiceAdapter(created)) {
-        throw new Error('unverified_by_trace(llm_adapter_invalid): Default adapter missing health checks.');
-      }
-      llmService = created;
+    } catch (error) {
+      llmServiceError = toErrorMessage(error);
+      remediationSteps.push(`LLM adapter init failed: ${llmServiceError}`);
     }
-  } catch (error) {
-    llmServiceError = toErrorMessage(error);
-    remediationSteps.push(`LLM adapter init failed: ${llmServiceError}`);
   }
   const embeddingHealthCheck = options.embeddingHealthCheck ?? checkEmbeddingHealth;
   const forceProbe = options.forceProbe ?? false;
 
   const now = Date.now();
-  const [claude, codex] = llmService
+  const [claude, codex] = networkDisabled
+    ? [
+        {
+          provider: 'claude' as const,
+          available: false,
+          authenticated: false,
+          lastCheck: now,
+          error: 'disabled by runtime mode (--offline/--local-only)',
+        },
+        {
+          provider: 'codex' as const,
+          available: false,
+          authenticated: false,
+          lastCheck: now,
+          error: 'disabled by runtime mode (--offline/--local-only)',
+        },
+      ]
+    : llmService
     ? await (async () => {
         const [claudeResult, codexResult] = await Promise.allSettled([
           llmService.checkClaudeHealth(forceProbe),
@@ -168,34 +191,36 @@ export async function runProviderReadinessGate(
     },
   ];
 
-  const recentFailures = await getActiveProviderFailures(workspaceRoot, now);
-  for (const [providerName, failure] of Object.entries(recentFailures)) {
-    const provider = providers.find((entry) => entry.provider === providerName);
-    if (!provider || !failure) continue;
-    if (provider.available && provider.authenticated) {
-      provider.available = false;
-      provider.error = `recent ${failure.reason}: ${failure.message}`;
-      switch (failure.reason) {
-        case 'rate_limit':
-          remediationSteps.push('LLM provider rate limited; wait before retrying or reduce request volume.');
-          break;
-        case 'quota_exceeded':
-          remediationSteps.push('LLM provider quota exceeded; check billing or wait for quota reset.');
-          break;
-        case 'auth_failed':
-          remediationSteps.push('LLM provider auth failed; re-authenticate CLI credentials.');
-          break;
-        case 'timeout':
-          remediationSteps.push('LLM provider timed out; retry after cooldown or improve connectivity.');
-          break;
-        case 'network_error':
-          remediationSteps.push('LLM provider network error; check connectivity before retrying.');
-          break;
-        case 'invalid_response':
-          remediationSteps.push('LLM provider returned invalid output; retry or switch provider.');
-          break;
-        default:
-          remediationSteps.push('LLM provider unavailable; retry after cooldown or switch provider.');
+  if (!networkDisabled) {
+    const recentFailures = await getActiveProviderFailures(workspaceRoot, now);
+    for (const [providerName, failure] of Object.entries(recentFailures)) {
+      const provider = providers.find((entry) => entry.provider === providerName);
+      if (!provider || !failure) continue;
+      if (provider.available && provider.authenticated) {
+        provider.available = false;
+        provider.error = `recent ${failure.reason}: ${failure.message}`;
+        switch (failure.reason) {
+          case 'rate_limit':
+            remediationSteps.push('LLM provider rate limited; wait before retrying or reduce request volume.');
+            break;
+          case 'quota_exceeded':
+            remediationSteps.push('LLM provider quota exceeded; check billing or wait for quota reset.');
+            break;
+          case 'auth_failed':
+            remediationSteps.push('LLM provider auth failed; re-authenticate CLI credentials.');
+            break;
+          case 'timeout':
+            remediationSteps.push('LLM provider timed out; retry after cooldown or improve connectivity.');
+            break;
+          case 'network_error':
+            remediationSteps.push('LLM provider network error; check connectivity before retrying.');
+            break;
+          case 'invalid_response':
+            remediationSteps.push('LLM provider returned invalid output; retry or switch provider.');
+            break;
+          default:
+            remediationSteps.push('LLM provider unavailable; retry after cooldown or switch provider.');
+        }
       }
     }
   }
@@ -203,16 +228,22 @@ export async function runProviderReadinessGate(
   const preferred = resolveLibrarianProvider();
   const isReady = (name: ProviderName | null | undefined) => Boolean(name && providers.some((p) => p.provider === name && p.available && p.authenticated));
   const pick = (name: ProviderName | null | undefined): ProviderName | null => (isReady(name) ? (name as ProviderName) : null);
-  const selectedProvider = pick(preferred) ?? pick(lastSuccessfulProvider) ?? pick('claude') ?? pick('codex');
+  const selectedProvider = networkDisabled
+    ? null
+    : (pick(preferred) ?? pick(lastSuccessfulProvider) ?? pick('claude') ?? pick('codex'));
 
-  const llmReady = selectedProvider !== null;
+  const llmReady = networkDisabled ? false : selectedProvider !== null;
   const embedding = await embeddingHealthCheck();
   const embeddingReady = embedding.available;
   if (!embeddingReady) {
     remediationSteps.push('Embeddings: install @xenova/transformers (npm) or sentence-transformers (python)');
   }
-  const ready = llmReady && embeddingReady;
-  const reason = ready ? undefined : buildReason(providers, guidance, embedding);
+  const ready = networkDisabled ? embeddingReady : llmReady && embeddingReady;
+  const reason = ready
+    ? undefined
+    : (networkDisabled
+      ? `offline/local-only mode requires local embeddings: ${embedding.error ?? 'embedding provider unavailable'}`
+      : buildReason(providers, guidance, embedding));
   if (ready && selectedProvider) {
     try {
       await writeLastSuccessfulProvider(workspaceRoot, selectedProvider);
@@ -235,7 +266,7 @@ export async function runProviderReadinessGate(
     reason,
     guidance,
     selectedProvider,
-    bypassed: false,
+    bypassed: networkDisabled,
     remediationSteps,
     fallbackChain,
     lastSuccessfulProvider,

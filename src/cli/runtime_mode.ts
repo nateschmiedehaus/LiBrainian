@@ -14,6 +14,9 @@ export interface CliRuntimeMode {
   noColor: boolean;
   assumeYes: boolean;
   jsonMode: boolean;
+  offline: boolean;
+  noTelemetry: boolean;
+  localOnly: boolean;
 }
 
 interface ConsoleLike {
@@ -54,6 +57,9 @@ export function deriveCliRuntimeMode(input: CliRuntimeModeInput): CliRuntimeMode
   const assumeYes = hasFlag(input.args, '--yes', '-y')
     || isTruthy(env.LIBRARIAN_ASSUME_YES)
     || nonInteractive;
+  const localOnly = hasFlag(input.args, '--local-only') || isTruthy(env.LIBRARIAN_LOCAL_ONLY);
+  const offline = localOnly || hasFlag(input.args, '--offline') || isTruthy(env.LIBRARIAN_OFFLINE);
+  const noTelemetry = hasFlag(input.args, '--no-telemetry') || isTruthy(env.LIBRARIAN_NO_TELEMETRY);
 
   return {
     ci,
@@ -63,6 +69,9 @@ export function deriveCliRuntimeMode(input: CliRuntimeModeInput): CliRuntimeMode
     noColor,
     assumeYes,
     jsonMode: input.jsonMode,
+    offline,
+    noTelemetry,
+    localOnly,
   };
 }
 
@@ -85,6 +94,19 @@ export function applyCliRuntimeMode(
   }
   if (mode.assumeYes) {
     env.LIBRARIAN_ASSUME_YES = '1';
+  }
+  if (mode.localOnly) {
+    env.LIBRARIAN_LOCAL_ONLY = '1';
+  }
+  if (mode.offline || mode.localOnly) {
+    env.LIBRARIAN_OFFLINE = '1';
+    env.LIBRARIAN_SKIP_PROVIDER_CHECK = '1';
+  }
+  if (mode.noTelemetry || mode.localOnly) {
+    env.LIBRARIAN_NO_TELEMETRY = '1';
+    if (!env.LIBRARIAN_LOG_LEVEL) {
+      env.LIBRARIAN_LOG_LEVEL = 'silent';
+    }
   }
   if (mode.quiet && !mode.jsonMode && !env.LIBRARIAN_LOG_LEVEL) {
     env.LIBRARIAN_LOG_LEVEL = 'silent';

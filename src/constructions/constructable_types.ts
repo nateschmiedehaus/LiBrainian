@@ -155,6 +155,7 @@ export type ConstructableId =
   | 'security-audit-helper'
   | 'skill-audit-construction'
   | 'comprehensive-quality-construction'
+  | 'preflight-checker'
   // Strategic Constructions
   | 'quality-standards'
   | 'work-presets'

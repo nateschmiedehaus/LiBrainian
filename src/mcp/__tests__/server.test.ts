@@ -463,7 +463,7 @@ describe('MCP Server', () => {
       server.registerWorkspace('/tmp/workspace');
       server.updateWorkspaceState('/tmp/workspace', { indexState: 'ready' });
 
-      vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+      const executeQuerySpy = vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
         success: true,
         answer: 'Auth flow spans middleware and token service.',
         packs: [
@@ -499,9 +499,102 @@ describe('MCP Server', () => {
       expect(result.success).toBe(true);
       expect(result.tool).toBe('get_context_pack');
       expect(result.tokenCount).toBeLessThanOrEqual(300);
+      expect(result.tokensUsed).toBe(result.tokenCount);
       expect(result.staleness).toBe('fresh');
+      expect(result.intentProfile?.primaryIntent).toBe('feature_addition');
+      expect(result.intentProfile?.queryIntentType).toBe('understand');
+      expect(result.confidenceInIntent).toBeGreaterThan(0.4);
+      expect(result.context?.functions).toEqual(result.functions);
+      expect(result.contextComposition?.selectedPackCount).toBeGreaterThan(0);
       expect(result.functions.length).toBeGreaterThan(0);
       expect(result.evidenceIds).toContain('pack_1');
+      expect(executeQuerySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          intentType: 'understand',
+          depth: 'L2',
+        }),
+        {},
+      );
+    });
+
+    it('routes bug-fix context assembly through debug retrieval profile', async () => {
+      server.registerWorkspace('/tmp/workspace');
+      server.updateWorkspaceState('/tmp/workspace', { indexState: 'ready' });
+
+      const executeQuerySpy = vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        success: true,
+        answer: 'validateToken throws on null principal.',
+        packs: [
+          {
+            packId: 'pack_bug',
+            packType: 'function_context',
+            targetId: 'fn_validateToken',
+            summary: 'Validates auth token and raises on malformed payload.',
+            keyFacts: ['Called by auth middleware', 'Must reject expired tokens'],
+            codeSnippets: [{ code: 'function validateToken(token) { ... }' }],
+            relatedFiles: ['src/auth.ts'],
+            confidence: 0.9,
+          },
+        ],
+      });
+
+      const result = await (server as any).executeGetContextPack({
+        intent: 'Fix NullPointerException in UserAuthService.validateToken',
+        workdir: '/tmp/workspace',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.intentProfile?.primaryIntent).toBe('bug_fix');
+      expect(result.intentProfile?.queryIntentType).toBe('debug');
+      expect(result.intentProfile?.queryDepth).toBe('L2');
+      expect(result.confidenceInIntent).toBeGreaterThan(0.5);
+      expect(executeQuerySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          intentType: 'debug',
+          depth: 'L2',
+        }),
+        {},
+      );
+    });
+
+    it('routes architecture context assembly through document retrieval profile', async () => {
+      server.registerWorkspace('/tmp/workspace');
+      server.updateWorkspaceState('/tmp/workspace', { indexState: 'ready' });
+
+      const executeQuerySpy = vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        success: true,
+        answer: 'Authentication spans API gateway, middleware, and session services.',
+        packs: [
+          {
+            packId: 'pack_arch',
+            packType: 'module_context',
+            targetId: 'mod_auth',
+            summary: 'Auth layer mediates request flow and trust boundaries.',
+            keyFacts: ['Data flow: gateway -> middleware -> session', 'Layer: application/service/domain'],
+            codeSnippets: [{ code: 'export async function authenticate() { ... }' }],
+            relatedFiles: ['src/auth/module.ts'],
+            confidence: 0.88,
+          },
+        ],
+      });
+
+      const result = await (server as any).executeGetContextPack({
+        intent: 'Explain how authentication architecture works in this system',
+        workdir: '/tmp/workspace',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.intentProfile?.primaryIntent).toBe('architecture');
+      expect(result.intentProfile?.queryIntentType).toBe('document');
+      expect(result.intentProfile?.queryDepth).toBe('L3');
+      expect(result.architecturalContext).toContain('Auth layer');
+      expect(executeQuerySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          intentType: 'document',
+          depth: 'L3',
+        }),
+        {},
+      );
     });
 
     it('estimates task budget feasibility and suggests cheaper alternatives', async () => {

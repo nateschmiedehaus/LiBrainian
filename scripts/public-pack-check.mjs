@@ -2,6 +2,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+const DEFAULT_MAX_UNPACKED_SIZE_MB = 15;
+
 function run(command, args) {
   const result = spawnSync(command, args, {
     cwd: process.cwd(),
@@ -59,6 +61,22 @@ function parsePackOutput(rawOutput) {
   }
 }
 
+function formatMiB(bytes) {
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+}
+
+function resolveMaxUnpackedSizeBytes() {
+  const raw = process.env.LIBRARIAN_MAX_UNPACKED_SIZE_MB;
+  if (!raw) {
+    return DEFAULT_MAX_UNPACKED_SIZE_MB * 1024 * 1024;
+  }
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid LIBRARIAN_MAX_UNPACKED_SIZE_MB value: ${raw}`);
+  }
+  return Math.round(parsed * 1024 * 1024);
+}
+
 function main() {
   const raw = run('npm', ['pack', '--dry-run', '--json']);
   const parsed = parsePackOutput(raw);
@@ -89,8 +107,16 @@ function main() {
     );
   }
 
+  const maxUnpackedSizeBytes = resolveMaxUnpackedSizeBytes();
+  const unpackedSize = Number(pack.unpackedSize ?? 0);
+  if (Number.isFinite(unpackedSize) && unpackedSize > maxUnpackedSizeBytes) {
+    throw new Error(
+      `Package unpacked size exceeds budget: actual=${formatMiB(unpackedSize)} budget=${formatMiB(maxUnpackedSizeBytes)}`
+    );
+  }
+
   console.log(
-    `[public:pack] ok files=${filePaths.length} tarball=${pack.filename ?? 'unknown'} size=${pack.size ?? 'unknown'}`
+    `[public:pack] ok files=${filePaths.length} tarball=${pack.filename ?? 'unknown'} size=${pack.size ?? 'unknown'} unpacked=${pack.unpackedSize ?? 'unknown'} budget=${maxUnpackedSizeBytes}`
   );
 }
 
