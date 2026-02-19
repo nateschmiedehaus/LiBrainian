@@ -74,6 +74,9 @@ GLOBAL OPTIONS:
     --ci                Force CI/non-interactive runtime mode
     --no-progress       Disable spinner/progress output
     --no-color          Disable ANSI colors (also respects NO_COLOR)
+    --offline           Disable remote LLM/provider network calls (local embeddings only)
+    --no-telemetry      Disable local telemetry logging output
+    --local-only        Force fully local operation (implies --offline)
     --verbose           Enable verbose output
     --json              Enable JSON output for errors (agent friendly)
 

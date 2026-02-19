@@ -59,6 +59,33 @@ describe('cli runtime mode', () => {
     expect(mode.noColor).toBe(true);
   });
 
+  it('maps offline and telemetry flags into runtime mode', () => {
+    const mode = deriveCliRuntimeMode({
+      args: ['--offline', '--no-telemetry'],
+      jsonMode: false,
+      env: {},
+      stdoutIsTTY: true,
+      stderrIsTTY: true,
+    });
+
+    expect(mode.offline).toBe(true);
+    expect(mode.noTelemetry).toBe(true);
+    expect(mode.localOnly).toBe(false);
+  });
+
+  it('treats local-only mode as offline mode', () => {
+    const mode = deriveCliRuntimeMode({
+      args: ['--local-only'],
+      jsonMode: false,
+      env: {},
+      stdoutIsTTY: true,
+      stderrIsTTY: true,
+    });
+
+    expect(mode.localOnly).toBe(true);
+    expect(mode.offline).toBe(true);
+  });
+
   it('respects NO_COLOR environment variable', () => {
     const mode = deriveCliRuntimeMode({
       args: [],
@@ -93,6 +120,9 @@ describe('cli runtime mode', () => {
       noColor: true,
       assumeYes: true,
       jsonMode: false,
+      offline: true,
+      noTelemetry: true,
+      localOnly: false,
     };
 
     const restore = applyCliRuntimeMode(mode, { env, consoleLike: fakeConsole });
@@ -103,6 +133,9 @@ describe('cli runtime mode', () => {
     expect(env.FORCE_COLOR).toBe('0');
     expect(env.LIBRARIAN_ASSUME_YES).toBe('1');
     expect(env.LIBRARIAN_LOG_LEVEL).toBe('silent');
+    expect(env.LIBRARIAN_OFFLINE).toBe('1');
+    expect(env.LIBRARIAN_SKIP_PROVIDER_CHECK).toBe('1');
+    expect(env.LIBRARIAN_NO_TELEMETRY).toBe('1');
 
     fakeConsole.log();
     fakeConsole.info();
@@ -142,6 +175,9 @@ describe('cli runtime mode', () => {
       noColor: false,
       assumeYes: false,
       jsonMode: true,
+      offline: false,
+      noTelemetry: false,
+      localOnly: false,
     };
 
     const restore = applyCliRuntimeMode(mode, { env, consoleLike: fakeConsole });
@@ -149,5 +185,30 @@ describe('cli runtime mode', () => {
     restore();
     fakeConsole.log();
     expect(logCalls).toBe(2);
+  });
+
+  it('applies local-only mode to env controls', () => {
+    const env: NodeJS.ProcessEnv = {};
+    const mode: CliRuntimeMode = {
+      ci: false,
+      nonInteractive: false,
+      quiet: false,
+      noProgress: false,
+      noColor: false,
+      assumeYes: false,
+      jsonMode: false,
+      offline: false,
+      noTelemetry: false,
+      localOnly: true,
+    };
+
+    const restore = applyCliRuntimeMode(mode, { env });
+    try {
+      expect(env.LIBRARIAN_LOCAL_ONLY).toBe('1');
+      expect(env.LIBRARIAN_OFFLINE).toBe('1');
+      expect(env.LIBRARIAN_SKIP_PROVIDER_CHECK).toBe('1');
+    } finally {
+      restore();
+    }
   });
 });
