@@ -269,6 +269,49 @@ describe('HNSWIndex', () => {
       }
     });
 
+    it('should pre-filter traversal work when entity type is constrained', () => {
+      const perfIndex = new HNSWIndex({ efSearch: 80 });
+      for (let i = 0; i < 240; i++) {
+        perfIndex.insert(`module_${i}`, randomVector(128), 'module');
+      }
+      for (let i = 0; i < 24; i++) {
+        perfIndex.insert(`function_${i}`, randomVector(128), 'function');
+      }
+
+      const cosineSpy = vi.spyOn(
+        perfIndex as unknown as { cosineDistance: (a: Float32Array, b: Float32Array) => number },
+        'cosineDistance'
+      );
+
+      perfIndex.search(randomVector(128), 10);
+      const unfilteredDistanceCalls = cosineSpy.mock.calls.length;
+      cosineSpy.mockClear();
+
+      const filtered = perfIndex.search(randomVector(128), 10, ['function']);
+      const filteredDistanceCalls = cosineSpy.mock.calls.length;
+      cosineSpy.mockRestore();
+
+      expect(filtered.length).toBeGreaterThan(0);
+      expect(filtered.every((item) => item.entityType === 'function')).toBe(true);
+      expect(filteredDistanceCalls).toBeLessThan(unfilteredDistanceCalls);
+    });
+
+    it('should find filtered results even when entry point type is excluded', () => {
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+      try {
+        const constrained = new HNSWIndex();
+        const moduleVector = new Float32Array([1, 0, 0, 0]);
+        const functionVector = new Float32Array([0, 1, 0, 0]);
+        constrained.insert('module-entry', moduleVector, 'module');
+        constrained.insert('function-target', functionVector, 'function');
+
+        const results = constrained.search(functionVector, 5, ['function'], 0);
+        expect(results.some((item) => item.id === 'function-target')).toBe(true);
+      } finally {
+        randomSpy.mockRestore();
+      }
+    });
+
     it('should filter by minimum similarity', () => {
       const results = index.search(baseVector, 100, undefined, 0.8);
       for (const result of results) {

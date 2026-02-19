@@ -400,21 +400,25 @@ export class HNSWIndex {
       return [];
     }
 
-    let currentNodeId = this.entryPoint;
+    const typeSet = entityTypes?.length ? new Set(entityTypes) : null;
+    const resolvedEntryPoint = this.resolveEntryPoint(typeSet);
+    if (!resolvedEntryPoint) {
+      return [];
+    }
+    let currentNodeId = resolvedEntryPoint;
 
     // Phase 1: Greedy search from top layer down to layer 1
     for (let l = this.maxLayer; l > 0; l--) {
-      const searchResult = this.searchLayer(query, currentNodeId, 1, l);
+      const searchResult = this.searchLayer(query, currentNodeId, 1, l, typeSet);
       if (searchResult.length > 0) {
         currentNodeId = searchResult[0]!.id;
       }
     }
 
     // Phase 2: Search at layer 0 with efSearch candidates
-    const candidates = this.searchLayer(query, currentNodeId, this.config.efSearch, 0);
+    const candidates = this.searchLayer(query, currentNodeId, this.config.efSearch, 0, typeSet);
 
     // Filter by entity type and minimum similarity
-    const typeSet = entityTypes?.length ? new Set(entityTypes) : null;
     const results: Array<{ id: string; entityType: VectorIndexEntityType; similarity: number }> = [];
 
     for (const candidate of candidates) {
@@ -445,7 +449,8 @@ export class HNSWIndex {
     query: Float32Array,
     entryId: string,
     ef: number,
-    layer: number
+    layer: number,
+    typeSet?: Set<VectorIndexEntityType> | null,
   ): ScoredNode[] {
     if (ef <= 0) return [];
 
@@ -486,6 +491,7 @@ export class HNSWIndex {
 
         const connNode = this.nodes.get(connId);
         if (!connNode) continue;
+        if (typeSet && !typeSet.has(connNode.entityType)) continue;
 
         const dist = this.cosineDistance(query, connNode.vector);
         const resultFarthest = results.peek();
@@ -504,6 +510,21 @@ export class HNSWIndex {
     }
 
     return results.toArray().sort((a, b) => a.distance - b.distance);
+  }
+
+  private resolveEntryPoint(typeSet: Set<VectorIndexEntityType> | null): string | null {
+    if (!this.entryPoint) return null;
+    if (!typeSet || typeSet.size === 0) return this.entryPoint;
+    const current = this.nodes.get(this.entryPoint);
+    if (current && typeSet.has(current.entityType)) {
+      return this.entryPoint;
+    }
+    for (const [id, node] of this.nodes.entries()) {
+      if (typeSet.has(node.entityType)) {
+        return id;
+      }
+    }
+    return null;
   }
 
   /**
