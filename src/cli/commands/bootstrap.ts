@@ -359,6 +359,20 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         { key: 'Version', value: report.version.string },
       ]);
 
+      if (report.codebaseBriefing) {
+        const roleSummary = report.codebaseBriefing.roleCounts
+          .filter((entry) => entry.count > 0)
+          .map((entry) => `${entry.role}:${entry.count}`)
+          .join(', ');
+        printKeyValue([
+          { key: 'Briefing Path', value: report.codebaseBriefing.path },
+          { key: 'Frameworks', value: report.codebaseBriefing.frameworks.join(', ') || 'none detected' },
+          { key: 'Primary Language', value: report.codebaseBriefing.primaryLanguage },
+          { key: 'Entry Points', value: String(report.codebaseBriefing.keyEntryPoints.length) },
+          { key: 'Role Coverage', value: roleSummary || 'none detected' },
+        ]);
+      }
+
       if (report.error) {
         console.log(`\nError: ${report.error}`);
       }

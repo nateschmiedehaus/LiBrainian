@@ -10,6 +10,8 @@ import type { LibrarianStorage, TransactionContext } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
 import type {
   BootstrapConfig,
+  BootstrapBriefingFileRole,
+  BootstrapBriefingSummary,
   BootstrapCompositionSuggestionConfig,
   BootstrapReport,
   BootstrapCapabilities,
@@ -246,6 +248,8 @@ const GOVERNOR_CONFIG_FILENAME = 'governor.json';
 const BOOTSTRAP_STATE_FILENAME = 'bootstrap_state.json';
 const BOOTSTRAP_CONSISTENCY_FILENAME = 'bootstrap_consistency.json';
 const BOOTSTRAP_ARTIFACT_BACKUP_FILENAME = 'bootstrap_artifact_backup.json';
+const CODEBASE_BRIEFING_FILENAME = 'CODEBASE_BRIEFING.md';
+const CODEBASE_BRIEFING_STATE_KEY = 'bootstrap.codebase_briefing.v1';
 const BOOTSTRAP_CHECKPOINT_FILE_INTERVAL = 100;
 const BOOTSTRAP_CHECKPOINT_TIME_INTERVAL_MS = 5 * 60_000;
 const BOOTSTRAP_STATE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -266,6 +270,42 @@ const METHOD_PACK_PRELOAD_FAMILIES: MethodFamilyId[] = [
   'MF-14',
 ];
 
+const BRIEFING_ROLE_PRIORITY: BootstrapBriefingFileRole[] = [
+  'router',
+  'controller',
+  'service',
+  'model',
+  'util',
+  'test',
+  'config',
+  'unknown',
+];
+
+interface PackageJsonLike {
+  name?: string;
+  main?: string;
+  module?: string;
+  types?: string;
+  bin?: string | Record<string, string>;
+  packageManager?: string;
+  workspaces?: string[] | { packages?: string[] };
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}
+
+interface FileRoleAnnotation {
+  path: string;
+  role: BootstrapBriefingFileRole;
+  signal: string;
+}
+
+interface FrameworkDetectionResult {
+  frameworks: string[];
+  testFrameworks: string[];
+  monorepoTools: string[];
+  monorepoPackages: string[];
+}
+
 function bootstrapStatePath(workspace: string): string {
   return path.join(workspace, '.librarian', BOOTSTRAP_STATE_FILENAME);
 }
@@ -276,6 +316,10 @@ function bootstrapConsistencyPath(workspace: string): string {
 
 function bootstrapArtifactBackupPath(workspace: string): string {
   return path.join(workspace, '.librarian', BOOTSTRAP_ARTIFACT_BACKUP_FILENAME);
+}
+
+function codebaseBriefingPath(workspace: string): string {
+  return path.join(workspace, '.librarian', CODEBASE_BRIEFING_FILENAME);
 }
 
 function getBootstrapArtifactPaths(workspace: string): {
@@ -696,6 +740,524 @@ async function loadWorkspaceIgnorePatterns(workspace: string): Promise<{ pattern
     patterns: dedupePatterns(patterns),
     warnings,
   };
+}
+
+async function readWorkspacePackageJson(workspace: string): Promise<PackageJsonLike | null> {
+  const packageJsonPath = path.join(workspace, 'package.json');
+  try {
+    const raw = await fs.readFile(packageJsonPath, 'utf8');
+    const parsed = safeJsonParseOrNull<Record<string, unknown>>(raw);
+    if (!parsed) return null;
+    return parsed as PackageJsonLike;
+  } catch {
+    return null;
+  }
+}
+
+async function collectWorkspaceFiles(options: {
+  workspace: string;
+  include: string[];
+  exclude: string[];
+}): Promise<string[]> {
+  const files = await glob(options.include, {
+    cwd: options.workspace,
+    ignore: options.exclude,
+    absolute: false,
+    follow: false,
+    nodir: true,
+  });
+  return files.map((entry) => entry.replace(/\\/g, '/')).sort((a, b) => a.localeCompare(b));
+}
+
+function collectDependencies(pkg: PackageJsonLike | null): Record<string, string> {
+  if (!pkg) return {};
+  return {
+    ...(pkg.dependencies ?? {}),
+    ...(pkg.devDependencies ?? {}),
+  };
+}
+
+function detectPrimaryLanguage(files: string[]): string {
+  const counts = new Map<string, number>();
+  const register = (name: string) => counts.set(name, (counts.get(name) ?? 0) + 1);
+
+  for (const file of files) {
+    const lower = file.toLowerCase();
+    if (/\.(ts|tsx|mts|cts)$/.test(lower)) {
+      register('TypeScript');
+      continue;
+    }
+    if (/\.(js|jsx|mjs|cjs)$/.test(lower)) {
+      register('JavaScript');
+      continue;
+    }
+    if (lower.endsWith('.py')) {
+      register('Python');
+      continue;
+    }
+    if (/\.(rb|rake)$/.test(lower)) {
+      register('Ruby');
+      continue;
+    }
+    if (lower.endsWith('.go')) {
+      register('Go');
+      continue;
+    }
+    if (lower.endsWith('.rs')) {
+      register('Rust');
+      continue;
+    }
+    if (/\.(java|kt)$/.test(lower)) {
+      register('JVM');
+    }
+  }
+
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return best?.[0] ?? 'Unknown';
+}
+
+function hasFileMatch(files: string[], pattern: RegExp): boolean {
+  return files.some((file) => pattern.test(file));
+}
+
+async function loadPnpmWorkspacePatterns(workspace: string): Promise<string[]> {
+  const pnpmWorkspacePath = path.join(workspace, 'pnpm-workspace.yaml');
+  try {
+    const raw = await fs.readFile(pnpmWorkspacePath, 'utf8');
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('- '))
+      .map((line) => line.slice(2).trim().replace(/^['"]|['"]$/g, ''))
+      .filter((line) => line.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function parseWorkspacePatterns(workspaces: PackageJsonLike['workspaces']): string[] {
+  if (Array.isArray(workspaces)) {
+    return workspaces.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+  }
+  if (workspaces && typeof workspaces === 'object' && Array.isArray(workspaces.packages)) {
+    return workspaces.packages.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+  }
+  return [];
+}
+
+async function resolveMonorepoPackages(workspace: string, patterns: string[]): Promise<string[]> {
+  if (patterns.length === 0) return [];
+  const packagePaths = new Set<string>();
+
+  for (const pattern of patterns) {
+    const normalized = pattern.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (!normalized) continue;
+    const globPattern = normalized.endsWith('package.json') ? normalized : `${normalized}/package.json`;
+    const matches = await glob(globPattern, {
+      cwd: workspace,
+      absolute: false,
+      nodir: true,
+      follow: false,
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.librarian/**'],
+    });
+    for (const match of matches) {
+      const relative = path.posix.dirname(match.replace(/\\/g, '/'));
+      if (relative === '.' || relative === '') continue;
+      packagePaths.add(relative);
+    }
+  }
+
+  return [...packagePaths].sort((a, b) => a.localeCompare(b));
+}
+
+async function detectFrameworks(workspace: string, pkg: PackageJsonLike | null, files: string[]): Promise<FrameworkDetectionResult> {
+  const deps = collectDependencies(pkg);
+  const frameworks = new Set<string>();
+  const testFrameworks = new Set<string>();
+  const monorepoTools = new Set<string>();
+
+  const hasDep = (name: string): boolean => Boolean(deps[name]);
+
+  if (hasDep('next') || hasFileMatch(files, /(^|\/)next\.config\.(js|mjs|cjs|ts)$/)) frameworks.add('Next.js');
+  if (hasDep('express')) frameworks.add('Express');
+  if (hasDep('fastify')) frameworks.add('Fastify');
+  if (hasDep('@nestjs/core') || hasDep('nestjs')) frameworks.add('NestJS');
+  if (hasDep('vite') || hasFileMatch(files, /(^|\/)vite\.config\.(js|mjs|cjs|ts)$/)) frameworks.add('Vite');
+  if (hasDep('vue') || hasFileMatch(files, /\.vue$/)) frameworks.add('Vue');
+
+  const hasReact = hasDep('react') || hasDep('react-dom') || hasFileMatch(files, /\.(tsx|jsx)$/);
+  const hasNext = frameworks.has('Next.js');
+  const hasSpaSignal = hasFileMatch(files, /(^|\/)src\/main\.(tsx|jsx|ts|js)$/) || hasFileMatch(files, /(^|\/)src\/app\.(tsx|jsx)$/);
+  if (hasReact && !hasNext && hasSpaSignal) {
+    frameworks.add('React (SPA)');
+  }
+
+  if (hasDep('vitest') || hasFileMatch(files, /(^|\/)vitest\.config\.(js|mjs|cjs|ts)$/)) testFrameworks.add('Vitest');
+  if (hasDep('jest') || hasFileMatch(files, /(^|\/)jest\.config\.(js|mjs|cjs|ts)$/)) testFrameworks.add('Jest');
+  if (hasDep('mocha')) testFrameworks.add('Mocha');
+
+  const packageManager = pkg?.packageManager?.toLowerCase() ?? '';
+  const packageWorkspacePatterns = parseWorkspacePatterns(pkg?.workspaces);
+  const pnpmWorkspacePatterns = await loadPnpmWorkspacePatterns(workspace);
+  const workspacePatterns = dedupePatterns([...packageWorkspacePatterns, ...pnpmWorkspacePatterns]);
+
+  if (hasDep('turbo') || hasFileMatch(files, /(^|\/)turbo\.json$/)) monorepoTools.add('Turborepo');
+  if (hasDep('nx') || hasDep('@nrwl/workspace') || hasDep('@nx/workspace') || hasFileMatch(files, /(^|\/)nx\.json$/)) {
+    monorepoTools.add('Nx');
+  }
+  if (hasDep('lerna') || hasFileMatch(files, /(^|\/)lerna\.json$/)) monorepoTools.add('Lerna');
+  if (packageManager.startsWith('pnpm') || pnpmWorkspacePatterns.length > 0) monorepoTools.add('pnpm workspaces');
+  if (workspacePatterns.length > 0 && !monorepoTools.has('pnpm workspaces')) monorepoTools.add('workspaces');
+
+  const monorepoPackages = await resolveMonorepoPackages(workspace, workspacePatterns);
+
+  return {
+    frameworks: [...frameworks].sort((a, b) => a.localeCompare(b)),
+    testFrameworks: [...testFrameworks].sort((a, b) => a.localeCompare(b)),
+    monorepoTools: [...monorepoTools].sort((a, b) => a.localeCompare(b)),
+    monorepoPackages,
+  };
+}
+
+function normalizeEntryPath(value: string): string {
+  return value.replace(/^\.?\//, '').replace(/\\/g, '/');
+}
+
+function collectKeyEntryPoints(files: string[], pkg: PackageJsonLike | null): string[] {
+  const fileSet = new Set(files.map((file) => file.replace(/\\/g, '/')));
+  const entries: string[] = [];
+
+  const addEntry = (candidate: string | undefined): void => {
+    if (!candidate) return;
+    const normalized = normalizeEntryPath(candidate);
+    if (fileSet.has(normalized) && !entries.includes(normalized)) {
+      entries.push(normalized);
+    }
+  };
+
+  addEntry(pkg?.main);
+  addEntry(pkg?.module);
+  addEntry(pkg?.types);
+  if (typeof pkg?.bin === 'string') {
+    addEntry(pkg.bin);
+  } else if (pkg?.bin && typeof pkg.bin === 'object') {
+    for (const entry of Object.values(pkg.bin)) {
+      addEntry(entry);
+    }
+  }
+
+  const prioritizedPatterns = [
+    /(^|\/)(src\/)?(main|index)\.(ts|tsx|js|jsx|mjs|cjs|py)$/,
+    /(^|\/)(server|api)\/(index|main)\.(ts|tsx|js|jsx|mjs|cjs)$/,
+    /(^|\/)src\/cli\/index\.(ts|js)$/,
+    /(^|\/)src\/cli\/commands\/index\.(ts|js)$/,
+    /(^|\/)app\/layout\.(ts|tsx|js|jsx)$/,
+    /(^|\/)app\/[^/]+\/page\.(ts|tsx|js|jsx)$/,
+    /(^|\/)pages\/(_app|index)\.(ts|tsx|js|jsx)$/,
+    /(^|\/)(src\/)?(routes?|router)\.(ts|tsx|js|jsx)$/,
+    /(^|\/)(src\/)?.*\/(routes?|router)\.(ts|tsx|js|jsx)$/,
+    /(^|\/)bin\/[^/]+$/,
+  ];
+
+  for (const pattern of prioritizedPatterns) {
+    for (const file of files) {
+      if (!entries.includes(file) && pattern.test(file)) {
+        entries.push(file);
+      }
+      if (entries.length >= 12) {
+        return entries;
+      }
+    }
+  }
+
+  return entries;
+}
+
+function detectFileRole(filePath: string): { role: BootstrapBriefingFileRole; signal: string } {
+  const lower = filePath.toLowerCase();
+  const base = path.posix.basename(lower);
+
+  if (
+    base === 'package.json' ||
+    base === 'tsconfig.json' ||
+    base === 'pnpm-workspace.yaml' ||
+    base === 'lerna.json' ||
+    base === 'turbo.json' ||
+    base === 'nx.json' ||
+    lower.includes('/config/') ||
+    /(^|\/)\.[^/]+rc(\.|$)/.test(lower) ||
+    /\.config\.(js|mjs|cjs|ts|json)$/.test(lower)
+  ) {
+    return { role: 'config', signal: 'configuration pattern' };
+  }
+
+  if (lower.includes('/__tests__/') || /\.(test|spec)\.(ts|tsx|js|jsx|py)$/.test(lower)) {
+    return { role: 'test', signal: 'test naming convention' };
+  }
+  if (lower.includes('/routes/') || lower.includes('/router/') || /(route|router)\.(ts|tsx|js|jsx)$/.test(lower)) {
+    return { role: 'router', signal: 'routing path segment' };
+  }
+  if (lower.includes('/controllers/') || /\.controller\.(ts|tsx|js|jsx)$/.test(lower)) {
+    return { role: 'controller', signal: 'controller naming convention' };
+  }
+  if (lower.includes('/services/') || /\.service\.(ts|tsx|js|jsx)$/.test(lower)) {
+    return { role: 'service', signal: 'service naming convention' };
+  }
+  if (
+    lower.includes('/models/') ||
+    lower.includes('/entities/') ||
+    lower.includes('/schemas/') ||
+    /\.(model|entity|schema)\.(ts|tsx|js|jsx)$/.test(lower)
+  ) {
+    return { role: 'model', signal: 'model/entity naming convention' };
+  }
+  if (
+    lower.includes('/utils/') ||
+    lower.includes('/util/') ||
+    lower.includes('/helpers/') ||
+    lower.includes('/lib/') ||
+    /\.(util|helper)\.(ts|tsx|js|jsx)$/.test(lower)
+  ) {
+    return { role: 'util', signal: 'utility naming convention' };
+  }
+  return { role: 'unknown', signal: 'no heuristic match' };
+}
+
+function buildFileRoleAnnotations(files: string[]): FileRoleAnnotation[] {
+  return files.map((file) => {
+    const role = detectFileRole(file);
+    return {
+      path: file,
+      role: role.role,
+      signal: role.signal,
+    };
+  });
+}
+
+function buildRoleCounts(annotations: FileRoleAnnotation[]): BootstrapBriefingSummary['roleCounts'] {
+  const counts = new Map<BootstrapBriefingFileRole, number>();
+  for (const role of BRIEFING_ROLE_PRIORITY) {
+    counts.set(role, 0);
+  }
+  for (const annotation of annotations) {
+    counts.set(annotation.role, (counts.get(annotation.role) ?? 0) + 1);
+  }
+  return BRIEFING_ROLE_PRIORITY.map((role) => ({
+    role,
+    count: counts.get(role) ?? 0,
+  }));
+}
+
+function extractRelativeImports(source: string): string[] {
+  const imports: string[] = [];
+  const regex = /(?:import|export)\s+(?:[^'"`]+?\s+from\s+)?['"`]([^'"`]+)['"`]|import\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+  let match: RegExpExecArray | null = null;
+  while ((match = regex.exec(source)) !== null) {
+    const specifier = (match[1] ?? match[2] ?? '').trim();
+    if (!specifier.startsWith('.')) continue;
+    imports.push(specifier);
+  }
+  return imports;
+}
+
+function resolveImportCandidates(fromFile: string, importPath: string): string[] {
+  const fromDir = path.posix.dirname(fromFile);
+  const resolved = path.posix.normalize(path.posix.join(fromDir, importPath));
+  if (!resolved || resolved.startsWith('../')) return [];
+  const candidates = [
+    resolved,
+    `${resolved}.ts`,
+    `${resolved}.tsx`,
+    `${resolved}.js`,
+    `${resolved}.jsx`,
+    `${resolved}.vue`,
+    `${resolved}.mjs`,
+    `${resolved}.cjs`,
+    path.posix.join(resolved, 'index.ts'),
+    path.posix.join(resolved, 'index.tsx'),
+    path.posix.join(resolved, 'index.js'),
+    path.posix.join(resolved, 'index.jsx'),
+    path.posix.join(resolved, 'index.vue'),
+  ];
+  return dedupePatterns(candidates);
+}
+
+async function detectBriefingFindings(
+  workspace: string,
+  files: string[],
+  annotations: FileRoleAnnotation[],
+  roleCounts: BootstrapBriefingSummary['roleCounts']
+): Promise<string[]> {
+  const findings: string[] = [];
+
+  const unknownCount = roleCounts.find((item) => item.role === 'unknown')?.count ?? 0;
+  const unknownRatio = annotations.length > 0 ? unknownCount / annotations.length : 0;
+  if (unknownRatio >= 0.35) {
+    findings.push(`${unknownCount} files are currently tagged as unknown role (${Math.round(unknownRatio * 100)}%).`);
+  }
+
+  const testCount = roleCounts.find((item) => item.role === 'test')?.count ?? 0;
+  if (annotations.length > 0 && testCount === 0) {
+    findings.push('No test files were detected by bootstrap role heuristics.');
+  }
+
+  const routeFiles = files.filter((file) => /(^|\/)(app\/[^/]+\/page|pages\/|src\/routes?\/|src\/router\/|routes?\/)/.test(file));
+  const componentFiles = files.filter((file) => /(^|\/)(src\/)?components\/.+\.(tsx|jsx|vue)$/.test(file));
+  if (routeFiles.length > 0 && componentFiles.length > 0) {
+    const componentSet = new Set(componentFiles);
+    const linked = new Set<string>();
+
+    for (const routeFile of routeFiles) {
+      try {
+        const fullPath = path.join(workspace, routeFile);
+        const source = await fs.readFile(fullPath, 'utf8');
+        const imports = extractRelativeImports(source);
+        for (const specifier of imports) {
+          const candidates = resolveImportCandidates(routeFile, specifier);
+          for (const candidate of candidates) {
+            if (componentSet.has(candidate)) {
+              linked.add(candidate);
+            }
+          }
+        }
+      } catch {
+        // Skip unreadable files.
+      }
+    }
+
+    const unlinkedCount = componentFiles.length - linked.size;
+    if (unlinkedCount > 0) {
+      findings.push(`${unlinkedCount} component files appear unlinked from route entrypoints.`);
+    }
+  }
+
+  return findings;
+}
+
+function renderCodebaseBriefingMarkdown(summary: BootstrapBriefingSummary, annotations: FileRoleAnnotation[], frameworkData: FrameworkDetectionResult): string {
+  const roleCountLines = summary.roleCounts
+    .filter((entry) => entry.count > 0)
+    .map((entry) => `- ${entry.role}: ${entry.count}`);
+
+  const sortedAnnotations = [...annotations].sort((a, b) => {
+    const roleDelta = BRIEFING_ROLE_PRIORITY.indexOf(a.role) - BRIEFING_ROLE_PRIORITY.indexOf(b.role);
+    if (roleDelta !== 0) return roleDelta;
+    return a.path.localeCompare(b.path);
+  });
+  const annotationLimit = 120;
+  const displayed = sortedAnnotations.slice(0, annotationLimit);
+  const hiddenCount = Math.max(0, sortedAnnotations.length - displayed.length);
+
+  const lines: string[] = [
+    '# Codebase Briefing',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `Workspace: ${path.dirname(summary.path)}`,
+    '',
+    '## Framework Detection',
+    `- Frameworks: ${summary.frameworks.length > 0 ? summary.frameworks.join(', ') : 'none detected'}`,
+    `- Test frameworks: ${frameworkData.testFrameworks.length > 0 ? frameworkData.testFrameworks.join(', ') : 'none detected'}`,
+    `- Monorepo tools: ${frameworkData.monorepoTools.length > 0 ? frameworkData.monorepoTools.join(', ') : 'none detected'}`,
+    '',
+    '## Primary Language',
+    `- ${summary.primaryLanguage}`,
+    '',
+    '## Key Entry Points',
+  ];
+
+  if (summary.keyEntryPoints.length === 0) {
+    lines.push('- none detected');
+  } else {
+    for (const entry of summary.keyEntryPoints) {
+      lines.push(`- ${entry}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('## Monorepo Packages');
+  if (summary.monorepoPackages.length === 0) {
+    lines.push('- none detected');
+  } else {
+    for (const pkg of summary.monorepoPackages) {
+      lines.push(`- ${pkg}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('## File Role Annotations');
+  if (roleCountLines.length === 0) {
+    lines.push('- none detected');
+  } else {
+    lines.push(...roleCountLines);
+  }
+  lines.push('');
+  lines.push('| File | Role | Signal |');
+  lines.push('| --- | --- | --- |');
+  for (const annotation of displayed) {
+    lines.push(`| ${annotation.path} | ${annotation.role} | ${annotation.signal} |`);
+  }
+  if (hiddenCount > 0) {
+    lines.push('');
+    lines.push(`- ${hiddenCount} additional file annotations omitted from markdown view.`);
+  }
+
+  lines.push('');
+  lines.push('## Findings');
+  if (summary.findings.length === 0) {
+    lines.push('- none detected');
+  } else {
+    for (const finding of summary.findings) {
+      lines.push(`- ${finding}`);
+    }
+  }
+
+  lines.push('');
+  return `${lines.join('\n')}\n`;
+}
+
+async function generateAndPersistCodebaseBriefing(
+  config: BootstrapConfig,
+  storage: LibrarianStorage
+): Promise<BootstrapBriefingSummary> {
+  const pkg = await readWorkspacePackageJson(config.workspace);
+  const files = await collectWorkspaceFiles({
+    workspace: config.workspace,
+    include: config.include,
+    exclude: config.exclude,
+  });
+
+  const frameworkData = await detectFrameworks(config.workspace, pkg, files);
+  const keyEntryPoints = collectKeyEntryPoints(files, pkg).slice(0, 12);
+  const annotations = buildFileRoleAnnotations(files);
+  const roleCounts = buildRoleCounts(annotations);
+  const findings = await detectBriefingFindings(config.workspace, files, annotations, roleCounts);
+  const briefingPath = codebaseBriefingPath(config.workspace);
+  const summary: BootstrapBriefingSummary = {
+    path: briefingPath,
+    frameworks: frameworkData.frameworks,
+    primaryLanguage: detectPrimaryLanguage(files),
+    keyEntryPoints,
+    monorepoPackages: frameworkData.monorepoPackages,
+    roleCounts,
+    findings,
+  };
+  const markdown = renderCodebaseBriefingMarkdown(summary, annotations, frameworkData);
+  await fs.mkdir(path.dirname(briefingPath), { recursive: true });
+  await fs.writeFile(briefingPath, markdown, 'utf8');
+  await storage.setState(
+    CODEBASE_BRIEFING_STATE_KEY,
+    JSON.stringify(
+      {
+        kind: 'BootstrapCodebaseBriefingSummary.v1',
+        schema_version: 1,
+        generated_at: new Date().toISOString(),
+        ...summary,
+      },
+      null,
+      2
+    )
+  );
+  return summary;
 }
 
 async function computeWorkspaceFingerprint(options: {
@@ -2040,6 +2602,15 @@ export async function bootstrapProject(
     } catch (constructableError) {
       // Non-fatal - log warning but don't fail bootstrap
       report.warnings.push(`Constructable auto-selection failed: ${getErrorMessage(constructableError)}`);
+    }
+
+    try {
+      report.codebaseBriefing = await generateAndPersistCodebaseBriefing(config, storage);
+      report.nextSteps = report.nextSteps ?? [];
+      report.nextSteps.unshift(`Codebase briefing written: ${path.relative(workspaceRoot, report.codebaseBriefing.path)}`);
+    } catch (briefingError) {
+      report.warnings = report.warnings ?? [];
+      report.warnings.push(`Failed to generate codebase briefing: ${getErrorMessage(briefingError)}`);
     }
 
     // Record successful bootstrap
@@ -4304,4 +4875,10 @@ export const __testing = {
   writeBootstrapCheckpoint,
   clearBootstrapCheckpoint,
   bootstrapCheckpointPath,
+  codebaseBriefingPath,
+  detectPrimaryLanguage,
+  detectFileRole,
+  collectKeyEntryPoints,
+  detectFrameworks,
+  generateAndPersistCodebaseBriefing,
 };
