@@ -180,7 +180,7 @@ describe('statusCommand', () => {
   it('emits JSON when format is json', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
 
-    await statusCommand({ workspace, verbose: false, format: 'json' });
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
 
     const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
     expect(typeof output).toBe('string');
@@ -188,10 +188,15 @@ describe('statusCommand', () => {
       workspace?: string;
       storage?: { status?: string };
       provenance?: { status?: string };
+      server?: { status?: string };
+      config?: { status?: string };
     };
     expect(parsed.workspace).toBe(workspace);
     expect(parsed.storage?.status).toBe('ready');
     expect(parsed.provenance?.status).toBeDefined();
+    expect(parsed.server?.status).toBeDefined();
+    expect(parsed.config?.status).toBeDefined();
+    expect(exitCode).toBe(0);
   });
 
   it('includes freshness counts in JSON output when git data is available', async () => {
@@ -303,5 +308,38 @@ describe('statusCommand', () => {
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it('returns exit code 1 when freshness drift exceeds 5%', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.getMetadata.mockResolvedValue({
+      version: { major: 1, minor: 2, patch: 3, string: '1.2.3' },
+      qualityTier: 'full',
+      lastBootstrap: '2026-01-19T02:00:00.000Z',
+      lastIndexing: '2026-01-19T03:00:00.000Z',
+      totalFiles: 10,
+      workspace,
+      totalFunctions: 0,
+      totalContextPacks: 0,
+    });
+    vi.mocked(getGitStatusChanges).mockResolvedValue({
+      added: [],
+      modified: ['src/changed.ts'],
+      deleted: [],
+    });
+    mockStorage.getFileByPath.mockResolvedValue({ id: 'changed' });
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+    expect(exitCode).toBe(1);
+  });
+
+  it('returns exit code 2 when storage is not initialized', async () => {
+    vi.mocked(createSqliteStorage).mockReturnValue({
+      ...mockStorage,
+      initialize: vi.fn().mockRejectedValue(new Error('db missing')),
+    } as unknown as LibrarianStorage);
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+    expect(exitCode).toBe(2);
   });
 });

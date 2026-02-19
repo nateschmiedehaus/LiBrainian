@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { isBootstrapRequired, getBootstrapStatus } from '../../api/bootstrap.js';
@@ -22,6 +23,18 @@ export interface StatusCommandOptions {
   format?: 'text' | 'json';
   out?: string;
 }
+
+type ServerStatus = {
+  pidFile: string;
+  status: 'running' | 'stale_pid' | 'not_running';
+  running: boolean;
+  pid: number | null;
+};
+
+type ConfigStatus = {
+  path: string | null;
+  status: 'found' | 'not_found';
+};
 
 type StatusReport = {
   workspace: string;
@@ -55,6 +68,8 @@ type StatusReport = {
     state: ReturnType<typeof getWatchState> extends Promise<infer T> ? T : unknown;
     health: ReturnType<typeof deriveWatchHealth>;
   } | null;
+  server?: ServerStatus;
+  config?: ConfigStatus;
   locks?: {
     lockDirs: string[];
     scannedFiles: number;
@@ -118,7 +133,7 @@ function computeDurationMs(startedAt: unknown, completedAt: unknown): number | n
   return end.getTime() - start.getTime();
 }
 
-export async function statusCommand(options: StatusCommandOptions): Promise<void> {
+export async function statusCommand(options: StatusCommandOptions): Promise<number> {
   const { workspace, verbose, format = 'text', out } = options;
   let workspaceRoot = path.resolve(workspace);
   if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
@@ -177,7 +192,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
     };
     if (format === 'json') {
       await emitJsonOutput(report, out);
-      return;
+      return 2;
     }
     console.log('Storage Status:');
     printKeyValue([
@@ -186,7 +201,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
     ]);
     console.log();
     console.log('Run `librarian bootstrap` to initialize the knowledge index.');
-    return;
+    return 2;
   }
 
   try {
@@ -323,7 +338,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       console.log();
     }
 
-    const workspaceLocks = await inspectWorkspaceLocks(workspaceRoot);
+    const [workspaceLocks, serverStatus, configStatus] = await Promise.all([
+      inspectWorkspaceLocks(workspaceRoot),
+      inspectServerPid(workspaceRoot),
+      detectConfigPath(workspaceRoot),
+    ]);
     report.locks = {
       lockDirs: workspaceLocks.lockDirs,
       scannedFiles: workspaceLocks.scannedFiles,
@@ -331,6 +350,8 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       activePidFiles: workspaceLocks.activePidFiles,
       unknownFreshFiles: workspaceLocks.unknownFreshFiles,
     };
+    report.server = serverStatus;
+    report.config = configStatus;
     if (format === 'text') {
       console.log('Lock Hygiene:');
       printKeyValue([
@@ -342,6 +363,22 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
       if (workspaceLocks.staleFiles > 0) {
         console.log('\nTip: Run `librarian doctor --heal` to remove stale lock files.');
       }
+      console.log();
+
+      console.log('MCP Server:');
+      printKeyValue([
+        { key: 'Status', value: serverStatus.status },
+        { key: 'Running', value: serverStatus.running },
+        { key: 'PID', value: serverStatus.pid ?? 'none' },
+        { key: 'PID File', value: serverStatus.pidFile },
+      ]);
+      console.log();
+
+      console.log('Config:');
+      printKeyValue([
+        { key: 'Status', value: configStatus.status },
+        { key: 'Path', value: configStatus.path ?? 'no config found' },
+      ]);
       console.log();
     }
 
@@ -397,7 +434,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
 
     if (format === 'json') {
       await emitJsonOutput(report, out);
-      return;
+      return deriveStatusExitCode(report);
     }
 
     console.log('Index Statistics:');
@@ -488,6 +525,69 @@ export async function statusCommand(options: StatusCommandOptions): Promise<void
   } finally {
     await storage.close();
   }
+
+  return deriveStatusExitCode(report);
+}
+
+function deriveStatusExitCode(report: StatusReport): number {
+  if (report.storage.status !== 'ready') return 2;
+  const freshness = report.freshness;
+  if (!freshness) return 0;
+  if (freshness.totalIndexedFiles <= 0) return 0;
+  const changed = freshness.staleFiles + freshness.missingFiles + freshness.newFiles;
+  const ratio = changed / Math.max(freshness.totalIndexedFiles, 1);
+  return ratio > 0.05 ? 1 : 0;
+}
+
+async function inspectServerPid(workspaceRoot: string): Promise<ServerStatus> {
+  const pidFile = path.join(workspaceRoot, '.librarian', 'server.pid');
+  let pidRaw: string;
+  try {
+    pidRaw = await fs.readFile(pidFile, 'utf8');
+  } catch {
+    return { pidFile, status: 'not_running', running: false, pid: null };
+  }
+  const parsedPid = Number.parseInt(pidRaw.trim(), 10);
+  if (!Number.isFinite(parsedPid) || parsedPid <= 0) {
+    return { pidFile, status: 'stale_pid', running: false, pid: null };
+  }
+  const running = isPidAlive(parsedPid);
+  return {
+    pidFile,
+    status: running ? 'running' : 'not_running',
+    running,
+    pid: parsedPid,
+  };
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EPERM') return true;
+    return false;
+  }
+}
+
+async function detectConfigPath(workspaceRoot: string): Promise<ConfigStatus> {
+  const candidates = [
+    'librarian.config.ts',
+    'librarian.config.js',
+    'librarian.config.mjs',
+    'librarian.config.cjs',
+    'librarian.config.json',
+  ].map((candidate) => path.join(workspaceRoot, candidate));
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return { path: candidate, status: 'found' };
+    } catch {
+      continue;
+    }
+  }
+  return { path: null, status: 'not_found' };
 }
 
 async function collectGitFreshnessSummary(params: {
