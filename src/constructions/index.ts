@@ -11,6 +11,11 @@
 export type {
   CapabilityId,
   Construction,
+  ConstructionDebugOptions,
+  ConstructionExecutionTrace,
+  ConstructionExecutionTraceStep,
+  ConstructionFailureHint,
+  ConstructionFailureKind,
   ConstructionId,
   ConstructionListFilter,
   ConstructionManifest,

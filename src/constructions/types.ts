@@ -179,6 +179,52 @@ export interface Context<R = LibrarianContext> {
   traceContext?: Record<string, unknown>;
 }
 
+export type ConstructionFailureKind =
+  | 'timeout'
+  | 'cancelled'
+  | 'input_error'
+  | 'capability_missing'
+  | 'llm_error'
+  | 'construction_error'
+  | 'unknown';
+
+export interface ConstructionFailureHint {
+  readonly kind: ConstructionFailureKind;
+  readonly constructionId: string;
+  readonly message: string;
+  readonly retriable: boolean;
+  readonly suggestions: readonly string[];
+  readonly cause?: string;
+}
+
+export interface ConstructionExecutionTraceStep {
+  readonly constructionId: string;
+  readonly constructionName: string;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+  readonly durationMs: number;
+  readonly status: 'succeeded' | 'failed';
+  readonly inputType: string;
+  readonly outputType?: string;
+  readonly errorKind?: ConstructionFailureKind;
+  readonly errorMessage?: string;
+}
+
+export interface ConstructionExecutionTrace {
+  readonly mode: 'execution_trace';
+  readonly rootConstructionId: string;
+  readonly rootConstructionName: string;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+  readonly durationMs: number;
+  readonly steps: readonly ConstructionExecutionTraceStep[];
+  readonly failed?: ConstructionFailureHint;
+}
+
+export interface ConstructionDebugOptions {
+  readonly includeSuccessfulSteps?: boolean;
+}
+
 /**
  * Layer pattern: upgrade a context with additional requirement capabilities.
  */
@@ -204,6 +250,10 @@ export interface Construction<
   readonly description?: string;
   execute(input: I, context?: Context<R>): Promise<O>;
   getEstimatedConfidence?(): ConfidenceValue;
+  debug?(
+    options?: ConstructionDebugOptions
+  ): Construction<I, O, E, R> & { getLastTrace(): ConstructionExecutionTrace | undefined };
+  whyFailed?(error: unknown): ConstructionFailureHint;
   readonly __errorType?: E;
 }
 

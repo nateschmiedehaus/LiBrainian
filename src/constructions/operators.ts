@@ -1,6 +1,284 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { sequenceConfidence } from '../epistemics/confidence.js';
-import { ConstructionError } from './base/construction_base.js';
-import type { Construction, Context } from './types.js';
+import {
+  ConstructionCapabilityError,
+  ConstructionCancelledError,
+  ConstructionError,
+  ConstructionInputError,
+  ConstructionLLMError,
+  ConstructionTimeoutError,
+} from './base/construction_base.js';
+import type {
+  Construction,
+  ConstructionDebugOptions,
+  ConstructionExecutionTrace,
+  ConstructionExecutionTraceStep,
+  ConstructionFailureHint,
+  Context,
+} from './types.js';
+
+type MutableTrace = {
+  mode: 'execution_trace';
+  rootConstructionId: string;
+  rootConstructionName: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  steps: ConstructionExecutionTraceStep[];
+  failed?: ConstructionFailureHint;
+};
+
+type TraceRuntime = {
+  trace: MutableTrace;
+  includeSuccessfulSteps: boolean;
+};
+
+const traceStorage = new AsyncLocalStorage<TraceRuntime>();
+
+function nowIso(epochMs = Date.now()): string {
+  return new Date(epochMs).toISOString();
+}
+
+function valueType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+function toImmutableTrace(trace: MutableTrace): ConstructionExecutionTrace {
+  return {
+    ...trace,
+    steps: [...trace.steps],
+  };
+}
+
+export function explainConstructionFailure(
+  error: unknown,
+  defaultConstructionId: string
+): ConstructionFailureHint {
+  if (error instanceof ConstructionTimeoutError) {
+    return {
+      kind: 'timeout',
+      constructionId: error.constructionId,
+      message: error.message,
+      retriable: true,
+      suggestions: [
+        'Increase timeout for this construction path.',
+        'Profile earlier composition steps to isolate slow inputs.',
+        'Cache deterministic sub-results when feasible.',
+      ],
+      cause: error.cause?.message,
+    };
+  }
+
+  if (error instanceof ConstructionCancelledError) {
+    return {
+      kind: 'cancelled',
+      constructionId: error.constructionId,
+      message: error.message,
+      retriable: false,
+      suggestions: [
+        'Check abort signal wiring in the caller.',
+        'Avoid cancelling shared contexts used by sibling constructions.',
+      ],
+      cause: error.cause?.message,
+    };
+  }
+
+  if (error instanceof ConstructionInputError) {
+    return {
+      kind: 'input_error',
+      constructionId: error.constructionId,
+      message: error.message,
+      retriable: false,
+      suggestions: [
+        'Validate construction input before composition execution.',
+        ...(error.fieldPath ? [`Inspect invalid field: ${error.fieldPath}.`] : []),
+      ],
+      cause: error.cause?.message,
+    };
+  }
+
+  if (error instanceof ConstructionCapabilityError) {
+    return {
+      kind: 'capability_missing',
+      constructionId: error.constructionId,
+      message: error.message,
+      retriable: false,
+      suggestions: [
+        `Provide required capability: ${error.requiredCapability}.`,
+        'Gate this path behind capability detection before execution.',
+      ],
+      cause: error.cause?.message,
+    };
+  }
+
+  if (error instanceof ConstructionLLMError) {
+    return {
+      kind: 'llm_error',
+      constructionId: error.constructionId,
+      message: error.message,
+      retriable: true,
+      suggestions: [
+        `Verify model/provider availability for ${error.model}.`,
+        'Retry with bounded backoff and capture provider response metadata.',
+      ],
+      cause: error.cause?.message,
+    };
+  }
+
+  if (error instanceof ConstructionError) {
+    return {
+      kind: 'construction_error',
+      constructionId: error.constructionId,
+      message: error.message,
+      retriable: error.retriable,
+      suggestions: [
+        'Inspect nested cause and prior construction trace steps.',
+        'Add mapError or fallback composition to recover predictably.',
+      ],
+      cause: error.cause?.message,
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      kind: 'unknown',
+      constructionId: defaultConstructionId,
+      message: error.message,
+      retriable: false,
+      suggestions: [
+        'Wrap external failures into ConstructionError subclasses for typed hints.',
+        'Enable debug() and inspect trace steps for the failing segment.',
+      ],
+      cause: error.cause instanceof Error ? error.cause.message : undefined,
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    constructionId: defaultConstructionId,
+    message: `Non-error failure: ${String(error)}`,
+    retriable: false,
+    suggestions: [
+      'Throw Error subclasses from construction implementations.',
+      'Normalize unknown thrown values with mapError in composition boundaries.',
+    ],
+  };
+}
+
+async function executeWithTrace<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  input: I,
+  context?: Context<R>
+): Promise<O> {
+  const runtime = traceStorage.getStore();
+  if (!runtime) {
+    return construction.execute(input, context);
+  }
+
+  const startedEpoch = Date.now();
+  const startedAt = nowIso(startedEpoch);
+  try {
+    const output = await construction.execute(input, context);
+    const finishedEpoch = Date.now();
+    if (runtime.includeSuccessfulSteps) {
+      runtime.trace.steps.push({
+        constructionId: construction.id,
+        constructionName: construction.name,
+        startedAt,
+        finishedAt: nowIso(finishedEpoch),
+        durationMs: finishedEpoch - startedEpoch,
+        status: 'succeeded',
+        inputType: valueType(input),
+        outputType: valueType(output),
+      });
+    }
+    return output;
+  } catch (error) {
+    const finishedEpoch = Date.now();
+    const hint = construction.whyFailed?.(error) ?? explainConstructionFailure(error, construction.id);
+    runtime.trace.failed ??= hint;
+    runtime.trace.steps.push({
+      constructionId: construction.id,
+      constructionName: construction.name,
+      startedAt,
+      finishedAt: nowIso(finishedEpoch),
+      durationMs: finishedEpoch - startedEpoch,
+      status: 'failed',
+      inputType: valueType(input),
+      errorKind: hint.kind,
+      errorMessage: hint.message,
+    });
+    throw error;
+  }
+}
+
+function createDebugConstruction<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R> & { whyFailed(error: unknown): ConstructionFailureHint },
+  options?: ConstructionDebugOptions
+): Construction<I, O, E, R> & { getLastTrace(): ConstructionExecutionTrace | undefined } {
+  let lastTrace: ConstructionExecutionTrace | undefined;
+  const includeSuccessfulSteps = options?.includeSuccessfulSteps ?? true;
+
+  const debugged: Construction<I, O, E, R> & { getLastTrace(): ConstructionExecutionTrace | undefined } = {
+    ...construction,
+    async execute(input: I, context?: Context<R>): Promise<O> {
+      const startedEpoch = Date.now();
+      const trace: MutableTrace = {
+        mode: 'execution_trace',
+        rootConstructionId: construction.id,
+        rootConstructionName: construction.name,
+        startedAt: nowIso(startedEpoch),
+        finishedAt: nowIso(startedEpoch),
+        durationMs: 0,
+        steps: [],
+      };
+
+      try {
+        const output = await traceStorage.run(
+          { trace, includeSuccessfulSteps },
+          async () => executeWithTrace(construction, input, context)
+        );
+        const finishedEpoch = Date.now();
+        trace.finishedAt = nowIso(finishedEpoch);
+        trace.durationMs = finishedEpoch - startedEpoch;
+        lastTrace = toImmutableTrace(trace);
+        return output;
+      } catch (error) {
+        const finishedEpoch = Date.now();
+        trace.finishedAt = nowIso(finishedEpoch);
+        trace.durationMs = finishedEpoch - startedEpoch;
+        trace.failed ??= construction.whyFailed(error);
+        lastTrace = toImmutableTrace(trace);
+        throw error;
+      }
+    },
+    getLastTrace(): ConstructionExecutionTrace | undefined {
+      return lastTrace;
+    },
+  };
+
+  debugged.whyFailed = construction.whyFailed;
+  debugged.debug = (nextOptions?: ConstructionDebugOptions) => createDebugConstruction(construction, nextOptions);
+  return debugged;
+}
+
+function withDiagnostics<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>
+): Construction<I, O, E, R> {
+  const whyFailed =
+    construction.whyFailed ??
+    ((error: unknown) => explainConstructionFailure(error, construction.id));
+
+  return {
+    ...construction,
+    whyFailed,
+    debug(options?: ConstructionDebugOptions) {
+      return createDebugConstruction({ ...construction, whyFailed }, options);
+    },
+  };
+}
 
 /**
  * Identity construction.
@@ -9,13 +287,13 @@ export function identity<T, R = unknown>(
   id = 'identity',
   name = 'Identity'
 ): Construction<T, T, ConstructionError, R> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: T): Promise<T> {
       return input;
     },
-  };
+  });
 }
 
 /**
@@ -36,15 +314,15 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
     ])
     : undefined;
 
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I, context): Promise<O> {
-      const intermediate = await first.execute(input, context);
-      return second.execute(intermediate, context);
+      const intermediate = await executeWithTrace(first, input, context);
+      return executeWithTrace(second, intermediate, context);
     },
     ...(estimatedConfidence ? { getEstimatedConfidence: estimatedConfidence } : {}),
-  };
+  });
 }
 
 /**
@@ -56,17 +334,17 @@ export function fanout<I, O1, O2, E extends ConstructionError, R>(
   id = `fanout:${left.id}|${right.id}`,
   name = `Fanout(${left.name}, ${right.name})`
 ): Construction<I, [O1, O2], E, R> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I, context): Promise<[O1, O2]> {
       const [leftOutput, rightOutput] = await Promise.all([
-        left.execute(input, context),
-        right.execute(input, context),
+        executeWithTrace(left, input, context),
+        executeWithTrace(right, input, context),
       ]);
       return [leftOutput, rightOutput];
     },
-  };
+  });
 }
 
 /**
@@ -78,18 +356,18 @@ export function fallback<I, O, E extends ConstructionError, R>(
   id = `fallback:${primary.id}>${backup.id}`,
   name = `Fallback(${primary.name}, ${backup.name})`
 ): Construction<I, O, E, R> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I, context): Promise<O> {
       try {
-        return await primary.execute(input, context);
+        return await executeWithTrace(primary, input, context);
       } catch {
-        return backup.execute(input, context);
+        return executeWithTrace(backup, input, context);
       }
     },
     getEstimatedConfidence: primary.getEstimatedConfidence ?? backup.getEstimatedConfidence,
-  };
+  });
 }
 
 /**
@@ -102,16 +380,16 @@ export function dimap<I2, I, O, O2, E extends ConstructionError, R>(
   id = `dimap:${construction.id}`,
   name = `Dimap(${construction.name})`
 ): Construction<I2, O2, E, R> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I2, context): Promise<O2> {
       const adaptedInput = pre(input);
-      const output = await construction.execute(adaptedInput, context);
+      const output = await executeWithTrace(construction, adaptedInput, context);
       return post(output);
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
-  };
+  });
 }
 
 /**
@@ -147,15 +425,15 @@ export function mapAsync<I, O, O2, E extends ConstructionError, R>(
   id = `mapAsync:${construction.id}`,
   name = `MapAsync(${construction.name})`
 ): Construction<I, O2, E, R> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I, context?: Context<R>): Promise<O2> {
-      const output = await construction.execute(input, context);
+      const output = await executeWithTrace(construction, input, context);
       return post(output, context);
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
-  };
+  });
 }
 
 /**
@@ -167,12 +445,12 @@ export function mapError<I, O, E extends ConstructionError, E2 extends Construct
   id = `mapError:${construction.id}`,
   name = `MapError(${construction.name})`
 ): Construction<I, O, E2, R> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I, context?: Context<R>): Promise<O> {
       try {
-        return await construction.execute(input, context);
+        return await executeWithTrace(construction, input, context);
       } catch (error) {
         if (error instanceof Error) {
           throw transform(error as E);
@@ -181,7 +459,7 @@ export function mapError<I, O, E extends ConstructionError, E2 extends Construct
       }
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
-  };
+  });
 }
 
 /**
@@ -193,7 +471,7 @@ export function provide<I, O, E extends ConstructionError, R extends Record<stri
   id = `provide:${construction.id}`,
   name = `Provide(${construction.name})`
 ): Construction<I, O, E, Omit<R, keyof RP>> {
-  return {
+  return withDiagnostics({
     id,
     name,
     async execute(input: I, context?: Context<Omit<R, keyof RP>>): Promise<O> {
@@ -209,10 +487,10 @@ export function provide<I, O, E extends ConstructionError, R extends Record<stri
         } as R,
       };
 
-      return construction.execute(input, mergedContext);
+      return executeWithTrace(construction, input, mergedContext);
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
-  };
+  });
 }
 
 /**
