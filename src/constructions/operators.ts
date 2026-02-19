@@ -418,6 +418,23 @@ export function identity<T, R = unknown>(
 }
 
 /**
+ * Atom construction: wrap a single focused execution step.
+ */
+export function atom<I, O, E extends ConstructionError = ConstructionError, R = unknown>(
+  id: string,
+  executor: (input: I, context?: Context<R>) => Promise<O> | O,
+  name = `Atom(${id})`
+): Construction<I, O, E, R> {
+  return withDiagnostics({
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<O> {
+      return executor(input, context);
+    },
+  });
+}
+
+/**
  * Sequential composition (Kleisli sequence).
  */
 export function seq<I, M, O, E1 extends ConstructionError, E2 extends ConstructionError, R>(

@@ -10,6 +10,11 @@ Public docs (user-facing):
 - `/docs/librarian/API.md` — API reference
 - `/docs/librarian/AGENT_INTEGRATION.md` — integration patterns
 - `/docs/librarian/MCP_SERVER.md` — MCP usage
+- `/docs/constructions/quickstart.md` — construction zero-to-working tutorial
+- `/docs/constructions/operators.md` — operator decision guide
+- `/docs/constructions/cookbook.md` — end-to-end construction recipes
+- `/docs/constructions/testing.md` — deterministic construction testing guide
+- `/docs/constructions/migration.md` — class-style to operator-style migration
 - `/docs/mcp-setup.md` — end-to-end MCP client setup
 - `/docs/mcp-design-principles.md` — MCP tool design standards
 - `/docs/librarian/validation.md` — validation and gates

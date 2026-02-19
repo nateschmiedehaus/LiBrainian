@@ -59,6 +59,7 @@ export {
 
 export {
   identity,
+  atom,
   seq,
   fanout,
   fallback,

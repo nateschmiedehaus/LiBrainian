@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 function printUsageAndExit(code) {
@@ -49,14 +50,32 @@ function parseArgs(argv) {
 const { tmpdir: explicitTmpdir, sets, cmd, cmdArgs } = parseArgs(process.argv.slice(2));
 
 const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librarian');
-const resolvedTmpdir =
+const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librarian');
+const osTmpdir = path.resolve(os.tmpdir(), 'librarian');
+const configuredTmpdir =
   (explicitTmpdir && explicitTmpdir.trim().length > 0 ? explicitTmpdir : undefined) ??
   (process.env.LIBRARIAN_TMPDIR && process.env.LIBRARIAN_TMPDIR.trim().length > 0
     ? process.env.LIBRARIAN_TMPDIR
     : undefined) ??
   fallbackTmpdir;
+const tmpdirCandidates = [...new Set([configuredTmpdir, localTmpdir, osTmpdir])];
 
-await mkdir(resolvedTmpdir, { recursive: true });
+let resolvedTmpdir;
+let lastError;
+for (const candidate of tmpdirCandidates) {
+  try {
+    await mkdir(candidate, { recursive: true });
+    const probe = await mkdtemp(path.join(candidate, 'writable-'));
+    await rm(probe, { recursive: true, force: true });
+    resolvedTmpdir = candidate;
+    break;
+  } catch (error) {
+    lastError = error;
+  }
+}
+if (!resolvedTmpdir) {
+  throw lastError ?? new Error('Unable to create any writable temp directory');
+}
 
 const env = { ...process.env, TMPDIR: resolvedTmpdir, TMP: resolvedTmpdir, TEMP: resolvedTmpdir };
 for (const kv of sets) {

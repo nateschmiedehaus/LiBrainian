@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
@@ -10,17 +10,34 @@ import { defineConfig } from 'vitest/config';
 // Keep this *outside* the repo root so workspace root detection in tests does
 // not accidentally traverse into the Librarian repo and find `.librarian/`.
 const fallbackTmpDir = path.resolve(process.cwd(), '..', '.tmp', 'librarian');
-const resolvedTmpDir =
+const localTmpDir = path.resolve(process.cwd(), '.tmp', 'librarian');
+const configuredTmpDir =
   process.env.TMPDIR && process.env.TMPDIR.trim().length > 0
     ? process.env.TMPDIR
     : fallbackTmpDir;
+const tmpCandidates = [configuredTmpDir, localTmpDir];
+let resolvedTmpDir = tmpCandidates[0];
+for (const candidate of tmpCandidates) {
+  try {
+    mkdirSync(candidate, { recursive: true });
+    const probe = mkdtempSync(path.resolve(candidate, 'writable-'));
+    rmSync(probe, { recursive: true, force: true });
+    resolvedTmpDir = candidate;
+    break;
+  } catch {
+    // Try the next writable candidate.
+  }
+}
 process.env.TMPDIR = resolvedTmpDir;
 process.env.TMP = resolvedTmpDir;
 process.env.TEMP = resolvedTmpDir;
+const resolvedCacheDir = process.env.LIBRARIAN_VITE_CACHE_DIR && process.env.LIBRARIAN_VITE_CACHE_DIR.trim().length > 0
+  ? process.env.LIBRARIAN_VITE_CACHE_DIR
+  : path.resolve(resolvedTmpDir, 'vite-cache');
 try {
-  mkdirSync(resolvedTmpDir, { recursive: true });
+  mkdirSync(resolvedCacheDir, { recursive: true });
 } catch {
-  // If we cannot create it, let vitest surface the error normally.
+  // If we cannot create it, let Vitest surface the error during startup.
 }
 
 /**
@@ -118,7 +135,7 @@ export default defineConfig(async () => {
 
   return {
     // Keep Vite/Vitest caches off the system temp volume.
-    cacheDir: path.resolve(process.cwd(), '..', '.tmp', 'vite-cache'),
+    cacheDir: resolvedCacheDir,
     test: {
       globals: true,
       environment: 'node',

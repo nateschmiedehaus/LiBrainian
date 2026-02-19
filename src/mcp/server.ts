@@ -3201,6 +3201,13 @@ export class LibrarianMCPServer {
             workspace: workspacePath,
             runId,
             watching: existingWorkspace.watching,
+            get_started: {
+              constructionsQuickstart: 'docs/constructions/quickstart.md',
+              constructionsOperatorGuide: 'docs/constructions/operators.md',
+              constructionsCookbook: 'docs/constructions/cookbook.md',
+              constructionsTesting: 'docs/constructions/testing.md',
+              cliListConstructions: 'npx librainian constructions list',
+            },
           };
         }
       }
@@ -3285,6 +3292,13 @@ export class LibrarianMCPServer {
           active: actuallyWatching,
           status: watcherStatus,
           debounceMs: actuallyWatching ? debounceMs : undefined,
+        },
+        get_started: {
+          constructionsQuickstart: 'docs/constructions/quickstart.md',
+          constructionsOperatorGuide: 'docs/constructions/operators.md',
+          constructionsCookbook: 'docs/constructions/cookbook.md',
+          constructionsTesting: 'docs/constructions/testing.md',
+          cliListConstructions: 'npx librainian constructions list',
         },
       };
     } catch (error) {

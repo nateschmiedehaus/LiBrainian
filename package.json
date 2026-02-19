@@ -64,6 +64,18 @@
     "./debug": {
       "import": "./dist/debug/index.js",
       "types": "./dist/debug/index.d.ts"
+    },
+    "./constructions": {
+      "import": "./dist/constructions/index.js",
+      "types": "./dist/constructions/index.d.ts"
+    },
+    "./constructions/registry": {
+      "import": "./dist/constructions/registry.js",
+      "types": "./dist/constructions/registry.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing/index.js",
+      "types": "./dist/testing/index.d.ts"
     }
   },
   "files": [

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Construction, Context } from '../types.js';
 import { deterministic } from '../../epistemics/confidence.js';
 import {
+  atom,
   dimap,
   identity,
   map,
@@ -46,6 +47,12 @@ describe('construction operators', () => {
 
     expect(leftResult).toBe(rightResult);
     expect(leftResult).toBe(9);
+  });
+
+  it('creates a single-step construction via atom', async () => {
+    const triple = atom<number, number>('triple', async (input) => input * 3);
+    await expect(triple.execute(4)).resolves.toBe(12);
+    expect(triple.name).toContain('Atom');
   });
 
   it('satisfies left and right identity', async () => {
