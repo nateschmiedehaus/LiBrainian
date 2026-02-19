@@ -38,6 +38,7 @@
  *   librarian config heal         - Auto-detect and fix suboptimal config
  *   librarian doctor              - Run health diagnostics to identify issues
  *   librarian publish-gate        - Run strict publish-readiness gate checks
+ *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
  *
  * @packageDocumentation
  */
@@ -80,6 +81,7 @@ import { doctorCommand } from './commands/doctor.js';
 import { publishGateCommand } from './commands/publish_gate.js';
 import { ralphCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
+import { installOpenclawSkillCommand } from './commands/install_openclaw_skill.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
@@ -93,7 +95,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -271,6 +273,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'external-repos': {
     description: 'Sync external repo corpus from manifest.json',
     usage: 'librarian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
+  },
+  'install-openclaw-skill': {
+    description: 'Install official OpenClaw skill and register LiBrainian tool wiring',
+    usage: 'librarian install-openclaw-skill [--openclaw-root <path>] [--dry-run] [--json]',
   },
   'help': {
     description: 'Show help information',
@@ -610,6 +616,9 @@ async function main(): Promise<void> {
 	      case 'external-repos':
 	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
 	        break;
+      case 'install-openclaw-skill':
+        await installOpenclawSkillCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
 	    }
   } catch (error) {
     // Convert error to structured envelope for programmatic handling

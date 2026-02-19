@@ -25,6 +25,7 @@ COMMANDS:
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
+    install-openclaw-skill Install official OpenClaw skill and config wiring
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
@@ -78,6 +79,7 @@ EXAMPLES:
     librainian bootstrap --force
     librainian check --diff HEAD~1..HEAD --format junit
     librainian uninstall --dry-run
+    librainian install-openclaw-skill --dry-run
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian constructions search "security audit"
@@ -299,6 +301,31 @@ EXAMPLES:
     librarian uninstall --force
     librarian uninstall --force --keep-index
     librarian uninstall --json --force
+`,
+
+  'install-openclaw-skill': `
+librarian install-openclaw-skill - Install the official OpenClaw LiBrainian skill
+
+USAGE:
+    librarian install-openclaw-skill [options]
+
+OPTIONS:
+    --openclaw-root <path>  Override OpenClaw root directory (default: ~/.openclaw)
+    --dry-run               Preview install and config wiring without writing files
+    --json                  Emit machine-readable JSON report
+
+DESCRIPTION:
+    Installs the official LiBrainian OpenClaw skill and applies deterministic
+    local configuration updates:
+    - Writes SKILL.md to ~/.openclaw/skills/librainian/SKILL.md
+    - Updates ~/.openclaw/openclaw.json under skills.entries.librainian
+    - Verifies required MCP tools are present in LiBrainian's schema registry
+    - Prints a test invocation for immediate validation
+
+EXAMPLES:
+    librarian install-openclaw-skill
+    librarian install-openclaw-skill --dry-run
+    librarian install-openclaw-skill --openclaw-root /tmp/.openclaw --json
 `,
 
   mcp: `
