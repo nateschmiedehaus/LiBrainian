@@ -1759,7 +1759,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'harvest_session_knowledge',
-        description: 'Summarize high-confidence claims and optionally sync them into annotated MEMORY.md via memory bridge',
+        description: 'Summarize session high-confidence claims and optionally sync them into annotated MEMORY.md via memory bridge',
         inputSchema: {
           type: 'object',
           properties: {

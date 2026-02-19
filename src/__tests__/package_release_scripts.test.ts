@@ -14,7 +14,7 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
-    expect(scripts['gh:ship']).toBe('node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:ship']).toBe('npm run policy:merge && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
     expect(scripts['gh:branches:dry-run']).toBe('node scripts/gh-branch-hygiene.mjs --dry-run');
     expect(scripts['gh:branches:cleanup']).toBe('node scripts/gh-branch-hygiene.mjs');
     expect(scripts['librainian:update']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update');
