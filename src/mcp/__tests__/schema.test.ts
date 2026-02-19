@@ -17,6 +17,7 @@ import {
   parseToolInput,
   safeParseToolInput,
   BootstrapToolInputSchema,
+  GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
   SynthesizePlanToolInputSchema,
   ResetSessionStateToolInputSchema,
@@ -42,6 +43,7 @@ import {
 import {
   MCP_SCHEMA_VERSION,
   isBootstrapToolInput,
+  isGetSessionBriefingToolInput,
   isQueryToolInput,
   isSynthesizePlanToolInput,
   isResetSessionStateToolInput,
@@ -75,6 +77,7 @@ describe('MCP Schema', () => {
     it('should list all tool schemas', () => {
       const schemas = listToolSchemas();
       expect(schemas).toContain('bootstrap');
+      expect(schemas).toContain('get_session_briefing');
       expect(schemas).toContain('system_contract');
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
@@ -106,7 +109,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(32);
+      expect(schemas).toHaveLength(33);
     });
 
     it('should return schema for known tools', () => {
@@ -168,6 +171,39 @@ describe('MCP Schema', () => {
       expect(isBootstrapToolInput({ workspace: '/test' })).toBe(true);
       expect(isBootstrapToolInput({})).toBe(false);
       expect(isBootstrapToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Get Session Briefing Tool Schema', () => {
+    it('should validate empty input', () => {
+      const result = validateToolInput('get_session_briefing', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('get_session_briefing', {
+        workspace: '/tmp/workspace',
+        sessionId: 'sess_123',
+        includeConstructions: false,
+      });
+      expect(result.valid).toBe(true);
+      expect(GetSessionBriefingToolInputSchema).toBeDefined();
+    });
+
+    it('should reject extra properties (strict mode)', () => {
+      const result = validateToolInput('get_session_briefing', {
+        workspace: '/tmp/workspace',
+        unknownField: true,
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetSessionBriefingToolInput({})).toBe(true);
+      expect(isGetSessionBriefingToolInput({ sessionId: 'sess_1' })).toBe(true);
+      expect(isGetSessionBriefingToolInput({ includeConstructions: true })).toBe(true);
+      expect(isGetSessionBriefingToolInput({ includeConstructions: 'yes' })).toBe(false);
+      expect(isGetSessionBriefingToolInput(null)).toBe(false);
     });
   });
 

@@ -461,6 +461,18 @@ export interface StatusToolInput {
   planId?: string;
 }
 
+/** get_session_briefing tool input */
+export interface GetSessionBriefingToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional session identifier for session-scoped briefing details */
+  sessionId?: string;
+
+  /** Include construction onboarding hints in briefing output */
+  includeConstructions?: boolean;
+}
+
 /** Synthesize plan tool input */
 export interface SynthesizePlanToolInput {
   /** Task description to plan for */
@@ -1482,6 +1494,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     consentMessage: 'Bootstrap will index the workspace and write to .librarian directory',
     riskLevel: 'medium',
   },
+  get_session_briefing: {
+    tool: 'get_session_briefing',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   query: {
     tool: 'query',
     requiredScopes: ['read'],
@@ -1826,6 +1844,16 @@ export function isBootstrapToolInput(value: unknown): value is BootstrapToolInpu
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.workspace === 'string';
+}
+
+/** Type guard for GetSessionBriefingToolInput */
+export function isGetSessionBriefingToolInput(value: unknown): value is GetSessionBriefingToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const includeConstructionsOk = typeof obj.includeConstructions === 'boolean' || typeof obj.includeConstructions === 'undefined';
+  return workspaceOk && sessionIdOk && includeConstructionsOk;
 }
 
 /** Type guard for QueryToolInput */

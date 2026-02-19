@@ -162,6 +162,19 @@ describe('MCP Server', () => {
   });
 
   describe('tool metadata', () => {
+    it('includes get_session_briefing in available tools with onboarding-focused schema', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+        inputSchema?: { properties?: Record<string, { description?: string }> };
+      }>;
+      const briefingTool = tools.find((tool) => tool.name === 'get_session_briefing');
+
+      expect(briefingTool).toBeDefined();
+      expect(briefingTool?.description).toContain('session/workspace orientation');
+      expect(briefingTool?.inputSchema?.properties?.includeConstructions?.description).toContain('construction onboarding hints');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -268,6 +281,15 @@ describe('MCP Server', () => {
       expect(affectedFilesDescription).toContain('Absolute paths');
       expect(affectedFilesDescription).toContain('Example');
       expect(affectedFilesDescription).toContain('/workspace/src/');
+    });
+
+    it('builds session briefing with bootstrap-first guidance when no workspace is registered', async () => {
+      const result = await (server as any).executeGetSessionBriefing({}, {});
+      expect(result.success).toBe(true);
+      expect(result.workspace).toBeUndefined();
+      expect(Array.isArray(result.recommendedActions)).toBe(true);
+      expect(result.recommendedActions[0]?.tool).toBe('bootstrap');
+      expect(result.constructions?.quickstart).toBe('docs/constructions/quickstart.md');
     });
   });
 

@@ -411,6 +411,15 @@ export const StatusToolInputSchema = z.object({
   planId: z.string().min(1).optional().describe('Optional plan ID to retrieve a specific synthesized plan'),
 }).strict();
 
+/**
+ * get_session_briefing tool input schema
+ */
+export const GetSessionBriefingToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier for session-scoped briefing details'),
+  includeConstructions: z.boolean().optional().default(true).describe('Include construction onboarding hints in the response'),
+}).strict();
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -447,6 +456,7 @@ export type CompileIntentBundlesToolInputType = z.infer<typeof CompileIntentBund
 export type SystemContractToolInputType = z.infer<typeof SystemContractToolInputSchema>;
 export type DiagnoseSelfToolInputType = z.infer<typeof DiagnoseSelfToolInputSchema>;
 export type StatusToolInputType = z.infer<typeof StatusToolInputSchema>;
+export type GetSessionBriefingToolInputType = z.infer<typeof GetSessionBriefingToolInputSchema>;
 
 // ============================================================================
 // SCHEMA REGISTRY
@@ -455,6 +465,7 @@ export type StatusToolInputType = z.infer<typeof StatusToolInputSchema>;
 /** All tool input schemas (Zod) */
 export const TOOL_INPUT_SCHEMAS = {
   bootstrap: BootstrapToolInputSchema,
+  get_session_briefing: GetSessionBriefingToolInputSchema,
   system_contract: SystemContractToolInputSchema,
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
@@ -538,6 +549,22 @@ export const bootstrapToolJsonSchema: JSONSchema = {
     fileTimeoutPolicy: { type: 'string', enum: ['skip', 'retry', 'fail'], description: 'Policy after file timeout retries' },
   },
   required: ['workspace'],
+  additionalProperties: false,
+};
+
+/** get_session_briefing tool JSON Schema */
+export const getSessionBriefingToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-session-briefing-tool-input',
+  title: 'GetSessionBriefingToolInput',
+  description: 'Input for get_session_briefing - return high-signal session/workspace orientation to reduce startup token overhead',
+  type: 'object',
+  properties: {
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier for session-scoped briefing details', minLength: 1 },
+    includeConstructions: { type: 'boolean', description: 'Include construction onboarding hints in the response', default: true },
+  },
+  required: [],
   additionalProperties: false,
 };
 
@@ -809,6 +836,7 @@ export const findSymbolToolJsonSchema: JSONSchema = {
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
+  get_session_briefing: getSessionBriefingToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
   find_usages: findUsagesToolJsonSchema,

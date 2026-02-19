@@ -36,6 +36,7 @@ import {
   type AuthorizationScope,
   type BootstrapToolInput,
   type StatusToolInput,
+  type GetSessionBriefingToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
@@ -294,6 +295,7 @@ interface ToolHintMetadata {
 const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   bootstrap: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 12000 },
   status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  get_session_briefing: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1185,6 +1187,19 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             sessionId: { type: 'string', description: 'Optional session identifier for session-scoped status details' },
             planId: { type: 'string', description: 'Optional plan ID to retrieve a specific synthesized plan' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'get_session_briefing',
+        description: 'Return concise session/workspace orientation with next-step MCP actions for low-token startup',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier for session-scoped briefing details' },
+            includeConstructions: { type: 'boolean', description: 'Include construction onboarding hints in the response (default true)' },
           },
           required: [],
         },
@@ -2890,6 +2905,8 @@ export class LibrarianMCPServer {
         return this.executeBootstrapDeduped(args as BootstrapToolInput);
       case 'status':
         return this.executeStatus(args as StatusToolInput, context);
+      case 'get_session_briefing':
+        return this.executeGetSessionBriefing(args as GetSessionBriefingToolInput, context);
       case 'system_contract':
         return this.executeSystemContract(args as SystemContractToolInput);
       case 'diagnose_self':
@@ -3448,6 +3465,118 @@ export class LibrarianMCPServer {
           planById: planByIdRecord ? this.toPlanView(planByIdRecord) : (requestedPlanId ? null : undefined),
           plan_by_id: planByIdRecord ? this.toPlanView(planByIdRecord) : (requestedPlanId ? null : undefined),
         },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeGetSessionBriefing(
+    input: GetSessionBriefingToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        const first = this.state.workspaces.keys().next();
+        workspacePath = first.done ? undefined : first.value;
+      }
+
+      const workspace = workspacePath ? this.state.workspaces.get(workspacePath) : undefined;
+      const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+        ? input.sessionId.trim()
+        : undefined;
+      const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+        ? context.sessionId.trim()
+        : undefined;
+      const sessionId = explicitSessionId
+        ?? contextSessionId
+        ?? this.buildAnonymousSessionId(workspacePath ?? process.cwd());
+      const session = this.state.sessions.get(sessionId);
+      const includeConstructions = input.includeConstructions ?? true;
+      const availableTools = this.getAvailableTools().map((tool) => tool.name);
+      const recentPlans = (session?.planHistory ?? []).slice(-5).map((record) => this.toPlanView(record));
+
+      const recommendedActions: Array<{ tool: string; rationale: string }> = [];
+      if (!workspacePath) {
+        recommendedActions.push({
+          tool: 'bootstrap',
+          rationale: 'No workspace is registered yet. Bootstrap first so retrieval and symbol tooling can operate.',
+        });
+      } else if (!workspace) {
+        recommendedActions.push({
+          tool: 'bootstrap',
+          rationale: 'Workspace is not registered in this MCP session. Bootstrap to attach storage and index state.',
+        });
+      } else if (workspace.indexState !== 'ready') {
+        recommendedActions.push({
+          tool: 'bootstrap',
+          rationale: `Workspace index is ${workspace.indexState}. Re-bootstrap to reach ready state before semantic workflows.`,
+        });
+      } else {
+        recommendedActions.push({
+          tool: 'query',
+          rationale: 'Start with a semantic orientation query to collect context packs for current goals.',
+        });
+        recommendedActions.push({
+          tool: 'find_symbol',
+          rationale: 'Resolve human-readable names into claim/function/run IDs before downstream targeted tools.',
+        });
+        recommendedActions.push({
+          tool: 'get_change_impact',
+          rationale: 'Run pre-edit blast-radius analysis before modifying high-risk functions or modules.',
+        });
+        if ((session?.planHistory.length ?? 0) === 0) {
+          recommendedActions.push({
+            tool: 'synthesize_plan',
+            rationale: 'No persisted plan exists for this session yet; create one before major edits.',
+          });
+        }
+      }
+
+      return {
+        success: true,
+        sessionId,
+        session_id: sessionId,
+        workspace: workspacePath,
+        workspaceState: workspace
+          ? {
+            indexState: workspace.indexState,
+            indexedAt: workspace.indexedAt,
+            hasLibrarian: !!workspace.librarian,
+            hasStorage: !!workspace.storage,
+            watching: workspace.watching ?? false,
+            lastBootstrapRunId: workspace.lastBootstrapRunId,
+          }
+          : null,
+        planTracking: {
+          totalPlans: session?.planHistory.length ?? 0,
+          total_plans: session?.planHistory.length ?? 0,
+          recentPlans,
+          recent_plans: recentPlans,
+        },
+        recommendedActions,
+        availableTools,
+        guidance: {
+          confidenceContract: CONFIDENCE_BEHAVIOR_CONTRACT,
+          docs: {
+            startHere: 'docs/START_HERE.md',
+            mcpSetup: 'docs/mcp-setup.md',
+          },
+        },
+        constructions: includeConstructions
+          ? {
+            quickstart: 'docs/constructions/quickstart.md',
+            operatorGuide: 'docs/constructions/operators.md',
+            cookbook: 'docs/constructions/cookbook.md',
+            cliListCommand: 'npx librainian constructions list',
+          }
+          : undefined,
       };
     } catch (error) {
       return {
