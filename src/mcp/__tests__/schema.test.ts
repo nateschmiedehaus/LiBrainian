@@ -22,6 +22,7 @@ import {
   SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
+  PreCommitCheckToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
   ListConstructionsToolInputSchema,
@@ -50,6 +51,7 @@ import {
   isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
+  isPreCommitCheckToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
   isListConstructionsToolInput,
@@ -114,8 +116,9 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('blast_radius');
+      expect(schemas).toContain('pre_commit_check');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(35);
+      expect(schemas).toHaveLength(36);
     });
 
     it('should return schema for known tools', () => {
@@ -417,6 +420,40 @@ describe('MCP Schema', () => {
       expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'rename' })).toBe(true);
       expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'invalid' })).toBe(false);
       expect(isBlastRadiusToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Pre Commit Check Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('pre_commit_check', {
+        changedFiles: ['src/api/auth.ts'],
+      });
+      expect(result.valid).toBe(true);
+      expect(PreCommitCheckToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('pre_commit_check', {
+        changedFiles: ['src/api/auth.ts', 'src/session.ts'],
+        workspace: '/tmp/workspace',
+        strict: true,
+        maxRiskLevel: 'medium',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject empty changedFiles', () => {
+      const result = validateToolInput('pre_commit_check', {
+        changedFiles: [],
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'] })).toBe(true);
+      expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'critical' })).toBe(true);
+      expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'invalid' })).toBe(false);
+      expect(isPreCommitCheckToolInput(null)).toBe(false);
     });
   });
 

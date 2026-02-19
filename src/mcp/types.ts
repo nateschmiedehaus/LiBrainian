@@ -889,6 +889,21 @@ export interface BlastRadiusToolInput {
   changeType?: 'modify' | 'delete' | 'rename' | 'move';
 }
 
+/** pre_commit_check tool input */
+export interface PreCommitCheckToolInput {
+  /** Changed files to evaluate before submit */
+  changedFiles: string[];
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Enforce stricter pass criteria */
+  strict?: boolean;
+
+  /** Maximum acceptable risk level for pass */
+  maxRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
+}
+
 export interface GetChangeImpactToolOutput {
   success: boolean;
   target: string;
@@ -1617,6 +1632,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  pre_commit_check: {
+    tool: 'pre_commit_check',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   submit_feedback: {
     tool: 'submit_feedback',
     requiredScopes: ['read', 'write'],
@@ -2095,6 +2116,22 @@ export function isBlastRadiusToolInput(value: unknown): value is BlastRadiusTool
   const maxResultsOk = typeof obj.maxResults === 'number' || typeof obj.maxResults === 'undefined';
   const changeTypeOk = obj.changeType === 'modify' || obj.changeType === 'delete' || obj.changeType === 'rename' || obj.changeType === 'move' || typeof obj.changeType === 'undefined';
   return targetOk && workspaceOk && depthOk && maxResultsOk && changeTypeOk;
+}
+
+/** Type guard for PreCommitCheckToolInput */
+export function isPreCommitCheckToolInput(value: unknown): value is PreCommitCheckToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const changedFilesOk = Array.isArray(obj.changedFiles)
+    && obj.changedFiles.every((entry) => typeof entry === 'string');
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const strictOk = typeof obj.strict === 'boolean' || typeof obj.strict === 'undefined';
+  const maxRiskLevelOk = obj.maxRiskLevel === 'low'
+    || obj.maxRiskLevel === 'medium'
+    || obj.maxRiskLevel === 'high'
+    || obj.maxRiskLevel === 'critical'
+    || typeof obj.maxRiskLevel === 'undefined';
+  return changedFilesOk && workspaceOk && strictOk && maxRiskLevelOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */

@@ -49,6 +49,7 @@ import {
   type CheckConstructionTypesToolInput,
   type GetChangeImpactToolInput,
   type BlastRadiusToolInput,
+  type PreCommitCheckToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
   type FindUsagesToolInput,
@@ -319,6 +320,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   check_construction_types: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1700 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
@@ -1568,6 +1570,20 @@ export class LibrarianMCPServer {
             changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
           },
           required: ['target'],
+        },
+      },
+      {
+        name: 'pre_commit_check',
+        description: 'Semantic pre-submit gate over changed files using blast-radius risk checks',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            changedFiles: { type: 'array', items: { type: 'string' }, description: 'Changed files to evaluate before submit' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            strict: { type: 'boolean', description: 'Enforce stricter pass criteria (default false)' },
+            maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass (default high)' },
+          },
+          required: ['changedFiles'],
         },
       },
       {
@@ -2992,6 +3008,8 @@ export class LibrarianMCPServer {
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'blast_radius':
         return this.executeBlastRadius(args as BlastRadiusToolInput);
+      case 'pre_commit_check':
+        return this.executePreCommitCheck(args as PreCommitCheckToolInput);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
@@ -6239,6 +6257,133 @@ export class LibrarianMCPServer {
         recommendation: 'Run blast radius before edits; if risk is high, pause for review and create an explicit plan.',
         nextTools,
       },
+    };
+  }
+
+  private async executePreCommitCheck(input: PreCommitCheckToolInput): Promise<unknown> {
+    const changedFiles = Array.from(
+      new Set((input.changedFiles ?? []).map((file) => file.trim()).filter((file) => file.length > 0)),
+    );
+    if (changedFiles.length === 0) {
+      return {
+        success: false,
+        passed: false,
+        error: 'changedFiles must contain at least one non-empty file path.',
+      };
+    }
+
+    const workspacePath = input.workspace
+      ? path.resolve(input.workspace)
+      : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+
+    if (!workspacePath) {
+      return {
+        success: false,
+        passed: false,
+        changedFiles,
+        error: 'No workspace specified and no workspaces registered.',
+        recommendedActions: [
+          { tool: 'bootstrap', rationale: 'Register and index a workspace before semantic pre-commit checks.' },
+        ],
+      };
+    }
+
+    const riskRank: Record<'low' | 'medium' | 'high' | 'critical', number> = {
+      low: 1,
+      medium: 2,
+      high: 3,
+      critical: 4,
+    };
+    const strict = input.strict ?? false;
+    const maxRiskLevel = input.maxRiskLevel ?? (strict ? 'medium' : 'high');
+    const thresholdRank = riskRank[maxRiskLevel];
+
+    const fileChecks: Array<{
+      file: string;
+      passed: boolean;
+      riskLevel: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
+      totalImpacted: number;
+      reason: string;
+    }> = [];
+
+    for (const file of changedFiles) {
+      const impact = await this.executeGetChangeImpact({
+        target: file,
+        workspace: workspacePath,
+      });
+
+      if (!impact || typeof impact !== 'object') {
+        fileChecks.push({
+          file,
+          passed: !strict,
+          riskLevel: 'unknown',
+          totalImpacted: 0,
+          reason: 'Impact analysis returned an unexpected payload.',
+        });
+        continue;
+      }
+
+      const payload = impact as Record<string, unknown>;
+      if (payload.success === false) {
+        fileChecks.push({
+          file,
+          passed: false,
+          riskLevel: 'unknown',
+          totalImpacted: 0,
+          reason: typeof payload.error === 'string' ? payload.error : 'Impact analysis failed.',
+        });
+        continue;
+      }
+
+      const summary = (payload.summary ?? {}) as Record<string, unknown>;
+      const riskLevel = (summary.riskLevel ?? 'unknown') as 'low' | 'medium' | 'high' | 'critical' | 'unknown';
+      const totalImpacted = typeof summary.totalImpacted === 'number' ? summary.totalImpacted : 0;
+      const passed = riskLevel === 'unknown'
+        ? !strict
+        : riskRank[riskLevel] <= thresholdRank;
+      fileChecks.push({
+        file,
+        passed,
+        riskLevel,
+        totalImpacted,
+        reason: riskLevel === 'unknown'
+          ? 'Risk level unavailable from impact analysis.'
+          : `Risk ${riskLevel} is ${passed ? 'within' : 'above'} maxRiskLevel=${maxRiskLevel}.`,
+      });
+    }
+
+    const passed = fileChecks.every((check) => check.passed);
+    const highRiskCount = fileChecks.filter((check) => check.riskLevel === 'high' || check.riskLevel === 'critical').length;
+    const failingFiles = fileChecks.filter((check) => !check.passed).map((check) => check.file);
+    const recommendedActions = passed
+      ? [
+        { tool: 'submit_feedback', rationale: 'Record successful outcome after merge/verification.' },
+      ]
+      : highRiskCount > 0
+        ? [
+          { tool: 'request_human_review', rationale: 'High-risk blast radius detected in changed files.' },
+          { tool: 'synthesize_plan', rationale: 'Persist mitigation/rollback plan before submitting.' },
+        ]
+        : [
+          { tool: 'query', rationale: 'Collect more context for failing files before submit.' },
+          { tool: 'synthesize_plan', rationale: 'Convert remediation into explicit steps.' },
+        ];
+
+    return {
+      success: true,
+      tool: 'pre_commit_check',
+      workspace: workspacePath,
+      passed,
+      strict,
+      maxRiskLevel,
+      checks: fileChecks,
+      summary: {
+        totalFiles: fileChecks.length,
+        passedFiles: fileChecks.filter((check) => check.passed).length,
+        failingFiles,
+        highRiskCount,
+      },
+      recommendedActions,
     };
   }
 

@@ -197,6 +197,17 @@ describe('MCP Server', () => {
       expect(semanticSearchTool?.description).toContain('Primary semantic code localization');
     });
 
+    it('includes pre_commit_check as a semantic submit gate tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const preCommitTool = tools.find((tool) => tool.name === 'pre_commit_check');
+
+      expect(preCommitTool).toBeDefined();
+      expect(preCommitTool?.description?.toLowerCase()).toContain('semantic pre-submit gate');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -345,6 +356,29 @@ describe('MCP Server', () => {
       expect(result.relatedFiles).toEqual(['src/auth.ts', 'src/session.ts', 'src/routes.ts']);
       expect(result.recommendedNextTools).toEqual(
         expect.arrayContaining(['find_symbol', 'trace_imports', 'get_change_impact']),
+      );
+    });
+
+    it('evaluates changed files in pre_commit_check and surfaces pass/fail summary', async () => {
+      vi.spyOn(server as any, 'executeGetChangeImpact')
+        .mockResolvedValueOnce({ success: true, summary: { riskLevel: 'medium', totalImpacted: 3 } })
+        .mockResolvedValueOnce({ success: true, summary: { riskLevel: 'high', totalImpacted: 9 } });
+
+      const result = await (server as any).executePreCommitCheck({
+        changedFiles: ['src/api/auth.ts', 'src/session.ts'],
+        workspace: '/tmp/workspace',
+        maxRiskLevel: 'medium',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('pre_commit_check');
+      expect(result.passed).toBe(false);
+      expect(result.summary?.failingFiles).toContain('src/session.ts');
+      expect(result.recommendedActions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ tool: 'request_human_review' }),
+          expect.objectContaining({ tool: 'synthesize_plan' }),
+        ]),
       );
     });
   });

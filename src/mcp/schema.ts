@@ -133,6 +133,16 @@ export const BlastRadiusToolInputSchema = z.object({
 }).strict();
 
 /**
+ * pre_commit_check tool input schema
+ */
+export const PreCommitCheckToolInputSchema = z.object({
+  changedFiles: z.array(z.string().min(1)).min(1).max(200).describe('Changed files to evaluate before submit'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  strict: z.boolean().optional().default(false).describe('Enforce stricter pass criteria'),
+  maxRiskLevel: z.enum(['low', 'medium', 'high', 'critical']).optional().default('high').describe('Maximum acceptable risk level for pass'),
+}).strict();
+
+/**
  * Submit feedback tool input schema
  */
 export const SubmitFeedbackToolInputSchema = z.object({
@@ -455,6 +465,7 @@ export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInput
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
+export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
@@ -511,6 +522,7 @@ export const TOOL_INPUT_SCHEMAS = {
   check_construction_types: CheckConstructionTypesToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
   blast_radius: BlastRadiusToolInputSchema,
+  pre_commit_check: PreCommitCheckToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_symbol: FindSymbolToolInputSchema,
@@ -680,6 +692,23 @@ export const blastRadiusToolJsonSchema: JSONSchema = {
     changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
   },
   required: ['target'],
+  additionalProperties: false,
+};
+
+/** pre_commit_check tool JSON Schema */
+export const preCommitCheckToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/pre-commit-check-tool-input',
+  title: 'PreCommitCheckToolInput',
+  description: 'Input for pre_commit_check - semantic gate for changed files before submit',
+  type: 'object',
+  properties: {
+    changedFiles: { type: 'array', items: { type: 'string' }, description: 'Changed files to evaluate before submit', minItems: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    strict: { type: 'boolean', description: 'Enforce stricter pass criteria', default: false },
+    maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass', default: 'high' },
+  },
+  required: ['changedFiles'],
   additionalProperties: false,
 };
 
@@ -920,6 +949,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   check_construction_types: checkConstructionTypesToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
   blast_radius: blastRadiusToolJsonSchema,
+  pre_commit_check: preCommitCheckToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
 };
