@@ -32,6 +32,7 @@
  *   librarian evolve              - Run evolutionary improvement loop
  *   librarian eval                - Produce FitnessReport.v1
  *   librarian replay              - Replay evolution cycle or variant
+ *   librarian constructions       - Browse and validate registry constructions
  *   librarian analyze             - Run static analysis (dead code, complexity)
  *   librarian update              - Hook-friendly alias for incremental indexing
  *   librarian config heal         - Auto-detect and fix suboptimal config
@@ -72,6 +73,7 @@ import { scanCommand } from './commands/scan.js';
 import { contractCommand } from './commands/contract.js';
 import { diagnoseCommand } from './commands/diagnose.js';
 import { composeCommand } from './commands/compose.js';
+import { constructionsCommand } from './commands/constructions.js';
 import { analyzeCommand } from './commands/analyze.js';
 import { configHealCommand } from './commands/config_heal.js';
 import { doctorCommand } from './commands/doctor.js';
@@ -91,7 +93,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -229,6 +231,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'compose': {
     description: 'Compose construction pipelines or technique bundles from intent',
     usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty]',
+  },
+  'constructions': {
+    description: 'List/search/describe/install/validate constructions',
+    usage: 'librarian constructions list|search|describe|install|validate [options]',
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
@@ -508,6 +514,13 @@ async function main(): Promise<void> {
         break;
       case 'compose':
         await composeCommand({
+          workspace,
+          args: commandArgs,
+          rawArgs: args,
+        });
+        break;
+      case 'constructions':
+        await constructionsCommand({
           workspace,
           args: commandArgs,
           rawArgs: args,

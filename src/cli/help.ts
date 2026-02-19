@@ -32,6 +32,7 @@ COMMANDS:
     check               Run diff-aware CI integrity checks
     scan                Show security redaction scan results
     compose             Compose construction pipelines or technique bundles
+    constructions       Browse/search/describe/install/validate constructions
     doctor              Run diagnostics and recovery hints
     health              Show current LiBrainian health status
     check               Run CI integrity checks for changed files
@@ -79,6 +80,7 @@ EXAMPLES:
     librainian uninstall --dry-run
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
+    librainian constructions search "security audit"
     librainian publish-gate --profile release --json
 
 For command-specific details:
@@ -570,6 +572,44 @@ EXAMPLES:
     librarian compose "Prepare a release plan" --mode techniques
     librarian compose "Performance regression triage" --mode techniques --limit 2
     librarian compose "Release readiness" --mode techniques --include-primitives --pretty
+`,
+
+  constructions: `
+librarian constructions - Browse, search, describe, install, and validate constructions
+
+USAGE:
+    librarian constructions <subcommand> [options]
+
+SUBCOMMANDS:
+    list                    List available constructions (grouped by trust tier)
+    search "<query>"        Rank constructions by semantic relevance
+    describe <id>           Show full manifest details and example usage
+    install <id>            npm install wrapper with capability checks
+    validate [manifest]     Validate a local construction manifest JSON
+
+OPTIONS:
+    --json                  Output machine-readable JSON
+    --limit <n>             Maximum results (list/search)
+    --offset <n>            Pagination offset (list)
+    --tags <a,b,c>          Filter list by tags
+    --capabilities <a,b>    Filter list by required capabilities
+    --trust-tier <tier>     official | partner | community
+    --language <lang>       Filter list by language
+    --available-only        List only constructions executable in current runtime
+    --dry-run               For install: validate only, skip npm install
+    --path <file>           For validate: explicit manifest path
+
+DESCRIPTION:
+    This command group surfaces the construction registry directly in the CLI.
+    It supports discovery and validation workflows without requiring MCP setup.
+
+EXAMPLES:
+    librarian constructions list
+    librarian constructions list --trust-tier official --limit 20
+    librarian constructions search "blast radius change impact"
+    librarian constructions describe librainian:security-audit-helper
+    librarian constructions install librainian:security-audit-helper --dry-run
+    librarian constructions validate ./construction.manifest.json --json
 `,
 
   confidence: `
