@@ -24,6 +24,7 @@ import {
 } from '../../epistemics/confidence.js';
 import type { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { generatePredictionId } from '../calibration_tracker.js';
+import type { Construction, Context } from '../types.js';
 
 // ============================================================================
 // TYPES
@@ -226,6 +227,28 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    * @returns Promise resolving to the construction's result
    */
   abstract execute(input: TInput): Promise<TOutput>;
+
+  /**
+   * Bridge this base construction instance to the canonical construction interface.
+   *
+   * @param name - Human-readable construction name
+   * @param description - Optional construction description
+   * @returns Canonical construction adapter
+   */
+  toConstruction(name: string, description?: string): Construction<TInput, TOutput> {
+    const constructionId = this.CONSTRUCTION_ID;
+    return {
+      id: constructionId,
+      name,
+      description,
+      execute: async (input: TInput, context?: Context): Promise<TOutput> => {
+        if (context?.signal.aborted) {
+          throw new ConstructionCancelledError(constructionId);
+        }
+        return this.execute(input);
+      },
+    };
+  }
 
   /**
    * Record a prediction for calibration tracking.

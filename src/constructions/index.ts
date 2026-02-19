@@ -8,6 +8,12 @@
  * @packageDocumentation
  */
 
+export type {
+  Construction,
+  Context,
+  LibrarianContext,
+} from './types.js';
+
 export {
   RefactoringSafetyChecker,
   createRefactoringSafetyChecker,

@@ -33,34 +33,17 @@ import {
   ConstructionError,
   ConstructionTimeoutError,
 } from './base/construction_base.js';
+import type { Construction } from './types.js';
 
 // ============================================================================
 // COMPOSABLE CONSTRUCTION INTERFACE
 // ============================================================================
 
 /**
- * Interface for constructions that can be composed.
- *
- * This is a simpler interface than the full BaseConstruction abstract class,
- * designed specifically for composition operators. It allows both class-based
- * constructions and functional constructions to be composed together.
- *
- * @template TInput - The input type for the construction
- * @template TOutput - The output type (must extend ConstructionResult)
+ * @deprecated Use {@link Construction} from `./types` directly.
  */
-export interface ComposableConstruction<TInput, TOutput extends ConstructionResult> {
-  /** Unique identifier for this construction */
-  readonly id: string;
-
-  /** Human-readable name */
-  readonly name: string;
-
-  /** Execute the construction */
-  execute(input: TInput): Promise<TOutput>;
-
-  /** Get the estimated confidence for this construction (before execution) */
-  getEstimatedConfidence?(): ConfidenceValue;
-}
+export type ComposableConstruction<TInput, TOutput extends ConstructionResult> =
+  Construction<TInput, TOutput, ConstructionError, unknown>;
 
 // ============================================================================
 // CONFIGURATION TYPES
