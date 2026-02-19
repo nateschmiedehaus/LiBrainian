@@ -107,4 +107,29 @@ describe('agent issue feedback planning', () => {
 
     expect(oldScore.score).toBeGreaterThanOrEqual(newScore.score);
   });
+
+  it('keeps foundational bootstrap/query issues ahead of advanced orchestration follow-ons', () => {
+    const plan = buildIssueFixPlan([
+      issue({
+        number: 206,
+        title: 'WAVE3 [R5]: Multi-agent index coordination with optimistic locking and change events',
+        createdAt: '2026-02-18T15:15:30.000Z',
+      }),
+      issue({
+        number: 53,
+        title: 'Fix bootstrap destroying existing MVP index before full index build',
+        createdAt: '2026-02-18T12:52:55.000Z',
+      }),
+      issue({
+        number: 47,
+        title: 'Proactive MCP context injection: annotate agent tool calls without explicit query',
+        createdAt: '2026-02-18T12:52:38.000Z',
+      }),
+    ]);
+
+    expect(plan.queue[0]?.number).toBe(47);
+    expect(plan.queue[1]?.number).toBe(53);
+    expect(plan.queue[2]?.number).toBe(206);
+    expect(plan.queue[2]?.priority === 'P0' || plan.queue[2]?.priority === 'P1').toBe(false);
+  });
 });

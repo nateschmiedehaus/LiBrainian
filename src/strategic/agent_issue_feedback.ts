@@ -75,10 +75,11 @@ const SCORE_RULES: Array<{ pattern: RegExp; points: number; reason: string }> = 
   { pattern: /blocks all|blocked all|hard block|cannot proceed/i, points: 35, reason: 'workflow blocking defect' },
   { pattern: /kills database|data loss|compromised|corrupt|interrupted/i, points: 35, reason: 'data integrity risk' },
   { pattern: /no effect|identical results|query intent has no effect/i, points: 25, reason: 'retrieval unusable for agents' },
-  { pattern: /stale lock|database locked|lock/i, points: 20, reason: 'storage lock instability' },
+  { pattern: /stale lock|database locked|database is locked|lock contention|lock leak|deadlock/i, points: 20, reason: 'storage lock instability' },
   { pattern: /bootstrap|onboarding|first-time|quickstart/i, points: 12, reason: 'onboarding friction' },
   { pattern: /query|retrieval|synthesis|context/i, points: 10, reason: 'core query-path impact' },
   { pattern: /agent|mcp|feedback command|feedback path/i, points: 10, reason: 'agent workflow impact' },
+  { pattern: /wave\d+|multi-agent|orchestration|coordinat(e|ion)|benchmark|sla/i, points: -8, reason: 'advanced orchestration follow-on' },
   { pattern: /ux|design issues|pain points/i, points: 8, reason: 'usability overhead' },
 ];
 
