@@ -35,6 +35,8 @@ export type {
   IndexChangeEvent,
   IndexChangeEventType,
   IndexChangeQueryOptions,
+  EvidenceVerificationOptions,
+  EvidenceVerificationSummary,
   GraphEdge,
   GraphEdgeQueryOptions,
   QueryOptions,

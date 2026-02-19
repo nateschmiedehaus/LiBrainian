@@ -8019,6 +8019,12 @@ export class LibrarianMCPServer {
         message: string;
         file?: string;
       }> = [];
+      const evidenceSummary = storage.getEvidenceVerificationSummary
+        ? await storage.getEvidenceVerificationSummary({
+          limit: input.type === 'coverage' || input.type === 'security' ? 500 : undefined,
+        })
+        : null;
+      let evidenceReportPath: string | undefined;
 
       // Run audit based on type
       switch (input.type) {
@@ -8169,6 +8175,26 @@ export class LibrarianMCPServer {
         }
       }
 
+      if (evidenceSummary && evidenceSummary.staleCount > 0) {
+        findings.push({
+          severity: 'warning',
+          category: 'evidence',
+          message: `${evidenceSummary.staleCount} evidence entries are stale (${evidenceSummary.unverifiedCount} unverified)`,
+        });
+      }
+      if (evidenceSummary && evidenceSummary.unverifiedCount > 0 && evidenceSummary.oldestUnverifiedAt) {
+        findings.push({
+          severity: 'info',
+          category: 'evidence',
+          message: `Oldest unverified evidence was created at ${evidenceSummary.oldestUnverifiedAt}`,
+        });
+      }
+      if (input.generateReport && storage.exportEvidenceMarkdown) {
+        evidenceReportPath = await storage.exportEvidenceMarkdown(
+          path.join(workspace.path, 'state', 'audits', 'librarian', 'EVIDENCE.md')
+        );
+      }
+
       return {
         auditId,
         status: 'completed',
@@ -8180,7 +8206,9 @@ export class LibrarianMCPServer {
           errors: findings.filter((f) => f.severity === 'error').length,
           warnings: findings.filter((f) => f.severity === 'warning').length,
           info: findings.filter((f) => f.severity === 'info').length,
+          evidence: evidenceSummary ?? undefined,
         },
+        reports: evidenceReportPath ? [{ type: 'evidence', path: evidenceReportPath }] : undefined,
       };
     } catch (error) {
       return {

@@ -20,6 +20,7 @@ import type { LibrarianStorage } from '../storage/types.js';
 import { computeGraphMetrics, writeGraphMetricsReport, type GraphMetricsEntry } from '../graphs/metrics.js';
 import { emptyArray, noResult } from '../api/empty_values.js';
 import { globalEventBus, createLanguageOnboardingEvent } from '../events.js';
+import { sha256Hex } from '../spine/hashes.js';
 
 export type LlmProvider = 'claude' | 'codex';
 
@@ -390,22 +391,92 @@ export class AstIndexer {
   }
 }
 function buildEvidenceEntries(filePath: string, source: string, functions: FunctionKnowledge[], module: ModuleKnowledge | null): EvidenceEntry[] {
-  const createdAt = new Date().toISOString(); const entries: EvidenceEntry[] = [];
-  for (const fn of functions) entries.push(...buildFunctionEvidence(filePath, source, fn, createdAt));
-  if (module) entries.push(...buildModuleEvidence(filePath, source, module, createdAt));
+  const createdAt = new Date().toISOString();
+  const sourceHash = sha256Hex(source);
+  const entries: EvidenceEntry[] = [];
+  for (const fn of functions) entries.push(...buildFunctionEvidence(filePath, source, fn, createdAt, sourceHash));
+  if (module) entries.push(...buildModuleEvidence(filePath, source, module, createdAt, sourceHash));
   return entries;
 }
-function buildFunctionEvidence(filePath: string, source: string, fn: FunctionKnowledge, createdAt: string): EvidenceEntry[] {
+function buildFunctionEvidence(
+  filePath: string,
+  source: string,
+  fn: FunctionKnowledge,
+  createdAt: string,
+  sourceHash: string
+): EvidenceEntry[] {
   const snippet = extractSnippet(source, fn.startLine, fn.endLine); const entries: EvidenceEntry[] = [];
-  entries.push({ claimId: randomUUID(), entityId: fn.id, entityType: 'function', file: filePath, line: fn.startLine, endLine: fn.endLine, snippet, claim: `Definition of ${fn.name}`, confidence: 'verified', createdAt });
-  if (fn.purpose) entries.push({ claimId: randomUUID(), entityId: fn.id, entityType: 'function', file: filePath, line: fn.startLine, endLine: fn.endLine, snippet, claim: `Purpose: ${fn.purpose}`, confidence: 'inferred', createdAt });
+  entries.push({
+    claimId: randomUUID(),
+    entityId: fn.id,
+    entityType: 'function',
+    file: filePath,
+    line: fn.startLine,
+    endLine: fn.endLine,
+    snippet,
+    claim: `Definition of ${fn.name}`,
+    confidence: 'verified',
+    createdAt,
+    contentHash: sourceHash,
+    verifiedAt: createdAt,
+    stale: false,
+  });
+  if (fn.purpose) entries.push({
+    claimId: randomUUID(),
+    entityId: fn.id,
+    entityType: 'function',
+    file: filePath,
+    line: fn.startLine,
+    endLine: fn.endLine,
+    snippet,
+    claim: `Purpose: ${fn.purpose}`,
+    confidence: 'inferred',
+    createdAt,
+    contentHash: sourceHash,
+    verifiedAt: createdAt,
+    stale: false,
+  });
   return entries;
 }
-function buildModuleEvidence(filePath: string, source: string, module: ModuleKnowledge, createdAt: string): EvidenceEntry[] {
+function buildModuleEvidence(
+  filePath: string,
+  source: string,
+  module: ModuleKnowledge,
+  createdAt: string,
+  sourceHash: string
+): EvidenceEntry[] {
   const snippet = extractSnippet(source, 1, Math.min(8, source.split(/\r?\n/).length || 1));
   const entries: EvidenceEntry[] = [];
-  entries.push({ claimId: randomUUID(), entityId: module.id, entityType: 'module', file: filePath, line: 1, endLine: Math.min(8, source.split(/\r?\n/).length || 1), snippet, claim: `Module ${path.basename(filePath)} defined`, confidence: 'verified', createdAt });
-  if (module.purpose) entries.push({ claimId: randomUUID(), entityId: module.id, entityType: 'module', file: filePath, line: 1, endLine: Math.min(8, source.split(/\r?\n/).length || 1), snippet, claim: `Module purpose: ${module.purpose}`, confidence: 'inferred', createdAt });
+  entries.push({
+    claimId: randomUUID(),
+    entityId: module.id,
+    entityType: 'module',
+    file: filePath,
+    line: 1,
+    endLine: Math.min(8, source.split(/\r?\n/).length || 1),
+    snippet,
+    claim: `Module ${path.basename(filePath)} defined`,
+    confidence: 'verified',
+    createdAt,
+    contentHash: sourceHash,
+    verifiedAt: createdAt,
+    stale: false,
+  });
+  if (module.purpose) entries.push({
+    claimId: randomUUID(),
+    entityId: module.id,
+    entityType: 'module',
+    file: filePath,
+    line: 1,
+    endLine: Math.min(8, source.split(/\r?\n/).length || 1),
+    snippet,
+    claim: `Module purpose: ${module.purpose}`,
+    confidence: 'inferred',
+    createdAt,
+    contentHash: sourceHash,
+    verifiedAt: createdAt,
+    stale: false,
+  });
   return entries;
 }
 function extractSnippet(source: string, startLine: number, endLine: number, maxChars: number = 500): string {

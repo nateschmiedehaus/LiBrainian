@@ -54,6 +54,20 @@ export interface StorageCapabilities {
   };
 }
 
+export interface EvidenceVerificationOptions {
+  limit?: number;
+  force?: boolean;
+}
+
+export interface EvidenceVerificationSummary {
+  totalEntries: number;
+  scannedEntries: number;
+  staleCount: number;
+  unverifiedCount: number;
+  oldestUnverifiedAt?: string;
+  verifiedAt: string;
+}
+
 /**
  * Abstract storage interface for librarian data.
  * Implementations must be transactional and handle concurrent access.
@@ -238,6 +252,8 @@ export interface LibrarianStorage {
   setEvidence(entries: EvidenceEntry[]): Promise<void>;
   getEvidenceForTarget(entityId: string, entityType: 'function' | 'module'): Promise<EvidenceRef[]>;
   deleteEvidence(entityId: string, entityType: 'function' | 'module'): Promise<void>;
+  getEvidenceVerificationSummary?(options?: EvidenceVerificationOptions): Promise<EvidenceVerificationSummary>;
+  exportEvidenceMarkdown?(outputPath?: string): Promise<string>;
 
   // Confidence events (audit trail)
   getConfidenceEvents(options?: ConfidenceEventQueryOptions): Promise<ConfidenceEvent[]>;
@@ -465,7 +481,7 @@ export type EvolutionStorage = Pick<
 
 export type EvidenceStorage = Pick<
   LibrarianStorage,
-  'setEvidence' | 'getEvidenceForTarget' | 'deleteEvidence'
+  'setEvidence' | 'getEvidenceForTarget' | 'deleteEvidence' | 'getEvidenceVerificationSummary' | 'exportEvidenceMarkdown'
 >;
 
 export type ConfidenceStorage = Pick<

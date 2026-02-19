@@ -7,6 +7,9 @@ export interface EvidenceRef {
   snippet: string;
   claim: string;
   confidence: EvidenceConfidence;
+  contentHash?: string;
+  verifiedAt?: string;
+  stale?: boolean;
 }
 
 export interface EvidenceEntry extends EvidenceRef {

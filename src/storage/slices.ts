@@ -65,7 +65,7 @@ const SLICE_METHODS: SliceMethodMap = {
     'recordQualityScore',
     'getQualityScoreHistory',
   ],
-  evidence: ['setEvidence', 'getEvidenceForTarget', 'deleteEvidence'],
+  evidence: ['setEvidence', 'getEvidenceForTarget', 'deleteEvidence', 'getEvidenceVerificationSummary', 'exportEvidenceMarkdown'],
   confidence: [
     'updateConfidence',
     'applyTimeDecay',

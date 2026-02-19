@@ -41,6 +41,8 @@ import type {
   OwnershipQueryOptions,
   GraphMetricsQueryOptions,
   CochangeQueryOptions,
+  EvidenceVerificationOptions,
+  EvidenceVerificationSummary,
   ConfidenceEvent,
   ConfidenceEventQueryOptions,
   UniversalKnowledgeRecord,
@@ -136,7 +138,33 @@ import { globalEventBus, createIndexChangeEvent } from '../events.js';
 const LOCK_ACQUIRE_TIMEOUT_MS = 5_000;
 const LOCK_RETRY_INTERVAL_MS = 200;
 const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
+const EVIDENCE_FUZZY_MAX_DISTANCE_RATIO = 0.05;
+const EVIDENCE_MIN_FUZZY_LINES = 3;
 const PROCESS_STARTED_AT_ISO = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
+
+interface StoredEvidenceRow {
+  claim_id: string;
+  entity_id: string;
+  entity_type: 'function' | 'module';
+  file_path: string;
+  line_start: number;
+  line_end: number | null;
+  snippet: string;
+  claim: string;
+  confidence: EvidenceRef['confidence'];
+  created_at: string;
+  content_hash: string | null;
+  verified_at: string | null;
+  is_stale: number;
+}
+
+interface EvidenceFileState {
+  missing: boolean;
+  content?: string;
+  lines?: string[];
+  contentHash?: string;
+  mtimeMs?: number;
+}
 
 interface StorageProcessLockCore {
   pid: number;
@@ -502,6 +530,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       this.ensureGraphTables();
       this.ensureTemporalTables();
       this.ensureEvidenceTables();
+      this.ensureEvidenceColumns();
       this.ensureEvolutionTables();
       this.ensureIndexCoordinationTables();
       this.ensureConfidenceColumns();
@@ -622,7 +651,24 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
 
   private ensureEvidenceTables(): void {
     if (!this.db) return;
-    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_evidence (claim_id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, file_path TEXT NOT NULL, line_start INTEGER NOT NULL, line_end INTEGER, snippet TEXT NOT NULL, claim TEXT NOT NULL, confidence TEXT NOT NULL, created_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_evidence_entity ON librarian_evidence(entity_id, entity_type);');
+    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_evidence (claim_id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, file_path TEXT NOT NULL, line_start INTEGER NOT NULL, line_end INTEGER, snippet TEXT NOT NULL, claim TEXT NOT NULL, confidence TEXT NOT NULL, created_at TEXT NOT NULL, content_hash TEXT NOT NULL DEFAULT "", verified_at TEXT, is_stale INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS idx_evidence_entity ON librarian_evidence(entity_id, entity_type);');
+  }
+
+  private ensureEvidenceColumns(): void {
+    const db = this.db;
+    if (!db) return;
+    const columns = db.prepare('PRAGMA table_info(librarian_evidence)').all() as { name: string }[];
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('content_hash')) {
+      db.prepare('ALTER TABLE librarian_evidence ADD COLUMN content_hash TEXT NOT NULL DEFAULT ""').run();
+    }
+    if (!names.has('verified_at')) {
+      db.prepare('ALTER TABLE librarian_evidence ADD COLUMN verified_at TEXT').run();
+    }
+    if (!names.has('is_stale')) {
+      db.prepare('ALTER TABLE librarian_evidence ADD COLUMN is_stale INTEGER NOT NULL DEFAULT 0').run();
+    }
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_evidence_stale ON librarian_evidence(is_stale)').run();
   }
 
   private ensureEvolutionTables(): void {
@@ -3615,8 +3661,10 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   }
 
   async setEvidence(entries: EvidenceEntry[]): Promise<void> {
-    if (!entries.length) return; const db = this.ensureDb();
-    const insert = db.prepare('INSERT INTO librarian_evidence (claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(claim_id) DO UPDATE SET file_path = excluded.file_path, line_start = excluded.line_start, line_end = excluded.line_end, snippet = excluded.snippet, claim = excluded.claim, confidence = excluded.confidence, created_at = excluded.created_at');
+    if (!entries.length) return;
+    const db = this.ensureDb();
+    const contentHashes = await this.computeEvidenceContentHashes(entries);
+    const insert = db.prepare('INSERT INTO librarian_evidence (claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(claim_id) DO UPDATE SET file_path = excluded.file_path, line_start = excluded.line_start, line_end = excluded.line_end, snippet = excluded.snippet, claim = excluded.claim, confidence = excluded.confidence, created_at = excluded.created_at, content_hash = excluded.content_hash, verified_at = excluded.verified_at, is_stale = excluded.is_stale');
     const clear = db.prepare('DELETE FROM librarian_evidence WHERE entity_id = ? AND entity_type = ?');
     let counts = createEmptyRedactionCounts();
     const tx = db.transaction((rows: EvidenceEntry[]) => {
@@ -3627,21 +3675,404 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
         const fileResult = this.sanitizeString(entry.file); counts = mergeRedactionCounts(counts, fileResult.counts);
         const claimResult = this.sanitizeString(entry.claim); counts = mergeRedactionCounts(counts, claimResult.counts);
         const snippetResult = this.sanitizeString(entry.snippet); counts = mergeRedactionCounts(counts, snippetResult.counts);
-        insert.run(entry.claimId, entry.entityId, entry.entityType, fileResult.value, entry.line, entry.endLine ?? null, snippetResult.value, claimResult.value, entry.confidence, entry.createdAt);
+        const contentHash = entry.contentHash?.trim() || contentHashes.get(entry.file) || '';
+        const verifiedAt = entry.verifiedAt ?? entry.createdAt;
+        const isStale = entry.stale === true ? 1 : 0;
+        insert.run(
+          entry.claimId,
+          entry.entityId,
+          entry.entityType,
+          fileResult.value,
+          entry.line,
+          entry.endLine ?? null,
+          snippetResult.value,
+          claimResult.value,
+          entry.confidence,
+          entry.createdAt,
+          contentHash,
+          verifiedAt,
+          isStale
+        );
       }
     });
-    tx(entries); await this.recordRedactions(counts);
+    tx(entries);
+    await this.recordRedactions(counts);
   }
 
   async getEvidenceForTarget(entityId: string, entityType: EvidenceEntry['entityType']): Promise<EvidenceRef[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT file_path, line_start, line_end, snippet, claim, confidence FROM librarian_evidence WHERE entity_id = ? AND entity_type = ? ORDER BY line_start').all(entityId, entityType) as { file_path: string; line_start: number; line_end: number | null; snippet: string; claim: string; confidence: EvidenceRef['confidence']; }[];
-    return rows.map((row) => ({ file: row.file_path, line: row.line_start, endLine: row.line_end ?? undefined, snippet: row.snippet, claim: row.claim, confidence: row.confidence }));
+    const rows = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence WHERE entity_id = ? AND entity_type = ? ORDER BY line_start').all(entityId, entityType) as StoredEvidenceRow[];
+    if (!rows.length) return [];
+    const verified = await this.verifyEvidenceRows(rows);
+    return verified.map((row) => ({
+      file: row.file_path,
+      line: row.line_start,
+      endLine: row.line_end ?? undefined,
+      snippet: row.snippet,
+      claim: row.claim,
+      confidence: row.confidence,
+      contentHash: row.content_hash ?? undefined,
+      verifiedAt: row.verified_at ?? undefined,
+      stale: Boolean(row.is_stale),
+    }));
   }
 
   async deleteEvidence(entityId: string, entityType: 'function' | 'module'): Promise<void> {
     const db = this.ensureDb();
     db.prepare('DELETE FROM librarian_evidence WHERE entity_id = ? AND entity_type = ?').run(entityId, entityType);
+  }
+
+  async getEvidenceVerificationSummary(options: EvidenceVerificationOptions = {}): Promise<EvidenceVerificationSummary> {
+    const db = this.ensureDb();
+    const limit = typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
+      ? Math.floor(options.limit)
+      : undefined;
+    const rows = limit
+      ? db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC LIMIT ?').all(limit) as StoredEvidenceRow[]
+      : db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
+    if (rows.length > 0) {
+      await this.verifyEvidenceRows(rows, { force: options.force === true });
+    }
+    const summary = db.prepare(`
+      SELECT
+        COUNT(*) AS total_entries,
+        SUM(CASE WHEN is_stale = 1 THEN 1 ELSE 0 END) AS stale_count,
+        SUM(CASE WHEN verified_at IS NULL OR verified_at = '' THEN 1 ELSE 0 END) AS unverified_count,
+        MIN(CASE WHEN verified_at IS NULL OR verified_at = '' THEN created_at END) AS oldest_unverified_at
+      FROM librarian_evidence
+    `).get() as {
+      total_entries: number;
+      stale_count: number | null;
+      unverified_count: number | null;
+      oldest_unverified_at: string | null;
+    };
+    return {
+      totalEntries: summary.total_entries ?? 0,
+      scannedEntries: rows.length,
+      staleCount: summary.stale_count ?? 0,
+      unverifiedCount: summary.unverified_count ?? 0,
+      oldestUnverifiedAt: summary.oldest_unverified_at ?? undefined,
+      verifiedAt: new Date().toISOString(),
+    };
+  }
+
+  async exportEvidenceMarkdown(outputPath?: string): Promise<string> {
+    const db = this.ensureDb();
+    const rows = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
+    if (rows.length > 0) {
+      await this.verifyEvidenceRows(rows);
+    }
+    const refreshed = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
+    const summary = await this.getEvidenceVerificationSummary({ limit: undefined });
+    const lines: string[] = [];
+    lines.push('# EVIDENCE');
+    lines.push('');
+    lines.push(`Generated: ${new Date().toISOString()}`);
+    lines.push(`Total entries: ${summary.totalEntries}`);
+    lines.push(`Stale entries: ${summary.staleCount}`);
+    lines.push(`Unverified entries: ${summary.unverifiedCount}`);
+    lines.push('');
+    lines.push('| Entity | File | Line | Confidence | Status | Verified | Claim | Snippet |');
+    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const row of refreshed) {
+      const status = row.is_stale ? 'STALE' : 'VALID';
+      const lineLabel = row.line_end && row.line_end !== row.line_start
+        ? `${row.line_start}-${row.line_end}`
+        : String(row.line_start);
+      const snippet = this.escapeEvidenceMarkdown(this.condenseEvidenceSnippet(row.snippet, 140));
+      const claim = this.escapeEvidenceMarkdown(this.condenseEvidenceSnippet(row.claim, 120));
+      lines.push(`| ${row.entity_type}:${row.entity_id} | ${this.escapeEvidenceMarkdown(row.file_path)} | ${lineLabel} | ${row.confidence} | ${status} | ${row.verified_at ?? ''} | ${claim} | ${snippet} |`);
+    }
+    const targetPath = outputPath
+      ? path.resolve(outputPath)
+      : path.join(this.workspaceRoot ?? path.dirname(this.dbPath), 'EVIDENCE.md');
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, lines.join('\n') + '\n', 'utf8');
+    return targetPath;
+  }
+
+  private async computeEvidenceContentHashes(entries: EvidenceEntry[]): Promise<Map<string, string>> {
+    const hashes = new Map<string, string>();
+    const paths = new Set<string>();
+    for (const entry of entries) {
+      if (entry.contentHash && entry.contentHash.trim().length > 0) {
+        hashes.set(entry.file, entry.contentHash.trim());
+      } else {
+        paths.add(entry.file);
+      }
+    }
+    for (const filePath of paths) {
+      const resolved = this.resolveEvidenceFilePath(filePath);
+      try {
+        const content = await fs.readFile(resolved, 'utf8');
+        hashes.set(filePath, sha256Hex(content));
+      } catch {
+        hashes.set(filePath, '');
+      }
+    }
+    return hashes;
+  }
+
+  private resolveEvidenceFilePath(filePath: string): string {
+    if (path.isAbsolute(filePath)) return filePath;
+    if (this.workspaceRoot) return path.join(this.workspaceRoot, filePath);
+    return path.resolve(path.dirname(this.dbPath), filePath);
+  }
+
+  private async readEvidenceFileState(
+    cache: Map<string, EvidenceFileState>,
+    filePath: string
+  ): Promise<EvidenceFileState> {
+    const cached = cache.get(filePath);
+    if (cached) return cached;
+    const resolved = this.resolveEvidenceFilePath(filePath);
+    try {
+      const [content, stat] = await Promise.all([
+        fs.readFile(resolved, 'utf8'),
+        fs.stat(resolved),
+      ]);
+      const state: EvidenceFileState = {
+        missing: false,
+        content,
+        lines: content.split(/\r?\n/),
+        contentHash: sha256Hex(content),
+        mtimeMs: stat.mtimeMs,
+      };
+      cache.set(filePath, state);
+      return state;
+    } catch {
+      const missing: EvidenceFileState = { missing: true };
+      cache.set(filePath, missing);
+      return missing;
+    }
+  }
+
+  private async verifyEvidenceRows(
+    rows: StoredEvidenceRow[],
+    options: { force?: boolean } = {}
+  ): Promise<StoredEvidenceRow[]> {
+    if (!rows.length) return rows;
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const fileCache = new Map<string, EvidenceFileState>();
+    const update = db.prepare(`
+      UPDATE librarian_evidence
+      SET line_start = ?, line_end = ?, content_hash = ?, verified_at = ?, is_stale = ?
+      WHERE claim_id = ?
+    `);
+    const tx = db.transaction((updates: Array<{
+      claimId: string;
+      lineStart: number;
+      lineEnd: number | null;
+      contentHash: string;
+      verifiedAt: string;
+      isStale: number;
+    }>) => {
+      for (const item of updates) {
+        update.run(item.lineStart, item.lineEnd, item.contentHash, item.verifiedAt, item.isStale, item.claimId);
+      }
+    });
+    const updates: Array<{
+      claimId: string;
+      lineStart: number;
+      lineEnd: number | null;
+      contentHash: string;
+      verifiedAt: string;
+      isStale: number;
+    }> = [];
+    const verifiedRows: StoredEvidenceRow[] = [];
+
+    for (const row of rows) {
+      const state = await this.readEvidenceFileState(fileCache, row.file_path);
+      const previousVerifiedMs = row.verified_at ? Date.parse(row.verified_at) : Number.NaN;
+      const needsVerification = options.force === true
+        || !row.verified_at
+        || !Number.isFinite(previousVerifiedMs)
+        || state.missing
+        || (!state.missing && (state.contentHash ?? '') !== (row.content_hash ?? ''))
+        || !Number.isFinite(state.mtimeMs)
+        || (state.mtimeMs as number) > previousVerifiedMs;
+
+      if (!needsVerification) {
+        verifiedRows.push(row);
+        continue;
+      }
+
+      let lineStart = row.line_start;
+      let lineEnd = row.line_end;
+      let contentHash = state.contentHash ?? '';
+      let isStale = 1;
+
+      if (!state.missing && state.lines) {
+        const snippetLines = row.snippet.split(/\r?\n/);
+        const normalizedSnippet = this.normalizeEvidenceText(row.snippet);
+        const claimedWindow = this.extractLineWindow(state.lines, row.line_start, row.line_end);
+        if (this.normalizeEvidenceText(claimedWindow) === normalizedSnippet) {
+          isStale = 0;
+        } else {
+          const exactMatch = this.findExactSnippetWindow(state.lines, snippetLines);
+          if (exactMatch) {
+            lineStart = exactMatch.startLine;
+            lineEnd = exactMatch.endLine;
+            isStale = 0;
+          } else if (snippetLines.length >= EVIDENCE_MIN_FUZZY_LINES) {
+            const fuzzyMatch = this.findFuzzySnippetWindow(state.lines, snippetLines);
+            if (fuzzyMatch) {
+              lineStart = fuzzyMatch.startLine;
+              lineEnd = fuzzyMatch.endLine;
+              isStale = 0;
+            }
+          }
+        }
+      } else {
+        contentHash = '';
+      }
+
+      updates.push({
+        claimId: row.claim_id,
+        lineStart,
+        lineEnd,
+        contentHash,
+        verifiedAt: now,
+        isStale,
+      });
+      verifiedRows.push({
+        ...row,
+        line_start: lineStart,
+        line_end: lineEnd,
+        content_hash: contentHash,
+        verified_at: now,
+        is_stale: isStale,
+      });
+    }
+
+    if (updates.length > 0) {
+      tx(updates);
+    }
+    return verifiedRows;
+  }
+
+  private extractLineWindow(lines: string[], startLine: number, endLine: number | null): string {
+    const start = Math.max(1, startLine);
+    const end = Math.max(start, endLine ?? start);
+    return lines.slice(start - 1, end).join('\n');
+  }
+
+  private findExactSnippetWindow(
+    lines: string[],
+    snippetLines: string[]
+  ): { startLine: number; endLine: number } | null {
+    if (snippetLines.length === 0) return null;
+    const target = snippetLines.map((line) => this.normalizeEvidenceText(line));
+    const windowSize = snippetLines.length;
+    for (let start = 0; start <= lines.length - windowSize; start += 1) {
+      let matches = true;
+      for (let offset = 0; offset < windowSize; offset += 1) {
+        if (this.normalizeEvidenceText(lines[start + offset]) !== target[offset]) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        return {
+          startLine: start + 1,
+          endLine: start + windowSize,
+        };
+      }
+    }
+    return null;
+  }
+
+  private findFuzzySnippetWindow(
+    lines: string[],
+    snippetLines: string[]
+  ): { startLine: number; endLine: number } | null {
+    if (snippetLines.length === 0) return null;
+    const snippetText = this.normalizeEvidenceText(snippetLines.join('\n'));
+    if (!snippetText) return null;
+    const snippetTokens = new Set((snippetText.match(/\w+/g) ?? []).map((token) => token.toLowerCase()));
+    const minTokenOverlap = snippetTokens.size === 0
+      ? 0
+      : Math.max(1, Math.floor(snippetTokens.size * 0.6));
+    const windowSize = snippetLines.length;
+    const maxDistance = Math.max(1, Math.ceil(snippetText.length * EVIDENCE_FUZZY_MAX_DISTANCE_RATIO));
+
+    let best:
+      | {
+        startLine: number;
+        endLine: number;
+        distance: number;
+      }
+      | null = null;
+
+    for (let start = 0; start <= lines.length - windowSize; start += 1) {
+      const windowText = this.normalizeEvidenceText(lines.slice(start, start + windowSize).join('\n'));
+      if (!windowText) continue;
+
+      if (snippetTokens.size > 0) {
+        const windowTokens = new Set((windowText.match(/\w+/g) ?? []).map((token) => token.toLowerCase()));
+        let overlap = 0;
+        for (const token of snippetTokens) {
+          if (windowTokens.has(token)) overlap += 1;
+        }
+        if (overlap < minTokenOverlap) continue;
+      }
+
+      const distance = this.levenshteinDistanceWithCutoff(snippetText, windowText, maxDistance);
+      if (distance > maxDistance) continue;
+      if (!best || distance < best.distance) {
+        best = {
+          startLine: start + 1,
+          endLine: start + windowSize,
+          distance,
+        };
+      }
+    }
+    return best ? { startLine: best.startLine, endLine: best.endLine } : null;
+  }
+
+  private levenshteinDistanceWithCutoff(a: string, b: string, cutoff: number): number {
+    if (Math.abs(a.length - b.length) > cutoff) return cutoff + 1;
+    const prev = Array.from({ length: b.length + 1 }, (_, idx) => idx);
+    const curr = new Array<number>(b.length + 1);
+    for (let i = 1; i <= a.length; i += 1) {
+      curr[0] = i;
+      let rowMin = curr[0];
+      for (let j = 1; j <= b.length; j += 1) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        curr[j] = Math.min(
+          prev[j] + 1,
+          curr[j - 1] + 1,
+          prev[j - 1] + cost
+        );
+        if (curr[j] < rowMin) rowMin = curr[j];
+      }
+      if (rowMin > cutoff) return cutoff + 1;
+      for (let j = 0; j <= b.length; j += 1) {
+        prev[j] = curr[j];
+      }
+    }
+    return prev[b.length];
+  }
+
+  private normalizeEvidenceText(text: string): string {
+    return text
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .join('\n')
+      .trim();
+  }
+
+  private condenseEvidenceSnippet(text: string, maxLength: number): string {
+    const flattened = text.replace(/\s+/g, ' ').trim();
+    if (flattened.length <= maxLength) return flattened;
+    return `${flattened.slice(0, maxLength - 1)}…`;
+  }
+
+  private escapeEvidenceMarkdown(text: string): string {
+    return text.replace(/\|/g, '\\|').replace(/\n/g, '<br/>');
   }
 
   // --------------------------------------------------------------------------
