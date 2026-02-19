@@ -1,0 +1,6 @@
+{
+  "name": "librainian-e2e-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deterministic fixture for LiBrainian E2E acceptance tests"
+}
