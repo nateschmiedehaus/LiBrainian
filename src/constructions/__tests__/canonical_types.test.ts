@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { deterministic } from '../../epistemics/confidence.js';
 import { sequence } from '../composition.js';
 import { BaseConstruction, type ConstructionResult } from '../base/construction_base.js';
+import { identity, seq } from '../operators.js';
 import type { Construction, Context } from '../types.js';
 
 class ExampleConstruction extends BaseConstruction<number, ConstructionResult & { data: number }> {
@@ -66,5 +67,21 @@ describe('canonical construction interface bridge', () => {
     const composed = sequence(first, second);
     const result = await composed.execute(2);
     expect(result.data).toBe(12);
+  });
+
+  it('allows wrapped BaseConstruction instances to participate in canonical operator composition', async () => {
+    const wrapped = new ExampleConstruction({} as any).toConstruction('Wrapped Example');
+    const chain = seq(
+      identity<number>('identity', 'Identity'),
+      wrapped
+    );
+
+    const result = await chain.execute(7, {
+      deps: { librarian: {} as any },
+      signal: new AbortController().signal,
+      sessionId: 'sess-op',
+    });
+
+    expect(result.data).toBe(14);
   });
 });

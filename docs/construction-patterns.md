@@ -6,11 +6,44 @@ This document describes the patterns for building "constructions" - higher-level
 
 1. [Primitives Inventory](#primitives-inventory)
 2. [Confidence Derivation Rules](#confidence-derivation-rules)
-3. [Construction Template](#construction-template)
-4. [Best Practices](#best-practices)
-5. [Anti-patterns to Avoid](#anti-patterns-to-avoid)
+3. [Canonical Construction Pattern](#canonical-construction-pattern)
+4. [Construction Template](#construction-template)
+5. [Best Practices](#best-practices)
+6. [Anti-patterns to Avoid](#anti-patterns-to-avoid)
 
 ---
+
+## Canonical Construction Pattern
+
+LiBrainian uses a single canonical interface for new composition work:
+
+```typescript
+import type { Construction, Context } from 'librainian/constructions';
+
+const construction: Construction<Input, Output> = {
+  id: 'my_construction',
+  name: 'My Construction',
+  async execute(input: Input, context?: Context): Promise<Output> {
+    // use context?.deps, context?.signal, context?.sessionId as needed
+    return computeOutput(input);
+  },
+};
+```
+
+For existing class-based implementations that extend `BaseConstruction`, use the adapter bridge:
+
+```typescript
+const legacy = new MyBaseConstruction(librarian);
+const canonical = legacy.toConstruction('My Base Construction');
+```
+
+This keeps composition APIs (`sequence`, `parallel`, `seq`, `dimap`, etc.) compatible while migration continues.
+
+Migration status:
+- `src/constructions/types.ts` defines canonical `Construction<I, O, E, R>` and `Context<R>`.
+- `BaseConstruction.toConstruction()` provides a non-breaking adapter.
+- `src/constructions/composition.ts` keeps `ComposableConstruction` as a deprecated compatibility alias to the canonical type.
+- `src/constructions/lego_pipeline.ts` uses `LegoPipelineBrick` to avoid type-name collisions.
 
 ## Primitives Inventory
 

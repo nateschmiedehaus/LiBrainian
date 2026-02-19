@@ -15,6 +15,16 @@ export type {
 } from './types.js';
 
 export {
+  identity,
+  seq,
+  fanout,
+  fallback,
+  dimap,
+  contramap,
+  mapConstruction,
+} from './operators.js';
+
+export {
   RefactoringSafetyChecker,
   createRefactoringSafetyChecker,
   type RefactoringTarget,
