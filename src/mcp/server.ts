@@ -1025,6 +1025,8 @@ export class LibrarianMCPServer {
             pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
             pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
             outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
+            explainMisses: { type: 'boolean', description: 'Include near-miss retrieval diagnostics' },
+            explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
           },
           required: ['intent'],
         },
@@ -1911,6 +1913,60 @@ export class LibrarianMCPServer {
     if (confidence <= LOW_CONFIDENCE_THRESHOLD) return 'low';
     if (confidence <= UNCERTAIN_CONFIDENCE_THRESHOLD) return 'uncertain';
     return 'strong';
+  }
+
+  private classifyExplainabilityConfidenceTier(confidence: number): 'high' | 'medium' | 'low' | 'uncertain' {
+    if (!Number.isFinite(confidence) || confidence <= 0.2) return 'uncertain';
+    if (confidence >= 0.75) return 'high';
+    if (confidence >= 0.5) return 'medium';
+    return 'low';
+  }
+
+  private extractIntentKeywords(intent: string): string[] {
+    return intent
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 4)
+      .slice(0, 8);
+  }
+
+  private buildRetrievalRationale(
+    pack: { packType: string; summary?: string; keyFacts?: string[]; relatedFiles?: string[]; confidence?: number },
+    queryInput: QueryToolInput,
+  ): string {
+    const reasons: string[] = [];
+    reasons.push(`Matched as ${pack.packType} context for intent "${queryInput.intent}".`);
+    if ((pack.relatedFiles?.length ?? 0) > 0) {
+      reasons.push(`Anchored to ${pack.relatedFiles!.length} related file(s).`);
+      if ((pack.relatedFiles?.length ?? 0) === 1) {
+        reasons.push('This appears to be a uniquely scoped file anchor for this pack.');
+      }
+    }
+    if ((pack.keyFacts?.length ?? 0) > 0) {
+      reasons.push(`Contains ${pack.keyFacts!.length} extracted key facts.`);
+    }
+    const keywords = this.extractIntentKeywords(queryInput.intent);
+    const summary = String(pack.summary ?? '').toLowerCase();
+    const overlappingKeywords = keywords.filter((keyword) => summary.includes(keyword));
+    if (overlappingKeywords.length > 0) {
+      reasons.push(`Summary overlap detected for keywords: ${overlappingKeywords.slice(0, 3).join(', ')}.`);
+    }
+    if (typeof pack.confidence === 'number') {
+      reasons.push(`Confidence tier: ${this.classifyExplainabilityConfidenceTier(pack.confidence)}.`);
+    }
+    return reasons.join(' ');
+  }
+
+  private buildCoverageNote(pack: { relatedFiles?: string[] }): string {
+    const relatedCount = pack.relatedFiles?.length ?? 0;
+    if (relatedCount === 0) {
+      return 'Coverage appears partial: no direct file anchors were attached to this pack.';
+    }
+    if (relatedCount === 1) {
+      return `Covers one primary file (${pack.relatedFiles![0]}). Related callers/callees may require follow-up retrieval.`;
+    }
+    return `Covers ${relatedCount} related files. Cross-module edge cases outside these anchors may still require follow-up retrieval.`;
   }
 
   private isSecuritySensitiveIntent(intent: string): boolean {
@@ -3460,7 +3516,11 @@ export class LibrarianMCPServer {
         }
       );
 
-      const transformedPacks = response.packs.map((pack) => ({
+      const transformedPacks = response.packs.map((pack) => {
+        const confidenceTier = this.classifyExplainabilityConfidenceTier(pack.confidence ?? 0);
+        const retrievalRationale = this.buildRetrievalRationale(pack, input);
+        const coverageNote = this.buildCoverageNote(pack);
+        return {
         packId: pack.packId,
         packType: pack.packType,
         targetId: pack.targetId,
@@ -3468,7 +3528,14 @@ export class LibrarianMCPServer {
         keyFacts: pack.keyFacts,
         relatedFiles: pack.relatedFiles,
         confidence: pack.confidence,
-      }));
+          confidenceTier,
+          confidence_tier: confidenceTier,
+          retrievalRationale,
+          retrieval_rationale: retrievalRationale,
+          coverageNote,
+          coverage_note: coverageNote,
+        };
+      });
       const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
       const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
       const retrievalEntropy = response.retrievalEntropy
@@ -3479,6 +3546,20 @@ export class LibrarianMCPServer {
           packCount: response.packs.length,
         });
       const retrievalInsufficient = response.retrievalInsufficient ?? retrievalStatus === 'insufficient';
+      const explainMissesEnabled = Boolean(
+        (input as { explainMisses?: boolean }).explainMisses
+        ?? (input as { explain_misses?: boolean }).explain_misses
+      );
+      const pagedPackIds = new Set(pagedPacks.map((pack) => pack.packId));
+      const nearMisses = explainMissesEnabled
+        ? transformedPacks
+          .filter((pack) => !pagedPackIds.has(pack.packId))
+          .slice(0, 3)
+          .map((pack) => ({
+            packId: pack.packId,
+            reason: `Excluded by pagination window (pageIdx=${pagination.pageIdx}, pageSize=${pagination.pageSize}) despite matching retrieval criteria.`,
+          }))
+        : undefined;
 
       const baseResult = {
         disclosures: userDisclosures,
@@ -3491,6 +3572,7 @@ export class LibrarianMCPServer {
         retrievalEntropy,
         retrievalInsufficient,
         suggestedClarifyingQuestions: response.suggestedClarifyingQuestions,
+        coverageGaps: response.coverageGaps ?? [],
         cacheHit: response.cacheHit,
         latencyMs: response.latencyMs,
         drillDownHints: response.drillDownHints,
@@ -3501,6 +3583,7 @@ export class LibrarianMCPServer {
         pagination,
         sortOrder: 'retrieval_score_desc',
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
+        nearMisses,
         loopDetection: sessionState
           ? this.recordQueryAndBuildLoopDetection({
             sessionState,
@@ -3523,6 +3606,8 @@ export class LibrarianMCPServer {
       };
       const baseWithAlias = {
         ...resultWithHumanReview,
+        coverage_gaps: resultWithHumanReview.coverageGaps,
+        near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
         human_review_recommendation: resultWithHumanReview.humanReviewRecommendation,
       };
@@ -3562,6 +3647,10 @@ export class LibrarianMCPServer {
         retrievalEntropy: 0,
         retrievalInsufficient: true,
         suggestedClarifyingQuestions: [],
+        coverageGaps: [],
+        coverage_gaps: [],
+        nearMisses: [],
+        near_misses: [],
         error: parsedError.userMessage || 'Query failed.',
         intent: input.intent,
         disclosures: userDisclosures,
@@ -4258,6 +4347,13 @@ export class LibrarianMCPServer {
         for (const packType of packTypes) {
           const pack = await storage.getContextPackForTarget(entityId, packType);
           if (pack) {
+            const syntheticInput: QueryToolInput = {
+              intent: `context bundle for ${entityId}`,
+              workspace: workspace.path,
+            };
+            const confidenceTier = this.classifyExplainabilityConfidenceTier(pack.confidence ?? 0);
+            const retrievalRationale = this.buildRetrievalRationale(pack, syntheticInput);
+            const coverageNote = this.buildCoverageNote(pack);
             bundledPacks.push({
               packId: pack.packId,
               packType: pack.packType,
@@ -4266,6 +4362,12 @@ export class LibrarianMCPServer {
               keyFacts: pack.keyFacts,
               relatedFiles: pack.relatedFiles,
               confidence: pack.confidence,
+              confidenceTier,
+              confidence_tier: confidenceTier,
+              retrievalRationale,
+              retrieval_rationale: retrievalRationale,
+              coverageNote,
+              coverage_note: coverageNote,
             });
           }
         }
@@ -4310,6 +4412,8 @@ export class LibrarianMCPServer {
             truncated: truncatedByTokens,
             truncatedByTokens,
             estimatedTokens,
+            coverageGaps: [],
+            coverage_gaps: [],
             sortOrder: 'entity_then_pack_type',
           },
           pagination,
@@ -4322,6 +4426,8 @@ export class LibrarianMCPServer {
           truncated: truncatedByTokens,
           truncatedByTokens,
           estimatedTokens,
+          coverageGaps: [],
+          coverage_gaps: [],
           sortOrder: 'entity_then_pack_type',
           ...reference,
         };
@@ -4335,6 +4441,8 @@ export class LibrarianMCPServer {
         truncated: truncatedByTokens,
         truncatedByTokens,
         estimatedTokens,
+        coverageGaps: [],
+        coverage_gaps: [],
         pagination,
         sortOrder: 'entity_then_pack_type',
       };

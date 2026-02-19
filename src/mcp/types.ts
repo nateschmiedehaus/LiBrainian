@@ -488,6 +488,9 @@ export interface QueryToolInput {
 
   /** Write paged output payload to file and return a file reference */
   outputFile?: string;
+
+  /** Include near-miss retrieval diagnostics */
+  explainMisses?: boolean;
 }
 
 export interface QueryToolOutput {
@@ -526,6 +529,12 @@ export interface QueryToolOutput {
 
   /** Coverage gaps */
   coverageGaps?: string[];
+
+  /** Optional near-miss retrieval diagnostics */
+  nearMisses?: Array<{
+    packId: string;
+    reason: string;
+  }>;
 
   /** Evidence summary */
   evidenceSummary?: EvidenceSummary;
@@ -712,6 +721,15 @@ export interface ContextPackSummary {
 
   /** Confidence */
   confidence: number;
+
+  /** Human-readable confidence tier */
+  confidenceTier?: 'high' | 'medium' | 'low' | 'uncertain';
+
+  /** Why this context pack was selected */
+  retrievalRationale?: string;
+
+  /** What this pack covers and what it may omit */
+  coverageNote?: string;
 
   /** Related files */
   relatedFiles: string[];

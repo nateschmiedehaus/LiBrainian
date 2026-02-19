@@ -76,6 +76,8 @@ export const QueryToolInputSchema = z.object({
   pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
   pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
   outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
+  explainMisses: z.boolean().optional().default(false).describe('Include near-miss retrieval diagnostics'),
+  explain_misses: z.boolean().optional().describe('Alias for explainMisses'),
 }).strict();
 
 /**
@@ -406,6 +408,8 @@ export const queryToolJsonSchema: JSONSchema = {
     pageSize: { type: 'number', description: 'Items per page (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
     pageIdx: { type: 'number', description: 'Zero-based page index (default: 0)', minimum: 0, default: 0 },
     outputFile: { type: 'string', description: 'Write paged response payload to file and return a file reference', minLength: 1 },
+    explainMisses: { type: 'boolean', description: 'Include near-miss retrieval diagnostics', default: false },
+    explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
   },
   required: ['intent'],
   additionalProperties: false,
