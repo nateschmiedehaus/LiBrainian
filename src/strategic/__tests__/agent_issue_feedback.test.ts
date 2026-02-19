@@ -75,4 +75,61 @@ describe('agent issue feedback planning', () => {
     expect(plan.queue[1]?.number).toBe(12);
     expect(plan.queue[2]?.number).toBe(13);
   });
+
+  it('orders oldest-to-youngest within the same priority bucket', () => {
+    const older = issue({
+      number: 101,
+      title: 'Heuristic fallback returns identical results for all queries — query intent has no effect',
+      createdAt: '2025-01-01T00:00:00.000Z',
+    });
+    const newer = issue({
+      number: 102,
+      title: 'Heuristic fallback returns identical results for all queries — query intent has no effect',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const plan = buildIssueFixPlan([newer, older]);
+    expect(plan.queue[0]?.number).toBe(101);
+    expect(plan.queue[1]?.number).toBe(102);
+    const rank = (priority?: string): number => (priority === 'P0' ? 0 : priority === 'P1' ? 1 : priority === 'P2' ? 2 : 3);
+    expect(rank(plan.queue[0]?.priority)).toBeLessThanOrEqual(rank(plan.queue[1]?.priority));
+  });
+
+  it('does not boost newer issues over older ones for identical risk', () => {
+    const oldScore = computeIssuePriority(issue({
+      title: 'Stale lock directory after interrupted --full bootstrap blocks all subsequent runs',
+      createdAt: '2024-01-01T00:00:00.000Z',
+    }));
+    const newScore = computeIssuePriority(issue({
+      title: 'Stale lock directory after interrupted --full bootstrap blocks all subsequent runs',
+      createdAt: '2026-02-18T00:00:00.000Z',
+    }));
+
+    expect(oldScore.score).toBeGreaterThanOrEqual(newScore.score);
+  });
+
+  it('keeps foundational bootstrap/query issues ahead of advanced orchestration follow-ons', () => {
+    const plan = buildIssueFixPlan([
+      issue({
+        number: 206,
+        title: 'WAVE3 [R5]: Multi-agent index coordination with optimistic locking and change events',
+        createdAt: '2026-02-18T15:15:30.000Z',
+      }),
+      issue({
+        number: 53,
+        title: 'Fix bootstrap destroying existing MVP index before full index build',
+        createdAt: '2026-02-18T12:52:55.000Z',
+      }),
+      issue({
+        number: 47,
+        title: 'Proactive MCP context injection: annotate agent tool calls without explicit query',
+        createdAt: '2026-02-18T12:52:38.000Z',
+      }),
+    ]);
+
+    expect(plan.queue[0]?.number).toBe(47);
+    expect(plan.queue[1]?.number).toBe(53);
+    expect(plan.queue[2]?.number).toBe(206);
+    expect(plan.queue[2]?.priority === 'P0' || plan.queue[2]?.priority === 'P1').toBe(false);
+  });
 });
