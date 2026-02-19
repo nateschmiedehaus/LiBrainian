@@ -54,6 +54,9 @@ describe('package release scripts', () => {
     expect(script).toContain('function parsePackOutput');
     expect(script).toContain('may emit plain text before JSON');
     expect(script).toContain('Unable to locate JSON payload in npm pack output');
+    expect(script).toContain('DEFAULT_MAX_UNPACKED_SIZE_MB = 15');
+    expect(script).toContain('Package unpacked size exceeds budget');
+    expect(script).toContain('LIBRARIAN_MAX_UNPACKED_SIZE_MB');
   });
 
   it('hardens package install smoke against lifecycle log noise', () => {
