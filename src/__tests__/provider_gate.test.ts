@@ -84,6 +84,56 @@ describe('runProviderReadinessGate', () => {
     expect(result.bypassed).toBe(false);
   });
 
+  it('supports offline mode without probing LLM providers', async () => {
+    const previousOffline = process.env.LIBRARIAN_OFFLINE;
+    process.env.LIBRARIAN_OFFLINE = '1';
+    try {
+      const authChecker = {
+        checkAll: async () => buildAuthStatus(),
+        getAuthGuidance: () => [],
+      } as unknown as AuthChecker;
+
+      const llmService = buildAdapter({
+        checkClaudeHealth: vi.fn(async () => ({
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        })),
+        checkCodexHealth: vi.fn(async () => ({
+          provider: 'codex',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        })),
+      });
+
+      const result = await runProviderReadinessGate('/tmp', {
+        authChecker,
+        llmService,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+          modelId: 'all-MiniLM-L6-v2',
+          dimension: 384,
+        }),
+        emitReport: false,
+      });
+
+      expect(result.ready).toBe(true);
+      expect(result.bypassed).toBe(true);
+      expect(result.llmReady).toBe(false);
+      expect(result.embeddingReady).toBe(true);
+      expect(result.selectedProvider).toBeNull();
+      expect(llmService.checkClaudeHealth).not.toHaveBeenCalled();
+      expect(llmService.checkCodexHealth).not.toHaveBeenCalled();
+    } finally {
+      if (typeof previousOffline === 'string') process.env.LIBRARIAN_OFFLINE = previousOffline;
+      else delete process.env.LIBRARIAN_OFFLINE;
+    }
+  });
+
   it('records provider gate runs to the evidence ledger when provided', async () => {
     const ledger = new SqliteEvidenceLedger(':memory:');
     await ledger.initialize();

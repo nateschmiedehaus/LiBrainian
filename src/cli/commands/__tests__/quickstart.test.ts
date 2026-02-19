@@ -1,4 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { quickstartCommand } from '../quickstart.js';
 import { resolveDbPath } from '../../db_path.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
@@ -18,6 +21,7 @@ describe('quickstartCommand', () => {
   const workspace = '/tmp/librarian-quickstart';
   const resolvedWorkspace = '/tmp/librarian-quickstart/root';
   const dbPath = '/tmp/librarian.sqlite';
+  const originalHome = process.env.HOME;
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
@@ -42,6 +46,11 @@ describe('quickstartCommand', () => {
   afterEach(() => {
     consoleLogSpy.mockRestore();
     delete process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT;
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
   });
 
   it('uses defaults and resolved workspace root', async () => {
@@ -101,6 +110,37 @@ describe('quickstartCommand', () => {
     const parsed = JSON.parse(payload!);
     expect(parsed.ci).toBe(true);
     expect(parsed.mcp?.skipped).toBe(true);
+  });
+
+  it('auto-configures workspace MCP files when invoked as init', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-init-quickstart-'));
+    const localWorkspace = path.join(root, 'workspace');
+    const localHome = path.join(root, 'home');
+    await fs.mkdir(path.join(localWorkspace, '.vscode'), { recursive: true });
+    await fs.mkdir(localHome, { recursive: true });
+    process.env.HOME = localHome;
+
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      workspace: localWorkspace,
+      changed: false,
+      confidence: 1,
+    });
+
+    await quickstartCommand({
+      workspace: localWorkspace,
+      args: [],
+      rawArgs: ['init', '--editor', 'vscode', '--json'],
+    });
+
+    const payload = consoleLogSpy.mock.calls
+      .map(call => call[0])
+      .find(value => typeof value === 'string' && value.includes('"mcp"')) as string | undefined;
+    expect(payload).toBeTruthy();
+    const parsed = JSON.parse(payload!);
+    expect(parsed.mcp?.autoConfigured).toBe(true);
+    expect(parsed.mcp?.configured).toBe(true);
+    expect(parsed.mcp?.actions?.some((action: { status?: string }) => action.status === 'written')).toBe(true);
+    await expect(fs.readFile(path.join(localWorkspace, '.vscode', 'mcp.json'), 'utf8')).resolves.toContain('servers');
   });
 
   it('throws on conflicting --mode and --depth values', async () => {

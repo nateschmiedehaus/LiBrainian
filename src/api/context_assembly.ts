@@ -5,6 +5,7 @@ import { enforceTokenBudget } from './token_budget.js';
 import { createQueryInterface, type QueryInterface, type QueryRunner } from './query_interface.js';
 import { getCurrentGitSha } from '../utils/git.js';
 import { configurable, resolveQuantifiedValue } from '../epistemics/quantification.js';
+import { assembleIntentConditionedPacks } from './query_conditioned_assembly.js';
 
 export interface FileKnowledge {
   filePath: string;
@@ -191,21 +192,26 @@ export async function assembleContextFromResponse(
 ): Promise<AgentKnowledgeContext> {
   const now = options.now ?? (() => new Date().toISOString());
   const definition = resolveContextLevel(options.level);
+  const intentConditioned = assembleIntentConditionedPacks(response.packs, {
+    queryIntent: response.query.intent ?? '',
+    maxTokens: definition.maxTokens,
+  });
+  const assembledPacks = intentConditioned.packs;
   const packLimit = definition.packLimit;
-  const packs = response.packs.slice(0, packLimit);
-  const supplemental = response.packs.slice(packLimit);
+  const packs = assembledPacks.slice(0, packLimit);
+  const supplemental = assembledPacks.slice(packLimit);
   const requiredFiles = buildFileKnowledge(packs);
   const relatedFiles = buildFileKnowledge(supplemental);
-  const packRecentChanges = response.packs
+  const packRecentChanges = assembledPacks
     .filter((pack) => pack.packType === 'change_impact')
     .map((pack) => ({ summary: pack.summary, relatedFiles: pack.relatedFiles, packId: pack.packId }));
-  const packPatterns = response.packs
+  const packPatterns = assembledPacks
     .filter((pack) => pack.packType === 'pattern_context')
     .map((pack) => ({ summary: pack.summary, relatedFiles: pack.relatedFiles, packId: pack.packId }));
-  const packAntiPatterns = response.packs
+  const packAntiPatterns = assembledPacks
     .filter((pack) => pack.packType === 'decision_context')
     .map((pack) => ({ summary: pack.summary, relatedFiles: pack.relatedFiles, packId: pack.packId }));
-  const packSimilarTasks = response.packs
+  const packSimilarTasks = assembledPacks
     .filter((pack) => pack.packType === 'similar_tasks')
     .map((pack) => ({ summary: pack.summary, relatedFiles: pack.relatedFiles, packId: pack.packId }));
   const extraSupplementary = options.supplementary ?? {};
@@ -215,6 +221,13 @@ export async function assembleContextFromResponse(
   const similarTasks = mergeByPackId(packSimilarTasks, extraSupplementary.similarTasks ?? []);
   const knowledgeSources = dedupeById(extraSupplementary.knowledgeSources ?? []);
   const coverage = buildCoverage(response, requiredFiles);
+  for (const skipped of intentConditioned.skippedSteps) {
+    if (skipped.reason === 'no_matches') continue;
+    coverage.gaps.push({ description: `Intent step skipped: ${skipped.step} (${skipped.reason})` });
+  }
+  if (!assembledPacks.length) {
+    coverage.gaps.push({ description: `No packs matched intent template: ${intentConditioned.intent}` });
+  }
   const providedFiles = Array.from(new Set([
     ...requiredFiles.map((entry) => entry.filePath),
     ...relatedFiles.map((entry) => entry.filePath),
@@ -223,6 +236,7 @@ export async function assembleContextFromResponse(
   ]));
   const queryInterface = options.queryRunner ? createQueryInterface(options.queryRunner) : createFallbackQueryInterface();
   const codeVersion = options.workspace ? await getCurrentGitSha(options.workspace) : null;
+  const maxTokens = Math.min(definition.maxTokens, intentConditioned.tokenBudget);
   const context: AgentKnowledgeContext = {
     contextId: randomUUID(),
     generatedAt: now(),
@@ -248,22 +262,22 @@ export async function assembleContextFromResponse(
     query: queryInterface,
     constraints: {
       level: definition.level,
-      maxTokens: definition.maxTokens,
+      maxTokens,
       usedTokens: 0,
       truncated: false,
       truncationSteps: [],
     },
   };
 
-  const budget = enforceTokenBudget(context, definition.level, definition.maxTokens);
+  const budget = enforceTokenBudget(context, definition.level, maxTokens);
   budget.context.constraints = {
     level: definition.level,
-    maxTokens: definition.maxTokens,
+    maxTokens,
     usedTokens: budget.usedTokens,
     truncated: budget.truncated,
     truncationSteps: budget.truncationSteps,
   };
-  if (!budget.context.supplementary.recentChanges.length && !packSummaries(response.packs).length) {
+  if (!budget.context.supplementary.recentChanges.length && !packSummaries(assembledPacks).length) {
     budget.context.coverage.gaps.push({ description: 'No change history available for context level.' });
   }
   return budget.context;

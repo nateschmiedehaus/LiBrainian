@@ -3,13 +3,19 @@ import { logDebug, logError, logInfo, logWarning } from '../logger.js';
 
 let originalVerbose: string | undefined;
 let originalLevel: string | undefined;
+let originalNoTelemetry: string | undefined;
+let originalLocalOnly: string | undefined;
 
 beforeEach(() => {
   originalVerbose = process.env.LIBRARIAN_VERBOSE;
   originalLevel = process.env.LIBRARIAN_LOG_LEVEL;
+  originalNoTelemetry = process.env.LIBRARIAN_NO_TELEMETRY;
+  originalLocalOnly = process.env.LIBRARIAN_LOCAL_ONLY;
   // Ensure logs are emitted for the "does log" assertions.
   process.env.LIBRARIAN_LOG_LEVEL = 'debug';
   delete process.env.LIBRARIAN_VERBOSE;
+  delete process.env.LIBRARIAN_NO_TELEMETRY;
+  delete process.env.LIBRARIAN_LOCAL_ONLY;
 });
 
 afterEach(() => {
@@ -18,6 +24,10 @@ afterEach(() => {
   else delete process.env.LIBRARIAN_VERBOSE;
   if (typeof originalLevel === 'string') process.env.LIBRARIAN_LOG_LEVEL = originalLevel;
   else delete process.env.LIBRARIAN_LOG_LEVEL;
+  if (typeof originalNoTelemetry === 'string') process.env.LIBRARIAN_NO_TELEMETRY = originalNoTelemetry;
+  else delete process.env.LIBRARIAN_NO_TELEMETRY;
+  if (typeof originalLocalOnly === 'string') process.env.LIBRARIAN_LOCAL_ONLY = originalLocalOnly;
+  else delete process.env.LIBRARIAN_LOCAL_ONLY;
 });
 
 describe('telemetry logger', () => {
@@ -74,5 +84,26 @@ describe('telemetry logger', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     logInfo('hello');
     expect(spy).toHaveBeenCalledWith('hello');
+  });
+
+  it('suppresses all telemetry when no-telemetry is enabled', () => {
+    process.env.LIBRARIAN_NO_TELEMETRY = '1';
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    logWarning('warn');
+    logError('error');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('suppresses telemetry in local-only mode', () => {
+    process.env.LIBRARIAN_LOCAL_ONLY = '1';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    logInfo('hello');
+
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });
