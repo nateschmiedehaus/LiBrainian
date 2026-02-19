@@ -31,9 +31,10 @@ import type {
 } from './base/construction_base.js';
 import {
   ConstructionError,
+  ConstructionCancelledError,
   ConstructionTimeoutError,
 } from './base/construction_base.js';
-import type { Construction } from './types.js';
+import type { Construction, Context } from './types.js';
 
 // ============================================================================
 // COMPOSABLE CONSTRUCTION INTERFACE
@@ -325,17 +326,17 @@ export class SequenceConstruction<
     this.name = `Sequence(${first.name}, ${second.name})`;
   }
 
-  async execute(input: TInput): Promise<TOutput> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
     // Execute first construction
-    const firstResult = await this.first.execute(input);
+    const firstResult = await this.first.execute(input, context);
     evidenceRefs.push(...firstResult.evidenceRefs);
     evidenceRefs.push(`sequence:step_1:${this.first.id}`);
 
     // Execute second construction with first's output
-    const secondResult = await this.second.execute(firstResult);
+    const secondResult = await this.second.execute(firstResult, context);
     evidenceRefs.push(...secondResult.evidenceRefs);
     evidenceRefs.push(`sequence:step_2:${this.second.id}`);
 
@@ -391,13 +392,13 @@ export class ParallelConstruction<TInput, TOutputs extends ConstructionResult[]>
     this.name = `Parallel(${constructions.map(c => c.name).join(', ')})`;
   }
 
-  async execute(input: TInput): Promise<ParallelResult<TOutputs>> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<ParallelResult<TOutputs>> {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
     // Execute all constructions in parallel
     const resultPromises = this.constructions.map(async (construction, index) => {
-      const result = await construction.execute(input);
+      const result = await construction.execute(input, context);
       evidenceRefs.push(`parallel:branch_${index}:${construction.id}`);
       return result;
     });
@@ -468,7 +469,7 @@ export class ConditionalConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Conditional(${ifTrue.name}, ${ifFalse.name})`;
   }
 
-  async execute(input: TInput): Promise<ConditionalResult<TOutput>> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<ConditionalResult<TOutput>> {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
@@ -480,7 +481,7 @@ export class ConditionalConstruction<TInput, TOutput extends ConstructionResult>
     const branchTaken: 'true' | 'false' = predicateResult ? 'true' : 'false';
     const construction = predicateResult ? this.ifTrue : this.ifFalse;
 
-    const result = await construction.execute(input);
+    const result = await construction.execute(input, context);
     evidenceRefs.push(...result.evidenceRefs);
     evidenceRefs.push(`conditional:branch_${branchTaken}:${construction.id}`);
 
@@ -537,7 +538,7 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Retry(${construction.name}, max=${config.maxAttempts})`;
   }
 
-  async execute(input: TInput): Promise<RetryResult<TOutput>> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<RetryResult<TOutput>> {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
     const errors: Error[] = [];
@@ -552,7 +553,7 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
       evidenceRefs.push(`retry:attempt_${attempts}`);
 
       try {
-        const result = await this.construction.execute(input);
+        const result = await this.construction.execute(input, context);
         evidenceRefs.push(...result.evidenceRefs);
 
         // Success - return the result
@@ -622,7 +623,7 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Timeout(${construction.name}, ${timeoutMs}ms)`;
   }
 
-  async execute(input: TInput): Promise<TOutput> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
     const startTime = Date.now();
 
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -633,7 +634,7 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
 
     try {
       const result = await Promise.race([
-        this.construction.execute(input),
+        this.construction.execute(input, context),
         timeoutPromise,
       ]);
 
@@ -642,7 +643,7 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
         analysisTimeMs: Date.now() - startTime,
       };
     } catch (error) {
-      if (error instanceof ConstructionTimeoutError) {
+      if (error instanceof ConstructionTimeoutError || error instanceof ConstructionCancelledError) {
         throw error;
       }
       throw new ConstructionError(
@@ -692,7 +693,7 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
       ((input: TInput) => JSON.stringify(input));
   }
 
-  async execute(input: TInput): Promise<TOutput> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
     const startTime = Date.now();
     const key = this.keyGenerator(input);
     const now = Date.now();
@@ -708,7 +709,7 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
     }
 
     // Execute and cache
-    const result = await this.construction.execute(input);
+    const result = await this.construction.execute(input, context);
 
     // Enforce max entries
     if (this.config.maxEntries && this.cache.size >= this.config.maxEntries) {
@@ -772,7 +773,7 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Traced(${construction.name})`;
   }
 
-  async execute(input: TInput): Promise<TOutput> {
+  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
     const spanId = this.tracer.startSpan(this.construction.name, {
       attributes: {
         constructionId: this.construction.id,
@@ -785,7 +786,7 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
         timestamp: Date.now(),
       });
 
-      const result = await this.construction.execute(input);
+      const result = await this.construction.execute(input, context);
 
       this.tracer.addEvent(spanId, 'execution_completed', {
         timestamp: Date.now(),
@@ -843,14 +844,17 @@ function sleep(ms: number): Promise<void> {
 export function createConstruction<TInput, TData>(
   id: string,
   name: string,
-  executor: (input: TInput) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: string[] }>
+  executor: (
+    input: TInput,
+    context?: Context<unknown>
+  ) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: string[] }>
 ): ComposableConstruction<TInput, ConstructionResult & { data: TData }> {
   return {
     id,
     name,
-    async execute(input: TInput): Promise<ConstructionResult & { data: TData }> {
+    async execute(input: TInput, context?: Context<unknown>): Promise<ConstructionResult & { data: TData }> {
       const startTime = Date.now();
-      const result = await executor(input);
+      const result = await executor(input, context);
       return {
         data: result.data,
         confidence: result.confidence,
@@ -897,7 +901,7 @@ export function constant<TInput, TOutput extends ConstructionResult>(
   return {
     id,
     name,
-    async execute(_input: TInput): Promise<TOutput> {
+    async execute(_input: TInput, _context?: Context<unknown>): Promise<TOutput> {
       return result;
     },
     getEstimatedConfidence(): ConfidenceValue {

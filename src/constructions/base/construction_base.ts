@@ -226,7 +226,7 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    * @param input - The input for the construction
    * @returns Promise resolving to the construction's result
    */
-  abstract execute(input: TInput): Promise<TOutput>;
+  abstract execute(input: TInput, context?: Context): Promise<TOutput>;
 
   /**
    * Bridge this base construction instance to the canonical construction interface.
@@ -245,7 +245,7 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
         if (context?.signal.aborted) {
           throw new ConstructionCancelledError(constructionId);
         }
-        return this.execute(input);
+        return this.execute(input, context);
       },
     };
   }

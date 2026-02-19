@@ -18,6 +18,7 @@ export interface Context<R = LibrarianContext> {
   sessionId: string;
   tokenBudget?: number;
   metadata?: Record<string, unknown>;
+  traceContext?: Record<string, unknown>;
 }
 
 /**
