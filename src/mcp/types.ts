@@ -2089,6 +2089,18 @@ export interface LibrarianMCPServerConfig {
     defaultReviewTimeoutSeconds: number;
   };
 
+  /** Proactive context injection for non-LiBrainian file tools (read/edit/write) */
+  proactiveInjection: {
+    /** Enable proactive context prelude generation */
+    enabled: boolean;
+
+    /** Maximum token budget for injected context */
+    maxTokens: number;
+
+    /** Minimum file coverage ratio required to inject context (0-1) */
+    minCoverage: number;
+  };
+
   /** Confidence UX settings for retrieval responses */
   confidenceUx: {
     /** Score thresholds used to classify confidence tiers */
@@ -2136,6 +2148,11 @@ export const DEFAULT_MCP_SERVER_CONFIG: LibrarianMCPServerConfig = {
   humanReview: {
     staleIndexThresholdMinutes: 30,
     defaultReviewTimeoutSeconds: 300,
+  },
+  proactiveInjection: {
+    enabled: false,
+    maxTokens: 2000,
+    minCoverage: 0.5,
   },
   confidenceUx: {
     thresholds: {
