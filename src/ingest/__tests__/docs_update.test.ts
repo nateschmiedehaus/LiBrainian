@@ -482,5 +482,30 @@ Section content.
       expect(content).toContain('src/librarian/api/README.md');
       expect(content).toContain('docs/librarian/query-guide.md');
     });
+
+    it('should include behavioral scaffolding and MCP tool guidance', async () => {
+      const claudePath = path.join(tempDir, 'CLAUDE.md');
+      await fs.writeFile(claudePath, '# Claude\n');
+
+      await updateRepoDocs({
+        workspace: tempDir,
+        report: createTestReport(),
+        capabilities: createTestCapabilities(),
+      });
+
+      const content = await fs.readFile(claudePath, 'utf-8');
+      expect(content).toContain('### When to Use LiBrainian Tools');
+      expect(content).toContain('ALWAYS call `query` before');
+      expect(content).toContain('Do NOT use `query` when');
+      expect(content).toContain('### Available MCP Tools (quick summary)');
+      expect(content).toContain('`query(intent, intentType)`');
+      expect(content).toContain('`find_symbol(query)`');
+      expect(content).toContain('`get_context_pack_bundle(entityIds, maxTokens)`');
+      expect(content).toContain('`verify_claim(claimId)`');
+      expect(content).toContain('`status()`');
+      expect(content).toContain('`bootstrap(workspace)`');
+      expect(content).toContain('`intentType` values');
+      expect(content).toContain('`depth`');
+    });
   });
 });
