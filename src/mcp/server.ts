@@ -39,6 +39,7 @@ import {
   type GetSessionBriefingToolInput,
   type SemanticSearchToolInput,
   type GetContextPackToolInput,
+  type EstimateBudgetToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
@@ -336,6 +337,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   get_session_briefing: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   semantic_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4200 },
   get_context_pack: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 2600 },
+  estimate_budget: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1300 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1406,6 +1408,21 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'estimate_budget',
+        description: 'Pre-task feasibility gate that estimates token burn and recommends safer lower-cost execution alternatives',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskDescription: { type: 'string', description: 'Task description to estimate before execution' },
+            availableTokens: { type: 'number', description: 'Available token budget before compaction' },
+            workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+            pipeline: { type: 'array', items: { type: 'string' }, description: 'Optional explicit pipeline/tool sequence for estimation' },
+            workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+          },
+          required: ['taskDescription', 'availableTokens'],
         },
       },
       {
@@ -3133,6 +3150,8 @@ export class LibrarianMCPServer {
         return this.executeSemanticSearch(args as SemanticSearchToolInput, context);
       case 'get_context_pack':
         return this.executeGetContextPack(args as GetContextPackToolInput, context);
+      case 'estimate_budget':
+        return this.executeEstimateBudget(args as EstimateBudgetToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
       case 'synthesize_plan':
@@ -5150,6 +5169,92 @@ export class LibrarianMCPServer {
       keyContracts,
       architecturalContext,
       evidenceIds,
+    };
+  }
+
+  private async executeEstimateBudget(input: EstimateBudgetToolInput): Promise<unknown> {
+    const taskDescription = input.taskDescription?.trim() ?? '';
+    if (taskDescription.length === 0) {
+      return {
+        success: false,
+        tool: 'estimate_budget',
+        error: 'taskDescription must be a non-empty string.',
+      };
+    }
+
+    const availableTokens = Math.max(1, Math.trunc(input.availableTokens));
+    const normalized = taskDescription.toLowerCase();
+    const riskFactors: string[] = [];
+    let complexityMultiplier = 1;
+
+    if (/\b(across the codebase|entire codebase|all modules|all callers|system-wide|across)\b/.test(normalized)) {
+      complexityMultiplier += 1.6;
+      riskFactors.push('Broad cross-codebase scope increases call-graph fanout and exploration overhead.');
+    }
+    if (/\b(refactor|migrate|rewrite|re-architect)\b/.test(normalized)) {
+      complexityMultiplier += 0.8;
+      riskFactors.push('Refactor/migration tasks typically require additional verification and rollback-safe sequencing.');
+    }
+    if (/\b(auth|security|permissions|access control)\b/.test(normalized)) {
+      complexityMultiplier += 0.45;
+      riskFactors.push('Security-sensitive domains usually require extra validation passes and higher review overhead.');
+    }
+    if (taskDescription.split(/\s+/).filter(Boolean).length > 16) {
+      complexityMultiplier += 0.35;
+      riskFactors.push('Long task descriptions indicate multi-objective scope that tends to increase token burn.');
+    }
+    if (Array.isArray(input.pipeline) && input.pipeline.length > 0) {
+      complexityMultiplier += Math.min(1.2, input.pipeline.length * 0.12);
+      riskFactors.push(`Explicit pipeline includes ${input.pipeline.length} stages, increasing execution overhead.`);
+    }
+
+    const baseEstimate = Math.max(6000, estimateTokens(taskDescription) * 420);
+    const estimated = {
+      min: Math.max(1000, Math.round(baseEstimate * complexityMultiplier * 0.55)),
+      expected: Math.max(1500, Math.round(baseEstimate * complexityMultiplier)),
+      max: Math.max(2000, Math.round(baseEstimate * complexityMultiplier * 1.6)),
+    };
+    const feasible = estimated.max < availableTokens;
+
+    if (availableTokens < estimated.expected) {
+      riskFactors.push('Available token budget is below expected burn; compaction/retry risk is elevated.');
+    }
+
+    const cheaperAlternative = !feasible
+      ? {
+          description: 'Use get_context_pack first and narrow scope to one module before spawning broader edits.',
+          estimatedTokens: {
+            min: Math.max(600, Math.round(estimated.min * 0.3)),
+            expected: Math.max(1000, Math.round(estimated.expected * 0.38)),
+            max: Math.max(1500, Math.round(estimated.max * 0.45)),
+          },
+          construction: 'get_context_pack',
+        }
+      : undefined;
+
+    const recommendation = feasible
+      ? `Feasible under current budget. Estimated max ${estimated.max.toLocaleString()} tokens within available ${availableTokens.toLocaleString()}.`
+      : `Not feasible within current budget. Scope to a single module or phase the task before execution.`;
+
+    const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : (typeof input.workdir === 'string' && input.workdir.trim().length > 0 ? path.resolve(input.workdir) : undefined);
+    const evidenceHash = createHash('sha256')
+      .update(`${taskDescription}|${availableTokens}|${JSON.stringify(input.pipeline ?? [])}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    return {
+      success: true,
+      tool: 'estimate_budget',
+      feasible,
+      availableTokens,
+      estimatedTokens: estimated,
+      recommendation,
+      cheaperAlternative,
+      riskFactors,
+      evidenceIds: [`budget_${evidenceHash}`],
+      workspace: workspacePath,
     };
   }
 

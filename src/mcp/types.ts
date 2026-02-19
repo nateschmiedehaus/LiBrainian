@@ -569,6 +569,24 @@ export interface GetContextPackToolInput {
   workspace?: string;
 }
 
+/** estimate_budget tool input */
+export interface EstimateBudgetToolInput {
+  /** Task description to estimate before execution */
+  taskDescription: string;
+
+  /** Available token budget before compaction */
+  availableTokens: number;
+
+  /** Working directory hint for workspace resolution */
+  workdir?: string;
+
+  /** Optional explicit pipeline/tool sequence for estimation */
+  pipeline?: string[];
+
+  /** Workspace path alias for callers that already have it */
+  workspace?: string;
+}
+
 /** Query tool input */
 export interface QueryToolInput {
   /** Goal-oriented semantic question (architecture, behavior, impact), not a direct file-read request */
@@ -1704,6 +1722,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  estimate_budget: {
+    tool: 'estimate_budget',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   query: {
     tool: 'query',
     requiredScopes: ['read'],
@@ -2148,6 +2172,22 @@ export function isGetContextPackToolInput(value: unknown): value is GetContextPa
   const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return intentOk && relevantFilesOk && tokenBudgetOk && workdirOk && workspaceOk;
+}
+
+/** Type guard for EstimateBudgetToolInput */
+export function isEstimateBudgetToolInput(value: unknown): value is EstimateBudgetToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const taskDescriptionOk = typeof obj.taskDescription === 'string';
+  const availableTokensOk = typeof obj.availableTokens === 'number'
+    && Number.isFinite(obj.availableTokens)
+    && obj.availableTokens >= 1;
+  const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
+  const pipelineOk = Array.isArray(obj.pipeline)
+    ? obj.pipeline.every((entry) => typeof entry === 'string')
+    : typeof obj.pipeline === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return taskDescriptionOk && availableTokensOk && workdirOk && pipelineOk && workspaceOk;
 }
 
 /** Type guard for QueryToolInput */

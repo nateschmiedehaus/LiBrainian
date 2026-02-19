@@ -122,6 +122,17 @@ export const GetContextPackToolInputSchema = z.object({
 }).strict();
 
 /**
+ * estimate_budget tool input schema
+ */
+export const EstimateBudgetToolInputSchema = z.object({
+  taskDescription: z.string().min(1).max(4000).describe('Task description to estimate before execution'),
+  availableTokens: z.number().int().min(1).max(1_000_000).describe('Available token budget before compaction'),
+  workdir: z.string().optional().describe('Working directory hint for workspace resolution'),
+  pipeline: z.array(z.string().min(1)).optional().describe('Optional explicit pipeline/tool sequence for estimation'),
+  workspace: z.string().optional().describe('Workspace path alias for callers that already have it'),
+}).strict();
+
+/**
  * get_change_impact tool input schema
  */
 export const GetChangeImpactToolInputSchema = z.object({
@@ -542,6 +553,7 @@ export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInputSchema>;
 export type GetContextPackToolInputType = z.infer<typeof GetContextPackToolInputSchema>;
+export type EstimateBudgetToolInputType = z.infer<typeof EstimateBudgetToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
@@ -595,6 +607,7 @@ export const TOOL_INPUT_SCHEMAS = {
   status: StatusToolInputSchema,
   semantic_search: SemanticSearchToolInputSchema,
   get_context_pack: GetContextPackToolInputSchema,
+  estimate_budget: EstimateBudgetToolInputSchema,
   query: QueryToolInputSchema,
   synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
@@ -767,6 +780,24 @@ export const getContextPackToolJsonSchema: JSONSchema = {
     workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
   },
   required: ['intent'],
+  additionalProperties: false,
+};
+
+/** estimate_budget tool JSON Schema */
+export const estimateBudgetToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/estimate-budget-tool-input',
+  title: 'EstimateBudgetToolInput',
+  description: 'Input for estimate_budget - pre-task token feasibility estimation and safer fallback recommendations',
+  type: 'object',
+  properties: {
+    taskDescription: { type: 'string', description: 'Task description to estimate before execution', minLength: 1, maxLength: 4000 },
+    availableTokens: { type: 'number', description: 'Available token budget before compaction', minimum: 1, maximum: 1000000 },
+    workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+    pipeline: { type: 'array', items: { type: 'string' }, description: 'Optional explicit pipeline/tool sequence for estimation' },
+    workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+  },
+  required: ['taskDescription', 'availableTokens'],
   additionalProperties: false,
 };
 
@@ -1157,6 +1188,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   get_session_briefing: getSessionBriefingToolJsonSchema,
   semantic_search: semanticSearchToolJsonSchema,
   get_context_pack: getContextPackToolJsonSchema,
+  estimate_budget: estimateBudgetToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
   find_callers: findCallersToolJsonSchema,

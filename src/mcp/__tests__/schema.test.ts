@@ -20,6 +20,7 @@ import {
   GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
   GetContextPackToolInputSchema,
+  EstimateBudgetToolInputSchema,
   SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
@@ -56,6 +57,7 @@ import {
   isGetSessionBriefingToolInput,
   isQueryToolInput,
   isGetContextPackToolInput,
+  isEstimateBudgetToolInput,
   isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
@@ -103,6 +105,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('status');
       expect(schemas).toContain('semantic_search');
       expect(schemas).toContain('get_context_pack');
+      expect(schemas).toContain('estimate_budget');
       expect(schemas).toContain('query');
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
@@ -139,7 +142,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(43);
+      expect(schemas).toHaveLength(44);
     });
 
     it('should return schema for known tools', () => {
@@ -364,6 +367,40 @@ describe('MCP Schema', () => {
       expect(isGetContextPackToolInput({ intent: 'test' })).toBe(true);
       expect(isGetContextPackToolInput({ intent: 'test', tokenBudget: 0 })).toBe(false);
       expect(isGetContextPackToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Estimate Budget Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('estimate_budget', {
+        taskDescription: 'Refactor authentication across the codebase',
+        availableTokens: 52000,
+      });
+      expect(result.valid).toBe(true);
+      expect(EstimateBudgetToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('estimate_budget', {
+        taskDescription: 'Scope auth changes to middleware',
+        availableTokens: 24000,
+        workdir: '/tmp/workspace',
+        pipeline: ['semantic_search', 'get_context_pack', 'pre_commit_check'],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      const result = validateToolInput('estimate_budget', {
+        taskDescription: 'Refactor auth',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isEstimateBudgetToolInput({ taskDescription: 'x', availableTokens: 1000 })).toBe(true);
+      expect(isEstimateBudgetToolInput({ taskDescription: 'x', availableTokens: 0 })).toBe(false);
+      expect(isEstimateBudgetToolInput(null)).toBe(false);
     });
   });
 

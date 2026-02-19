@@ -208,6 +208,17 @@ describe('MCP Server', () => {
       expect(contextPackTool?.description?.toLowerCase()).toContain('token-budgeted');
     });
 
+    it('includes estimate_budget as pre-task feasibility gate', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const estimateBudgetTool = tools.find((tool) => tool.name === 'estimate_budget');
+
+      expect(estimateBudgetTool).toBeDefined();
+      expect(estimateBudgetTool?.description?.toLowerCase()).toContain('feasibility');
+    });
+
     it('includes pre_commit_check as a semantic submit gate tool', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
@@ -455,6 +466,21 @@ describe('MCP Server', () => {
       expect(result.staleness).toBe('fresh');
       expect(result.functions.length).toBeGreaterThan(0);
       expect(result.evidenceIds).toContain('pack_1');
+    });
+
+    it('estimates task budget feasibility and suggests cheaper alternatives', async () => {
+      const result = await (server as any).executeEstimateBudget({
+        taskDescription: 'Refactor authentication across the codebase and update all callers',
+        availableTokens: 12000,
+        workdir: '/tmp/workspace',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('estimate_budget');
+      expect(result.feasible).toBe(false);
+      expect(result.estimatedTokens?.max).toBeGreaterThan(12000);
+      expect(result.cheaperAlternative).toBeDefined();
+      expect(result.riskFactors.length).toBeGreaterThan(0);
     });
 
     it('evaluates changed files in pre_commit_check and surfaces pass/fail summary', async () => {
