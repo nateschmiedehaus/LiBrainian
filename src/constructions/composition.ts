@@ -207,7 +207,7 @@ export function propagateDerived(
 export function sequence<T1, T2 extends ConstructionResult, T3 extends ConstructionResult>(
   first: ComposableConstruction<T1, T2>,
   second: ComposableConstruction<T2, T3>
-): SequenceConstruction<T1, T3> {
+): SequenceConstruction<T1, T2, T3> {
   return new SequenceConstruction(first, second);
 }
 
@@ -307,15 +307,19 @@ export function withTracing<TInput, TOutput extends ConstructionResult>(
  * A construction that executes two constructions in sequence.
  * The output of the first construction feeds into the second.
  */
-export class SequenceConstruction<TInput, TOutput extends ConstructionResult>
+export class SequenceConstruction<
+  TInput,
+  TIntermediate extends ConstructionResult,
+  TOutput extends ConstructionResult,
+>
   implements ComposableConstruction<TInput, TOutput>
 {
   public readonly id: string;
   public readonly name: string;
 
   constructor(
-    private readonly first: ComposableConstruction<TInput, ConstructionResult>,
-    private readonly second: ComposableConstruction<ConstructionResult, TOutput>
+    private readonly first: ComposableConstruction<TInput, TIntermediate>,
+    private readonly second: ComposableConstruction<TIntermediate, TOutput>
   ) {
     this.id = `sequence:${first.id}>${second.id}`;
     this.name = `Sequence(${first.name}, ${second.name})`;

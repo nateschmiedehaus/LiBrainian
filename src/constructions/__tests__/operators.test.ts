@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Construction } from '../types.js';
 import { deterministic } from '../../epistemics/confidence.js';
-import { dimap, identity, seq } from '../operators.js';
+import { dimap, identity, mapConstruction, seq } from '../operators.js';
 
 function makeNumberConstruction(
   id: string,
@@ -61,5 +61,37 @@ describe('construction operators', () => {
     const mapped = await identityMapped.execute(4);
 
     expect(mapped).toBe(baseline);
+  });
+
+  it('rejects mismatched seq seams but accepts mapped adaptation', () => {
+    const advisor: Construction<string, { primaryLocation: string }> = {
+      id: 'feature_advisor',
+      name: 'Feature Advisor',
+      async execute(input: string) {
+        return { primaryLocation: input };
+      },
+    };
+
+    const checker: Construction<{ entityId: string; refactoringType: 'rename' }, boolean> = {
+      id: 'refactor_checker',
+      name: 'Refactor Checker',
+      async execute(input) {
+        return Boolean(input.entityId);
+      },
+    };
+
+    if (false) {
+      // @ts-expect-error intermediate type does not match checker input
+      seq(advisor, checker);
+    }
+
+    const adapted = mapConstruction(advisor, (report) => ({
+      entityId: report.primaryLocation,
+      refactoringType: 'rename' as const,
+    }));
+    const composed = seq(adapted, checker);
+
+    void composed;
+    expect(true).toBe(true);
   });
 });
