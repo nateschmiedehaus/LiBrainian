@@ -429,6 +429,25 @@ function normalizeErrorCode(rawCode: string | undefined, fallback = 'tool_execut
 function inferErrorCode(message: string, parsedCode?: string): string {
   if (parsedCode) return normalizeErrorCode(parsedCode);
   const normalized = message.trim().toLowerCase();
+  if (normalized.includes('stale index') || normalized.includes('index stale')) {
+    return 'index_stale';
+  }
+  if (normalized.includes('partial index') || normalized.includes('incomplete index')) {
+    return 'partial_index';
+  }
+  if (
+    normalized.includes('embedding')
+    && (normalized.includes('unavailable') || normalized.includes('not configured') || normalized.includes('provider'))
+  ) {
+    return 'embedding_unavailable';
+  }
+  if (
+    normalized.includes('query too vague')
+    || normalized.includes('no results found')
+    || normalized.includes('no matching results')
+  ) {
+    return 'query_too_vague';
+  }
   if (normalized.includes('workspace not registered') || normalized.includes('workspace_unavailable')) {
     return 'workspace_not_registered';
   }
@@ -508,6 +527,36 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
           'Retry verify_claim with a valid claimId from query output.',
         ],
       };
+    case 'query_too_vague':
+      return {
+        nextSteps: [
+          'Retry with a broader natural-language query (include subsystem and expected behavior).',
+          'Run query with explicit affected files when known.',
+        ],
+      };
+    case 'embedding_unavailable':
+      return {
+        nextSteps: [
+          'Run `librarian check-providers --format json` and confirm embedding provider availability.',
+          `Retry ${toolName} after provider configuration is restored.`,
+        ],
+      };
+    case 'index_stale':
+      return {
+        nextSteps: [
+          `Run bootstrap({ workspace: "${workspaceArg}" }) to refresh stale index data.`,
+          `Retry ${toolName} after refresh completes.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
+    case 'partial_index':
+      return {
+        nextSteps: [
+          `Run bootstrap({ workspace: "${workspaceArg}" }) to complete indexing for missing files.`,
+          `Retry ${toolName} after full index coverage is restored.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
     default:
       return {
         nextSteps: [
@@ -516,6 +565,97 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
         ],
       };
   }
+}
+
+type CompactErrorSeverity = 'blocking' | 'degraded' | 'recoverable';
+
+function classifyCompactError(code: string): {
+  errorType: string;
+  severity: CompactErrorSeverity;
+  retrySafe: boolean;
+  humanReviewNeeded: boolean;
+  suggestedRephrasings?: string[];
+} {
+  switch (code) {
+    case 'workspace_not_bootstrapped':
+    case 'workspace_not_registered':
+      return {
+        errorType: 'INDEX_NOT_INITIALIZED',
+        severity: 'blocking',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    case 'index_stale':
+      return {
+        errorType: 'INDEX_STALE',
+        severity: 'degraded',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    case 'partial_index':
+      return {
+        errorType: 'PARTIAL_INDEX',
+        severity: 'degraded',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    case 'query_too_vague':
+    case 'invalid_input':
+      return {
+        errorType: 'QUERY_TOO_VAGUE',
+        severity: 'recoverable',
+        retrySafe: true,
+        humanReviewNeeded: false,
+        suggestedRephrasings: [
+          'Try adding subsystem and behavior details (for example: "auth token validation flow").',
+          'If you know candidate files, include workspace + explicit scope arguments.',
+        ],
+      };
+    case 'embedding_unavailable':
+      return {
+        errorType: 'EMBEDDING_SERVICE_UNAVAILABLE',
+        severity: 'blocking',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    case 'claim_not_found':
+      return {
+        errorType: 'CONTEXT_PACK_NOT_FOUND',
+        severity: 'recoverable',
+        retrySafe: false,
+        humanReviewNeeded: false,
+      };
+    case 'workspace_not_found':
+      return {
+        errorType: 'WORKSPACE_NOT_FOUND',
+        severity: 'blocking',
+        retrySafe: true,
+        humanReviewNeeded: true,
+      };
+    case 'server_busy':
+      return {
+        errorType: 'RATE_LIMITED',
+        severity: 'degraded',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    default:
+      return {
+        errorType: 'TOOL_EXECUTION_FAILED',
+        severity: 'blocking',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+  }
+}
+
+function describeAttempt(toolName: string, args: unknown): string {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return `Call ${toolName}.`;
+  }
+  const keys = Object.keys(args as Record<string, unknown>).filter((key) => key !== 'authToken');
+  if (keys.length === 0) return `Call ${toolName}.`;
+  return `Call ${toolName} with arguments: ${keys.slice(0, 8).join(', ')}.`;
 }
 
 function toAgentErrorPayload(params: {
@@ -565,6 +705,11 @@ function toAgentErrorPayload(params: {
       args: suppliedRecoverWith.args as Record<string, unknown>,
     }
     : recoverWith;
+  const compact = classifyCompactError(code);
+  const suppliedSuggestedNextSteps = Array.isArray(base.suggested_next_steps)
+    ? base.suggested_next_steps.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  const partialResults = base.partial_results ?? base.partialResults;
 
   return {
     ...base,
@@ -572,6 +717,27 @@ function toAgentErrorPayload(params: {
     code,
     message: parsedMessage.userMessage || 'Tool execution failed.',
     nextSteps: suppliedNextSteps.length > 0 ? suppliedNextSteps : nextSteps,
+    error_type: typeof base.error_type === 'string' ? base.error_type : compact.errorType,
+    what_was_attempted: typeof base.what_was_attempted === 'string'
+      ? base.what_was_attempted
+      : describeAttempt(params.toolName, params.args),
+    what_failed: typeof base.what_failed === 'string'
+      ? base.what_failed
+      : (parsedMessage.userMessage || 'Tool execution failed.'),
+    severity: base.severity === 'blocking' || base.severity === 'degraded' || base.severity === 'recoverable'
+      ? base.severity
+      : compact.severity,
+    suggested_next_steps: suppliedSuggestedNextSteps.length > 0
+      ? suppliedSuggestedNextSteps
+      : (suppliedNextSteps.length > 0 ? suppliedNextSteps : nextSteps),
+    human_review_needed: typeof base.human_review_needed === 'boolean'
+      ? base.human_review_needed
+      : compact.humanReviewNeeded,
+    retry_safe: typeof base.retry_safe === 'boolean' ? base.retry_safe : compact.retrySafe,
+    suggested_rephrasings: Array.isArray(base.suggested_rephrasings)
+      ? base.suggested_rephrasings
+      : compact.suggestedRephrasings,
+    partial_results: partialResults,
     recoverWith: normalizedRecoverWith,
     disclosures: userDisclosures.length > 0 ? userDisclosures : base.disclosures,
     traceId: sanitizeTraceId(typeof base.traceId === 'string' ? base.traceId : undefined) ?? base.traceId,

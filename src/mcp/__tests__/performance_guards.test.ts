@@ -40,6 +40,9 @@ describe('MCP performance guards', () => {
     const payload = parseToolPayload(second);
     expect(payload.error).toBe(true);
     expect(payload.code).toBe('server_busy');
+    expect(payload.error_type).toBe('RATE_LIMITED');
+    expect(payload.severity).toBe('degraded');
+    expect(payload.retry_safe).toBe(true);
     expect(typeof payload.retryAfterMs).toBe('number');
 
     gate.resolve();
