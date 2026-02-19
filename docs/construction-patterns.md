@@ -39,6 +39,14 @@ const canonical = legacy.toConstruction('My Base Construction');
 
 This keeps composition APIs (`sequence`, `parallel`, `seq`, `dimap`, etc.) compatible while migration continues.
 
+Canonical operator helpers:
+- `seq(a, b)`: typed seam-preserving sequence composition.
+- `map(c, f)`: output adaptation (`dimap(id, f)`).
+- `contramap(c, f)`: input adaptation (`dimap(f, id)`).
+- `dimap(c, pre, post)`: full profunctor transform.
+- `mapAsync(c, f)`: async output adaptation with context access.
+- `mapError(c, f)`: typed error-channel transformation.
+
 Migration status:
 - `src/constructions/types.ts` defines canonical `Construction<I, O, E, R>` and `Context<R>`.
 - `BaseConstruction.toConstruction()` provides a non-breaking adapter.

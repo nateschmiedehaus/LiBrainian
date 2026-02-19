@@ -1,6 +1,6 @@
 import { sequenceConfidence } from '../epistemics/confidence.js';
 import type { ConstructionError } from './base/construction_base.js';
-import type { Construction } from './types.js';
+import type { Construction, Context } from './types.js';
 
 /**
  * Identity construction.
@@ -129,7 +129,7 @@ export function contramap<I2, I, O, E extends ConstructionError, R>(
 /**
  * Map: adapt output only.
  */
-export function mapConstruction<I, O, O2, E extends ConstructionError, R>(
+export function map<I, O, O2, E extends ConstructionError, R>(
   construction: Construction<I, O, E, R>,
   post: (output: O) => O2,
   id = `map:${construction.id}`,
@@ -137,3 +137,54 @@ export function mapConstruction<I, O, O2, E extends ConstructionError, R>(
 ): Construction<I, O2, E, R> {
   return dimap(construction, (input: I) => input, post, id, name);
 }
+
+/**
+ * Async map: adapt output with an asynchronous projection.
+ */
+export function mapAsync<I, O, O2, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  post: (output: O, context?: Context<R>) => Promise<O2>,
+  id = `mapAsync:${construction.id}`,
+  name = `MapAsync(${construction.name})`
+): Construction<I, O2, E, R> {
+  return {
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<O2> {
+      const output = await construction.execute(input, context);
+      return post(output, context);
+    },
+    getEstimatedConfidence: construction.getEstimatedConfidence,
+  };
+}
+
+/**
+ * Map error: transform construction errors while preserving success path.
+ */
+export function mapError<I, O, E extends ConstructionError, E2 extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  transform: (error: E) => E2,
+  id = `mapError:${construction.id}`,
+  name = `MapError(${construction.name})`
+): Construction<I, O, E2, R> {
+  return {
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<O> {
+      try {
+        return await construction.execute(input, context);
+      } catch (error) {
+        if (error instanceof Error) {
+          throw transform(error as E);
+        }
+        throw error;
+      }
+    },
+    getEstimatedConfidence: construction.getEstimatedConfidence,
+  };
+}
+
+/**
+ * Backward-compatible map alias for existing call sites.
+ */
+export const mapConstruction = map;

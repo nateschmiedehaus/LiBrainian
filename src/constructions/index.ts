@@ -21,6 +21,9 @@ export {
   fallback,
   dimap,
   contramap,
+  map,
+  mapAsync,
+  mapError,
   mapConstruction,
 } from './operators.js';
 
