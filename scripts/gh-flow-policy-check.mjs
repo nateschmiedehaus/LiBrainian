@@ -7,11 +7,15 @@ const DEFAULT_MAX_MAIN_BEHIND_PULL = 20;
 const DEFAULT_MAX_COMMITS_AHEAD_OF_NPM = 40;
 
 function run(cmd, options = {}) {
-  return execSync(cmd, {
+  const output = execSync(cmd, {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     ...options,
-  }).trim();
+  });
+  if (typeof output !== 'string') {
+    return '';
+  }
+  return output.trim();
 }
 
 function runMaybe(cmd) {
