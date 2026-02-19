@@ -160,6 +160,8 @@ describe('package release scripts', () => {
       '!dist/**/*.map',
       '!dist/test/**',
       '!dist/**/__tests__/**',
+      '!dist/guidance/**',
+      '!dist/skills/**',
       'README.md',
       'LICENSE',
       'CHANGELOG.md',
