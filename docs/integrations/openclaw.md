@@ -14,6 +14,17 @@ This command:
 3. Verifies required LiBrainian MCP tools are available.
 4. Prints a test invocation.
 
+## OpenClaw daemon bridge
+
+```bash
+librarian openclaw-daemon start
+```
+
+This command:
+1. Registers a `librainian` service in `~/.openclaw/config.yaml` under `backgroundServices`.
+2. Persists daemon lifecycle state to `~/.librainian/openclaw-daemon/state.json`.
+3. Supports `status` and `stop` actions for deterministic local lifecycle control.
+
 ## Installed skill
 
 The canonical skill source in this repository:

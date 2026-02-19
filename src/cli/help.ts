@@ -26,6 +26,7 @@ COMMANDS:
     bootstrap           Initialize or refresh the knowledge index
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
     install-openclaw-skill Install official OpenClaw skill and config wiring
+    openclaw-daemon     Manage OpenClaw daemon registration and state
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
@@ -82,6 +83,7 @@ EXAMPLES:
     librainian uninstall --dry-run
     librainian audit-skill ./SKILL.md --json
     librainian install-openclaw-skill --dry-run
+    librainian openclaw-daemon start --json
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
     librainian constructions search "security audit"
@@ -349,6 +351,30 @@ EXAMPLES:
     librarian install-openclaw-skill
     librarian install-openclaw-skill --dry-run
     librarian install-openclaw-skill --openclaw-root /tmp/.openclaw --json
+`,
+
+  'openclaw-daemon': `
+librarian openclaw-daemon - Manage OpenClaw daemon registration and local state
+
+USAGE:
+    librarian openclaw-daemon <start|status|stop> [options]
+
+OPTIONS:
+    --openclaw-root <path>  Override OpenClaw root directory (default: ~/.openclaw)
+    --state-root <path>     Override daemon state directory (default: ~/.librainian/openclaw-daemon)
+    --json                  Emit machine-readable JSON report
+
+DESCRIPTION:
+    Provides a deterministic control surface for OpenClaw integration:
+    - start: registers librainian in ~/.openclaw/config.yaml backgroundServices
+             and marks daemon state as running
+    - status: reports daemon running state + registration metadata
+    - stop: marks daemon state as stopped without deleting registration
+
+EXAMPLES:
+    librarian openclaw-daemon start
+    librarian openclaw-daemon status --json
+    librarian openclaw-daemon stop --state-root /tmp/librainian-state
 `,
 
   mcp: `
