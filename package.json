@@ -149,7 +149,7 @@
     "test:agentic:strict": "npm run eval:ab:agentic-bugfix:codex && npm run eval:use-cases:agentic && npm run eval:live-fire:hardcore && npm run smoke:external:all && npm run eval:testing-discipline && npm run eval:testing-tracker && npm run eval:publish-gate",
     "test:agentic:strict:quick": "npm run eval:ab:agentic-bugfix:quick && npm run eval:use-cases:agentic:quick && npm run eval:live-fire:quick && npm run smoke:external:sample",
     "ground-truth:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-ground-truth.ts",
-    "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --limit 200 --out state/plans/agent-issue-fix-plan.json",
+    "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json",
     "policy:pull": "node scripts/gh-flow-policy-check.mjs --mode pull",
     "policy:merge": "node scripts/gh-flow-policy-check.mjs --mode merge",
     "policy:publish": "node scripts/gh-flow-policy-check.mjs --mode publish --require-clean",
