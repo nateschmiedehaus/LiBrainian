@@ -27,6 +27,10 @@ describe('package release scripts', () => {
     expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
+    expect(scripts['issues:plan']).toBe(
+      'node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json'
+    );
+    expect(scripts['issues:plan']).not.toContain('--limit');
     expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');
     expect(scripts.prepublishOnly).toContain('npm run package:assert-identity');
     expect(scripts.prepublishOnly).toContain('npm run package:assert-release-provenance');
@@ -107,6 +111,13 @@ describe('package release scripts', () => {
     expect(script).toContain("'merge'");
     expect(script).toContain('Dry run: update-branch');
     expect(script).toContain('complete repo=');
+  });
+
+  it('keeps issue planning uncapped by default', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'issue-feedback-loop.ts');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain("default: '0'");
+    expect(script).toContain('0 means \"no cap\"');
   });
 
   it('defines staged validation scripts for daily, PR, and release gates', () => {

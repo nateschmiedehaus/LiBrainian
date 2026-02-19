@@ -10,7 +10,6 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import lockfile from 'proper-lockfile';
 import type {
   LibrarianStorage,
   StorageCapabilities,
@@ -115,6 +114,7 @@ import { noResult } from '../api/empty_values.js';
 import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
 import { attemptStorageRecovery } from './storage_recovery.js';
 import { TransactionConflictError } from './transactions.js';
+import { sha256Hex } from '../spine/hashes.js';
 import {
   createEmptyRedactionCounts,
   createRedactionAuditReport,
@@ -131,15 +131,109 @@ import { globalEventBus, createIndexChangeEvent } from '../events.js';
 // LOCK CONFIGURATION
 // ============================================================================
 
-/** Lock stale timeout - should exceed maximum synchronous operation time */
-const LOCK_STALE_TIMEOUT_MS = 15 * 60_000; // 15 minutes
-
-/** Lock update interval - how often to refresh the lock */
-const LOCK_UPDATE_INTERVAL_MS = 60_000; // 1 minute
-
-/** Maximum lock acquisition retries */
-const LOCK_MAX_RETRIES = 12;
+/** Maximum time to wait while trying to recover/reacquire a stale lock */
+const LOCK_ACQUIRE_TIMEOUT_MS = 5_000;
+const LOCK_RETRY_INTERVAL_MS = 200;
 const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
+const PROCESS_STARTED_AT_ISO = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
+
+interface StorageProcessLockCore {
+  pid: number;
+  startedAt: string;
+  processStartedAt: string;
+  token: string;
+}
+
+interface StorageProcessLockState extends StorageProcessLockCore {
+  contentHash: string;
+}
+
+interface ObservedStorageLockState {
+  pid: number;
+  startedAt: string;
+  processStartedAt?: string;
+  token?: string;
+  contentHashValid: boolean;
+}
+
+function serializeStorageLockCore(core: StorageProcessLockCore): string {
+  return JSON.stringify({
+    pid: core.pid,
+    startedAt: core.startedAt,
+    processStartedAt: core.processStartedAt,
+    token: core.token,
+  });
+}
+
+function createStorageProcessLockState(): StorageProcessLockState {
+  const core: StorageProcessLockCore = {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    processStartedAt: PROCESS_STARTED_AT_ISO,
+    token: randomUUID(),
+  };
+  return {
+    ...core,
+    contentHash: sha256Hex(serializeStorageLockCore(core)),
+  };
+}
+
+function parseObservedStorageLockState(raw: string): ObservedStorageLockState | null {
+  const parsed = safeJsonParse<Record<string, unknown>>(raw);
+  if (parsed.ok) {
+    const pid = parsed.value.pid;
+    const startedAt = parsed.value.startedAt;
+    const processStartedAt = parsed.value.processStartedAt;
+    const token = parsed.value.token;
+    const contentHash = parsed.value.contentHash;
+    if (typeof pid === 'number' && Number.isFinite(pid) && typeof startedAt === 'string') {
+      const core: StorageProcessLockCore | null =
+        typeof processStartedAt === 'string' && typeof token === 'string'
+          ? { pid, startedAt, processStartedAt, token }
+          : null;
+      const contentHashValid = Boolean(
+        core
+          && typeof contentHash === 'string'
+          && contentHash === sha256Hex(serializeStorageLockCore(core))
+      );
+      return {
+        pid,
+        startedAt,
+        processStartedAt: typeof processStartedAt === 'string' ? processStartedAt : undefined,
+        token: typeof token === 'string' ? token : undefined,
+        contentHashValid,
+      };
+    }
+  }
+  const legacyPid = Number.parseInt(raw.trim(), 10);
+  if (Number.isFinite(legacyPid)) {
+    return {
+      pid: legacyPid,
+      startedAt: 'unknown',
+      contentHashValid: false,
+    };
+  }
+  return null;
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === code);
+}
+
+function isPidAlive(pid: number): boolean {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    return code === 'EPERM';
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function inspectEmbeddingVectorValues(embedding: Float32Array): { normSq: number; hasNonFinite: boolean } {
   let normSq = 0;
@@ -263,7 +357,6 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   private readonly dbPath: string;
   private readonly lockPath: string;
   private releaseLock: (() => Promise<void>) | null = null;
-  private lockCompromisedError: Error | null = null;
   private transactionChain: Promise<void> = Promise.resolve();
   private readonly workspaceRoot?: string;
   private initialized = false;
@@ -279,41 +372,75 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     this.redactionTotals = createEmptyRedactionCounts();
   }
 
+  private async readObservedLockState(): Promise<ObservedStorageLockState | null> {
+    try {
+      const raw = await fs.readFile(this.lockPath, 'utf8');
+      return parseObservedStorageLockState(raw);
+    } catch (error) {
+      if (isErrno(error, 'ENOENT') || isErrno(error, 'EISDIR')) return null;
+      throw error;
+    }
+  }
+
+  private async releaseProcessLock(expected: StorageProcessLockState): Promise<void> {
+    const observed = await this.readObservedLockState();
+    if (!observed) {
+      return;
+    }
+    if (
+      observed.pid !== expected.pid
+      || observed.startedAt !== expected.startedAt
+      || observed.token !== expected.token
+    ) {
+      return;
+    }
+    try {
+      await fs.unlink(this.lockPath);
+    } catch (error) {
+      if (!isErrno(error, 'ENOENT')) throw error;
+    }
+  }
+
   private async acquireProcessLock(): Promise<void> {
-    // IMPORTANT: proper-lockfile will throw an uncaught exception by default if it considers a lock compromised
-    // (e.g., event loop stalls preventing timely lock refresh). Always provide an onCompromised handler.
-    // Also: keep `stale` comfortably above any realistic "blocked event loop" window to avoid false positives
-    // during long synchronous work (SQLite WAL checkpoints, embedding model loads, etc.).
-    this.releaseLock = await lockfile.lock(this.dbPath, {
-      lockfilePath: this.lockPath,
-      stale: LOCK_STALE_TIMEOUT_MS,
-      update: LOCK_UPDATE_INTERVAL_MS,
-      onCompromised: (err) => {
-        const error = err instanceof Error ? err : new Error(String(err));
-        this.lockCompromisedError = error;
-        logWarning('SQLite lock compromised; treating storage as unsafe', {
-          path: this.lockPath,
-          error: error.message,
-        });
-        try {
-          if (this.db) {
-            this.db.close();
-            this.db = null;
-          }
-        } catch (closeError) {
-          logWarning('Failed to close DB after lock compromise', { path: this.dbPath, error: closeError });
+    const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
+    while (Date.now() <= deadline) {
+      const state = createStorageProcessLockState();
+      try {
+        await fs.writeFile(this.lockPath, JSON.stringify(state, null, 2), { encoding: 'utf8', flag: 'wx' });
+        this.releaseLock = async () => this.releaseProcessLock(state);
+        return;
+      } catch (error) {
+        if (!isErrno(error, 'EEXIST') && !isErrno(error, 'EISDIR')) {
+          throw error;
         }
-        void this.releaseLock?.().catch((releaseError) => {
-          logWarning('Failed to release lock after compromise', { path: this.lockPath, error: releaseError });
+      }
+
+      const observed = await this.readObservedLockState();
+      if (observed && isPidAlive(observed.pid)) {
+        throw new Error(`indexing in progress (pid=${observed.pid}, startedAt=${observed.startedAt})`);
+      }
+
+      const recovery = await attemptStorageRecovery(this.dbPath).catch((recoveryError) => ({
+        recovered: false,
+        actions: [] as string[],
+        errors: [String(recoveryError)],
+      }));
+      if (recovery.recovered) {
+        logWarning('Recovered stale storage lock state; retrying lock acquisition', {
+          path: this.lockPath,
+          actions: recovery.actions,
         });
-      },
-      retries: {
-        retries: LOCK_MAX_RETRIES,
-        factor: 1.5,
-        minTimeout: 200,
-        maxTimeout: 10_000,
-      },
-    });
+        continue;
+      }
+
+      await sleep(LOCK_RETRY_INTERVAL_MS);
+    }
+
+    const observed = await this.readObservedLockState();
+    if (observed && isPidAlive(observed.pid)) {
+      throw new Error(`indexing in progress (pid=${observed.pid}, startedAt=${observed.startedAt})`);
+    }
+    throw new Error('storage lock acquisition timed out');
   }
 
   async initialize(): Promise<void> {
@@ -321,26 +448,20 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
     await fs.writeFile(this.dbPath, '', { flag: 'a' });
 
-    // Check for and clear stale locks before attempting acquisition
+    // Proactively clear stale lock artifacts from prior interrupted runs.
     try {
-      const isLocked = await lockfile.check(this.dbPath, { lockfilePath: this.lockPath, stale: LOCK_STALE_TIMEOUT_MS });
-      if (isLocked) {
-        // Lock exists but may be stale from a crashed process
-        // The proper-lockfile library will handle this via the stale option
-        logWarning('Existing lock detected, will attempt to acquire with stale recovery', { path: this.lockPath });
-        const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
-        if (proactiveRecovery.recovered) {
-          logWarning('Recovered stale lock state before acquisition', {
-            path: this.lockPath,
-            actions: proactiveRecovery.actions,
-          });
-        }
+      const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+      if (proactiveRecovery.recovered) {
+        logWarning('Recovered stale lock state before acquisition', {
+          path: this.lockPath,
+          actions: proactiveRecovery.actions,
+        });
       }
     } catch (checkError) {
-      // Lock check failed, proceed with acquisition which will handle this case
-      logWarning('Lock check failed, proceeding with acquisition', {
+      // Recovery check failed; direct acquisition path still handles stale locks.
+      logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
         path: this.lockPath,
-        error: checkError instanceof Error ? checkError.message : String(checkError)
+        error: checkError instanceof Error ? checkError.message : String(checkError),
       });
     }
 
@@ -451,11 +572,6 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   }
 
   private ensureDb(): Database.Database {
-    if (this.lockCompromisedError) {
-      throw new Error(
-        `unverified_by_trace(storage_lock_compromised): ${this.lockCompromisedError.message}`,
-      );
-    }
     if (!this.db) {
       throw new Error('Storage not initialized. Call initialize() first.');
     }

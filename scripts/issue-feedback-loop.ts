@@ -37,6 +37,8 @@ interface IssueLoadResult {
   warning?: string;
 }
 
+type IssueLimit = number | null;
+
 function parseRepoFromRemoteUrl(remoteUrl: string): string | null {
   const trimmed = remoteUrl.trim();
   if (!trimmed) return null;
@@ -94,45 +96,72 @@ function mapIssueSnapshot(issue: {
   };
 }
 
-function loadIssuesViaGh(repo: string, state: string, limit: number): IssueLoadResult {
+function loadIssuesViaGh(repo: string, state: string, limit: IssueLimit): IssueLoadResult {
+  const allowedStates = new Set(['open', 'closed', 'all']);
+  const normalizedState = allowedStates.has(state) ? state : 'open';
   const args = [
-    'issue',
-    'list',
-    '--repo', repo,
-    '--state', state,
-    '--limit', String(limit),
-    '--json', 'number,title,url,createdAt,updatedAt,labels,comments',
+    'api',
+    '--paginate',
+    '--method',
+    'GET',
+    `repos/${repo}/issues`,
+    '-f',
+    `state=${normalizedState}`,
+    '-f',
+    'per_page=100',
+    '-f',
+    'sort=updated',
+    '-f',
+    'direction=desc',
+    '--jq',
+    '.[] | select(.pull_request | not) | @base64',
   ];
 
-  const gh = spawnSync('gh', args, { encoding: 'utf8' });
+  const gh = spawnSync('gh', args, {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (gh.status !== 0) {
     const detail = String(gh.stderr || gh.stdout || '').trim();
     throw new Error(detail || `exit ${gh.status ?? 'unknown'}`);
   }
 
-  const parsed = JSON.parse(String(gh.stdout ?? '[]')) as GhIssue[];
-  return {
-    source: 'gh',
-    issues: parsed.map((issue) => mapIssueSnapshot({
+  const encodedRows = String(gh.stdout ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const issues: AgentIssueSnapshot[] = [];
+  for (const row of encodedRows) {
+    const json = Buffer.from(row, 'base64').toString('utf8');
+    const issue = JSON.parse(json) as RestIssue;
+    issues.push(mapIssueSnapshot({
       number: issue.number,
       title: issue.title,
-      url: issue.url,
-      createdAt: issue.createdAt,
-      updatedAt: issue.updatedAt,
+      url: issue.html_url,
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at,
       labels: issue.labels,
-      comments: issue.comments,
-    })),
+      comments: issue.comments ?? 0,
+    }));
+    if (limit !== null && issues.length >= limit) {
+      break;
+    }
+  }
+
+  return {
+    source: 'gh',
+    issues,
   };
 }
 
-async function loadIssuesViaGitHubRest(repo: string, state: string, limit: number): Promise<IssueLoadResult> {
+async function loadIssuesViaGitHubRest(repo: string, state: string, limit: IssueLimit): Promise<IssueLoadResult> {
   const allowedStates = new Set(['open', 'closed', 'all']);
   const normalizedState = allowedStates.has(state) ? state : 'open';
   const issues: AgentIssueSnapshot[] = [];
   let page = 1;
 
-  while (issues.length < limit) {
-    const remaining = limit - issues.length;
+  while (true) {
+    const remaining = limit === null ? 100 : (limit - issues.length);
     const perPage = Math.min(100, Math.max(1, remaining));
     const url = `https://api.github.com/repos/${repo}/issues?state=${encodeURIComponent(normalizedState)}&per_page=${perPage}&page=${page}&sort=updated&direction=desc`;
     const response = await fetch(url, {
@@ -162,10 +191,13 @@ async function loadIssuesViaGitHubRest(repo: string, state: string, limit: numbe
         labels: issue.labels,
         comments: issue.comments ?? 0,
       }));
-      if (issues.length >= limit) break;
+      if (limit !== null && issues.length >= limit) break;
     }
 
     if (payload.length < perPage) {
+      break;
+    }
+    if (limit !== null && issues.length >= limit) {
       break;
     }
     page += 1;
@@ -177,7 +209,7 @@ async function loadIssuesViaGitHubRest(repo: string, state: string, limit: numbe
   };
 }
 
-async function loadIssuesWithFallback(repo: string, state: string, limit: number): Promise<IssueLoadResult> {
+async function loadIssuesWithFallback(repo: string, state: string, limit: IssueLimit): Promise<IssueLoadResult> {
   try {
     return loadIssuesViaGh(repo, state, limit);
   } catch (error) {
@@ -185,7 +217,7 @@ async function loadIssuesWithFallback(repo: string, state: string, limit: number
     const fallback = await loadIssuesViaGitHubRest(repo, state, limit);
     return {
       ...fallback,
-      warning: `gh issue list failed; used GitHub REST fallback (${detail})`,
+      warning: `gh issue fetch failed; used GitHub REST fallback (${detail})`,
     };
   }
 }
@@ -236,7 +268,8 @@ async function main(): Promise<void> {
     options: {
       repo: { type: 'string' },
       state: { type: 'string', default: 'open' },
-      limit: { type: 'string', default: '200' },
+      // Policy: default is uncapped intake; 0 means "no cap".
+      limit: { type: 'string', default: '0' },
       out: { type: 'string', default: 'state/plans/agent-issue-fix-plan.json' },
       'markdown-out': { type: 'string' },
       json: { type: 'boolean', default: false },
@@ -245,11 +278,12 @@ async function main(): Promise<void> {
     strict: false,
   });
 
-  const limitRaw = String(values.limit ?? '200');
-  const limit = Number.parseInt(limitRaw, 10);
-  if (!Number.isFinite(limit) || limit <= 0) {
-    throw new Error(`Invalid --limit value: ${limitRaw}`);
+  const limitRaw = String(values.limit ?? '0').trim();
+  const parsedLimit = Number.parseInt(limitRaw, 10);
+  if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+    throw new Error(`Invalid --limit value: ${limitRaw} (expected integer >= 0; 0 means uncapped).`);
   }
+  const limit: IssueLimit = parsedLimit === 0 ? null : parsedLimit;
 
   const repo = resolveRepo(typeof values.repo === 'string' ? values.repo : undefined);
   const state = typeof values.state === 'string' && values.state.trim().length > 0

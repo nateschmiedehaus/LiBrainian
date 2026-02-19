@@ -1,3 +1,5 @@
+import { isNetworkAccessDisabled } from '../utils/runtime_controls.js';
+
 export interface JiraIssue {
   key: string;
   summary: string;
@@ -69,6 +71,7 @@ function mapIssue(raw: JiraIssueRecord, baseUrl: string): JiraIssue {
 }
 
 export async function loadJiraIssues(options: JiraOptions = {}): Promise<JiraSnapshot | null> {
+  if (isNetworkAccessDisabled()) return noResult();
   const baseUrl = options.baseUrl ?? process.env.JIRA_BASE_URL;
   const email = options.email ?? process.env.JIRA_USER ?? process.env.JIRA_EMAIL;
   const token = options.token ?? process.env.JIRA_TOKEN;

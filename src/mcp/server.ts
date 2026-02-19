@@ -1411,7 +1411,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'get_context_pack',
-        description: 'Token-budgeted task context assembly that compresses relevant function and module knowledge before file reads',
+        description: 'Intent-aware, token-budgeted task context assembly that adapts retrieval shape (bug-fix, architecture, feature, security, refactor) before file reads',
         inputSchema: {
           type: 'object',
           properties: {
@@ -5049,6 +5049,129 @@ export class LibrarianMCPServer {
     }
   }
 
+  private classifyContextPackIntent(intent: string): {
+    primaryIntent: 'bug_fix' | 'architecture' | 'feature_addition' | 'security_audit' | 'refactoring';
+    confidenceInIntent: number;
+    alternativeIntent?: 'bug_fix' | 'architecture' | 'feature_addition' | 'security_audit' | 'refactoring';
+    queryIntentType: NonNullable<QueryToolInput['intentType']>;
+    queryDepth: NonNullable<QueryToolInput['depth']>;
+  } {
+    const normalized = intent.toLowerCase();
+    const scorePatterns: Array<{
+      intent: 'bug_fix' | 'architecture' | 'feature_addition' | 'security_audit' | 'refactoring';
+      queryIntentType: NonNullable<QueryToolInput['intentType']>;
+      queryDepth: NonNullable<QueryToolInput['depth']>;
+      patterns: RegExp[];
+    }> = [
+      {
+        intent: 'bug_fix',
+        queryIntentType: 'debug',
+        queryDepth: 'L2',
+        patterns: [
+          /\bfix\b/i,
+          /\bbug\b/i,
+          /\berror\b/i,
+          /\bexception\b/i,
+          /\bfail(?:ing|ed)?\b/i,
+          /\bbroken\b/i,
+          /\bdebug\b/i,
+          /\bnull\s*pointer\b/i,
+        ],
+      },
+      {
+        intent: 'architecture',
+        queryIntentType: 'document',
+        queryDepth: 'L3',
+        patterns: [
+          /\barchitecture\b/i,
+          /\boverview\b/i,
+          /\bhow\s+does\b/i,
+          /\bhow\s+.*\bwork\b/i,
+          /\bsystem\b/i,
+          /\bdata\s+flow\b/i,
+          /\btrust\s+boundar(?:y|ies)\b/i,
+          /\blayers?\b/i,
+        ],
+      },
+      {
+        intent: 'feature_addition',
+        queryIntentType: 'understand',
+        queryDepth: 'L2',
+        patterns: [
+          /\badd\b/i,
+          /\bimplement\b/i,
+          /\bintroduce\b/i,
+          /\bnew\s+feature\b/i,
+          /\bextend\b/i,
+          /\bintegrat(?:e|ion)\b/i,
+        ],
+      },
+      {
+        intent: 'security_audit',
+        queryIntentType: 'security',
+        queryDepth: 'L3',
+        patterns: [
+          /\bsecurity\b/i,
+          /\baudit\b/i,
+          /\bvulnerab(?:ility|le)\b/i,
+          /\bpermission\b/i,
+          /\bauthori[sz]ation\b/i,
+          /\bauthentication\b/i,
+          /\bxss\b/i,
+          /\bcsrf\b/i,
+          /\binjection\b/i,
+          /\bencrypt\b/i,
+          /\bsanitiz(?:e|ation)\b/i,
+        ],
+      },
+      {
+        intent: 'refactoring',
+        queryIntentType: 'impact',
+        queryDepth: 'L3',
+        patterns: [
+          /\brefactor\b/i,
+          /\brename\b/i,
+          /\bextract\b/i,
+          /\bmove\b/i,
+          /\bmigrate\b/i,
+          /\bcleanup\b/i,
+          /\bblast\s+radius\b/i,
+          /\bimpact\b/i,
+          /\bwhat\s+breaks\b/i,
+        ],
+      },
+    ];
+
+    const scores = scorePatterns.map((entry) => ({
+      ...entry,
+      score: entry.patterns.reduce((acc, pattern) => acc + (pattern.test(normalized) ? 1 : 0), 0),
+    })).sort((a, b) => b.score - a.score);
+
+    const best = scores[0];
+    const alternate = scores[1];
+    if (!best || best.score <= 0) {
+      return {
+        primaryIntent: 'feature_addition',
+        confidenceInIntent: 0.35,
+        queryIntentType: 'understand',
+        queryDepth: 'L2',
+      };
+    }
+
+    let confidenceInIntent = Math.min(0.95, 0.45 + (best.score * 0.11));
+    if (alternate && alternate.score > 0 && alternate.score >= best.score * 0.75) {
+      confidenceInIntent = Math.max(0.35, confidenceInIntent - 0.12);
+    }
+
+    return {
+      primaryIntent: best.intent,
+      confidenceInIntent,
+      alternativeIntent: alternate?.score ? alternate.intent : undefined,
+      queryIntentType: best.queryIntentType,
+      queryDepth: best.queryDepth,
+    };
+  }
+
   private async executeGetContextPack(
     input: GetContextPackToolInput,
     context: ToolExecutionContext = {},
@@ -5096,13 +5219,14 @@ export class LibrarianMCPServer {
     }
 
     const tokenBudget = Math.max(100, Math.min(50000, Math.trunc(input.tokenBudget ?? 4000)));
+    const intentProfile = this.classifyContextPackIntent(input.intent);
     const base = await this.executeQuery(
       {
         intent: input.intent,
         workspace: workspacePath,
         affectedFiles: input.relevantFiles,
-        intentType: 'navigate',
-        depth: 'L2',
+        intentType: intentProfile.queryIntentType,
+        depth: intentProfile.queryDepth,
         pageSize: 50,
         pageIdx: 0,
       },
@@ -5227,20 +5351,49 @@ export class LibrarianMCPServer {
     const architecturalContext = selectedPacks.find((pack) => pack.packType === 'module_context')?.summary
       ?? (typeof payload.answer === 'string' ? payload.answer : '');
     const evidenceIds = selectedPacks.map((pack) => pack.packId);
+    const selectedByPackType = selectedPacks.reduce<Record<string, number>>((acc, pack) => {
+      acc[pack.packType] = (acc[pack.packType] ?? 0) + 1;
+      return acc;
+    }, {});
+    const selectedModeCounts = selectedPacks.reduce<{ full: number; summary: number }>((acc, pack) => {
+      if (pack.mode === 'full') {
+        acc.full += 1;
+      } else {
+        acc.summary += 1;
+      }
+      return acc;
+    }, { full: 0, summary: 0 });
+    const assembledContext = {
+      functions,
+      callGraphNeighbors,
+      keyContracts,
+      architecturalContext,
+      evidenceIds,
+    };
 
     return {
       success: true,
       tool: 'get_context_pack',
       workspace: workspacePath,
       intent: input.intent,
+      intentProfile,
+      confidenceInIntent: intentProfile.confidenceInIntent,
       tokenBudget,
+      tokensUsed: tokenCount,
       tokenCount,
       staleness,
-      functions,
-      callGraphNeighbors,
-      keyContracts,
-      architecturalContext,
-      evidenceIds,
+      context: assembledContext,
+      contextComposition: {
+        totalPacksEvaluated: packs.length,
+        selectedPackCount: selectedPacks.length,
+        selectedByPackType,
+        selectedModeCounts,
+      },
+      functions: assembledContext.functions,
+      callGraphNeighbors: assembledContext.callGraphNeighbors,
+      keyContracts: assembledContext.keyContracts,
+      architecturalContext: assembledContext.architecturalContext,
+      evidenceIds: assembledContext.evidenceIds,
     };
   }
 
