@@ -19,7 +19,7 @@
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
  *   librarian setup               - Quickstart alias (setup-oriented naming)
- *   librarian init                - Init scaffolding + quickstart fallback
+ *   librarian init                - Scaffold templates or run quickstart/editor MCP onboarding
  *   librarian smoke               - Run external repo smoke harness
  *   librarian journey             - Run agentic journey simulations
  *   librarian live-fire           - Run continuous objective trial matrix
@@ -192,7 +192,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'init': {
-    description: 'Scaffold constructions/MCP/CLAUDE.md or run quickstart fallback',
+    description: 'Scaffold constructions/MCP/CLAUDE.md or run quickstart onboarding fallback',
     usage: 'librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json] | [quickstart options]',
   },
   'smoke': {
@@ -323,6 +323,9 @@ async function main(): Promise<void> {
       ci: { type: 'boolean', default: false },
       'no-progress': { type: 'boolean', default: false },
       'no-color': { type: 'boolean', default: false },
+      offline: { type: 'boolean', default: false },
+      'no-telemetry': { type: 'boolean', default: false },
+      'local-only': { type: 'boolean', default: false },
       workspace: { type: 'string', short: 'w', default: process.cwd() },
       verbose: { type: 'boolean', default: false },
     },

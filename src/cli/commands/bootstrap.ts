@@ -11,10 +11,11 @@ import { attemptStorageRecovery, isRecoverableStorageError } from '../../storage
 import { resolveDbPath } from '../db_path.js';
 import { bootstrapProject, isBootstrapRequired, createBootstrapConfig } from '../../api/bootstrap.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
-import { BOOTSTRAP_PHASES, type BootstrapConfig } from '../../types.js';
+import type { BootstrapConfig } from '../../types.js';
 import { createError } from '../errors.js';
-import { createSpinner, createProgressBar, formatDuration, printKeyValue, type ProgressBarHandle } from '../progress.js';
+import { createSpinner, formatDuration, printKeyValue } from '../progress.js';
 import type { BootstrapPhase } from '../../types.js';
+import { createBootstrapProgressReporter } from '../bootstrap_progress_reporter.js';
 import { ensureDailyModelSelection } from '../../adapters/model_policy.js';
 import { resolveLibrarianModelId } from '../../api/llm_env.js';
 import { EXCLUDE_PATTERNS } from '../../universal_patterns.js';
@@ -271,6 +272,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     const storageSpinner = createSpinner('Initializing storage...');
     const dbPath = await resolveDbPath(runWorkspaceRoot);
     let storage = createSqliteStorage(dbPath, runWorkspaceRoot);
+    const progressReporter = createBootstrapProgressReporter();
 
     try {
       try {
@@ -309,8 +311,6 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
 
       console.log('\nStarting bootstrap process...\n');
 
-      let currentPhaseIndex = 0;
-      let phaseProgressBar: ProgressBarHandle | null = null;
       const startTime = Date.now();
 
       const scopeOverrides = resolveScopeOverrides(runScope);
@@ -331,33 +331,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         forceReindex: force,
         forceResume,
         progressCallback: (phase: BootstrapPhase, progress: number, details?: { total?: number; current?: number; currentFile?: string }) => {
-          const phaseIndex = BOOTSTRAP_PHASES.findIndex((p) => p.name === phase.name);
-          if (phaseIndex !== currentPhaseIndex) {
-            if (phaseProgressBar) {
-              phaseProgressBar.stop();
-            }
-            currentPhaseIndex = phaseIndex;
-            console.log(`\n[${phaseIndex + 1}/${BOOTSTRAP_PHASES.length}] ${phase.description}`);
-
-            const initialTotal = details?.total ?? 100;
-            phaseProgressBar = createProgressBar({
-              total: initialTotal,
-              format: '[{bar}] {percentage}% | {value}/{total} | {task}',
-            });
-          }
-
-          if (phaseProgressBar) {
-            if (details?.total !== undefined && details.total > 0) {
-              phaseProgressBar.setTotal(details.total);
-              const currentValue = details.current ?? Math.round(progress * details.total);
-              const fileName = details.currentFile
-                ? details.currentFile.split('/').slice(-2).join('/')
-                : phase.description;
-              phaseProgressBar.update(currentValue, { task: fileName.slice(0, 40) });
-            } else {
-              phaseProgressBar.update(Math.round(progress * 100), { task: phase.description });
-            }
-          }
+          progressReporter.onProgress(phase, progress, details);
         },
       };
       if (resolvedInclude !== undefined) {
@@ -369,10 +343,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       const config = createBootstrapConfig(runWorkspaceRoot, configOverrides);
 
       const report = await bootstrapProject(config, storage);
-
-      if (phaseProgressBar !== null) {
-        (phaseProgressBar as ProgressBarHandle).stop();
-      }
+      progressReporter.complete();
 
       const elapsed = Date.now() - startTime;
 
@@ -387,6 +358,20 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         { key: 'Context Packs Created', value: report.totalContextPacksCreated },
         { key: 'Version', value: report.version.string },
       ]);
+
+      if (report.codebaseBriefing) {
+        const roleSummary = report.codebaseBriefing.roleCounts
+          .filter((entry) => entry.count > 0)
+          .map((entry) => `${entry.role}:${entry.count}`)
+          .join(', ');
+        printKeyValue([
+          { key: 'Briefing Path', value: report.codebaseBriefing.path },
+          { key: 'Frameworks', value: report.codebaseBriefing.frameworks.join(', ') || 'none detected' },
+          { key: 'Primary Language', value: report.codebaseBriefing.primaryLanguage },
+          { key: 'Entry Points', value: String(report.codebaseBriefing.keyEntryPoints.length) },
+          { key: 'Role Coverage', value: roleSummary || 'none detected' },
+        ]);
+      }
 
       if (report.error) {
         console.log(`\nError: ${report.error}`);
@@ -415,6 +400,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         console.log('\nLibrarian is ready! Run `librarian query "<intent>"` to search the knowledge base.');
       }
     } finally {
+      progressReporter.complete();
       await storage.close();
     }
   };

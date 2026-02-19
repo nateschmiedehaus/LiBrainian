@@ -19,7 +19,7 @@ START HERE:
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
     setup               Alias for quickstart (setup-oriented naming)
-    init                Scaffold init templates (or run quickstart fallback)
+    init                Scaffold templates or run quickstart/editor onboarding
     query <intent>      Run a query against the knowledge base
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
@@ -74,6 +74,9 @@ GLOBAL OPTIONS:
     --ci                Force CI/non-interactive runtime mode
     --no-progress       Disable spinner/progress output
     --no-color          Disable ANSI colors (also respects NO_COLOR)
+    --offline           Disable remote LLM/provider network calls (local embeddings only)
+    --no-telemetry      Disable local telemetry logging output
+    --local-only        Force fully local operation (implies --offline)
     --verbose           Enable verbose output
     --json              Enable JSON output for errors (agent friendly)
 
@@ -533,12 +536,12 @@ DESCRIPTION:
 See:
     librarian help quickstart
 `,
-
   init: `
 librarian init - Scaffold constructions/MCP/CLAUDE.md with quickstart fallback
 
 USAGE:
     librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json]
+    librarian init [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [quickstart options]
     librarian init [quickstart options]
 
 OPTIONS:
@@ -567,7 +570,6 @@ EXAMPLES:
 See:
     librarian help quickstart
 `,
-
   smoke: `
 librarian smoke - Run external repo smoke harness
 
