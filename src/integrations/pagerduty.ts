@@ -1,3 +1,5 @@
+import { isNetworkAccessDisabled } from '../utils/runtime_controls.js';
+
 export interface PagerDutyIncident {
   id: string;
   title: string;
@@ -69,6 +71,7 @@ function mapIncident(raw: PagerDutyApiIncident): PagerDutyIncident {
 }
 
 export async function loadPagerDutyIncidents(options: PagerDutyOptions = {}): Promise<PagerDutySnapshot | null> {
+  if (isNetworkAccessDisabled()) return noResult();
   const token = options.token ?? process.env.PAGERDUTY_TOKEN;
   if (!token) return noResult();
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;

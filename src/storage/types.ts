@@ -218,6 +218,8 @@ export interface LibrarianStorage {
 
   // Bulk operations
   transaction<T>(fn: (tx: TransactionContext) => Promise<T>): Promise<T>;
+  getIndexCoordinationVersion(): Promise<number>;
+  getIndexChangeEvents(options?: IndexChangeQueryOptions): Promise<IndexChangeEvent[]>;
   vacuum(): Promise<void>;
   getStats(): Promise<StorageStats>;
 
@@ -853,6 +855,25 @@ export interface ConcurrencyContract {
   conflictDetection: 'optimistic' | 'pessimistic';
   onConflict: TransactionConflictStrategy;
   maxRetries: number;
+}
+
+export type IndexChangeEventType =
+  | 'function_updated'
+  | 'file_added'
+  | 'file_removed';
+
+export interface IndexChangeEvent {
+  id: string;
+  type: IndexChangeEventType;
+  path: string;
+  version: number;
+  timestamp: string;
+}
+
+export interface IndexChangeQueryOptions {
+  sinceVersion?: number;
+  paths?: string[];
+  limit?: number;
 }
 
 // ============================================================================

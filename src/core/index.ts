@@ -138,3 +138,14 @@ export {
   isDeterminismProvenance,
   createProvenanceBuilder,
 } from './provenance.js';
+
+// File:line range resolution for function-level mapping
+export {
+  type FunctionId,
+  type FileLineRange,
+  type RangeSource,
+  type ResolvedRange,
+  type FunctionRangeMapper,
+  type FunctionRangeMapperDeps,
+  createFunctionRangeMapper,
+} from './function_range_mapper.js';

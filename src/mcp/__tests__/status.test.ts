@@ -61,4 +61,31 @@ describe('MCP status tool', () => {
     expect(result.autoWatch.storageAttached).toBe(true);
     expect(result.autoWatch.health).toEqual({ suspectedDead: false });
   });
+
+  it('reports embedding coverage summary when storage stats are available', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: {
+        enabledScopes: ['read'],
+        requireConsent: false,
+      },
+    });
+
+    const workspace = '/tmp/workspace-coverage';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getStats: vi.fn().mockResolvedValue({
+        totalFunctions: 100,
+        totalEmbeddings: 75,
+      }),
+    });
+
+    const result = await (server as unknown as { executeStatus: (input: { workspace?: string }) => Promise<any> })
+      .executeStatus({ workspace });
+
+    expect(result.embeddingCoverage?.total_functions).toBe(100);
+    expect(result.embeddingCoverage?.embedded_functions).toBe(75);
+    expect(result.embeddingCoverage?.coverage_pct).toBe(75);
+    expect(result.embeddingCoverage?.needs_embedding_count).toBe(25);
+  });
 });

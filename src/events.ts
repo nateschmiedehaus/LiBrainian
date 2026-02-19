@@ -1,6 +1,7 @@
 import { logError } from './telemetry/logger.js';
 import { getErrorMessage } from './utils/errors.js';
 import type { LibrarianEvent, LibrarianEventType } from './types.js';
+import type { IndexChangeEventType } from './storage/types.js';
 
 export type LibrarianEventHandler = (event: LibrarianEvent) => void | Promise<void>;
 export type { LibrarianEvent, LibrarianEventType };
@@ -221,6 +222,25 @@ export function createIndexFunctionEvent(functionId: string, functionName: strin
 
 export function createIndexCompleteEvent(filesProcessed: number, functionsIndexed: number, durationMs: number): LibrarianEvent {
   return { type: 'index_complete', timestamp: new Date(), data: { filesProcessed, functionsIndexed, durationMs } };
+}
+
+export function createIndexChangeEvent(
+  changeType: IndexChangeEventType,
+  path: string,
+  version: number,
+  timestamp?: string
+): LibrarianEvent {
+  const eventTimestamp = timestamp ? new Date(timestamp) : new Date();
+  return {
+    type: 'index_change',
+    timestamp: eventTimestamp,
+    data: {
+      changeType,
+      path,
+      version,
+      timestamp: eventTimestamp.toISOString(),
+    },
+  };
 }
 
 export function createUnderstandingGenerationStartedEvent(totalEntities: number): LibrarianEvent {

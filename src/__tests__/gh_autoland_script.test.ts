@@ -11,7 +11,9 @@ describe('gh autoland automation', () => {
     };
     const scripts = packageJson.scripts ?? {};
     expect(scripts['gh:autoland']).toBe('node scripts/gh-autoland.mjs');
-    expect(scripts['gh:ship']).toBe('node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:ship']).toBe(
+      'npm run policy:pull && npm run policy:merge && npm run policy:hygiene:enforce && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast'
+    );
   });
 
   it('exposes issue-link and publish-dispatch flags in help output', () => {

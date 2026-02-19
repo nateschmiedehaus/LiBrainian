@@ -11,7 +11,6 @@ import { randomUUID } from 'crypto';
 import * as fsSync from 'node:fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import lockfile from 'proper-lockfile';
 import type {
   LibrarianStorage,
   StorageCapabilities,
@@ -85,6 +84,9 @@ import type {
   FaultLocalization,
   FaultLocalizationQueryOptions,
   EmbeddableEntityType,
+  IndexChangeEvent,
+  IndexChangeEventType,
+  IndexChangeQueryOptions,
 } from './types.js';
 import type { FlashAssessment, FlashFinding } from '../knowledge/extractors/flash_assessments.js';
 import { VectorIndex } from './vector_index.js';
@@ -112,6 +114,8 @@ import { applyMigrations } from '../api/migrations.js';
 import { noResult } from '../api/empty_values.js';
 import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
 import { attemptStorageRecovery } from './storage_recovery.js';
+import { TransactionConflictError } from './transactions.js';
+import { sha256Hex } from '../spine/hashes.js';
 import {
   createEmptyRedactionCounts,
   createRedactionAuditReport,
@@ -122,20 +126,115 @@ import {
   type RedactionCounts,
 } from '../api/redaction.js';
 import { logWarning } from '../telemetry/logger.js';
+import { globalEventBus, createIndexChangeEvent } from '../events.js';
 
 // ============================================================================
 // LOCK CONFIGURATION
 // ============================================================================
 
-/** Lock stale timeout - should exceed maximum synchronous operation time */
-const LOCK_STALE_TIMEOUT_MS = 15 * 60_000; // 15 minutes
-
-/** Lock update interval - how often to refresh the lock */
-const LOCK_UPDATE_INTERVAL_MS = 60_000; // 1 minute
-
-/** Maximum lock acquisition retries */
-const LOCK_MAX_RETRIES = 12;
+/** Maximum time to wait while trying to recover/reacquire a stale lock */
+const LOCK_ACQUIRE_TIMEOUT_MS = 5_000;
+const LOCK_RETRY_INTERVAL_MS = 200;
 const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
+const PROCESS_STARTED_AT_ISO = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
+
+interface StorageProcessLockCore {
+  pid: number;
+  startedAt: string;
+  processStartedAt: string;
+  token: string;
+}
+
+interface StorageProcessLockState extends StorageProcessLockCore {
+  contentHash: string;
+}
+
+interface ObservedStorageLockState {
+  pid: number;
+  startedAt: string;
+  processStartedAt?: string;
+  token?: string;
+  contentHashValid: boolean;
+}
+
+function serializeStorageLockCore(core: StorageProcessLockCore): string {
+  return JSON.stringify({
+    pid: core.pid,
+    startedAt: core.startedAt,
+    processStartedAt: core.processStartedAt,
+    token: core.token,
+  });
+}
+
+function createStorageProcessLockState(): StorageProcessLockState {
+  const core: StorageProcessLockCore = {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    processStartedAt: PROCESS_STARTED_AT_ISO,
+    token: randomUUID(),
+  };
+  return {
+    ...core,
+    contentHash: sha256Hex(serializeStorageLockCore(core)),
+  };
+}
+
+function parseObservedStorageLockState(raw: string): ObservedStorageLockState | null {
+  const parsed = safeJsonParse<Record<string, unknown>>(raw);
+  if (parsed.ok) {
+    const pid = parsed.value.pid;
+    const startedAt = parsed.value.startedAt;
+    const processStartedAt = parsed.value.processStartedAt;
+    const token = parsed.value.token;
+    const contentHash = parsed.value.contentHash;
+    if (typeof pid === 'number' && Number.isFinite(pid) && typeof startedAt === 'string') {
+      const core: StorageProcessLockCore | null =
+        typeof processStartedAt === 'string' && typeof token === 'string'
+          ? { pid, startedAt, processStartedAt, token }
+          : null;
+      const contentHashValid = Boolean(
+        core
+          && typeof contentHash === 'string'
+          && contentHash === sha256Hex(serializeStorageLockCore(core))
+      );
+      return {
+        pid,
+        startedAt,
+        processStartedAt: typeof processStartedAt === 'string' ? processStartedAt : undefined,
+        token: typeof token === 'string' ? token : undefined,
+        contentHashValid,
+      };
+    }
+  }
+  const legacyPid = Number.parseInt(raw.trim(), 10);
+  if (Number.isFinite(legacyPid)) {
+    return {
+      pid: legacyPid,
+      startedAt: 'unknown',
+      contentHashValid: false,
+    };
+  }
+  return null;
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === code);
+}
+
+function isPidAlive(pid: number): boolean {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    return code === 'EPERM';
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function inspectEmbeddingVectorValues(embedding: Float32Array): { normSq: number; hasNonFinite: boolean } {
   let normSq = 0;
@@ -259,13 +358,13 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   private readonly dbPath: string;
   private readonly lockPath: string;
   private releaseLock: (() => Promise<void>) | null = null;
-  private lockCompromisedError: Error | null = null;
   private transactionChain: Promise<void> = Promise.resolve();
   private readonly workspaceRoot?: string;
   private initialized = false;
   private vectorIndex: VectorIndex | null = null;
   private vectorIndexDirty = true;
   private redactionTotals: RedactionCounts;
+  private readonly indexCoordinationRowId = 1;
 
   constructor(dbPath: string, workspaceRoot?: string) {
     this.dbPath = dbPath;
@@ -274,41 +373,75 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     this.redactionTotals = createEmptyRedactionCounts();
   }
 
+  private async readObservedLockState(): Promise<ObservedStorageLockState | null> {
+    try {
+      const raw = await fs.readFile(this.lockPath, 'utf8');
+      return parseObservedStorageLockState(raw);
+    } catch (error) {
+      if (isErrno(error, 'ENOENT') || isErrno(error, 'EISDIR')) return null;
+      throw error;
+    }
+  }
+
+  private async releaseProcessLock(expected: StorageProcessLockState): Promise<void> {
+    const observed = await this.readObservedLockState();
+    if (!observed) {
+      return;
+    }
+    if (
+      observed.pid !== expected.pid
+      || observed.startedAt !== expected.startedAt
+      || observed.token !== expected.token
+    ) {
+      return;
+    }
+    try {
+      await fs.unlink(this.lockPath);
+    } catch (error) {
+      if (!isErrno(error, 'ENOENT')) throw error;
+    }
+  }
+
   private async acquireProcessLock(): Promise<void> {
-    // IMPORTANT: proper-lockfile will throw an uncaught exception by default if it considers a lock compromised
-    // (e.g., event loop stalls preventing timely lock refresh). Always provide an onCompromised handler.
-    // Also: keep `stale` comfortably above any realistic "blocked event loop" window to avoid false positives
-    // during long synchronous work (SQLite WAL checkpoints, embedding model loads, etc.).
-    this.releaseLock = await lockfile.lock(this.dbPath, {
-      lockfilePath: this.lockPath,
-      stale: LOCK_STALE_TIMEOUT_MS,
-      update: LOCK_UPDATE_INTERVAL_MS,
-      onCompromised: (err) => {
-        const error = err instanceof Error ? err : new Error(String(err));
-        this.lockCompromisedError = error;
-        logWarning('SQLite lock compromised; treating storage as unsafe', {
-          path: this.lockPath,
-          error: error.message,
-        });
-        try {
-          if (this.db) {
-            this.db.close();
-            this.db = null;
-          }
-        } catch (closeError) {
-          logWarning('Failed to close DB after lock compromise', { path: this.dbPath, error: closeError });
+    const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
+    while (Date.now() <= deadline) {
+      const state = createStorageProcessLockState();
+      try {
+        await fs.writeFile(this.lockPath, JSON.stringify(state, null, 2), { encoding: 'utf8', flag: 'wx' });
+        this.releaseLock = async () => this.releaseProcessLock(state);
+        return;
+      } catch (error) {
+        if (!isErrno(error, 'EEXIST') && !isErrno(error, 'EISDIR')) {
+          throw error;
         }
-        void this.releaseLock?.().catch((releaseError) => {
-          logWarning('Failed to release lock after compromise', { path: this.lockPath, error: releaseError });
+      }
+
+      const observed = await this.readObservedLockState();
+      if (observed && isPidAlive(observed.pid)) {
+        throw new Error(`indexing in progress (pid=${observed.pid}, startedAt=${observed.startedAt})`);
+      }
+
+      const recovery = await attemptStorageRecovery(this.dbPath).catch((recoveryError) => ({
+        recovered: false,
+        actions: [] as string[],
+        errors: [String(recoveryError)],
+      }));
+      if (recovery.recovered) {
+        logWarning('Recovered stale storage lock state; retrying lock acquisition', {
+          path: this.lockPath,
+          actions: recovery.actions,
         });
-      },
-      retries: {
-        retries: LOCK_MAX_RETRIES,
-        factor: 1.5,
-        minTimeout: 200,
-        maxTimeout: 10_000,
-      },
-    });
+        continue;
+      }
+
+      await sleep(LOCK_RETRY_INTERVAL_MS);
+    }
+
+    const observed = await this.readObservedLockState();
+    if (observed && isPidAlive(observed.pid)) {
+      throw new Error(`indexing in progress (pid=${observed.pid}, startedAt=${observed.startedAt})`);
+    }
+    throw new Error('storage lock acquisition timed out');
   }
 
   async initialize(): Promise<void> {
@@ -316,26 +449,20 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
     await fs.writeFile(this.dbPath, '', { flag: 'a' });
 
-    // Check for and clear stale locks before attempting acquisition
+    // Proactively clear stale lock artifacts from prior interrupted runs.
     try {
-      const isLocked = await lockfile.check(this.dbPath, { lockfilePath: this.lockPath, stale: LOCK_STALE_TIMEOUT_MS });
-      if (isLocked) {
-        // Lock exists but may be stale from a crashed process
-        // The proper-lockfile library will handle this via the stale option
-        logWarning('Existing lock detected, will attempt to acquire with stale recovery', { path: this.lockPath });
-        const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
-        if (proactiveRecovery.recovered) {
-          logWarning('Recovered stale lock state before acquisition', {
-            path: this.lockPath,
-            actions: proactiveRecovery.actions,
-          });
-        }
+      const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+      if (proactiveRecovery.recovered) {
+        logWarning('Recovered stale lock state before acquisition', {
+          path: this.lockPath,
+          actions: proactiveRecovery.actions,
+        });
       }
     } catch (checkError) {
-      // Lock check failed, proceed with acquisition which will handle this case
-      logWarning('Lock check failed, proceeding with acquisition', {
+      // Recovery check failed; direct acquisition path still handles stale locks.
+      logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
         path: this.lockPath,
-        error: checkError instanceof Error ? checkError.message : String(checkError)
+        error: checkError instanceof Error ? checkError.message : String(checkError),
       });
     }
 
@@ -376,6 +503,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       this.ensureTemporalTables();
       this.ensureEvidenceTables();
       this.ensureEvolutionTables();
+      this.ensureIndexCoordinationTables();
       this.ensureConfidenceColumns();
       this.ensureContextPackOutcomeColumns();
       this.ensureConfidenceEventColumns();
@@ -445,11 +573,6 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   }
 
   private ensureDb(): Database.Database {
-    if (this.lockCompromisedError) {
-      throw new Error(
-        `unverified_by_trace(storage_lock_compromised): ${this.lockCompromisedError.message}`,
-      );
-    }
     if (!this.db) {
       throw new Error('Storage not initialized. Call initialize() first.');
     }
@@ -543,6 +666,31 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       );
       CREATE INDEX IF NOT EXISTS idx_quality_history_date ON librarian_quality_history(recorded_at DESC);
     `);
+  }
+
+  private ensureIndexCoordinationTables(): void {
+    const db = this.db;
+    if (!db) return;
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS librarian_index_coordination (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        version INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS librarian_change_log (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        path TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_change_log_version ON librarian_change_log(version);
+      CREATE INDEX IF NOT EXISTS idx_change_log_path ON librarian_change_log(path);
+      CREATE INDEX IF NOT EXISTS idx_change_log_created_at ON librarian_change_log(created_at);
+    `);
+    db.prepare(`
+      INSERT OR IGNORE INTO librarian_index_coordination (singleton, version)
+      VALUES (1, 0)
+    `).run();
   }
 
   private ensureConfidenceColumns(): void {
@@ -4467,7 +4615,19 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
 
   async transaction<T>(fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
     const db = this.ensureDb();
-    const txContext = this.createTransactionContext();
+    const pendingChanges = new Map<string, { type: IndexChangeEventType; path: string; timestamp: string }>();
+    const trackChange = (type: IndexChangeEventType, rawPath?: string): void => {
+      const normalizedPath = this.normalizeChangePath(rawPath);
+      if (!normalizedPath) return;
+      const key = `${type}:${normalizedPath}`;
+      if (pendingChanges.has(key)) return;
+      pendingChanges.set(key, {
+        type,
+        path: normalizedPath,
+        timestamp: new Date().toISOString(),
+      });
+    };
+    const txContext = this.createTransactionContext(trackChange);
 
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -4477,6 +4637,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     this.transactionChain = previous.then(() => gate).catch(() => gate);
 
     await previous;
+    const baseVersion = this.readIndexCoordinationVersion(db);
     try {
       db.exec('BEGIN');
     } catch (error) {
@@ -4485,8 +4646,18 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     }
     try {
       const result = await fn(txContext);
+      let nextVersion = baseVersion;
+      if (pendingChanges.size > 0) {
+        nextVersion = this.bumpIndexCoordinationVersion(db, baseVersion);
+        this.persistIndexChangeLog(db, Array.from(pendingChanges.values()), nextVersion);
+      }
       db.exec('COMMIT');
       release();
+      if (pendingChanges.size > 0) {
+        for (const change of pendingChanges.values()) {
+          void globalEventBus.emit(createIndexChangeEvent(change.type, change.path, nextVersion, change.timestamp));
+        }
+      }
       return result;
     } catch (error) {
       try {
@@ -4499,34 +4670,196 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     }
   }
 
-  private createTransactionContext(): TransactionContext {
+  private createTransactionContext(
+    trackChange: (type: IndexChangeEventType, path?: string) => void
+  ): TransactionContext {
     return {
-      upsertFunction: this.upsertFunction.bind(this),
-      upsertModule: this.upsertModule.bind(this),
-      upsertContextPack: this.upsertContextPack.bind(this),
+      upsertFunction: async (fn) => {
+        await this.upsertFunction(fn);
+        trackChange('function_updated', fn.filePath);
+      },
+      upsertModule: async (mod) => {
+        await this.upsertModule(mod);
+        trackChange('function_updated', mod.path);
+      },
+      upsertContextPack: async (pack) => {
+        await this.upsertContextPack(pack);
+        trackChange('function_updated', pack.relatedFiles[0] ?? pack.targetId);
+      },
       upsertIngestionItem: this.upsertIngestionItem.bind(this),
-      upsertTestMapping: this.upsertTestMapping.bind(this),
+      upsertTestMapping: async (mapping) => {
+        const result = await this.upsertTestMapping(mapping);
+        trackChange('function_updated', (mapping as { sourcePath?: string }).sourcePath);
+        return result;
+      },
       upsertCommit: this.upsertCommit.bind(this),
-      upsertOwnership: this.upsertOwnership.bind(this),
-      upsertFile: this.upsertFile.bind(this),
-      upsertFiles: this.upsertFiles.bind(this),
+      upsertOwnership: async (ownership) => {
+        const result = await this.upsertOwnership(ownership);
+        trackChange('function_updated', ownership.filePath);
+        return result;
+      },
+      upsertFile: async (file) => {
+        await this.upsertFile(file);
+        trackChange('function_updated', file.path);
+      },
+      upsertFiles: async (files) => {
+        await this.upsertFiles(files);
+        for (const file of files) {
+          trackChange('function_updated', file.path);
+        }
+      },
       upsertDirectory: this.upsertDirectory.bind(this),
       upsertDirectories: this.upsertDirectories.bind(this),
       upsertAssessment: this.upsertAssessment.bind(this),
       upsertAssessments: this.upsertAssessments.bind(this),
       setEmbedding: this.setEmbedding.bind(this),
-      upsertMultiVector: this.upsertMultiVector.bind(this),
+      upsertMultiVector: async (record) => {
+        await this.upsertMultiVector(record);
+        trackChange('function_updated', record.payload.filePath);
+      },
       deleteFunction: this.deleteFunction.bind(this),
-      deleteFunctionsByPath: this.deleteFunctionsByPath.bind(this),
+      deleteFunctionsByPath: async (filePath) => {
+        await this.deleteFunctionsByPath(filePath);
+        trackChange('file_removed', filePath);
+      },
       deleteModule: this.deleteModule.bind(this),
-      deleteFileByPath: this.deleteFileByPath.bind(this),
-      deleteUniversalKnowledgeByFile: this.deleteUniversalKnowledgeByFile.bind(this),
+      deleteFileByPath: async (filePath) => {
+        await this.deleteFileByPath(filePath);
+        trackChange('file_removed', filePath);
+      },
+      deleteUniversalKnowledgeByFile: async (filePath) => {
+        const deleted = await this.deleteUniversalKnowledgeByFile(filePath);
+        trackChange('file_removed', filePath);
+        return deleted;
+      },
       deleteContextPack: this.deleteContextPack.bind(this),
-      invalidateContextPacks: this.invalidateContextPacks.bind(this),
-      upsertGraphEdges: this.upsertGraphEdges.bind(this),
-      deleteGraphEdgesForSource: this.deleteGraphEdgesForSource.bind(this),
-      setFileChecksum: this.setFileChecksum.bind(this),
+      invalidateContextPacks: async (triggerPath) => {
+        const count = await this.invalidateContextPacks(triggerPath);
+        trackChange('function_updated', triggerPath);
+        return count;
+      },
+      upsertGraphEdges: async (edges) => {
+        await this.upsertGraphEdges(edges);
+        for (const edge of edges) {
+          trackChange('function_updated', edge.sourceFile);
+        }
+      },
+      deleteGraphEdgesForSource: async (sourceFile) => {
+        await this.deleteGraphEdgesForSource(sourceFile);
+        trackChange('function_updated', sourceFile);
+      },
+      setFileChecksum: async (filePath, checksum, updatedAt) => {
+        const existingChecksum = await this.getFileChecksum(filePath);
+        await this.setFileChecksum(filePath, checksum, updatedAt);
+        trackChange(existingChecksum ? 'function_updated' : 'file_added', filePath);
+      },
     };
+  }
+
+  private normalizeChangePath(pathValue?: string): string | null {
+    if (!pathValue) return null;
+    const trimmed = pathValue.trim();
+    if (!trimmed) return null;
+    return trimmed.replaceAll('\\', '/');
+  }
+
+  private readIndexCoordinationVersion(db: Database.Database): number {
+    const row = db
+      .prepare('SELECT version FROM librarian_index_coordination WHERE singleton = ?')
+      .get(this.indexCoordinationRowId) as { version?: number } | undefined;
+    if (!row || !Number.isFinite(row.version)) return 0;
+    return Number(row.version);
+  }
+
+  private bumpIndexCoordinationVersion(db: Database.Database, expectedVersion: number): number {
+    const result = db.prepare(`
+      UPDATE librarian_index_coordination
+      SET version = version + 1
+      WHERE singleton = ? AND version = ?
+    `).run(this.indexCoordinationRowId, expectedVersion);
+    if (result.changes !== 1) {
+      throw new TransactionConflictError(
+        `optimistic index coordination conflict: expected version ${expectedVersion}`
+      );
+    }
+    return expectedVersion + 1;
+  }
+
+  private persistIndexChangeLog(
+    db: Database.Database,
+    changes: Array<{ type: IndexChangeEventType; path: string; timestamp: string }>,
+    version: number
+  ): void {
+    const insert = db.prepare(`
+      INSERT INTO librarian_change_log (id, event_type, path, version, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    for (const change of changes) {
+      insert.run(randomUUID(), change.type, change.path, version, change.timestamp);
+    }
+  }
+
+  async getIndexCoordinationVersion(): Promise<number> {
+    const db = this.ensureDb();
+    return this.readIndexCoordinationVersion(db);
+  }
+
+  async getIndexChangeEvents(options: IndexChangeQueryOptions = {}): Promise<IndexChangeEvent[]> {
+    const db = this.ensureDb();
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (Number.isFinite(options.sinceVersion)) {
+      clauses.push('version > ?');
+      params.push(Math.floor(options.sinceVersion ?? 0));
+    }
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const limit = options.limit && options.limit > 0 ? Math.floor(options.limit) : 200;
+    const rows = db.prepare(`
+      SELECT id, event_type, path, version, created_at
+      FROM librarian_change_log
+      ${where}
+      ORDER BY version ASC, created_at ASC
+      LIMIT ?
+    `).all(...params, limit) as Array<{
+      id: string;
+      event_type: string;
+      path: string;
+      version: number;
+      created_at: string;
+    }>;
+    const filtered = rows
+      .map((row) => ({
+        id: row.id,
+        type: row.event_type as IndexChangeEventType,
+        path: row.path,
+        version: row.version,
+        timestamp: row.created_at,
+      }))
+      .filter((event) => this.matchesAnyPathPattern(event.path, options.paths ?? []));
+    return filtered;
+  }
+
+  private matchesAnyPathPattern(pathValue: string, patterns: string[]): boolean {
+    if (patterns.length === 0) return true;
+    return patterns.some((pattern) => this.matchesPathPattern(pathValue, pattern));
+  }
+
+  private matchesPathPattern(pathValue: string, pattern: string): boolean {
+    const normalizedPath = pathValue.replaceAll('\\', '/');
+    const normalizedPattern = pattern.replaceAll('\\', '/');
+    if (normalizedPattern.endsWith('/**')) {
+      const prefix = normalizedPattern.slice(0, -3);
+      return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`);
+    }
+    if (normalizedPattern.includes('*')) {
+      const escaped = normalizedPattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*\*/g, '.*')
+        .replace(/\*/g, '[^/]*');
+      const regex = new RegExp(`^${escaped}$`);
+      return regex.test(normalizedPath);
+    }
+    return normalizedPath === normalizedPattern;
   }
 
   async vacuum(): Promise<void> {

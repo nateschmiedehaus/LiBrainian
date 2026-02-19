@@ -41,6 +41,10 @@ vi.mock('../../../storage/sqlite_storage.js', () => ({
   createSqliteStorage: vi.fn().mockReturnValue({
     initialize: vi.fn().mockResolvedValue(undefined),
     getState: vi.fn().mockResolvedValue(null),
+    getStats: vi.fn().mockResolvedValue({
+      totalFunctions: 100,
+      totalEmbeddings: 100,
+    }),
     close: vi.fn().mockResolvedValue(undefined),
   }),
 }));
@@ -167,6 +171,27 @@ describe('queryCommand LLM resolution', () => {
     const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
     expect(call?.embeddingRequirement).toBe('disabled');
     expect(call?.llmRequirement).toBe('disabled');
+  });
+
+  it('blocks --strategy semantic when embedding coverage is below threshold', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+
+    vi.mocked(createSqliteStorage).mockReturnValueOnce({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({
+        totalFunctions: 100,
+        totalEmbeddings: 20,
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as any);
+
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--strategy', 'semantic', '--json'],
+    })).rejects.toMatchObject({ code: 'INSUFFICIENT_EMBEDDING_COVERAGE' });
   });
 
   it('applies --limit to JSON output packs', async () => {
