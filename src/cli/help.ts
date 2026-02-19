@@ -19,7 +19,7 @@ START HERE:
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
     setup               Alias for quickstart (setup-oriented naming)
-    init                Quickstart + editor MCP auto-config
+    init                Scaffold templates or run quickstart/editor onboarding
     query <intent>      Run a query against the knowledge base
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
@@ -537,19 +537,35 @@ See:
     librarian help quickstart
 `,
   init: `
-librarian init - Quickstart onboarding with editor MCP auto-config
+librarian init - Scaffold constructions/MCP/CLAUDE.md with quickstart fallback
 
 USAGE:
-    librarian init [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [other quickstart options]
+    librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json]
+    librarian init [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [quickstart options]
+    librarian init [quickstart options]
+
+OPTIONS:
+    --construction <name>  Create .librarian construction + test + docs scaffolding
+    --mcp-config           Create or merge .mcp.json with librainian MCP server entry
+    --claude-md            Create/update LIBRARIAN_DOCS section in CLAUDE.md
+    --force                Overwrite conflicting scaffold files/entries when safe
+    --json                 Emit machine-readable action report for scaffolding mode
 
 DESCRIPTION:
-    Runs onboarding recovery and auto-configures editor MCP settings.
+    When one or more scaffolding flags are present, init creates opinionated
+    templates for extending LiBrainian:
+    - Construction source/test/docs skeleton
+    - MCP config entry for \`librainian mcp\`
+    - CLAUDE.md operating notes injection block
 
-    Behavior:
-    - No --editor: detect installed editors and configure all detected targets
-    - --editor <name>: explicitly target one editor (or all)
-    - --dry-run: preview file diffs without writing
-    - --global: prefer user-level config locations where supported
+    Without scaffolding flags, init falls back to:
+    librarian quickstart [options]
+
+EXAMPLES:
+    librarian init --construction SafeRefactorAdvisor
+    librarian init --mcp-config --claude-md
+    librarian init --construction SafeRefactorAdvisor --mcp-config --json
+    librarian init --depth quick --ci --no-mcp
 
 See:
     librarian help quickstart

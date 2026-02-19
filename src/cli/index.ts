@@ -19,7 +19,7 @@
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
  *   librarian setup               - Quickstart alias (setup-oriented naming)
- *   librarian init                - Quickstart + editor MCP auto-config onboarding
+ *   librarian init                - Scaffold templates or run quickstart/editor MCP onboarding
  *   librarian smoke               - Run external repo smoke harness
  *   librarian journey             - Run agentic journey simulations
  *   librarian live-fire           - Run continuous objective trial matrix
@@ -64,6 +64,7 @@ import { auditSkillCommand } from './commands/audit_skill.js';
 import { visualizeCommand } from './commands/visualize.js';
 import { coverageCommand } from './commands/coverage.js';
 import { quickstartCommand } from './commands/quickstart.js';
+import { initCommand } from './commands/init.js';
 import { smokeCommand } from './commands/smoke.js';
 import { journeyCommand } from './commands/journey.js';
 import { liveFireCommand } from './commands/live_fire.js';
@@ -191,8 +192,8 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'init': {
-    description: 'Quickstart onboarding with editor MCP auto-config',
-    usage: 'librarian init [--depth quick|full] [--mode fast|full] [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [--ci] [--no-mcp]',
+    description: 'Scaffold constructions/MCP/CLAUDE.md or run quickstart onboarding fallback',
+    usage: 'librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json] | [quickstart options]',
   },
   'smoke': {
     description: 'Run external repo smoke harness',
@@ -455,8 +456,10 @@ async function main(): Promise<void> {
         break;
       case 'quickstart':
       case 'setup':
-      case 'init':
         await quickstartCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'init':
+        await initCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'smoke':
         await smokeCommand({ workspace, args: commandArgs, rawArgs: args });
