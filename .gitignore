@@ -4,6 +4,8 @@ state/
 !src/state/
 !src/state/**
 .librarian/
+.librainian/
+.openclaw/
 :memory
 :memory:
 .DS_Store

@@ -281,6 +281,7 @@ describe('MCP Server', () => {
       expect(queryClaimsTool?.description?.toLowerCase()).toContain('claims');
       expect(harvestTool).toBeDefined();
       expect(harvestTool?.description?.toLowerCase()).toContain('claims');
+      expect(harvestTool?.description?.toLowerCase()).toContain('memory');
     });
 
     it('documents query tool usage guidance', () => {
