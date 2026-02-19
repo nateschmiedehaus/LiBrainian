@@ -8,6 +8,11 @@ import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from '..
 import { detectLibrarianVersion } from '../../api/versioning.js';
 import { resolveLibrarianModelConfigWithDiscovery, resolveLibrarianModelId } from '../../api/llm_env.js';
 import { checkAllProviders } from '../../api/provider_check.js';
+import {
+  computeEmbeddingCoverage,
+  hasSufficientSemanticCoverage,
+  SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT,
+} from '../../api/embedding_coverage.js';
 import type { LibrarianQuery, LibrarianResponse, StageReport, TokenBudget } from '../../types.js';
 import { createError, suggestSimilarQueries } from '../errors.js';
 import { createSpinner, formatDuration, printKeyValue } from '../progress.js';
@@ -388,6 +393,20 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       } catch (error) {
         exhaustiveSpinner.fail('Exhaustive query failed');
         throw error;
+      }
+    }
+
+    if (strategy === 'semantic') {
+      const stats = await storage.getStats();
+      const embeddingCoverage = computeEmbeddingCoverage(stats.totalFunctions, stats.totalEmbeddings);
+      if (!hasSufficientSemanticCoverage(embeddingCoverage, SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT)) {
+        throw createError(
+          'INSUFFICIENT_EMBEDDING_COVERAGE',
+          `Semantic strategy requires at least ${SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT}% embedding coverage. `
+          + `Current coverage is ${embeddingCoverage.coverage_pct.toFixed(1)}% `
+          + `(${embeddingCoverage.embedded_functions}/${embeddingCoverage.total_functions}, `
+          + `${embeddingCoverage.needs_embedding_count} remaining). Run \`librarian embed --fix\` and retry.`
+        );
       }
     }
 

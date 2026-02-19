@@ -280,7 +280,7 @@ describe('MCP Server', () => {
       expect(queryClaimsTool).toBeDefined();
       expect(queryClaimsTool?.description?.toLowerCase()).toContain('claims');
       expect(harvestTool).toBeDefined();
-      expect(harvestTool?.description?.toLowerCase()).toContain('session');
+      expect(harvestTool?.description?.toLowerCase()).toContain('claims');
     });
 
     it('documents query tool usage guidance', () => {
@@ -432,6 +432,31 @@ describe('MCP Server', () => {
       expect(result.recommendedNextTools).toEqual(
         expect.arrayContaining(['find_symbol', 'trace_imports', 'get_change_impact']),
       );
+    });
+
+    it('blocks semantic_search when embedding coverage is below 80%', async () => {
+      const workspace = '/tmp/workspace-low-coverage';
+      server.registerWorkspace(workspace);
+      server.updateWorkspaceState(workspace, { indexState: 'ready' });
+      (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+        getStats: vi.fn().mockResolvedValue({
+          totalFunctions: 100,
+          totalEmbeddings: 20,
+        }),
+      });
+      const executeQuerySpy = vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        packs: [{ relatedFiles: [] }],
+      });
+
+      const result = await (server as any).executeSemanticSearch({
+        query: 'auth token refresh',
+        workspace,
+      }, {});
+
+      expect(result.error).toContain('librarian embed --fix');
+      expect(result.embeddingCoverage?.coverage_pct).toBe(20);
+      expect(result.embeddingCoverage?.needs_embedding_count).toBe(80);
+      expect(executeQuerySpy).not.toHaveBeenCalled();
     });
 
     it('builds token-budgeted context packs from query results', async () => {

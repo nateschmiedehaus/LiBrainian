@@ -343,6 +343,7 @@ export const ExitCodes: Partial<Record<ErrorCode, number>> = {
 export type CliErrorCode =
   | 'PROVIDER_UNAVAILABLE'
   | 'NOT_BOOTSTRAPPED'
+  | 'INSUFFICIENT_EMBEDDING_COVERAGE'
   | 'QUERY_FAILED'
   | 'ENTITY_NOT_FOUND'
   | 'VALIDATION_FAILED'
@@ -358,6 +359,7 @@ export type CliErrorCode =
 const LegacyCodeMap: Record<CliErrorCode, ErrorCode> = {
   PROVIDER_UNAVAILABLE: 'EPROVIDER_UNAVAILABLE',
   NOT_BOOTSTRAPPED: 'ENOINDEX',
+  INSUFFICIENT_EMBEDDING_COVERAGE: 'EQUERY_INVALID',
   QUERY_FAILED: 'EQUERY_FAILED',
   ENTITY_NOT_FOUND: 'EENTITY_NOT_FOUND',
   VALIDATION_FAILED: 'EINVALID_ARGUMENT',
@@ -374,6 +376,7 @@ const LegacyCodeMap: Record<CliErrorCode, ErrorCode> = {
 export const ERROR_SUGGESTIONS: Record<CliErrorCode, string> = {
   PROVIDER_UNAVAILABLE: 'Run `librarian check-providers` to diagnose provider issues.',
   NOT_BOOTSTRAPPED: 'Run `librarian bootstrap` first to initialize the knowledge index.',
+  INSUFFICIENT_EMBEDDING_COVERAGE: 'Run `librarian embed --fix` and retry once embedding coverage is at least 80%.',
   QUERY_FAILED: 'Try a simpler query or check `librarian status` for index health.',
   ENTITY_NOT_FOUND: 'Run `librarian status` to see available modules and functions.',
   VALIDATION_FAILED: 'Check the file path and ensure it exists in the workspace.',
