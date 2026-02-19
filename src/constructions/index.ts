@@ -216,6 +216,20 @@ export {
 } from './security_audit_helper.js';
 
 export {
+  SkillAuditConstruction,
+  createSkillAuditConstruction,
+  type SkillAuditInput,
+  type SkillAuditPattern,
+  type SkillAuditPatternType,
+  type SkillAuditOutput,
+} from './skill_audit.js';
+
+export {
+  tokenizeForIntentBehavior,
+  computeIntentBehaviorCoherence,
+} from './intent_behavior_coherence.js';
+
+export {
   ComprehensiveQualityConstruction,
   createComprehensiveQualityConstruction,
   type ExcellenceTier,

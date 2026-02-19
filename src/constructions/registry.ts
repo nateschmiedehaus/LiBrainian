@@ -487,6 +487,36 @@ function activateCoreConstructions(): void {
       },
     },
     {
+      id: 'librainian:skill-audit-construction',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          skillContent: { type: 'string' },
+          skillPath: { type: 'string' },
+          workdir: { type: 'string' },
+        },
+        required: ['skillContent'],
+        additionalProperties: true,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          riskScore: { type: 'number' },
+          verdict: { type: 'string' },
+          maliciousPatterns: { type: 'array' },
+          evidence: { type: 'array' },
+          recommendation: { type: 'string' },
+        },
+        required: ['riskScore', 'verdict', 'maliciousPatterns', 'evidence', 'recommendation'],
+        additionalProperties: true,
+      },
+      requiredCapabilities: ['security-analysis'],
+      execute: async (input) => {
+        const { createSkillAuditConstruction } = await import('./skill_audit.js');
+        return createSkillAuditConstruction().audit(input as any);
+      },
+    },
+    {
       id: 'librainian:comprehensive-quality-construction',
       inputSchema: {
         type: 'object',

@@ -15,6 +15,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'code-quality-reporter',
   'architecture-verifier',
   'security-audit-helper',
+  'skill-audit-construction',
   'comprehensive-quality-construction',
   'quality-standards',
   'work-presets',

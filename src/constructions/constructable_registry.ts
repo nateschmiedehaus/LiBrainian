@@ -103,6 +103,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'security'],
   },
   {
+    id: 'skill-audit-construction',
+    basePriority: 88,
+    isCore: true,
+    availability: READY,
+    classificationFlag: 'isSecurityAuditQuery',
+    description: 'Audits SKILL.md content for malicious or suspicious behavior',
+    tags: ['core', 'security', 'skills'],
+  },
+  {
     id: 'comprehensive-quality-construction',
     basePriority: 65,
     isCore: true,

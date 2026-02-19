@@ -1012,3 +1012,12 @@ export type {
   DependencyIssue,
   DependencyRecommendation,
 } from './dependency_management.js';
+
+// ClawHub skill audit webhook helper
+export {
+  auditClawhubSkillSubmission,
+} from './clawhub_webhook.js';
+export type {
+  ClawhubAuditRequest,
+  ClawhubAuditResponse,
+} from './clawhub_webhook.js';

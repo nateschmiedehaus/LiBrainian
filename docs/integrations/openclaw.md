@@ -42,3 +42,11 @@ If OpenClaw or the LiBrainian MCP server is not configured yet, run:
 ```bash
 librarian mcp --print-config --client claude
 ```
+
+## Security gate before publishing/installing third-party skills
+
+```bash
+librarian audit-skill ./SKILL.md
+```
+
+Use `--json` for machine-readable verdicts in CI or pre-submission workflows.

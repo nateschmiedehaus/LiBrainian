@@ -15,6 +15,7 @@
  *   librarian confidence <entity> - Show confidence scores for an entity
  *   librarian validate <file>     - Validate constraints for a file
  *   librarian check-providers     - Check provider availability
+ *   librarian audit-skill          - Audit SKILL.md files for malicious patterns
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
  *   librarian setup               - Quickstart alias (setup-oriented naming)
@@ -56,6 +57,7 @@ import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
 import { validateCommand } from './commands/validate.js';
 import { checkProvidersCommand } from './commands/check_providers.js';
+import { auditSkillCommand } from './commands/audit_skill.js';
 import { visualizeCommand } from './commands/visualize.js';
 import { coverageCommand } from './commands/coverage.js';
 import { quickstartCommand } from './commands/quickstart.js';
@@ -95,7 +97,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -161,6 +163,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'check-providers': {
     description: 'Check provider availability and authentication',
     usage: 'librarian check-providers [--format text|json] [--out <path>]',
+  },
+  'audit-skill': {
+    description: 'Audit a SKILL.md for malicious or suspicious patterns',
+    usage: 'librarian audit-skill <path-to-SKILL.md> [--json]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
@@ -415,6 +421,9 @@ async function main(): Promise<void> {
           format: defaultFormat as 'text' | 'json',
           out: getStringArg(args, '--out') ?? undefined,
         });
+        break;
+      case 'audit-skill':
+        await auditSkillCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'visualize':

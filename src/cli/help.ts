@@ -29,6 +29,7 @@ COMMANDS:
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
+    audit-skill         Audit a SKILL.md for malicious patterns
     watch               Watch for file changes and auto-reindex
     check               Run diff-aware CI integrity checks
     scan                Show security redaction scan results
@@ -79,6 +80,7 @@ EXAMPLES:
     librainian bootstrap --force
     librainian check --diff HEAD~1..HEAD --format junit
     librainian uninstall --dry-run
+    librainian audit-skill ./SKILL.md --json
     librainian install-openclaw-skill --dry-run
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
@@ -301,6 +303,27 @@ EXAMPLES:
     librarian uninstall --force
     librarian uninstall --force --keep-index
     librarian uninstall --json --force
+`,
+
+  'audit-skill': `
+librarian audit-skill - Audit a SKILL.md file for malicious patterns
+
+USAGE:
+    librarian audit-skill <path-to-SKILL.md> [options]
+
+OPTIONS:
+    --json              Emit machine-readable JSON report
+
+DESCRIPTION:
+    Runs SkillAuditConstruction on a SKILL.md file and reports:
+    - risk score (0-100)
+    - verdict (safe | suspicious | malicious)
+    - detected malicious/suspicious patterns
+    - recommendation for install safety
+
+EXAMPLES:
+    librarian audit-skill ./skills/openclaw/SKILL.md
+    librarian audit-skill ./SKILL.md --json
 `,
 
   'install-openclaw-skill': `
