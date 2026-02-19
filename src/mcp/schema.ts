@@ -40,6 +40,16 @@ export const AuditTypeSchema = z.enum(['full', 'claims', 'coverage', 'security',
 /** Bundle type options */
 export const BundleTypeSchema = z.enum(['minimal', 'standard', 'comprehensive']);
 
+/** Symbol discovery kinds */
+export const FindSymbolKindSchema = z.enum([
+  'function',
+  'module',
+  'context_pack',
+  'claim',
+  'composition',
+  'run',
+]);
+
 /** Shared pagination/output controls */
 const PageSizeSchema = z.number().int().min(1).max(200);
 const PageIdxSchema = z.number().int().min(0);
@@ -135,6 +145,16 @@ export const RequestHumanReviewToolInputSchema = z.object({
 export const VerifyClaimToolInputSchema = z.object({
   claimId: z.string().min(1).describe('ID of the claim to verify'),
   force: z.boolean().optional().default(false).describe('Force re-verification even if recently verified'),
+}).strict();
+
+/**
+ * Find symbol tool input schema
+ */
+export const FindSymbolToolInputSchema = z.object({
+  query: z.string().min(1).max(500).describe('Human-readable function, module, claim, composition, or run query'),
+  kind: FindSymbolKindSchema.optional().describe('Optional category filter for symbol discovery'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  limit: z.number().int().min(1).max(200).optional().default(20).describe('Maximum matches to return (default: 20, max: 200)'),
 }).strict();
 
 /**
@@ -290,6 +310,7 @@ export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInput
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
+export type FindSymbolToolInputType = z.infer<typeof FindSymbolToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
 export type ListRunsToolInputType = z.infer<typeof ListRunsToolInputSchema>;
 export type DiffRunsToolInputType = z.infer<typeof DiffRunsToolInputSchema>;
@@ -322,6 +343,7 @@ export const TOOL_INPUT_SCHEMAS = {
   get_change_impact: GetChangeImpactToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
+  find_symbol: FindSymbolToolInputSchema,
   run_audit: RunAuditToolInputSchema,
   list_runs: ListRunsToolInputSchema,
   diff_runs: DiffRunsToolInputSchema,
@@ -487,6 +509,23 @@ export const requestHumanReviewToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Find symbol tool JSON Schema */
+export const findSymbolToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/find-symbol-tool-input',
+  title: 'FindSymbolToolInput',
+  description: 'Input for find_symbol - discover opaque IDs for downstream MCP tools',
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Human-readable function, module, claim, composition, or run query', minLength: 1, maxLength: 500 },
+    kind: { type: 'string', enum: ['function', 'module', 'context_pack', 'claim', 'composition', 'run'], description: 'Optional category filter for symbol discovery' },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    limit: { type: 'number', description: 'Maximum matches to return (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+  },
+  required: ['query'],
+  additionalProperties: false,
+};
+
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
@@ -495,6 +534,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   request_human_review: requestHumanReviewToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
+  find_symbol: findSymbolToolJsonSchema,
 };
 
 // ============================================================================

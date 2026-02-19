@@ -41,6 +41,7 @@ import {
   type RequestHumanReviewToolInput,
   type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
+  type FindSymbolToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
   type ListRunsToolInput,
@@ -100,6 +101,7 @@ import {
   compileTechniqueCompositionBundleFromStorage,
 } from '../api/plan_compiler.js';
 import { compileTechniqueBundlesFromIntent } from '../api/plan_compiler.js';
+import { listTechniqueCompositions as listStoredTechniqueCompositions } from '../state/technique_compositions.js';
 import { submitQueryFeedback } from '../integration/agent_protocol.js';
 import { createSqliteStorage, type LibrarianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
@@ -279,6 +281,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
+  find_symbol: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1700 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
   diff_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3500 },
@@ -328,6 +331,23 @@ interface BootstrapRunRecord {
   durationMs: number;
   stats: BootstrapRunStatsSnapshot;
   error?: string;
+}
+
+type FindSymbolMatchKind =
+  | 'function'
+  | 'module'
+  | 'context_pack'
+  | 'claim'
+  | 'composition'
+  | 'run';
+
+interface FindSymbolMatchRecord {
+  id: string;
+  kind: FindSymbolMatchKind;
+  name: string;
+  filePath?: string;
+  score: number;
+  description?: string;
 }
 
 interface PaginationOptions {
@@ -525,8 +545,8 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
     case 'claim_not_found':
       return {
         nextSteps: [
-          'Use query to discover relevant claim IDs first.',
-          'Retry verify_claim with a valid claimId from query output.',
+          'Use find_symbol({ query: "...", kind: "claim" }) to discover claim IDs first.',
+          'Retry verify_claim with a valid claimId from find_symbol output.',
         ],
       };
     case 'query_too_vague':
@@ -1020,7 +1040,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'compile_technique_composition',
-        description: 'Compile a technique composition into a work template',
+        description: 'Compile a technique composition into a work template (discover compositionId via find_symbol kind=composition)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1066,6 +1086,20 @@ export class LibrarianMCPServer {
             explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'find_symbol',
+        description: 'Discover opaque IDs (claimId/entityId/compositionId/runId) from human-readable names before calling downstream tools',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Human-readable function, module, claim, composition, or run query' },
+            kind: { type: 'string', enum: ['function', 'module', 'context_pack', 'claim', 'composition', 'run'], description: 'Optional category filter' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            limit: { type: 'number', description: 'Maximum matches to return (default 20, max 200)' },
+          },
+          required: ['query'],
         },
       },
       {
@@ -1142,7 +1176,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'verify_claim',
-        description: 'Verify a knowledge claim against evidence',
+        description: 'Verify a knowledge claim against evidence (discover claimId via find_symbol kind=claim)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1167,7 +1201,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'diff_runs',
-        description: 'Compare two indexing runs',
+        description: 'Compare two indexing runs (discover run IDs via find_symbol kind=run or list_runs)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1207,7 +1241,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'get_context_pack_bundle',
-        description: `Get bundled context packs for entities (typically 4-20KB per page at pageSize=20). ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+        description: `Get bundled context packs for entities (typically 4-20KB per page at pageSize=20). Discover entityIds via find_symbol kind=function/module/context_pack. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -2453,6 +2487,8 @@ export class LibrarianMCPServer {
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
+      case 'find_symbol':
+        return this.executeFindSymbol(args as FindSymbolToolInput);
       case 'verify_claim':
         return this.executeVerifyClaim(args as VerifyClaimToolInput);
       case 'run_audit':
@@ -4048,6 +4084,248 @@ export class LibrarianMCPServer {
         outcome: input.outcome,
         success: false,
         adjustmentsApplied: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private normalizeFindSymbolText(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9/_:\-.\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private scoreFindSymbolCandidate(query: string, candidate: string): number {
+    const normalizedQuery = this.normalizeFindSymbolText(query);
+    const normalizedCandidate = this.normalizeFindSymbolText(candidate);
+    if (!normalizedQuery || !normalizedCandidate) return 0;
+    if (normalizedCandidate === normalizedQuery) return 1;
+    if (normalizedCandidate.startsWith(normalizedQuery)) return 0.95;
+    if (normalizedCandidate.includes(normalizedQuery)) return 0.85;
+
+    const queryTokens = normalizedQuery.split(' ').filter((token) => token.length > 0);
+    if (queryTokens.length === 0) return 0;
+    const matchedTokens = queryTokens.filter((token) => normalizedCandidate.includes(token));
+    if (matchedTokens.length === 0) return 0;
+    const coverage = matchedTokens.length / queryTokens.length;
+    return Number((0.4 + coverage * 0.4).toFixed(3));
+  }
+
+  private upsertFindSymbolMatch(
+    target: Map<string, FindSymbolMatchRecord>,
+    candidate: FindSymbolMatchRecord
+  ): void {
+    if (!Number.isFinite(candidate.score) || candidate.score <= 0) return;
+    const key = `${candidate.kind}:${candidate.id}`;
+    const existing = target.get(key);
+    if (!existing || candidate.score > existing.score) {
+      target.set(key, candidate);
+    }
+  }
+
+  private async executeFindSymbol(input: FindSymbolToolInput): Promise<unknown> {
+    try {
+      const limit = Math.max(1, Math.min(200, Math.trunc(input.limit ?? 20)));
+      const workspaceHint = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+
+      if (!workspaceHint) {
+        return {
+          success: false,
+          query: input.query,
+          kind: input.kind ?? 'any',
+          matches: [],
+          totalMatches: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspacePath = path.resolve(workspaceHint);
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          query: input.query,
+          kind: input.kind ?? 'any',
+          matches: [],
+          totalMatches: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          query: input.query,
+          kind: input.kind ?? 'any',
+          matches: [],
+          totalMatches: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const matchMap = new Map<string, FindSymbolMatchRecord>();
+      const includeKind = (kind: FindSymbolMatchKind): boolean => !input.kind || input.kind === kind;
+
+      if (includeKind('function')) {
+        const exactFunctions = await storage.getFunctionsByName(input.query).catch(() => []);
+        for (const fn of exactFunctions) {
+          const exactScore = this.normalizeFindSymbolText(fn.name) === this.normalizeFindSymbolText(input.query) ? 1 : 0.97;
+          this.upsertFindSymbolMatch(matchMap, {
+            id: fn.id,
+            kind: 'function',
+            name: fn.name,
+            filePath: fn.filePath,
+            score: exactScore,
+            description: fn.signature || fn.purpose,
+          });
+        }
+
+        const functionCandidates = await storage.getFunctions({ limit: 1200, orderBy: 'name', orderDirection: 'asc' }).catch(() => []);
+        for (const fn of functionCandidates) {
+          const score = this.scoreFindSymbolCandidate(
+            input.query,
+            `${fn.name} ${fn.signature} ${fn.filePath} ${fn.purpose}`
+          );
+          this.upsertFindSymbolMatch(matchMap, {
+            id: fn.id,
+            kind: 'function',
+            name: fn.name,
+            filePath: fn.filePath,
+            score,
+            description: fn.signature || fn.purpose,
+          });
+        }
+      }
+
+      if (includeKind('module')) {
+        const moduleCandidates = await storage.getModules({ limit: 1200, orderBy: 'name', orderDirection: 'asc' }).catch(() => []);
+        for (const mod of moduleCandidates) {
+          const score = this.scoreFindSymbolCandidate(
+            input.query,
+            `${mod.id} ${mod.path} ${mod.purpose} ${mod.exports.join(' ')} ${mod.dependencies.join(' ')}`
+          );
+          this.upsertFindSymbolMatch(matchMap, {
+            id: mod.id,
+            kind: 'module',
+            name: mod.path,
+            filePath: mod.path,
+            score,
+            description: mod.purpose,
+          });
+        }
+      }
+
+      const needsPackSearch = includeKind('context_pack') || includeKind('claim');
+      if (needsPackSearch) {
+        const packCandidates = await storage.getContextPacks({ limit: 1500 }).catch(() => []);
+        for (const pack of packCandidates) {
+          const candidateText = [
+            pack.packId,
+            pack.targetId,
+            pack.summary,
+            ...pack.keyFacts,
+            ...pack.relatedFiles,
+          ].join(' ');
+          const score = this.scoreFindSymbolCandidate(input.query, candidateText);
+
+          if (includeKind('context_pack')) {
+            this.upsertFindSymbolMatch(matchMap, {
+              id: pack.packId,
+              kind: 'context_pack',
+              name: pack.targetId,
+              filePath: pack.relatedFiles[0],
+              score,
+              description: pack.summary,
+            });
+          }
+
+          if (includeKind('claim')) {
+            this.upsertFindSymbolMatch(matchMap, {
+              id: pack.packId,
+              kind: 'claim',
+              name: pack.targetId,
+              filePath: pack.relatedFiles[0],
+              score,
+              description: pack.summary,
+            });
+          }
+        }
+      }
+
+      if (includeKind('composition')) {
+        let compositions: Array<{ id: string; name?: string; description?: string; primitiveIds?: string[] }> = [];
+        if (workspace.librarian && typeof (workspace.librarian as unknown as { listTechniqueCompositions?: () => Promise<unknown> }).listTechniqueCompositions === 'function') {
+          const listed = await (workspace.librarian as unknown as { listTechniqueCompositions: () => Promise<unknown> }).listTechniqueCompositions().catch(() => []);
+          if (Array.isArray(listed)) {
+            compositions = listed as Array<{ id: string; name?: string; description?: string; primitiveIds?: string[] }>;
+          }
+        }
+        if (compositions.length === 0) {
+          compositions = await listStoredTechniqueCompositions(storage).catch(() => []);
+        }
+
+        for (const composition of compositions) {
+          const score = this.scoreFindSymbolCandidate(
+            input.query,
+            `${composition.id} ${composition.name ?? ''} ${composition.description ?? ''} ${(composition.primitiveIds ?? []).join(' ')}`
+          );
+          this.upsertFindSymbolMatch(matchMap, {
+            id: composition.id,
+            kind: 'composition',
+            name: composition.name ?? composition.id,
+            score,
+            description: composition.description,
+          });
+        }
+      }
+
+      if (includeKind('run')) {
+        const runs = await this.getBootstrapRunHistory(storage).catch(() => []);
+        for (const run of runs) {
+          const score = this.scoreFindSymbolCandidate(
+            input.query,
+            `${run.runId} ${run.workspace} ${run.startedAt} ${run.completedAt ?? ''}`
+          );
+          this.upsertFindSymbolMatch(matchMap, {
+            id: run.runId,
+            kind: 'run',
+            name: run.runId,
+            filePath: run.workspace,
+            score,
+            description: `Bootstrap run at ${run.startedAt}`,
+          });
+        }
+      }
+
+      const matches = Array.from(matchMap.values())
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (a.kind !== b.kind) return a.kind.localeCompare(b.kind);
+          return a.name.localeCompare(b.name);
+        });
+
+      return {
+        success: true,
+        query: input.query,
+        kind: input.kind ?? 'any',
+        matches: matches.slice(0, limit),
+        totalMatches: matches.length,
+        workspace: workspacePath,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        query: input.query,
+        kind: input.kind ?? 'any',
+        matches: [],
+        totalMatches: 0,
         error: error instanceof Error ? error.message : String(error),
       };
     }
