@@ -115,6 +115,12 @@ import {
   queryLibrarian,
 } from '../api/index.js';
 import { estimateTokens } from '../api/token_budget.js';
+import {
+  computeEmbeddingCoverage,
+  hasSufficientSemanticCoverage,
+  SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT,
+  type EmbeddingCoverageSummary,
+} from '../api/embedding_coverage.js';
 import { computeChangeImpactReport } from '../api/change_impact_tool.js';
 import { categorizeRetrievalStatus, computeRetrievalEntropy } from '../api/retrieval_escalation.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
@@ -730,6 +736,11 @@ function buildQueryFixCommands(code: string | undefined, workspace: string | und
       return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` before running query.`];
     case 'provider_unavailable':
       return ['Run `librarian check-providers` to diagnose provider setup and authentication.'];
+    case 'insufficient_embedding_coverage':
+      return [
+        'Run `librarian embed --fix` to backfill missing embeddings.',
+        'Run `librarian status --format json` to confirm embedding coverage is at least 80%.',
+      ];
     case 'query_failed':
       return [
         'Run `librarian doctor` to diagnose storage/workspace issues.',
@@ -3698,6 +3709,7 @@ export class LibrarianMCPServer {
       const planByIdRecord = requestedPlanId
         ? planSession?.planHistory.find((record) => record.planId === requestedPlanId) ?? null
         : undefined;
+      const embeddingCoverage = await this.readWorkspaceEmbeddingCoverage(workspacePath);
 
       return {
         success: true,
@@ -3722,6 +3734,8 @@ export class LibrarianMCPServer {
           autoWatchEnabled: this.config.autoWatch?.enabled ?? true,
           autoWatchDebounceMs: this.config.autoWatch?.debounceMs ?? 200,
         },
+        embeddingCoverage: embeddingCoverage ?? undefined,
+        embedding_coverage: embeddingCoverage ?? undefined,
         planTracking: {
           sessionId: planSessionId,
           session_id: planSessionId,
@@ -4952,6 +4966,30 @@ export class LibrarianMCPServer {
     input: SemanticSearchToolInput,
     context: ToolExecutionContext = {},
   ): Promise<unknown> {
+    const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : this.findReadyWorkspace()?.path;
+    const embeddingCoverage = workspacePath
+      ? await this.readWorkspaceEmbeddingCoverage(workspacePath)
+      : null;
+    if (embeddingCoverage && !hasSufficientSemanticCoverage(embeddingCoverage, SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT)) {
+      return {
+        tool: 'semantic_search',
+        aliasOf: 'query',
+        searchQuery: input.query,
+        workspace: workspacePath,
+        error: `Semantic search blocked: embedding coverage is ${embeddingCoverage.coverage_pct.toFixed(1)}%. `
+          + `Minimum required coverage is ${SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT}%. `
+          + 'Run `librarian embed --fix` and retry.',
+        embeddingCoverage,
+        embedding_coverage: embeddingCoverage,
+        fix: buildQueryFixCommands('insufficient_embedding_coverage', workspacePath ?? input.workspace),
+        packs: [],
+        relatedFiles: [],
+        recommendedNextTools: ['status', 'bootstrap'],
+      };
+    }
+
     const base = await this.executeQuery(
       {
         intent: input.query,
@@ -4999,6 +5037,16 @@ export class LibrarianMCPServer {
         ? ['find_symbol', 'trace_imports', 'get_change_impact']
         : ['query', 'get_session_briefing'],
     };
+  }
+
+  private async readWorkspaceEmbeddingCoverage(workspacePath: string): Promise<EmbeddingCoverageSummary | null> {
+    try {
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const stats = await storage.getStats();
+      return computeEmbeddingCoverage(stats.totalFunctions, stats.totalEmbeddings);
+    } catch {
+      return null;
+    }
   }
 
   private async executeGetContextPack(

@@ -187,12 +187,17 @@ describe('statusCommand', () => {
     const parsed = JSON.parse(output ?? '{}') as {
       workspace?: string;
       storage?: { status?: string };
+      embeddingCoverage?: { coverage_pct?: number; total_functions?: number; embedded_functions?: number; needs_embedding_count?: number };
       provenance?: { status?: string };
       server?: { status?: string };
       config?: { status?: string };
     };
     expect(parsed.workspace).toBe(workspace);
     expect(parsed.storage?.status).toBe('ready');
+    expect(parsed.embeddingCoverage?.total_functions).toBe(1);
+    expect(parsed.embeddingCoverage?.embedded_functions).toBe(0);
+    expect(parsed.embeddingCoverage?.coverage_pct).toBe(0);
+    expect(parsed.embeddingCoverage?.needs_embedding_count).toBe(1);
     expect(parsed.provenance?.status).toBeDefined();
     expect(parsed.server?.status).toBeDefined();
     expect(parsed.config?.status).toBeDefined();

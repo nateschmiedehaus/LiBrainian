@@ -7,6 +7,7 @@ import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
+import { computeEmbeddingCoverage, type EmbeddingCoverageSummary } from '../../api/embedding_coverage.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import type { LibrarianStorage } from '../../storage/types.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
@@ -86,6 +87,7 @@ type StatusReport = {
     averageConfidence: number;
     cacheHitRate: number;
   };
+  embeddingCoverage?: EmbeddingCoverageSummary;
   metadata?: {
     version: string;
     qualityTier: string;
@@ -392,6 +394,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       averageConfidence: stats.averageConfidence,
       cacheHitRate: stats.cacheHitRate,
     };
+    report.embeddingCoverage = computeEmbeddingCoverage(stats.totalFunctions, stats.totalEmbeddings);
     report.metadata = metadata
       ? {
           version: metadata.version.string,
@@ -443,6 +446,8 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       { key: 'Total Modules', value: stats.totalModules },
       { key: 'Total Context Packs', value: stats.totalContextPacks },
       { key: 'Total Embeddings', value: stats.totalEmbeddings },
+      { key: 'Embedding Coverage', value: `${report.embeddingCoverage.coverage_pct.toFixed(1)}%` },
+      { key: 'Needs Embedding', value: report.embeddingCoverage.needs_embedding_count },
       { key: 'Storage Size', value: formatBytes(stats.storageSizeBytes) },
       { key: 'Average Confidence', value: stats.averageConfidence.toFixed(3) },
       { key: 'Cache Hit Rate', value: `${(stats.cacheHitRate * 100).toFixed(1)}%` },
