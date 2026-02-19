@@ -174,6 +174,7 @@
     "package:assert-release-provenance": "node scripts/assert-release-provenance.mjs",
     "package:install-smoke": "node scripts/package-install-smoke.mjs",
     "public:pack": "node scripts/public-pack-check.mjs",
+    "security:audit-network": "node scripts/security-network-audit.mjs",
     "validate:public": "npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts",
     "validate:fast": "npm run typecheck && npm run test:changed && npm run validate:public",
     "validate:full": "npm run typecheck && npm test -- --run && npm run validate:public && npm run package:assert-identity && npm run package:install-smoke",

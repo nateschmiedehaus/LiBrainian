@@ -124,7 +124,6 @@ describe('package release scripts', () => {
     expect(script).toContain('is behind origin/main');
     expect(script).toContain('missing an issue-closing keyword');
   });
-
   it('keeps issue planning uncapped by default', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'issue-feedback-loop.ts');
     const script = fs.readFileSync(scriptPath, 'utf8');

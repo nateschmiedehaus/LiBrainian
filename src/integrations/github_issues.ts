@@ -1,3 +1,5 @@
+import { isNetworkAccessDisabled } from '../utils/runtime_controls.js';
+
 export interface GitHubIssue {
   id: number;
   number: number;
@@ -110,6 +112,7 @@ function mapFiles(raw: GitHubFileRecord[]): GitHubIssueFile[] {
 }
 
 export async function loadGitHubIssues(options: GitHubIssueOptions = {}): Promise<GitHubIssueSnapshot | null> {
+  if (isNetworkAccessDisabled()) return noResult();
   const token = options.token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   const repo = options.repo ?? process.env.GITHUB_REPOSITORY ?? process.env.GITHUB_REPO;
   if (!token || !repo) return noResult();

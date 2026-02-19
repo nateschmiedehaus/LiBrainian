@@ -7,6 +7,7 @@ Start here for the fastest path:
 Public docs (user-facing):
 
 - `/docs/librarian/README.md` — canonical docs entry
+- `/docs/integrations/README.md` — universal integration decision tree (MCP, CLI, OpenAPI/REST, UTCP, A2A, Python SDK)
 - `/docs/librarian/API.md` — API reference
 - `/docs/librarian/AGENT_INTEGRATION.md` — integration patterns
 - `/docs/librarian/MCP_SERVER.md` — MCP usage
@@ -24,6 +25,7 @@ Project docs:
 - `/CONTRIBUTING.md` — contributor workflow
 - `/ARCHITECTURE.md` — architecture overview
 - `/SECURITY.md` — security policy
+- `/docs/security.md` — data-flow threat model and network call controls
 
 Maintainer-only historical planning docs:
 
