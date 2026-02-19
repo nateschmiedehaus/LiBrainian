@@ -14,6 +14,7 @@
  * - query (with typed intent)
  * - get_context_pack_bundle
  * - verify_claim
+ * - find_symbol
  * - run_audit
  * - list_runs
  * - diff_runs
@@ -812,6 +813,59 @@ export interface VerifyClaimToolOutput {
   evidenceChecked: number;
 }
 
+export type FindSymbolKind =
+  | 'function'
+  | 'module'
+  | 'context_pack'
+  | 'claim'
+  | 'composition'
+  | 'run';
+
+/** Find symbol tool input */
+export interface FindSymbolToolInput {
+  /** Human-readable symbol query */
+  query: string;
+
+  /** Optional category filter */
+  kind?: FindSymbolKind;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum matches to return (default: 20) */
+  limit?: number;
+}
+
+export interface FindSymbolMatch {
+  /** Opaque ID for downstream tools */
+  id: string;
+
+  /** Match category */
+  kind: FindSymbolKind;
+
+  /** Human-readable name */
+  name: string;
+
+  /** Source file path when available */
+  filePath?: string;
+
+  /** Match confidence score (0-1) */
+  score: number;
+
+  /** Optional short description */
+  description?: string;
+}
+
+export interface FindSymbolToolOutput {
+  success: boolean;
+  query: string;
+  kind: FindSymbolKind | 'any';
+  matches: FindSymbolMatch[];
+  totalMatches: number;
+  workspace?: string;
+  error?: string;
+}
+
 /** Run audit tool input */
 export interface RunAuditToolInput {
   /** Audit type */
@@ -1214,6 +1268,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  find_symbol: {
+    tool: 'find_symbol',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   run_audit: {
     tool: 'run_audit',
     requiredScopes: ['read', 'write'],
@@ -1524,6 +1584,23 @@ export function isVerifyClaimToolInput(value: unknown): value is VerifyClaimTool
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.claimId === 'string';
+}
+
+/** Type guard for FindSymbolToolInput */
+export function isFindSymbolToolInput(value: unknown): value is FindSymbolToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const queryOk = typeof obj.query === 'string';
+  const kindOk = obj.kind === 'function'
+    || obj.kind === 'module'
+    || obj.kind === 'context_pack'
+    || obj.kind === 'claim'
+    || obj.kind === 'composition'
+    || obj.kind === 'run'
+    || typeof obj.kind === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  return queryOk && kindOk && workspaceOk && limitOk;
 }
 
 /** Type guard for RunAuditToolInput */

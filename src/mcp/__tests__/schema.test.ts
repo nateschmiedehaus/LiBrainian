@@ -26,6 +26,7 @@ import {
   DiffRunsToolInputSchema,
   ExportIndexToolInputSchema,
   GetContextPackBundleToolInputSchema,
+  FindSymbolToolInputSchema,
   queryToolJsonSchema,
   type ToolName,
 } from '../schema.js';
@@ -41,6 +42,7 @@ import {
   isDiffRunsToolInput,
   isExportIndexToolInput,
   isGetContextPackBundleToolInput,
+  isFindSymbolToolInput,
 } from '../types.js';
 
 describe('MCP Schema', () => {
@@ -76,7 +78,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
-      expect(schemas).toHaveLength(22);
+      expect(schemas).toContain('find_symbol');
+      expect(schemas).toHaveLength(23);
     });
 
     it('should return schema for known tools', () => {
@@ -360,6 +363,40 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isVerifyClaimToolInput({ claimId: 'test' })).toBe(true);
       expect(isVerifyClaimToolInput({})).toBe(false);
+    });
+  });
+
+  describe('Find Symbol Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('find_symbol', {
+        query: 'authenticateUser',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('find_symbol', {
+        query: 'auth token',
+        kind: 'claim',
+        workspace: '/tmp/workspace',
+        limit: 10,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject invalid kind and limit', () => {
+      expect(validateToolInput('find_symbol', { query: 'x', kind: 'invalid' }).valid).toBe(false);
+      expect(validateToolInput('find_symbol', { query: 'x', limit: 0 }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isFindSymbolToolInput({ query: 'auth' })).toBe(true);
+      expect(isFindSymbolToolInput({ query: 'auth', kind: 'function', limit: 20 })).toBe(true);
+      expect(isFindSymbolToolInput({})).toBe(false);
+    });
+
+    it('exports FindSymbolToolInputSchema', () => {
+      expect(FindSymbolToolInputSchema).toBeDefined();
     });
   });
 

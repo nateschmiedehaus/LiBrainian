@@ -3,7 +3,7 @@
  *
  * This module provides the MCP server implementation for Librarian:
  * - Resources: file tree, symbols, knowledge maps, method packs, audits, provenance, identity
- * - Tools: bootstrap, status, system_contract, diagnose_self, query, verify_claim, run_audit, diff_runs, export_index, get_context_pack_bundle, list_*, compile_*
+ * - Tools: bootstrap, status, system_contract, diagnose_self, query, find_symbol, verify_claim, run_audit, diff_runs, export_index, get_context_pack_bundle, list_*, compile_*
  * - Authorization and consent hooks
  * - Audit trail integration
  *
@@ -45,6 +45,10 @@ export {
   type QueryToolOutput,
   type ContextPackSummary,
   type EvidenceSummary,
+  type FindSymbolKind,
+  type FindSymbolMatch,
+  type FindSymbolToolInput,
+  type FindSymbolToolOutput,
   type VerifyClaimToolInput,
   type VerifyClaimToolOutput,
   type RunAuditToolInput,
@@ -71,6 +75,7 @@ export {
   // Type guards
   isBootstrapToolInput,
   isQueryToolInput,
+  isFindSymbolToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
   isListRunsToolInput,
@@ -97,6 +102,7 @@ export {
   SystemContractToolInputSchema,
   DiagnoseSelfToolInputSchema,
   QueryToolInputSchema,
+  FindSymbolToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
   ListRunsToolInputSchema,
