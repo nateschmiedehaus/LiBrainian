@@ -66,4 +66,30 @@ describe('withinTransaction', () => {
       })
     ).rejects.toThrow('transaction_merge_unimplemented');
   });
+
+  it('applies exponential backoff between retry attempts', async () => {
+    let attempts = 0;
+    const delays: number[] = [];
+    const storage = {
+      transaction: async <T>(fn: (tx: TransactionContext) => Promise<T>): Promise<T> => {
+        attempts += 1;
+        if (attempts < 3) {
+          throw new TransactionConflictError(`collision_${attempts}`);
+        }
+        return fn({} as TransactionContext);
+      },
+    } as unknown as LibrarianStorage;
+
+    const result = await withinTransaction(storage, async () => 'ok', {
+      contract: { onConflict: 'retry', maxRetries: 3 },
+      backoffMs: 10,
+      sleep: async (ms) => {
+        delays.push(ms);
+      },
+    });
+
+    expect(result).toBe('ok');
+    expect(attempts).toBe(3);
+    expect(delays).toEqual([10, 20]);
+  });
 });

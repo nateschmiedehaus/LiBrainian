@@ -1725,6 +1725,7 @@ export type LibrarianEventType =
   | 'index_file'
   | 'index_function'
   | 'index_complete'
+  | 'index_change'
   | 'understanding_generation_started'
   | 'understanding_generated'
   | 'understanding_generation_complete'
