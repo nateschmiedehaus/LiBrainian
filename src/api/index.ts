@@ -674,6 +674,24 @@ export type {
   UnifiedQueryIntent,
 } from './query_intent.js';
 
+// Query-conditioned context assembly templates
+export {
+  classifyAssemblyIntent,
+  registerContextTemplate,
+  getContextTemplate,
+  listContextTemplates,
+  assembleIntentConditionedPacks,
+} from './query_conditioned_assembly.js';
+export type {
+  QueryAssemblyIntent,
+  RetrievalSource,
+  ContextTemplateStep,
+  ContextTemplate,
+  IntentClassificationResult,
+  SkippedStep,
+  IntentConditionedPackSelection,
+} from './query_conditioned_assembly.js';
+
 // Graph-based exhaustive query API (transitive closure, impact analysis)
 export {
   queryExhaustiveDependents,
