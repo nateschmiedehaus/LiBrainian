@@ -23,6 +23,7 @@
  *   librarian journey             - Run agentic journey simulations
  *   librarian live-fire           - Run continuous objective trial matrix
  *   librarian watch               - Watch for file changes and auto-reindex
+ *   librarian scan --secrets      - Show secret redaction scan totals
  *   librarian contract            - Show system contract and provenance
  *   librarian diagnose            - Diagnose Librarian self-knowledge drift
  *   librarian health              - Show health status (EvolutionOps)
@@ -65,6 +66,7 @@ import { evalCommand } from './commands/eval.js';
 import { replayCommand } from './commands/replay.js';
 import { watchCommand } from './commands/watch.js';
 import { indexCommand } from './commands/index.js';
+import { scanCommand } from './commands/scan.js';
 import { contractCommand } from './commands/contract.js';
 import { diagnoseCommand } from './commands/diagnose.js';
 import { composeCommand } from './commands/compose.js';
@@ -87,7 +89,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -225,6 +227,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
     usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
+  },
+  'scan': {
+    description: 'Scan/redaction audit reporting for sensitive content',
+    usage: 'librarian scan --secrets [--json|--format text|json]',
   },
   'update': {
     description: 'Hook-friendly alias for incremental indexing (implies --force)',
@@ -518,6 +524,13 @@ async function main(): Promise<void> {
             since: since ?? undefined,
           });
         }
+        break;
+      case 'scan':
+        await scanCommand({
+          workspace,
+          args: commandArgs,
+          rawArgs: args,
+        });
         break;
       case 'analyze':
         await analyzeCommand({

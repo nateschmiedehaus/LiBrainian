@@ -232,6 +232,9 @@ GitHub Actions example:
 
 - name: Refresh index non-interactively
   run: npx librainian index --force --incremental --yes --quiet
+
+- name: Audit redaction totals
+  run: npx librainian scan --secrets --json | jq '.redactions'
 ```
 
 ## Pre-Commit Hook Integration
