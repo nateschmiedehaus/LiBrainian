@@ -427,7 +427,7 @@ async function findRelevantContext(
         file: fn.filePath,
         relevance: `Function ${fn.name}: ${fn.purpose}`,
         score: relevance,
-        entityId: `${fn.filePath}:${fn.name}`,
+        entityId: fn.id,
         entityType: 'function',
       });
     }
@@ -445,7 +445,7 @@ async function findRelevantContext(
         file: mod.path,
         relevance: `Module: ${mod.purpose}`,
         score: relevance,
-        entityId: mod.path,
+        entityId: mod.id,
         entityType: 'module',
       });
     }
