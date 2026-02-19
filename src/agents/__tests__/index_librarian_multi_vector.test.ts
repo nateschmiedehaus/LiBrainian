@@ -106,7 +106,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
 
       expect(mockStorage.upsertMultiVector).toHaveBeenCalledWith(
         expect.objectContaining({
-          entityId: module.path,
+          entityId: module.id,
           entityType: 'module',
           modelId: 'all-MiniLM-L6-v2',
         })
