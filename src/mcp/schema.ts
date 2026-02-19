@@ -111,6 +111,17 @@ export const SemanticSearchToolInputSchema = z.object({
 }).strict();
 
 /**
+ * get_context_pack tool input schema
+ */
+export const GetContextPackToolInputSchema = z.object({
+  intent: z.string().min(1).max(2000).describe('Task intent used for context pack retrieval'),
+  relevantFiles: z.array(z.string().min(1)).optional().describe('Optional relevant file hints for retrieval focus'),
+  tokenBudget: z.number().int().min(100).max(50000).optional().default(4000).describe('Hard token budget for assembled context output'),
+  workdir: z.string().optional().describe('Working directory hint for workspace resolution'),
+  workspace: z.string().optional().describe('Workspace path alias for callers that already have it'),
+}).strict();
+
+/**
  * get_change_impact tool input schema
  */
 export const GetChangeImpactToolInputSchema = z.object({
@@ -530,6 +541,7 @@ export const GetSessionBriefingToolInputSchema = z.object({
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInputSchema>;
+export type GetContextPackToolInputType = z.infer<typeof GetContextPackToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
@@ -582,6 +594,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   semantic_search: SemanticSearchToolInputSchema,
+  get_context_pack: GetContextPackToolInputSchema,
   query: QueryToolInputSchema,
   synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
@@ -736,6 +749,24 @@ export const semanticSearchToolJsonSchema: JSONSchema = {
     includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },
   },
   required: ['query'],
+  additionalProperties: false,
+};
+
+/** get_context_pack tool JSON Schema */
+export const getContextPackToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-context-pack-tool-input',
+  title: 'GetContextPackToolInput',
+  description: 'Input for get_context_pack - token-budgeted context pack assembly for a task intent',
+  type: 'object',
+  properties: {
+    intent: { type: 'string', description: 'Task intent used for context pack retrieval', minLength: 1, maxLength: 2000 },
+    relevantFiles: { type: 'array', items: { type: 'string' }, description: 'Optional relevant file hints for retrieval focus' },
+    tokenBudget: { type: 'number', description: 'Hard token budget for assembled context output', minimum: 100, maximum: 50000, default: 4000 },
+    workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+    workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+  },
+  required: ['intent'],
   additionalProperties: false,
 };
 
@@ -1125,6 +1156,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   get_session_briefing: getSessionBriefingToolJsonSchema,
   semantic_search: semanticSearchToolJsonSchema,
+  get_context_pack: getContextPackToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
   find_callers: findCallersToolJsonSchema,

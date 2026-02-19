@@ -197,6 +197,17 @@ describe('MCP Server', () => {
       expect(semanticSearchTool?.description).toContain('Primary semantic code localization');
     });
 
+    it('includes get_context_pack as token-budgeted context retrieval tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const contextPackTool = tools.find((tool) => tool.name === 'get_context_pack');
+
+      expect(contextPackTool).toBeDefined();
+      expect(contextPackTool?.description?.toLowerCase()).toContain('token-budgeted');
+    });
+
     it('includes pre_commit_check as a semantic submit gate tool', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
@@ -399,6 +410,51 @@ describe('MCP Server', () => {
       expect(result.recommendedNextTools).toEqual(
         expect.arrayContaining(['find_symbol', 'trace_imports', 'get_change_impact']),
       );
+    });
+
+    it('builds token-budgeted context packs from query results', async () => {
+      server.registerWorkspace('/tmp/workspace');
+      server.updateWorkspaceState('/tmp/workspace', { indexState: 'ready' });
+
+      vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        success: true,
+        answer: 'Auth flow spans middleware and token service.',
+        packs: [
+          {
+            packId: 'pack_1',
+            packType: 'function_context',
+            targetId: 'fn_auth',
+            summary: 'Validates bearer token and returns session principal.',
+            keyFacts: ['Requires Authorization header', 'Must reject expired tokens'],
+            codeSnippets: [{ code: 'function validateToken(token) { ... }' }],
+            relatedFiles: ['src/auth.ts'],
+            confidence: 0.91,
+          },
+          {
+            packId: 'pack_2',
+            packType: 'module_context',
+            targetId: 'mod_session',
+            summary: 'Session module handles rotation and revocation.',
+            keyFacts: ['Calls validateToken before issuing refresh token'],
+            codeSnippets: [{ code: 'export async function rotateSession() { ... }' }],
+            relatedFiles: ['src/session.ts'],
+            confidence: 0.82,
+          },
+        ],
+      });
+
+      const result = await (server as any).executeGetContextPack({
+        intent: 'Add stricter token rotation validation',
+        workdir: '/tmp/workspace',
+        tokenBudget: 300,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('get_context_pack');
+      expect(result.tokenCount).toBeLessThanOrEqual(300);
+      expect(result.staleness).toBe('fresh');
+      expect(result.functions.length).toBeGreaterThan(0);
+      expect(result.evidenceIds).toContain('pack_1');
     });
 
     it('evaluates changed files in pre_commit_check and surfaces pass/fail summary', async () => {

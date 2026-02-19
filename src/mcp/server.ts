@@ -38,6 +38,7 @@ import {
   type StatusToolInput,
   type GetSessionBriefingToolInput,
   type SemanticSearchToolInput,
+  type GetContextPackToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
@@ -334,6 +335,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
   get_session_briefing: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   semantic_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4200 },
+  get_context_pack: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 2600 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1389,6 +1391,21 @@ export class LibrarianMCPServer {
             includeEvidence: { type: 'boolean', description: 'Include evidence graph summary' },
           },
           required: ['query'],
+        },
+      },
+      {
+        name: 'get_context_pack',
+        description: 'Token-budgeted task context assembly that compresses relevant function and module knowledge before file reads',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            intent: { type: 'string', description: 'Task intent used for context pack retrieval' },
+            relevantFiles: { type: 'array', items: { type: 'string' }, description: 'Optional relevant file hints for retrieval focus' },
+            tokenBudget: { type: 'number', description: 'Hard token budget for assembled context output (default 4000)' },
+            workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+            workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+          },
+          required: ['intent'],
         },
       },
       {
@@ -3114,6 +3131,8 @@ export class LibrarianMCPServer {
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'semantic_search':
         return this.executeSemanticSearch(args as SemanticSearchToolInput, context);
+      case 'get_context_pack':
+        return this.executeGetContextPack(args as GetContextPackToolInput, context);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
       case 'synthesize_plan':
@@ -4936,6 +4955,201 @@ export class LibrarianMCPServer {
       recommendedNextTools: relatedFiles.length > 0
         ? ['find_symbol', 'trace_imports', 'get_change_impact']
         : ['query', 'get_session_briefing'],
+    };
+  }
+
+  private async executeGetContextPack(
+    input: GetContextPackToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const workspaceHint = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : (typeof input.workdir === 'string' && input.workdir.trim().length > 0
+        ? path.resolve(input.workdir)
+        : undefined);
+    const workspacePath = workspaceHint
+      ?? this.findReadyWorkspace()?.path
+      ?? this.state.workspaces.keys().next().value;
+    if (!workspacePath) {
+      return {
+        success: false,
+        tool: 'get_context_pack',
+        error: 'No workspace specified and no workspaces registered',
+        functions: [],
+        callGraphNeighbors: [],
+        keyContracts: [],
+        tokenCount: 0,
+        evidenceIds: [],
+        staleness: 'stale',
+      };
+    }
+
+    const workspace = this.state.workspaces.get(workspacePath);
+    const staleness: 'fresh' | 'indexing' | 'stale' = !workspace
+      ? 'stale'
+      : (workspace.indexState === 'ready'
+        ? 'fresh'
+        : (workspace.indexState === 'stale' ? 'stale' : 'indexing'));
+    if (!workspace) {
+      return {
+        success: false,
+        tool: 'get_context_pack',
+        error: `Workspace not registered: ${workspacePath}`,
+        functions: [],
+        callGraphNeighbors: [],
+        keyContracts: [],
+        tokenCount: 0,
+        evidenceIds: [],
+        staleness,
+      };
+    }
+
+    const tokenBudget = Math.max(100, Math.min(50000, Math.trunc(input.tokenBudget ?? 4000)));
+    const base = await this.executeQuery(
+      {
+        intent: input.intent,
+        workspace: workspacePath,
+        affectedFiles: input.relevantFiles,
+        intentType: 'navigate',
+        depth: 'L2',
+        pageSize: 50,
+        pageIdx: 0,
+      },
+      context,
+    );
+
+    if (!base || typeof base !== 'object') {
+      return base;
+    }
+
+    const payload = base as Record<string, unknown>;
+    const packs = Array.isArray(payload.packs)
+      ? payload.packs.filter((pack): pack is Record<string, unknown> => !!pack && typeof pack === 'object')
+      : [];
+
+    const selectedPacks: Array<{
+      packId: string;
+      packType: string;
+      targetId?: string;
+      summary: string;
+      keyFacts: string[];
+      relatedFiles: string[];
+      confidence: number;
+      mode: 'full' | 'summary';
+      codeSnippets: string[];
+      estimatedTokens: number;
+    }> = [];
+    let tokenCount = 0;
+
+    for (const pack of packs) {
+      const packId = typeof pack.packId === 'string' ? pack.packId : `pack_${this.generateId()}`;
+      const packType = typeof pack.packType === 'string' ? pack.packType : 'unknown';
+      const targetId = typeof pack.targetId === 'string' ? pack.targetId : undefined;
+      const summary = typeof pack.summary === 'string' ? pack.summary : '';
+      const keyFacts = Array.isArray(pack.keyFacts)
+        ? pack.keyFacts.filter((fact): fact is string => typeof fact === 'string')
+        : [];
+      const relatedFiles = Array.isArray(pack.relatedFiles)
+        ? pack.relatedFiles.filter((file): file is string => typeof file === 'string')
+        : [];
+      const confidence = typeof pack.confidence === 'number' && Number.isFinite(pack.confidence)
+        ? pack.confidence
+        : 0.5;
+      const snippetTexts = Array.isArray(pack.codeSnippets)
+        ? pack.codeSnippets
+          .map((snippet) => {
+            if (!snippet || typeof snippet !== 'object') return '';
+            const code = (snippet as { code?: unknown }).code;
+            return typeof code === 'string' ? code : '';
+          })
+          .filter((code) => code.length > 0)
+        : [];
+
+      const fullText = [summary, ...keyFacts, ...snippetTexts].join('\n');
+      const fullTokens = estimateTokens(fullText);
+      if (tokenCount + fullTokens <= tokenBudget) {
+        selectedPacks.push({
+          packId,
+          packType,
+          targetId,
+          summary,
+          keyFacts,
+          relatedFiles,
+          confidence,
+          mode: 'full',
+          codeSnippets: snippetTexts.slice(0, 2),
+          estimatedTokens: fullTokens,
+        });
+        tokenCount += fullTokens;
+        continue;
+      }
+
+      const summaryText = [summary, ...keyFacts.slice(0, 3)].join('\n');
+      const summaryTokens = estimateTokens(summaryText);
+      if (tokenCount + summaryTokens <= tokenBudget) {
+        selectedPacks.push({
+          packId,
+          packType,
+          targetId,
+          summary,
+          keyFacts: keyFacts.slice(0, 3),
+          relatedFiles,
+          confidence,
+          mode: 'summary',
+          codeSnippets: [],
+          estimatedTokens: summaryTokens,
+        });
+        tokenCount += summaryTokens;
+      }
+    }
+
+    const functions = selectedPacks.map((pack) => ({
+      id: pack.targetId ?? pack.packId,
+      packId: pack.packId,
+      packType: pack.packType,
+      summary: pack.summary,
+      keyFacts: pack.keyFacts,
+      relatedFiles: pack.relatedFiles,
+      confidence: pack.confidence,
+      mode: pack.mode,
+    }));
+
+    const callGraphNeighbors = selectedPacks.flatMap((pack) => {
+      if (!pack.targetId) return [];
+      return pack.keyFacts
+        .filter((fact) => /calls?|called by|invokes?/i.test(fact))
+        .map((fact) => ({
+          functionId: pack.targetId,
+          relation: /called by/i.test(fact) ? 'caller' : 'callee',
+          detail: fact,
+        }));
+    });
+
+    const keyContracts = selectedPacks.flatMap((pack) =>
+      pack.keyFacts
+        .filter((fact) => /must|required?|precondition|postcondition|reject|contract/i.test(fact))
+        .map((fact) => ({
+          statement: fact,
+          sourcePackId: pack.packId,
+        })));
+
+    const architecturalContext = selectedPacks.find((pack) => pack.packType === 'module_context')?.summary
+      ?? (typeof payload.answer === 'string' ? payload.answer : '');
+    const evidenceIds = selectedPacks.map((pack) => pack.packId);
+
+    return {
+      success: true,
+      tool: 'get_context_pack',
+      workspace: workspacePath,
+      intent: input.intent,
+      tokenBudget,
+      tokenCount,
+      staleness,
+      functions,
+      callGraphNeighbors,
+      keyContracts,
+      architecturalContext,
+      evidenceIds,
     };
   }
 

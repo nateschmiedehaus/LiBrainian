@@ -551,6 +551,24 @@ export interface SemanticSearchToolInput {
   includeEvidence?: boolean;
 }
 
+/** get_context_pack tool input */
+export interface GetContextPackToolInput {
+  /** Task intent used for context pack retrieval */
+  intent: string;
+
+  /** Optional relevant file hints for retrieval focus */
+  relevantFiles?: string[];
+
+  /** Hard token budget for assembled context output */
+  tokenBudget?: number;
+
+  /** Working directory hint for workspace resolution */
+  workdir?: string;
+
+  /** Workspace path alias for callers that already have it */
+  workspace?: string;
+}
+
 /** Query tool input */
 export interface QueryToolInput {
   /** Goal-oriented semantic question (architecture, behavior, impact), not a direct file-read request */
@@ -1680,6 +1698,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  get_context_pack: {
+    tool: 'get_context_pack',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   query: {
     tool: 'query',
     requiredScopes: ['read'],
@@ -2108,6 +2132,22 @@ export function isSemanticSearchToolInput(value: unknown): value is SemanticSear
     && limitOk
     && includeEnginesOk
     && includeEvidenceOk;
+}
+
+/** Type guard for GetContextPackToolInput */
+export function isGetContextPackToolInput(value: unknown): value is GetContextPackToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const intentOk = typeof obj.intent === 'string';
+  const relevantFilesOk = Array.isArray(obj.relevantFiles)
+    ? obj.relevantFiles.every((entry) => typeof entry === 'string')
+    : typeof obj.relevantFiles === 'undefined';
+  const tokenBudgetOk = typeof obj.tokenBudget === 'number'
+    ? Number.isFinite(obj.tokenBudget) && obj.tokenBudget >= 1
+    : typeof obj.tokenBudget === 'undefined';
+  const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return intentOk && relevantFilesOk && tokenBudgetOk && workdirOk && workspaceOk;
 }
 
 /** Type guard for QueryToolInput */

@@ -19,6 +19,7 @@ import {
   BootstrapToolInputSchema,
   GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
+  GetContextPackToolInputSchema,
   SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
@@ -54,6 +55,7 @@ import {
   isBootstrapToolInput,
   isGetSessionBriefingToolInput,
   isQueryToolInput,
+  isGetContextPackToolInput,
   isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
@@ -100,6 +102,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
       expect(schemas).toContain('semantic_search');
+      expect(schemas).toContain('get_context_pack');
       expect(schemas).toContain('query');
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
@@ -136,7 +139,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(42);
+      expect(schemas).toHaveLength(43);
     });
 
     it('should return schema for known tools', () => {
@@ -330,6 +333,37 @@ describe('MCP Schema', () => {
       expect(queryToolJsonSchema.description).toContain('semantic, cross-file retrieval');
       expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
       expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
+    });
+  });
+
+  describe('Get Context Pack Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('get_context_pack', {
+        intent: 'Add rate limiting to create user endpoint',
+      });
+      expect(result.valid).toBe(true);
+      expect(GetContextPackToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('get_context_pack', {
+        intent: 'Harden auth token refresh flow',
+        relevantFiles: ['src/api/auth.ts'],
+        tokenBudget: 1200,
+        workdir: '/tmp/workspace',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing intent', () => {
+      const result = validateToolInput('get_context_pack', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetContextPackToolInput({ intent: 'test' })).toBe(true);
+      expect(isGetContextPackToolInput({ intent: 'test', tokenBudget: 0 })).toBe(false);
+      expect(isGetContextPackToolInput(null)).toBe(false);
     });
   });
 
