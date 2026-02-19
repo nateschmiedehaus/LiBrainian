@@ -69,6 +69,12 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.packs[0]?.retrieval_rationale).toContain('Matched as function_context context');
     expect(result.packs[0]?.coverage_note).toContain('Coverage');
     expect(result.packs[0]?.confidence_tier).toBe('medium');
+    expect(String(result.packs[0]?.confidence_statement)).toContain('medium confidence');
+    expect(String(result.packs[0]?.verification_guidance)).toContain('Review before write operations');
+    expect(result.packs[0]?.confidence_breakdown?.function_body?.tier).toBe('medium');
+    expect(result.aggregate_confidence?.tier).toBe('medium');
+    expect(String(result.aggregate_confidence?.statement)).toContain('1 result');
+    expect(result.aggregate_confidence?.highest_risk_element).toContain('p3');
     expect(Array.isArray(result.coverage_gaps)).toBe(true);
   });
 
@@ -115,6 +121,8 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.near_misses.length).toBeGreaterThan(0);
     expect(result.near_misses[0]?.packId).toBe('p2');
     expect(String(result.near_misses[0]?.reason)).toContain('Excluded by pagination window');
+    expect(result.aggregate_confidence?.tier).toBe('high');
+    expect(result.aggregate_confidence?.highest_risk_element).toContain('p1');
   });
 
   it('writes query page payload to outputFile and returns reference metadata', async () => {
@@ -432,7 +440,54 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.pagination.pageCount).toBe(2);
     expect(result.packs[0]?.retrieval_rationale).toContain('Matched as');
     expect(result.packs[0]?.coverage_note).toContain('Coverage');
+    expect(String(result.packs[0]?.confidence_statement)).toContain('high confidence');
+    expect(result.aggregate_confidence?.tier).toBe('high');
     expect(Array.isArray(result.coverage_gaps)).toBe(true);
+  });
+
+  it('supports configurable confidence tier thresholds', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+      confidenceUx: {
+        thresholds: {
+          definitiveMin: 0.85,
+          highMin: 0.7,
+          mediumMin: 0.55,
+          lowMin: 0.4,
+        },
+      },
+    } as any);
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'auth one', keyFacts: [], relatedFiles: ['src/a.ts'], confidence: 0.86 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-thresholds',
+      constructionPlan: undefined,
+      totalConfidence: 0.86,
+      cacheHit: false,
+      latencyMs: 6,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'test thresholds',
+    });
+
+    expect(result.packs[0]?.confidence_tier).toBe('definitive');
+    expect(result.aggregate_confidence?.tier).toBe('definitive');
   });
 
   it('uses token_budget estimator when enforcing get_context_pack_bundle maxTokens', async () => {

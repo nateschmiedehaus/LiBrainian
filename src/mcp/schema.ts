@@ -44,6 +44,7 @@ export const BundleTypeSchema = z.enum(['minimal', 'standard', 'comprehensive'])
 const PageSizeSchema = z.number().int().min(1).max(200);
 const PageIdxSchema = z.number().int().min(0);
 const OutputFileSchema = z.string().min(1);
+const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence contract: when confidence_tier is definitive/high, proceed with reasonable trust; medium requires review before write operations; low/uncertain requires manual verification or request_human_review.';
 
 /**
  * Bootstrap tool input schema
@@ -69,7 +70,7 @@ export const QueryToolInputSchema = z.object({
   sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive query behavior'),
   intentType: QueryIntentSchema.optional().describe('Typed query intent for routing optimization'),
   affectedFiles: z.array(z.string()).optional().describe('File paths to scope the query to'),
-  minConfidence: z.number().min(0).max(1).optional().default(0.5).describe('Minimum confidence threshold (0-1)'),
+  minConfidence: z.number().min(0).max(1).optional().default(0.5).describe(`Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}`),
   depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
   includeEngines: z.boolean().optional().default(false).describe('Include engine results in response'),
   includeEvidence: z.boolean().optional().default(false).describe('Include evidence graph summary'),
@@ -393,7 +394,7 @@ export const queryToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
   $id: 'librarian://schemas/query-tool-input',
   title: 'QueryToolInput',
-  description: 'Input for the query tool - searches indexed knowledge',
+  description: `Input for the query tool - searches indexed knowledge. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
   type: 'object',
   properties: {
     intent: { type: 'string', description: 'The query intent or question', minLength: 1, maxLength: 2000 },
@@ -401,7 +402,7 @@ export const queryToolJsonSchema: JSONSchema = {
     sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive query behavior', minLength: 1 },
     intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Typed query intent' },
     affectedFiles: { type: 'array', items: { type: 'string' }, description: 'File paths to scope the query to' },
-    minConfidence: { type: 'number', description: 'Minimum confidence threshold', minimum: 0, maximum: 1, default: 0.5 },
+    minConfidence: { type: 'number', description: `Minimum confidence threshold. ${CONFIDENCE_BEHAVIOR_CONTRACT}`, minimum: 0, maximum: 1, default: 0.5 },
     depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
     includeEngines: { type: 'boolean', description: 'Include engine results', default: false },
     includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },

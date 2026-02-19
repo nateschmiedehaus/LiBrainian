@@ -56,6 +56,7 @@ import {
   type SelectTechniqueCompositionsToolInput,
   type CompileTechniqueCompositionToolInput,
   type CompileIntentBundlesToolInput,
+  type RetrievalConfidenceTier,
   isBootstrapToolInput,
   isQueryToolInput,
   isVerifyClaimToolInput,
@@ -306,6 +307,7 @@ const MAX_RUN_LIST_LIMIT = 100;
 const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const LOW_CONFIDENCE_THRESHOLD = 0.35;
 const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
+const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence tiers: definitive/high -> proceed with reasonable trust; medium -> review before write operations; low/uncertain -> verify manually or call request_human_review.';
 const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
@@ -798,7 +800,42 @@ export class LibrarianMCPServer {
   private readonly inFlightBootstraps = new Map<string, Promise<unknown>>();
 
   constructor(config: Partial<LibrarianMCPServerConfig> = {}) {
-    this.config = { ...DEFAULT_MCP_SERVER_CONFIG, ...config };
+    this.config = {
+      ...DEFAULT_MCP_SERVER_CONFIG,
+      ...config,
+      authorization: {
+        ...DEFAULT_MCP_SERVER_CONFIG.authorization,
+        ...(config.authorization ?? {}),
+      },
+      audit: {
+        ...DEFAULT_MCP_SERVER_CONFIG.audit,
+        ...(config.audit ?? {}),
+      },
+      performance: {
+        ...DEFAULT_MCP_SERVER_CONFIG.performance,
+        ...(config.performance ?? {}),
+      },
+      autoWatch: {
+        ...DEFAULT_MCP_SERVER_CONFIG.autoWatch,
+        ...(config.autoWatch ?? {}),
+      },
+      loopDetection: {
+        ...DEFAULT_MCP_SERVER_CONFIG.loopDetection,
+        ...(config.loopDetection ?? {}),
+      },
+      humanReview: {
+        ...DEFAULT_MCP_SERVER_CONFIG.humanReview,
+        ...(config.humanReview ?? {}),
+      },
+      confidenceUx: {
+        ...DEFAULT_MCP_SERVER_CONFIG.confidenceUx,
+        ...(config.confidenceUx ?? {}),
+        thresholds: {
+          ...DEFAULT_MCP_SERVER_CONFIG.confidenceUx.thresholds,
+          ...(config.confidenceUx?.thresholds ?? {}),
+        },
+      },
+    };
     this.state = {
       workspaces: new Map(),
       sessions: new Map(),
@@ -1009,7 +1046,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'query',
-        description: 'Query the knowledge base for context and insights (typically 3-15KB per page at pageSize=20)',
+        description: `Query the knowledge base for context and insights (typically 3-15KB per page at pageSize=20). ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -1018,7 +1055,7 @@ export class LibrarianMCPServer {
             sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
             intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'] },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
-            minConfidence: { type: 'number', description: 'Min confidence (0-1)' },
+            minConfidence: { type: 'number', description: `Min confidence (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },
             includeEngines: { type: 'boolean', description: 'Include engine results' },
             includeEvidence: { type: 'boolean', description: 'Include evidence graph' },
@@ -1170,7 +1207,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'get_context_pack_bundle',
-        description: 'Get bundled context packs for entities (typically 4-20KB per page at pageSize=20)',
+        description: `Get bundled context packs for entities (typically 4-20KB per page at pageSize=20). ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -1915,11 +1952,194 @@ export class LibrarianMCPServer {
     return 'strong';
   }
 
-  private classifyExplainabilityConfidenceTier(confidence: number): 'high' | 'medium' | 'low' | 'uncertain' {
-    if (!Number.isFinite(confidence) || confidence <= 0.2) return 'uncertain';
-    if (confidence >= 0.75) return 'high';
-    if (confidence >= 0.5) return 'medium';
-    return 'low';
+  private getConfidenceTierThresholds(): {
+    definitiveMin: number;
+    highMin: number;
+    mediumMin: number;
+    lowMin: number;
+  } {
+    const clamp = (value: number): number => Math.max(0, Math.min(1, value));
+    const configured = this.config.confidenceUx.thresholds;
+    const definitiveMin = clamp(configured.definitiveMin);
+    const highMin = Math.min(definitiveMin, clamp(configured.highMin));
+    const mediumMin = Math.min(highMin, clamp(configured.mediumMin));
+    const lowMin = Math.min(mediumMin, clamp(configured.lowMin));
+    return {
+      definitiveMin,
+      highMin,
+      mediumMin,
+      lowMin,
+    };
+  }
+
+  private classifyExplainabilityConfidenceTier(confidence: number): RetrievalConfidenceTier {
+    if (!Number.isFinite(confidence)) return 'uncertain';
+    const thresholds = this.getConfidenceTierThresholds();
+    if (confidence >= thresholds.definitiveMin) return 'definitive';
+    if (confidence >= thresholds.highMin) return 'high';
+    if (confidence >= thresholds.mediumMin) return 'medium';
+    if (confidence >= thresholds.lowMin) return 'low';
+    return 'uncertain';
+  }
+
+  private confidenceTierRank(tier: RetrievalConfidenceTier): number {
+    switch (tier) {
+      case 'definitive':
+        return 5;
+      case 'high':
+        return 4;
+      case 'medium':
+        return 3;
+      case 'low':
+        return 2;
+      case 'uncertain':
+      default:
+        return 1;
+    }
+  }
+
+  private downgradeConfidenceTier(tier: RetrievalConfidenceTier, steps = 1): RetrievalConfidenceTier {
+    const tiers: RetrievalConfidenceTier[] = ['uncertain', 'low', 'medium', 'high', 'definitive'];
+    const currentIdx = tiers.indexOf(tier);
+    const targetIdx = Math.max(0, currentIdx - steps);
+    return tiers[targetIdx];
+  }
+
+  private buildConfidenceStatement(
+    tier: RetrievalConfidenceTier,
+    pack: { packType: string; targetId: string; relatedFiles?: string[] }
+  ): string {
+    const anchorCount = pack.relatedFiles?.length ?? 0;
+    const anchorDetail = anchorCount > 0
+      ? `It is anchored to ${anchorCount} related file${anchorCount === 1 ? '' : 's'}.`
+      : 'It has no direct file anchors, so treat it as partial context.';
+    switch (tier) {
+      case 'definitive':
+        return `librainian has definitive confidence this ${pack.packType} result for "${pack.targetId}" is directly relevant. ${anchorDetail}`;
+      case 'high':
+        return `librainian has high confidence this ${pack.packType} result is relevant. ${anchorDetail}`;
+      case 'medium':
+        return `librainian has medium confidence this ${pack.packType} result is relevant but should be reviewed before making edits. ${anchorDetail}`;
+      case 'low':
+        return `librainian has low confidence this ${pack.packType} result is only tangentially relevant. ${anchorDetail}`;
+      case 'uncertain':
+      default:
+        return `librainian is uncertain this ${pack.packType} result is relevant. ${anchorDetail}`;
+    }
+  }
+
+  private buildVerificationGuidance(tier: RetrievalConfidenceTier): string | undefined {
+    switch (tier) {
+      case 'medium':
+        return 'Review before write operations; verify key assumptions against source before editing.';
+      case 'low':
+        return 'Manual verification recommended. Rephrase the query and inspect neighboring code before writing changes.';
+      case 'uncertain':
+        return 'Do not proceed on this context alone. Verify manually or call request_human_review before taking action.';
+      case 'definitive':
+      case 'high':
+      default:
+        return undefined;
+    }
+  }
+
+  private buildConfidenceBreakdown(
+    pack: { packType: string; summary?: string; relatedFiles?: string[] },
+    tier: RetrievalConfidenceTier,
+  ): {
+    function_signature?: { tier: RetrievalConfidenceTier; reason: string };
+    function_body?: { tier: RetrievalConfidenceTier; reason: string };
+    llm_summary?: { tier: RetrievalConfidenceTier; reason: string };
+    call_graph?: { tier: RetrievalConfidenceTier; reason: string };
+  } {
+    const signatureTier = pack.packType === 'function_context'
+      ? 'definitive'
+      : this.downgradeConfidenceTier(tier, 1);
+    const summaryTier = pack.summary
+      ? this.downgradeConfidenceTier(tier, tier === 'definitive' ? 1 : 0)
+      : 'uncertain';
+    const callGraphTier = (pack.relatedFiles?.length ?? 0) > 0
+      ? (tier === 'uncertain' ? 'low' : 'high')
+      : 'low';
+    return {
+      function_signature: {
+        tier: signatureTier,
+        reason: pack.packType === 'function_context'
+          ? 'Function-context packs are anchored to a concrete target symbol.'
+          : 'Non-function packs provide broader structural context and may require corroboration.',
+      },
+      function_body: {
+        tier,
+        reason: 'Body confidence follows retrieval ranking confidence for this pack.',
+      },
+      llm_summary: {
+        tier: summaryTier,
+        reason: pack.summary
+          ? 'Summary confidence is derived from retrieval quality and can drift from source over time.'
+          : 'No summary was attached to this pack.',
+      },
+      call_graph: {
+        tier: callGraphTier,
+        reason: (pack.relatedFiles?.length ?? 0) > 0
+          ? 'Related file anchors provide structural neighborhood signals.'
+          : 'No related file anchors were attached for structural verification.',
+      },
+    };
+  }
+
+  private buildAggregateConfidence(
+    packs: Array<{ packId: string; packType: string; confidence?: number; confidenceTier: RetrievalConfidenceTier }>,
+  ): {
+    tier: RetrievalConfidenceTier;
+    statement: string;
+    highestRiskElement: string;
+  } {
+    if (packs.length === 0) {
+      return {
+        tier: 'uncertain',
+        statement: 'librainian returned 0 results; confidence is uncertain and manual verification is required.',
+        highestRiskElement: 'No retrieval results were returned.',
+      };
+    }
+
+    const averageConfidence = packs.reduce((sum, pack) => sum + (pack.confidence ?? 0), 0) / packs.length;
+    const aggregateTier = this.classifyExplainabilityConfidenceTier(averageConfidence);
+    const distribution = new Map<RetrievalConfidenceTier, number>();
+    for (const pack of packs) {
+      distribution.set(pack.confidenceTier, (distribution.get(pack.confidenceTier) ?? 0) + 1);
+    }
+    const orderedTiers: RetrievalConfidenceTier[] = ['definitive', 'high', 'medium', 'low', 'uncertain'];
+    const distributionText = orderedTiers
+      .filter((tier) => (distribution.get(tier) ?? 0) > 0)
+      .map((tier) => `${distribution.get(tier)} ${tier}-confidence`)
+      .join(', ');
+    const riskiestPack = packs.reduce((lowest, candidate) => {
+      if (!lowest) return candidate;
+      return this.confidenceTierRank(candidate.confidenceTier) < this.confidenceTierRank(lowest.confidenceTier)
+        ? candidate
+        : lowest;
+    }, packs[0] as { packId: string; packType: string; confidence?: number; confidenceTier: RetrievalConfidenceTier });
+    return {
+      tier: aggregateTier,
+      statement: `librainian returned ${packs.length} result${packs.length === 1 ? '' : 's'} with ${distributionText}.`,
+      highestRiskElement: `Pack ${riskiestPack.packId} (${riskiestPack.packType}) is the highest-risk element at ${riskiestPack.confidenceTier} confidence.`,
+    };
+  }
+
+  private toAggregateConfidenceAlias(aggregateConfidence: {
+    tier: RetrievalConfidenceTier;
+    statement: string;
+    highestRiskElement: string;
+  }): {
+    tier: RetrievalConfidenceTier;
+    statement: string;
+    highestRiskElement: string;
+    highest_risk_element: string;
+  } {
+    return {
+      ...aggregateConfidence,
+      highest_risk_element: aggregateConfidence.highestRiskElement,
+    };
   }
 
   private extractIntentKeywords(intent: string): string[] {
@@ -3520,16 +3740,25 @@ export class LibrarianMCPServer {
         const confidenceTier = this.classifyExplainabilityConfidenceTier(pack.confidence ?? 0);
         const retrievalRationale = this.buildRetrievalRationale(pack, input);
         const coverageNote = this.buildCoverageNote(pack);
+        const confidenceStatement = this.buildConfidenceStatement(confidenceTier, pack);
+        const verificationGuidance = this.buildVerificationGuidance(confidenceTier);
+        const confidenceBreakdown = this.buildConfidenceBreakdown(pack, confidenceTier);
         return {
-        packId: pack.packId,
-        packType: pack.packType,
-        targetId: pack.targetId,
-        summary: pack.summary,
-        keyFacts: pack.keyFacts,
-        relatedFiles: pack.relatedFiles,
-        confidence: pack.confidence,
+          packId: pack.packId,
+          packType: pack.packType,
+          targetId: pack.targetId,
+          summary: pack.summary,
+          keyFacts: pack.keyFacts,
+          relatedFiles: pack.relatedFiles,
+          confidence: pack.confidence,
           confidenceTier,
           confidence_tier: confidenceTier,
+          confidenceStatement,
+          confidence_statement: confidenceStatement,
+          verificationGuidance,
+          verification_guidance: verificationGuidance,
+          confidenceBreakdown,
+          confidence_breakdown: confidenceBreakdown,
           retrievalRationale,
           retrieval_rationale: retrievalRationale,
           coverageNote,
@@ -3537,6 +3766,7 @@ export class LibrarianMCPServer {
         };
       });
       const { items: pagedPacks, pagination } = this.paginateItems(transformedPacks, input);
+      const aggregateConfidence = this.buildAggregateConfidence(pagedPacks);
       const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
       const retrievalEntropy = response.retrievalEntropy
         ?? computeRetrievalEntropy(response.packs.map((pack) => ({ confidence: pack.confidence ?? 0 })));
@@ -3582,6 +3812,7 @@ export class LibrarianMCPServer {
         intent: input.intent,
         pagination,
         sortOrder: 'retrieval_score_desc',
+        aggregateConfidence,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
         nearMisses,
         loopDetection: sessionState
@@ -3607,6 +3838,7 @@ export class LibrarianMCPServer {
       const baseWithAlias = {
         ...resultWithHumanReview,
         coverage_gaps: resultWithHumanReview.coverageGaps,
+        aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
         human_review_recommendation: resultWithHumanReview.humanReviewRecommendation,
@@ -3640,7 +3872,10 @@ export class LibrarianMCPServer {
         ? message
         : `unverified_by_trace(query_failed): ${message}`;
       const { userDisclosures, epistemicsDebug } = sanitizeDisclosures([rawDisclosure]);
+      const aggregateConfidence = this.buildAggregateConfidence([]);
       return {
+        aggregateConfidence,
+        aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
         packs: [],
         totalConfidence: 0,
         retrievalStatus: 'insufficient',
@@ -4354,6 +4589,9 @@ export class LibrarianMCPServer {
             const confidenceTier = this.classifyExplainabilityConfidenceTier(pack.confidence ?? 0);
             const retrievalRationale = this.buildRetrievalRationale(pack, syntheticInput);
             const coverageNote = this.buildCoverageNote(pack);
+            const confidenceStatement = this.buildConfidenceStatement(confidenceTier, pack);
+            const verificationGuidance = this.buildVerificationGuidance(confidenceTier);
+            const confidenceBreakdown = this.buildConfidenceBreakdown(pack, confidenceTier);
             bundledPacks.push({
               packId: pack.packId,
               packType: pack.packType,
@@ -4364,6 +4602,12 @@ export class LibrarianMCPServer {
               confidence: pack.confidence,
               confidenceTier,
               confidence_tier: confidenceTier,
+              confidenceStatement,
+              confidence_statement: confidenceStatement,
+              verificationGuidance,
+              verification_guidance: verificationGuidance,
+              confidenceBreakdown,
+              confidence_breakdown: confidenceBreakdown,
               retrievalRationale,
               retrieval_rationale: retrievalRationale,
               coverageNote,
@@ -4393,6 +4637,14 @@ export class LibrarianMCPServer {
       }
 
       const { items: pagedPacks, pagination } = this.paginateItems(tokenFilteredPacks, input);
+      const aggregateConfidence = this.buildAggregateConfidence(
+        (pagedPacks as Array<{
+          packId: string;
+          packType: string;
+          confidence?: number;
+          confidenceTier: RetrievalConfidenceTier;
+        }>)
+      );
       const estimatedTokens = Math.round(
         (pagedPacks as unknown[]).reduce<number>(
           (sum, pack) => sum + estimateTokens(JSON.stringify(pack)),
@@ -4412,6 +4664,8 @@ export class LibrarianMCPServer {
             truncated: truncatedByTokens,
             truncatedByTokens,
             estimatedTokens,
+            aggregateConfidence,
+            aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
             coverageGaps: [],
             coverage_gaps: [],
             sortOrder: 'entity_then_pack_type',
@@ -4426,6 +4680,8 @@ export class LibrarianMCPServer {
           truncated: truncatedByTokens,
           truncatedByTokens,
           estimatedTokens,
+          aggregateConfidence,
+          aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
           coverageGaps: [],
           coverage_gaps: [],
           sortOrder: 'entity_then_pack_type',
@@ -4441,6 +4697,8 @@ export class LibrarianMCPServer {
         truncated: truncatedByTokens,
         truncatedByTokens,
         estimatedTokens,
+        aggregateConfidence,
+        aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
         coverageGaps: [],
         coverage_gaps: [],
         pagination,
