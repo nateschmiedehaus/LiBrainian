@@ -18,6 +18,7 @@ LiBrainian scripts are grouped by function:
   - `canon_guard.mjs`
   - `complexity_check.mjs`
   - `check-file-sizes.mjs`
+  - `guard-generated-artifacts.mjs` (blocks likely accidental TypeScript emit artifacts like `src/**/*.js` beside `src/**/*.ts`)
   - `repo-folder-audit.mjs`
   - `hook-update-index.mjs` (best-effort staged index refresh for pre-commit flows)
 - **GitHub automation**
@@ -39,6 +40,8 @@ LiBrainian scripts are grouped by function:
   - Remove stale `codex/*` branches with merged PRs from origin and local repo.
 - `npm run librainian:update:staged`
   - Runs hook-friendly staged-file incremental index refresh (`librainian update --staged`).
+- `npm run hygiene:generated-artifacts`
+  - Fails fast if generated TypeScript emit artifacts appear in tracked/unignored source-controlled paths.
 
 ## Conventions
 
