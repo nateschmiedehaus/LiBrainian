@@ -126,6 +126,26 @@ const librarian = await createLibrarian({ workspace: process.cwd() });
 const result = await librarian.query({ intent: 'Explain the deployment pipeline' });
 ```
 
+## Integration Decision Tree
+
+Choose the path that matches your runtime:
+
+- MCP-compatible IDE/client (Claude Code, Cursor, Windsurf, Cline, Gemini CLI)
+  - `docs/integrations/mcp.md`
+- Shell automation or CI/CD
+  - `docs/integrations/cli.md`
+- OpenAPI-aware or raw HTTP toolchains
+  - `docs/integrations/rest-api.md`
+- UTCP tool bus integrations
+  - `docs/integrations/utcp.md`
+- A2A orchestration integrations
+  - `docs/integrations/a2a.md`
+- Python scripts and notebooks
+  - `docs/integrations/python-sdk.md`
+
+Universal integration hub:
+- `docs/integrations/README.md`
+
 ## Why LiBrainian
 
 | Problem | Typical agent flow | LiBrainian flow |
@@ -364,6 +384,7 @@ npx tsx examples/feedback_loop_example.ts
 - Construction testing guide: `docs/constructions/testing.md`
 - Construction migration guide: `docs/constructions/migration.md`
 - Core docs: `docs/librarian/README.md`
+- Universal integration guide: `docs/integrations/README.md`
 - MCP setup: `docs/mcp-setup.md`
 - MCP design principles: `docs/mcp-design-principles.md`
 - Query guide: `docs/librarian/query-guide.md`
