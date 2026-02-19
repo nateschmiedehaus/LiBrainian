@@ -23,6 +23,9 @@ import {
   RequestHumanReviewToolInputSchema,
   ListConstructionsToolInputSchema,
   InvokeConstructionToolInputSchema,
+  DescribeConstructionToolInputSchema,
+  ExplainOperatorToolInputSchema,
+  CheckConstructionTypesToolInputSchema,
   SubmitFeedbackToolInputSchema,
   ExplainFunctionToolInputSchema,
   FindUsagesToolInputSchema,
@@ -45,6 +48,9 @@ import {
   isRequestHumanReviewToolInput,
   isListConstructionsToolInput,
   isInvokeConstructionToolInput,
+  isDescribeConstructionToolInput,
+  isExplainOperatorToolInput,
+  isCheckConstructionTypesToolInput,
   isSubmitFeedbackToolInput,
   isExplainFunctionToolInput,
   isFindUsagesToolInput,
@@ -78,6 +84,9 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('request_human_review');
       expect(schemas).toContain('list_constructions');
       expect(schemas).toContain('invoke_construction');
+      expect(schemas).toContain('describe_construction');
+      expect(schemas).toContain('explain_operator');
+      expect(schemas).toContain('check_construction_types');
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('explain_function');
       expect(schemas).toContain('find_usages');
@@ -97,7 +106,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(29);
+      expect(schemas).toHaveLength(32);
     });
 
     it('should return schema for known tools', () => {
@@ -437,6 +446,8 @@ describe('MCP Schema', () => {
     it('validates list_constructions input and type guard', () => {
       const result = validateToolInput('list_constructions', {
         tags: ['security'],
+        requires: ['librarian'],
+        language: 'typescript',
         trustTier: 'official',
         availableOnly: true,
       });
@@ -468,6 +479,56 @@ describe('MCP Schema', () => {
         constructionId: 'librainian:security-audit-helper',
       })).toBe(false);
       expect(InvokeConstructionToolInputSchema).toBeDefined();
+    });
+
+    it('validates describe_construction input and type guard', () => {
+      const result = validateToolInput('describe_construction', {
+        id: 'librainian:security-audit-helper',
+        includeExample: true,
+        includeCompositionHints: true,
+      });
+      expect(result.valid).toBe(true);
+      expect(isDescribeConstructionToolInput({
+        id: 'librainian:security-audit-helper',
+      })).toBe(true);
+      expect(isDescribeConstructionToolInput({})).toBe(false);
+      expect(DescribeConstructionToolInputSchema).toBeDefined();
+    });
+
+    it('validates explain_operator input and type guard', () => {
+      const byOperator = validateToolInput('explain_operator', {
+        operator: 'fanout',
+      });
+      const bySituation = validateToolInput('explain_operator', {
+        situation: 'Run call graph and tests lookup in parallel',
+      });
+
+      expect(byOperator.valid).toBe(true);
+      expect(bySituation.valid).toBe(true);
+      expect(isExplainOperatorToolInput({ operator: 'seq' })).toBe(true);
+      expect(isExplainOperatorToolInput({ situation: 'Need a recommendation' })).toBe(true);
+      expect(isExplainOperatorToolInput({})).toBe(false);
+      expect(ExplainOperatorToolInputSchema).toBeDefined();
+    });
+
+    it('validates check_construction_types input and type guard', () => {
+      const result = validateToolInput('check_construction_types', {
+        first: 'librainian:security-audit-helper',
+        second: 'librainian:comprehensive-quality-construction',
+        operator: 'seq',
+      });
+      expect(result.valid).toBe(true);
+      expect(isCheckConstructionTypesToolInput({
+        first: 'a',
+        second: 'b',
+        operator: 'fanout',
+      })).toBe(true);
+      expect(isCheckConstructionTypesToolInput({
+        first: 'a',
+        second: 'b',
+        operator: 'bad',
+      })).toBe(false);
+      expect(CheckConstructionTypesToolInputSchema).toBeDefined();
     });
   });
 

@@ -743,6 +743,12 @@ export interface ListConstructionsToolInput {
   /** Optional required capabilities filter */
   capabilities?: string[];
 
+  /** Alias for capabilities */
+  requires?: string[];
+
+  /** Optional language filter */
+  language?: string;
+
   /** Optional trust tier filter */
   trustTier?: 'official' | 'partner' | 'community';
 
@@ -760,6 +766,52 @@ export interface InvokeConstructionToolInput {
 
   /** Workspace used to resolve runtime dependencies */
   workspace?: string;
+}
+
+export type ConstructionOperator =
+  | 'seq'
+  | 'fanout'
+  | 'fallback'
+  | 'fix'
+  | 'select'
+  | 'atom'
+  | 'dimap'
+  | 'map'
+  | 'contramap';
+
+export type ConstructionTypeCheckOperator = 'seq' | 'fanout' | 'fallback';
+
+/** Describe construction tool input */
+export interface DescribeConstructionToolInput {
+  /** Construction ID to describe */
+  id: string;
+
+  /** Include executable example in response */
+  includeExample?: boolean;
+
+  /** Include composition suggestions in response */
+  includeCompositionHints?: boolean;
+}
+
+/** Explain operator tool input */
+export interface ExplainOperatorToolInput {
+  /** Target operator to explain */
+  operator?: ConstructionOperator;
+
+  /** Situation description used for operator recommendation */
+  situation?: string;
+}
+
+/** check_construction_types tool input */
+export interface CheckConstructionTypesToolInput {
+  /** First construction ID */
+  first: string;
+
+  /** Second construction ID */
+  second: string;
+
+  /** Composition operator */
+  operator: ConstructionTypeCheckOperator;
 }
 
 /** Change impact tool input */
@@ -1466,6 +1518,24 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'medium',
   },
+  describe_construction: {
+    tool: 'describe_construction',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  explain_operator: {
+    tool: 'explain_operator',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  check_construction_types: {
+    tool: 'check_construction_types',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_change_impact: {
     tool: 'get_change_impact',
     requiredScopes: ['read'],
@@ -1821,14 +1891,25 @@ export function isRequestHumanReviewToolInput(value: unknown): value is RequestH
 export function isListConstructionsToolInput(value: unknown): value is ListConstructionsToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  const tagsOk = Array.isArray(obj.tags) || typeof obj.tags === 'undefined';
-  const capabilitiesOk = Array.isArray(obj.capabilities) || typeof obj.capabilities === 'undefined';
+  const tagsOk = (
+    Array.isArray(obj.tags)
+    && obj.tags.every((entry) => typeof entry === 'string')
+  ) || typeof obj.tags === 'undefined';
+  const capabilitiesOk = (
+    Array.isArray(obj.capabilities)
+    && obj.capabilities.every((entry) => typeof entry === 'string')
+  ) || typeof obj.capabilities === 'undefined';
+  const requiresOk = (
+    Array.isArray(obj.requires)
+    && obj.requires.every((entry) => typeof entry === 'string')
+  ) || typeof obj.requires === 'undefined';
+  const languageOk = typeof obj.language === 'string' || typeof obj.language === 'undefined';
   const trustTierOk = obj.trustTier === 'official'
     || obj.trustTier === 'partner'
     || obj.trustTier === 'community'
     || typeof obj.trustTier === 'undefined';
   const availableOnlyOk = typeof obj.availableOnly === 'boolean' || typeof obj.availableOnly === 'undefined';
-  return tagsOk && capabilitiesOk && trustTierOk && availableOnlyOk;
+  return tagsOk && capabilitiesOk && requiresOk && languageOk && trustTierOk && availableOnlyOk;
 }
 
 /** Type guard for InvokeConstructionToolInput */
@@ -1839,6 +1920,46 @@ export function isInvokeConstructionToolInput(value: unknown): value is InvokeCo
   const inputOk = Object.prototype.hasOwnProperty.call(obj, 'input');
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return constructionIdOk && inputOk && workspaceOk;
+}
+
+/** Type guard for DescribeConstructionToolInput */
+export function isDescribeConstructionToolInput(value: unknown): value is DescribeConstructionToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const idOk = typeof obj.id === 'string' && obj.id.trim().length > 0;
+  const includeExampleOk = typeof obj.includeExample === 'boolean' || typeof obj.includeExample === 'undefined';
+  const includeHintsOk = typeof obj.includeCompositionHints === 'boolean' || typeof obj.includeCompositionHints === 'undefined';
+  return idOk && includeExampleOk && includeHintsOk;
+}
+
+/** Type guard for ExplainOperatorToolInput */
+export function isExplainOperatorToolInput(value: unknown): value is ExplainOperatorToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const operatorOk = obj.operator === 'seq'
+    || obj.operator === 'fanout'
+    || obj.operator === 'fallback'
+    || obj.operator === 'fix'
+    || obj.operator === 'select'
+    || obj.operator === 'atom'
+    || obj.operator === 'dimap'
+    || obj.operator === 'map'
+    || obj.operator === 'contramap'
+    || typeof obj.operator === 'undefined';
+  const situationOk = typeof obj.situation === 'string' || typeof obj.situation === 'undefined';
+  const hasInput = (typeof obj.operator === 'string' && obj.operator.length > 0)
+    || (typeof obj.situation === 'string' && obj.situation.trim().length > 0);
+  return operatorOk && situationOk && hasInput;
+}
+
+/** Type guard for CheckConstructionTypesToolInput */
+export function isCheckConstructionTypesToolInput(value: unknown): value is CheckConstructionTypesToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const firstOk = typeof obj.first === 'string' && obj.first.trim().length > 0;
+  const secondOk = typeof obj.second === 'string' && obj.second.trim().length > 0;
+  const operatorOk = obj.operator === 'seq' || obj.operator === 'fanout' || obj.operator === 'fallback';
+  return firstOk && secondOk && operatorOk;
 }
 
 /** Type guard for GetChangeImpactToolInput */

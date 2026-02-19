@@ -188,6 +188,8 @@ export const RequestHumanReviewToolInputSchema = z.object({
 export const ListConstructionsToolInputSchema = z.object({
   tags: z.array(z.string()).optional().describe('Optional tags to filter constructions'),
   capabilities: z.array(z.string()).optional().describe('Optional required capabilities filter'),
+  requires: z.array(z.string()).optional().describe('Alias for capabilities filter'),
+  language: z.string().optional().describe('Optional language filter (for example: typescript, python, rust)'),
   trustTier: z.enum(['official', 'partner', 'community']).optional().describe('Optional trust tier filter'),
   availableOnly: z.boolean().optional().default(false).describe('Only return constructions executable in this runtime'),
 }).strict().default({});
@@ -199,6 +201,52 @@ export const InvokeConstructionToolInputSchema = z.object({
   constructionId: z.string().min(1).describe('Construction ID from list_constructions'),
   input: z.unknown().describe('Construction input payload'),
   workspace: z.string().optional().describe('Workspace path used to resolve runtime dependencies'),
+}).strict();
+
+/**
+ * Describe construction tool input schema
+ */
+export const DescribeConstructionToolInputSchema = z.object({
+  id: z.string().min(1).describe('Construction ID to describe'),
+  includeExample: z.boolean().optional().default(true).describe('Include an executable example code snippet'),
+  includeCompositionHints: z.boolean().optional().default(true).describe('Include composition/operator hints'),
+}).strict();
+
+const ConstructionOperatorSchema = z.enum([
+  'seq',
+  'fanout',
+  'fallback',
+  'fix',
+  'select',
+  'atom',
+  'dimap',
+  'map',
+  'contramap',
+]);
+
+/**
+ * Explain operator tool input schema
+ */
+export const ExplainOperatorToolInputSchema = z.object({
+  operator: ConstructionOperatorSchema.optional().describe('Operator to explain directly'),
+  situation: z.string().min(1).optional().describe('Situation description used for operator recommendation'),
+})
+  .strict()
+  .refine(
+    (value) => typeof value.operator === 'string' || typeof value.situation === 'string',
+    {
+      message: 'Either operator or situation is required',
+      path: ['operator'],
+    },
+  );
+
+/**
+ * Check construction types tool input schema
+ */
+export const CheckConstructionTypesToolInputSchema = z.object({
+  first: z.string().min(1).describe('First construction ID'),
+  second: z.string().min(1).describe('Second construction ID'),
+  operator: z.enum(['seq', 'fanout', 'fallback']).describe('Composition operator to check'),
 }).strict();
 
 /**
@@ -379,6 +427,9 @@ export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToo
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type ListConstructionsToolInputType = z.infer<typeof ListConstructionsToolInputSchema>;
 export type InvokeConstructionToolInputType = z.infer<typeof InvokeConstructionToolInputSchema>;
+export type DescribeConstructionToolInputType = z.infer<typeof DescribeConstructionToolInputSchema>;
+export type ExplainOperatorToolInputType = z.infer<typeof ExplainOperatorToolInputSchema>;
+export type CheckConstructionTypesToolInputType = z.infer<typeof CheckConstructionTypesToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type FindSymbolToolInputType = z.infer<typeof FindSymbolToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
@@ -416,6 +467,9 @@ export const TOOL_INPUT_SCHEMAS = {
   request_human_review: RequestHumanReviewToolInputSchema,
   list_constructions: ListConstructionsToolInputSchema,
   invoke_construction: InvokeConstructionToolInputSchema,
+  describe_construction: DescribeConstructionToolInputSchema,
+  explain_operator: ExplainOperatorToolInputSchema,
+  check_construction_types: CheckConstructionTypesToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
@@ -663,6 +717,8 @@ export const listConstructionsToolJsonSchema: JSONSchema = {
   properties: {
     tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
     capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capabilities filter' },
+    requires: { type: 'array', items: { type: 'string' }, description: 'Alias for capabilities filter' },
+    language: { type: 'string', description: 'Optional language filter (for example: typescript, python, rust)' },
     trustTier: { type: 'string', enum: ['official', 'partner', 'community'], description: 'Optional trust tier filter' },
     availableOnly: { type: 'boolean', description: 'Only return constructions executable in this runtime', default: false },
   },
@@ -683,6 +739,53 @@ export const invokeConstructionToolJsonSchema: JSONSchema = {
     workspace: { type: 'string', description: 'Workspace path used to resolve runtime dependencies' },
   },
   required: ['constructionId', 'input'],
+  additionalProperties: false,
+};
+
+/** Describe construction tool JSON Schema */
+export const describeConstructionToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/describe-construction-tool-input',
+  title: 'DescribeConstructionToolInput',
+  description: 'Input for describe_construction - retrieve detailed construction metadata and usage guidance',
+  type: 'object',
+  properties: {
+    id: { type: 'string', description: 'Construction ID to describe', minLength: 1 },
+    includeExample: { type: 'boolean', description: 'Include an executable example code snippet', default: true },
+    includeCompositionHints: { type: 'boolean', description: 'Include composition/operator hints', default: true },
+  },
+  required: ['id'],
+  additionalProperties: false,
+};
+
+/** Explain operator tool JSON Schema */
+export const explainOperatorToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/explain-operator-tool-input',
+  title: 'ExplainOperatorToolInput',
+  description: 'Input for explain_operator - explain or recommend construction operators',
+  type: 'object',
+  properties: {
+    operator: { type: 'string', enum: ['seq', 'fanout', 'fallback', 'fix', 'select', 'atom', 'dimap', 'map', 'contramap'], description: 'Operator to explain directly' },
+    situation: { type: 'string', description: 'Situation description used for operator recommendation', minLength: 1 },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** Check construction types tool JSON Schema */
+export const checkConstructionTypesToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/check-construction-types-tool-input',
+  title: 'CheckConstructionTypesToolInput',
+  description: 'Input for check_construction_types - verify composition compatibility for two constructions',
+  type: 'object',
+  properties: {
+    first: { type: 'string', description: 'First construction ID', minLength: 1 },
+    second: { type: 'string', description: 'Second construction ID', minLength: 1 },
+    operator: { type: 'string', enum: ['seq', 'fanout', 'fallback'], description: 'Composition operator to check' },
+  },
+  required: ['first', 'second', 'operator'],
   additionalProperties: false,
 };
 
@@ -715,6 +818,9 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   request_human_review: requestHumanReviewToolJsonSchema,
   list_constructions: listConstructionsToolJsonSchema,
   invoke_construction: invokeConstructionToolJsonSchema,
+  describe_construction: describeConstructionToolJsonSchema,
+  explain_operator: explainOperatorToolJsonSchema,
+  check_construction_types: checkConstructionTypesToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,

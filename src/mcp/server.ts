@@ -42,6 +42,9 @@ import {
   type RequestHumanReviewToolInput,
   type ListConstructionsToolInput,
   type InvokeConstructionToolInput,
+  type DescribeConstructionToolInput,
+  type ExplainOperatorToolInput,
+  type CheckConstructionTypesToolInput,
   type GetChangeImpactToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
@@ -124,6 +127,7 @@ import { createAuditLogger, type AuditLogger } from './audit.js';
 import { SqliteEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import { AuditBackedToolAdapter, type ToolAdapter } from '../adapters/tool_adapter.js';
 import {
+  CONSTRUCTION_REGISTRY,
   getConstructionManifest,
   invokeConstruction,
   listConstructions,
@@ -305,6 +309,9 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   list_constructions: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   invoke_construction: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 4200 },
+  describe_construction: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
+  explain_operator: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
+  check_construction_types: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1700 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
@@ -317,6 +324,71 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   list_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
   get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
+};
+
+type ConstructionOperator =
+  | 'seq'
+  | 'fanout'
+  | 'fallback'
+  | 'fix'
+  | 'select'
+  | 'atom'
+  | 'dimap'
+  | 'map'
+  | 'contramap';
+
+interface OperatorGuideEntry {
+  summary: string;
+  decisionGuide: string;
+  example: string;
+}
+
+const OPERATOR_GUIDE: Record<ConstructionOperator, OperatorGuideEntry> = {
+  seq: {
+    summary: 'Use seq when the second construction needs output from the first construction.',
+    decisionGuide: 'Choose seq for pipeline stages where data flows A -> B and B cannot run until A completes.',
+    example: "seq(blastRadiusOracle, riskRanker)",
+  },
+  fanout: {
+    summary: 'Use fanout when two constructions should run in parallel over the same input.',
+    decisionGuide: 'Choose fanout for independent analyses that share identical input and can execute concurrently.',
+    example: "fanout(callGraphLookup, testCoverageQuery)",
+  },
+  fallback: {
+    summary: 'Use fallback when the second construction should run only if the first fails or returns unusable output.',
+    decisionGuide: 'Choose fallback for resilient pipelines with a preferred primary path and a recovery path.',
+    example: "fallback(primaryRetriever, backupRetriever)",
+  },
+  fix: {
+    summary: 'Use fix for recursive or iterative workflows that converge to a stable output.',
+    decisionGuide: 'Choose fix when each pass improves the candidate result until no further changes are needed.',
+    example: "fix(refinePlanUntilStable)",
+  },
+  select: {
+    summary: 'Use select when branching between constructions based on a discriminator or routing decision.',
+    decisionGuide: 'Choose select when a classifier determines which downstream construction should run.',
+    example: "select(routeByFileType, tsFlow, pyFlow)",
+  },
+  atom: {
+    summary: 'Use atom for a small focused construction that performs one deterministic transformation.',
+    decisionGuide: 'Choose atom for reusable leaf steps that should stay side-effect light and composable.',
+    example: "atom('extract-function-ids', (input) => ...)",
+  },
+  dimap: {
+    summary: 'Use dimap to adapt both input and output shapes around an existing construction.',
+    decisionGuide: 'Choose dimap when both upstream and downstream contracts differ and one adapter should handle both seams.',
+    example: "dimap(existing, adaptInput, adaptOutput)",
+  },
+  map: {
+    summary: 'Use map to transform only output after a construction runs.',
+    decisionGuide: 'Choose map for post-processing, formatting, or reducing a result without changing execution logic.',
+    example: "map(construction, (out) => out.summary)",
+  },
+  contramap: {
+    summary: 'Use contramap to transform only input before a construction runs.',
+    decisionGuide: 'Choose contramap to normalize callsite input into the shape expected by an existing construction.',
+    example: "contramap(construction, adaptInput)",
+  },
 };
 
 interface ReadResourceRequestLike {
@@ -1368,6 +1440,8 @@ export class LibrarianMCPServer {
           properties: {
             tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
             capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capability filter' },
+            requires: { type: 'array', items: { type: 'string' }, description: 'Alias for capabilities filter' },
+            language: { type: 'string', description: 'Optional language filter (example: typescript, python, rust)' },
             trustTier: { type: 'string', enum: ['official', 'partner', 'community'], description: 'Optional trust tier filter' },
             availableOnly: { type: 'boolean', description: 'Only include constructions executable in this runtime' },
           },
@@ -1385,6 +1459,48 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path used for runtime dependencies' },
           },
           required: ['constructionId', 'input'],
+        },
+      },
+      {
+        name: 'describe_construction',
+        description: 'Describe a construction in detail: what it does, I/O shape, usage example, and composition hints',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Construction ID returned by list_constructions' },
+            includeExample: { type: 'boolean', description: 'Include executable example snippet (default true)' },
+            includeCompositionHints: { type: 'boolean', description: 'Include composition/operator guidance (default true)' },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'explain_operator',
+        description: 'Explain when to use a construction operator, or recommend one from a described situation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            operator: {
+              type: 'string',
+              enum: ['seq', 'fanout', 'fallback', 'fix', 'select', 'atom', 'dimap', 'map', 'contramap'],
+              description: 'Operator to explain directly',
+            },
+            situation: { type: 'string', description: 'Situation description used for recommendation when operator is omitted' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'check_construction_types',
+        description: 'Check composition compatibility between two constructions for seq, fanout, or fallback',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            first: { type: 'string', description: 'First construction ID' },
+            second: { type: 'string', description: 'Second construction ID' },
+            operator: { type: 'string', enum: ['seq', 'fanout', 'fallback'], description: 'Composition operator to validate' },
+          },
+          required: ['first', 'second', 'operator'],
         },
       },
       {
@@ -2810,6 +2926,12 @@ export class LibrarianMCPServer {
         return this.executeListConstructions(args as ListConstructionsToolInput);
       case 'invoke_construction':
         return this.executeInvokeConstruction(args as InvokeConstructionToolInput);
+      case 'describe_construction':
+        return this.executeDescribeConstruction(args as DescribeConstructionToolInput);
+      case 'explain_operator':
+        return this.executeExplainOperator(args as ExplainOperatorToolInput);
+      case 'check_construction_types':
+        return this.executeCheckConstructionTypes(args as CheckConstructionTypesToolInput);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
       case 'submit_feedback':
@@ -4542,29 +4664,43 @@ export class LibrarianMCPServer {
   private async executeListConstructions(input: ListConstructionsToolInput): Promise<unknown> {
     const manifests = listConstructions({
       tags: input.tags,
-      capabilities: input.capabilities,
+      capabilities: input.capabilities ?? input.requires,
       trustTier: input.trustTier,
       availableOnly: input.availableOnly,
     });
-
-    return manifests.map((manifest) => ({
+    const languageFilter = input.language?.trim().toLowerCase();
+    const filtered = languageFilter
+      ? manifests.filter((manifest) =>
+        (manifest.languages ?? []).some((language) => String(language).toLowerCase() === languageFilter))
+      : manifests;
+    const constructions = filtered.map((manifest) => ({
       id: manifest.id,
       name: manifest.name,
       scope: manifest.scope,
       version: manifest.version,
       description: manifest.description,
       agentDescription: manifest.agentDescription,
+      tags: manifest.tags,
+      trustTier: manifest.trustTier,
+      requiredCapabilities: manifest.requiredCapabilities,
+      inputType: this.describeConstructionSchema(manifest.inputSchema),
+      outputType: this.describeConstructionSchema(manifest.outputSchema),
       inputSchema: manifest.inputSchema,
       outputSchema: manifest.outputSchema,
-      requiredCapabilities: manifest.requiredCapabilities,
-      tags: manifest.tags,
       languages: manifest.languages,
       frameworks: manifest.frameworks,
-      trustTier: manifest.trustTier,
       examples: manifest.examples,
-      available: manifest.available !== false,
+      availableInCurrentSession: manifest.available !== false,
       legacyIds: manifest.legacyIds,
     }));
+
+    return {
+      count: constructions.length,
+      constructions,
+      hint: constructions.length > 0
+        ? `Call describe_construction with id='${constructions[0].id}' for full details and example code.`
+        : 'No constructions matched current filters. Remove language/requires filters or availableOnly to broaden results.',
+    };
   }
 
   private async executeInvokeConstruction(input: InvokeConstructionToolInput): Promise<unknown> {
@@ -4644,6 +4780,325 @@ export class LibrarianMCPServer {
       workspace: resolvedWorkspace,
       result,
     };
+  }
+
+  private async executeDescribeConstruction(input: DescribeConstructionToolInput): Promise<unknown> {
+    const manifest = getConstructionManifest(input.id);
+    if (!manifest) {
+      throw new Error(
+        `Unknown Construction ID: ${input.id}. Use list_constructions to discover IDs.`,
+      );
+    }
+
+    const includeExample = input.includeExample ?? true;
+    const includeCompositionHints = input.includeCompositionHints ?? true;
+    const compositionHints = includeCompositionHints
+      ? this.buildCompositionHints(manifest.id)
+      : undefined;
+
+    return {
+      id: manifest.id,
+      name: manifest.name,
+      scope: manifest.scope,
+      version: manifest.version,
+      description: manifest.description,
+      agentDescription: manifest.agentDescription,
+      inputType: this.describeConstructionSchema(manifest.inputSchema),
+      outputType: this.describeConstructionSchema(manifest.outputSchema),
+      requiredCapabilities: manifest.requiredCapabilities,
+      tags: manifest.tags,
+      trustTier: manifest.trustTier,
+      availableInCurrentSession: manifest.available !== false,
+      inputSchema: manifest.inputSchema,
+      outputSchema: manifest.outputSchema,
+      example: includeExample ? this.renderConstructionExample(manifest.id, manifest.examples[0]?.input) : undefined,
+      compositionHints,
+      examples: manifest.examples,
+    };
+  }
+
+  private async executeExplainOperator(input: ExplainOperatorToolInput): Promise<unknown> {
+    const situation = input.situation?.trim();
+    const operator = input.operator;
+
+    if (!operator && situation) {
+      const recommendation = this.recommendOperatorForSituation(situation);
+      const guide = OPERATOR_GUIDE[recommendation];
+      return {
+        situation,
+        recommendation,
+        reason: `${guide.summary} ${guide.decisionGuide}`,
+        example: guide.example,
+      };
+    }
+
+    if (!operator) {
+      throw new Error('Either operator or situation is required for explain_operator.');
+    }
+
+    const guide = OPERATOR_GUIDE[operator];
+    return {
+      operator,
+      summary: guide.summary,
+      decisionGuide: guide.decisionGuide,
+      example: guide.example,
+    };
+  }
+
+  private async executeCheckConstructionTypes(input: CheckConstructionTypesToolInput): Promise<unknown> {
+    const first = getConstructionManifest(input.first);
+    const second = getConstructionManifest(input.second);
+    if (!first) {
+      throw new Error(`Unknown Construction ID: ${input.first}. Use list_constructions to discover IDs.`);
+    }
+    if (!second) {
+      throw new Error(`Unknown Construction ID: ${input.second}. Use list_constructions to discover IDs.`);
+    }
+
+    if (input.operator === 'seq') {
+      const score = CONSTRUCTION_REGISTRY.compatibilityScore(first.id, second.id);
+      const compatible = score >= 0.5;
+      if (compatible) {
+        return {
+          compatible: true,
+          operator: input.operator,
+          seam: `${first.id}.output -> ${second.id}.input`,
+          note: `Compatibility score ${score.toFixed(2)} indicates the output shape is assignable to the downstream input.`,
+        };
+      }
+      return {
+        compatible: false,
+        operator: input.operator,
+        problem: `${first.id} outputs ${this.describeConstructionSchema(first.outputSchema)} but ${second.id} expects ${this.describeConstructionSchema(second.inputSchema)}.`,
+        suggestions: [
+          `Add a dimap adapter: seq(${first.id}, ${second.id}.contramap((value) => ({ ...value })))`,
+          `Insert an adapter construction: seq(${first.id}, seq(transform_output_for_${second.id.replace(/[^a-z0-9]+/gi, '_')}, ${second.id}))`,
+        ],
+      };
+    }
+
+    if (input.operator === 'fanout') {
+      const score = this.computeSchemaCompatibilityScore(first.inputSchema, second.inputSchema);
+      const compatible = score >= 0.5;
+      if (compatible) {
+        return {
+          compatible: true,
+          operator: input.operator,
+          seam: `${first.id}.input <-> ${second.id}.input`,
+          note: `Input compatibility score ${score.toFixed(2)} indicates both constructions can share the same upstream input.`,
+        };
+      }
+      return {
+        compatible: false,
+        operator: input.operator,
+        problem: `${first.id} expects ${this.describeConstructionSchema(first.inputSchema)} while ${second.id} expects ${this.describeConstructionSchema(second.inputSchema)}.`,
+        suggestions: [
+          `Normalize input before fanout via dimap/contramap adapters on one branch.`,
+          `Use seq with an explicit transform step, then fanout on the normalized payload.`,
+        ],
+      };
+    }
+
+    const inputScore = this.computeSchemaCompatibilityScore(first.inputSchema, second.inputSchema);
+    const outputScore = this.computeSchemaCompatibilityScore(first.outputSchema, second.outputSchema);
+    const compatible = inputScore >= 0.5 && outputScore >= 0.5;
+    if (compatible) {
+      return {
+        compatible: true,
+        operator: input.operator,
+        seam: `${first.id} ||| ${second.id}`,
+        note: `Fallback compatibility confirmed (input ${inputScore.toFixed(2)}, output ${outputScore.toFixed(2)}).`,
+      };
+    }
+    return {
+      compatible: false,
+      operator: input.operator,
+      problem: `Fallback requires compatible input/output contracts, but scores were input=${inputScore.toFixed(2)} and output=${outputScore.toFixed(2)}.`,
+      suggestions: [
+        `Adapt both branches to a shared contract using dimap before fallback.`,
+        `Wrap one branch in map/contramap transforms so both branches return the same output shape.`,
+      ],
+    };
+  }
+
+  private renderConstructionExample(constructionId: string, input: unknown): string {
+    const exampleInput = input === undefined ? '{}' : JSON.stringify(input, null, 2);
+    return [
+      "import { getConstructionManifest } from 'librainian/constructions/registry';",
+      '',
+      `const manifest = getConstructionManifest('${constructionId}');`,
+      "if (!manifest) throw new Error('Construction not found');",
+      '',
+      'const result = await manifest.construction.execute(',
+      `  ${exampleInput},`,
+      '  {',
+      '    deps: { librarian },',
+      '    signal: AbortSignal.timeout(30_000),',
+      "    sessionId: 'session-id',",
+      '  }',
+      ');',
+    ].join('\n');
+  }
+
+  private buildCompositionHints(constructionId: string): { goodWith: string[]; operator: string } {
+    const related = listConstructions({ availableOnly: true })
+      .filter((manifest) => manifest.id !== constructionId)
+      .map((manifest) => ({
+        id: manifest.id,
+        score: CONSTRUCTION_REGISTRY.compatibilityScore(constructionId, manifest.id),
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    const goodWith = related.map((entry) =>
+      `${entry.id} (${entry.score >= 0.6 ? 'seq' : 'fanout'} for ${
+        entry.score >= 0.6 ? 'output-to-input chaining' : 'parallel analysis on shared input'
+      })`);
+
+    const operator = related.some((entry) => entry.score >= 0.6)
+      ? 'Use seq() when you want downstream constructions to consume this output.'
+      : 'Use fanout() when you want this construction to run in parallel with another analysis over the same input.';
+
+    return { goodWith, operator };
+  }
+
+  private recommendOperatorForSituation(situation: string): ConstructionOperator {
+    const normalized = situation.toLowerCase();
+    if (/(parallel|concurrent|at the same time|both)/.test(normalized)) return 'fanout';
+    if (/(fallback|backup|if fails|on failure|retry with)/.test(normalized)) return 'fallback';
+    if (/(recursive|iterate|until stable|fixpoint|converge)/.test(normalized)) return 'fix';
+    if (/(branch|route|choose|select|either)/.test(normalized)) return 'select';
+    if (/(input transform|normalize input|preprocess input|before running)/.test(normalized)) return 'contramap';
+    if (/(output transform|post-process|format output|after running)/.test(normalized)) return 'map';
+    if (/(adapt input and output|both input and output)/.test(normalized)) return 'dimap';
+    if (/(single step|atomic|primitive|small transform)/.test(normalized)) return 'atom';
+    return 'seq';
+  }
+
+  private describeConstructionSchema(schema: {
+    type?: string;
+    properties?: Record<string, { type?: string }>;
+    required?: string[];
+    items?: { type?: string } | Array<{ type?: string }>;
+    oneOf?: Array<{ type?: string }>;
+    anyOf?: Array<{ type?: string }>;
+    allOf?: Array<{ type?: string }>;
+    enum?: Array<string | number | boolean>;
+  }): string {
+    if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+      return schema.enum.slice(0, 4).map((value) => JSON.stringify(value)).join(' | ');
+    }
+    if (schema.type === 'array') {
+      if (Array.isArray(schema.items)) {
+        return `Array<${schema.items.map((item) => item?.type ?? 'unknown').join(' | ')}>`;
+      }
+      return `Array<${schema.items?.type ?? 'unknown'}>`;
+    }
+    if (schema.type === 'object') {
+      const required = new Set(schema.required ?? []);
+      const props = Object.entries(schema.properties ?? {});
+      if (props.length === 0) {
+        return 'Record<string, unknown>';
+      }
+      const preview = props.slice(0, 4)
+        .map(([name, value]) => `${name}${required.has(name) ? '' : '?'}: ${value?.type ?? 'unknown'}`);
+      return `{ ${preview.join(', ')}${props.length > 4 ? ', ...' : ''} }`;
+    }
+    const unionTypes = [
+      ...(schema.oneOf ?? []).map((entry) => entry.type).filter((value): value is string => typeof value === 'string'),
+      ...(schema.anyOf ?? []).map((entry) => entry.type).filter((value): value is string => typeof value === 'string'),
+      ...(schema.allOf ?? []).map((entry) => entry.type).filter((value): value is string => typeof value === 'string'),
+    ];
+    if (unionTypes.length > 0) {
+      return Array.from(new Set(unionTypes)).join(' | ');
+    }
+    return schema.type ?? 'unknown';
+  }
+
+  private computeSchemaCompatibilityScore(
+    left: {
+      type?: string;
+      properties?: Record<string, unknown>;
+      required?: string[];
+      oneOf?: Array<{ type?: string }>;
+      anyOf?: Array<{ type?: string }>;
+      allOf?: Array<{ type?: string }>;
+      items?: { type?: string } | Array<{ type?: string }>;
+    },
+    right: {
+      type?: string;
+      properties?: Record<string, unknown>;
+      required?: string[];
+      oneOf?: Array<{ type?: string }>;
+      anyOf?: Array<{ type?: string }>;
+      allOf?: Array<{ type?: string }>;
+      items?: { type?: string } | Array<{ type?: string }>;
+    },
+  ): number {
+    const leftTypes = this.collectSchemaTypes(left);
+    const rightTypes = this.collectSchemaTypes(right);
+    if (leftTypes.size > 0 && rightTypes.size > 0) {
+      const overlap = Array.from(leftTypes).filter((type) => rightTypes.has(type));
+      if (overlap.length > 0) {
+        return overlap.length / Math.max(leftTypes.size, rightTypes.size);
+      }
+    }
+
+    if (left.type === 'object' && right.type === 'object') {
+      const leftProps = new Set(Object.keys(left.properties ?? {}));
+      const rightProps = new Set(Object.keys(right.properties ?? {}));
+      const leftRequired = left.required ?? [];
+      const rightRequired = right.required ?? [];
+      const leftMatches = leftRequired.filter((name) => rightProps.has(name)).length;
+      const rightMatches = rightRequired.filter((name) => leftProps.has(name)).length;
+      const requiredCount = leftRequired.length + rightRequired.length;
+      if (requiredCount === 0) {
+        return 0.75;
+      }
+      return (leftMatches + rightMatches) / requiredCount;
+    }
+
+    return 0;
+  }
+
+  private collectSchemaTypes(schema: {
+    type?: string;
+    oneOf?: Array<{ type?: string }>;
+    anyOf?: Array<{ type?: string }>;
+    allOf?: Array<{ type?: string }>;
+    items?: { type?: string } | Array<{ type?: string }>;
+  }): Set<string> {
+    const types = new Set<string>();
+    if (typeof schema.type === 'string' && schema.type.length > 0) {
+      types.add(schema.type);
+    }
+    for (const entry of schema.oneOf ?? []) {
+      if (typeof entry.type === 'string') {
+        types.add(entry.type);
+      }
+    }
+    for (const entry of schema.anyOf ?? []) {
+      if (typeof entry.type === 'string') {
+        types.add(entry.type);
+      }
+    }
+    for (const entry of schema.allOf ?? []) {
+      if (typeof entry.type === 'string') {
+        types.add(entry.type);
+      }
+    }
+    if (!Array.isArray(schema.items) && typeof schema.items?.type === 'string') {
+      types.add(schema.items.type);
+    }
+    if (Array.isArray(schema.items)) {
+      for (const entry of schema.items) {
+        if (typeof entry?.type === 'string') {
+          types.add(entry.type);
+        }
+      }
+    }
+    return types;
   }
 
   private async executeRequestHumanReview(input: RequestHumanReviewToolInput): Promise<unknown> {
