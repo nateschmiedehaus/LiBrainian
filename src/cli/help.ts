@@ -24,6 +24,7 @@ COMMANDS:
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
+    embed               Repair and backfill semantic embeddings
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
     install-openclaw-skill Install official OpenClaw skill and config wiring
     openclaw-daemon     Manage OpenClaw daemon registration and state
@@ -284,6 +285,26 @@ EXAMPLES:
     librarian bootstrap --scope librarian
     librarian bootstrap --scope librarian --llm-provider codex --llm-model gpt-4o-mini
     librarian bootstrap --emit-baseline
+`,
+
+  embed: `
+librarian embed - Repair and backfill semantic embeddings
+
+USAGE:
+    librarian embed --fix [--json]
+
+OPTIONS:
+    --fix               Run embedding backfill remediation (required)
+    --json              Emit machine-readable JSON output
+
+DESCRIPTION:
+    Forces a fast bootstrap pass with embeddings enabled to recover semantic
+    retrieval coverage. This command fails closed if the embedding provider is
+    unavailable.
+
+EXAMPLES:
+    librarian embed --fix
+    librarian embed --fix --json
 `,
 
   uninstall: `

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -324,18 +324,19 @@ index abc123..0000000
 
   describe('Integration with Storage', () => {
     let storage: LibrarianStorage;
-    const testDir = join(tmpdir(), 'diff-indexer-test-' + Date.now());
+    let testDir: string;
+    let dbPath: string;
 
     beforeEach(async () => {
-      if (!existsSync(testDir)) {
-        mkdirSync(testDir, { recursive: true });
-      }
-      storage = createSqliteStorage(':memory:', testDir);
+      testDir = mkdtempSync(join(tmpdir(), 'diff-indexer-test-'));
+      dbPath = join(testDir, 'librarian.sqlite');
+      storage = createSqliteStorage(dbPath, testDir);
       await storage.initialize();
     });
 
     afterEach(async () => {
       await storage.close();
+      rmSync(testDir, { recursive: true, force: true });
     });
 
     it('should store and retrieve diff records', async () => {
