@@ -14,10 +14,12 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
-    expect(scripts['gh:ship']).toBe('npm run policy:merge && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['policy:hygiene']).toBe('node scripts/git-hygiene-guard.mjs --mode warn');
+    expect(scripts['policy:hygiene:enforce']).toBe('node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');
+    expect(scripts['gh:ship']).toBe('npm run policy:pull && npm run policy:merge && npm run policy:hygiene:enforce && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
     expect(scripts['gh:prs:stabilize:dry-run']).toBe('node scripts/gh-pr-stabilize.mjs --dry-run');
     expect(scripts['gh:prs:stabilize']).toBe('node scripts/gh-pr-stabilize.mjs');
-    expect(scripts['gh:cadence']).toBe('npm run policy:pull && npm run gh:prs:stabilize && npm run gh:branches:cleanup');
+    expect(scripts['gh:cadence']).toBe('npm run policy:pull && npm run policy:hygiene:enforce && npm run gh:prs:stabilize && npm run gh:branches:cleanup');
     expect(scripts['gh:branches:dry-run']).toBe('node scripts/gh-branch-hygiene.mjs --dry-run');
     expect(scripts['gh:branches:cleanup']).toBe('node scripts/gh-branch-hygiene.mjs');
     expect(scripts['librainian:update']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update');
@@ -46,6 +48,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'hook-update-index.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'lefthook.yml'))).toBe(true);
@@ -113,6 +116,14 @@ describe('package release scripts', () => {
     expect(script).toContain('complete repo=');
   });
 
+  it('adds lightweight git hygiene guardrails for branch and PR stability', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('Conflict markers detected');
+    expect(script).toContain('Untracked/generated JS artifacts');
+    expect(script).toContain('is behind origin/main');
+    expect(script).toContain('missing an issue-closing keyword');
+  });
   it('keeps issue planning uncapped by default', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'issue-feedback-loop.ts');
     const script = fs.readFileSync(scriptPath, 'utf8');
