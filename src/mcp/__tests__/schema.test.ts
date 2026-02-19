@@ -36,6 +36,8 @@ import {
   CheckConstructionTypesToolInputSchema,
   SubmitFeedbackToolInputSchema,
   ExplainFunctionToolInputSchema,
+  FindCallersToolInputSchema,
+  FindCalleesToolInputSchema,
   FindUsagesToolInputSchema,
   TraceImportsToolInputSchema,
   VerifyClaimToolInputSchema,
@@ -69,6 +71,8 @@ import {
   isCheckConstructionTypesToolInput,
   isSubmitFeedbackToolInput,
   isExplainFunctionToolInput,
+  isFindCallersToolInput,
+  isFindCalleesToolInput,
   isFindUsagesToolInput,
   isTraceImportsToolInput,
   isVerifyClaimToolInput,
@@ -107,6 +111,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('check_construction_types');
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('explain_function');
+      expect(schemas).toContain('find_callers');
+      expect(schemas).toContain('find_callees');
       expect(schemas).toContain('find_usages');
       expect(schemas).toContain('trace_imports');
       expect(schemas).toContain('verify_claim');
@@ -130,7 +136,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(40);
+      expect(schemas).toHaveLength(42);
     });
 
     it('should return schema for known tools', () => {
@@ -555,6 +561,29 @@ describe('MCP Schema', () => {
       expect(isExplainFunctionToolInput({ name: 'queryLibrarian' })).toBe(true);
       expect(isExplainFunctionToolInput({})).toBe(false);
       expect(ExplainFunctionToolInputSchema).toBeDefined();
+    });
+
+    it('validates find_callers input and type guard', () => {
+      const result = validateToolInput('find_callers', {
+        functionId: 'createLibrarian',
+        transitive: true,
+        maxDepth: 2,
+      });
+      expect(result.valid).toBe(true);
+      expect(isFindCallersToolInput({ functionId: 'createLibrarian' })).toBe(true);
+      expect(isFindCallersToolInput({ functionId: 'createLibrarian', maxDepth: 0 })).toBe(false);
+      expect(FindCallersToolInputSchema).toBeDefined();
+    });
+
+    it('validates find_callees input and type guard', () => {
+      const result = validateToolInput('find_callees', {
+        functionId: 'queryLibrarian',
+        limit: 15,
+      });
+      expect(result.valid).toBe(true);
+      expect(isFindCalleesToolInput({ functionId: 'queryLibrarian' })).toBe(true);
+      expect(isFindCalleesToolInput({ functionId: 'queryLibrarian', limit: 0 })).toBe(false);
+      expect(FindCalleesToolInputSchema).toBeDefined();
     });
 
     it('validates find_usages input and type guard', () => {

@@ -1090,6 +1090,36 @@ export interface ExplainFunctionToolOutput {
   error?: string;
 }
 
+/** find_callers tool input */
+export interface FindCallersToolInput {
+  /** Target function ID or name */
+  functionId: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Include transitive callers (callers-of-callers) */
+  transitive?: boolean;
+
+  /** Maximum transitive depth when transitive is enabled */
+  maxDepth?: number;
+
+  /** Maximum number of callsites to return */
+  limit?: number;
+}
+
+/** find_callees tool input */
+export interface FindCalleesToolInput {
+  /** Target function ID or name */
+  functionId: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Maximum number of callees to return */
+  limit?: number;
+}
+
 /** Find usages tool input */
 export interface FindUsagesToolInput {
   /** Function name or function ID */
@@ -1758,6 +1788,18 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  find_callers: {
+    tool: 'find_callers',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  find_callees: {
+    tool: 'find_callees',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   find_usages: {
     tool: 'find_usages',
     requiredScopes: ['read'],
@@ -2326,6 +2368,34 @@ export function isExplainFunctionToolInput(value: unknown): value is ExplainFunc
   const filePathOk = typeof obj.filePath === 'string' || typeof obj.filePath === 'undefined';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return nameOk && filePathOk && workspaceOk;
+}
+
+/** Type guard for FindCallersToolInput */
+export function isFindCallersToolInput(value: unknown): value is FindCallersToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const functionIdOk = typeof obj.functionId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const transitiveOk = typeof obj.transitive === 'boolean' || typeof obj.transitive === 'undefined';
+  const maxDepthOk = typeof obj.maxDepth === 'number'
+    ? Number.isFinite(obj.maxDepth) && obj.maxDepth >= 1 && obj.maxDepth <= 8
+    : typeof obj.maxDepth === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 500
+    : typeof obj.limit === 'undefined';
+  return functionIdOk && workspaceOk && transitiveOk && maxDepthOk && limitOk;
+}
+
+/** Type guard for FindCalleesToolInput */
+export function isFindCalleesToolInput(value: unknown): value is FindCalleesToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const functionIdOk = typeof obj.functionId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 500
+    : typeof obj.limit === 'undefined';
+  return functionIdOk && workspaceOk && limitOk;
 }
 
 /** Type guard for FindUsagesToolInput */

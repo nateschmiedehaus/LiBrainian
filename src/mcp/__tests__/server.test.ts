@@ -219,6 +219,20 @@ describe('MCP Server', () => {
       expect(claimTool?.description).toContain('parallel agent coordination');
     });
 
+    it('includes find_callers and find_callees semantic navigation tools', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const findCallersTool = tools.find((tool) => tool.name === 'find_callers');
+      const findCalleesTool = tools.find((tool) => tool.name === 'find_callees');
+
+      expect(findCallersTool).toBeDefined();
+      expect(findCallersTool?.description?.toLowerCase()).toContain('caller');
+      expect(findCalleesTool).toBeDefined();
+      expect(findCalleesTool?.description?.toLowerCase()).toContain('callee');
+    });
+
     it('includes append_claim, query_claims, and harvest_session_knowledge tools', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;

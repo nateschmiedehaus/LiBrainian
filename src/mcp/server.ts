@@ -56,6 +56,8 @@ import {
   type HarvestSessionKnowledgeToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
+  type FindCallersToolInput,
+  type FindCalleesToolInput,
   type FindUsagesToolInput,
   type TraceImportsToolInput,
   type FindSymbolToolInput,
@@ -359,6 +361,8 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   harvest_session_knowledge: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  find_callers: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
+  find_callees: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
   trace_imports: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
   find_symbol: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1700 },
@@ -1438,6 +1442,34 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
           },
           required: ['name'],
+        },
+      },
+      {
+        name: 'find_callers',
+        description: 'Find direct or transitive caller callsites for a function name or ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            functionId: { type: 'string', description: 'Target function ID or name to locate callers for' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            transitive: { type: 'boolean', description: 'Include transitive callers (callers-of-callers)' },
+            maxDepth: { type: 'number', description: 'Maximum transitive depth when transitive=true (default 3, max 8)' },
+            limit: { type: 'number', description: 'Maximum callsites to return (default 100, max 500)' },
+          },
+          required: ['functionId'],
+        },
+      },
+      {
+        name: 'find_callees',
+        description: 'Find direct callees for a function name or ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            functionId: { type: 'string', description: 'Target function ID or name to locate callees for' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            limit: { type: 'number', description: 'Maximum callees to return (default 100, max 500)' },
+          },
+          required: ['functionId'],
         },
       },
       {
@@ -3088,6 +3120,10 @@ export class LibrarianMCPServer {
         return this.executeSynthesizePlan(args as SynthesizePlanToolInput, context);
       case 'explain_function':
         return this.executeExplainFunction(args as ExplainFunctionToolInput);
+      case 'find_callers':
+        return this.executeFindCallers(args as FindCallersToolInput);
+      case 'find_callees':
+        return this.executeFindCallees(args as FindCalleesToolInput);
       case 'find_usages':
         return this.executeFindUsages(args as FindUsagesToolInput);
       case 'trace_imports':
@@ -5685,6 +5721,301 @@ export class LibrarianMCPServer {
     } catch (error) {
       return {
         found: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async resolveFunctionTargetsForLookup(
+    storage: LibrarianStorage,
+    query: string,
+  ): Promise<Array<{
+    id: string;
+    name: string;
+    signature: string;
+    filePath: string;
+    purpose?: string;
+    confidence?: number;
+  }>> {
+    const trimmed = query.trim();
+    if (trimmed.length === 0) return [];
+
+    const byId = await storage.getFunction(trimmed).catch(() => null);
+    const byName = await storage.getFunctionsByName(trimmed).catch(() => []);
+    const fallbackPool = byId || byName.length > 0
+      ? []
+      : await storage.getFunctions({ limit: 1500, orderBy: 'name', orderDirection: 'asc' }).catch(() => []);
+    const fallback = fallbackPool.filter((fn) =>
+      this.scoreFindSymbolCandidate(
+        trimmed,
+        `${fn.id} ${fn.name} ${fn.signature} ${fn.filePath}`
+      ) >= 0.45
+    );
+
+    const merged = [
+      ...(byId ? [byId] : []),
+      ...byName,
+      ...fallback,
+    ];
+    const deduped = new Map<string, {
+      id: string;
+      name: string;
+      signature: string;
+      filePath: string;
+      purpose?: string;
+      confidence?: number;
+    }>();
+    for (const fn of merged) {
+      if (!fn || typeof fn.id !== 'string' || fn.id.length === 0) continue;
+      if (!deduped.has(fn.id)) {
+        deduped.set(fn.id, {
+          id: fn.id,
+          name: fn.name,
+          signature: fn.signature,
+          filePath: fn.filePath,
+          purpose: fn.purpose,
+          confidence: fn.confidence,
+        });
+      }
+    }
+
+    return Array.from(deduped.values());
+  }
+
+  private async executeFindCallers(input: FindCallersToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const targets = await this.resolveFunctionTargetsForLookup(storage, input.functionId);
+      if (targets.length === 0) {
+        return {
+          success: true,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          workspace: workspacePath,
+          transitive: input.transitive ?? false,
+          maxDepth: input.maxDepth ?? 3,
+        };
+      }
+
+      const transitive = input.transitive ?? false;
+      const maxDepth = Math.max(1, Math.min(8, Math.trunc(input.maxDepth ?? 3)));
+      const depthLimit = transitive ? maxDepth : 1;
+      const limit = Math.max(1, Math.min(500, Math.trunc(input.limit ?? 100)));
+      const queue: Array<{ targetId: string; depth: number }> = targets.map((target) => ({ targetId: target.id, depth: 1 }));
+      const visitedTargets = new Set<string>(targets.map((target) => target.id));
+      const seenEdges = new Set<string>();
+      const callSites: Array<{
+        file: string;
+        line: number | null;
+        column: number;
+        callerFunctionId: string;
+        callerName: string;
+        calleeFunctionId: string;
+        depth: number;
+        semanticContext: string;
+        confidence: number;
+      }> = [];
+
+      while (queue.length > 0 && callSites.length < limit) {
+        const current = queue.shift()!;
+        if (current.depth > depthLimit) {
+          continue;
+        }
+
+        const edges = await storage.getGraphEdges({
+          toIds: [current.targetId],
+          edgeTypes: ['calls'],
+          limit,
+        }).catch(() => []);
+
+        for (const edge of edges) {
+          if (typeof edge.fromId !== 'string' || edge.fromId.length === 0) continue;
+          const edgeKey = `${edge.fromId}->${current.targetId}@${current.depth}`;
+          if (seenEdges.has(edgeKey)) continue;
+          seenEdges.add(edgeKey);
+
+          const caller = await storage.getFunction(edge.fromId).catch(() => null);
+          callSites.push({
+            file: caller?.filePath ?? edge.sourceFile,
+            line: typeof edge.sourceLine === 'number' ? edge.sourceLine : null,
+            column: 1,
+            callerFunctionId: edge.fromId,
+            callerName: caller?.name ?? edge.fromId,
+            calleeFunctionId: current.targetId,
+            depth: current.depth,
+            semanticContext: current.depth > 1
+              ? `Transitive caller at depth ${current.depth} in the upstream call chain.`
+              : 'Direct caller of the requested function.',
+            confidence: Number.isFinite(edge.confidence) ? edge.confidence : 0.5,
+          });
+
+          if (callSites.length >= limit) break;
+          if (current.depth < depthLimit && !visitedTargets.has(edge.fromId)) {
+            visitedTargets.add(edge.fromId);
+            queue.push({ targetId: edge.fromId, depth: current.depth + 1 });
+          }
+        }
+      }
+
+      return {
+        success: true,
+        functionId: input.functionId,
+        resolvedFunctionIds: targets.map((target) => target.id),
+        workspace: workspacePath,
+        transitive,
+        maxDepth: depthLimit,
+        callSites,
+        totalCallSites: callSites.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        functionId: input.functionId,
+        callSites: [],
+        totalCallSites: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeFindCallees(input: FindCalleesToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const targets = await this.resolveFunctionTargetsForLookup(storage, input.functionId);
+      if (targets.length === 0) {
+        return {
+          success: true,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          workspace: workspacePath,
+        };
+      }
+
+      const limit = Math.max(1, Math.min(500, Math.trunc(input.limit ?? 100)));
+      const seen = new Set<string>();
+      const callees: Array<{
+        functionId: string;
+        name: string;
+        file: string;
+        line: number | null;
+        description: string;
+        confidence: number;
+        calledFrom: string;
+      }> = [];
+
+      for (const target of targets) {
+        const edges = await storage.getGraphEdges({
+          fromIds: [target.id],
+          edgeTypes: ['calls'],
+          limit,
+        }).catch(() => []);
+        for (const edge of edges) {
+          if (typeof edge.toId !== 'string' || edge.toId.length === 0) continue;
+          const key = `${target.id}->${edge.toId}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          const callee = await storage.getFunction(edge.toId).catch(() => null);
+          callees.push({
+            functionId: edge.toId,
+            name: callee?.name ?? edge.toId,
+            file: callee?.filePath ?? edge.sourceFile,
+            line: typeof edge.sourceLine === 'number' ? edge.sourceLine : null,
+            description: callee?.purpose ?? `Function called by ${target.name}.`,
+            confidence: Number.isFinite(edge.confidence) ? edge.confidence : (callee?.confidence ?? 0.5),
+            calledFrom: target.id,
+          });
+          if (callees.length >= limit) break;
+        }
+        if (callees.length >= limit) break;
+      }
+
+      return {
+        success: true,
+        functionId: input.functionId,
+        resolvedFunctionIds: targets.map((target) => target.id),
+        workspace: workspacePath,
+        callees,
+        totalCallees: callees.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        functionId: input.functionId,
+        callees: [],
+        totalCallees: 0,
         error: error instanceof Error ? error.message : String(error),
       };
     }

@@ -217,6 +217,26 @@ export const ExplainFunctionToolInputSchema = z.object({
 }).strict();
 
 /**
+ * Find callers tool input schema
+ */
+export const FindCallersToolInputSchema = z.object({
+  functionId: z.string().min(1).max(500).describe('Target function ID or name to locate callers for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  transitive: z.boolean().optional().default(false).describe('Include transitive callers (callers-of-callers)'),
+  maxDepth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive caller depth when transitive is enabled'),
+  limit: z.number().int().min(1).max(500).optional().default(100).describe('Maximum caller callsites to return (default: 100, max: 500)'),
+}).strict();
+
+/**
+ * Find callees tool input schema
+ */
+export const FindCalleesToolInputSchema = z.object({
+  functionId: z.string().min(1).max(500).describe('Target function ID or name to locate callees for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  limit: z.number().int().min(1).max(500).optional().default(100).describe('Maximum callees to return (default: 100, max: 500)'),
+}).strict();
+
+/**
  * Find usages tool input schema
  */
 export const FindUsagesToolInputSchema = z.object({
@@ -520,6 +540,8 @@ export type QueryClaimsToolInputType = z.infer<typeof QueryClaimsToolInputSchema
 export type HarvestSessionKnowledgeToolInputType = z.infer<typeof HarvestSessionKnowledgeToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
+export type FindCallersToolInputType = z.infer<typeof FindCallersToolInputSchema>;
+export type FindCalleesToolInputType = z.infer<typeof FindCalleesToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
 export type TraceImportsToolInputType = z.infer<typeof TraceImportsToolInputSchema>;
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
@@ -581,6 +603,8 @@ export const TOOL_INPUT_SCHEMAS = {
   harvest_session_knowledge: HarvestSessionKnowledgeToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
+  find_callers: FindCallersToolInputSchema,
+  find_callees: FindCalleesToolInputSchema,
   find_symbol: FindSymbolToolInputSchema,
   run_audit: RunAuditToolInputSchema,
   list_runs: ListRunsToolInputSchema,
@@ -879,6 +903,40 @@ export const explainFunctionToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Find callers tool JSON Schema */
+export const findCallersToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/find-callers-tool-input',
+  title: 'FindCallersToolInput',
+  description: 'Input for find_callers - return direct or transitive caller callsites for a function',
+  type: 'object',
+  properties: {
+    functionId: { type: 'string', description: 'Target function ID or name to locate callers for', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    transitive: { type: 'boolean', description: 'Include transitive callers (callers-of-callers)', default: false },
+    maxDepth: { type: 'number', description: 'Maximum transitive caller depth when transitive is enabled', minimum: 1, maximum: 8, default: 3 },
+    limit: { type: 'number', description: 'Maximum caller callsites to return (default: 100, max: 500)', minimum: 1, maximum: 500, default: 100 },
+  },
+  required: ['functionId'],
+  additionalProperties: false,
+};
+
+/** Find callees tool JSON Schema */
+export const findCalleesToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/find-callees-tool-input',
+  title: 'FindCalleesToolInput',
+  description: 'Input for find_callees - return direct callees for a function',
+  type: 'object',
+  properties: {
+    functionId: { type: 'string', description: 'Target function ID or name to locate callees for', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    limit: { type: 'number', description: 'Maximum callees to return (default: 100, max: 500)', minimum: 1, maximum: 500, default: 100 },
+  },
+  required: ['functionId'],
+  additionalProperties: false,
+};
+
 /** Find usages tool JSON Schema */
 export const findUsagesToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -1069,6 +1127,8 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   semantic_search: semanticSearchToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
+  find_callers: findCallersToolJsonSchema,
+  find_callees: findCalleesToolJsonSchema,
   find_usages: findUsagesToolJsonSchema,
   trace_imports: traceImportsToolJsonSchema,
   synthesize_plan: synthesizePlanToolJsonSchema,
