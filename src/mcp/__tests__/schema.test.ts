@@ -21,6 +21,9 @@ import {
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
   SubmitFeedbackToolInputSchema,
+  ExplainFunctionToolInputSchema,
+  FindUsagesToolInputSchema,
+  TraceImportsToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
   DiffRunsToolInputSchema,
@@ -37,6 +40,9 @@ import {
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
   isSubmitFeedbackToolInput,
+  isExplainFunctionToolInput,
+  isFindUsagesToolInput,
+  isTraceImportsToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
   isDiffRunsToolInput,
@@ -64,6 +70,9 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('reset_session_state');
       expect(schemas).toContain('request_human_review');
       expect(schemas).toContain('submit_feedback');
+      expect(schemas).toContain('explain_function');
+      expect(schemas).toContain('find_usages');
+      expect(schemas).toContain('trace_imports');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
       expect(schemas).toContain('list_runs');
@@ -79,7 +88,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(23);
+      expect(schemas).toHaveLength(26);
     });
 
     it('should return schema for known tools', () => {
@@ -259,6 +268,32 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'failure' })).toBe(true);
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'bad' })).toBe(false);
+    });
+  });
+
+  describe('Symbol Lookup Tool Schemas', () => {
+    it('validates explain_function input and type guard', () => {
+      const result = validateToolInput('explain_function', { name: 'queryLibrarian' });
+      expect(result.valid).toBe(true);
+      expect(isExplainFunctionToolInput({ name: 'queryLibrarian' })).toBe(true);
+      expect(isExplainFunctionToolInput({})).toBe(false);
+      expect(ExplainFunctionToolInputSchema).toBeDefined();
+    });
+
+    it('validates find_usages input and type guard', () => {
+      const result = validateToolInput('find_usages', { symbol: 'createLibrarian', limit: 10 });
+      expect(result.valid).toBe(true);
+      expect(isFindUsagesToolInput({ symbol: 'createLibrarian' })).toBe(true);
+      expect(isFindUsagesToolInput({})).toBe(false);
+      expect(FindUsagesToolInputSchema).toBeDefined();
+    });
+
+    it('validates trace_imports input and type guard', () => {
+      const result = validateToolInput('trace_imports', { filePath: 'src/api/index.ts', direction: 'both' });
+      expect(result.valid).toBe(true);
+      expect(isTraceImportsToolInput({ filePath: 'src/api/index.ts', direction: 'imports' })).toBe(true);
+      expect(isTraceImportsToolInput({ filePath: 'src/api/index.ts', direction: 'invalid' })).toBe(false);
+      expect(TraceImportsToolInputSchema).toBeDefined();
     });
   });
 

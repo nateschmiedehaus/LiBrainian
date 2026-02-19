@@ -15,6 +15,9 @@
  * - get_context_pack_bundle
  * - verify_claim
  * - find_symbol
+ * - explain_function
+ * - find_usages
+ * - trace_imports
  * - run_audit
  * - list_runs
  * - diff_runs
@@ -727,6 +730,84 @@ export interface SubmitFeedbackToolOutput {
   error?: string;
 }
 
+/** Explain function tool input */
+export interface ExplainFunctionToolInput {
+  /** Function name or function ID */
+  name: string;
+
+  /** Optional file path for disambiguation */
+  filePath?: string;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+}
+
+export interface ExplainFunctionToolOutput {
+  found: boolean;
+  function?: {
+    id: string;
+    name: string;
+    signature: string;
+    filePath: string;
+    summary: string;
+    purpose: string;
+    callers: Array<{ id: string; name: string; filePath?: string }>;
+    callees: Array<{ id: string; name: string; filePath?: string }>;
+    confidence: number;
+  };
+  workspace?: string;
+  error?: string;
+}
+
+/** Find usages tool input */
+export interface FindUsagesToolInput {
+  /** Function name or function ID */
+  symbol: string;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum number of callsites to return */
+  limit?: number;
+}
+
+export interface FindUsagesToolOutput {
+  success: boolean;
+  symbol: string;
+  matches: Array<{
+    id: string;
+    name: string;
+    filePath: string;
+    usageCount: number;
+    files: string[];
+    callers: Array<{ id: string; name: string; filePath?: string }>;
+  }>;
+  totalMatches: number;
+  workspace?: string;
+  error?: string;
+}
+
+/** Trace imports tool input */
+export interface TraceImportsToolInput {
+  filePath: string;
+  direction?: 'imports' | 'importedBy' | 'both';
+  depth?: number;
+  workspace?: string;
+}
+
+export interface TraceImportsToolOutput {
+  success: boolean;
+  filePath: string;
+  resolvedFile?: string;
+  direction: 'imports' | 'importedBy' | 'both';
+  depth: number;
+  imports: string[];
+  importedBy: string[];
+  edges: Array<{ from: string; to: string; direction: 'imports' | 'importedBy'; depth: number }>;
+  workspace?: string;
+  error?: string;
+}
+
 export interface ContextPackSummary {
   /** Pack ID */
   packId: string;
@@ -1256,6 +1337,24 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  explain_function: {
+    tool: 'explain_function',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  find_usages: {
+    tool: 'find_usages',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  trace_imports: {
+    tool: 'trace_imports',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_context_pack_bundle: {
     tool: 'get_context_pack_bundle',
     requiredScopes: ['read'],
@@ -1577,6 +1676,40 @@ export function isSubmitFeedbackToolInput(value: unknown): value is SubmitFeedba
   const missingContextOk = typeof obj.missingContext === 'string' || typeof obj.missingContext === 'undefined';
   const ratingsOk = Array.isArray(obj.customRatings) || typeof obj.customRatings === 'undefined';
   return tokenOk && outcomeOk && workspaceOk && agentIdOk && missingContextOk && ratingsOk;
+}
+
+/** Type guard for ExplainFunctionToolInput */
+export function isExplainFunctionToolInput(value: unknown): value is ExplainFunctionToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const nameOk = typeof obj.name === 'string';
+  const filePathOk = typeof obj.filePath === 'string' || typeof obj.filePath === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return nameOk && filePathOk && workspaceOk;
+}
+
+/** Type guard for FindUsagesToolInput */
+export function isFindUsagesToolInput(value: unknown): value is FindUsagesToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const symbolOk = typeof obj.symbol === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  return symbolOk && workspaceOk && limitOk;
+}
+
+/** Type guard for TraceImportsToolInput */
+export function isTraceImportsToolInput(value: unknown): value is TraceImportsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const filePathOk = typeof obj.filePath === 'string';
+  const directionOk = obj.direction === 'imports'
+    || obj.direction === 'importedBy'
+    || obj.direction === 'both'
+    || typeof obj.direction === 'undefined';
+  const depthOk = typeof obj.depth === 'number' || typeof obj.depth === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return filePathOk && directionOk && depthOk && workspaceOk;
 }
 
 /** Type guard for VerifyClaimToolInput */

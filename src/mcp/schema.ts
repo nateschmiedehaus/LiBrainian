@@ -50,6 +50,9 @@ export const FindSymbolKindSchema = z.enum([
   'run',
 ]);
 
+/** Import trace direction */
+export const TraceImportsDirectionSchema = z.enum(['imports', 'importedBy', 'both']);
+
 /** Shared pagination/output controls */
 const PageSizeSchema = z.number().int().min(1).max(200);
 const PageIdxSchema = z.number().int().min(0);
@@ -117,6 +120,34 @@ export const SubmitFeedbackToolInputSchema = z.object({
     usefulness: z.number().min(0).max(1).optional(),
     reason: z.string().optional(),
   }).strict()).optional().describe('Optional per-pack relevance ratings'),
+}).strict();
+
+/**
+ * Explain function tool input schema
+ */
+export const ExplainFunctionToolInputSchema = z.object({
+  name: z.string().min(1).max(500).describe('Function name or function ID to explain'),
+  filePath: z.string().optional().describe('Optional file path for disambiguation when names collide'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+}).strict();
+
+/**
+ * Find usages tool input schema
+ */
+export const FindUsagesToolInputSchema = z.object({
+  symbol: z.string().min(1).max(500).describe('Function name or function ID to locate call sites for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  limit: z.number().int().min(1).max(500).optional().default(100).describe('Maximum callsite records to return (default: 100, max: 500)'),
+}).strict();
+
+/**
+ * Trace imports tool input schema
+ */
+export const TraceImportsToolInputSchema = z.object({
+  filePath: z.string().min(1).describe('File path to trace dependencies from'),
+  direction: TraceImportsDirectionSchema.optional().default('both').describe('Trace imports, importers, or both'),
+  depth: z.number().int().min(1).max(6).optional().default(2).describe('Maximum dependency depth (default: 2, max: 6)'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
 }).strict();
 
 /**
@@ -307,6 +338,9 @@ export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
+export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
+export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
+export type TraceImportsToolInputType = z.infer<typeof TraceImportsToolInputSchema>;
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
@@ -338,6 +372,9 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   query: QueryToolInputSchema,
+  explain_function: ExplainFunctionToolInputSchema,
+  find_usages: FindUsagesToolInputSchema,
+  trace_imports: TraceImportsToolInputSchema,
   reset_session_state: ResetSessionStateToolInputSchema,
   request_human_review: RequestHumanReviewToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
@@ -475,6 +512,55 @@ export const submitFeedbackToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Explain function tool JSON Schema */
+export const explainFunctionToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/explain-function-tool-input',
+  title: 'ExplainFunctionToolInput',
+  description: 'Input for explain_function - return focused symbol-level context for a function',
+  type: 'object',
+  properties: {
+    name: { type: 'string', description: 'Function name or function ID to explain', minLength: 1, maxLength: 500 },
+    filePath: { type: 'string', description: 'Optional file path for disambiguation when names collide' },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+  },
+  required: ['name'],
+  additionalProperties: false,
+};
+
+/** Find usages tool JSON Schema */
+export const findUsagesToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/find-usages-tool-input',
+  title: 'FindUsagesToolInput',
+  description: 'Input for find_usages - return symbol callsites and usage files',
+  type: 'object',
+  properties: {
+    symbol: { type: 'string', description: 'Function name or function ID to locate call sites for', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    limit: { type: 'number', description: 'Maximum callsite records to return (default: 100, max: 500)', minimum: 1, maximum: 500, default: 100 },
+  },
+  required: ['symbol'],
+  additionalProperties: false,
+};
+
+/** Trace imports tool JSON Schema */
+export const traceImportsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/trace-imports-tool-input',
+  title: 'TraceImportsToolInput',
+  description: 'Input for trace_imports - walk import and importedBy relationships for a file',
+  type: 'object',
+  properties: {
+    filePath: { type: 'string', description: 'File path to trace dependencies from', minLength: 1 },
+    direction: { type: 'string', enum: ['imports', 'importedBy', 'both'], description: 'Trace imports, importers, or both' },
+    depth: { type: 'number', description: 'Maximum dependency depth (default: 2, max: 6)', minimum: 1, maximum: 6, default: 2 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+  },
+  required: ['filePath'],
+  additionalProperties: false,
+};
+
 /** Reset session state tool JSON Schema */
 export const resetSessionStateToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -530,6 +616,9 @@ export const findSymbolToolJsonSchema: JSONSchema = {
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   query: queryToolJsonSchema,
+  explain_function: explainFunctionToolJsonSchema,
+  find_usages: findUsagesToolJsonSchema,
+  trace_imports: traceImportsToolJsonSchema,
   reset_session_state: resetSessionStateToolJsonSchema,
   request_human_review: requestHumanReviewToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
