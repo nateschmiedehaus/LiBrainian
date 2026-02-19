@@ -491,6 +491,16 @@ export interface QueryToolInput {
 
   /** Include near-miss retrieval diagnostics */
   explainMisses?: boolean;
+
+  /** Snake-case alias for include near-miss retrieval diagnostics */
+  explain_misses?: boolean;
+}
+
+export type RetrievalConfidenceTier = 'definitive' | 'high' | 'medium' | 'low' | 'uncertain';
+
+export interface ConfidenceBreakdownEntry {
+  tier: RetrievalConfidenceTier;
+  reason: string;
 }
 
 export interface QueryToolOutput {
@@ -535,6 +545,13 @@ export interface QueryToolOutput {
     packId: string;
     reason: string;
   }>;
+
+  /** Aggregate confidence signal for the full response page */
+  aggregateConfidence?: {
+    tier: RetrievalConfidenceTier;
+    statement: string;
+    highestRiskElement: string;
+  };
 
   /** Evidence summary */
   evidenceSummary?: EvidenceSummary;
@@ -723,13 +740,27 @@ export interface ContextPackSummary {
   confidence: number;
 
   /** Human-readable confidence tier */
-  confidenceTier?: 'high' | 'medium' | 'low' | 'uncertain';
+  confidenceTier?: RetrievalConfidenceTier;
 
   /** Why this context pack was selected */
   retrievalRationale?: string;
 
   /** What this pack covers and what it may omit */
   coverageNote?: string;
+
+  /** Human-readable confidence statement suitable for agent-to-human relay */
+  confidenceStatement?: string;
+
+  /** Action guidance for medium/low/uncertain confidence results */
+  verificationGuidance?: string;
+
+  /** Per-field confidence decomposition */
+  confidenceBreakdown?: {
+    function_signature?: ConfidenceBreakdownEntry;
+    function_body?: ConfidenceBreakdownEntry;
+    llm_summary?: ConfidenceBreakdownEntry;
+    call_graph?: ConfidenceBreakdownEntry;
+  };
 
   /** Related files */
   relatedFiles: string[];
@@ -967,6 +998,16 @@ export interface GetContextPackBundleToolOutput {
 
   /** Missing entities */
   missingEntities: string[];
+
+  /** Coverage gaps for the paged bundle response */
+  coverageGaps?: string[];
+
+  /** Aggregate confidence signal for the full response page */
+  aggregateConfidence?: {
+    tier: RetrievalConfidenceTier;
+    statement: string;
+    highestRiskElement: string;
+  };
 }
 
 /** System contract tool input */
@@ -1347,6 +1388,17 @@ export interface LibrarianMCPServerConfig {
     /** Default expiration timeout included in review requests */
     defaultReviewTimeoutSeconds: number;
   };
+
+  /** Confidence UX settings for retrieval responses */
+  confidenceUx: {
+    /** Score thresholds used to classify confidence tiers */
+    thresholds: {
+      definitiveMin: number;
+      highMin: number;
+      mediumMin: number;
+      lowMin: number;
+    };
+  };
 }
 
 /** Default server configuration */
@@ -1385,6 +1437,14 @@ export const DEFAULT_MCP_SERVER_CONFIG: LibrarianMCPServerConfig = {
     staleIndexThresholdMinutes: 30,
     defaultReviewTimeoutSeconds: 300,
   },
+  confidenceUx: {
+    thresholds: {
+      definitiveMin: 0.95,
+      highMin: 0.85,
+      mediumMin: 0.7,
+      lowMin: 0.5,
+    },
+  },
 };
 
 // ============================================================================
@@ -1407,7 +1467,9 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
   const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
   const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
-  return intentOk && sessionIdOk && pageSizeOk && pageIdxOk && outputFileOk;
+  const explainMissesOk = typeof obj.explainMisses === 'boolean' || typeof obj.explainMisses === 'undefined';
+  const explainMissesAliasOk = typeof obj.explain_misses === 'boolean' || typeof obj.explain_misses === 'undefined';
+  return intentOk && sessionIdOk && pageSizeOk && pageIdxOk && outputFileOk && explainMissesOk && explainMissesAliasOk;
 }
 
 /** Type guard for ResetSessionStateToolInput */

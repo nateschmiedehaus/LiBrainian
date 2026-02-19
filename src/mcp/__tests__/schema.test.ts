@@ -26,6 +26,7 @@ import {
   DiffRunsToolInputSchema,
   ExportIndexToolInputSchema,
   GetContextPackBundleToolInputSchema,
+  queryToolJsonSchema,
   type ToolName,
 } from '../schema.js';
 import {
@@ -210,6 +211,11 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isQueryToolInput({ intent: 'test' })).toBe(true);
       expect(isQueryToolInput({})).toBe(false);
+    });
+
+    it('documents confidence behavior contract for agents', () => {
+      expect(String(queryToolJsonSchema.description)).toContain('confidence_tier');
+      expect(String(queryToolJsonSchema.description)).toContain('request_human_review');
     });
   });
 
