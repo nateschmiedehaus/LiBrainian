@@ -71,7 +71,7 @@ const AREA_BASE_SCORE: Record<IssueArea, number> = {
 };
 
 const SCORE_RULES: Array<{ pattern: RegExp; points: number; reason: string }> = [
-  { pattern: /fails silently|silent failure|silently/i, points: 40, reason: 'silent failure risk' },
+  { pattern: /fails silently|silent failure|silently/i, points: 45, reason: 'silent failure risk' },
   { pattern: /blocks all|blocked all|hard block|cannot proceed/i, points: 35, reason: 'workflow blocking defect' },
   { pattern: /kills database|data loss|compromised|corrupt|interrupted/i, points: 35, reason: 'data integrity risk' },
   { pattern: /no effect|identical results|query intent has no effect/i, points: 25, reason: 'retrieval unusable for agents' },
@@ -170,9 +170,17 @@ export function computeIssuePriority(issue: AgentIssueSnapshot): {
   const createdAtMs = Number.isFinite(Date.parse(issue.createdAt)) ? Date.parse(issue.createdAt) : 0;
   if (createdAtMs > 0) {
     const ageDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
-    if (ageDays <= 7) {
-      score += 5;
-      reasons.add('fresh regression in active scope');
+    if (ageDays >= 30) {
+      score += 3;
+      reasons.add('aging backlog item');
+    }
+    if (ageDays >= 90) {
+      score += 4;
+      reasons.add('long-running unresolved issue');
+    }
+    if (ageDays >= 180) {
+      score += 4;
+      reasons.add('very old unresolved issue');
     }
   }
 
@@ -208,6 +216,11 @@ export function buildIssueFixPlan(issues: AgentIssueSnapshot[]): IssueFixPlan {
   }).sort((a, b) => {
     const priorityDelta = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
     if (priorityDelta !== 0) return priorityDelta;
+
+    const createdAtA = Number.isFinite(Date.parse(a.createdAt)) ? Date.parse(a.createdAt) : Number.POSITIVE_INFINITY;
+    const createdAtB = Number.isFinite(Date.parse(b.createdAt)) ? Date.parse(b.createdAt) : Number.POSITIVE_INFINITY;
+    const ageDelta = createdAtA - createdAtB;
+    if (ageDelta !== 0) return ageDelta;
 
     const scoreDelta = b.score - a.score;
     if (scoreDelta !== 0) return scoreDelta;

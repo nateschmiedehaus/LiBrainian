@@ -75,4 +75,36 @@ describe('agent issue feedback planning', () => {
     expect(plan.queue[1]?.number).toBe(12);
     expect(plan.queue[2]?.number).toBe(13);
   });
+
+  it('orders oldest-to-youngest within the same priority bucket', () => {
+    const older = issue({
+      number: 101,
+      title: 'Heuristic fallback returns identical results for all queries — query intent has no effect',
+      createdAt: '2025-01-01T00:00:00.000Z',
+    });
+    const newer = issue({
+      number: 102,
+      title: 'Heuristic fallback returns identical results for all queries — query intent has no effect',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const plan = buildIssueFixPlan([newer, older]);
+    expect(plan.queue[0]?.number).toBe(101);
+    expect(plan.queue[1]?.number).toBe(102);
+    const rank = (priority?: string): number => (priority === 'P0' ? 0 : priority === 'P1' ? 1 : priority === 'P2' ? 2 : 3);
+    expect(rank(plan.queue[0]?.priority)).toBeLessThanOrEqual(rank(plan.queue[1]?.priority));
+  });
+
+  it('does not boost newer issues over older ones for identical risk', () => {
+    const oldScore = computeIssuePriority(issue({
+      title: 'Stale lock directory after interrupted --full bootstrap blocks all subsequent runs',
+      createdAt: '2024-01-01T00:00:00.000Z',
+    }));
+    const newScore = computeIssuePriority(issue({
+      title: 'Stale lock directory after interrupted --full bootstrap blocks all subsequent runs',
+      createdAt: '2026-02-18T00:00:00.000Z',
+    }));
+
+    expect(oldScore.score).toBeGreaterThanOrEqual(newScore.score);
+  });
 });
