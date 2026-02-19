@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "fixture": "tests/fixtures/index-correctness-fixture",
+  "callGraph": {
+    "precisionMin": 0.95,
+    "recallMin": 0.95,
+    "edgeCountTolerance": 0.05,
+    "expectedEdges": [
+      ["validateEmail", "normalizeEmail"],
+      ["validatePhone", "normalizePhone"],
+      ["createSessionToken", "hashSessionToken"],
+      ["verifySessionToken", "hashSessionToken"],
+      ["refreshSession", "verifySessionToken"],
+      ["refreshSession", "createSessionToken"],
+      ["renderProfileCard", "calculateProfileCompleteness"],
+      ["summarizeEngagement", "calculateRetention"],
+      ["summarizeEngagement", "calculateChurn"],
+      ["calculateTotal", "calculateSubtotal"],
+      ["calculateTotal", "applyDiscount"],
+      ["calculateTotal", "calculateTax"]
+    ]
+  },
+  "embeddingQuality": {
+    "comparisons": [
+      ["validateEmail", "validatePhone", "renderChartData"],
+      ["validatePhone", "normalizePhone", "renderProfileCard"],
+      ["hashSessionToken", "verifySessionToken", "calculateSubtotal"],
+      ["createSessionToken", "refreshSession", "calculateChurn"],
+      ["calculateRetention", "calculateChurn", "normalizeEmail"],
+      ["renderProfileCard", "renderChartData", "calculateTax"],
+      ["calculateSubtotal", "calculateTotal", "normalizePhone"],
+      ["calculateTax", "applyDiscount", "verifySessionToken"],
+      ["loadUserProfile", "saveUserProfile", "renderChartData"],
+      ["summarizeEngagement", "calculateRetention", "hashSessionToken"]
+    ]
+  },
+  "functionData": {
+    "semanticMatchMin": 0.9,
+    "semanticSimilarityThreshold": 0.28,
+    "expectations": [
+      { "name": "normalizeEmail", "description": "normalize email text", "parameters": ["email"] },
+      { "name": "normalizePhone", "description": "normalize phone digits", "parameters": ["phone"] },
+      { "name": "validateEmail", "description": "validate email format", "parameters": ["email"] },
+      { "name": "validatePhone", "description": "validate phone number", "parameters": ["phone"] },
+      { "name": "hashSessionToken", "description": "hash session token", "parameters": ["raw"] },
+      { "name": "createSessionToken", "description": "create session token", "parameters": ["userId"] },
+      { "name": "verifySessionToken", "description": "verify session token", "parameters": ["token"] },
+      { "name": "refreshSession", "description": "refresh session token", "parameters": ["token"] },
+      { "name": "loadUserProfile", "description": "load user profile", "parameters": ["repo", "userId"] },
+      { "name": "saveUserProfile", "description": "save user profile", "parameters": ["repo", "profile"] },
+      { "name": "calculateProfileCompleteness", "description": "calculate profile completeness", "parameters": ["profile"] },
+      { "name": "renderProfileCard", "description": "render profile card", "parameters": ["profile"] },
+      { "name": "calculateRetention", "description": "calculate retention metric", "parameters": ["activeUsers", "cohortUsers"] },
+      { "name": "calculateChurn", "description": "calculate churn metric", "parameters": ["churnedUsers", "totalUsers"] },
+      { "name": "summarizeEngagement", "description": "summarize engagement metrics", "parameters": ["activeUsers", "cohortUsers", "churnedUsers", "totalUsers"] },
+      { "name": "renderChartData", "description": "render chart data", "parameters": ["values"] },
+      { "name": "calculateSubtotal", "description": "calculate order subtotal", "parameters": ["items"] },
+      { "name": "calculateTax", "description": "calculate order tax", "parameters": ["subtotal", "taxRate"] },
+      { "name": "applyDiscount", "description": "apply discount to subtotal", "parameters": ["subtotal", "discountRate"] },
+      { "name": "calculateTotal", "description": "calculate final order total", "parameters": ["items", "taxRate", "discountRate"] }
+    ]
+  },
+  "contextPack": {
+    "moduleFile": "src/orders/pricing.ts",
+    "publicFunctions": [
+      "calculateSubtotal",
+      "calculateTax",
+      "applyDiscount",
+      "calculateTotal"
+    ],
+    "tokenBudget": 1800,
+    "unrelatedFunctions": [
+      "validateEmail",
+      "renderChartData"
+    ]
+  }
+}
