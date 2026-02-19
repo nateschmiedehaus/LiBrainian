@@ -172,6 +172,38 @@ describe('MCP Server', () => {
       expect(queryTool?.inputSchema?.properties?.intent?.description).toContain('Goal-oriented question');
       expect(queryTool?.inputSchema?.properties?.intentType?.description).toContain('understand=explain');
     });
+
+    it('adds MCP safety annotations for every tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        annotations?: {
+          readOnlyHint?: boolean;
+          destructiveHint?: boolean;
+          idempotentHint?: boolean;
+          openWorldHint?: boolean;
+        };
+      }>;
+
+      expect(tools.length).toBeGreaterThanOrEqual(17);
+      for (const tool of tools) {
+        expect(tool.annotations).toBeDefined();
+        expect(typeof tool.annotations?.readOnlyHint).toBe('boolean');
+        expect(typeof tool.annotations?.destructiveHint).toBe('boolean');
+        expect(typeof tool.annotations?.idempotentHint).toBe('boolean');
+        expect(typeof tool.annotations?.openWorldHint).toBe('boolean');
+      }
+
+      const queryTool = tools.find((tool) => tool.name === 'query');
+      const bootstrapTool = tools.find((tool) => tool.name === 'bootstrap');
+      const exportTool = tools.find((tool) => tool.name === 'export_index');
+
+      expect(queryTool?.annotations?.readOnlyHint).toBe(true);
+      expect(queryTool?.annotations?.idempotentHint).toBe(true);
+      expect(bootstrapTool?.annotations?.readOnlyHint).toBe(false);
+      expect(bootstrapTool?.annotations?.idempotentHint).toBe(true);
+      expect(exportTool?.annotations?.readOnlyHint).toBe(false);
+      expect(exportTool?.annotations?.openWorldHint).toBe(false);
+    });
   });
 
   // ============================================================================
