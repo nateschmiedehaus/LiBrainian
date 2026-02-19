@@ -352,6 +352,31 @@ describe('HNSWIndex', () => {
       expect(stats.entryPoint).toBeNull();
       expect(stats.maxLayer).toBe(0);
     });
+
+    it('should round-trip serialize and deserialize HNSW payload', () => {
+      const index = new HNSWIndex({ efSearch: 100 });
+      const items = generateItems(200, 128, 4);
+      for (const item of items) {
+        index.insert(item.entityId, item.embedding, item.entityType);
+      }
+
+      const serialized = index.serializeHNSW();
+      expect(serialized.byteLength).toBeGreaterThan(0);
+
+      const restored = HNSWIndex.deserializeHNSW(serialized);
+      expect(restored.size()).toBe(index.size());
+      expect(restored.hasDimension(128)).toBe(true);
+
+      const query = items[0]!.embedding;
+      const restoredResults = restored.search(query, 10);
+      expect(restoredResults.some((result) => result.id === items[0]!.entityId)).toBe(true);
+    });
+
+    it('should reject malformed serialization payloads', () => {
+      expect(() => HNSWIndex.deserializeHNSW(Buffer.from('not-a-valid-payload'))).toThrow(
+        'Invalid HNSW payload'
+      );
+    });
   });
 
   describe('search quality', () => {
@@ -533,6 +558,24 @@ describe('VectorIndex', () => {
       index.load(items);
 
       expect(index.isUsingHNSW()).toBe(true);
+    });
+
+    it('should restore serialized HNSW payloads directly', () => {
+      const source = new VectorIndex({ useHNSW: true });
+      const items = generateItems(250, 128, 5);
+      source.load(items);
+
+      const serialized = source.serializeHNSW();
+      expect(serialized).not.toBeNull();
+
+      const restored = new VectorIndex();
+      restored.loadSerializedHNSW(serialized!);
+      expect(restored.isUsingHNSW()).toBe(true);
+      expect(restored.size()).toBe(items.length);
+
+      const query = items[0]!.embedding;
+      const results = restored.search(query, { limit: 10, minSimilarity: 0 });
+      expect(results.some((result) => result.entityId === items[0]!.entityId)).toBe(true);
     });
   });
 
