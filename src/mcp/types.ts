@@ -27,6 +27,7 @@
  */
 
 import type { VerificationPlan } from '../strategic/verification_plan.js';
+import type { SearchFilter } from '../types.js';
 
 // ============================================================================
 // SCHEMA VERSION
@@ -532,6 +533,12 @@ export interface SemanticSearchToolInput {
   /** Workspace path (optional, uses first ready workspace if not specified) */
   workspace?: string;
 
+  /** Optional search filter for scoped retrieval */
+  filter?: SearchFilter;
+
+  /** Optional active file path hint used to derive monorepo package scope */
+  workingFile?: string;
+
   /** Optional session identifier used for loop detection and adaptive query behavior */
   sessionId?: string;
 
@@ -621,6 +628,12 @@ export interface QueryToolInput {
 
   /** Affected files (for scoping) */
   affectedFiles?: string[];
+
+  /** Optional structured retrieval filter */
+  filter?: SearchFilter;
+
+  /** Optional active file path hint used for package-scope auto-detection */
+  workingFile?: string;
 
   /** Minimum confidence threshold */
   minConfidence?: number;

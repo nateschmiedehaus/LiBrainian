@@ -501,6 +501,8 @@ interface MutableToolSchemaNode {
 const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.depth': 'Context depth for retrieval scope. L0=summary only (fastest, ~500 tokens), L1=summary plus key facts (default, ~2000 tokens), L2=full pack with related files (~5000 tokens), L3=comprehensive cross-module context with richer call-graph evidence (~10000 tokens). Use L1 for routine work, L2 for impact analysis, and L3 only for deep architectural investigation.',
   'query.affectedFiles': 'Absolute paths of files to include as a hard retrieval scope filter. Use this when you already know likely hotspots and need precise context. If omitted, LiBrainian searches the full indexed workspace. Example: ["/workspace/src/auth.ts", "/workspace/src/middleware/session.ts"].',
+  'query.filter': 'Structured retrieval filter for scoped search. Use pathPrefix to isolate one package in a monorepo and optionally combine language, isExported, or excludeTests for higher precision.',
+  'query.workingFile': 'Active file path hint used to auto-derive package scope in monorepos. When provided, LiBrainian infers a pathPrefix filter from workspace package boundaries.',
 };
 
 function countWords(value: string): number {
@@ -1413,6 +1415,18 @@ export class LibrarianMCPServer {
             query: { type: 'string', description: 'Localization query for semantic code search' },
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
             sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive search behavior' },
+            filter: {
+              type: 'object',
+              description: 'Structured retrieval filter (pathPrefix, language, isExported, excludeTests, maxFileSizeBytes)',
+              properties: {
+                pathPrefix: { type: 'string', description: 'Workspace-relative path prefix for scoped retrieval (example: packages/api/)' },
+                language: { type: 'string', description: 'Language filter (example: typescript, python, rust)' },
+                isExported: { type: 'boolean', description: 'Filter for exported/public symbols' },
+                excludeTests: { type: 'boolean', description: 'Exclude test/spec files from retrieval' },
+                maxFileSizeBytes: { type: 'number', description: 'Optional max file size guard in bytes' },
+              },
+            },
+            workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection' },
             minConfidence: { type: 'number', description: `Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context' },
             limit: { type: 'number', description: 'Maximum results to return (default 20, max 200)' },
@@ -1478,6 +1492,18 @@ export class LibrarianMCPServer {
             sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
             intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Intent mode: understand=explain, impact=blast radius, debug=root-cause, refactor=safe changes, security=risk review, test=coverage/tests, document=docs summary, navigate=where to look, general=fallback' },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
+            filter: {
+              type: 'object',
+              description: 'Structured retrieval filter (pathPrefix, language, isExported, excludeTests, maxFileSizeBytes)',
+              properties: {
+                pathPrefix: { type: 'string', description: 'Workspace-relative path prefix for scoped retrieval (example: packages/api/)' },
+                language: { type: 'string', description: 'Language filter (example: typescript, python, rust)' },
+                isExported: { type: 'boolean', description: 'Filter for exported/public symbols' },
+                excludeTests: { type: 'boolean', description: 'Exclude test/spec files from retrieval' },
+                maxFileSizeBytes: { type: 'number', description: 'Optional max file size guard in bytes' },
+              },
+            },
+            workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection' },
             minConfidence: { type: 'number', description: `Min confidence (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },
             includeEngines: { type: 'boolean', description: 'Include engine results' },
@@ -4673,11 +4699,16 @@ export class LibrarianMCPServer {
         });
       };
 
+      const normalizedAffectedFiles = this.normalizeQueryAffectedFiles(input.affectedFiles, workspace.path);
+      const normalizedWorkingFile = this.normalizeQueryFileHint(input.workingFile, workspace.path);
+
       // Build query object
       const query = {
         intent: input.intent,
         intentType: input.intentType,
-        affectedFiles: input.affectedFiles,
+        affectedFiles: normalizedAffectedFiles,
+        filter: input.filter,
+        workingFile: normalizedWorkingFile,
         minConfidence: input.minConfidence,
         depth: (input.depth as 'L0' | 'L1' | 'L2' | 'L3') ?? 'L1',
       };
@@ -5011,6 +5042,8 @@ export class LibrarianMCPServer {
         workspace: input.workspace,
         sessionId: input.sessionId,
         intentType: 'navigate',
+        filter: input.filter,
+        workingFile: input.workingFile,
         minConfidence: input.minConfidence,
         depth: input.depth,
         includeEngines: input.includeEngines,
@@ -8920,6 +8953,36 @@ export class LibrarianMCPServer {
       }
     }
     return null;
+  }
+
+  private normalizeQueryAffectedFiles(
+    affectedFiles: string[] | undefined,
+    workspacePath: string,
+  ): string[] | undefined {
+    if (!Array.isArray(affectedFiles) || affectedFiles.length === 0) return undefined;
+    const normalized = new Set<string>();
+    for (const entry of affectedFiles) {
+      if (typeof entry !== 'string') continue;
+      const trimmed = entry.trim();
+      if (trimmed.length === 0) continue;
+      const resolved = path.isAbsolute(trimmed)
+        ? path.resolve(trimmed)
+        : path.resolve(workspacePath, trimmed);
+      normalized.add(resolved);
+    }
+    return normalized.size > 0 ? Array.from(normalized) : undefined;
+  }
+
+  private normalizeQueryFileHint(
+    filePath: string | undefined,
+    workspacePath: string,
+  ): string | undefined {
+    if (typeof filePath !== 'string') return undefined;
+    const trimmed = filePath.trim();
+    if (trimmed.length === 0) return undefined;
+    return path.isAbsolute(trimmed)
+      ? path.resolve(trimmed)
+      : path.resolve(workspacePath, trimmed);
   }
 
   private async isProactiveInjectionEnabledForWorkspace(workspaceRoot: string): Promise<boolean> {

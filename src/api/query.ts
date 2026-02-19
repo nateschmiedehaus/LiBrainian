@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { glob } from 'glob';
 import type { LibrarianStorage, SimilarityResult, QueryCacheEntry, MultiVectorRecord, MultiVectorQueryOptions, StorageCapabilities, EmbeddableEntityType } from '../storage/types.js';
 import type {
   LibrarianQuery,
@@ -1541,6 +1542,11 @@ export async function queryLibrarian(
         : onStage
     );
     const workspaceRoot = await resolveWorkspaceRoot(storage);
+    const normalizedScope = await normalizeQueryScope(query, workspaceRoot);
+    query = normalizedScope.query;
+    if (normalizedScope.disclosures.length) {
+      disclosures.push(...normalizedScope.disclosures);
+    }
     const configuredMaxEscalationDepth = await resolveMaxEscalationDepth(workspaceRoot, query.maxEscalationDepth);
     const escalationState = executionOptions.escalationState ?? {
       attempts: 0,
@@ -1792,6 +1798,7 @@ export async function queryLibrarian(
   const directStageResult = await runDirectPacksStage({
     storage,
     query,
+    workspaceRoot,
     stageTracker,
     explanationParts,
   });
@@ -3606,12 +3613,14 @@ async function appendConstructionPlanEvidence(
 async function runDirectPacksStage(options: {
   storage: LibrarianStorage;
   query: LibrarianQuery;
+  workspaceRoot: string;
   stageTracker: StageTracker;
   explanationParts: string[];
 }): Promise<{ directPacks: ContextPack[]; cacheHit: boolean }> {
-  const { storage, query, stageTracker, explanationParts } = options;
-  const directStage = stageTracker.start('direct_packs', query.affectedFiles?.length ?? 0);
-  const directPacks = await collectDirectPacks(storage, query);
+  const { storage, query, workspaceRoot, stageTracker, explanationParts } = options;
+  const directScopeHints = (query.affectedFiles?.length ?? 0) + (query.filter ? 1 : 0);
+  const directStage = stageTracker.start('direct_packs', directScopeHints);
+  const directPacks = await collectDirectPacks(storage, query, workspaceRoot);
   stageTracker.finish(directStage, { outputCount: directPacks.length, filteredCount: 0 });
   const cacheHit = directPacks.length > 0;
   if (cacheHit) {
@@ -3699,6 +3708,7 @@ async function runSemanticRetrievalStage(options: {
         limit: queryClassification.isMetaQuery ? 20 : 14, // More results for meta-queries
         minSimilarity: queryClassification.isMetaQuery ? minSimilarity * 0.9 : minSimilarity, // Lower threshold for docs
         entityTypes: queryClassification.entityTypes,
+        filter: query.filter,
       });
       let similarResults = similarSearchResponse.results;
 
@@ -6017,11 +6027,21 @@ function buildQueryCacheKey(
   synthesisEnabled: boolean
 ): string {
   const files = query.affectedFiles?.slice().sort().join('|') ?? '';
+  const filterKey = query.filter
+    ? [
+        query.filter.pathPrefix ?? '',
+        query.filter.language ?? '',
+        typeof query.filter.isExported === 'boolean' ? String(query.filter.isExported) : '',
+        query.filter.excludeTests ? '1' : '0',
+        typeof query.filter.maxFileSizeBytes === 'number' ? String(query.filter.maxFileSizeBytes) : '',
+      ].join('|')
+    : '';
+  const workingFile = query.workingFile ?? '';
   const versionKey = `${version.string}:${version.indexedAt?.getTime?.() ?? 0}`;
   const embeddingRequirement = query.embeddingRequirement ?? '';
   const methodGuidanceFlag = query.disableMethodGuidance === true ? 1 : 0;
   const forceSummarySynthesisFlag = query.forceSummarySynthesis === true ? 1 : 0;
-  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${query.intent}|${files}`;
+  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${query.intent}|${files}|wf:${workingFile}|flt:${filterKey}`;
 }
 function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResponse> {
   const existing = queryCacheByStorage.get(storage);
@@ -6127,13 +6147,30 @@ function deserializeCachedResponse(raw: string): CachedResponse | null {
   return { ...value, version, packs };
 }
 
-async function collectDirectPacks(storage: LibrarianStorage, query: LibrarianQuery): Promise<ContextPack[]> {
-  if (!query.affectedFiles?.length) return emptyArray<ContextPack>();
+async function collectDirectPacks(
+  storage: LibrarianStorage,
+  query: LibrarianQuery,
+  workspaceRoot: string,
+): Promise<ContextPack[]> {
+  const hasAnchors = Boolean(query.affectedFiles?.length);
+  const hasFilter = Boolean(query.filter?.pathPrefix || query.filter?.excludeTests || query.filter?.language);
+  if (!hasAnchors && !hasFilter) return emptyArray<ContextPack>();
   const minConfidence = query.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const packs: ContextPack[] = [];
-  for (const filePath of query.affectedFiles.slice(0, 12)) {
-    packs.push(...await storage.getContextPacks({ relatedFile: filePath, minConfidence, limit: 30 }));
+  const relatedFilesAny = new Set<string>();
+  for (const filePath of query.affectedFiles?.slice(0, 12) ?? []) {
+    for (const candidate of expandPathCandidates(filePath, workspaceRoot)) {
+      relatedFilesAny.add(candidate);
+    }
   }
+  packs.push(...await storage.getContextPacks({
+    minConfidence,
+    limit: 80,
+    relatedFilesAny: relatedFilesAny.size > 0 ? Array.from(relatedFilesAny) : undefined,
+    relatedFilePrefix: query.filter?.pathPrefix,
+    language: query.filter?.language,
+    excludeTests: query.filter?.excludeTests,
+  }));
   return dedupePacks(packs).slice(0, 40);
 }
 async function resolveQueryEmbedding(query: LibrarianQuery, embeddingService: EmbeddingService, governor: GovernorContext): Promise<Float32Array> {
@@ -6227,6 +6264,266 @@ function mergeSupplementaryContext(
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, '/');
+}
+
+const workspacePackageRootsCache = new Map<string, string[]>();
+
+function ensureTrailingSlash(value: string): string {
+  return value.endsWith('/') ? value : `${value}/`;
+}
+
+function normalizeToWorkspaceRelative(workspaceRoot: string, candidate: string): string | null {
+  const normalized = normalizePath(candidate.trim());
+  if (!normalized) return null;
+  const resolved = path.isAbsolute(candidate)
+    ? path.resolve(candidate)
+    : path.resolve(workspaceRoot, candidate);
+  const relative = normalizePath(path.relative(workspaceRoot, resolved));
+  if (!relative || relative === '.' || relative.startsWith('..')) return null;
+  return relative;
+}
+
+function normalizeLanguageFilter(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+async function normalizeQueryScope(
+  query: LibrarianQuery,
+  workspaceRoot: string,
+): Promise<{ query: LibrarianQuery; disclosures: string[] }> {
+  const disclosures: string[] = [];
+  const affectedFiles = normalizeAffectedFilesForWorkspace(query.affectedFiles);
+  const workingFile = normalizeSingleFileHint(query.workingFile, workspaceRoot);
+  const filter = normalizeSearchFilter(query.filter, workspaceRoot);
+  let nextFilter = filter;
+
+  if (!nextFilter.pathPrefix && workingFile) {
+    const derived = await derivePathPrefixFromWorkingFile(workspaceRoot, workingFile);
+    if (derived) {
+      nextFilter = { ...nextFilter, pathPrefix: derived };
+      disclosures.push(`scope_auto_detected: ${derived} (from workingFile)`);
+    }
+  }
+
+  const hasFilter = hasSearchFilter(nextFilter);
+  return {
+    query: {
+      ...query,
+      affectedFiles,
+      workingFile,
+      filter: hasFilter ? nextFilter : undefined,
+    },
+    disclosures,
+  };
+}
+
+function hasSearchFilter(filter: LibrarianQuery['filter'] | undefined): boolean {
+  if (!filter) return false;
+  return Boolean(
+    filter.pathPrefix
+    || filter.language
+    || typeof filter.isExported === 'boolean'
+    || filter.excludeTests
+    || typeof filter.maxFileSizeBytes === 'number'
+  );
+}
+
+function normalizeSearchFilter(
+  filter: LibrarianQuery['filter'] | undefined,
+  workspaceRoot: string,
+): NonNullable<LibrarianQuery['filter']> {
+  const pathPrefix = normalizePathPrefix(filter?.pathPrefix, workspaceRoot);
+  const language = normalizeLanguageFilter(filter?.language);
+  const maxFileSizeBytes = typeof filter?.maxFileSizeBytes === 'number' && Number.isFinite(filter.maxFileSizeBytes) && filter.maxFileSizeBytes > 0
+    ? Math.floor(filter.maxFileSizeBytes)
+    : undefined;
+  return {
+    pathPrefix,
+    language,
+    isExported: typeof filter?.isExported === 'boolean' ? filter.isExported : undefined,
+    excludeTests: filter?.excludeTests === true ? true : undefined,
+    maxFileSizeBytes,
+  };
+}
+
+function normalizePathPrefix(prefix: string | undefined, workspaceRoot: string): string | undefined {
+  if (!prefix) return undefined;
+  const relative = normalizeToWorkspaceRelative(workspaceRoot, prefix);
+  if (!relative) return undefined;
+  return ensureTrailingSlash(relative);
+}
+
+function normalizeAffectedFilesForWorkspace(
+  affectedFiles: string[] | undefined,
+): string[] | undefined {
+  if (!Array.isArray(affectedFiles) || affectedFiles.length === 0) return undefined;
+  const normalized = new Set<string>();
+  for (const file of affectedFiles) {
+    if (typeof file !== 'string') continue;
+    const trimmed = file.trim();
+    if (!trimmed) continue;
+    normalized.add(trimmed);
+  }
+  return normalized.size > 0 ? Array.from(normalized) : undefined;
+}
+
+function normalizeSingleFileHint(
+  filePath: string | undefined,
+  workspaceRoot: string,
+): string | undefined {
+  if (!filePath) return undefined;
+  const trimmed = filePath.trim();
+  if (!trimmed) return undefined;
+  return path.isAbsolute(trimmed)
+    ? path.resolve(trimmed)
+    : path.resolve(workspaceRoot, trimmed);
+}
+
+async function derivePathPrefixFromWorkingFile(
+  workspaceRoot: string,
+  workingFile: string,
+): Promise<string | undefined> {
+  const absoluteFile = path.resolve(workingFile);
+  const relativeFile = normalizePath(path.relative(workspaceRoot, absoluteFile));
+  if (!relativeFile || relativeFile.startsWith('..')) return undefined;
+
+  const packageRoots = await resolveWorkspacePackageRoots(workspaceRoot);
+  const matched = packageRoots
+    .filter((root) => relativeFile === root || relativeFile.startsWith(`${root}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (matched) {
+    return ensureTrailingSlash(matched);
+  }
+
+  const nearestPackageRoot = await findNearestPackageRoot(workspaceRoot, absoluteFile);
+  if (!nearestPackageRoot) return undefined;
+  const relativeRoot = normalizePath(path.relative(workspaceRoot, nearestPackageRoot));
+  if (!relativeRoot || relativeRoot === '.' || relativeRoot.startsWith('..')) return undefined;
+  return ensureTrailingSlash(relativeRoot);
+}
+
+async function resolveWorkspacePackageRoots(workspaceRoot: string): Promise<string[]> {
+  const cached = workspacePackageRootsCache.get(workspaceRoot);
+  if (cached) return cached;
+
+  const patterns = await loadWorkspacePatterns(workspaceRoot);
+  if (patterns.length === 0) {
+    workspacePackageRootsCache.set(workspaceRoot, []);
+    return [];
+  }
+
+  const roots = new Set<string>();
+  for (const pattern of patterns) {
+    const normalized = normalizePath(pattern).replace(/\/+$/, '');
+    if (!normalized) continue;
+    const globPattern = normalized.endsWith('package.json') ? normalized : `${normalized}/package.json`;
+    const matches = await glob(globPattern, {
+      cwd: workspaceRoot,
+      absolute: false,
+      nodir: true,
+      follow: false,
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.librarian/**'],
+    });
+    for (const match of matches) {
+      const relative = normalizePath(path.posix.dirname(match));
+      if (relative && relative !== '.') {
+        roots.add(relative);
+      }
+    }
+  }
+
+  const resolved = Array.from(roots).sort((a, b) => a.localeCompare(b));
+  workspacePackageRootsCache.set(workspaceRoot, resolved);
+  return resolved;
+}
+
+async function loadWorkspacePatterns(workspaceRoot: string): Promise<string[]> {
+  const patterns = new Set<string>();
+  const packageJsonPath = path.join(workspaceRoot, 'package.json');
+  try {
+    const raw = await fs.readFile(packageJsonPath, 'utf8');
+    const parsed = safeJsonParse<Record<string, unknown>>(raw);
+    if (parsed.ok && parsed.value) {
+      const workspaces = parsed.value.workspaces;
+      for (const pattern of parseWorkspacePatterns(workspaces)) {
+        patterns.add(pattern);
+      }
+    }
+  } catch {
+    // Optional workspace metadata.
+  }
+
+  const pnpmWorkspacePath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+  try {
+    const raw = await fs.readFile(pnpmWorkspacePath, 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('- ')) continue;
+      const pattern = trimmed.slice(2).trim().replace(/^['"]|['"]$/g, '');
+      if (pattern.length > 0) {
+        patterns.add(pattern);
+      }
+    }
+  } catch {
+    // Optional workspace metadata.
+  }
+
+  return Array.from(patterns);
+}
+
+function parseWorkspacePatterns(workspaces: unknown): string[] {
+  if (Array.isArray(workspaces)) {
+    return workspaces
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+  if (workspaces && typeof workspaces === 'object') {
+    const packages = (workspaces as { packages?: unknown }).packages;
+    if (Array.isArray(packages)) {
+      return packages
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+  }
+  return [];
+}
+
+async function findNearestPackageRoot(workspaceRoot: string, filePath: string): Promise<string | undefined> {
+  let current = path.dirname(filePath);
+  const normalizedWorkspace = path.resolve(workspaceRoot);
+  while (current.startsWith(normalizedWorkspace)) {
+    if (current === normalizedWorkspace) return undefined;
+    try {
+      await fs.access(path.join(current, 'package.json'));
+      return current;
+    } catch {
+      // Keep traversing toward workspace root.
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return undefined;
+}
+
+function expandPathCandidates(filePath: string, workspaceRoot: string): string[] {
+  const trimmed = filePath.trim();
+  if (trimmed.length === 0) return [];
+  const absolute = path.isAbsolute(trimmed)
+    ? path.resolve(trimmed)
+    : path.resolve(workspaceRoot, trimmed);
+  const normalizedAbsolute = normalizePath(absolute);
+  const candidates = new Set<string>([absolute, normalizedAbsolute]);
+  const relative = normalizePath(path.relative(workspaceRoot, absolute));
+  if (relative && relative !== '.' && !relative.startsWith('..')) {
+    candidates.add(relative);
+    candidates.add(`./${relative}`);
+  }
+  return Array.from(candidates);
 }
 
 function toRelativePath(workspace: string | undefined, filePath: string): string {
@@ -7461,6 +7758,8 @@ export const __testing = {
   runMethodGuidanceStage,
   runSynthesisStage,
   rankHeuristicFallbackPacks,
+  normalizeQueryScope,
+  expandPathCandidates,
 };
 
 /**

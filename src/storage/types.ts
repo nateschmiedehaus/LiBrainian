@@ -20,6 +20,7 @@ import type {
   ContextPack,
   IndexingResult,
   BootstrapReport,
+  SearchFilter,
 } from '../types.js';
 import type { IngestionItem } from '../ingest/types.js';
 import type { GraphMetricsEntry } from '../graphs/metrics.js';
@@ -673,6 +674,10 @@ export interface ContextPackQueryOptions extends QueryOptions {
   targetId?: string;
   includeInvalidated?: boolean;
   relatedFile?: string;
+  relatedFilesAny?: string[];
+  relatedFilePrefix?: string;
+  language?: string;
+  excludeTests?: boolean;
 }
 
 /**
@@ -687,6 +692,7 @@ export interface SimilaritySearchOptions {
   limit: number;
   minSimilarity: number;
   entityTypes?: EmbeddableEntityType[];
+  filter?: SearchFilter;
   /**
    * If true, automatically clear mismatched embeddings and return degraded results
    * instead of throwing an error when all embeddings have wrong dimensions.

@@ -894,9 +894,40 @@ export interface CoverageAssessment {
   suggestions: string[];
 }
 
+export interface SearchFilter {
+  /**
+   * Restrict retrieval to files under this workspace-relative path prefix.
+   * Example: "packages/api/".
+   */
+  pathPrefix?: string;
+
+  /**
+   * Restrict retrieval to a language family.
+   * Supported values are normalized by storage (for example: typescript, javascript, python, go, rust, java, kotlin, csharp, ruby, php, swift).
+   */
+  language?: string;
+
+  /**
+   * Restrict retrieval to exported/public symbols when true, or non-exported/internal symbols when false.
+   */
+  isExported?: boolean;
+
+  /**
+   * Exclude common test/spec paths when true.
+   */
+  excludeTests?: boolean;
+
+  /**
+   * Optional max file size guard in bytes.
+   */
+  maxFileSizeBytes?: number;
+}
+
 export interface LibrarianQuery {
   intent: string;
   affectedFiles?: string[];
+  filter?: SearchFilter;
+  workingFile?: string;
   taskType?: string;
   depth: 'L0' | 'L1' | 'L2' | 'L3';
   // 0 or undefined means no timeout (preferred)

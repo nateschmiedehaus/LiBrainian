@@ -58,6 +58,13 @@ const PageSizeSchema = z.number().int().min(1).max(200);
 const PageIdxSchema = z.number().int().min(0);
 const OutputFileSchema = z.string().min(1);
 const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence contract: when confidence_tier is definitive/high, proceed with reasonable trust; medium requires review before write operations; low/uncertain requires manual verification or request_human_review.';
+const SearchFilterSchema = z.object({
+  pathPrefix: z.string().min(1).optional().describe('Workspace-relative path prefix for scoped retrieval (example: packages/api/)'),
+  language: z.string().min(1).optional().describe('Language filter (example: typescript, python, rust)'),
+  isExported: z.boolean().optional().describe('Filter for exported/public symbols'),
+  excludeTests: z.boolean().optional().describe('Exclude test/spec files from retrieval'),
+  maxFileSizeBytes: z.number().int().positive().optional().describe('Optional max file size guard in bytes'),
+}).strict();
 
 /**
  * Bootstrap tool input schema
@@ -83,6 +90,8 @@ export const QueryToolInputSchema = z.object({
   sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive query behavior'),
   intentType: QueryIntentSchema.optional().describe('Typed query intent for routing optimization'),
   affectedFiles: z.array(z.string()).optional().describe('File paths to scope the query to'),
+  filter: SearchFilterSchema.optional().describe('Structured retrieval filter for path/language/export/test constraints'),
+  workingFile: z.string().min(1).optional().describe('Active file path used for monorepo package-scope auto-detection'),
   minConfidence: z.number().min(0).max(1).optional().default(0.5).describe(`Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}`),
   depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
   includeEngines: z.boolean().optional().default(false).describe('Include engine results in response'),
@@ -103,6 +112,8 @@ export const SemanticSearchToolInputSchema = z.object({
   query: z.string().min(1).max(2000).describe('Localization query for semantic code search'),
   workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
   sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive search behavior'),
+  filter: SearchFilterSchema.optional().describe('Structured retrieval filter for path/language/export/test constraints'),
+  workingFile: z.string().min(1).optional().describe('Active file path used for monorepo package-scope auto-detection'),
   minConfidence: z.number().min(0).max(1).optional().default(0.4).describe(`Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}`),
   depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
   limit: PageSizeSchema.optional().default(20).describe('Maximum results to return (default: 20, max: 200)'),
@@ -686,6 +697,9 @@ export interface JSONSchemaProperty {
   description?: string;
   enum?: string[];
   items?: { type: string };
+  properties?: Record<string, JSONSchemaProperty>;
+  required?: string[];
+  additionalProperties?: boolean;
   minimum?: number;
   maximum?: number;
   minLength?: number;
@@ -745,6 +759,19 @@ export const queryToolJsonSchema: JSONSchema = {
     sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive query behavior', minLength: 1 },
     intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Intent mode: understand=explain, impact=blast radius, debug=root-cause, refactor=safe changes, security=risk review, test=coverage/tests, document=docs summary, navigate=where to look, general=fallback' },
     affectedFiles: { type: 'array', items: { type: 'string' }, description: 'File paths to scope the query to' },
+    filter: {
+      type: 'object',
+      description: 'Structured retrieval filter for path/language/export/test constraints',
+      properties: {
+        pathPrefix: { type: 'string', description: 'Workspace-relative path prefix (example: packages/api/)', minLength: 1 },
+        language: { type: 'string', description: 'Language filter (example: typescript, python, rust)', minLength: 1 },
+        isExported: { type: 'boolean', description: 'Filter for exported/public symbols' },
+        excludeTests: { type: 'boolean', description: 'Exclude test/spec files from retrieval' },
+        maxFileSizeBytes: { type: 'number', description: 'Optional max file size guard in bytes', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+    workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection', minLength: 1 },
     minConfidence: { type: 'number', description: `Minimum confidence threshold. ${CONFIDENCE_BEHAVIOR_CONTRACT}`, minimum: 0, maximum: 1, default: 0.5 },
     depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
     includeEngines: { type: 'boolean', description: 'Include engine results', default: false },
@@ -772,6 +799,19 @@ export const semanticSearchToolJsonSchema: JSONSchema = {
     query: { type: 'string', description: 'Localization query for semantic code search', minLength: 1, maxLength: 2000 },
     workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
     sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive search behavior', minLength: 1 },
+    filter: {
+      type: 'object',
+      description: 'Structured retrieval filter for path/language/export/test constraints',
+      properties: {
+        pathPrefix: { type: 'string', description: 'Workspace-relative path prefix (example: packages/api/)', minLength: 1 },
+        language: { type: 'string', description: 'Language filter (example: typescript, python, rust)', minLength: 1 },
+        isExported: { type: 'boolean', description: 'Filter for exported/public symbols' },
+        excludeTests: { type: 'boolean', description: 'Exclude test/spec files from retrieval' },
+        maxFileSizeBytes: { type: 'number', description: 'Optional max file size guard in bytes', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+    workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection', minLength: 1 },
     minConfidence: { type: 'number', description: `Minimum confidence threshold. ${CONFIDENCE_BEHAVIOR_CONTRACT}`, minimum: 0, maximum: 1, default: 0.4 },
     depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
     limit: { type: 'number', description: 'Maximum results to return (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },

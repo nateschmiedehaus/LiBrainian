@@ -278,6 +278,52 @@ function inspectEmbeddingVectorValues(embedding: Float32Array): { normSq: number
   return { normSq, hasNonFinite };
 }
 
+const LANGUAGE_EXTENSION_MAP: Record<string, string[]> = {
+  typescript: ['.ts', '.tsx', '.mts', '.cts'],
+  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
+  python: ['.py'],
+  go: ['.go'],
+  rust: ['.rs'],
+  java: ['.java'],
+  kotlin: ['.kt', '.kts'],
+  csharp: ['.cs'],
+  ruby: ['.rb'],
+  php: ['.php'],
+  swift: ['.swift'],
+};
+
+function normalizeSqlPath(value: string): string {
+  return value.replace(/\\/g, '/');
+}
+
+function normalizeFilterPathPrefix(prefix: string | undefined, workspaceRoot?: string): string[] {
+  if (!prefix || prefix.trim().length === 0) return [];
+  const candidates = new Set<string>();
+  const raw = normalizeSqlPath(prefix.trim()).replace(/^\.\/+/, '').replace(/\/+$/, '');
+  if (raw.length > 0) candidates.add(raw.toLowerCase());
+
+  if (workspaceRoot) {
+    const absolute = path.isAbsolute(prefix)
+      ? path.resolve(prefix)
+      : path.resolve(workspaceRoot, prefix);
+    const normalizedAbsolute = normalizeSqlPath(absolute).replace(/\/+$/, '');
+    if (normalizedAbsolute.length > 0) candidates.add(normalizedAbsolute.toLowerCase());
+    const relative = normalizeSqlPath(path.relative(workspaceRoot, absolute)).replace(/^\.\/+/, '').replace(/\/+$/, '');
+    if (relative.length > 0 && !relative.startsWith('..')) {
+      candidates.add(relative.toLowerCase());
+    }
+  }
+
+  return Array.from(candidates.values());
+}
+
+function normalizeLanguageExtensions(language: string | undefined): string[] {
+  if (!language) return [];
+  const normalized = language.trim().toLowerCase();
+  if (!normalized) return [];
+  return LANGUAGE_EXTENSION_MAP[normalized] ?? [];
+}
+
 // ============================================================================
 // SQL INJECTION PREVENTION
 // ============================================================================
@@ -2398,6 +2444,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     const db = this.ensureDb();
     let sql = 'SELECT * FROM librarian_context_packs WHERE 1=1';
     const params: unknown[] = [];
+    const relatedPathExpr = "lower(replace(rf.value, '\\\\', '/'))";
 
     if (!options.includeInvalidated) {
       sql += ' AND invalidated = 0';
@@ -2410,10 +2457,54 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       sql += ' AND target_id = ?';
       params.push(options.targetId);
     }
+    const relatedFileCandidates = new Set<string>();
+    const addRelatedFileCandidate = (value: string): void => {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const normalized = normalizeSqlPath(trimmed).toLowerCase();
+      relatedFileCandidates.add(normalized);
+      if (this.workspaceRoot) {
+        const absolute = path.isAbsolute(trimmed)
+          ? path.resolve(trimmed)
+          : path.resolve(this.workspaceRoot, trimmed);
+        relatedFileCandidates.add(normalizeSqlPath(absolute).toLowerCase());
+        const relative = normalizeSqlPath(path.relative(this.workspaceRoot, absolute)).toLowerCase();
+        if (relative && relative !== '.' && !relative.startsWith('..')) {
+          relatedFileCandidates.add(relative);
+        }
+      }
+    };
     if (options.relatedFile) {
-      sql += " AND related_files LIKE ? ESCAPE '\\'";
-      const like = options.relatedFile.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
-      params.push(`%\"${like}\"%`);
+      addRelatedFileCandidate(options.relatedFile);
+    }
+    for (const value of options.relatedFilesAny ?? []) {
+      if (typeof value === 'string') addRelatedFileCandidate(value);
+    }
+    if (relatedFileCandidates.size > 0) {
+      const placeholders = Array.from(relatedFileCandidates).map(() => '?').join(', ');
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE ${relatedPathExpr} IN (${placeholders}))`;
+      params.push(...Array.from(relatedFileCandidates));
+    }
+
+    const prefixCandidates = normalizeFilterPathPrefix(options.relatedFilePrefix, this.workspaceRoot);
+    if (prefixCandidates.length > 0) {
+      const clauses = prefixCandidates.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
+      params.push(...prefixCandidates.map((prefix) => `${prefix}%`));
+    }
+
+    const languageExtensions = normalizeLanguageExtensions(options.language);
+    if (languageExtensions.length > 0) {
+      const clauses = languageExtensions.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
+      params.push(...languageExtensions.map((ext) => `%${ext}`));
+    }
+
+    if (options.excludeTests) {
+      const testPatterns = ['%/__tests__/%', '%.test.%', '%.spec.%', '%/test/%', '%/tests/%'];
+      const clauses = testPatterns.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
+      sql += ` AND NOT EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
+      params.push(...testPatterns);
     }
     if (options.minConfidence !== undefined) {
       sql += ' AND confidence >= ?';
@@ -3197,18 +3288,65 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     const index = this.ensureVectorIndex();
     const db = this.ensureDb();
     const expectedBytes = queryEmbedding.length * Float32Array.BYTES_PER_ELEMENT;
+    const filter = options.filter;
+    const requiresSqlFilterPushdown = Boolean(
+      filter
+      && (
+        filter.pathPrefix
+        || filter.language
+        || typeof filter.isExported === 'boolean'
+        || filter.excludeTests
+      )
+    );
+    const pathExpr = "lower(coalesce(f.file_path, m.path, CASE WHEN e.entity_type = 'document' THEN substr(e.entity_id, 5) ELSE '' END))";
+    const filterParams: unknown[] = [];
+    const whereClauses: string[] = [];
 
-    // Brute-force cosine similarity (MVP approach)
-    let sql = 'SELECT entity_id, entity_type, embedding FROM librarian_embeddings';
-    let countSql = 'SELECT COUNT(*) as total, SUM(CASE WHEN length(embedding) = ? THEN 1 ELSE 0 END) as matching FROM librarian_embeddings';
     if (options.entityTypes?.length) {
-      sql += ` WHERE entity_type IN (${options.entityTypes.map(() => '?').join(',')})`;
-      countSql += ` WHERE entity_type IN (${options.entityTypes.map(() => '?').join(',')})`;
+      whereClauses.push(`e.entity_type IN (${options.entityTypes.map(() => '?').join(',')})`);
+      filterParams.push(...options.entityTypes);
     }
 
+    if (requiresSqlFilterPushdown) {
+      const pathPrefixes = normalizeFilterPathPrefix(filter?.pathPrefix, this.workspaceRoot);
+      if (pathPrefixes.length > 0) {
+        whereClauses.push(`(${pathPrefixes.map(() => `${pathExpr} LIKE ?`).join(' OR ')})`);
+        filterParams.push(...pathPrefixes.map((prefix) => `${prefix}%`));
+      }
+
+      const languageExtensions = normalizeLanguageExtensions(filter?.language);
+      if (languageExtensions.length > 0) {
+        whereClauses.push(`(${languageExtensions.map(() => `${pathExpr} LIKE ?`).join(' OR ')})`);
+        filterParams.push(...languageExtensions.map((extension) => `%${extension}`));
+      }
+
+      if (filter?.excludeTests) {
+        const testPatterns = ['%/__tests__/%', '%.test.%', '%.spec.%', '%/test/%', '%/tests/%'];
+        whereClauses.push(`NOT (${testPatterns.map(() => `${pathExpr} LIKE ?`).join(' OR ')})`);
+        filterParams.push(...testPatterns);
+      }
+
+      if (typeof filter?.isExported === 'boolean') {
+        whereClauses.push(`
+          CASE
+            WHEN e.entity_type = 'module' THEN json_array_length(m.exports) > 0
+            WHEN e.entity_type = 'function' THEN (lower(f.signature) LIKE 'export %' OR lower(f.signature) LIKE '% export %')
+            ELSE 0
+          END = ?
+        `);
+        filterParams.push(filter.isExported ? 1 : 0);
+      }
+    }
+
+    const joins = requiresSqlFilterPushdown
+      ? ' LEFT JOIN librarian_functions f ON e.entity_type = \'function\' AND f.id = e.entity_id'
+        + ' LEFT JOIN librarian_modules m ON e.entity_type = \'module\' AND m.id = e.entity_id'
+      : '';
+    const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+    const countSql = `SELECT COUNT(*) as total, SUM(CASE WHEN length(e.embedding) = ? THEN 1 ELSE 0 END) as matching FROM librarian_embeddings e${joins}${whereSql}`;
     const countRow = db.prepare(countSql).get(
       expectedBytes,
-      ...(options.entityTypes || [])
+      ...filterParams,
     ) as { total: number; matching: number | null } | undefined;
     const totalEmbeddings = countRow?.total ?? 0;
     const matchingEmbeddings = Number(countRow?.matching ?? 0);
@@ -3265,9 +3403,10 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     }
 
     // Use optimized HNSW index if available and has matching dimensions
-    if (index && index.size() > 0 && index.hasDimension(queryEmbedding.length)) {
+    if (!requiresSqlFilterPushdown && index && index.size() > 0 && index.hasDimension(queryEmbedding.length)) {
       const results = index.search(queryEmbedding, options);
-      return { results, degraded, degradedReason };
+      const fileSizeFiltered = await this.applySimilarityFileSizeFilter(results, filter?.maxFileSizeBytes);
+      return { results: fileSizeFiltered.slice(0, options.limit), degraded, degradedReason };
     }
 
     // Fallback to brute-force SQL search (always degraded)
@@ -3275,20 +3414,15 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       degraded = true;
       degradedReason = 'fallback_to_brute_force';
     }
-
-    if (sql.includes('WHERE')) {
-      sql += ' AND length(embedding) = ?';
-    } else {
-      sql += ' WHERE length(embedding) = ?';
-    }
+    const sql = `SELECT e.entity_id, e.entity_type, e.embedding FROM librarian_embeddings e${joins}${whereSql}${whereClauses.length > 0 ? ' AND' : ' WHERE'} length(e.embedding) = ?`;
     const rows = db.prepare(sql).all(
-      ...(options.entityTypes || []),
-      expectedBytes
-    ) as {
+      ...filterParams,
+      expectedBytes,
+    ) as Array<{
       entity_id: string;
       entity_type: string;
       embedding: Buffer;
-    }[];
+    }>;
 
     const results: SimilarityResult[] = [];
 
@@ -3312,7 +3446,56 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
 
     // Sort by similarity descending and limit
     results.sort((a, b) => b.similarity - a.similarity);
-    return { results: results.slice(0, options.limit), degraded, degradedReason };
+    const fileSizeFiltered = await this.applySimilarityFileSizeFilter(results, filter?.maxFileSizeBytes);
+    return { results: fileSizeFiltered.slice(0, options.limit), degraded, degradedReason };
+  }
+
+  private async applySimilarityFileSizeFilter(
+    results: SimilarityResult[],
+    maxFileSizeBytes: number | undefined,
+  ): Promise<SimilarityResult[]> {
+    if (typeof maxFileSizeBytes !== 'number' || !Number.isFinite(maxFileSizeBytes) || maxFileSizeBytes <= 0) {
+      return results;
+    }
+    if (!this.workspaceRoot) return results;
+
+    const filtered: SimilarityResult[] = [];
+    for (const result of results) {
+      const candidatePath = this.resolveSimilarityResultPath(result);
+      if (!candidatePath) {
+        filtered.push(result);
+        continue;
+      }
+      const absolutePath = path.isAbsolute(candidatePath)
+        ? candidatePath
+        : path.resolve(this.workspaceRoot, candidatePath);
+      try {
+        const stat = await fs.stat(absolutePath);
+        if (stat.isFile() && stat.size <= maxFileSizeBytes) {
+          filtered.push(result);
+        }
+      } catch {
+        // Unknown size/path should not suppress relevant results.
+        filtered.push(result);
+      }
+    }
+    return filtered;
+  }
+
+  private resolveSimilarityResultPath(result: SimilarityResult): string | null {
+    const db = this.ensureDb();
+    if (result.entityType === 'function') {
+      const row = db.prepare('SELECT file_path FROM librarian_functions WHERE id = ?').get(result.entityId) as { file_path?: string } | undefined;
+      return typeof row?.file_path === 'string' ? row.file_path : null;
+    }
+    if (result.entityType === 'module') {
+      const row = db.prepare('SELECT path FROM librarian_modules WHERE id = ?').get(result.entityId) as { path?: string } | undefined;
+      return typeof row?.path === 'string' ? row.path : null;
+    }
+    if (result.entityType === 'document') {
+      return result.entityId.startsWith('doc:') ? result.entityId.slice(4) : result.entityId;
+    }
+    return null;
   }
 
   async getMultiVector(entityId: string, entityType?: 'function' | 'module'): Promise<MultiVectorRecord | null> {
