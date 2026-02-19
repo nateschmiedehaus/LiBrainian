@@ -690,7 +690,7 @@ export class IndexLibrarian implements IndexingAgent {
           const modelId = requireEmbeddingModelId(result.modelId, `function:${target.fn.id}`);
           validateEmbedding(result.embedding, this.config.embeddingDimension);
           functionEmbeddings.push({
-            entityId: `${target.fn.filePath}:${target.fn.name}`,
+            entityId: target.fn.id,
             embedding: result.embedding,
             metadata: {
               modelId,
@@ -756,7 +756,7 @@ export class IndexLibrarian implements IndexingAgent {
             const modelId = requireEmbeddingModelId(result.modelId, `module:${module.id}`);
             validateEmbedding(result.embedding, this.config.embeddingDimension);
             moduleEmbedding = {
-              entityId: module.path,
+              entityId: module.id,
               embedding: result.embedding,
               metadata: {
                 modelId,
@@ -1510,7 +1510,7 @@ export class IndexLibrarian implements IndexingAgent {
       );
       this.governor?.recordTokens(tokenCount);
       return {
-        entityId: module.path,
+        entityId: module.id,
         entityType: 'module',
         payload,
         modelId: payload.modelId ?? modelId,
