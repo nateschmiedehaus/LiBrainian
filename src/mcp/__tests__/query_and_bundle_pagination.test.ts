@@ -66,6 +66,55 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.pagination.totalItems).toBe(3);
     expect(result.pagination.pageCount).toBe(2);
     expect(result.pagination.showing).toBe('Showing 3-3 of 3. Next: none. Total pages: 2.');
+    expect(result.packs[0]?.retrieval_rationale).toContain('Matched as function_context context');
+    expect(result.packs[0]?.coverage_note).toContain('Coverage');
+    expect(result.packs[0]?.confidence_tier).toBe('medium');
+    expect(Array.isArray(result.coverage_gaps)).toBe(true);
+  });
+
+  it('returns near misses when explain_misses is enabled', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: ['src/a.ts'], confidence: 0.9 },
+        { packId: 'p2', packType: 'module_context', targetId: 'b', summary: 'two', keyFacts: [], relatedFiles: ['src/b.ts'], confidence: 0.8 },
+        { packId: 'p3', packType: 'function_context', targetId: 'c', summary: 'three', keyFacts: [], relatedFiles: ['src/c.ts'], confidence: 0.7 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-misses',
+      constructionPlan: undefined,
+      totalConfidence: 0.8,
+      cacheHit: false,
+      latencyMs: 12,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+      coverageGaps: [],
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'test misses',
+      pageSize: 1,
+      pageIdx: 0,
+      explain_misses: true,
+    });
+
+    expect(Array.isArray(result.near_misses)).toBe(true);
+    expect(result.near_misses.length).toBeGreaterThan(0);
+    expect(result.near_misses[0]?.packId).toBe('p2');
+    expect(String(result.near_misses[0]?.reason)).toContain('Excluded by pagination window');
   });
 
   it('writes query page payload to outputFile and returns reference metadata', async () => {
@@ -381,6 +430,9 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.pagination.pageIdx).toBe(1);
     expect(result.pagination.totalItems).toBe(4);
     expect(result.pagination.pageCount).toBe(2);
+    expect(result.packs[0]?.retrieval_rationale).toContain('Matched as');
+    expect(result.packs[0]?.coverage_note).toContain('Coverage');
+    expect(Array.isArray(result.coverage_gaps)).toBe(true);
   });
 
   it('uses token_budget estimator when enforcing get_context_pack_bundle maxTokens', async () => {
