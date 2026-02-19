@@ -344,7 +344,7 @@ async function main(): Promise<void> {
   try {
     switch (command) {
       case 'status':
-        await statusCommand({
+        process.exitCode = await statusCommand({
           workspace,
           verbose,
           format: defaultFormat as 'text' | 'json',
