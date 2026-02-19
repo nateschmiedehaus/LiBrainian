@@ -24,6 +24,7 @@ import {
 } from '../../epistemics/confidence.js';
 import type { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { generatePredictionId } from '../calibration_tracker.js';
+import type { Construction, Context } from '../types.js';
 
 // ============================================================================
 // TYPES
@@ -98,6 +99,9 @@ export interface ConstructionMetadata {
  * Error thrown when a construction fails.
  */
 export class ConstructionError extends Error {
+  readonly kind: string = 'construction_error';
+  readonly retriable: boolean = false;
+
   constructor(
     message: string,
     public readonly constructionId: string,
@@ -112,6 +116,9 @@ export class ConstructionError extends Error {
  * Error thrown when a construction times out.
  */
 export class ConstructionTimeoutError extends ConstructionError {
+  readonly kind = 'timeout';
+  readonly retriable = true;
+
   constructor(
     constructionId: string,
     public readonly timeoutMs: number
@@ -125,9 +132,65 @@ export class ConstructionTimeoutError extends ConstructionError {
  * Error thrown when a construction is cancelled.
  */
 export class ConstructionCancelledError extends ConstructionError {
+  readonly kind = 'cancelled';
+  readonly retriable = false;
+
   constructor(constructionId: string) {
     super(`Construction ${constructionId} was cancelled`, constructionId);
     this.name = 'ConstructionCancelledError';
+  }
+}
+
+/**
+ * Error thrown when construction input validation fails.
+ */
+export class ConstructionInputError extends ConstructionError {
+  readonly kind = 'input_error';
+  readonly retriable = false;
+
+  constructor(
+    message: string,
+    public readonly fieldPath?: string,
+    constructionId: string = 'input_validation'
+  ) {
+    super(message, constructionId);
+    this.name = 'ConstructionInputError';
+  }
+}
+
+/**
+ * Error thrown when required capabilities are unavailable.
+ */
+export class ConstructionCapabilityError extends ConstructionError {
+  readonly kind = 'capability_missing';
+  readonly retriable = false;
+
+  constructor(
+    public readonly requiredCapability: string,
+    constructionId: string = 'capability_check'
+  ) {
+    super(`Missing required capability: ${requiredCapability}`, constructionId);
+    this.name = 'ConstructionCapabilityError';
+  }
+}
+
+/**
+ * Error thrown when model/provider-backed construction execution fails.
+ */
+export class ConstructionLLMError extends ConstructionError {
+  readonly kind = 'llm_error';
+  readonly retriable = true;
+
+  constructor(
+    public readonly model: string,
+    public readonly httpStatus?: number,
+    constructionId: string = 'llm_execution'
+  ) {
+    super(
+      `LLM call failed on model ${model}${httpStatus !== undefined ? ` (HTTP ${httpStatus})` : ''}`,
+      constructionId
+    );
+    this.name = 'ConstructionLLMError';
   }
 }
 
@@ -225,7 +288,29 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    * @param input - The input for the construction
    * @returns Promise resolving to the construction's result
    */
-  abstract execute(input: TInput): Promise<TOutput>;
+  abstract execute(input: TInput, context?: Context): Promise<TOutput>;
+
+  /**
+   * Bridge this base construction instance to the canonical construction interface.
+   *
+   * @param name - Human-readable construction name
+   * @param description - Optional construction description
+   * @returns Canonical construction adapter
+   */
+  toConstruction(name: string, description?: string): Construction<TInput, TOutput> {
+    const constructionId = this.CONSTRUCTION_ID;
+    return {
+      id: constructionId,
+      name,
+      description,
+      execute: async (input: TInput, context?: Context): Promise<TOutput> => {
+        if (context?.signal.aborted) {
+          throw new ConstructionCancelledError(constructionId);
+        }
+        return this.execute(input, context);
+      },
+    };
+  }
 
   /**
    * Record a prediction for calibration tracking.

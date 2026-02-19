@@ -28,6 +28,9 @@ export {
   ConstructionError,
   ConstructionTimeoutError,
   ConstructionCancelledError,
+  ConstructionInputError,
+  ConstructionCapabilityError,
+  ConstructionLLMError,
 } from './construction_base.js';
 
 // ============================================================================

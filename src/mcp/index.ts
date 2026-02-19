@@ -154,6 +154,18 @@ export {
   type AuditLogEntry,
 } from './server.js';
 
+// OpenClaw wrappers
+export {
+  OPENCLAW_REQUIRED_TOOL_NAMES,
+  getOpenclawToolRoutingTable,
+  getOpenclawToolDefinitions,
+  getOpenclawToolRegistryStatus,
+  getOpenclawRequiredToolSchemas,
+  type OpenclawRequiredToolName,
+  type OpenclawToolRoutingEntry,
+  type OpenclawToolDefinition,
+} from './openclaw_tools.js';
+
 // Authentication
 export {
   AuthenticationManager,

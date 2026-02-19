@@ -44,7 +44,7 @@ export interface ConstructionOutput {
   asContext(): Partial<SharedAgentContext>;
 }
 
-export interface ComposableConstruction<TInput = void> {
+export interface LegoPipelineBrick<TInput = void> {
   id: string;
   run(input: TInput, context: SharedAgentContext): Promise<ConstructionOutput>;
 }
@@ -63,7 +63,7 @@ export interface ComposeConstructionsOptions {
   include?: Array<'knowledge' | 'refactoring' | 'security'>;
 }
 
-class KnowledgeBrick implements ComposableConstruction<void> {
+class KnowledgeBrick implements LegoPipelineBrick<void> {
   readonly id = 'knowledge';
   private readonly advisor: FeatureLocationAdvisor;
   private readonly librarian: Librarian;
@@ -117,7 +117,7 @@ class KnowledgeBrick implements ComposableConstruction<void> {
   }
 }
 
-class RefactoringBrick implements ComposableConstruction<void> {
+class RefactoringBrick implements LegoPipelineBrick<void> {
   readonly id = 'refactoring';
   private readonly checker: RefactoringSafetyChecker;
 
@@ -175,7 +175,7 @@ class RefactoringBrick implements ComposableConstruction<void> {
   }
 }
 
-class SecurityBrick implements ComposableConstruction<void> {
+class SecurityBrick implements LegoPipelineBrick<void> {
   readonly id = 'security';
   private readonly helper: SecurityAuditHelper;
 
@@ -252,7 +252,7 @@ export async function composeConstructions(
   options: ComposeConstructionsOptions = {}
 ): Promise<ComposedConstructionReport> {
   const selected = options.include ?? ['knowledge', 'refactoring', 'security'];
-  const bricks: ComposableConstruction[] = [];
+  const bricks: LegoPipelineBrick[] = [];
   if (selected.includes('knowledge')) bricks.push(new KnowledgeBrick(librarian));
   if (selected.includes('refactoring')) bricks.push(new RefactoringBrick(librarian));
   if (selected.includes('security')) bricks.push(new SecurityBrick(librarian));

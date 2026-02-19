@@ -15,6 +15,7 @@
  *   librarian confidence <entity> - Show confidence scores for an entity
  *   librarian validate <file>     - Validate constraints for a file
  *   librarian check-providers     - Check provider availability
+ *   librarian audit-skill          - Audit SKILL.md files for malicious patterns
  *   librarian visualize           - Generate codebase visualizations
  *   librarian quickstart          - Smooth onboarding and recovery flow
  *   librarian setup               - Quickstart alias (setup-oriented naming)
@@ -32,11 +33,16 @@
  *   librarian evolve              - Run evolutionary improvement loop
  *   librarian eval                - Produce FitnessReport.v1
  *   librarian replay              - Replay evolution cycle or variant
+ *   librarian constructions       - Browse and validate registry constructions
  *   librarian analyze             - Run static analysis (dead code, complexity)
  *   librarian update              - Hook-friendly alias for incremental indexing
  *   librarian config heal         - Auto-detect and fix suboptimal config
  *   librarian doctor              - Run health diagnostics to identify issues
  *   librarian publish-gate        - Run strict publish-readiness gate checks
+ *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
+ *   librarian openclaw-daemon     - Manage OpenClaw daemon registration + state
+ *   librarian memory-bridge       - Show memory bridge annotation state
+ *   librarian test-integration     - Run quantitative integration benchmark suites
  *
  * @packageDocumentation
  */
@@ -54,6 +60,7 @@ import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
 import { validateCommand } from './commands/validate.js';
 import { checkProvidersCommand } from './commands/check_providers.js';
+import { auditSkillCommand } from './commands/audit_skill.js';
 import { visualizeCommand } from './commands/visualize.js';
 import { coverageCommand } from './commands/coverage.js';
 import { quickstartCommand } from './commands/quickstart.js';
@@ -72,12 +79,17 @@ import { scanCommand } from './commands/scan.js';
 import { contractCommand } from './commands/contract.js';
 import { diagnoseCommand } from './commands/diagnose.js';
 import { composeCommand } from './commands/compose.js';
+import { constructionsCommand } from './commands/constructions.js';
 import { analyzeCommand } from './commands/analyze.js';
 import { configHealCommand } from './commands/config_heal.js';
 import { doctorCommand } from './commands/doctor.js';
 import { publishGateCommand } from './commands/publish_gate.js';
 import { ralphCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
+import { installOpenclawSkillCommand } from './commands/install_openclaw_skill.js';
+import { openclawDaemonCommand } from './commands/openclaw_daemon.js';
+import { memoryBridgeCommand } from './commands/memory_bridge.js';
+import { testIntegrationCommand } from './commands/test_integration.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
@@ -91,7 +103,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -157,6 +169,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'check-providers': {
     description: 'Check provider availability and authentication',
     usage: 'librarian check-providers [--format text|json] [--out <path>]',
+  },
+  'audit-skill': {
+    description: 'Audit a SKILL.md for malicious or suspicious patterns',
+    usage: 'librarian audit-skill <path-to-SKILL.md> [--json]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
@@ -230,6 +246,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     description: 'Compose construction pipelines or technique bundles from intent',
     usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty]',
   },
+  'constructions': {
+    description: 'List/search/describe/install/validate constructions',
+    usage: 'librarian constructions list|search|describe|install|validate [options]',
+  },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
     usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
@@ -265,6 +285,22 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'external-repos': {
     description: 'Sync external repo corpus from manifest.json',
     usage: 'librarian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
+  },
+  'install-openclaw-skill': {
+    description: 'Install official OpenClaw skill and register LiBrainian tool wiring',
+    usage: 'librarian install-openclaw-skill [--openclaw-root <path>] [--dry-run] [--json]',
+  },
+  'openclaw-daemon': {
+    description: 'Start/stop/status for OpenClaw daemon registration and local state',
+    usage: 'librarian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]',
+  },
+  'memory-bridge': {
+    description: 'Show memory bridge entry and state-file health',
+    usage: 'librarian memory-bridge status [--memory-file <path>] [--json]',
+  },
+  'test-integration': {
+    description: 'Run quantitative integration test suites (currently OpenClaw)',
+    usage: 'librarian test-integration --suite openclaw [--scenario all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration] [--fixtures-root <path>] [--strict] [--json]',
   },
   'help': {
     description: 'Show help information',
@@ -404,6 +440,9 @@ async function main(): Promise<void> {
           out: getStringArg(args, '--out') ?? undefined,
         });
         break;
+      case 'audit-skill':
+        await auditSkillCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
 
       case 'visualize':
         await visualizeCommand({ workspace, args: commandArgs, rawArgs: args });
@@ -513,6 +552,13 @@ async function main(): Promise<void> {
           rawArgs: args,
         });
         break;
+      case 'constructions':
+        await constructionsCommand({
+          workspace,
+          args: commandArgs,
+          rawArgs: args,
+        });
+        break;
       case 'index':
       case 'update':
         {
@@ -597,6 +643,18 @@ async function main(): Promise<void> {
 	      case 'external-repos':
 	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
 	        break;
+      case 'install-openclaw-skill':
+        await installOpenclawSkillCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'openclaw-daemon':
+        await openclawDaemonCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'memory-bridge':
+        await memoryBridgeCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'test-integration':
+        await testIntegrationCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
 	    }
   } catch (error) {
     // Convert error to structured envelope for programmatic handling

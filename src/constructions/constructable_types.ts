@@ -153,6 +153,7 @@ export type ConstructableId =
   | 'code-quality-reporter'
   | 'architecture-verifier'
   | 'security-audit-helper'
+  | 'skill-audit-construction'
   | 'comprehensive-quality-construction'
   // Strategic Constructions
   | 'quality-standards'

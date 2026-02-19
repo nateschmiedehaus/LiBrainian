@@ -2,7 +2,7 @@
  * @fileoverview Tests for MCP Server
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   LibrarianMCPServer,
   createLibrarianMCPServer,
@@ -162,6 +162,127 @@ describe('MCP Server', () => {
   });
 
   describe('tool metadata', () => {
+    it('includes get_session_briefing in available tools with onboarding-focused schema', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+        inputSchema?: { properties?: Record<string, { description?: string }> };
+      }>;
+      const briefingTool = tools.find((tool) => tool.name === 'get_session_briefing');
+
+      expect(briefingTool).toBeDefined();
+      expect(briefingTool?.description).toContain('session/workspace orientation');
+      expect(briefingTool?.inputSchema?.properties?.includeConstructions?.description).toContain('construction onboarding hints');
+    });
+
+    it('includes blast_radius in available tools for pre-edit impact analysis', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const blastRadiusTool = tools.find((tool) => tool.name === 'blast_radius');
+
+      expect(blastRadiusTool).toBeDefined();
+      expect(blastRadiusTool?.description).toContain('Pre-edit transitive impact analysis');
+    });
+
+    it('includes semantic_search as primary localization tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const semanticSearchTool = tools.find((tool) => tool.name === 'semantic_search');
+
+      expect(semanticSearchTool).toBeDefined();
+      expect(semanticSearchTool?.description).toContain('Primary semantic code localization');
+    });
+
+    it('includes get_context_pack as token-budgeted context retrieval tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const contextPackTool = tools.find((tool) => tool.name === 'get_context_pack');
+
+      expect(contextPackTool).toBeDefined();
+      expect(contextPackTool?.description?.toLowerCase()).toContain('token-budgeted');
+    });
+
+    it('includes estimate_budget as pre-task feasibility gate', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const estimateBudgetTool = tools.find((tool) => tool.name === 'estimate_budget');
+
+      expect(estimateBudgetTool).toBeDefined();
+      expect(estimateBudgetTool?.description?.toLowerCase()).toContain('feasibility');
+    });
+
+    it('includes estimate_task_complexity as model-routing estimator', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const estimateComplexityTool = tools.find((tool) => tool.name === 'estimate_task_complexity');
+
+      expect(estimateComplexityTool).toBeDefined();
+      expect(estimateComplexityTool?.description?.toLowerCase()).toContain('routing');
+    });
+
+    it('includes pre_commit_check as a semantic submit gate tool', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const preCommitTool = tools.find((tool) => tool.name === 'pre_commit_check');
+
+      expect(preCommitTool).toBeDefined();
+      expect(preCommitTool?.description?.toLowerCase()).toContain('semantic pre-submit gate');
+    });
+
+    it('includes claim_work_scope for parallel coordination', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const claimTool = tools.find((tool) => tool.name === 'claim_work_scope');
+
+      expect(claimTool).toBeDefined();
+      expect(claimTool?.description).toContain('parallel agent coordination');
+    });
+
+    it('includes find_callers and find_callees semantic navigation tools', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const findCallersTool = tools.find((tool) => tool.name === 'find_callers');
+      const findCalleesTool = tools.find((tool) => tool.name === 'find_callees');
+
+      expect(findCallersTool).toBeDefined();
+      expect(findCallersTool?.description?.toLowerCase()).toContain('caller');
+      expect(findCalleesTool).toBeDefined();
+      expect(findCalleesTool?.description?.toLowerCase()).toContain('callee');
+    });
+
+    it('includes append_claim, query_claims, and harvest_session_knowledge tools', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const appendClaimTool = tools.find((tool) => tool.name === 'append_claim');
+      const queryClaimsTool = tools.find((tool) => tool.name === 'query_claims');
+      const harvestTool = tools.find((tool) => tool.name === 'harvest_session_knowledge');
+
+      expect(appendClaimTool).toBeDefined();
+      expect(appendClaimTool?.description?.toLowerCase()).toContain('claim');
+      expect(queryClaimsTool).toBeDefined();
+      expect(queryClaimsTool?.description?.toLowerCase()).toContain('claims');
+      expect(harvestTool).toBeDefined();
+      expect(harvestTool?.description?.toLowerCase()).toContain('session');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -268,6 +389,238 @@ describe('MCP Server', () => {
       expect(affectedFilesDescription).toContain('Absolute paths');
       expect(affectedFilesDescription).toContain('Example');
       expect(affectedFilesDescription).toContain('/workspace/src/');
+    });
+
+    it('builds session briefing with bootstrap-first guidance when no workspace is registered', async () => {
+      const result = await (server as any).executeGetSessionBriefing({}, {});
+      expect(result.success).toBe(true);
+      expect(result.workspace).toBeUndefined();
+      expect(Array.isArray(result.recommendedActions)).toBe(true);
+      expect(result.recommendedActions[0]?.tool).toBe('bootstrap');
+      expect(result.constructions?.quickstart).toBe('docs/constructions/quickstart.md');
+    });
+
+    it('wraps get_change_impact in blast_radius guidance', async () => {
+      vi.spyOn(server as any, 'executeGetChangeImpact').mockResolvedValue({
+        success: true,
+        summary: { riskLevel: 'high' },
+        impacted: [],
+      });
+
+      const result = await (server as any).executeBlastRadius({ target: 'src/api/auth.ts' });
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('blast_radius');
+      expect(result.aliasOf).toBe('get_change_impact');
+      expect(result.preEditGuidance?.nextTools).toEqual(
+        expect.arrayContaining(['request_human_review', 'synthesize_plan']),
+      );
+    });
+
+    it('wraps query in semantic_search with related files and next-tool guidance', async () => {
+      vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        packs: [
+          { relatedFiles: ['src/auth.ts', 'src/session.ts'] },
+          { relatedFiles: ['src/session.ts', 'src/routes.ts'] },
+        ],
+      });
+
+      const result = await (server as any).executeSemanticSearch({ query: 'auth token refresh' }, {});
+      expect(result.tool).toBe('semantic_search');
+      expect(result.aliasOf).toBe('query');
+      expect(result.searchQuery).toBe('auth token refresh');
+      expect(result.relatedFiles).toEqual(['src/auth.ts', 'src/session.ts', 'src/routes.ts']);
+      expect(result.recommendedNextTools).toEqual(
+        expect.arrayContaining(['find_symbol', 'trace_imports', 'get_change_impact']),
+      );
+    });
+
+    it('builds token-budgeted context packs from query results', async () => {
+      server.registerWorkspace('/tmp/workspace');
+      server.updateWorkspaceState('/tmp/workspace', { indexState: 'ready' });
+
+      vi.spyOn(server as any, 'executeQuery').mockResolvedValue({
+        success: true,
+        answer: 'Auth flow spans middleware and token service.',
+        packs: [
+          {
+            packId: 'pack_1',
+            packType: 'function_context',
+            targetId: 'fn_auth',
+            summary: 'Validates bearer token and returns session principal.',
+            keyFacts: ['Requires Authorization header', 'Must reject expired tokens'],
+            codeSnippets: [{ code: 'function validateToken(token) { ... }' }],
+            relatedFiles: ['src/auth.ts'],
+            confidence: 0.91,
+          },
+          {
+            packId: 'pack_2',
+            packType: 'module_context',
+            targetId: 'mod_session',
+            summary: 'Session module handles rotation and revocation.',
+            keyFacts: ['Calls validateToken before issuing refresh token'],
+            codeSnippets: [{ code: 'export async function rotateSession() { ... }' }],
+            relatedFiles: ['src/session.ts'],
+            confidence: 0.82,
+          },
+        ],
+      });
+
+      const result = await (server as any).executeGetContextPack({
+        intent: 'Add stricter token rotation validation',
+        workdir: '/tmp/workspace',
+        tokenBudget: 300,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('get_context_pack');
+      expect(result.tokenCount).toBeLessThanOrEqual(300);
+      expect(result.staleness).toBe('fresh');
+      expect(result.functions.length).toBeGreaterThan(0);
+      expect(result.evidenceIds).toContain('pack_1');
+    });
+
+    it('estimates task budget feasibility and suggests cheaper alternatives', async () => {
+      const result = await (server as any).executeEstimateBudget({
+        taskDescription: 'Refactor authentication across the codebase and update all callers',
+        availableTokens: 12000,
+        workdir: '/tmp/workspace',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('estimate_budget');
+      expect(result.feasible).toBe(false);
+      expect(result.estimatedTokens?.max).toBeGreaterThan(12000);
+      expect(result.cheaperAlternative).toBeDefined();
+      expect(result.riskFactors.length).toBeGreaterThan(0);
+    });
+
+    it('estimates task complexity for model routing using budget and context signals', async () => {
+      vi.spyOn(server as any, 'executeEstimateBudget').mockResolvedValue({
+        success: true,
+        estimatedTokens: { min: 800, expected: 1400, max: 2200 },
+      });
+      vi.spyOn(server as any, 'executeGetContextPack').mockResolvedValue({
+        success: true,
+        functions: [{ id: 'fn_payment' }],
+        tokenCount: 700,
+      });
+      vi.spyOn(server as any, 'executeGetChangeImpact').mockResolvedValue({
+        success: true,
+        summary: { riskScore: 22 },
+      });
+
+      const result = await (server as any).executeEstimateTaskComplexity({
+        task: 'What does processPayment return?',
+        workspace: '/tmp/workspace',
+        functionId: 'fn_payment',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('estimate_task_complexity');
+      expect(result.complexity).toBe('simple');
+      expect(result.contextPackAvailable).toBe(true);
+      expect(result.recommendedModel).toBeDefined();
+      expect(typeof result.confidence).toBe('number');
+    });
+
+    it('evaluates changed files in pre_commit_check and surfaces pass/fail summary', async () => {
+      vi.spyOn(server as any, 'executeGetChangeImpact')
+        .mockResolvedValueOnce({ success: true, summary: { riskLevel: 'medium', totalImpacted: 3 } })
+        .mockResolvedValueOnce({ success: true, summary: { riskLevel: 'high', totalImpacted: 9 } });
+
+      const result = await (server as any).executePreCommitCheck({
+        changedFiles: ['src/api/auth.ts', 'src/session.ts'],
+        workspace: '/tmp/workspace',
+        maxRiskLevel: 'medium',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.tool).toBe('pre_commit_check');
+      expect(result.passed).toBe(false);
+      expect(result.summary?.failingFiles).toContain('src/session.ts');
+      expect(result.recommendedActions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ tool: 'request_human_review' }),
+          expect.objectContaining({ tool: 'synthesize_plan' }),
+        ]),
+      );
+    });
+
+    it('claims, checks, and releases work scopes with conflict reporting', async () => {
+      const first = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        sessionId: 'sess_a',
+        owner: 'agent-a',
+      });
+      expect(first.success).toBe(true);
+      expect(first.claimed).toBe(true);
+
+      const conflict = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        sessionId: 'sess_b',
+        owner: 'agent-b',
+      });
+      expect(conflict.success).toBe(true);
+      expect(conflict.claimed).toBe(false);
+      expect(conflict.conflict?.sessionId).toBe('sess_a');
+
+      const check = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        mode: 'check',
+      });
+      expect(check.success).toBe(true);
+      expect(check.available).toBe(false);
+
+      const releaseDenied = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        mode: 'release',
+        sessionId: 'sess_b',
+      });
+      expect(releaseDenied.success).toBe(true);
+      expect(releaseDenied.released).toBe(false);
+
+      const release = await (server as any).executeClaimWorkScope({
+        scopeId: 'src/api/auth.ts',
+        mode: 'release',
+        sessionId: 'sess_a',
+      });
+      expect(release.success).toBe(true);
+      expect(release.released).toBe(true);
+    });
+
+    it('appends, queries, and harvests session knowledge claims', async () => {
+      const appendedA = await (server as any).executeAppendClaim({
+        claim: 'Token refresh retries up to 3 attempts before forcing re-login.',
+        sessionId: 'sess_knowledge',
+        tags: ['auth', 'reliability'],
+        confidence: 0.85,
+      }, {});
+      const appendedB = await (server as any).executeAppendClaim({
+        claim: 'Rate limiting applies stricter thresholds to anonymous sessions.',
+        sessionId: 'sess_knowledge',
+        tags: ['auth', 'security'],
+        confidence: 0.75,
+      }, {});
+
+      expect(appendedA.success).toBe(true);
+      expect(appendedA.claimId).toMatch(/^clm_/);
+      expect(appendedB.success).toBe(true);
+
+      const queryResult = await (server as any).executeQueryClaims({
+        sessionId: 'sess_knowledge',
+        query: 'token',
+      });
+      expect(queryResult.success).toBe(true);
+      expect(queryResult.totalMatches).toBe(1);
+      expect(queryResult.claims[0]?.claim).toContain('Token refresh');
+
+      const harvested = await (server as any).executeHarvestSessionKnowledge({
+        sessionId: 'sess_knowledge',
+        minConfidence: 0.8,
+      }, {});
+      expect(harvested.success).toBe(true);
+      expect(harvested.summary?.totalClaims).toBe(1);
+      expect(harvested.summary?.topTags?.map((entry: { tag: string }) => entry.tag)).toContain('auth');
     });
   });
 

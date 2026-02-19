@@ -1,6 +1,5 @@
 import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { ensureWave0AdapterRegistration } from '../adapters/wave0_adapter_wiring.js';
 import { createDefaultLlmServiceAdapter, type LlmChatMessage } from '../adapters/llm_service.js';
 import { resolveLibrarianModelConfigWithDiscovery } from '../api/llm_env.js';
 import { removeControlChars } from '../security/sanitization.js';
@@ -251,7 +250,6 @@ export async function runLiveCognitionAudit(
   };
 
   try {
-    await ensureWave0AdapterRegistration(workspaceRoot);
     const model = await resolveLibrarianModelConfigWithDiscovery();
     const llm = createDefaultLlmServiceAdapter();
 

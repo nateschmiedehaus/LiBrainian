@@ -6,11 +6,87 @@ This document describes the patterns for building "constructions" - higher-level
 
 1. [Primitives Inventory](#primitives-inventory)
 2. [Confidence Derivation Rules](#confidence-derivation-rules)
-3. [Construction Template](#construction-template)
-4. [Best Practices](#best-practices)
-5. [Anti-patterns to Avoid](#anti-patterns-to-avoid)
+3. [Canonical Construction Pattern](#canonical-construction-pattern)
+4. [Registry and Discovery](#registry-and-discovery)
+5. [Construction Template](#construction-template)
+6. [Best Practices](#best-practices)
+7. [Anti-patterns to Avoid](#anti-patterns-to-avoid)
 
 ---
+
+## Canonical Construction Pattern
+
+LiBrainian uses a single canonical interface for new composition work:
+
+```typescript
+import type { Construction, Context } from 'librainian/constructions';
+
+const construction: Construction<Input, Output> = {
+  id: 'my_construction',
+  name: 'My Construction',
+  async execute(input: Input, context?: Context): Promise<Output> {
+    // use context?.deps, context?.signal, context?.sessionId as needed
+    return computeOutput(input);
+  },
+};
+```
+
+For existing class-based implementations that extend `BaseConstruction`, use the adapter bridge:
+
+```typescript
+const legacy = new MyBaseConstruction(librarian);
+const canonical = legacy.toConstruction('My Base Construction');
+```
+
+This keeps composition APIs (`sequence`, `parallel`, `seq`, `dimap`, etc.) compatible while migration continues.
+
+Canonical operator helpers:
+- `seq(a, b)`: typed seam-preserving sequence composition.
+- `map(c, f)`: output adaptation (`dimap(id, f)`).
+- `contramap(c, f)`: input adaptation (`dimap(f, id)`).
+- `dimap(c, pre, post)`: full profunctor transform.
+- `mapAsync(c, f)`: async output adaptation with context access.
+- `mapError(c, f)`: typed error-channel transformation.
+- `provide(c, deps)`: satisfy part of `R` up front and execute with reduced dependency requirements.
+
+Migration status:
+- `src/constructions/types.ts` defines canonical `Construction<I, O, E, R>` and `Context<R>`.
+- `BaseConstruction.toConstruction()` provides a non-breaking adapter.
+- `src/constructions/composition.ts` keeps `ComposableConstruction` as a deprecated compatibility alias to the canonical type.
+- `src/constructions/lego_pipeline.ts` uses `LegoPipelineBrick` to avoid type-name collisions.
+
+## Registry and Discovery
+
+LiBrainian now exposes a typed central registry for construction discovery:
+
+```typescript
+import {
+  CONSTRUCTION_REGISTRY,
+  isConstructionId,
+  listConstructions,
+  invokeConstruction,
+} from 'librainian/constructions';
+
+const available = listConstructions({
+  tags: ['security'],
+  trustTier: 'official',
+  availableOnly: true,
+});
+
+const id = 'librainian:security-audit-helper';
+if (isConstructionId(id) && CONSTRUCTION_REGISTRY.has(id)) {
+  const result = await invokeConstruction(id, {
+    files: ['src/auth/session.ts'],
+    checkTypes: ['injection', 'auth'],
+  });
+}
+```
+
+Registry guarantees:
+- Duplicate IDs are rejected by `CONSTRUCTION_REGISTRY.register(...)`.
+- `listConstructions(...)` supports filtering by tags, capabilities, trust tier, and availability.
+- `compatibilityScore(a, b)` estimates output/input schema fit for composition routing.
+- Runtime-generated constructions created via `createConstruction(...)` auto-register as community-scoped entries.
 
 ## Primitives Inventory
 

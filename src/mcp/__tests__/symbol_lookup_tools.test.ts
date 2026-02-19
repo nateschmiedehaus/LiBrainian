@@ -105,6 +105,101 @@ describe('MCP symbol lookup tools', () => {
     );
   });
 
+  it('find_callers returns direct and transitive callers', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const storage = {
+      getFunctionsByName: vi.fn().mockResolvedValue([
+        {
+          id: 'fn-target',
+          name: 'targetFunction',
+          signature: 'targetFunction()',
+          filePath: 'src/core/target.ts',
+        },
+      ]),
+      getFunctions: vi.fn().mockResolvedValue([]),
+      getGraphEdges: vi.fn().mockImplementation(async (options: any) => {
+        if (Array.isArray(options?.toIds) && options.toIds.includes('fn-target')) {
+          return [{ fromId: 'fn-a', toId: 'fn-target', sourceFile: 'src/a.ts', sourceLine: 10, edgeType: 'calls', confidence: 0.9 }];
+        }
+        if (Array.isArray(options?.toIds) && options.toIds.includes('fn-a')) {
+          return [{ fromId: 'fn-b', toId: 'fn-a', sourceFile: 'src/b.ts', sourceLine: 20, edgeType: 'calls', confidence: 0.85 }];
+        }
+        return [];
+      }),
+      getFunction: vi.fn().mockImplementation(async (id: string) => {
+        if (id === 'fn-a') return { id, name: 'callerA', filePath: 'src/a.ts' };
+        if (id === 'fn-b') return { id, name: 'callerB', filePath: 'src/b.ts' };
+        if (id === 'fn-target') return { id, name: 'targetFunction', filePath: 'src/core/target.ts' };
+        return null;
+      }),
+    };
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue(storage);
+
+    const result = await (server as any).executeFindCallers({
+      workspace,
+      functionId: 'targetFunction',
+      transitive: true,
+      maxDepth: 2,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.totalCallSites).toBe(2);
+    expect(result.callSites.map((site: { callerFunctionId: string }) => site.callerFunctionId)).toEqual(
+      expect.arrayContaining(['fn-a', 'fn-b']),
+    );
+  });
+
+  it('find_callees returns direct callees for a function', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const storage = {
+      getFunctionsByName: vi.fn().mockResolvedValue([
+        {
+          id: 'fn-query',
+          name: 'queryLibrarian',
+          signature: 'queryLibrarian()',
+          filePath: 'src/api/query.ts',
+        },
+      ]),
+      getFunctions: vi.fn().mockResolvedValue([]),
+      getGraphEdges: vi.fn().mockResolvedValue([
+        { fromId: 'fn-query', toId: 'fn-score', sourceFile: 'src/api/query.ts', sourceLine: 50, edgeType: 'calls', confidence: 0.95 },
+        { fromId: 'fn-query', toId: 'fn-rank', sourceFile: 'src/api/query.ts', sourceLine: 60, edgeType: 'calls', confidence: 0.9 },
+      ]),
+      getFunction: vi.fn().mockImplementation(async (id: string) => {
+        if (id === 'fn-score') return { id, name: 'scorePacks', filePath: 'src/api/scoring.ts', purpose: 'Scores ranked candidates' };
+        if (id === 'fn-rank') return { id, name: 'rankPacks', filePath: 'src/api/ranking.ts', purpose: 'Ranks candidates for response assembly' };
+        return null;
+      }),
+    };
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue(storage);
+
+    const result = await (server as any).executeFindCallees({
+      workspace,
+      functionId: 'queryLibrarian',
+      limit: 10,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.totalCallees).toBe(2);
+    expect(result.callees.map((callee: { functionId: string }) => callee.functionId)).toEqual(
+      expect.arrayContaining(['fn-score', 'fn-rank']),
+    );
+  });
+
   it('trace_imports returns import and importedBy graph up to depth', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

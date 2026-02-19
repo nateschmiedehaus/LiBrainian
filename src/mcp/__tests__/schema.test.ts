@@ -17,12 +17,30 @@ import {
   parseToolInput,
   safeParseToolInput,
   BootstrapToolInputSchema,
+  GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
+  GetContextPackToolInputSchema,
+  EstimateBudgetToolInputSchema,
+  EstimateTaskComplexityToolInputSchema,
+  SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
+  BlastRadiusToolInputSchema,
+  PreCommitCheckToolInputSchema,
+  ClaimWorkScopeToolInputSchema,
+  AppendClaimToolInputSchema,
+  QueryClaimsToolInputSchema,
+  HarvestSessionKnowledgeToolInputSchema,
   ResetSessionStateToolInputSchema,
   RequestHumanReviewToolInputSchema,
+  ListConstructionsToolInputSchema,
+  InvokeConstructionToolInputSchema,
+  DescribeConstructionToolInputSchema,
+  ExplainOperatorToolInputSchema,
+  CheckConstructionTypesToolInputSchema,
   SubmitFeedbackToolInputSchema,
   ExplainFunctionToolInputSchema,
+  FindCallersToolInputSchema,
+  FindCalleesToolInputSchema,
   FindUsagesToolInputSchema,
   TraceImportsToolInputSchema,
   VerifyClaimToolInputSchema,
@@ -37,12 +55,30 @@ import {
 import {
   MCP_SCHEMA_VERSION,
   isBootstrapToolInput,
+  isGetSessionBriefingToolInput,
   isQueryToolInput,
+  isGetContextPackToolInput,
+  isEstimateBudgetToolInput,
+  isEstimateTaskComplexityToolInput,
+  isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
+  isBlastRadiusToolInput,
+  isPreCommitCheckToolInput,
+  isClaimWorkScopeToolInput,
+  isAppendClaimToolInput,
+  isQueryClaimsToolInput,
+  isHarvestSessionKnowledgeToolInput,
   isResetSessionStateToolInput,
   isRequestHumanReviewToolInput,
+  isListConstructionsToolInput,
+  isInvokeConstructionToolInput,
+  isDescribeConstructionToolInput,
+  isExplainOperatorToolInput,
+  isCheckConstructionTypesToolInput,
   isSubmitFeedbackToolInput,
   isExplainFunctionToolInput,
+  isFindCallersToolInput,
+  isFindCalleesToolInput,
   isFindUsagesToolInput,
   isTraceImportsToolInput,
   isVerifyClaimToolInput,
@@ -65,15 +101,27 @@ describe('MCP Schema', () => {
     it('should list all tool schemas', () => {
       const schemas = listToolSchemas();
       expect(schemas).toContain('bootstrap');
+      expect(schemas).toContain('get_session_briefing');
       expect(schemas).toContain('system_contract');
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
+      expect(schemas).toContain('semantic_search');
+      expect(schemas).toContain('get_context_pack');
+      expect(schemas).toContain('estimate_budget');
+      expect(schemas).toContain('estimate_task_complexity');
       expect(schemas).toContain('query');
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
       expect(schemas).toContain('request_human_review');
+      expect(schemas).toContain('list_constructions');
+      expect(schemas).toContain('invoke_construction');
+      expect(schemas).toContain('describe_construction');
+      expect(schemas).toContain('explain_operator');
+      expect(schemas).toContain('check_construction_types');
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('explain_function');
+      expect(schemas).toContain('find_callers');
+      expect(schemas).toContain('find_callees');
       expect(schemas).toContain('find_usages');
       expect(schemas).toContain('trace_imports');
       expect(schemas).toContain('verify_claim');
@@ -90,8 +138,14 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
+      expect(schemas).toContain('blast_radius');
+      expect(schemas).toContain('pre_commit_check');
+      expect(schemas).toContain('claim_work_scope');
+      expect(schemas).toContain('append_claim');
+      expect(schemas).toContain('query_claims');
+      expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(27);
+      expect(schemas).toHaveLength(45);
     });
 
     it('should return schema for known tools', () => {
@@ -153,6 +207,39 @@ describe('MCP Schema', () => {
       expect(isBootstrapToolInput({ workspace: '/test' })).toBe(true);
       expect(isBootstrapToolInput({})).toBe(false);
       expect(isBootstrapToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Get Session Briefing Tool Schema', () => {
+    it('should validate empty input', () => {
+      const result = validateToolInput('get_session_briefing', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('get_session_briefing', {
+        workspace: '/tmp/workspace',
+        sessionId: 'sess_123',
+        includeConstructions: false,
+      });
+      expect(result.valid).toBe(true);
+      expect(GetSessionBriefingToolInputSchema).toBeDefined();
+    });
+
+    it('should reject extra properties (strict mode)', () => {
+      const result = validateToolInput('get_session_briefing', {
+        workspace: '/tmp/workspace',
+        unknownField: true,
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetSessionBriefingToolInput({})).toBe(true);
+      expect(isGetSessionBriefingToolInput({ sessionId: 'sess_1' })).toBe(true);
+      expect(isGetSessionBriefingToolInput({ includeConstructions: true })).toBe(true);
+      expect(isGetSessionBriefingToolInput({ includeConstructions: 'yes' })).toBe(false);
+      expect(isGetSessionBriefingToolInput(null)).toBe(false);
     });
   });
 
@@ -255,6 +342,139 @@ describe('MCP Schema', () => {
     });
   });
 
+  describe('Get Context Pack Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('get_context_pack', {
+        intent: 'Add rate limiting to create user endpoint',
+      });
+      expect(result.valid).toBe(true);
+      expect(GetContextPackToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('get_context_pack', {
+        intent: 'Harden auth token refresh flow',
+        relevantFiles: ['src/api/auth.ts'],
+        tokenBudget: 1200,
+        workdir: '/tmp/workspace',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing intent', () => {
+      const result = validateToolInput('get_context_pack', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetContextPackToolInput({ intent: 'test' })).toBe(true);
+      expect(isGetContextPackToolInput({ intent: 'test', tokenBudget: 0 })).toBe(false);
+      expect(isGetContextPackToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Estimate Budget Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('estimate_budget', {
+        taskDescription: 'Refactor authentication across the codebase',
+        availableTokens: 52000,
+      });
+      expect(result.valid).toBe(true);
+      expect(EstimateBudgetToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('estimate_budget', {
+        taskDescription: 'Scope auth changes to middleware',
+        availableTokens: 24000,
+        workdir: '/tmp/workspace',
+        pipeline: ['semantic_search', 'get_context_pack', 'pre_commit_check'],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      const result = validateToolInput('estimate_budget', {
+        taskDescription: 'Refactor auth',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isEstimateBudgetToolInput({ taskDescription: 'x', availableTokens: 1000 })).toBe(true);
+      expect(isEstimateBudgetToolInput({ taskDescription: 'x', availableTokens: 0 })).toBe(false);
+      expect(isEstimateBudgetToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Estimate Task Complexity Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('estimate_task_complexity', {
+        task: 'What does processPayment return?',
+      });
+      expect(result.valid).toBe(true);
+      expect(EstimateTaskComplexityToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('estimate_task_complexity', {
+        task: 'Refactor authentication to support OAuth and OIDC',
+        workspace: '/tmp/workspace',
+        recentFiles: ['src/auth.ts'],
+        functionId: 'fn_auth_refresh',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing task', () => {
+      const result = validateToolInput('estimate_task_complexity', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isEstimateTaskComplexityToolInput({ task: 'test' })).toBe(true);
+      expect(isEstimateTaskComplexityToolInput({ task: 'test', recentFiles: ['src/a.ts'] })).toBe(true);
+      expect(isEstimateTaskComplexityToolInput({ task: 'test', recentFiles: [123] })).toBe(false);
+      expect(isEstimateTaskComplexityToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Semantic Search Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('semantic_search', {
+        query: 'where is auth token refresh implemented',
+      });
+      expect(result.valid).toBe(true);
+      expect(SemanticSearchToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('semantic_search', {
+        query: 'auth middleware',
+        workspace: '/tmp/workspace',
+        sessionId: 'sess_1',
+        minConfidence: 0.6,
+        depth: 'L2',
+        limit: 25,
+        includeEngines: true,
+        includeEvidence: true,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing query', () => {
+      const result = validateToolInput('semantic_search', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isSemanticSearchToolInput({ query: 'auth flow' })).toBe(true);
+      expect(isSemanticSearchToolInput({ query: 'auth flow', depth: 'L3' })).toBe(true);
+      expect(isSemanticSearchToolInput({ query: 'auth flow', depth: 'invalid' })).toBe(false);
+      expect(isSemanticSearchToolInput(null)).toBe(false);
+    });
+  });
+
   describe('Submit Feedback Tool Schema', () => {
     it('should validate correct input', () => {
       const result = validateToolInput('submit_feedback', {
@@ -295,6 +515,151 @@ describe('MCP Schema', () => {
     });
   });
 
+  describe('Blast Radius Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('blast_radius', {
+        target: 'src/api/auth.ts',
+      });
+      expect(result.valid).toBe(true);
+      expect(BlastRadiusToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('blast_radius', {
+        target: 'src/api/auth.ts',
+        depth: 4,
+        maxResults: 50,
+        changeType: 'modify',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing target', () => {
+      const result = validateToolInput('blast_radius', {});
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts' })).toBe(true);
+      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'rename' })).toBe(true);
+      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'invalid' })).toBe(false);
+      expect(isBlastRadiusToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Pre Commit Check Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('pre_commit_check', {
+        changedFiles: ['src/api/auth.ts'],
+      });
+      expect(result.valid).toBe(true);
+      expect(PreCommitCheckToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('pre_commit_check', {
+        changedFiles: ['src/api/auth.ts', 'src/session.ts'],
+        workspace: '/tmp/workspace',
+        strict: true,
+        maxRiskLevel: 'medium',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject empty changedFiles', () => {
+      const result = validateToolInput('pre_commit_check', {
+        changedFiles: [],
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'] })).toBe(true);
+      expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'critical' })).toBe(true);
+      expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'invalid' })).toBe(false);
+      expect(isPreCommitCheckToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Claim Work Scope Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('claim_work_scope', {
+        scopeId: 'src/api/auth.ts',
+      });
+      expect(result.valid).toBe(true);
+      expect(ClaimWorkScopeToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('claim_work_scope', {
+        scopeId: 'src/api/auth.ts',
+        workspace: '/tmp/workspace',
+        sessionId: 'sess_1',
+        owner: 'agent-a',
+        mode: 'claim',
+        ttlSeconds: 600,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject invalid mode', () => {
+      const result = validateToolInput('claim_work_scope', {
+        scopeId: 'src/api/auth.ts',
+        mode: 'invalid',
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts' })).toBe(true);
+      expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts', mode: 'release' })).toBe(true);
+      expect(isClaimWorkScopeToolInput({ scopeId: 'src/a.ts', mode: 'invalid' })).toBe(false);
+      expect(isClaimWorkScopeToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Session Knowledge Tools Schemas', () => {
+    it('validates append_claim required and optional fields', () => {
+      const result = validateToolInput('append_claim', {
+        claim: 'Auth token refresh retries after transient provider failures',
+        sessionId: 'sess_1',
+        tags: ['auth', 'reliability'],
+        confidence: 0.8,
+      });
+      expect(result.valid).toBe(true);
+      expect(AppendClaimToolInputSchema).toBeDefined();
+      expect(isAppendClaimToolInput({ claim: 'x' })).toBe(true);
+      expect(isAppendClaimToolInput({ claim: 'x', confidence: 2 })).toBe(false);
+      expect(isAppendClaimToolInput({})).toBe(false);
+    });
+
+    it('validates query_claims filters and type guard', () => {
+      const result = validateToolInput('query_claims', {
+        query: 'auth token',
+        tags: ['auth'],
+        limit: 20,
+      });
+      expect(result.valid).toBe(true);
+      expect(QueryClaimsToolInputSchema).toBeDefined();
+      expect(isQueryClaimsToolInput({})).toBe(true);
+      expect(isQueryClaimsToolInput({ limit: 0 })).toBe(false);
+      expect(isQueryClaimsToolInput(null)).toBe(false);
+    });
+
+    it('validates harvest_session_knowledge filters and type guard', () => {
+      const result = validateToolInput('harvest_session_knowledge', {
+        sessionId: 'sess_1',
+        maxItems: 10,
+        minConfidence: 0.6,
+      });
+      expect(result.valid).toBe(true);
+      expect(HarvestSessionKnowledgeToolInputSchema).toBeDefined();
+      expect(isHarvestSessionKnowledgeToolInput({})).toBe(true);
+      expect(isHarvestSessionKnowledgeToolInput({ minConfidence: -1 })).toBe(false);
+      expect(isHarvestSessionKnowledgeToolInput(null)).toBe(false);
+    });
+  });
+
   describe('Symbol Lookup Tool Schemas', () => {
     it('validates explain_function input and type guard', () => {
       const result = validateToolInput('explain_function', { name: 'queryLibrarian' });
@@ -302,6 +667,29 @@ describe('MCP Schema', () => {
       expect(isExplainFunctionToolInput({ name: 'queryLibrarian' })).toBe(true);
       expect(isExplainFunctionToolInput({})).toBe(false);
       expect(ExplainFunctionToolInputSchema).toBeDefined();
+    });
+
+    it('validates find_callers input and type guard', () => {
+      const result = validateToolInput('find_callers', {
+        functionId: 'createLibrarian',
+        transitive: true,
+        maxDepth: 2,
+      });
+      expect(result.valid).toBe(true);
+      expect(isFindCallersToolInput({ functionId: 'createLibrarian' })).toBe(true);
+      expect(isFindCallersToolInput({ functionId: 'createLibrarian', maxDepth: 0 })).toBe(false);
+      expect(FindCallersToolInputSchema).toBeDefined();
+    });
+
+    it('validates find_callees input and type guard', () => {
+      const result = validateToolInput('find_callees', {
+        functionId: 'queryLibrarian',
+        limit: 15,
+      });
+      expect(result.valid).toBe(true);
+      expect(isFindCalleesToolInput({ functionId: 'queryLibrarian' })).toBe(true);
+      expect(isFindCalleesToolInput({ functionId: 'queryLibrarian', limit: 0 })).toBe(false);
+      expect(FindCalleesToolInputSchema).toBeDefined();
     });
 
     it('validates find_usages input and type guard', () => {
@@ -424,6 +812,96 @@ describe('MCP Schema', () => {
         blocking: false,
       })).toBe(true);
       expect(isRequestHumanReviewToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Construction Registry Tool Schemas', () => {
+    it('validates list_constructions input and type guard', () => {
+      const result = validateToolInput('list_constructions', {
+        tags: ['security'],
+        requires: ['librarian'],
+        language: 'typescript',
+        trustTier: 'official',
+        availableOnly: true,
+      });
+      expect(result.valid).toBe(true);
+      expect(isListConstructionsToolInput({
+        tags: ['security'],
+        trustTier: 'community',
+      })).toBe(true);
+      expect(isListConstructionsToolInput({
+        trustTier: 'invalid',
+      })).toBe(false);
+      expect(ListConstructionsToolInputSchema).toBeDefined();
+    });
+
+    it('validates invoke_construction input and type guard', () => {
+      const result = validateToolInput('invoke_construction', {
+        constructionId: 'librainian:security-audit-helper',
+        input: {
+          files: ['src/index.ts'],
+          checkTypes: ['injection'],
+        },
+      });
+      expect(result.valid).toBe(true);
+      expect(isInvokeConstructionToolInput({
+        constructionId: 'librainian:security-audit-helper',
+        input: {},
+      })).toBe(true);
+      expect(isInvokeConstructionToolInput({
+        constructionId: 'librainian:security-audit-helper',
+      })).toBe(false);
+      expect(InvokeConstructionToolInputSchema).toBeDefined();
+    });
+
+    it('validates describe_construction input and type guard', () => {
+      const result = validateToolInput('describe_construction', {
+        id: 'librainian:security-audit-helper',
+        includeExample: true,
+        includeCompositionHints: true,
+      });
+      expect(result.valid).toBe(true);
+      expect(isDescribeConstructionToolInput({
+        id: 'librainian:security-audit-helper',
+      })).toBe(true);
+      expect(isDescribeConstructionToolInput({})).toBe(false);
+      expect(DescribeConstructionToolInputSchema).toBeDefined();
+    });
+
+    it('validates explain_operator input and type guard', () => {
+      const byOperator = validateToolInput('explain_operator', {
+        operator: 'fanout',
+      });
+      const bySituation = validateToolInput('explain_operator', {
+        situation: 'Run call graph and tests lookup in parallel',
+      });
+
+      expect(byOperator.valid).toBe(true);
+      expect(bySituation.valid).toBe(true);
+      expect(isExplainOperatorToolInput({ operator: 'seq' })).toBe(true);
+      expect(isExplainOperatorToolInput({ situation: 'Need a recommendation' })).toBe(true);
+      expect(isExplainOperatorToolInput({})).toBe(false);
+      expect(ExplainOperatorToolInputSchema).toBeDefined();
+    });
+
+    it('validates check_construction_types input and type guard', () => {
+      const result = validateToolInput('check_construction_types', {
+        first: 'librainian:security-audit-helper',
+        second: 'librainian:comprehensive-quality-construction',
+        operator: 'seq',
+      });
+      expect(result.valid).toBe(true);
+      expect(isCheckConstructionTypesToolInput({
+        first: 'a',
+        second: 'b',
+        operator: 'fanout',
+      })).toBe(true);
+      expect(isCheckConstructionTypesToolInput({
+        first: 'a',
+        second: 'b',
+        operator: 'bad',
+      })).toBe(false);
+      expect(CheckConstructionTypesToolInputSchema).toBeDefined();
     });
   });
 

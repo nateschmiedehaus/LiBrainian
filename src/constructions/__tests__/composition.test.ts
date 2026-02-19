@@ -13,9 +13,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ConfidenceValue, DerivedConfidence } from '../../epistemics/confidence.js';
 import { deterministic, absent, getNumericValue } from '../../epistemics/confidence.js';
+import type { Context } from '../types.js';
 import type { ConstructionResult } from '../base/construction_base.js';
 import {
   ConstructionError,
+  ConstructionCancelledError,
   ConstructionTimeoutError,
 } from '../base/construction_base.js';
 import {
@@ -802,6 +804,158 @@ describe('TimeoutConstruction', () => {
 
     expect(timed.id).toBe('timeout:test');
     expect(timed.name).toBe('Timeout(Test, 1000ms)');
+  });
+});
+
+describe('Context threading and cancellation', () => {
+  it('threads execution context through sequence steps', async () => {
+    let seenByFirst: Context<unknown> | undefined;
+    let seenBySecond: Context<unknown> | undefined;
+
+    const first: ComposableConstruction<number, ConstructionResult & { data: number }> = {
+      id: 'ctx-first',
+      name: 'Ctx First',
+      async execute(input: number, context?: Context<unknown>) {
+        seenByFirst = context;
+        return {
+          data: input + 1,
+          confidence: deterministic(true, 'ctx-first'),
+          evidenceRefs: ['ctx-first:executed'],
+          analysisTimeMs: 1,
+        };
+      },
+    };
+
+    const second: ComposableConstruction<ConstructionResult & { data: number }, ConstructionResult & { data: number }> = {
+      id: 'ctx-second',
+      name: 'Ctx Second',
+      async execute(input, context?: Context<unknown>) {
+        seenBySecond = context;
+        return {
+          data: input.data + 2,
+          confidence: deterministic(true, 'ctx-second'),
+          evidenceRefs: ['ctx-second:executed'],
+          analysisTimeMs: 1,
+        };
+      },
+    };
+
+    const controller = new AbortController();
+    const context: Context<unknown> = {
+      deps: {},
+      signal: controller.signal,
+      sessionId: 'ctx-seq-session',
+      tokenBudget: 321,
+      traceContext: { traceId: 'trace-1' },
+    };
+
+    const composed = sequence(first, second);
+    const output = await composed.execute(10, context);
+
+    expect(output.data).toBe(13);
+    expect(seenByFirst?.sessionId).toBe('ctx-seq-session');
+    expect(seenBySecond?.sessionId).toBe('ctx-seq-session');
+    expect(seenByFirst?.signal).toBe(context.signal);
+    expect(seenBySecond?.signal).toBe(context.signal);
+  });
+
+  it('aborts a 3-step sequence in step 2 and never executes step 3', async () => {
+    let step3Calls = 0;
+
+    const step1 = createTestConstruction('cancel-step1', 'Cancel Step 1', (n: number) => n + 1);
+
+    const step2: ComposableConstruction<ConstructionResult & { data: number }, ConstructionResult & { data: number }> = {
+      id: 'cancel-step2',
+      name: 'Cancel Step 2',
+      async execute(input, context?: Context<unknown>) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 200);
+          const onAbort = (): void => {
+            clearTimeout(timer);
+            reject(new ConstructionCancelledError('cancel-step2'));
+          };
+          if (context?.signal.aborted) {
+            onAbort();
+            return;
+          }
+          context?.signal.addEventListener('abort', onAbort, { once: true });
+        });
+
+        return {
+          data: input.data + 1,
+          confidence: deterministic(true, 'cancel-step2'),
+          evidenceRefs: ['cancel-step2:executed'],
+          analysisTimeMs: 1,
+        };
+      },
+    };
+
+    const step3: ComposableConstruction<ConstructionResult & { data: number }, ConstructionResult & { data: number }> = {
+      id: 'cancel-step3',
+      name: 'Cancel Step 3',
+      async execute(input) {
+        step3Calls++;
+        return {
+          data: input.data + 1,
+          confidence: deterministic(true, 'cancel-step3'),
+          evidenceRefs: ['cancel-step3:executed'],
+          analysisTimeMs: 1,
+        };
+      },
+    };
+
+    const composed = sequence(sequence(step1, step2), step3);
+    const controller = new AbortController();
+    const context: Context<unknown> = {
+      deps: {},
+      signal: controller.signal,
+      sessionId: 'cancel-session',
+    };
+
+    const execution = composed.execute(1, context);
+    setTimeout(() => controller.abort(), 50);
+
+    await expect(execution).rejects.toThrow(ConstructionCancelledError);
+    expect(step3Calls).toBe(0);
+  });
+
+  it('withTimeout forwards parent abort cancellation to the wrapped construction', async () => {
+    const slow: ComposableConstruction<number, ConstructionResult & { data: number }> = {
+      id: 'cancel-timeout-slow',
+      name: 'Cancel Timeout Slow',
+      async execute(input: number, context?: Context<unknown>) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 500);
+          const onAbort = (): void => {
+            clearTimeout(timer);
+            reject(new ConstructionCancelledError('cancel-timeout-slow'));
+          };
+          if (context?.signal.aborted) {
+            onAbort();
+            return;
+          }
+          context?.signal.addEventListener('abort', onAbort, { once: true });
+        });
+
+        return {
+          data: input,
+          confidence: deterministic(true, 'cancel-timeout-slow'),
+          evidenceRefs: ['cancel-timeout-slow:executed'],
+          analysisTimeMs: 1,
+        };
+      },
+    };
+
+    const timed = withTimeout(slow, 1000);
+    const controller = new AbortController();
+    const execution = timed.execute(9, {
+      deps: {},
+      signal: controller.signal,
+      sessionId: 'cancel-timeout',
+    });
+
+    setTimeout(() => controller.abort(), 50);
+    await expect(execution).rejects.toThrow(ConstructionCancelledError);
   });
 });
 

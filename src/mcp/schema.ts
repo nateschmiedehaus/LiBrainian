@@ -97,6 +97,53 @@ export const QueryToolInputSchema = z.object({
 }).strict();
 
 /**
+ * semantic_search tool input schema
+ */
+export const SemanticSearchToolInputSchema = z.object({
+  query: z.string().min(1).max(2000).describe('Localization query for semantic code search'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive search behavior'),
+  minConfidence: z.number().min(0).max(1).optional().default(0.4).describe(`Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}`),
+  depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve'),
+  limit: PageSizeSchema.optional().default(20).describe('Maximum results to return (default: 20, max: 200)'),
+  includeEngines: z.boolean().optional().default(false).describe('Include engine diagnostics in output'),
+  includeEvidence: z.boolean().optional().default(false).describe('Include evidence graph summary'),
+}).strict();
+
+/**
+ * get_context_pack tool input schema
+ */
+export const GetContextPackToolInputSchema = z.object({
+  intent: z.string().min(1).max(2000).describe('Task intent used for context pack retrieval'),
+  relevantFiles: z.array(z.string().min(1)).optional().describe('Optional relevant file hints for retrieval focus'),
+  tokenBudget: z.number().int().min(100).max(50000).optional().default(4000).describe('Hard token budget for assembled context output'),
+  workdir: z.string().optional().describe('Working directory hint for workspace resolution'),
+  workspace: z.string().optional().describe('Workspace path alias for callers that already have it'),
+}).strict();
+
+/**
+ * estimate_budget tool input schema
+ */
+export const EstimateBudgetToolInputSchema = z.object({
+  taskDescription: z.string().min(1).max(4000).describe('Task description to estimate before execution'),
+  availableTokens: z.number().int().min(1).max(1_000_000).describe('Available token budget before compaction'),
+  workdir: z.string().optional().describe('Working directory hint for workspace resolution'),
+  pipeline: z.array(z.string().min(1)).optional().describe('Optional explicit pipeline/tool sequence for estimation'),
+  workspace: z.string().optional().describe('Workspace path alias for callers that already have it'),
+}).strict();
+
+/**
+ * estimate_task_complexity tool input schema
+ */
+export const EstimateTaskComplexityToolInputSchema = z.object({
+  task: z.string().min(1).max(4000).describe('Task statement to classify for routing complexity'),
+  workdir: z.string().optional().describe('Working directory hint for workspace resolution'),
+  workspace: z.string().optional().describe('Workspace path alias for callers that already have it'),
+  recentFiles: z.array(z.string().min(1)).optional().describe('Optional recently touched files used as routing hints'),
+  functionId: z.string().min(1).optional().describe('Optional primary function target for blast-radius estimation'),
+}).strict();
+
+/**
  * get_change_impact tool input schema
  */
 export const GetChangeImpactToolInputSchema = z.object({
@@ -106,6 +153,79 @@ export const GetChangeImpactToolInputSchema = z.object({
   maxResults: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum impacted files to return (default: 200)'),
   changeType: z.enum(['modify', 'delete', 'rename', 'move']).optional().describe('Optional change type to refine risk scoring'),
 }).strict();
+
+/**
+ * blast_radius tool input schema
+ */
+export const BlastRadiusToolInputSchema = z.object({
+  target: z.string().min(1).describe('Changed file/module/function identifier to analyze'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  depth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive depth for propagation (default: 3)'),
+  maxResults: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum impacted files to return (default: 200)'),
+  changeType: z.enum(['modify', 'delete', 'rename', 'move']).optional().describe('Optional change type to refine risk scoring'),
+}).strict();
+
+/**
+ * pre_commit_check tool input schema
+ */
+export const PreCommitCheckToolInputSchema = z.object({
+  changedFiles: z.array(z.string().min(1)).min(1).max(200).describe('Changed files to evaluate before submit'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  strict: z.boolean().optional().default(false).describe('Enforce stricter pass criteria'),
+  maxRiskLevel: z.enum(['low', 'medium', 'high', 'critical']).optional().default('high').describe('Maximum acceptable risk level for pass'),
+}).strict();
+
+/**
+ * claim_work_scope tool input schema
+ */
+export const ClaimWorkScopeToolInputSchema = z.object({
+  scopeId: z.string().min(1).describe('Semantic scope identifier (file, module, symbol, or task scope key)'),
+  workspace: z.string().optional().describe('Workspace path (optional, used to namespace scope claims)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier for ownership'),
+  owner: z.string().min(1).optional().describe('Optional owner label (agent name/id)'),
+  mode: z.enum(['claim', 'release', 'check']).optional().default('claim').describe('Claim operation mode'),
+  ttlSeconds: z.number().int().min(1).max(86400).optional().default(1800).describe('Claim expiration window in seconds (claim mode only)'),
+}).strict();
+
+/**
+ * append_claim tool input schema
+ */
+export const AppendClaimToolInputSchema = z.object({
+  claim: z.string().min(1).describe('Claim text to persist for later retrieval and session harvest'),
+  workspace: z.string().optional().describe('Workspace path (optional, used for namespacing and audit logs)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier that owns this claim'),
+  tags: z.array(z.string().min(1)).optional().describe('Optional semantic tags for filtering and harvest summaries'),
+  evidence: z.array(z.string().min(1)).optional().describe('Optional evidence snippets, IDs, or citations supporting the claim'),
+  confidence: z.number().min(0).max(1).optional().default(0.6).describe('Optional confidence score in [0,1]'),
+  sourceTool: z.string().min(1).optional().describe('Optional source tool name that produced this claim'),
+}).strict();
+
+/**
+ * query_claims tool input schema
+ */
+export const QueryClaimsToolInputSchema = z.object({
+  query: z.string().min(1).max(2000).optional().describe('Optional text query over claim, evidence, and tag fields'),
+  workspace: z.string().optional().describe('Workspace path filter (optional)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier filter'),
+  tags: z.array(z.string().min(1)).optional().describe('Optional tags filter (matches any provided tag)'),
+  since: z.string().min(1).optional().describe('Optional ISO timestamp lower bound for createdAt filtering'),
+  limit: z.number().int().min(1).max(200).optional().default(20).describe('Maximum claims to return (default: 20, max: 200)'),
+}).strict().default({});
+
+/**
+ * harvest_session_knowledge tool input schema
+ */
+export const HarvestSessionKnowledgeToolInputSchema = z.object({
+  sessionId: z.string().min(1).optional().describe('Session to harvest claims from (optional)'),
+  workspace: z.string().optional().describe('Workspace path filter (optional)'),
+  maxItems: z.number().int().min(1).max(200).optional().default(20).describe('Maximum harvested claims to include (default: 20, max: 200)'),
+  minConfidence: z.number().min(0).max(1).optional().default(0).describe('Minimum confidence threshold in [0,1]'),
+  includeRecommendations: z.boolean().optional().default(true).describe('Include recommended next tools in output'),
+  memoryFilePath: z.string().min(1).optional().describe('Optional explicit MEMORY.md path for memory-bridge sync'),
+  openclawRoot: z.string().min(1).optional().describe('Optional OpenClaw root path used when memoryFilePath is omitted'),
+  persistToMemory: z.boolean().optional().default(true).describe('Persist harvested claims to annotated MEMORY.md'),
+  source: z.enum(['openclaw-session', 'manual', 'harvest']).optional().default('harvest').describe('Memory-bridge source label'),
+}).strict().default({});
 
 /**
  * Submit feedback tool input schema
@@ -131,6 +251,26 @@ export const ExplainFunctionToolInputSchema = z.object({
   name: z.string().min(1).max(500).describe('Function name or function ID to explain'),
   filePath: z.string().optional().describe('Optional file path for disambiguation when names collide'),
   workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+}).strict();
+
+/**
+ * Find callers tool input schema
+ */
+export const FindCallersToolInputSchema = z.object({
+  functionId: z.string().min(1).max(500).describe('Target function ID or name to locate callers for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  transitive: z.boolean().optional().default(false).describe('Include transitive callers (callers-of-callers)'),
+  maxDepth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive caller depth when transitive is enabled'),
+  limit: z.number().int().min(1).max(500).optional().default(100).describe('Maximum caller callsites to return (default: 100, max: 500)'),
+}).strict();
+
+/**
+ * Find callees tool input schema
+ */
+export const FindCalleesToolInputSchema = z.object({
+  functionId: z.string().min(1).max(500).describe('Target function ID or name to locate callees for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  limit: z.number().int().min(1).max(500).optional().default(100).describe('Maximum callees to return (default: 100, max: 500)'),
 }).strict();
 
 /**
@@ -180,6 +320,73 @@ export const RequestHumanReviewToolInputSchema = z.object({
   confidence_tier: z.enum(['low', 'uncertain']).describe('Confidence tier requiring escalation'),
   risk_level: z.enum(['low', 'medium', 'high']).describe('Risk if the proposed action is wrong'),
   blocking: z.boolean().describe('Whether the agent should pause for human response'),
+}).strict();
+
+/**
+ * List constructions tool input schema
+ */
+export const ListConstructionsToolInputSchema = z.object({
+  tags: z.array(z.string()).optional().describe('Optional tags to filter constructions'),
+  capabilities: z.array(z.string()).optional().describe('Optional required capabilities filter'),
+  requires: z.array(z.string()).optional().describe('Alias for capabilities filter'),
+  language: z.string().optional().describe('Optional language filter (for example: typescript, python, rust)'),
+  trustTier: z.enum(['official', 'partner', 'community']).optional().describe('Optional trust tier filter'),
+  availableOnly: z.boolean().optional().default(false).describe('Only return constructions executable in this runtime'),
+}).strict().default({});
+
+/**
+ * Invoke construction tool input schema
+ */
+export const InvokeConstructionToolInputSchema = z.object({
+  constructionId: z.string().min(1).describe('Construction ID from list_constructions'),
+  input: z.unknown().describe('Construction input payload'),
+  workspace: z.string().optional().describe('Workspace path used to resolve runtime dependencies'),
+}).strict();
+
+/**
+ * Describe construction tool input schema
+ */
+export const DescribeConstructionToolInputSchema = z.object({
+  id: z.string().min(1).describe('Construction ID to describe'),
+  includeExample: z.boolean().optional().default(true).describe('Include an executable example code snippet'),
+  includeCompositionHints: z.boolean().optional().default(true).describe('Include composition/operator hints'),
+}).strict();
+
+const ConstructionOperatorSchema = z.enum([
+  'seq',
+  'fanout',
+  'fallback',
+  'fix',
+  'select',
+  'atom',
+  'dimap',
+  'map',
+  'contramap',
+]);
+
+/**
+ * Explain operator tool input schema
+ */
+export const ExplainOperatorToolInputSchema = z.object({
+  operator: ConstructionOperatorSchema.optional().describe('Operator to explain directly'),
+  situation: z.string().min(1).optional().describe('Situation description used for operator recommendation'),
+})
+  .strict()
+  .refine(
+    (value) => typeof value.operator === 'string' || typeof value.situation === 'string',
+    {
+      message: 'Either operator or situation is required',
+      path: ['operator'],
+    },
+  );
+
+/**
+ * Check construction types tool input schema
+ */
+export const CheckConstructionTypesToolInputSchema = z.object({
+  first: z.string().min(1).describe('First construction ID'),
+  second: z.string().min(1).describe('Second construction ID'),
+  operator: z.enum(['seq', 'fanout', 'fallback']).describe('Composition operator to check'),
 }).strict();
 
 /**
@@ -344,20 +551,46 @@ export const StatusToolInputSchema = z.object({
   planId: z.string().min(1).optional().describe('Optional plan ID to retrieve a specific synthesized plan'),
 }).strict();
 
+/**
+ * get_session_briefing tool input schema
+ */
+export const GetSessionBriefingToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  sessionId: z.string().min(1).optional().describe('Optional session identifier for session-scoped briefing details'),
+  includeConstructions: z.boolean().optional().default(true).describe('Include construction onboarding hints in the response'),
+}).strict();
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInputSchema>;
+export type GetContextPackToolInputType = z.infer<typeof GetContextPackToolInputSchema>;
+export type EstimateBudgetToolInputType = z.infer<typeof EstimateBudgetToolInputSchema>;
+export type EstimateTaskComplexityToolInputType = z.infer<typeof EstimateTaskComplexityToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
+export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
+export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
+export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
+export type AppendClaimToolInputType = z.infer<typeof AppendClaimToolInputSchema>;
+export type QueryClaimsToolInputType = z.infer<typeof QueryClaimsToolInputSchema>;
+export type HarvestSessionKnowledgeToolInputType = z.infer<typeof HarvestSessionKnowledgeToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
+export type FindCallersToolInputType = z.infer<typeof FindCallersToolInputSchema>;
+export type FindCalleesToolInputType = z.infer<typeof FindCalleesToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
 export type TraceImportsToolInputType = z.infer<typeof TraceImportsToolInputSchema>;
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
+export type ListConstructionsToolInputType = z.infer<typeof ListConstructionsToolInputSchema>;
+export type InvokeConstructionToolInputType = z.infer<typeof InvokeConstructionToolInputSchema>;
+export type DescribeConstructionToolInputType = z.infer<typeof DescribeConstructionToolInputSchema>;
+export type ExplainOperatorToolInputType = z.infer<typeof ExplainOperatorToolInputSchema>;
+export type CheckConstructionTypesToolInputType = z.infer<typeof CheckConstructionTypesToolInputSchema>;
 export type VerifyClaimToolInputType = z.infer<typeof VerifyClaimToolInputSchema>;
 export type FindSymbolToolInputType = z.infer<typeof FindSymbolToolInputSchema>;
 export type RunAuditToolInputType = z.infer<typeof RunAuditToolInputSchema>;
@@ -375,6 +608,7 @@ export type CompileIntentBundlesToolInputType = z.infer<typeof CompileIntentBund
 export type SystemContractToolInputType = z.infer<typeof SystemContractToolInputSchema>;
 export type DiagnoseSelfToolInputType = z.infer<typeof DiagnoseSelfToolInputSchema>;
 export type StatusToolInputType = z.infer<typeof StatusToolInputSchema>;
+export type GetSessionBriefingToolInputType = z.infer<typeof GetSessionBriefingToolInputSchema>;
 
 // ============================================================================
 // SCHEMA REGISTRY
@@ -383,9 +617,14 @@ export type StatusToolInputType = z.infer<typeof StatusToolInputSchema>;
 /** All tool input schemas (Zod) */
 export const TOOL_INPUT_SCHEMAS = {
   bootstrap: BootstrapToolInputSchema,
+  get_session_briefing: GetSessionBriefingToolInputSchema,
   system_contract: SystemContractToolInputSchema,
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
+  semantic_search: SemanticSearchToolInputSchema,
+  get_context_pack: GetContextPackToolInputSchema,
+  estimate_budget: EstimateBudgetToolInputSchema,
+  estimate_task_complexity: EstimateTaskComplexityToolInputSchema,
   query: QueryToolInputSchema,
   synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
@@ -393,9 +632,22 @@ export const TOOL_INPUT_SCHEMAS = {
   trace_imports: TraceImportsToolInputSchema,
   reset_session_state: ResetSessionStateToolInputSchema,
   request_human_review: RequestHumanReviewToolInputSchema,
+  list_constructions: ListConstructionsToolInputSchema,
+  invoke_construction: InvokeConstructionToolInputSchema,
+  describe_construction: DescribeConstructionToolInputSchema,
+  explain_operator: ExplainOperatorToolInputSchema,
+  check_construction_types: CheckConstructionTypesToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
+  blast_radius: BlastRadiusToolInputSchema,
+  pre_commit_check: PreCommitCheckToolInputSchema,
+  claim_work_scope: ClaimWorkScopeToolInputSchema,
+  append_claim: AppendClaimToolInputSchema,
+  query_claims: QueryClaimsToolInputSchema,
+  harvest_session_knowledge: HarvestSessionKnowledgeToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
+  find_callers: FindCallersToolInputSchema,
+  find_callees: FindCalleesToolInputSchema,
   find_symbol: FindSymbolToolInputSchema,
   run_audit: RunAuditToolInputSchema,
   list_runs: ListRunsToolInputSchema,
@@ -464,6 +716,22 @@ export const bootstrapToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** get_session_briefing tool JSON Schema */
+export const getSessionBriefingToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-session-briefing-tool-input',
+  title: 'GetSessionBriefingToolInput',
+  description: 'Input for get_session_briefing - return high-signal session/workspace orientation to reduce startup token overhead',
+  type: 'object',
+  properties: {
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier for session-scoped briefing details', minLength: 1 },
+    includeConstructions: { type: 'boolean', description: 'Include construction onboarding hints in the response', default: true },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
 /** Query tool JSON Schema */
 export const queryToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -493,6 +761,81 @@ export const queryToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** semantic_search tool JSON Schema */
+export const semanticSearchToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/semantic-search-tool-input',
+  title: 'SemanticSearchToolInput',
+  description: `Input for semantic_search - primary semantic code localization. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Localization query for semantic code search', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive search behavior', minLength: 1 },
+    minConfidence: { type: 'number', description: `Minimum confidence threshold. ${CONFIDENCE_BEHAVIOR_CONTRACT}`, minimum: 0, maximum: 1, default: 0.4 },
+    depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
+    limit: { type: 'number', description: 'Maximum results to return (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+    includeEngines: { type: 'boolean', description: 'Include engine diagnostics in output', default: false },
+    includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },
+  },
+  required: ['query'],
+  additionalProperties: false,
+};
+
+/** get_context_pack tool JSON Schema */
+export const getContextPackToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-context-pack-tool-input',
+  title: 'GetContextPackToolInput',
+  description: 'Input for get_context_pack - token-budgeted context pack assembly for a task intent',
+  type: 'object',
+  properties: {
+    intent: { type: 'string', description: 'Task intent used for context pack retrieval', minLength: 1, maxLength: 2000 },
+    relevantFiles: { type: 'array', items: { type: 'string' }, description: 'Optional relevant file hints for retrieval focus' },
+    tokenBudget: { type: 'number', description: 'Hard token budget for assembled context output', minimum: 100, maximum: 50000, default: 4000 },
+    workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+    workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+  },
+  required: ['intent'],
+  additionalProperties: false,
+};
+
+/** estimate_budget tool JSON Schema */
+export const estimateBudgetToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/estimate-budget-tool-input',
+  title: 'EstimateBudgetToolInput',
+  description: 'Input for estimate_budget - pre-task token feasibility estimation and safer fallback recommendations',
+  type: 'object',
+  properties: {
+    taskDescription: { type: 'string', description: 'Task description to estimate before execution', minLength: 1, maxLength: 4000 },
+    availableTokens: { type: 'number', description: 'Available token budget before compaction', minimum: 1, maximum: 1000000 },
+    workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+    pipeline: { type: 'array', items: { type: 'string' }, description: 'Optional explicit pipeline/tool sequence for estimation' },
+    workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+  },
+  required: ['taskDescription', 'availableTokens'],
+  additionalProperties: false,
+};
+
+/** estimate_task_complexity tool JSON Schema */
+export const estimateTaskComplexityToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/estimate-task-complexity-tool-input',
+  title: 'EstimateTaskComplexityToolInput',
+  description: 'Input for estimate_task_complexity - pre-dispatch routing estimate for complexity, model tier, and confidence',
+  type: 'object',
+  properties: {
+    task: { type: 'string', description: 'Task statement to classify for routing complexity', minLength: 1, maxLength: 4000 },
+    workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+    workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+    recentFiles: { type: 'array', items: { type: 'string' }, description: 'Optional recently touched files used as routing hints' },
+    functionId: { type: 'string', description: 'Optional primary function target for blast-radius estimation', minLength: 1 },
+  },
+  required: ['task'],
+  additionalProperties: false,
+};
+
 /** get_change_impact tool JSON Schema */
 export const getChangeImpactToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -508,6 +851,121 @@ export const getChangeImpactToolJsonSchema: JSONSchema = {
     changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
   },
   required: ['target'],
+  additionalProperties: false,
+};
+
+/** blast_radius tool JSON Schema */
+export const blastRadiusToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/blast-radius-tool-input',
+  title: 'BlastRadiusToolInput',
+  description: 'Input for blast_radius - pre-edit transitive impact analysis (alias for get_change_impact)',
+  type: 'object',
+  properties: {
+    target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    depth: { type: 'number', description: 'Maximum transitive depth for propagation (default: 3, max: 8)', minimum: 1, maximum: 8, default: 3 },
+    maxResults: { type: 'number', description: 'Maximum impacted files to return (default: 200, max: 1000)', minimum: 1, maximum: 1000, default: 200 },
+    changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+  },
+  required: ['target'],
+  additionalProperties: false,
+};
+
+/** pre_commit_check tool JSON Schema */
+export const preCommitCheckToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/pre-commit-check-tool-input',
+  title: 'PreCommitCheckToolInput',
+  description: 'Input for pre_commit_check - semantic gate for changed files before submit',
+  type: 'object',
+  properties: {
+    changedFiles: { type: 'array', items: { type: 'string' }, description: 'Changed files to evaluate before submit', minItems: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    strict: { type: 'boolean', description: 'Enforce stricter pass criteria', default: false },
+    maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass', default: 'high' },
+  },
+  required: ['changedFiles'],
+  additionalProperties: false,
+};
+
+/** claim_work_scope tool JSON Schema */
+export const claimWorkScopeToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/claim-work-scope-tool-input',
+  title: 'ClaimWorkScopeToolInput',
+  description: 'Input for claim_work_scope - semantic coordination primitive for parallel agents',
+  type: 'object',
+  properties: {
+    scopeId: { type: 'string', description: 'Semantic scope identifier (file, module, symbol, or task scope key)', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, used to namespace scope claims)' },
+    sessionId: { type: 'string', description: 'Optional session identifier for ownership', minLength: 1 },
+    owner: { type: 'string', description: 'Optional owner label (agent name/id)', minLength: 1 },
+    mode: { type: 'string', enum: ['claim', 'release', 'check'], description: 'Claim operation mode', default: 'claim' },
+    ttlSeconds: { type: 'number', description: 'Claim expiration window in seconds (claim mode only)', minimum: 1, maximum: 86400, default: 1800 },
+  },
+  required: ['scopeId'],
+  additionalProperties: false,
+};
+
+/** append_claim tool JSON Schema */
+export const appendClaimToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/append-claim-tool-input',
+  title: 'AppendClaimToolInput',
+  description: 'Input for append_claim - persist session knowledge claims for later retrieval and harvest',
+  type: 'object',
+  properties: {
+    claim: { type: 'string', description: 'Claim text to persist for later retrieval and session harvest', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, used for namespacing and audit logs)' },
+    sessionId: { type: 'string', description: 'Optional session identifier that owns this claim', minLength: 1 },
+    tags: { type: 'array', items: { type: 'string' }, description: 'Optional semantic tags for filtering and harvest summaries' },
+    evidence: { type: 'array', items: { type: 'string' }, description: 'Optional evidence snippets, IDs, or citations supporting the claim' },
+    confidence: { type: 'number', description: 'Optional confidence score in [0,1]', minimum: 0, maximum: 1, default: 0.6 },
+    sourceTool: { type: 'string', description: 'Optional source tool name that produced this claim', minLength: 1 },
+  },
+  required: ['claim'],
+  additionalProperties: false,
+};
+
+/** query_claims tool JSON Schema */
+export const queryClaimsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/query-claims-tool-input',
+  title: 'QueryClaimsToolInput',
+  description: 'Input for query_claims - filter and retrieve previously appended knowledge claims',
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Optional text query over claim, evidence, and tag fields', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+    sessionId: { type: 'string', description: 'Optional session identifier filter', minLength: 1 },
+    tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags filter (matches any provided tag)' },
+    since: { type: 'string', description: 'Optional ISO timestamp lower bound for createdAt filtering', minLength: 1 },
+    limit: { type: 'number', description: 'Maximum claims to return (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** harvest_session_knowledge tool JSON Schema */
+export const harvestSessionKnowledgeToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/harvest-session-knowledge-tool-input',
+  title: 'HarvestSessionKnowledgeToolInput',
+  description: 'Input for harvest_session_knowledge - summarize high-confidence claims for a session/workspace',
+  type: 'object',
+  properties: {
+    sessionId: { type: 'string', description: 'Session to harvest claims from (optional)', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+    maxItems: { type: 'number', description: 'Maximum harvested claims to include (default: 20, max: 200)', minimum: 1, maximum: 200, default: 20 },
+    minConfidence: { type: 'number', description: 'Minimum confidence threshold in [0,1]', minimum: 0, maximum: 1, default: 0 },
+    includeRecommendations: { type: 'boolean', description: 'Include recommended next tools in output', default: true },
+    memoryFilePath: { type: 'string', description: 'Optional explicit MEMORY.md path for memory-bridge sync', minLength: 1 },
+    openclawRoot: { type: 'string', description: 'Optional OpenClaw root path used when memoryFilePath is omitted', minLength: 1 },
+    persistToMemory: { type: 'boolean', description: 'Persist harvested claims to annotated MEMORY.md', default: true },
+    source: { type: 'string', enum: ['openclaw-session', 'manual', 'harvest'], description: 'Memory-bridge source label', default: 'harvest' },
+  },
+  required: [],
   additionalProperties: false,
 };
 
@@ -543,6 +1001,40 @@ export const explainFunctionToolJsonSchema: JSONSchema = {
     workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
   },
   required: ['name'],
+  additionalProperties: false,
+};
+
+/** Find callers tool JSON Schema */
+export const findCallersToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/find-callers-tool-input',
+  title: 'FindCallersToolInput',
+  description: 'Input for find_callers - return direct or transitive caller callsites for a function',
+  type: 'object',
+  properties: {
+    functionId: { type: 'string', description: 'Target function ID or name to locate callers for', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    transitive: { type: 'boolean', description: 'Include transitive callers (callers-of-callers)', default: false },
+    maxDepth: { type: 'number', description: 'Maximum transitive caller depth when transitive is enabled', minimum: 1, maximum: 8, default: 3 },
+    limit: { type: 'number', description: 'Maximum caller callsites to return (default: 100, max: 500)', minimum: 1, maximum: 500, default: 100 },
+  },
+  required: ['functionId'],
+  additionalProperties: false,
+};
+
+/** Find callees tool JSON Schema */
+export const findCalleesToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/find-callees-tool-input',
+  title: 'FindCalleesToolInput',
+  description: 'Input for find_callees - return direct callees for a function',
+  type: 'object',
+  properties: {
+    functionId: { type: 'string', description: 'Target function ID or name to locate callees for', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    limit: { type: 'number', description: 'Maximum callees to return (default: 100, max: 500)', minimum: 1, maximum: 500, default: 100 },
+  },
+  required: ['functionId'],
   additionalProperties: false,
 };
 
@@ -630,6 +1122,88 @@ export const requestHumanReviewToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** List constructions tool JSON Schema */
+export const listConstructionsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/list-constructions-tool-input',
+  title: 'ListConstructionsToolInput',
+  description: 'Input for list_constructions - discover registered constructions and their manifests',
+  type: 'object',
+  properties: {
+    tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
+    capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capabilities filter' },
+    requires: { type: 'array', items: { type: 'string' }, description: 'Alias for capabilities filter' },
+    language: { type: 'string', description: 'Optional language filter (for example: typescript, python, rust)' },
+    trustTier: { type: 'string', enum: ['official', 'partner', 'community'], description: 'Optional trust tier filter' },
+    availableOnly: { type: 'boolean', description: 'Only return constructions executable in this runtime', default: false },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** Invoke construction tool JSON Schema */
+export const invokeConstructionToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/invoke-construction-tool-input',
+  title: 'InvokeConstructionToolInput',
+  description: 'Input for invoke_construction - execute a registered construction by ID',
+  type: 'object',
+  properties: {
+    constructionId: { type: 'string', description: 'Construction ID from list_constructions', minLength: 1 },
+    input: { type: 'object', description: 'Construction input payload' },
+    workspace: { type: 'string', description: 'Workspace path used to resolve runtime dependencies' },
+  },
+  required: ['constructionId', 'input'],
+  additionalProperties: false,
+};
+
+/** Describe construction tool JSON Schema */
+export const describeConstructionToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/describe-construction-tool-input',
+  title: 'DescribeConstructionToolInput',
+  description: 'Input for describe_construction - retrieve detailed construction metadata and usage guidance',
+  type: 'object',
+  properties: {
+    id: { type: 'string', description: 'Construction ID to describe', minLength: 1 },
+    includeExample: { type: 'boolean', description: 'Include an executable example code snippet', default: true },
+    includeCompositionHints: { type: 'boolean', description: 'Include composition/operator hints', default: true },
+  },
+  required: ['id'],
+  additionalProperties: false,
+};
+
+/** Explain operator tool JSON Schema */
+export const explainOperatorToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/explain-operator-tool-input',
+  title: 'ExplainOperatorToolInput',
+  description: 'Input for explain_operator - explain or recommend construction operators',
+  type: 'object',
+  properties: {
+    operator: { type: 'string', enum: ['seq', 'fanout', 'fallback', 'fix', 'select', 'atom', 'dimap', 'map', 'contramap'], description: 'Operator to explain directly' },
+    situation: { type: 'string', description: 'Situation description used for operator recommendation', minLength: 1 },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
+/** Check construction types tool JSON Schema */
+export const checkConstructionTypesToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/check-construction-types-tool-input',
+  title: 'CheckConstructionTypesToolInput',
+  description: 'Input for check_construction_types - verify composition compatibility for two constructions',
+  type: 'object',
+  properties: {
+    first: { type: 'string', description: 'First construction ID', minLength: 1 },
+    second: { type: 'string', description: 'Second construction ID', minLength: 1 },
+    operator: { type: 'string', enum: ['seq', 'fanout', 'fallback'], description: 'Composition operator to check' },
+  },
+  required: ['first', 'second', 'operator'],
+  additionalProperties: false,
+};
+
 /** Find symbol tool JSON Schema */
 export const findSymbolToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -650,14 +1224,32 @@ export const findSymbolToolJsonSchema: JSONSchema = {
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
+  get_session_briefing: getSessionBriefingToolJsonSchema,
+  semantic_search: semanticSearchToolJsonSchema,
+  get_context_pack: getContextPackToolJsonSchema,
+  estimate_budget: estimateBudgetToolJsonSchema,
+  estimate_task_complexity: estimateTaskComplexityToolJsonSchema,
   query: queryToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
+  find_callers: findCallersToolJsonSchema,
+  find_callees: findCalleesToolJsonSchema,
   find_usages: findUsagesToolJsonSchema,
   trace_imports: traceImportsToolJsonSchema,
   synthesize_plan: synthesizePlanToolJsonSchema,
   reset_session_state: resetSessionStateToolJsonSchema,
   request_human_review: requestHumanReviewToolJsonSchema,
+  list_constructions: listConstructionsToolJsonSchema,
+  invoke_construction: invokeConstructionToolJsonSchema,
+  describe_construction: describeConstructionToolJsonSchema,
+  explain_operator: explainOperatorToolJsonSchema,
+  check_construction_types: checkConstructionTypesToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
+  blast_radius: blastRadiusToolJsonSchema,
+  pre_commit_check: preCommitCheckToolJsonSchema,
+  claim_work_scope: claimWorkScopeToolJsonSchema,
+  append_claim: appendClaimToolJsonSchema,
+  query_claims: queryClaimsToolJsonSchema,
+  harvest_session_knowledge: harvestSessionKnowledgeToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
 };

@@ -461,6 +461,18 @@ export interface StatusToolInput {
   planId?: string;
 }
 
+/** get_session_briefing tool input */
+export interface GetSessionBriefingToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional session identifier for session-scoped briefing details */
+  sessionId?: string;
+
+  /** Include construction onboarding hints in briefing output */
+  includeConstructions?: boolean;
+}
+
 /** Synthesize plan tool input */
 export interface SynthesizePlanToolInput {
   /** Task description to plan for */
@@ -510,6 +522,87 @@ export interface SynthesizePlanToolOutput {
 
   /** Workspace used for plan synthesis when available */
   workspace?: string;
+}
+
+/** semantic_search tool input */
+export interface SemanticSearchToolInput {
+  /** Localization question or concept to search for */
+  query: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Optional session identifier used for loop detection and adaptive query behavior */
+  sessionId?: string;
+
+  /** Minimum confidence threshold (0-1) */
+  minConfidence?: number;
+
+  /** Depth of context to retrieve */
+  depth?: 'L0' | 'L1' | 'L2' | 'L3';
+
+  /** Maximum results to return (maps to query pageSize, default 20, max 200) */
+  limit?: number;
+
+  /** Include engine diagnostics in output */
+  includeEngines?: boolean;
+
+  /** Include evidence metadata in output */
+  includeEvidence?: boolean;
+}
+
+/** get_context_pack tool input */
+export interface GetContextPackToolInput {
+  /** Task intent used for context pack retrieval */
+  intent: string;
+
+  /** Optional relevant file hints for retrieval focus */
+  relevantFiles?: string[];
+
+  /** Hard token budget for assembled context output */
+  tokenBudget?: number;
+
+  /** Working directory hint for workspace resolution */
+  workdir?: string;
+
+  /** Workspace path alias for callers that already have it */
+  workspace?: string;
+}
+
+/** estimate_budget tool input */
+export interface EstimateBudgetToolInput {
+  /** Task description to estimate before execution */
+  taskDescription: string;
+
+  /** Available token budget before compaction */
+  availableTokens: number;
+
+  /** Working directory hint for workspace resolution */
+  workdir?: string;
+
+  /** Optional explicit pipeline/tool sequence for estimation */
+  pipeline?: string[];
+
+  /** Workspace path alias for callers that already have it */
+  workspace?: string;
+}
+
+/** estimate_task_complexity tool input */
+export interface EstimateTaskComplexityToolInput {
+  /** Task statement to classify for routing complexity */
+  task: string;
+
+  /** Working directory hint for workspace resolution */
+  workdir?: string;
+
+  /** Workspace path alias for callers that already have it */
+  workspace?: string;
+
+  /** Optional recently touched files used as routing hints */
+  recentFiles?: string[];
+
+  /** Optional primary function target for blast-radius estimation */
+  functionId?: string;
 }
 
 /** Query tool input */
@@ -735,6 +828,85 @@ export interface RequestHumanReviewToolOutput {
   expires_in_seconds: number;
 }
 
+/** List constructions tool input */
+export interface ListConstructionsToolInput {
+  /** Optional tags used for filtering */
+  tags?: string[];
+
+  /** Optional required capabilities filter */
+  capabilities?: string[];
+
+  /** Alias for capabilities */
+  requires?: string[];
+
+  /** Optional language filter */
+  language?: string;
+
+  /** Optional trust tier filter */
+  trustTier?: 'official' | 'partner' | 'community';
+
+  /** Only include constructions executable in this runtime */
+  availableOnly?: boolean;
+}
+
+/** Invoke construction tool input */
+export interface InvokeConstructionToolInput {
+  /** Construction ID returned by list_constructions */
+  constructionId: string;
+
+  /** Construction input payload */
+  input: unknown;
+
+  /** Workspace used to resolve runtime dependencies */
+  workspace?: string;
+}
+
+export type ConstructionOperator =
+  | 'seq'
+  | 'fanout'
+  | 'fallback'
+  | 'fix'
+  | 'select'
+  | 'atom'
+  | 'dimap'
+  | 'map'
+  | 'contramap';
+
+export type ConstructionTypeCheckOperator = 'seq' | 'fanout' | 'fallback';
+
+/** Describe construction tool input */
+export interface DescribeConstructionToolInput {
+  /** Construction ID to describe */
+  id: string;
+
+  /** Include executable example in response */
+  includeExample?: boolean;
+
+  /** Include composition suggestions in response */
+  includeCompositionHints?: boolean;
+}
+
+/** Explain operator tool input */
+export interface ExplainOperatorToolInput {
+  /** Target operator to explain */
+  operator?: ConstructionOperator;
+
+  /** Situation description used for operator recommendation */
+  situation?: string;
+}
+
+/** check_construction_types tool input */
+export interface CheckConstructionTypesToolInput {
+  /** First construction ID */
+  first: string;
+
+  /** Second construction ID */
+  second: string;
+
+  /** Composition operator */
+  operator: ConstructionTypeCheckOperator;
+}
+
 /** Change impact tool input */
 export interface GetChangeImpactToolInput {
   /** Changed file/module/function identifier to analyze */
@@ -751,6 +923,135 @@ export interface GetChangeImpactToolInput {
 
   /** Optional change type to refine risk scoring */
   changeType?: 'modify' | 'delete' | 'rename' | 'move';
+}
+
+/** blast_radius tool input */
+export interface BlastRadiusToolInput {
+  /** Changed file/module/function identifier to analyze */
+  target: string;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Maximum transitive depth for propagation (default: 3) */
+  depth?: number;
+
+  /** Maximum impacted files to return (default: 200) */
+  maxResults?: number;
+
+  /** Optional change type to refine risk scoring */
+  changeType?: 'modify' | 'delete' | 'rename' | 'move';
+}
+
+/** pre_commit_check tool input */
+export interface PreCommitCheckToolInput {
+  /** Changed files to evaluate before submit */
+  changedFiles: string[];
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Enforce stricter pass criteria */
+  strict?: boolean;
+
+  /** Maximum acceptable risk level for pass */
+  maxRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+/** claim_work_scope tool input */
+export interface ClaimWorkScopeToolInput {
+  /** Semantic scope identifier (file, module, symbol, or task scope key) */
+  scopeId: string;
+
+  /** Workspace path (optional, used to namespace scope claims) */
+  workspace?: string;
+
+  /** Optional session identifier for ownership */
+  sessionId?: string;
+
+  /** Optional owner label (agent name/id) */
+  owner?: string;
+
+  /** Claim operation mode */
+  mode?: 'claim' | 'release' | 'check';
+
+  /** Claim expiration window in seconds (claim mode only) */
+  ttlSeconds?: number;
+}
+
+/** append_claim tool input */
+export interface AppendClaimToolInput {
+  /** Claim text to persist for later retrieval */
+  claim: string;
+
+  /** Workspace path (optional, used for namespacing and audit logs) */
+  workspace?: string;
+
+  /** Optional session identifier that owns this claim */
+  sessionId?: string;
+
+  /** Optional semantic tags for filtering and harvesting */
+  tags?: string[];
+
+  /** Optional evidence snippets, IDs, or citations */
+  evidence?: string[];
+
+  /** Optional confidence score in [0,1] */
+  confidence?: number;
+
+  /** Optional source tool name that generated this claim */
+  sourceTool?: string;
+}
+
+/** query_claims tool input */
+export interface QueryClaimsToolInput {
+  /** Optional text query over claim/evidence/tag fields */
+  query?: string;
+
+  /** Workspace path (optional, used as a filter) */
+  workspace?: string;
+
+  /** Optional session identifier filter */
+  sessionId?: string;
+
+  /** Optional tags filter (matches any tag) */
+  tags?: string[];
+
+  /** Optional ISO timestamp filter (createdAt >= since) */
+  since?: string;
+
+  /** Maximum claims to return (default 20, max 200) */
+  limit?: number;
+}
+
+/** harvest_session_knowledge tool input */
+export interface HarvestSessionKnowledgeToolInput {
+  /** Session to harvest claims from (optional) */
+  sessionId?: string;
+
+  /** Workspace path filter (optional) */
+  workspace?: string;
+
+  /** Maximum harvested claims to include (default 20, max 200) */
+  maxItems?: number;
+
+  /** Minimum confidence threshold in [0,1] (default 0) */
+  minConfidence?: number;
+
+  /** Include next-step recommendations in output */
+  includeRecommendations?: boolean;
+
+  /** Optional explicit MEMORY.md path for memory-bridge sync */
+  memoryFilePath?: string;
+
+  /** Optional OpenClaw root (used when memoryFilePath is omitted) */
+  openclawRoot?: string;
+
+  /** Persist harvested claims into annotated MEMORY.md (default: true) */
+  persistToMemory?: boolean;
+
+  /** Harvest source label for memory-bridge entries */
+  source?: 'openclaw-session' | 'manual' | 'harvest';
 }
 
 export interface GetChangeImpactToolOutput {
@@ -853,6 +1154,36 @@ export interface ExplainFunctionToolOutput {
   };
   workspace?: string;
   error?: string;
+}
+
+/** find_callers tool input */
+export interface FindCallersToolInput {
+  /** Target function ID or name */
+  functionId: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Include transitive callers (callers-of-callers) */
+  transitive?: boolean;
+
+  /** Maximum transitive depth when transitive is enabled */
+  maxDepth?: number;
+
+  /** Maximum number of callsites to return */
+  limit?: number;
+}
+
+/** find_callees tool input */
+export interface FindCalleesToolInput {
+  /** Target function ID or name */
+  functionId: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Maximum number of callees to return */
+  limit?: number;
 }
 
 /** Find usages tool input */
@@ -1403,6 +1734,36 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     consentMessage: 'Bootstrap will index the workspace and write to .librarian directory',
     riskLevel: 'medium',
   },
+  get_session_briefing: {
+    tool: 'get_session_briefing',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  semantic_search: {
+    tool: 'semantic_search',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  get_context_pack: {
+    tool: 'get_context_pack',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  estimate_budget: {
+    tool: 'estimate_budget',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  estimate_task_complexity: {
+    tool: 'estimate_task_complexity',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   query: {
     tool: 'query',
     requiredScopes: ['read'],
@@ -1427,9 +1788,75 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  list_constructions: {
+    tool: 'list_constructions',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  invoke_construction: {
+    tool: 'invoke_construction',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'medium',
+  },
+  describe_construction: {
+    tool: 'describe_construction',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  explain_operator: {
+    tool: 'explain_operator',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  check_construction_types: {
+    tool: 'check_construction_types',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   get_change_impact: {
     tool: 'get_change_impact',
     requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  blast_radius: {
+    tool: 'blast_radius',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  pre_commit_check: {
+    tool: 'pre_commit_check',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  claim_work_scope: {
+    tool: 'claim_work_scope',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  append_claim: {
+    tool: 'append_claim',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  query_claims: {
+    tool: 'query_claims',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  harvest_session_knowledge: {
+    tool: 'harvest_session_knowledge',
+    requiredScopes: ['read', 'write'],
     requiresConsent: false,
     riskLevel: 'low',
   },
@@ -1441,6 +1868,18 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   explain_function: {
     tool: 'explain_function',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  find_callers: {
+    tool: 'find_callers',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  find_callees: {
+    tool: 'find_callees',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',
@@ -1719,6 +2158,88 @@ export function isBootstrapToolInput(value: unknown): value is BootstrapToolInpu
   return typeof obj.workspace === 'string';
 }
 
+/** Type guard for GetSessionBriefingToolInput */
+export function isGetSessionBriefingToolInput(value: unknown): value is GetSessionBriefingToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const includeConstructionsOk = typeof obj.includeConstructions === 'boolean' || typeof obj.includeConstructions === 'undefined';
+  return workspaceOk && sessionIdOk && includeConstructionsOk;
+}
+
+/** Type guard for SemanticSearchToolInput */
+export function isSemanticSearchToolInput(value: unknown): value is SemanticSearchToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const queryOk = typeof obj.query === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const minConfidenceOk = typeof obj.minConfidence === 'number' || typeof obj.minConfidence === 'undefined';
+  const depthOk = obj.depth === 'L0'
+    || obj.depth === 'L1'
+    || obj.depth === 'L2'
+    || obj.depth === 'L3'
+    || typeof obj.depth === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  const includeEnginesOk = typeof obj.includeEngines === 'boolean' || typeof obj.includeEngines === 'undefined';
+  const includeEvidenceOk = typeof obj.includeEvidence === 'boolean' || typeof obj.includeEvidence === 'undefined';
+  return queryOk
+    && workspaceOk
+    && sessionIdOk
+    && minConfidenceOk
+    && depthOk
+    && limitOk
+    && includeEnginesOk
+    && includeEvidenceOk;
+}
+
+/** Type guard for GetContextPackToolInput */
+export function isGetContextPackToolInput(value: unknown): value is GetContextPackToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const intentOk = typeof obj.intent === 'string';
+  const relevantFilesOk = Array.isArray(obj.relevantFiles)
+    ? obj.relevantFiles.every((entry) => typeof entry === 'string')
+    : typeof obj.relevantFiles === 'undefined';
+  const tokenBudgetOk = typeof obj.tokenBudget === 'number'
+    ? Number.isFinite(obj.tokenBudget) && obj.tokenBudget >= 1
+    : typeof obj.tokenBudget === 'undefined';
+  const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return intentOk && relevantFilesOk && tokenBudgetOk && workdirOk && workspaceOk;
+}
+
+/** Type guard for EstimateBudgetToolInput */
+export function isEstimateBudgetToolInput(value: unknown): value is EstimateBudgetToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const taskDescriptionOk = typeof obj.taskDescription === 'string';
+  const availableTokensOk = typeof obj.availableTokens === 'number'
+    && Number.isFinite(obj.availableTokens)
+    && obj.availableTokens >= 1;
+  const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
+  const pipelineOk = Array.isArray(obj.pipeline)
+    ? obj.pipeline.every((entry) => typeof entry === 'string')
+    : typeof obj.pipeline === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return taskDescriptionOk && availableTokensOk && workdirOk && pipelineOk && workspaceOk;
+}
+
+/** Type guard for EstimateTaskComplexityToolInput */
+export function isEstimateTaskComplexityToolInput(value: unknown): value is EstimateTaskComplexityToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const taskOk = typeof obj.task === 'string';
+  const workdirOk = typeof obj.workdir === 'string' || typeof obj.workdir === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const recentFilesOk = Array.isArray(obj.recentFiles)
+    ? obj.recentFiles.every((entry) => typeof entry === 'string')
+    : typeof obj.recentFiles === 'undefined';
+  const functionIdOk = typeof obj.functionId === 'string' || typeof obj.functionId === 'undefined';
+  return taskOk && workdirOk && workspaceOk && recentFilesOk && functionIdOk;
+}
+
 /** Type guard for QueryToolInput */
 export function isQueryToolInput(value: unknown): value is QueryToolInput {
   if (typeof value !== 'object' || value === null) return false;
@@ -1778,6 +2299,81 @@ export function isRequestHumanReviewToolInput(value: unknown): value is RequestH
   return reasonOk && summaryOk && actionOk && confidenceOk && riskOk && blockingOk;
 }
 
+/** Type guard for ListConstructionsToolInput */
+export function isListConstructionsToolInput(value: unknown): value is ListConstructionsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const tagsOk = (
+    Array.isArray(obj.tags)
+    && obj.tags.every((entry) => typeof entry === 'string')
+  ) || typeof obj.tags === 'undefined';
+  const capabilitiesOk = (
+    Array.isArray(obj.capabilities)
+    && obj.capabilities.every((entry) => typeof entry === 'string')
+  ) || typeof obj.capabilities === 'undefined';
+  const requiresOk = (
+    Array.isArray(obj.requires)
+    && obj.requires.every((entry) => typeof entry === 'string')
+  ) || typeof obj.requires === 'undefined';
+  const languageOk = typeof obj.language === 'string' || typeof obj.language === 'undefined';
+  const trustTierOk = obj.trustTier === 'official'
+    || obj.trustTier === 'partner'
+    || obj.trustTier === 'community'
+    || typeof obj.trustTier === 'undefined';
+  const availableOnlyOk = typeof obj.availableOnly === 'boolean' || typeof obj.availableOnly === 'undefined';
+  return tagsOk && capabilitiesOk && requiresOk && languageOk && trustTierOk && availableOnlyOk;
+}
+
+/** Type guard for InvokeConstructionToolInput */
+export function isInvokeConstructionToolInput(value: unknown): value is InvokeConstructionToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const constructionIdOk = typeof obj.constructionId === 'string';
+  const inputOk = Object.prototype.hasOwnProperty.call(obj, 'input');
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return constructionIdOk && inputOk && workspaceOk;
+}
+
+/** Type guard for DescribeConstructionToolInput */
+export function isDescribeConstructionToolInput(value: unknown): value is DescribeConstructionToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const idOk = typeof obj.id === 'string' && obj.id.trim().length > 0;
+  const includeExampleOk = typeof obj.includeExample === 'boolean' || typeof obj.includeExample === 'undefined';
+  const includeHintsOk = typeof obj.includeCompositionHints === 'boolean' || typeof obj.includeCompositionHints === 'undefined';
+  return idOk && includeExampleOk && includeHintsOk;
+}
+
+/** Type guard for ExplainOperatorToolInput */
+export function isExplainOperatorToolInput(value: unknown): value is ExplainOperatorToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const operatorOk = obj.operator === 'seq'
+    || obj.operator === 'fanout'
+    || obj.operator === 'fallback'
+    || obj.operator === 'fix'
+    || obj.operator === 'select'
+    || obj.operator === 'atom'
+    || obj.operator === 'dimap'
+    || obj.operator === 'map'
+    || obj.operator === 'contramap'
+    || typeof obj.operator === 'undefined';
+  const situationOk = typeof obj.situation === 'string' || typeof obj.situation === 'undefined';
+  const hasInput = (typeof obj.operator === 'string' && obj.operator.length > 0)
+    || (typeof obj.situation === 'string' && obj.situation.trim().length > 0);
+  return operatorOk && situationOk && hasInput;
+}
+
+/** Type guard for CheckConstructionTypesToolInput */
+export function isCheckConstructionTypesToolInput(value: unknown): value is CheckConstructionTypesToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const firstOk = typeof obj.first === 'string' && obj.first.trim().length > 0;
+  const secondOk = typeof obj.second === 'string' && obj.second.trim().length > 0;
+  const operatorOk = obj.operator === 'seq' || obj.operator === 'fanout' || obj.operator === 'fallback';
+  return firstOk && secondOk && operatorOk;
+}
+
 /** Type guard for GetChangeImpactToolInput */
 export function isGetChangeImpactToolInput(value: unknown): value is GetChangeImpactToolInput {
   if (typeof value !== 'object' || value === null) return false;
@@ -1788,6 +2384,112 @@ export function isGetChangeImpactToolInput(value: unknown): value is GetChangeIm
   const maxResultsOk = typeof obj.maxResults === 'number' || typeof obj.maxResults === 'undefined';
   const changeTypeOk = obj.changeType === 'modify' || obj.changeType === 'delete' || obj.changeType === 'rename' || obj.changeType === 'move' || typeof obj.changeType === 'undefined';
   return targetOk && workspaceOk && depthOk && maxResultsOk && changeTypeOk;
+}
+
+/** Type guard for BlastRadiusToolInput */
+export function isBlastRadiusToolInput(value: unknown): value is BlastRadiusToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const targetOk = typeof obj.target === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const depthOk = typeof obj.depth === 'number' || typeof obj.depth === 'undefined';
+  const maxResultsOk = typeof obj.maxResults === 'number' || typeof obj.maxResults === 'undefined';
+  const changeTypeOk = obj.changeType === 'modify' || obj.changeType === 'delete' || obj.changeType === 'rename' || obj.changeType === 'move' || typeof obj.changeType === 'undefined';
+  return targetOk && workspaceOk && depthOk && maxResultsOk && changeTypeOk;
+}
+
+/** Type guard for PreCommitCheckToolInput */
+export function isPreCommitCheckToolInput(value: unknown): value is PreCommitCheckToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const changedFilesOk = Array.isArray(obj.changedFiles)
+    && obj.changedFiles.every((entry) => typeof entry === 'string');
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const strictOk = typeof obj.strict === 'boolean' || typeof obj.strict === 'undefined';
+  const maxRiskLevelOk = obj.maxRiskLevel === 'low'
+    || obj.maxRiskLevel === 'medium'
+    || obj.maxRiskLevel === 'high'
+    || obj.maxRiskLevel === 'critical'
+    || typeof obj.maxRiskLevel === 'undefined';
+  return changedFilesOk && workspaceOk && strictOk && maxRiskLevelOk;
+}
+
+/** Type guard for ClaimWorkScopeToolInput */
+export function isClaimWorkScopeToolInput(value: unknown): value is ClaimWorkScopeToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const scopeIdOk = typeof obj.scopeId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const ownerOk = typeof obj.owner === 'string' || typeof obj.owner === 'undefined';
+  const modeOk = obj.mode === 'claim'
+    || obj.mode === 'release'
+    || obj.mode === 'check'
+    || typeof obj.mode === 'undefined';
+  const ttlOk = typeof obj.ttlSeconds === 'number' || typeof obj.ttlSeconds === 'undefined';
+  return scopeIdOk && workspaceOk && sessionIdOk && ownerOk && modeOk && ttlOk;
+}
+
+/** Type guard for AppendClaimToolInput */
+export function isAppendClaimToolInput(value: unknown): value is AppendClaimToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const claimOk = typeof obj.claim === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const tagsOk = Array.isArray(obj.tags) ? obj.tags.every((entry) => typeof entry === 'string') : typeof obj.tags === 'undefined';
+  const evidenceOk = Array.isArray(obj.evidence) ? obj.evidence.every((entry) => typeof entry === 'string') : typeof obj.evidence === 'undefined';
+  const confidenceOk = typeof obj.confidence === 'number'
+    ? Number.isFinite(obj.confidence) && obj.confidence >= 0 && obj.confidence <= 1
+    : typeof obj.confidence === 'undefined';
+  const sourceToolOk = typeof obj.sourceTool === 'string' || typeof obj.sourceTool === 'undefined';
+  return claimOk && workspaceOk && sessionIdOk && tagsOk && evidenceOk && confidenceOk && sourceToolOk;
+}
+
+/** Type guard for QueryClaimsToolInput */
+export function isQueryClaimsToolInput(value: unknown): value is QueryClaimsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const queryOk = typeof obj.query === 'string' || typeof obj.query === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const tagsOk = Array.isArray(obj.tags) ? obj.tags.every((entry) => typeof entry === 'string') : typeof obj.tags === 'undefined';
+  const sinceOk = typeof obj.since === 'string' || typeof obj.since === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 200
+    : typeof obj.limit === 'undefined';
+  return queryOk && workspaceOk && sessionIdOk && tagsOk && sinceOk && limitOk;
+}
+
+/** Type guard for HarvestSessionKnowledgeToolInput */
+export function isHarvestSessionKnowledgeToolInput(value: unknown): value is HarvestSessionKnowledgeToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const maxItemsOk = typeof obj.maxItems === 'number'
+    ? Number.isFinite(obj.maxItems) && obj.maxItems >= 1 && obj.maxItems <= 200
+    : typeof obj.maxItems === 'undefined';
+  const minConfidenceOk = typeof obj.minConfidence === 'number'
+    ? Number.isFinite(obj.minConfidence) && obj.minConfidence >= 0 && obj.minConfidence <= 1
+    : typeof obj.minConfidence === 'undefined';
+  const includeRecommendationsOk = typeof obj.includeRecommendations === 'boolean' || typeof obj.includeRecommendations === 'undefined';
+  const memoryFilePathOk = typeof obj.memoryFilePath === 'string' || typeof obj.memoryFilePath === 'undefined';
+  const openclawRootOk = typeof obj.openclawRoot === 'string' || typeof obj.openclawRoot === 'undefined';
+  const persistToMemoryOk = typeof obj.persistToMemory === 'boolean' || typeof obj.persistToMemory === 'undefined';
+  const sourceOk = obj.source === 'openclaw-session'
+    || obj.source === 'manual'
+    || obj.source === 'harvest'
+    || typeof obj.source === 'undefined';
+  return sessionIdOk
+    && workspaceOk
+    && maxItemsOk
+    && minConfidenceOk
+    && includeRecommendationsOk
+    && memoryFilePathOk
+    && openclawRootOk
+    && persistToMemoryOk
+    && sourceOk;
 }
 
 /** Type guard for SubmitFeedbackToolInput */
@@ -1811,6 +2513,34 @@ export function isExplainFunctionToolInput(value: unknown): value is ExplainFunc
   const filePathOk = typeof obj.filePath === 'string' || typeof obj.filePath === 'undefined';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return nameOk && filePathOk && workspaceOk;
+}
+
+/** Type guard for FindCallersToolInput */
+export function isFindCallersToolInput(value: unknown): value is FindCallersToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const functionIdOk = typeof obj.functionId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const transitiveOk = typeof obj.transitive === 'boolean' || typeof obj.transitive === 'undefined';
+  const maxDepthOk = typeof obj.maxDepth === 'number'
+    ? Number.isFinite(obj.maxDepth) && obj.maxDepth >= 1 && obj.maxDepth <= 8
+    : typeof obj.maxDepth === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 500
+    : typeof obj.limit === 'undefined';
+  return functionIdOk && workspaceOk && transitiveOk && maxDepthOk && limitOk;
+}
+
+/** Type guard for FindCalleesToolInput */
+export function isFindCalleesToolInput(value: unknown): value is FindCalleesToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const functionIdOk = typeof obj.functionId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 500
+    : typeof obj.limit === 'undefined';
+  return functionIdOk && workspaceOk && limitOk;
 }
 
 /** Type guard for FindUsagesToolInput */

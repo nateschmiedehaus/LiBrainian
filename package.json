@@ -64,6 +64,18 @@
     "./debug": {
       "import": "./dist/debug/index.js",
       "types": "./dist/debug/index.d.ts"
+    },
+    "./constructions": {
+      "import": "./dist/constructions/index.js",
+      "types": "./dist/constructions/index.d.ts"
+    },
+    "./constructions/registry": {
+      "import": "./dist/constructions/registry.js",
+      "types": "./dist/constructions/registry.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing/index.js",
+      "types": "./dist/testing/index.d.ts"
     }
   },
   "files": [
@@ -127,6 +139,7 @@
     "eval:publish-gate": "npm run canon:guard && npm run complexity:check && npm run evidence:refresh && node scripts/run-with-tmpdir.mjs -- tsx src/cli/index.ts publish-gate --json --zero-warning",
     "eval:testing-discipline": "node scripts/run-with-tmpdir.mjs -- tsx scripts/eval-testing-discipline.ts",
     "eval:testing-tracker": "node scripts/run-with-tmpdir.mjs -- tsx scripts/eval-testing-tracker.ts",
+    "eval:openclaw:integration": "node scripts/run-with-tmpdir.mjs -- tsx scripts/eval-openclaw-integration.ts",
     "eval:compositions:utility": "node scripts/run-with-tmpdir.mjs -- tsx scripts/eval-composition-utility.ts",
     "eval:use-cases:agentic": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_LLM_PROVIDER=codex --set WAVE0_LLM_PROVIDER=codex --set LLM_PROVIDER=codex --set LIBRARIAN_LLM_MODEL=gpt-5-codex --set CODEX_MODEL=gpt-5-codex --set CODEX_TIMEOUT_MS=180000 --set LIBRARIAN_USE_CASE_QUERY_TIMEOUT_MS=180000 --set CLAUDE_TIMEOUT_MS=20000 -- tsx scripts/agentic-use-case-review.ts --reposRoot eval-corpus/external-repos --matrixPath docs/librarian/USE_CASE_MATRIX.md --maxRepos 8 --maxUseCases 120 --selectionMode probabilistic --uncertaintyHistoryPath eval-results/agentic-use-case-review.json --evidenceProfile release --progressive --minPassRate 0.75 --minEvidenceRate 0.9 --minUsefulSummaryRate 0.8 --maxStrictFailureShare 0 --minPrerequisitePassRate 0.75 --minTargetPassRate 0.75 --minTargetDependencyReadyShare 1 --artifactRoot state/eval/use-case-review --runLabel release",
     "eval:use-cases:agentic:quick": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_LLM_PROVIDER=codex --set LLM_PROVIDER=codex --set LIBRARIAN_LLM_MODEL=gpt-5-codex --set CODEX_MODEL=gpt-5-codex --set CODEX_TIMEOUT_MS=120000 --set CLAUDE_TIMEOUT_MS=20000 --set LIBRARIAN_CROSS_ENCODER=0 -- tsx scripts/agentic-use-case-review.ts --reposRoot eval-corpus/external-repos --matrixPath docs/librarian/USE_CASE_MATRIX.md --maxRepos 2 --maxUseCases 20 --selectionMode adaptive --evidenceProfile quick --uncertaintyHistoryPath eval-results/agentic-use-case-review.json --out eval-results/agentic-use-case-review.quick.json --progressive --deterministicQueries --minPassRate 0.6 --minEvidenceRate 0.8 --minUsefulSummaryRate 0.7 --maxStrictFailureShare 0 --minPrerequisitePassRate 0.6 --minTargetPassRate 0.6 --minTargetDependencyReadyShare 1 --artifactRoot state/eval/use-case-review --runLabel quick",

@@ -8,6 +8,77 @@
  * @packageDocumentation
  */
 
+export type {
+  CapabilityId,
+  ConstructionPath,
+  Construction,
+  ConstructionDebugOptions,
+  ConstructionExecutionTrace,
+  ConstructionExecutionTraceStep,
+  ConstructionFailureHint,
+  ConstructionFailureKind,
+  CostRange,
+  CostSemiring,
+  ConstructionId,
+  ConstructionListFilter,
+  ConstructionManifest,
+  ConstructionManifestExample,
+  ConstructionScope,
+  ConstructionSchema,
+  ConstructionTrustTier,
+  Context,
+  ConstructionRequirements,
+  Either,
+  FixpointMetadata,
+  FixpointTerminationReason,
+  LegacyConstructionClassId,
+  LegacyConstructionId,
+  LibrarianContext,
+  Layer,
+  NamespacedOfficialConstructionId,
+  OfficialConstructionSlug,
+  ProgressMetric,
+  SelectiveConstruction,
+  ThirdPartyConstructionId,
+} from './types.js';
+
+export {
+  OFFICIAL_CONSTRUCTION_SLUGS,
+  LEGACY_CONSTRUCTION_CLASS_IDS,
+  LEGACY_CONSTRUCTION_ALIASES,
+  isConstructionId,
+  toCanonicalConstructionId,
+} from './types.js';
+
+export {
+  CONSTRUCTION_REGISTRY,
+  getConstructionManifest,
+  invokeConstruction,
+  listConstructions,
+} from './registry.js';
+
+export {
+  identity,
+  atom,
+  seq,
+  fanout,
+  fallback,
+  fix,
+  branch,
+  select,
+  left,
+  right,
+  isLeft,
+  dimap,
+  contramap,
+  map,
+  mapAsync,
+  mapError,
+  provide,
+  ProtocolViolationError,
+  mapConstruction,
+} from './operators.js';
+
 export {
   RefactoringSafetyChecker,
   createRefactoringSafetyChecker,
@@ -143,6 +214,20 @@ export {
   type TaintSink,
   type TaintFlow,
 } from './security_audit_helper.js';
+
+export {
+  SkillAuditConstruction,
+  createSkillAuditConstruction,
+  type SkillAuditInput,
+  type SkillAuditPattern,
+  type SkillAuditPatternType,
+  type SkillAuditOutput,
+} from './skill_audit.js';
+
+export {
+  tokenizeForIntentBehavior,
+  computeIntentBehaviorCoherence,
+} from './intent_behavior_coherence.js';
 
 export {
   ComprehensiveQualityConstruction,

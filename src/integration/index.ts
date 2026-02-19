@@ -173,3 +173,30 @@ export type {
   WirableFileWatcher,
   AutoWiredFeedbackLoopHandle,
 } from './feedback_loop.js';
+
+// OpenClaw calibration bridge
+export {
+  classifyOpenclawOutcomeSignal,
+  registerOpenclawSessionPredictions,
+  applyOpenclawOutcomeSignal,
+  ingestOpenclawSessionEvent,
+  clearOpenclawSessionPredictions,
+  SharedCalibrationStore,
+  persistCurrentCalibrationSnapshot,
+} from './openclaw_calibration.js';
+export type {
+  OpenclawOutcomeMethod,
+  OpenclawOutcomeSignal,
+  SharedCalibrationSnapshot,
+} from './openclaw_calibration.js';
+
+// OpenClaw integration benchmark suite
+export {
+  runOpenclawIntegrationSuite,
+} from './openclaw_integration_suite.js';
+export type {
+  OpenclawIntegrationSuiteOptions,
+  OpenclawIntegrationSuiteResult,
+  OpenclawScenarioId,
+  OpenclawScenarioResult,
+} from './openclaw_integration_suite.js';

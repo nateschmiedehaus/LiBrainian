@@ -1,0 +1,22 @@
+[
+  { "id": "q01", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q02", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q03", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q04", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q05", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q06", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q07", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q08", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q09", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q10", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q11", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q12", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q13", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q14", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q15", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q16", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q17", "librarianTop1Correct": true, "grepTop1Correct": true },
+  { "id": "q18", "librarianTop1Correct": true, "grepTop1Correct": false },
+  { "id": "q19", "librarianTop1Correct": false, "grepTop1Correct": false },
+  { "id": "q20", "librarianTop1Correct": false, "grepTop1Correct": false }
+]

@@ -5,12 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   chat: vi.fn(),
-  ensureAdapter: vi.fn(),
   resolveModel: vi.fn(),
-}));
-
-vi.mock('../../adapters/wave0_adapter_wiring.js', () => ({
-  ensureWave0AdapterRegistration: mocks.ensureAdapter,
 }));
 
 vi.mock('../../api/llm_env.js', () => ({
@@ -32,7 +27,6 @@ describe('live cognition audit', () => {
   beforeEach(async () => {
     workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-cognition-workspace-'));
     outputDir = path.join(workspaceRoot, 'state', 'audits');
-    mocks.ensureAdapter.mockResolvedValue(undefined);
     mocks.resolveModel.mockResolvedValue({ provider: 'openai', modelId: 'gpt-test' });
     mocks.chat.mockResolvedValue({
       content: JSON.stringify({

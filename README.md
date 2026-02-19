@@ -357,6 +357,11 @@ npx tsx examples/feedback_loop_example.ts
 
 - Fast onboarding: `docs/START_HERE.md`
 - Docs index: `docs/README.md`
+- Construction quickstart: `docs/constructions/quickstart.md`
+- Construction cookbook: `docs/constructions/cookbook.md`
+- Construction operator guide: `docs/constructions/operators.md`
+- Construction testing guide: `docs/constructions/testing.md`
+- Construction migration guide: `docs/constructions/migration.md`
 - Core docs: `docs/librarian/README.md`
 - MCP setup: `docs/mcp-setup.md`
 - MCP design principles: `docs/mcp-design-principles.md`

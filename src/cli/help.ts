@@ -25,13 +25,19 @@ COMMANDS:
     status              Show current index and health status
     bootstrap           Initialize or refresh the knowledge index
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
+    install-openclaw-skill Install official OpenClaw skill and config wiring
+    openclaw-daemon     Manage OpenClaw daemon registration and state
+    memory-bridge       Show MEMORY.md bridge annotation state
+    test-integration    Run quantitative integration benchmark suites
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     check-providers     Check provider availability and authentication
+    audit-skill         Audit a SKILL.md for malicious patterns
     watch               Watch for file changes and auto-reindex
     check               Run diff-aware CI integrity checks
     scan                Show security redaction scan results
     compose             Compose construction pipelines or technique bundles
+    constructions       Browse/search/describe/install/validate constructions
     doctor              Run diagnostics and recovery hints
     health              Show current LiBrainian health status
     check               Run CI integrity checks for changed files
@@ -77,8 +83,14 @@ EXAMPLES:
     librainian bootstrap --force
     librainian check --diff HEAD~1..HEAD --format junit
     librainian uninstall --dry-run
+    librainian audit-skill ./SKILL.md --json
+    librainian install-openclaw-skill --dry-run
+    librainian openclaw-daemon start --json
+    librainian memory-bridge status --json
+    librainian test-integration --suite openclaw --json
     librainian mcp --print-config --client claude
     librainian compose "Prepare a release plan" --limit 1
+    librainian constructions search "security audit"
     librainian publish-gate --profile release --json
 
 For command-specific details:
@@ -297,6 +309,127 @@ EXAMPLES:
     librarian uninstall --force
     librarian uninstall --force --keep-index
     librarian uninstall --json --force
+`,
+
+  'audit-skill': `
+librarian audit-skill - Audit a SKILL.md file for malicious patterns
+
+USAGE:
+    librarian audit-skill <path-to-SKILL.md> [options]
+
+OPTIONS:
+    --json              Emit machine-readable JSON report
+
+DESCRIPTION:
+    Runs SkillAuditConstruction on a SKILL.md file and reports:
+    - risk score (0-100)
+    - verdict (safe | suspicious | malicious)
+    - detected malicious/suspicious patterns
+    - recommendation for install safety
+
+EXAMPLES:
+    librarian audit-skill ./skills/openclaw/SKILL.md
+    librarian audit-skill ./SKILL.md --json
+`,
+
+  'install-openclaw-skill': `
+librarian install-openclaw-skill - Install the official OpenClaw LiBrainian skill
+
+USAGE:
+    librarian install-openclaw-skill [options]
+
+OPTIONS:
+    --openclaw-root <path>  Override OpenClaw root directory (default: ~/.openclaw)
+    --dry-run               Preview install and config wiring without writing files
+    --json                  Emit machine-readable JSON report
+
+DESCRIPTION:
+    Installs the official LiBrainian OpenClaw skill and applies deterministic
+    local configuration updates:
+    - Writes SKILL.md to ~/.openclaw/skills/librainian/SKILL.md
+    - Updates ~/.openclaw/openclaw.json under skills.entries.librainian
+    - Verifies required MCP tools are present in LiBrainian's schema registry
+    - Prints a test invocation for immediate validation
+
+EXAMPLES:
+    librarian install-openclaw-skill
+    librarian install-openclaw-skill --dry-run
+    librarian install-openclaw-skill --openclaw-root /tmp/.openclaw --json
+`,
+
+  'openclaw-daemon': `
+librarian openclaw-daemon - Manage OpenClaw daemon registration and local state
+
+USAGE:
+    librarian openclaw-daemon <start|status|stop> [options]
+
+OPTIONS:
+    --openclaw-root <path>  Override OpenClaw root directory (default: ~/.openclaw)
+    --state-root <path>     Override daemon state directory (default: ~/.librainian/openclaw-daemon)
+    --json                  Emit machine-readable JSON report
+
+DESCRIPTION:
+    Provides a deterministic control surface for OpenClaw integration:
+    - start: registers librainian in ~/.openclaw/config.yaml backgroundServices
+             and marks daemon state as running
+    - status: reports daemon running state + registration metadata
+    - stop: marks daemon state as stopped without deleting registration
+
+EXAMPLES:
+    librarian openclaw-daemon start
+    librarian openclaw-daemon status --json
+    librarian openclaw-daemon stop --state-root /tmp/librainian-state
+`,
+
+  'memory-bridge': `
+librarian memory-bridge - Inspect memory bridge state for annotated MEMORY.md claims
+
+USAGE:
+    librarian memory-bridge status [options]
+
+OPTIONS:
+    --memory-file <path>    Override MEMORY.md location (default: <workspace>/.openclaw/memory/MEMORY.md)
+    --json                  Emit machine-readable JSON report
+
+DESCRIPTION:
+    Reads the memory-bridge state file adjacent to MEMORY.md and reports:
+    - total harvested entries
+    - active (non-defeated, non-expired) entries
+    - defeated entries
+    - state freshness metadata
+
+EXAMPLES:
+    librarian memory-bridge status
+    librarian memory-bridge status --memory-file /tmp/.openclaw/memory/MEMORY.md --json
+`,
+
+  'test-integration': `
+librarian test-integration - Run quantitative integration benchmark suites
+
+USAGE:
+    librarian test-integration --suite openclaw [options]
+
+OPTIONS:
+    --suite <name>          Integration suite name (currently: openclaw)
+    --scenario <name>       Scenario selector: all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration
+    --fixtures-root <path>  Override fixture root (default: test/fixtures/openclaw)
+    --strict                Exit non-zero when any scenario fails thresholds
+    --json                  Emit machine-readable JSON report
+    --out <path>            Write report JSON to file
+
+DESCRIPTION:
+    Runs six quantitative OpenClaw integration scenarios:
+    1. cold-start context efficiency
+    2. memory staleness detection
+    3. semantic navigation accuracy
+    4. context exhaustion prevention
+    5. malicious skill detection
+    6. calibration convergence
+
+EXAMPLES:
+    librarian test-integration --suite openclaw
+    librarian test-integration --suite openclaw --scenario skill-audit --json
+    librarian test-integration --suite openclaw --strict --out state/eval/openclaw/benchmark.json
 `,
 
   mcp: `
@@ -570,6 +703,44 @@ EXAMPLES:
     librarian compose "Prepare a release plan" --mode techniques
     librarian compose "Performance regression triage" --mode techniques --limit 2
     librarian compose "Release readiness" --mode techniques --include-primitives --pretty
+`,
+
+  constructions: `
+librarian constructions - Browse, search, describe, install, and validate constructions
+
+USAGE:
+    librarian constructions <subcommand> [options]
+
+SUBCOMMANDS:
+    list                    List available constructions (grouped by trust tier)
+    search "<query>"        Rank constructions by semantic relevance
+    describe <id>           Show full manifest details and example usage
+    install <id>            npm install wrapper with capability checks
+    validate [manifest]     Validate a local construction manifest JSON
+
+OPTIONS:
+    --json                  Output machine-readable JSON
+    --limit <n>             Maximum results (list/search)
+    --offset <n>            Pagination offset (list)
+    --tags <a,b,c>          Filter list by tags
+    --capabilities <a,b>    Filter list by required capabilities
+    --trust-tier <tier>     official | partner | community
+    --language <lang>       Filter list by language
+    --available-only        List only constructions executable in current runtime
+    --dry-run               For install: validate only, skip npm install
+    --path <file>           For validate: explicit manifest path
+
+DESCRIPTION:
+    This command group surfaces the construction registry directly in the CLI.
+    It supports discovery and validation workflows without requiring MCP setup.
+
+EXAMPLES:
+    librarian constructions list
+    librarian constructions list --trust-tier official --limit 20
+    librarian constructions search "blast radius change impact"
+    librarian constructions describe librainian:security-audit-helper
+    librarian constructions install librainian:security-audit-helper --dry-run
+    librarian constructions validate ./construction.manifest.json --json
 `,
 
   confidence: `

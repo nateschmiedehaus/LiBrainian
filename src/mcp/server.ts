@@ -36,13 +36,31 @@ import {
   type AuthorizationScope,
   type BootstrapToolInput,
   type StatusToolInput,
+  type GetSessionBriefingToolInput,
+  type SemanticSearchToolInput,
+  type GetContextPackToolInput,
+  type EstimateBudgetToolInput,
+  type EstimateTaskComplexityToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
   type ResetSessionStateToolInput,
   type RequestHumanReviewToolInput,
+  type ListConstructionsToolInput,
+  type InvokeConstructionToolInput,
+  type DescribeConstructionToolInput,
+  type ExplainOperatorToolInput,
+  type CheckConstructionTypesToolInput,
   type GetChangeImpactToolInput,
+  type BlastRadiusToolInput,
+  type PreCommitCheckToolInput,
+  type ClaimWorkScopeToolInput,
+  type AppendClaimToolInput,
+  type QueryClaimsToolInput,
+  type HarvestSessionKnowledgeToolInput,
   type SubmitFeedbackToolInput,
   type ExplainFunctionToolInput,
+  type FindCallersToolInput,
+  type FindCalleesToolInput,
   type FindUsagesToolInput,
   type TraceImportsToolInput,
   type FindSymbolToolInput,
@@ -121,6 +139,13 @@ import * as fs from 'fs/promises';
 import { createAuditLogger, type AuditLogger } from './audit.js';
 import { SqliteEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import { AuditBackedToolAdapter, type ToolAdapter } from '../adapters/tool_adapter.js';
+import { MemoryBridgeDaemon } from '../memory_bridge/daemon.js';
+import {
+  CONSTRUCTION_REGISTRY,
+  getConstructionManifest,
+  invokeConstruction,
+  listConstructions,
+} from '../constructions/registry.js';
 
 // ============================================================================
 // TYPES
@@ -139,6 +164,12 @@ export interface ServerState {
 
   /** Authentication manager */
   authManager: AuthenticationManager;
+
+  /** Active cross-session scope claims for parallel coordination */
+  scopeClaims: Map<string, ScopeClaimRecord>;
+
+  /** Session knowledge claims persisted via append_claim */
+  knowledgeClaims: KnowledgeClaimRecord[];
 }
 
 /** Workspace state */
@@ -216,6 +247,28 @@ interface PlanRecord {
   createdAt: string;
 }
 
+interface ScopeClaimRecord {
+  scopeKey: string;
+  scopeId: string;
+  workspace?: string;
+  sessionId: string;
+  owner?: string;
+  claimedAt: string;
+  expiresAt: string;
+}
+
+interface KnowledgeClaimRecord {
+  claimId: string;
+  claim: string;
+  workspace?: string;
+  sessionId: string;
+  tags: string[];
+  evidence: string[];
+  confidence: number;
+  sourceTool?: string;
+  createdAt: string;
+}
+
 interface LoopDetectionResult {
   detected: boolean;
   pattern: 'identical_query' | 'semantic_repeat' | 'futile_repeat';
@@ -283,6 +336,11 @@ interface ToolHintMetadata {
 const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   bootstrap: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 12000 },
   status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  get_session_briefing: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  semantic_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4200 },
+  get_context_pack: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 2600 },
+  estimate_budget: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1300 },
+  estimate_task_complexity: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1500 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -296,9 +354,22 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   synthesize_plan: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  list_constructions: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  invoke_construction: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 4200 },
+  describe_construction: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
+  explain_operator: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
+  check_construction_types: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1700 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
+  append_claim: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
+  query_claims: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
+  harvest_session_knowledge: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  find_callers: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
+  find_callees: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
   trace_imports: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
   find_symbol: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1700 },
@@ -308,6 +379,71 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   list_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
   get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
+};
+
+type ConstructionOperator =
+  | 'seq'
+  | 'fanout'
+  | 'fallback'
+  | 'fix'
+  | 'select'
+  | 'atom'
+  | 'dimap'
+  | 'map'
+  | 'contramap';
+
+interface OperatorGuideEntry {
+  summary: string;
+  decisionGuide: string;
+  example: string;
+}
+
+const OPERATOR_GUIDE: Record<ConstructionOperator, OperatorGuideEntry> = {
+  seq: {
+    summary: 'Use seq when the second construction needs output from the first construction.',
+    decisionGuide: 'Choose seq for pipeline stages where data flows A -> B and B cannot run until A completes.',
+    example: "seq(blastRadiusOracle, riskRanker)",
+  },
+  fanout: {
+    summary: 'Use fanout when two constructions should run in parallel over the same input.',
+    decisionGuide: 'Choose fanout for independent analyses that share identical input and can execute concurrently.',
+    example: "fanout(callGraphLookup, testCoverageQuery)",
+  },
+  fallback: {
+    summary: 'Use fallback when the second construction should run only if the first fails or returns unusable output.',
+    decisionGuide: 'Choose fallback for resilient pipelines with a preferred primary path and a recovery path.',
+    example: "fallback(primaryRetriever, backupRetriever)",
+  },
+  fix: {
+    summary: 'Use fix for recursive or iterative workflows that converge to a stable output.',
+    decisionGuide: 'Choose fix when each pass improves the candidate result until no further changes are needed.',
+    example: "fix(refinePlanUntilStable)",
+  },
+  select: {
+    summary: 'Use select when branching between constructions based on a discriminator or routing decision.',
+    decisionGuide: 'Choose select when a classifier determines which downstream construction should run.',
+    example: "select(routeByFileType, tsFlow, pyFlow)",
+  },
+  atom: {
+    summary: 'Use atom for a small focused construction that performs one deterministic transformation.',
+    decisionGuide: 'Choose atom for reusable leaf steps that should stay side-effect light and composable.',
+    example: "atom('extract-function-ids', (input) => ...)",
+  },
+  dimap: {
+    summary: 'Use dimap to adapt both input and output shapes around an existing construction.',
+    decisionGuide: 'Choose dimap when both upstream and downstream contracts differ and one adapter should handle both seams.',
+    example: "dimap(existing, adaptInput, adaptOutput)",
+  },
+  map: {
+    summary: 'Use map to transform only output after a construction runs.',
+    decisionGuide: 'Choose map for post-processing, formatting, or reducing a result without changing execution logic.',
+    example: "map(construction, (out) => out.summary)",
+  },
+  contramap: {
+    summary: 'Use contramap to transform only input before a construction runs.',
+    decisionGuide: 'Choose contramap to normalize callsite input into the shape expected by an existing construction.',
+    example: "contramap(construction, adaptInput)",
+  },
 };
 
 interface ReadResourceRequestLike {
@@ -1027,6 +1163,8 @@ export class LibrarianMCPServer {
         maxSessionsPerClient: 10,
         allowScopeEscalation: false,
       }),
+      scopeClaims: new Map(),
+      knowledgeClaims: [],
     };
 
     // Initialize MCP server
@@ -1104,6 +1242,19 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             sessionId: { type: 'string', description: 'Optional session identifier for session-scoped status details' },
             planId: { type: 'string', description: 'Optional plan ID to retrieve a specific synthesized plan' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'get_session_briefing',
+        description: 'Return concise session/workspace orientation with next-step MCP actions for low-token startup',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier for session-scoped briefing details' },
+            includeConstructions: { type: 'boolean', description: 'Include construction onboarding hints in the response (default true)' },
           },
           required: [],
         },
@@ -1230,6 +1381,69 @@ export class LibrarianMCPServer {
         },
       },
       {
+        name: 'semantic_search',
+        description: `Primary semantic code localization tool for finding relevant files/symbols by meaning. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Localization query for semantic code search' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive search behavior' },
+            minConfidence: { type: 'number', description: `Minimum confidence threshold (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
+            depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context' },
+            limit: { type: 'number', description: 'Maximum results to return (default 20, max 200)' },
+            includeEngines: { type: 'boolean', description: 'Include engine diagnostics in output' },
+            includeEvidence: { type: 'boolean', description: 'Include evidence graph summary' },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'get_context_pack',
+        description: 'Token-budgeted task context assembly that compresses relevant function and module knowledge before file reads',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            intent: { type: 'string', description: 'Task intent used for context pack retrieval' },
+            relevantFiles: { type: 'array', items: { type: 'string' }, description: 'Optional relevant file hints for retrieval focus' },
+            tokenBudget: { type: 'number', description: 'Hard token budget for assembled context output (default 4000)' },
+            workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+            workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+          },
+          required: ['intent'],
+        },
+      },
+      {
+        name: 'estimate_budget',
+        description: 'Pre-task feasibility gate that estimates token burn and recommends safer lower-cost execution alternatives',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskDescription: { type: 'string', description: 'Task description to estimate before execution' },
+            availableTokens: { type: 'number', description: 'Available token budget before compaction' },
+            workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+            pipeline: { type: 'array', items: { type: 'string' }, description: 'Optional explicit pipeline/tool sequence for estimation' },
+            workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+          },
+          required: ['taskDescription', 'availableTokens'],
+        },
+      },
+      {
+        name: 'estimate_task_complexity',
+        description: 'Model-routing estimator that predicts task complexity, expected token burn, and whether librainian can answer directly',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: { type: 'string', description: 'Task statement to classify for routing complexity' },
+            workdir: { type: 'string', description: 'Working directory hint for workspace resolution' },
+            workspace: { type: 'string', description: 'Workspace path alias for callers that already have it' },
+            recentFiles: { type: 'array', items: { type: 'string' }, description: 'Optional recently touched files used as routing hints' },
+            functionId: { type: 'string', description: 'Optional primary function target for blast-radius estimation' },
+          },
+          required: ['task'],
+        },
+      },
+      {
         name: 'query',
         description: `Use query for semantic, cross-file context (how systems work, impact paths, patterns, and unfamiliar modules). Do not use query for direct file reads when you already know the exact path; use your file-read tool for that. Call query before large refactors, cross-module debugging, or test planning in unfamiliar code. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
@@ -1280,6 +1494,34 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
           },
           required: ['name'],
+        },
+      },
+      {
+        name: 'find_callers',
+        description: 'Find direct or transitive caller callsites for a function name or ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            functionId: { type: 'string', description: 'Target function ID or name to locate callers for' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            transitive: { type: 'boolean', description: 'Include transitive callers (callers-of-callers)' },
+            maxDepth: { type: 'number', description: 'Maximum transitive depth when transitive=true (default 3, max 8)' },
+            limit: { type: 'number', description: 'Maximum callsites to return (default 100, max 500)' },
+          },
+          required: ['functionId'],
+        },
+      },
+      {
+        name: 'find_callees',
+        description: 'Find direct callees for a function name or ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            functionId: { type: 'string', description: 'Target function ID or name to locate callees for' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            limit: { type: 'number', description: 'Maximum callees to return (default 100, max 500)' },
+          },
+          required: ['functionId'],
         },
       },
       {
@@ -1352,6 +1594,77 @@ export class LibrarianMCPServer {
         },
       },
       {
+        name: 'list_constructions',
+        description: 'List registered constructions with manifests, schemas, trust metadata, and capability tags',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
+            capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capability filter' },
+            requires: { type: 'array', items: { type: 'string' }, description: 'Alias for capabilities filter' },
+            language: { type: 'string', description: 'Optional language filter (example: typescript, python, rust)' },
+            trustTier: { type: 'string', enum: ['official', 'partner', 'community'], description: 'Optional trust tier filter' },
+            availableOnly: { type: 'boolean', description: 'Only include constructions executable in this runtime' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'invoke_construction',
+        description: 'Invoke a registered construction by ID with runtime input payload',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            constructionId: { type: 'string', description: 'Construction ID returned by list_constructions' },
+            input: { type: 'object', description: 'Construction input payload' },
+            workspace: { type: 'string', description: 'Workspace path used for runtime dependencies' },
+          },
+          required: ['constructionId', 'input'],
+        },
+      },
+      {
+        name: 'describe_construction',
+        description: 'Describe a construction in detail: what it does, I/O shape, usage example, and composition hints',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Construction ID returned by list_constructions' },
+            includeExample: { type: 'boolean', description: 'Include executable example snippet (default true)' },
+            includeCompositionHints: { type: 'boolean', description: 'Include composition/operator guidance (default true)' },
+          },
+          required: ['id'],
+        },
+      },
+      {
+        name: 'explain_operator',
+        description: 'Explain when to use a construction operator, or recommend one from a described situation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            operator: {
+              type: 'string',
+              enum: ['seq', 'fanout', 'fallback', 'fix', 'select', 'atom', 'dimap', 'map', 'contramap'],
+              description: 'Operator to explain directly',
+            },
+            situation: { type: 'string', description: 'Situation description used for recommendation when operator is omitted' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'check_construction_types',
+        description: 'Check composition compatibility between two constructions for seq, fanout, or fallback',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            first: { type: 'string', description: 'First construction ID' },
+            second: { type: 'string', description: 'Second construction ID' },
+            operator: { type: 'string', enum: ['seq', 'fanout', 'fallback'], description: 'Composition operator to validate' },
+          },
+          required: ['first', 'second', 'operator'],
+        },
+      },
+      {
         name: 'get_change_impact',
         description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk)',
         inputSchema: {
@@ -1364,6 +1677,103 @@ export class LibrarianMCPServer {
             changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
           },
           required: ['target'],
+        },
+      },
+      {
+        name: 'blast_radius',
+        description: 'Pre-edit transitive impact analysis before changing a function/module (alias of get_change_impact)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            target: { type: 'string', description: 'Changed file/module/function identifier to analyze' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            depth: { type: 'number', description: 'Maximum transitive depth for propagation (default 3, max 8)' },
+            maxResults: { type: 'number', description: 'Maximum impacted files to return (default 200, max 1000)' },
+            changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
+          },
+          required: ['target'],
+        },
+      },
+      {
+        name: 'pre_commit_check',
+        description: 'Semantic pre-submit gate over changed files using blast-radius risk checks',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            changedFiles: { type: 'array', items: { type: 'string' }, description: 'Changed files to evaluate before submit' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            strict: { type: 'boolean', description: 'Enforce stricter pass criteria (default false)' },
+            maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass (default high)' },
+          },
+          required: ['changedFiles'],
+        },
+      },
+      {
+        name: 'claim_work_scope',
+        description: 'Claim/check/release semantic work scopes for parallel agent coordination',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            scopeId: { type: 'string', description: 'Semantic scope identifier (file, module, symbol, or task scope key)' },
+            workspace: { type: 'string', description: 'Workspace path (optional, used to namespace scope claims)' },
+            sessionId: { type: 'string', description: 'Optional session identifier for ownership' },
+            owner: { type: 'string', description: 'Optional owner label (agent name/id)' },
+            mode: { type: 'string', enum: ['claim', 'release', 'check'], description: 'Claim operation mode (default claim)' },
+            ttlSeconds: { type: 'number', description: 'Claim expiration window in seconds (default 1800)' },
+          },
+          required: ['scopeId'],
+        },
+      },
+      {
+        name: 'append_claim',
+        description: 'Persist a session knowledge claim with confidence/tags/evidence for later retrieval and harvest',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            claim: { type: 'string', description: 'Claim text to persist for later retrieval and session harvest' },
+            workspace: { type: 'string', description: 'Workspace path (optional, used for namespacing and audit logs)' },
+            sessionId: { type: 'string', description: 'Optional session identifier that owns this claim' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'Optional semantic tags for filtering and harvest summaries' },
+            evidence: { type: 'array', items: { type: 'string' }, description: 'Optional evidence snippets, IDs, or citations supporting the claim' },
+            confidence: { type: 'number', description: 'Optional confidence score in [0,1] (default 0.6)' },
+            sourceTool: { type: 'string', description: 'Optional source tool name that generated this claim' },
+          },
+          required: ['claim'],
+        },
+      },
+      {
+        name: 'query_claims',
+        description: 'Filter and retrieve claims previously recorded via append_claim',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Optional text query over claim, evidence, and tags' },
+            workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+            sessionId: { type: 'string', description: 'Optional session identifier filter' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags filter (matches any provided tag)' },
+            since: { type: 'string', description: 'Optional ISO timestamp lower bound for createdAt filtering' },
+            limit: { type: 'number', description: 'Maximum claims to return (default 20, max 200)' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'harvest_session_knowledge',
+        description: 'Summarize high-confidence claims and optionally sync them into annotated MEMORY.md via memory bridge',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session to harvest claims from (optional)' },
+            workspace: { type: 'string', description: 'Workspace path filter (optional)' },
+            maxItems: { type: 'number', description: 'Maximum harvested claims to include (default 20, max 200)' },
+            minConfidence: { type: 'number', description: 'Minimum confidence threshold in [0,1]' },
+            includeRecommendations: { type: 'boolean', description: 'Include recommended next tools in output' },
+            memoryFilePath: { type: 'string', description: 'Optional explicit MEMORY.md path for memory-bridge sync' },
+            openclawRoot: { type: 'string', description: 'Optional OpenClaw root used to resolve memoryFilePath when omitted' },
+            persistToMemory: { type: 'boolean', description: 'Persist harvested claims into annotated MEMORY.md (default true)' },
+            source: { type: 'string', enum: ['openclaw-session', 'manual', 'harvest'], description: 'Memory-bridge source label' },
+          },
+          required: [],
         },
       },
       {
@@ -2738,6 +3148,8 @@ export class LibrarianMCPServer {
         return this.executeBootstrapDeduped(args as BootstrapToolInput);
       case 'status':
         return this.executeStatus(args as StatusToolInput, context);
+      case 'get_session_briefing':
+        return this.executeGetSessionBriefing(args as GetSessionBriefingToolInput, context);
       case 'system_contract':
         return this.executeSystemContract(args as SystemContractToolInput);
       case 'diagnose_self':
@@ -2756,12 +3168,24 @@ export class LibrarianMCPServer {
         return this.executeCompileTechniqueComposition(args as CompileTechniqueCompositionToolInput);
       case 'compile_intent_bundles':
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
+      case 'semantic_search':
+        return this.executeSemanticSearch(args as SemanticSearchToolInput, context);
+      case 'get_context_pack':
+        return this.executeGetContextPack(args as GetContextPackToolInput, context);
+      case 'estimate_budget':
+        return this.executeEstimateBudget(args as EstimateBudgetToolInput);
+      case 'estimate_task_complexity':
+        return this.executeEstimateTaskComplexity(args as EstimateTaskComplexityToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
       case 'synthesize_plan':
         return this.executeSynthesizePlan(args as SynthesizePlanToolInput, context);
       case 'explain_function':
         return this.executeExplainFunction(args as ExplainFunctionToolInput);
+      case 'find_callers':
+        return this.executeFindCallers(args as FindCallersToolInput);
+      case 'find_callees':
+        return this.executeFindCallees(args as FindCalleesToolInput);
       case 'find_usages':
         return this.executeFindUsages(args as FindUsagesToolInput);
       case 'trace_imports':
@@ -2770,8 +3194,30 @@ export class LibrarianMCPServer {
         return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
       case 'request_human_review':
         return this.executeRequestHumanReview(args as RequestHumanReviewToolInput);
+      case 'list_constructions':
+        return this.executeListConstructions(args as ListConstructionsToolInput);
+      case 'invoke_construction':
+        return this.executeInvokeConstruction(args as InvokeConstructionToolInput);
+      case 'describe_construction':
+        return this.executeDescribeConstruction(args as DescribeConstructionToolInput);
+      case 'explain_operator':
+        return this.executeExplainOperator(args as ExplainOperatorToolInput);
+      case 'check_construction_types':
+        return this.executeCheckConstructionTypes(args as CheckConstructionTypesToolInput);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
+      case 'blast_radius':
+        return this.executeBlastRadius(args as BlastRadiusToolInput);
+      case 'pre_commit_check':
+        return this.executePreCommitCheck(args as PreCommitCheckToolInput);
+      case 'claim_work_scope':
+        return this.executeClaimWorkScope(args as ClaimWorkScopeToolInput, context);
+      case 'append_claim':
+        return this.executeAppendClaim(args as AppendClaimToolInput, context);
+      case 'query_claims':
+        return this.executeQueryClaims(args as QueryClaimsToolInput);
+      case 'harvest_session_knowledge':
+        return this.executeHarvestSessionKnowledge(args as HarvestSessionKnowledgeToolInput, context);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
@@ -3039,6 +3485,13 @@ export class LibrarianMCPServer {
             workspace: workspacePath,
             runId,
             watching: existingWorkspace.watching,
+            get_started: {
+              constructionsQuickstart: 'docs/constructions/quickstart.md',
+              constructionsOperatorGuide: 'docs/constructions/operators.md',
+              constructionsCookbook: 'docs/constructions/cookbook.md',
+              constructionsTesting: 'docs/constructions/testing.md',
+              cliListConstructions: 'npx librainian constructions list',
+            },
           };
         }
       }
@@ -3123,6 +3576,13 @@ export class LibrarianMCPServer {
           active: actuallyWatching,
           status: watcherStatus,
           debounceMs: actuallyWatching ? debounceMs : undefined,
+        },
+        get_started: {
+          constructionsQuickstart: 'docs/constructions/quickstart.md',
+          constructionsOperatorGuide: 'docs/constructions/operators.md',
+          constructionsCookbook: 'docs/constructions/cookbook.md',
+          constructionsTesting: 'docs/constructions/testing.md',
+          cliListConstructions: 'npx librainian constructions list',
         },
       };
     } catch (error) {
@@ -3272,6 +3732,118 @@ export class LibrarianMCPServer {
           planById: planByIdRecord ? this.toPlanView(planByIdRecord) : (requestedPlanId ? null : undefined),
           plan_by_id: planByIdRecord ? this.toPlanView(planByIdRecord) : (requestedPlanId ? null : undefined),
         },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeGetSessionBriefing(
+    input: GetSessionBriefingToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        const first = this.state.workspaces.keys().next();
+        workspacePath = first.done ? undefined : first.value;
+      }
+
+      const workspace = workspacePath ? this.state.workspaces.get(workspacePath) : undefined;
+      const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+        ? input.sessionId.trim()
+        : undefined;
+      const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+        ? context.sessionId.trim()
+        : undefined;
+      const sessionId = explicitSessionId
+        ?? contextSessionId
+        ?? this.buildAnonymousSessionId(workspacePath ?? process.cwd());
+      const session = this.state.sessions.get(sessionId);
+      const includeConstructions = input.includeConstructions ?? true;
+      const availableTools = this.getAvailableTools().map((tool) => tool.name);
+      const recentPlans = (session?.planHistory ?? []).slice(-5).map((record) => this.toPlanView(record));
+
+      const recommendedActions: Array<{ tool: string; rationale: string }> = [];
+      if (!workspacePath) {
+        recommendedActions.push({
+          tool: 'bootstrap',
+          rationale: 'No workspace is registered yet. Bootstrap first so retrieval and symbol tooling can operate.',
+        });
+      } else if (!workspace) {
+        recommendedActions.push({
+          tool: 'bootstrap',
+          rationale: 'Workspace is not registered in this MCP session. Bootstrap to attach storage and index state.',
+        });
+      } else if (workspace.indexState !== 'ready') {
+        recommendedActions.push({
+          tool: 'bootstrap',
+          rationale: `Workspace index is ${workspace.indexState}. Re-bootstrap to reach ready state before semantic workflows.`,
+        });
+      } else {
+        recommendedActions.push({
+          tool: 'query',
+          rationale: 'Start with a semantic orientation query to collect context packs for current goals.',
+        });
+        recommendedActions.push({
+          tool: 'find_symbol',
+          rationale: 'Resolve human-readable names into claim/function/run IDs before downstream targeted tools.',
+        });
+        recommendedActions.push({
+          tool: 'get_change_impact',
+          rationale: 'Run pre-edit blast-radius analysis before modifying high-risk functions or modules.',
+        });
+        if ((session?.planHistory.length ?? 0) === 0) {
+          recommendedActions.push({
+            tool: 'synthesize_plan',
+            rationale: 'No persisted plan exists for this session yet; create one before major edits.',
+          });
+        }
+      }
+
+      return {
+        success: true,
+        sessionId,
+        session_id: sessionId,
+        workspace: workspacePath,
+        workspaceState: workspace
+          ? {
+            indexState: workspace.indexState,
+            indexedAt: workspace.indexedAt,
+            hasLibrarian: !!workspace.librarian,
+            hasStorage: !!workspace.storage,
+            watching: workspace.watching ?? false,
+            lastBootstrapRunId: workspace.lastBootstrapRunId,
+          }
+          : null,
+        planTracking: {
+          totalPlans: session?.planHistory.length ?? 0,
+          total_plans: session?.planHistory.length ?? 0,
+          recentPlans,
+          recent_plans: recentPlans,
+        },
+        recommendedActions,
+        availableTools,
+        guidance: {
+          confidenceContract: CONFIDENCE_BEHAVIOR_CONTRACT,
+          docs: {
+            startHere: 'docs/START_HERE.md',
+            mcpSetup: 'docs/mcp-setup.md',
+          },
+        },
+        constructions: includeConstructions
+          ? {
+            quickstart: 'docs/constructions/quickstart.md',
+            operatorGuide: 'docs/constructions/operators.md',
+            cookbook: 'docs/constructions/cookbook.md',
+            cliListCommand: 'npx librainian constructions list',
+          }
+          : undefined,
       };
     } catch (error) {
       return {
@@ -4376,6 +4948,459 @@ export class LibrarianMCPServer {
     }
   }
 
+  private async executeSemanticSearch(
+    input: SemanticSearchToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const base = await this.executeQuery(
+      {
+        intent: input.query,
+        workspace: input.workspace,
+        sessionId: input.sessionId,
+        intentType: 'navigate',
+        minConfidence: input.minConfidence,
+        depth: input.depth,
+        includeEngines: input.includeEngines,
+        includeEvidence: input.includeEvidence,
+        pageSize: input.limit,
+        pageIdx: 0,
+      },
+      context,
+    );
+
+    if (!base || typeof base !== 'object') {
+      return base;
+    }
+
+    const payload = base as Record<string, unknown>;
+    const packs = Array.isArray(payload.packs) ? payload.packs : [];
+    const relatedFiles = Array.from(
+      new Set(
+        packs
+          .flatMap((pack) => {
+            if (!pack || typeof pack !== 'object') {
+              return [];
+            }
+            const files = (pack as { relatedFiles?: unknown }).relatedFiles;
+            return Array.isArray(files)
+              ? files.filter((file): file is string => typeof file === 'string')
+              : [];
+          }),
+      ),
+    );
+
+    return {
+      ...payload,
+      tool: 'semantic_search',
+      aliasOf: 'query',
+      searchQuery: input.query,
+      relatedFiles,
+      recommendedNextTools: relatedFiles.length > 0
+        ? ['find_symbol', 'trace_imports', 'get_change_impact']
+        : ['query', 'get_session_briefing'],
+    };
+  }
+
+  private async executeGetContextPack(
+    input: GetContextPackToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const workspaceHint = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : (typeof input.workdir === 'string' && input.workdir.trim().length > 0
+        ? path.resolve(input.workdir)
+        : undefined);
+    const workspacePath = workspaceHint
+      ?? this.findReadyWorkspace()?.path
+      ?? this.state.workspaces.keys().next().value;
+    if (!workspacePath) {
+      return {
+        success: false,
+        tool: 'get_context_pack',
+        error: 'No workspace specified and no workspaces registered',
+        functions: [],
+        callGraphNeighbors: [],
+        keyContracts: [],
+        tokenCount: 0,
+        evidenceIds: [],
+        staleness: 'stale',
+      };
+    }
+
+    const workspace = this.state.workspaces.get(workspacePath);
+    const staleness: 'fresh' | 'indexing' | 'stale' = !workspace
+      ? 'stale'
+      : (workspace.indexState === 'ready'
+        ? 'fresh'
+        : (workspace.indexState === 'stale' ? 'stale' : 'indexing'));
+    if (!workspace) {
+      return {
+        success: false,
+        tool: 'get_context_pack',
+        error: `Workspace not registered: ${workspacePath}`,
+        functions: [],
+        callGraphNeighbors: [],
+        keyContracts: [],
+        tokenCount: 0,
+        evidenceIds: [],
+        staleness,
+      };
+    }
+
+    const tokenBudget = Math.max(100, Math.min(50000, Math.trunc(input.tokenBudget ?? 4000)));
+    const base = await this.executeQuery(
+      {
+        intent: input.intent,
+        workspace: workspacePath,
+        affectedFiles: input.relevantFiles,
+        intentType: 'navigate',
+        depth: 'L2',
+        pageSize: 50,
+        pageIdx: 0,
+      },
+      context,
+    );
+
+    if (!base || typeof base !== 'object') {
+      return base;
+    }
+
+    const payload = base as Record<string, unknown>;
+    const packs = Array.isArray(payload.packs)
+      ? payload.packs.filter((pack): pack is Record<string, unknown> => !!pack && typeof pack === 'object')
+      : [];
+
+    const selectedPacks: Array<{
+      packId: string;
+      packType: string;
+      targetId?: string;
+      summary: string;
+      keyFacts: string[];
+      relatedFiles: string[];
+      confidence: number;
+      mode: 'full' | 'summary';
+      codeSnippets: string[];
+      estimatedTokens: number;
+    }> = [];
+    let tokenCount = 0;
+
+    for (const pack of packs) {
+      const packId = typeof pack.packId === 'string' ? pack.packId : `pack_${this.generateId()}`;
+      const packType = typeof pack.packType === 'string' ? pack.packType : 'unknown';
+      const targetId = typeof pack.targetId === 'string' ? pack.targetId : undefined;
+      const summary = typeof pack.summary === 'string' ? pack.summary : '';
+      const keyFacts = Array.isArray(pack.keyFacts)
+        ? pack.keyFacts.filter((fact): fact is string => typeof fact === 'string')
+        : [];
+      const relatedFiles = Array.isArray(pack.relatedFiles)
+        ? pack.relatedFiles.filter((file): file is string => typeof file === 'string')
+        : [];
+      const confidence = typeof pack.confidence === 'number' && Number.isFinite(pack.confidence)
+        ? pack.confidence
+        : 0.5;
+      const snippetTexts = Array.isArray(pack.codeSnippets)
+        ? pack.codeSnippets
+          .map((snippet) => {
+            if (!snippet || typeof snippet !== 'object') return '';
+            const code = (snippet as { code?: unknown }).code;
+            return typeof code === 'string' ? code : '';
+          })
+          .filter((code) => code.length > 0)
+        : [];
+
+      const fullText = [summary, ...keyFacts, ...snippetTexts].join('\n');
+      const fullTokens = estimateTokens(fullText);
+      if (tokenCount + fullTokens <= tokenBudget) {
+        selectedPacks.push({
+          packId,
+          packType,
+          targetId,
+          summary,
+          keyFacts,
+          relatedFiles,
+          confidence,
+          mode: 'full',
+          codeSnippets: snippetTexts.slice(0, 2),
+          estimatedTokens: fullTokens,
+        });
+        tokenCount += fullTokens;
+        continue;
+      }
+
+      const summaryText = [summary, ...keyFacts.slice(0, 3)].join('\n');
+      const summaryTokens = estimateTokens(summaryText);
+      if (tokenCount + summaryTokens <= tokenBudget) {
+        selectedPacks.push({
+          packId,
+          packType,
+          targetId,
+          summary,
+          keyFacts: keyFacts.slice(0, 3),
+          relatedFiles,
+          confidence,
+          mode: 'summary',
+          codeSnippets: [],
+          estimatedTokens: summaryTokens,
+        });
+        tokenCount += summaryTokens;
+      }
+    }
+
+    const functions = selectedPacks.map((pack) => ({
+      id: pack.targetId ?? pack.packId,
+      packId: pack.packId,
+      packType: pack.packType,
+      summary: pack.summary,
+      keyFacts: pack.keyFacts,
+      relatedFiles: pack.relatedFiles,
+      confidence: pack.confidence,
+      mode: pack.mode,
+    }));
+
+    const callGraphNeighbors = selectedPacks.flatMap((pack) => {
+      if (!pack.targetId) return [];
+      return pack.keyFacts
+        .filter((fact) => /calls?|called by|invokes?/i.test(fact))
+        .map((fact) => ({
+          functionId: pack.targetId,
+          relation: /called by/i.test(fact) ? 'caller' : 'callee',
+          detail: fact,
+        }));
+    });
+
+    const keyContracts = selectedPacks.flatMap((pack) =>
+      pack.keyFacts
+        .filter((fact) => /must|required?|precondition|postcondition|reject|contract/i.test(fact))
+        .map((fact) => ({
+          statement: fact,
+          sourcePackId: pack.packId,
+        })));
+
+    const architecturalContext = selectedPacks.find((pack) => pack.packType === 'module_context')?.summary
+      ?? (typeof payload.answer === 'string' ? payload.answer : '');
+    const evidenceIds = selectedPacks.map((pack) => pack.packId);
+
+    return {
+      success: true,
+      tool: 'get_context_pack',
+      workspace: workspacePath,
+      intent: input.intent,
+      tokenBudget,
+      tokenCount,
+      staleness,
+      functions,
+      callGraphNeighbors,
+      keyContracts,
+      architecturalContext,
+      evidenceIds,
+    };
+  }
+
+  private async executeEstimateBudget(input: EstimateBudgetToolInput): Promise<unknown> {
+    const taskDescription = input.taskDescription?.trim() ?? '';
+    if (taskDescription.length === 0) {
+      return {
+        success: false,
+        tool: 'estimate_budget',
+        error: 'taskDescription must be a non-empty string.',
+      };
+    }
+
+    const availableTokens = Math.max(1, Math.trunc(input.availableTokens));
+    const normalized = taskDescription.toLowerCase();
+    const riskFactors: string[] = [];
+    let complexityMultiplier = 1;
+
+    if (/\b(across the codebase|entire codebase|all modules|all callers|system-wide|across)\b/.test(normalized)) {
+      complexityMultiplier += 1.6;
+      riskFactors.push('Broad cross-codebase scope increases call-graph fanout and exploration overhead.');
+    }
+    if (/\b(refactor|migrate|rewrite|re-architect)\b/.test(normalized)) {
+      complexityMultiplier += 0.8;
+      riskFactors.push('Refactor/migration tasks typically require additional verification and rollback-safe sequencing.');
+    }
+    if (/\b(auth|security|permissions|access control)\b/.test(normalized)) {
+      complexityMultiplier += 0.45;
+      riskFactors.push('Security-sensitive domains usually require extra validation passes and higher review overhead.');
+    }
+    if (taskDescription.split(/\s+/).filter(Boolean).length > 16) {
+      complexityMultiplier += 0.35;
+      riskFactors.push('Long task descriptions indicate multi-objective scope that tends to increase token burn.');
+    }
+    if (Array.isArray(input.pipeline) && input.pipeline.length > 0) {
+      complexityMultiplier += Math.min(1.2, input.pipeline.length * 0.12);
+      riskFactors.push(`Explicit pipeline includes ${input.pipeline.length} stages, increasing execution overhead.`);
+    }
+
+    const baseEstimate = Math.max(6000, estimateTokens(taskDescription) * 420);
+    const estimated = {
+      min: Math.max(1000, Math.round(baseEstimate * complexityMultiplier * 0.55)),
+      expected: Math.max(1500, Math.round(baseEstimate * complexityMultiplier)),
+      max: Math.max(2000, Math.round(baseEstimate * complexityMultiplier * 1.6)),
+    };
+    const feasible = estimated.max < availableTokens;
+
+    if (availableTokens < estimated.expected) {
+      riskFactors.push('Available token budget is below expected burn; compaction/retry risk is elevated.');
+    }
+
+    const cheaperAlternative = !feasible
+      ? {
+          description: 'Use get_context_pack first and narrow scope to one module before spawning broader edits.',
+          estimatedTokens: {
+            min: Math.max(600, Math.round(estimated.min * 0.3)),
+            expected: Math.max(1000, Math.round(estimated.expected * 0.38)),
+            max: Math.max(1500, Math.round(estimated.max * 0.45)),
+          },
+          construction: 'get_context_pack',
+        }
+      : undefined;
+
+    const recommendation = feasible
+      ? `Feasible under current budget. Estimated max ${estimated.max.toLocaleString()} tokens within available ${availableTokens.toLocaleString()}.`
+      : `Not feasible within current budget. Scope to a single module or phase the task before execution.`;
+
+    const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : (typeof input.workdir === 'string' && input.workdir.trim().length > 0 ? path.resolve(input.workdir) : undefined);
+    const evidenceHash = createHash('sha256')
+      .update(`${taskDescription}|${availableTokens}|${JSON.stringify(input.pipeline ?? [])}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    return {
+      success: true,
+      tool: 'estimate_budget',
+      feasible,
+      availableTokens,
+      estimatedTokens: estimated,
+      recommendation,
+      cheaperAlternative,
+      riskFactors,
+      evidenceIds: [`budget_${evidenceHash}`],
+      workspace: workspacePath,
+    };
+  }
+
+  private async executeEstimateTaskComplexity(input: EstimateTaskComplexityToolInput): Promise<unknown> {
+    const task = input.task?.trim() ?? '';
+    if (task.length === 0) {
+      return {
+        success: false,
+        tool: 'estimate_task_complexity',
+        error: 'task must be a non-empty string.',
+      };
+    }
+
+    const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : (typeof input.workdir === 'string' && input.workdir.trim().length > 0 ? path.resolve(input.workdir) : undefined);
+    const defaultAvailableTokens = 24_000;
+
+    const budgetEstimate = await this.executeEstimateBudget({
+      taskDescription: task,
+      availableTokens: defaultAvailableTokens,
+      workdir: input.workdir,
+      workspace: input.workspace,
+      pipeline: ['semantic_search', 'get_context_pack', 'pre_commit_check'],
+    }) as {
+      success?: boolean;
+      estimatedTokens?: { expected?: number; max?: number; min?: number };
+      riskFactors?: string[];
+    };
+
+    const estimatedTokens = Number.isFinite(budgetEstimate?.estimatedTokens?.expected)
+      ? Math.max(500, Math.trunc(budgetEstimate.estimatedTokens?.expected ?? 0))
+      : Math.max(500, estimateTokens(task) * 120);
+    const budgetRiskFactors = Array.isArray(budgetEstimate?.riskFactors)
+      ? budgetEstimate.riskFactors
+      : [];
+
+    const contextPackResult = await this.executeGetContextPack({
+      intent: task,
+      workspace: workspacePath,
+      workdir: input.workdir,
+      tokenBudget: 1400,
+      relevantFiles: input.recentFiles,
+    }) as {
+      success?: boolean;
+      functions?: unknown[];
+      tokenCount?: number;
+    };
+    const contextPackAvailable = contextPackResult?.success === true
+      && Array.isArray(contextPackResult.functions)
+      && contextPackResult.functions.length > 0;
+
+    let blastRadius: number | undefined;
+    const blastTarget = (typeof input.functionId === 'string' && input.functionId.trim().length > 0)
+      ? input.functionId
+      : (Array.isArray(input.recentFiles) && input.recentFiles.length > 0 ? input.recentFiles[0] : undefined);
+    if (blastTarget) {
+      const blast = await this.executeGetChangeImpact({
+        target: blastTarget,
+        workspace: workspacePath,
+      }) as { success?: boolean; summary?: { riskScore?: number } };
+      if (blast?.success === true && Number.isFinite(blast.summary?.riskScore)) {
+        blastRadius = Math.max(0, Math.min(100, Math.round(blast.summary?.riskScore ?? 0)));
+      }
+    }
+
+    let complexity: 'simple' | 'moderate' | 'complex' | 'expert' = 'simple';
+    if (estimatedTokens > 10_000 || (typeof blastRadius === 'number' && blastRadius > 70)) {
+      complexity = 'complex';
+    }
+    if (estimatedTokens > 20_000 || (typeof blastRadius === 'number' && blastRadius > 85)) {
+      complexity = 'expert';
+    }
+    if (estimatedTokens >= 2_000 && estimatedTokens <= 10_000 && complexity === 'simple') {
+      complexity = 'moderate';
+    }
+
+    const librainianCanAnswer = contextPackAvailable
+      && estimatedTokens < 2_000
+      && (typeof blastRadius !== 'number' || blastRadius < 30);
+    const recommendedModel = librainianCanAnswer
+      ? 'librainian-direct'
+      : (complexity === 'simple'
+        ? 'claude-haiku-3-5'
+        : complexity === 'moderate'
+          ? 'claude-sonnet-4'
+          : complexity === 'complex'
+            ? 'claude-sonnet-4'
+            : 'claude-opus-4');
+
+    const confidence = Math.max(
+      0.4,
+      Math.min(
+        0.98,
+        0.55
+          + (budgetEstimate?.success ? 0.15 : 0)
+          + (contextPackAvailable ? 0.2 : 0)
+          + (typeof blastRadius === 'number' ? 0.1 : 0),
+      ),
+    );
+
+    const reasoning = librainianCanAnswer
+      ? 'High-confidence context pack coverage indicates librainian can answer directly without dispatching a frontier model.'
+      : `Estimated ${estimatedTokens.toLocaleString()} tokens with complexity ${complexity}${typeof blastRadius === 'number' ? ` and blast radius ${blastRadius}` : ''}; route to ${recommendedModel}.`;
+
+    return {
+      success: true,
+      tool: 'estimate_task_complexity',
+      complexity,
+      estimatedTokens,
+      recommendedModel,
+      confidence,
+      reasoning,
+      contextPackAvailable,
+      blastRadius,
+      librainianCanAnswer,
+      libraininaCanAnswer: librainianCanAnswer,
+      riskFactors: budgetRiskFactors,
+      workspace: workspacePath,
+    };
+  }
+
   private async executeResetSessionState(
     input: ResetSessionStateToolInput,
     context: ToolExecutionContext = {}
@@ -4497,6 +5522,446 @@ export class LibrarianMCPServer {
     const logPath = path.join(workspaceRoot, '.librainian', 'audit-log.jsonl');
     await fs.mkdir(path.dirname(logPath), { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  private async executeListConstructions(input: ListConstructionsToolInput): Promise<unknown> {
+    const manifests = listConstructions({
+      tags: input.tags,
+      capabilities: input.capabilities ?? input.requires,
+      trustTier: input.trustTier,
+      availableOnly: input.availableOnly,
+    });
+    const languageFilter = input.language?.trim().toLowerCase();
+    const filtered = languageFilter
+      ? manifests.filter((manifest) =>
+        (manifest.languages ?? []).some((language) => String(language).toLowerCase() === languageFilter))
+      : manifests;
+    const constructions = filtered.map((manifest) => ({
+      id: manifest.id,
+      name: manifest.name,
+      scope: manifest.scope,
+      version: manifest.version,
+      description: manifest.description,
+      agentDescription: manifest.agentDescription,
+      tags: manifest.tags,
+      trustTier: manifest.trustTier,
+      requiredCapabilities: manifest.requiredCapabilities,
+      inputType: this.describeConstructionSchema(manifest.inputSchema),
+      outputType: this.describeConstructionSchema(manifest.outputSchema),
+      inputSchema: manifest.inputSchema,
+      outputSchema: manifest.outputSchema,
+      languages: manifest.languages,
+      frameworks: manifest.frameworks,
+      examples: manifest.examples,
+      availableInCurrentSession: manifest.available !== false,
+      legacyIds: manifest.legacyIds,
+    }));
+
+    return {
+      count: constructions.length,
+      constructions,
+      hint: constructions.length > 0
+        ? `Call describe_construction with id='${constructions[0].id}' for full details and example code.`
+        : 'No constructions matched current filters. Remove language/requires filters or availableOnly to broaden results.',
+    };
+  }
+
+  private async executeInvokeConstruction(input: InvokeConstructionToolInput): Promise<unknown> {
+    const manifest = getConstructionManifest(input.constructionId);
+    if (!manifest) {
+      throw new Error(
+        `Unknown Construction ID: ${input.constructionId}. Use list_constructions to discover IDs.`,
+      );
+    }
+    const requiresLibrarian = manifest.requiredCapabilities.includes('librarian');
+    let resolvedWorkspace: string | undefined;
+    let deps: Record<string, unknown> = {};
+
+    if (requiresLibrarian) {
+      const workspaceRoot = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path
+          ?? this.state.workspaces.keys().next().value
+          ?? this.config.workspaces[0];
+
+      if (!workspaceRoot) {
+        throw new Error(
+          `No workspace available for invoke_construction(${manifest.id}). Provide workspace or run bootstrap first.`,
+        );
+      }
+
+      resolvedWorkspace = path.resolve(workspaceRoot);
+      if (!this.state.workspaces.has(resolvedWorkspace)) {
+        this.registerWorkspace(resolvedWorkspace);
+      }
+
+      let workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
+
+      if (!workspaceState.librarian) {
+        const librarian = await createLibrarian({
+          workspace: resolvedWorkspace,
+          autoBootstrap: true,
+          autoWatch: false,
+        });
+        const status = await librarian.getStatus().catch(() => null);
+        this.updateWorkspaceState(resolvedWorkspace, {
+          librarian,
+          indexState: status?.bootstrapped ? 'ready' : 'stale',
+          indexedAt: status?.lastBootstrap ? status.lastBootstrap.toISOString() : undefined,
+          watching: false,
+        });
+        workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
+      }
+
+      const librarian = workspaceState.librarian;
+      if (!librarian) {
+        throw new Error(`Failed to initialize Librarian runtime for workspace: ${resolvedWorkspace}`);
+      }
+      deps = { librarian };
+    }
+
+    const controller = new AbortController();
+    const result = await invokeConstruction(
+      manifest.id,
+      input.input,
+      {
+        deps,
+        signal: controller.signal,
+        sessionId: `invoke_${this.generateId()}`,
+        metadata: {
+          tool: 'invoke_construction',
+          workspace: resolvedWorkspace,
+        },
+      },
+    );
+
+    return {
+      constructionId: manifest.id,
+      name: manifest.name,
+      success: true,
+      available: manifest.available !== false,
+      workspace: resolvedWorkspace,
+      result,
+    };
+  }
+
+  private async executeDescribeConstruction(input: DescribeConstructionToolInput): Promise<unknown> {
+    const manifest = getConstructionManifest(input.id);
+    if (!manifest) {
+      throw new Error(
+        `Unknown Construction ID: ${input.id}. Use list_constructions to discover IDs.`,
+      );
+    }
+
+    const includeExample = input.includeExample ?? true;
+    const includeCompositionHints = input.includeCompositionHints ?? true;
+    const compositionHints = includeCompositionHints
+      ? this.buildCompositionHints(manifest.id)
+      : undefined;
+
+    return {
+      id: manifest.id,
+      name: manifest.name,
+      scope: manifest.scope,
+      version: manifest.version,
+      description: manifest.description,
+      agentDescription: manifest.agentDescription,
+      inputType: this.describeConstructionSchema(manifest.inputSchema),
+      outputType: this.describeConstructionSchema(manifest.outputSchema),
+      requiredCapabilities: manifest.requiredCapabilities,
+      tags: manifest.tags,
+      trustTier: manifest.trustTier,
+      availableInCurrentSession: manifest.available !== false,
+      inputSchema: manifest.inputSchema,
+      outputSchema: manifest.outputSchema,
+      example: includeExample ? this.renderConstructionExample(manifest.id, manifest.examples[0]?.input) : undefined,
+      compositionHints,
+      examples: manifest.examples,
+    };
+  }
+
+  private async executeExplainOperator(input: ExplainOperatorToolInput): Promise<unknown> {
+    const situation = input.situation?.trim();
+    const operator = input.operator;
+
+    if (!operator && situation) {
+      const recommendation = this.recommendOperatorForSituation(situation);
+      const guide = OPERATOR_GUIDE[recommendation];
+      return {
+        situation,
+        recommendation,
+        reason: `${guide.summary} ${guide.decisionGuide}`,
+        example: guide.example,
+      };
+    }
+
+    if (!operator) {
+      throw new Error('Either operator or situation is required for explain_operator.');
+    }
+
+    const guide = OPERATOR_GUIDE[operator];
+    return {
+      operator,
+      summary: guide.summary,
+      decisionGuide: guide.decisionGuide,
+      example: guide.example,
+    };
+  }
+
+  private async executeCheckConstructionTypes(input: CheckConstructionTypesToolInput): Promise<unknown> {
+    const first = getConstructionManifest(input.first);
+    const second = getConstructionManifest(input.second);
+    if (!first) {
+      throw new Error(`Unknown Construction ID: ${input.first}. Use list_constructions to discover IDs.`);
+    }
+    if (!second) {
+      throw new Error(`Unknown Construction ID: ${input.second}. Use list_constructions to discover IDs.`);
+    }
+
+    if (input.operator === 'seq') {
+      const score = CONSTRUCTION_REGISTRY.compatibilityScore(first.id, second.id);
+      const compatible = score >= 0.5;
+      if (compatible) {
+        return {
+          compatible: true,
+          operator: input.operator,
+          seam: `${first.id}.output -> ${second.id}.input`,
+          note: `Compatibility score ${score.toFixed(2)} indicates the output shape is assignable to the downstream input.`,
+        };
+      }
+      return {
+        compatible: false,
+        operator: input.operator,
+        problem: `${first.id} outputs ${this.describeConstructionSchema(first.outputSchema)} but ${second.id} expects ${this.describeConstructionSchema(second.inputSchema)}.`,
+        suggestions: [
+          `Add a dimap adapter: seq(${first.id}, ${second.id}.contramap((value) => ({ ...value })))`,
+          `Insert an adapter construction: seq(${first.id}, seq(transform_output_for_${second.id.replace(/[^a-z0-9]+/gi, '_')}, ${second.id}))`,
+        ],
+      };
+    }
+
+    if (input.operator === 'fanout') {
+      const score = this.computeSchemaCompatibilityScore(first.inputSchema, second.inputSchema);
+      const compatible = score >= 0.5;
+      if (compatible) {
+        return {
+          compatible: true,
+          operator: input.operator,
+          seam: `${first.id}.input <-> ${second.id}.input`,
+          note: `Input compatibility score ${score.toFixed(2)} indicates both constructions can share the same upstream input.`,
+        };
+      }
+      return {
+        compatible: false,
+        operator: input.operator,
+        problem: `${first.id} expects ${this.describeConstructionSchema(first.inputSchema)} while ${second.id} expects ${this.describeConstructionSchema(second.inputSchema)}.`,
+        suggestions: [
+          `Normalize input before fanout via dimap/contramap adapters on one branch.`,
+          `Use seq with an explicit transform step, then fanout on the normalized payload.`,
+        ],
+      };
+    }
+
+    const inputScore = this.computeSchemaCompatibilityScore(first.inputSchema, second.inputSchema);
+    const outputScore = this.computeSchemaCompatibilityScore(first.outputSchema, second.outputSchema);
+    const compatible = inputScore >= 0.5 && outputScore >= 0.5;
+    if (compatible) {
+      return {
+        compatible: true,
+        operator: input.operator,
+        seam: `${first.id} ||| ${second.id}`,
+        note: `Fallback compatibility confirmed (input ${inputScore.toFixed(2)}, output ${outputScore.toFixed(2)}).`,
+      };
+    }
+    return {
+      compatible: false,
+      operator: input.operator,
+      problem: `Fallback requires compatible input/output contracts, but scores were input=${inputScore.toFixed(2)} and output=${outputScore.toFixed(2)}.`,
+      suggestions: [
+        `Adapt both branches to a shared contract using dimap before fallback.`,
+        `Wrap one branch in map/contramap transforms so both branches return the same output shape.`,
+      ],
+    };
+  }
+
+  private renderConstructionExample(constructionId: string, input: unknown): string {
+    const exampleInput = input === undefined ? '{}' : JSON.stringify(input, null, 2);
+    return [
+      "import { getConstructionManifest } from 'librainian/constructions/registry';",
+      '',
+      `const manifest = getConstructionManifest('${constructionId}');`,
+      "if (!manifest) throw new Error('Construction not found');",
+      '',
+      'const result = await manifest.construction.execute(',
+      `  ${exampleInput},`,
+      '  {',
+      '    deps: { librarian },',
+      '    signal: AbortSignal.timeout(30_000),',
+      "    sessionId: 'session-id',",
+      '  }',
+      ');',
+    ].join('\n');
+  }
+
+  private buildCompositionHints(constructionId: string): { goodWith: string[]; operator: string } {
+    const related = listConstructions({ availableOnly: true })
+      .filter((manifest) => manifest.id !== constructionId)
+      .map((manifest) => ({
+        id: manifest.id,
+        score: CONSTRUCTION_REGISTRY.compatibilityScore(constructionId, manifest.id),
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    const goodWith = related.map((entry) =>
+      `${entry.id} (${entry.score >= 0.6 ? 'seq' : 'fanout'} for ${
+        entry.score >= 0.6 ? 'output-to-input chaining' : 'parallel analysis on shared input'
+      })`);
+
+    const operator = related.some((entry) => entry.score >= 0.6)
+      ? 'Use seq() when you want downstream constructions to consume this output.'
+      : 'Use fanout() when you want this construction to run in parallel with another analysis over the same input.';
+
+    return { goodWith, operator };
+  }
+
+  private recommendOperatorForSituation(situation: string): ConstructionOperator {
+    const normalized = situation.toLowerCase();
+    if (/(parallel|concurrent|at the same time|both)/.test(normalized)) return 'fanout';
+    if (/(fallback|backup|if fails|on failure|retry with)/.test(normalized)) return 'fallback';
+    if (/(recursive|iterate|until stable|fixpoint|converge)/.test(normalized)) return 'fix';
+    if (/(branch|route|choose|select|either)/.test(normalized)) return 'select';
+    if (/(input transform|normalize input|preprocess input|before running)/.test(normalized)) return 'contramap';
+    if (/(output transform|post-process|format output|after running)/.test(normalized)) return 'map';
+    if (/(adapt input and output|both input and output)/.test(normalized)) return 'dimap';
+    if (/(single step|atomic|primitive|small transform)/.test(normalized)) return 'atom';
+    return 'seq';
+  }
+
+  private describeConstructionSchema(schema: {
+    type?: string;
+    properties?: Record<string, { type?: string }>;
+    required?: string[];
+    items?: { type?: string } | Array<{ type?: string }>;
+    oneOf?: Array<{ type?: string }>;
+    anyOf?: Array<{ type?: string }>;
+    allOf?: Array<{ type?: string }>;
+    enum?: Array<string | number | boolean>;
+  }): string {
+    if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+      return schema.enum.slice(0, 4).map((value) => JSON.stringify(value)).join(' | ');
+    }
+    if (schema.type === 'array') {
+      if (Array.isArray(schema.items)) {
+        return `Array<${schema.items.map((item) => item?.type ?? 'unknown').join(' | ')}>`;
+      }
+      return `Array<${schema.items?.type ?? 'unknown'}>`;
+    }
+    if (schema.type === 'object') {
+      const required = new Set(schema.required ?? []);
+      const props = Object.entries(schema.properties ?? {});
+      if (props.length === 0) {
+        return 'Record<string, unknown>';
+      }
+      const preview = props.slice(0, 4)
+        .map(([name, value]) => `${name}${required.has(name) ? '' : '?'}: ${value?.type ?? 'unknown'}`);
+      return `{ ${preview.join(', ')}${props.length > 4 ? ', ...' : ''} }`;
+    }
+    const unionTypes = [
+      ...(schema.oneOf ?? []).map((entry) => entry.type).filter((value): value is string => typeof value === 'string'),
+      ...(schema.anyOf ?? []).map((entry) => entry.type).filter((value): value is string => typeof value === 'string'),
+      ...(schema.allOf ?? []).map((entry) => entry.type).filter((value): value is string => typeof value === 'string'),
+    ];
+    if (unionTypes.length > 0) {
+      return Array.from(new Set(unionTypes)).join(' | ');
+    }
+    return schema.type ?? 'unknown';
+  }
+
+  private computeSchemaCompatibilityScore(
+    left: {
+      type?: string;
+      properties?: Record<string, unknown>;
+      required?: string[];
+      oneOf?: Array<{ type?: string }>;
+      anyOf?: Array<{ type?: string }>;
+      allOf?: Array<{ type?: string }>;
+      items?: { type?: string } | Array<{ type?: string }>;
+    },
+    right: {
+      type?: string;
+      properties?: Record<string, unknown>;
+      required?: string[];
+      oneOf?: Array<{ type?: string }>;
+      anyOf?: Array<{ type?: string }>;
+      allOf?: Array<{ type?: string }>;
+      items?: { type?: string } | Array<{ type?: string }>;
+    },
+  ): number {
+    const leftTypes = this.collectSchemaTypes(left);
+    const rightTypes = this.collectSchemaTypes(right);
+    if (leftTypes.size > 0 && rightTypes.size > 0) {
+      const overlap = Array.from(leftTypes).filter((type) => rightTypes.has(type));
+      if (overlap.length > 0) {
+        return overlap.length / Math.max(leftTypes.size, rightTypes.size);
+      }
+    }
+
+    if (left.type === 'object' && right.type === 'object') {
+      const leftProps = new Set(Object.keys(left.properties ?? {}));
+      const rightProps = new Set(Object.keys(right.properties ?? {}));
+      const leftRequired = left.required ?? [];
+      const rightRequired = right.required ?? [];
+      const leftMatches = leftRequired.filter((name) => rightProps.has(name)).length;
+      const rightMatches = rightRequired.filter((name) => leftProps.has(name)).length;
+      const requiredCount = leftRequired.length + rightRequired.length;
+      if (requiredCount === 0) {
+        return 0.75;
+      }
+      return (leftMatches + rightMatches) / requiredCount;
+    }
+
+    return 0;
+  }
+
+  private collectSchemaTypes(schema: {
+    type?: string;
+    oneOf?: Array<{ type?: string }>;
+    anyOf?: Array<{ type?: string }>;
+    allOf?: Array<{ type?: string }>;
+    items?: { type?: string } | Array<{ type?: string }>;
+  }): Set<string> {
+    const types = new Set<string>();
+    if (typeof schema.type === 'string' && schema.type.length > 0) {
+      types.add(schema.type);
+    }
+    for (const entry of schema.oneOf ?? []) {
+      if (typeof entry.type === 'string') {
+        types.add(entry.type);
+      }
+    }
+    for (const entry of schema.anyOf ?? []) {
+      if (typeof entry.type === 'string') {
+        types.add(entry.type);
+      }
+    }
+    for (const entry of schema.allOf ?? []) {
+      if (typeof entry.type === 'string') {
+        types.add(entry.type);
+      }
+    }
+    if (!Array.isArray(schema.items) && typeof schema.items?.type === 'string') {
+      types.add(schema.items.type);
+    }
+    if (Array.isArray(schema.items)) {
+      for (const entry of schema.items) {
+        if (typeof entry?.type === 'string') {
+          types.add(entry.type);
+        }
+      }
+    }
+    return types;
   }
 
   private async executeRequestHumanReview(input: RequestHumanReviewToolInput): Promise<unknown> {
@@ -4718,6 +6183,301 @@ export class LibrarianMCPServer {
     } catch (error) {
       return {
         found: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async resolveFunctionTargetsForLookup(
+    storage: LibrarianStorage,
+    query: string,
+  ): Promise<Array<{
+    id: string;
+    name: string;
+    signature: string;
+    filePath: string;
+    purpose?: string;
+    confidence?: number;
+  }>> {
+    const trimmed = query.trim();
+    if (trimmed.length === 0) return [];
+
+    const byId = await storage.getFunction(trimmed).catch(() => null);
+    const byName = await storage.getFunctionsByName(trimmed).catch(() => []);
+    const fallbackPool = byId || byName.length > 0
+      ? []
+      : await storage.getFunctions({ limit: 1500, orderBy: 'name', orderDirection: 'asc' }).catch(() => []);
+    const fallback = fallbackPool.filter((fn) =>
+      this.scoreFindSymbolCandidate(
+        trimmed,
+        `${fn.id} ${fn.name} ${fn.signature} ${fn.filePath}`
+      ) >= 0.45
+    );
+
+    const merged = [
+      ...(byId ? [byId] : []),
+      ...byName,
+      ...fallback,
+    ];
+    const deduped = new Map<string, {
+      id: string;
+      name: string;
+      signature: string;
+      filePath: string;
+      purpose?: string;
+      confidence?: number;
+    }>();
+    for (const fn of merged) {
+      if (!fn || typeof fn.id !== 'string' || fn.id.length === 0) continue;
+      if (!deduped.has(fn.id)) {
+        deduped.set(fn.id, {
+          id: fn.id,
+          name: fn.name,
+          signature: fn.signature,
+          filePath: fn.filePath,
+          purpose: fn.purpose,
+          confidence: fn.confidence,
+        });
+      }
+    }
+
+    return Array.from(deduped.values());
+  }
+
+  private async executeFindCallers(input: FindCallersToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const targets = await this.resolveFunctionTargetsForLookup(storage, input.functionId);
+      if (targets.length === 0) {
+        return {
+          success: true,
+          functionId: input.functionId,
+          callSites: [],
+          totalCallSites: 0,
+          workspace: workspacePath,
+          transitive: input.transitive ?? false,
+          maxDepth: input.maxDepth ?? 3,
+        };
+      }
+
+      const transitive = input.transitive ?? false;
+      const maxDepth = Math.max(1, Math.min(8, Math.trunc(input.maxDepth ?? 3)));
+      const depthLimit = transitive ? maxDepth : 1;
+      const limit = Math.max(1, Math.min(500, Math.trunc(input.limit ?? 100)));
+      const queue: Array<{ targetId: string; depth: number }> = targets.map((target) => ({ targetId: target.id, depth: 1 }));
+      const visitedTargets = new Set<string>(targets.map((target) => target.id));
+      const seenEdges = new Set<string>();
+      const callSites: Array<{
+        file: string;
+        line: number | null;
+        column: number;
+        callerFunctionId: string;
+        callerName: string;
+        calleeFunctionId: string;
+        depth: number;
+        semanticContext: string;
+        confidence: number;
+      }> = [];
+
+      while (queue.length > 0 && callSites.length < limit) {
+        const current = queue.shift()!;
+        if (current.depth > depthLimit) {
+          continue;
+        }
+
+        const edges = await storage.getGraphEdges({
+          toIds: [current.targetId],
+          edgeTypes: ['calls'],
+          limit,
+        }).catch(() => []);
+
+        for (const edge of edges) {
+          if (typeof edge.fromId !== 'string' || edge.fromId.length === 0) continue;
+          const edgeKey = `${edge.fromId}->${current.targetId}@${current.depth}`;
+          if (seenEdges.has(edgeKey)) continue;
+          seenEdges.add(edgeKey);
+
+          const caller = await storage.getFunction(edge.fromId).catch(() => null);
+          callSites.push({
+            file: caller?.filePath ?? edge.sourceFile,
+            line: typeof edge.sourceLine === 'number' ? edge.sourceLine : null,
+            column: 1,
+            callerFunctionId: edge.fromId,
+            callerName: caller?.name ?? edge.fromId,
+            calleeFunctionId: current.targetId,
+            depth: current.depth,
+            semanticContext: current.depth > 1
+              ? `Transitive caller at depth ${current.depth} in the upstream call chain.`
+              : 'Direct caller of the requested function.',
+            confidence: Number.isFinite(edge.confidence) ? edge.confidence : 0.5,
+          });
+
+          if (callSites.length >= limit) break;
+          if (current.depth < depthLimit && !visitedTargets.has(edge.fromId)) {
+            visitedTargets.add(edge.fromId);
+            queue.push({ targetId: edge.fromId, depth: current.depth + 1 });
+          }
+        }
+      }
+
+      return {
+        success: true,
+        functionId: input.functionId,
+        resolvedFunctionIds: targets.map((target) => target.id),
+        workspace: workspacePath,
+        transitive,
+        maxDepth: depthLimit,
+        callSites,
+        totalCallSites: callSites.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        functionId: input.functionId,
+        callSites: [],
+        totalCallSites: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeFindCallees(input: FindCalleesToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const targets = await this.resolveFunctionTargetsForLookup(storage, input.functionId);
+      if (targets.length === 0) {
+        return {
+          success: true,
+          functionId: input.functionId,
+          callees: [],
+          totalCallees: 0,
+          workspace: workspacePath,
+        };
+      }
+
+      const limit = Math.max(1, Math.min(500, Math.trunc(input.limit ?? 100)));
+      const seen = new Set<string>();
+      const callees: Array<{
+        functionId: string;
+        name: string;
+        file: string;
+        line: number | null;
+        description: string;
+        confidence: number;
+        calledFrom: string;
+      }> = [];
+
+      for (const target of targets) {
+        const edges = await storage.getGraphEdges({
+          fromIds: [target.id],
+          edgeTypes: ['calls'],
+          limit,
+        }).catch(() => []);
+        for (const edge of edges) {
+          if (typeof edge.toId !== 'string' || edge.toId.length === 0) continue;
+          const key = `${target.id}->${edge.toId}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          const callee = await storage.getFunction(edge.toId).catch(() => null);
+          callees.push({
+            functionId: edge.toId,
+            name: callee?.name ?? edge.toId,
+            file: callee?.filePath ?? edge.sourceFile,
+            line: typeof edge.sourceLine === 'number' ? edge.sourceLine : null,
+            description: callee?.purpose ?? `Function called by ${target.name}.`,
+            confidence: Number.isFinite(edge.confidence) ? edge.confidence : (callee?.confidence ?? 0.5),
+            calledFrom: target.id,
+          });
+          if (callees.length >= limit) break;
+        }
+        if (callees.length >= limit) break;
+      }
+
+      return {
+        success: true,
+        functionId: input.functionId,
+        resolvedFunctionIds: targets.map((target) => target.id),
+        workspace: workspacePath,
+        callees,
+        totalCallees: callees.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        functionId: input.functionId,
+        callees: [],
+        totalCallees: 0,
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -5362,6 +7122,663 @@ export class LibrarianMCPServer {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  private async executeBlastRadius(input: BlastRadiusToolInput): Promise<unknown> {
+    const base = await this.executeGetChangeImpact({
+      target: input.target,
+      workspace: input.workspace,
+      depth: input.depth,
+      maxResults: input.maxResults,
+      changeType: input.changeType,
+    });
+
+    if (!base || typeof base !== 'object') {
+      return base;
+    }
+
+    const payload = base as Record<string, unknown>;
+    if (payload.success === false) {
+      return {
+        ...payload,
+        tool: 'blast_radius',
+        aliasOf: 'get_change_impact',
+      };
+    }
+
+    const summary = (payload.summary ?? {}) as Record<string, unknown>;
+    const riskLevel = summary.riskLevel;
+    const nextTools = riskLevel === 'critical' || riskLevel === 'high'
+      ? ['request_human_review', 'synthesize_plan']
+      : ['synthesize_plan', 'query'];
+
+    return {
+      ...payload,
+      tool: 'blast_radius',
+      aliasOf: 'get_change_impact',
+      preEditGuidance: {
+        recommendation: 'Run blast radius before edits; if risk is high, pause for review and create an explicit plan.',
+        nextTools,
+      },
+    };
+  }
+
+  private async executePreCommitCheck(input: PreCommitCheckToolInput): Promise<unknown> {
+    const changedFiles = Array.from(
+      new Set((input.changedFiles ?? []).map((file) => file.trim()).filter((file) => file.length > 0)),
+    );
+    if (changedFiles.length === 0) {
+      return {
+        success: false,
+        passed: false,
+        error: 'changedFiles must contain at least one non-empty file path.',
+      };
+    }
+
+    const workspacePath = input.workspace
+      ? path.resolve(input.workspace)
+      : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+
+    if (!workspacePath) {
+      return {
+        success: false,
+        passed: false,
+        changedFiles,
+        error: 'No workspace specified and no workspaces registered.',
+        recommendedActions: [
+          { tool: 'bootstrap', rationale: 'Register and index a workspace before semantic pre-commit checks.' },
+        ],
+      };
+    }
+
+    const riskRank: Record<'low' | 'medium' | 'high' | 'critical', number> = {
+      low: 1,
+      medium: 2,
+      high: 3,
+      critical: 4,
+    };
+    const strict = input.strict ?? false;
+    const maxRiskLevel = input.maxRiskLevel ?? (strict ? 'medium' : 'high');
+    const thresholdRank = riskRank[maxRiskLevel];
+
+    const fileChecks: Array<{
+      file: string;
+      passed: boolean;
+      riskLevel: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
+      totalImpacted: number;
+      reason: string;
+    }> = [];
+
+    for (const file of changedFiles) {
+      const impact = await this.executeGetChangeImpact({
+        target: file,
+        workspace: workspacePath,
+      });
+
+      if (!impact || typeof impact !== 'object') {
+        fileChecks.push({
+          file,
+          passed: !strict,
+          riskLevel: 'unknown',
+          totalImpacted: 0,
+          reason: 'Impact analysis returned an unexpected payload.',
+        });
+        continue;
+      }
+
+      const payload = impact as Record<string, unknown>;
+      if (payload.success === false) {
+        fileChecks.push({
+          file,
+          passed: false,
+          riskLevel: 'unknown',
+          totalImpacted: 0,
+          reason: typeof payload.error === 'string' ? payload.error : 'Impact analysis failed.',
+        });
+        continue;
+      }
+
+      const summary = (payload.summary ?? {}) as Record<string, unknown>;
+      const riskLevel = (summary.riskLevel ?? 'unknown') as 'low' | 'medium' | 'high' | 'critical' | 'unknown';
+      const totalImpacted = typeof summary.totalImpacted === 'number' ? summary.totalImpacted : 0;
+      const passed = riskLevel === 'unknown'
+        ? !strict
+        : riskRank[riskLevel] <= thresholdRank;
+      fileChecks.push({
+        file,
+        passed,
+        riskLevel,
+        totalImpacted,
+        reason: riskLevel === 'unknown'
+          ? 'Risk level unavailable from impact analysis.'
+          : `Risk ${riskLevel} is ${passed ? 'within' : 'above'} maxRiskLevel=${maxRiskLevel}.`,
+      });
+    }
+
+    const passed = fileChecks.every((check) => check.passed);
+    const highRiskCount = fileChecks.filter((check) => check.riskLevel === 'high' || check.riskLevel === 'critical').length;
+    const failingFiles = fileChecks.filter((check) => !check.passed).map((check) => check.file);
+    const recommendedActions = passed
+      ? [
+        { tool: 'submit_feedback', rationale: 'Record successful outcome after merge/verification.' },
+      ]
+      : highRiskCount > 0
+        ? [
+          { tool: 'request_human_review', rationale: 'High-risk blast radius detected in changed files.' },
+          { tool: 'synthesize_plan', rationale: 'Persist mitigation/rollback plan before submitting.' },
+        ]
+        : [
+          { tool: 'query', rationale: 'Collect more context for failing files before submit.' },
+          { tool: 'synthesize_plan', rationale: 'Convert remediation into explicit steps.' },
+        ];
+
+    return {
+      success: true,
+      tool: 'pre_commit_check',
+      workspace: workspacePath,
+      passed,
+      strict,
+      maxRiskLevel,
+      checks: fileChecks,
+      summary: {
+        totalFiles: fileChecks.length,
+        passedFiles: fileChecks.filter((check) => check.passed).length,
+        failingFiles,
+        highRiskCount,
+      },
+      recommendedActions,
+    };
+  }
+
+  private normalizeClaimValues(values: string[] | undefined, maxItems = 32): string[] {
+    if (!Array.isArray(values)) return [];
+    const normalized = values
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const unique = Array.from(new Set(normalized));
+    return unique.slice(0, maxItems);
+  }
+
+  private async executeAppendClaim(
+    input: AppendClaimToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const claim = input.claim?.trim() ?? '';
+    if (claim.length === 0) {
+      return {
+        success: false,
+        tool: 'append_claim',
+        error: 'claim must be a non-empty string.',
+      };
+    }
+
+    const workspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? contextSessionId
+      ?? this.buildAnonymousSessionId(workspace ?? process.cwd());
+    const tags = this.normalizeClaimValues(input.tags?.map((tag) => tag.toLowerCase()), 24);
+    const evidence = this.normalizeClaimValues(input.evidence, 32);
+    const confidenceInput = typeof input.confidence === 'number' && Number.isFinite(input.confidence)
+      ? input.confidence
+      : 0.6;
+    const confidence = Math.max(0, Math.min(1, confidenceInput));
+    const sourceTool = typeof input.sourceTool === 'string' && input.sourceTool.trim().length > 0
+      ? input.sourceTool.trim()
+      : undefined;
+    const createdAt = new Date().toISOString();
+    const claimId = `clm_${this.generateId()}`;
+
+    const record: KnowledgeClaimRecord = {
+      claimId,
+      claim,
+      workspace,
+      sessionId,
+      tags,
+      evidence,
+      confidence,
+      sourceTool,
+      createdAt,
+    };
+    this.state.knowledgeClaims.push(record);
+    if (this.state.knowledgeClaims.length > 5000) {
+      this.state.knowledgeClaims.splice(0, this.state.knowledgeClaims.length - 5000);
+    }
+
+    await this.appendWorkspaceAuditLog(workspace ?? process.cwd(), {
+      ts: createdAt,
+      event: 'append_claim',
+      claim_id: claimId,
+      claim,
+      session_id: sessionId,
+      workspace: workspace ?? process.cwd(),
+      tags,
+      confidence,
+      source_tool: sourceTool,
+    });
+
+    return {
+      success: true,
+      tool: 'append_claim',
+      claimId,
+      claim,
+      sessionId,
+      workspace,
+      tags,
+      evidence,
+      confidence,
+      sourceTool,
+      storedAt: createdAt,
+      claimCount: this.state.knowledgeClaims.length,
+    };
+  }
+
+  private async executeQueryClaims(input: QueryClaimsToolInput): Promise<unknown> {
+    const workspaceFilter = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const sessionFilter = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const query = typeof input.query === 'string' ? input.query.trim().toLowerCase() : '';
+    const tagFilters = this.normalizeClaimValues(input.tags?.map((tag) => tag.toLowerCase()), 24);
+    const limit = Math.max(1, Math.min(200, Math.trunc(input.limit ?? 20)));
+
+    let sinceMs: number | undefined;
+    if (typeof input.since === 'string' && input.since.trim().length > 0) {
+      const parsed = Date.parse(input.since);
+      if (!Number.isFinite(parsed)) {
+        return {
+          success: false,
+          tool: 'query_claims',
+          error: 'since must be a valid ISO timestamp.',
+        };
+      }
+      sinceMs = parsed;
+    }
+
+    const filtered = this.state.knowledgeClaims
+      .filter((record) => !workspaceFilter || record.workspace === workspaceFilter)
+      .filter((record) => !sessionFilter || record.sessionId === sessionFilter)
+      .filter((record) => {
+        if (tagFilters.length === 0) return true;
+        return record.tags.some((tag) => tagFilters.includes(tag));
+      })
+      .filter((record) => {
+        if (typeof sinceMs !== 'number') return true;
+        const createdAtMs = Date.parse(record.createdAt);
+        return Number.isFinite(createdAtMs) && createdAtMs >= sinceMs;
+      })
+      .filter((record) => {
+        if (!query) return true;
+        const searchable = [
+          record.claim,
+          ...record.tags,
+          ...record.evidence,
+          record.sourceTool ?? '',
+        ].join(' ').toLowerCase();
+        return searchable.includes(query);
+      })
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+
+    const claims = filtered.slice(0, limit).map((record) => ({
+      claimId: record.claimId,
+      claim: record.claim,
+      workspace: record.workspace,
+      sessionId: record.sessionId,
+      tags: record.tags,
+      evidence: record.evidence,
+      confidence: record.confidence,
+      sourceTool: record.sourceTool,
+      createdAt: record.createdAt,
+    }));
+
+    return {
+      success: true,
+      tool: 'query_claims',
+      totalMatches: filtered.length,
+      returned: claims.length,
+      claims,
+      filters: {
+        query: query || undefined,
+        workspace: workspaceFilter,
+        sessionId: sessionFilter,
+        tags: tagFilters,
+        since: input.since,
+        limit,
+      },
+    };
+  }
+
+  private async executeHarvestSessionKnowledge(
+    input: HarvestSessionKnowledgeToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const workspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? contextSessionId
+      ?? this.buildAnonymousSessionId(workspace ?? process.cwd());
+    const maxItems = Math.max(1, Math.min(200, Math.trunc(input.maxItems ?? 20)));
+    const minConfidence = Math.max(0, Math.min(1, input.minConfidence ?? 0));
+    const includeRecommendations = input.includeRecommendations ?? true;
+
+    const matching = this.state.knowledgeClaims
+      .filter((record) => record.sessionId === sessionId)
+      .filter((record) => !workspace || record.workspace === workspace)
+      .filter((record) => record.confidence >= minConfidence)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const claims = matching.slice(0, maxItems).map((record) => ({
+      claimId: record.claimId,
+      claim: record.claim,
+      workspace: record.workspace,
+      sessionId: record.sessionId,
+      tags: record.tags,
+      evidence: record.evidence,
+      confidence: record.confidence,
+      sourceTool: record.sourceTool,
+      createdAt: record.createdAt,
+    }));
+
+    const tagCount = new Map<string, number>();
+    for (const record of matching) {
+      for (const tag of record.tags) {
+        tagCount.set(tag, (tagCount.get(tag) ?? 0) + 1);
+      }
+    }
+    const topTags = Array.from(tagCount.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => (b.count - a.count) || a.tag.localeCompare(b.tag))
+      .slice(0, 10);
+    const averageConfidence = matching.length > 0
+      ? matching.reduce((sum, record) => sum + record.confidence, 0) / matching.length
+      : 0;
+
+    let memoryBridge: {
+      memoryFilePath: string;
+      source: 'openclaw-session' | 'manual' | 'harvest';
+      written: number;
+      skipped: number;
+      entries: Array<{
+        evidenceId: string;
+        confidence: number;
+        memoryLineRange: [number, number];
+        defeatedBy?: string;
+      }>;
+      error?: string;
+    } | undefined;
+
+    const persistToMemory = input.persistToMemory ?? true;
+    if (persistToMemory) {
+      const workspaceRoot = workspace ?? process.cwd();
+      const memoryFilePath = this.resolveHarvestMemoryFilePath(input, workspaceRoot);
+      const source = input.source ?? 'harvest';
+      try {
+        const instrumentationWorkspace = await this.ensureWorkspaceInstrumentation(workspaceRoot);
+        const bridge = new MemoryBridgeDaemon({
+          workspaceRoot,
+          evidenceLedger: instrumentationWorkspace?.evidenceLedger,
+        });
+
+        const harvestResult = await bridge.harvestToMemory({
+          claims: matching.slice(0, maxItems).map((record) => ({
+            claimId: record.claimId,
+            claim: record.claim,
+            workspace: record.workspace,
+            sessionId: record.sessionId,
+            tags: record.tags,
+            evidence: record.evidence,
+            confidence: record.confidence,
+            sourceTool: record.sourceTool,
+            createdAt: record.createdAt,
+          })),
+          memoryFilePath,
+          source,
+        });
+
+        memoryBridge = {
+          memoryFilePath: harvestResult.memoryFilePath,
+          source: harvestResult.source,
+          written: harvestResult.written,
+          skipped: harvestResult.skipped,
+          entries: harvestResult.entries.map((entry) => ({
+            evidenceId: entry.evidenceId,
+            confidence: entry.confidence,
+            memoryLineRange: entry.memoryLineRange,
+            defeatedBy: entry.defeatedBy,
+          })),
+        };
+
+        await this.appendWorkspaceAuditLog(workspaceRoot, {
+          ts: new Date().toISOString(),
+          event: 'memory_bridge_harvest',
+          session_id: sessionId,
+          workspace: workspaceRoot,
+          memory_file: harvestResult.memoryFilePath,
+          written: harvestResult.written,
+          skipped: harvestResult.skipped,
+          source,
+        });
+      } catch (error) {
+        memoryBridge = {
+          memoryFilePath,
+          source,
+          written: 0,
+          skipped: 0,
+          entries: [],
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+
+    return {
+      success: true,
+      tool: 'harvest_session_knowledge',
+      sessionId,
+      workspace,
+      minConfidence,
+      claims,
+      summary: {
+        totalClaims: matching.length,
+        returnedClaims: claims.length,
+        uniqueTags: tagCount.size,
+        topTags,
+        averageConfidence,
+        mostRecentAt: matching[0]?.createdAt,
+      },
+      recommendations: includeRecommendations
+        ? (matching.length === 0
+          ? [
+            { tool: 'append_claim', rationale: 'No claims were harvested; persist new claims as you resolve uncertain findings.' },
+            { tool: 'query', rationale: 'Run a focused query to gather stronger evidence before recording additional claims.' },
+          ]
+          : [
+            { tool: 'query_claims', rationale: 'Filter harvested knowledge by topic or timeframe for targeted planning.' },
+            { tool: 'synthesize_plan', rationale: 'Convert harvested claims into an explicit execution plan with traceable context.' },
+          ])
+        : [],
+      memoryBridge,
+    };
+  }
+
+  private resolveHarvestMemoryFilePath(
+    input: HarvestSessionKnowledgeToolInput,
+    workspaceRoot: string,
+  ): string {
+    if (typeof input.memoryFilePath === 'string' && input.memoryFilePath.trim().length > 0) {
+      return path.resolve(input.memoryFilePath);
+    }
+    const openclawRoot = typeof input.openclawRoot === 'string' && input.openclawRoot.trim().length > 0
+      ? path.resolve(input.openclawRoot)
+      : path.join(workspaceRoot, '.openclaw');
+    return path.join(openclawRoot, 'memory', 'MEMORY.md');
+  }
+
+  private buildScopeClaimKey(scopeId: string, workspace?: string): string {
+    return `${workspace ?? 'global'}::${scopeId}`;
+  }
+
+  private pruneExpiredScopeClaims(nowMs = Date.now()): void {
+    for (const [key, claim] of this.state.scopeClaims) {
+      const expiresAtMs = Date.parse(claim.expiresAt);
+      if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs) {
+        this.state.scopeClaims.delete(key);
+      }
+    }
+  }
+
+  private async executeClaimWorkScope(
+    input: ClaimWorkScopeToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    const scopeId = input.scopeId?.trim() ?? '';
+    if (scopeId.length === 0) {
+      return {
+        success: false,
+        claimed: false,
+        error: 'scopeId must be a non-empty string.',
+      };
+    }
+
+    const workspace = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : undefined;
+    const explicitSessionId = typeof input.sessionId === 'string' && input.sessionId.trim().length > 0
+      ? input.sessionId.trim()
+      : undefined;
+    const contextSessionId = typeof context.sessionId === 'string' && context.sessionId.trim().length > 0
+      ? context.sessionId.trim()
+      : undefined;
+    const sessionId = explicitSessionId
+      ?? contextSessionId
+      ?? this.buildAnonymousSessionId(workspace ?? process.cwd());
+    const mode = input.mode ?? 'claim';
+    const ttlSeconds = Math.max(1, Math.min(86400, Math.trunc(input.ttlSeconds ?? 1800)));
+    const owner = typeof input.owner === 'string' && input.owner.trim().length > 0
+      ? input.owner.trim()
+      : undefined;
+
+    this.pruneExpiredScopeClaims();
+    const scopeKey = this.buildScopeClaimKey(scopeId, workspace);
+    const existing = this.state.scopeClaims.get(scopeKey);
+
+    if (mode === 'check') {
+      return {
+        success: true,
+        mode,
+        scopeId,
+        workspace,
+        available: !existing,
+        conflict: existing
+          ? {
+            sessionId: existing.sessionId,
+            owner: existing.owner,
+            expiresAt: existing.expiresAt,
+          }
+          : null,
+      };
+    }
+
+    if (mode === 'release') {
+      if (!existing) {
+        return {
+          success: true,
+          mode,
+          scopeId,
+          workspace,
+          released: false,
+          message: 'No active claim existed for this scope.',
+        };
+      }
+      if (existing.sessionId !== sessionId) {
+        return {
+          success: true,
+          mode,
+          scopeId,
+          workspace,
+          released: false,
+          message: 'Scope is claimed by another session.',
+          conflict: {
+            sessionId: existing.sessionId,
+            owner: existing.owner,
+            expiresAt: existing.expiresAt,
+          },
+        };
+      }
+      this.state.scopeClaims.delete(scopeKey);
+      return {
+        success: true,
+        mode,
+        scopeId,
+        workspace,
+        released: true,
+        message: 'Scope claim released.',
+      };
+    }
+
+    if (existing && existing.sessionId !== sessionId) {
+      return {
+        success: true,
+        mode,
+        scopeId,
+        workspace,
+        claimed: false,
+        message: 'Scope already claimed by another session.',
+        conflict: {
+          sessionId: existing.sessionId,
+          owner: existing.owner,
+          expiresAt: existing.expiresAt,
+        },
+      };
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+    const record: ScopeClaimRecord = {
+      scopeKey,
+      scopeId,
+      workspace,
+      sessionId,
+      owner,
+      claimedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+    this.state.scopeClaims.set(scopeKey, record);
+
+    const activeClaims = Array.from(this.state.scopeClaims.values())
+      .filter((claim) => claim.workspace === workspace)
+      .map((claim) => ({
+        scopeId: claim.scopeId,
+        sessionId: claim.sessionId,
+        owner: claim.owner,
+        expiresAt: claim.expiresAt,
+      }));
+
+    return {
+      success: true,
+      mode,
+      scopeId,
+      workspace,
+      claimed: true,
+      sessionId,
+      owner,
+      expiresAt: record.expiresAt,
+      activeClaims,
+    };
   }
 
   private async executeRunAudit(input: RunAuditToolInput): Promise<unknown> {
