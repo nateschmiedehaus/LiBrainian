@@ -667,6 +667,7 @@ export interface QueryOptions {
   minConfidence?: number;
   orderBy?: 'confidence' | 'accessCount' | 'lastAccessed' | 'name';
   orderDirection?: 'asc' | 'desc';
+  isPure?: boolean;
 }
 
 export interface ContextPackQueryOptions extends QueryOptions {

@@ -62,6 +62,18 @@ export interface FunctionKnowledge {
     successes: number;
     failures: number;
   };
+  /** Heuristic behavioral fingerprint: no side effects, no throws, no parameter mutation. */
+  isPure?: boolean;
+  /** Heuristic flag for potential observable side effects. */
+  hasSideEffects?: boolean;
+  /** Heuristic flag for parameter mutation within function body. */
+  modifiesParams?: boolean;
+  /** Heuristic flag for explicit throw statements. */
+  throws?: boolean;
+  /** Heuristic return dependency signal (return appears to depend on parameters). */
+  returnDependsOnInputs?: boolean;
+  /** Heuristic effect categories observed in function body. */
+  effectSignature?: string[];
 }
 
 export interface ModuleKnowledge {
@@ -221,7 +233,7 @@ export interface DocumentKnowledge {
 }
 
 export type GraphEntityType = 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface';
-export type GraphEdgeType = 'calls' | 'imports' | 'extends' | 'implements';
+export type GraphEdgeType = 'calls' | 'imports' | 'extends' | 'implements' | 'entangled';
 
 export interface GraphEdge {
   fromId: string;
@@ -911,6 +923,11 @@ export interface SearchFilter {
    * Restrict retrieval to exported/public symbols when true, or non-exported/internal symbols when false.
    */
   isExported?: boolean;
+
+  /**
+   * Restrict retrieval to functions marked pure (true) or impure (false) by behavioral heuristics.
+   */
+  isPure?: boolean;
 
   /**
    * Exclude common test/spec paths when true.

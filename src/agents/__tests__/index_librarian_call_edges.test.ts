@@ -205,4 +205,49 @@ describe('IndexLibrarian call-edge persistence', () => {
       ])
     );
   });
+
+  it('adds semantic entanglement edges from co-call patterns', async () => {
+    const { filePath, cleanup } = await createTempTsFile(
+      'export function caller(){ alpha(); beta(); }\nexport function alpha(){}\nexport function beta(){}\n'
+    );
+
+    const caller = buildFunction('fn_caller', filePath, 'caller', 1);
+    const alpha = buildFunction('fn_alpha', filePath, 'alpha', 2);
+    const beta = buildFunction('fn_beta', filePath, 'beta', 3);
+    const module = buildModule('mod_sample', filePath);
+    const callEdges: ResolvedCallEdge[] = [
+      { fromId: caller.id, toId: alpha.id, sourceLine: 1, targetResolved: true, isAmbiguous: false, overloadCount: 0 },
+      { fromId: caller.id, toId: beta.id, sourceLine: 1, targetResolved: true, isAmbiguous: false, overloadCount: 0 },
+    ];
+
+    mockIndexFile.mockResolvedValue({
+      functions: [caller, alpha, beta],
+      module,
+      callEdges,
+      partiallyIndexed: false,
+      parser: 'ts-morph',
+    });
+
+    const tx = buildTx();
+    const storage = buildStorage(tx);
+    const librarian = new IndexLibrarian({
+      generateEmbeddings: false,
+      createContextPacks: false,
+      llmProvider: 'claude',
+      llmModelId: 'claude-sonnet-4-20250514',
+    });
+    await librarian.initialize(storage);
+
+    const result = await librarian.indexFile(filePath);
+    await cleanup();
+
+    expect(result.errors).toEqual([]);
+    const persistedEdges = vi.mocked(tx.upsertGraphEdges).mock.calls[0]?.[0] as GraphEdge[];
+    expect(persistedEdges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ edgeType: 'entangled', fromId: alpha.id, toId: beta.id }),
+        expect.objectContaining({ edgeType: 'entangled', fromId: beta.id, toId: alpha.id }),
+      ])
+    );
+  });
 });

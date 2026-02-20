@@ -6149,6 +6149,7 @@ function buildQueryCacheKey(
         query.filter.pathPrefix ?? '',
         query.filter.language ?? '',
         typeof query.filter.isExported === 'boolean' ? String(query.filter.isExported) : '',
+        typeof query.filter.isPure === 'boolean' ? String(query.filter.isPure) : '',
         query.filter.excludeTests ? '1' : '0',
         typeof query.filter.maxFileSizeBytes === 'number' ? String(query.filter.maxFileSizeBytes) : '',
       ].join('|')
@@ -6189,6 +6190,7 @@ function buildSemanticCacheScopeSignature(query: LibrarianQuery): string {
       query.filter.pathPrefix ?? '',
       query.filter.language ?? '',
       typeof query.filter.isExported === 'boolean' ? String(query.filter.isExported) : '',
+      typeof query.filter.isPure === 'boolean' ? String(query.filter.isPure) : '',
       query.filter.excludeTests ? '1' : '0',
       typeof query.filter.maxFileSizeBytes === 'number' ? String(query.filter.maxFileSizeBytes) : '',
     ].join('|')
@@ -6451,7 +6453,12 @@ async function collectDirectPacks(
   workspaceRoot: string,
 ): Promise<ContextPack[]> {
   const hasAnchors = Boolean(query.affectedFiles?.length);
-  const hasFilter = Boolean(query.filter?.pathPrefix || query.filter?.excludeTests || query.filter?.language);
+  const hasFilter = Boolean(
+    query.filter?.pathPrefix
+    || query.filter?.excludeTests
+    || query.filter?.language
+    || typeof query.filter?.isPure === 'boolean'
+  );
   if (!hasAnchors && !hasFilter) return emptyArray<ContextPack>();
   const minConfidence = query.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const packs: ContextPack[] = [];
@@ -6790,6 +6797,7 @@ function hasSearchFilter(filter: LibrarianQuery['filter'] | undefined): boolean 
     filter.pathPrefix
     || filter.language
     || typeof filter.isExported === 'boolean'
+    || typeof filter.isPure === 'boolean'
     || filter.excludeTests
     || typeof filter.maxFileSizeBytes === 'number'
   );
@@ -6808,6 +6816,7 @@ function normalizeSearchFilter(
     pathPrefix,
     language,
     isExported: typeof filter?.isExported === 'boolean' ? filter.isExported : undefined,
+    isPure: typeof filter?.isPure === 'boolean' ? filter.isPure : undefined,
     excludeTests: filter?.excludeTests === true ? true : undefined,
     maxFileSizeBytes,
   };

@@ -26,7 +26,7 @@ function tokenize(text: string): string[] {
     .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
 }
 
-function buildTriggerPrompt(tool: ToolEntry): string {
+function buildTriggerPrompts(tool: ToolEntry): string[] {
   const base = (tool.description ?? '')
     .replace(/`[^`]+`/g, '')
     .replace(/\s+/g, ' ')
@@ -38,7 +38,14 @@ function buildTriggerPrompt(tool: ToolEntry): string {
     .replace(/\s+/g, ' ')
     .trim();
   const intent = scrubbed.length > 0 ? scrubbed : `handle ${tool.name.replace(/_/g, ' ')}`;
-  return `I need to ${intent.toLowerCase()}. Which operation should I run first?`;
+  const normalizedIntent = intent.toLowerCase();
+  return [
+    `I need to ${normalizedIntent}. Which operation should I run first?`,
+    `Help me ${normalizedIntent}. What tool fits this best?`,
+    `What's the correct operation to ${normalizedIntent}?`,
+    `I am trying to ${normalizedIntent}. Which command should I call?`,
+    `Pick the right LiBrainian operation for: ${normalizedIntent}.`,
+  ];
 }
 
 function scoreTool(tool: ToolEntry, promptTokens: Set<string>, includeDescription: boolean): number {
@@ -71,7 +78,7 @@ function classifyTool(
 }
 
 describe('MCP tool triggering compliance', () => {
-  it('maintains >=70% trigger compliance with one natural-language case per tool', async () => {
+  it('maintains >=70% trigger compliance with per-tool baseline/treatment evaluation', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read', 'write', 'execute', 'network', 'admin'], requireConsent: false },
       audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
@@ -79,32 +86,48 @@ describe('MCP tool triggering compliance', () => {
 
     const tools = ((server as any).getAvailableTools() as ToolEntry[])
       .map((tool) => ({ name: tool.name, description: tool.description ?? '' }));
-    const cases: TriggerCase[] = tools.map((tool) => ({
-      tool: tool.name,
-      prompt: buildTriggerPrompt(tool),
-    }));
+    const cases: TriggerCase[] = tools.flatMap((tool) =>
+      buildTriggerPrompts(tool).map((prompt) => ({ tool: tool.name, prompt }))
+    );
 
     expect(cases.length).toBeGreaterThanOrEqual(20);
-    expect(cases.length).toBe(tools.length);
+    expect(cases.length).toBe(tools.length * 5);
 
     let treatmentHits = 0;
     let baselineHits = 0;
     const misses: string[] = [];
+    const perTool = new Map<string, { treatmentHits: number; baselineHits: number; total: number }>();
+
+    for (const tool of tools) {
+      perTool.set(tool.name, { treatmentHits: 0, baselineHits: 0, total: 0 });
+    }
 
     for (const testCase of cases) {
       const treatment = classifyTool(tools, testCase.prompt, true);
       const baseline = classifyTool(tools, testCase.prompt, false);
+      const stats = perTool.get(testCase.tool)!;
+      stats.total += 1;
       if (treatment === testCase.tool) {
         treatmentHits += 1;
+        stats.treatmentHits += 1;
       } else {
         misses.push(`${testCase.tool} -> ${treatment}`);
       }
       if (baseline === testCase.tool) {
         baselineHits += 1;
+        stats.baselineHits += 1;
       }
     }
 
     const compliance = treatmentHits / cases.length;
+    const toolsAtTarget = Array.from(perTool.values())
+      .filter((stats) => stats.total > 0 && (stats.treatmentHits / stats.total) >= 0.7).length;
+    const baselineCompliance = baselineHits / cases.length;
+    console.log(
+      `[compliance] tools=${tools.length} cases=${cases.length} treatment=${(compliance * 100).toFixed(1)}% baseline=${(baselineCompliance * 100).toFixed(1)}% tools>=70=${toolsAtTarget}`
+    );
+    expect(perTool.size).toBe(tools.length);
+    expect(toolsAtTarget).toBeGreaterThanOrEqual(5);
     expect(compliance).toBeGreaterThanOrEqual(0.7);
     expect(treatmentHits).toBeGreaterThanOrEqual(baselineHits);
     if (compliance < 0.7) {

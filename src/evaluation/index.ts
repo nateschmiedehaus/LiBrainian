@@ -665,6 +665,29 @@ export {
 
 export {
   // Types
+  type LibrarianEvalCase,
+  type RetrievalClaimVerdict,
+  type FaithfulnessSplitResult,
+  type AnswerRelevancySplitResult,
+  type SplitFailureMode,
+  type SplitFailureDiagnosis,
+  type EvaluationCostSummary,
+  type DeepEvalSplitResult,
+  type DeepEvalSplitConfig,
+  type DagMetricStepResult,
+  type DagMetricStep,
+  type DagMetricReport,
+
+  // Class
+  DeepEvalSplitMetrics,
+
+  // Functions
+  diagnoseSplitFailure,
+  evaluateDagMetric,
+} from './deepeval_split_metrics.js';
+
+export {
+  // Types
   type SymbolType,
   type SymbolReference,
   type SymbolVerificationResult,

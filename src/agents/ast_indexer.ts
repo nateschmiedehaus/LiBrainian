@@ -188,7 +188,7 @@ export class AstIndexer {
     if (governor) {
       try { governor.enterFile(filePath); } catch (error: unknown) {
         if (isBudgetExceeded(error)) {
-          const functions = parsed.functions.map((fn) => this.buildFunctionKnowledge(filePath, fn, undefined, existingFunctionIds?.get(fn.name), parsed.parser));
+          const functions = parsed.functions.map((fn) => this.buildFunctionKnowledge(filePath, fn, source, undefined, existingFunctionIds?.get(fn.name), parsed.parser));
           const module = this.buildModuleKnowledge(filePath, parsed.module, functions, undefined, existingModuleId ?? undefined, parsed.parser);
           return { filePath, parser: parsed.parser, functions, module, callEdges: [], partiallyIndexed: true, llmTokensUsed: 0 };
         }
@@ -232,7 +232,7 @@ export class AstIndexer {
       }
     }
 
-    const functions = parsed.functions.map((fn) => this.buildFunctionKnowledge(filePath, fn, analysis?.functionPurposes.get(fn.name), existingFunctionIds?.get(fn.name), parsed.parser));
+    const functions = parsed.functions.map((fn) => this.buildFunctionKnowledge(filePath, fn, source, analysis?.functionPurposes.get(fn.name), existingFunctionIds?.get(fn.name), parsed.parser));
     const module = this.buildModuleKnowledge(filePath, parsed.module, functions, analysis?.modulePurpose, existingModuleId ?? undefined, parsed.parser);
     const parsedCallEdges = extractCallEdgesFromAst(filePath, source, parsed.functions, parsed.parser);
     const callEdges = resolveCallEdges(parsedCallEdges, functions);
@@ -337,10 +337,30 @@ export class AstIndexer {
     return parseParserFallbackResponse(response.content);
   }
 
-  private buildFunctionKnowledge(filePath: string, parsed: ParsedFunction, purposeOverride?: string, existingId?: string, parserType?: string): FunctionKnowledge {
+  private buildFunctionKnowledge(filePath: string, parsed: ParsedFunction, source: string, purposeOverride?: string, existingId?: string, parserType?: string): FunctionKnowledge {
     const purpose = choosePurpose(purposeOverride, parsed.purpose);
     const confidence = computeFunctionConfidence(parsed, purpose, parserType);
-    return { id: existingId ?? randomUUID(), filePath, name: parsed.name, signature: parsed.signature, purpose, startLine: parsed.startLine, endLine: parsed.endLine, confidence, accessCount: 0, lastAccessed: null, validationCount: 0, outcomeHistory: { successes: 0, failures: 0 } };
+    const fingerprint = computeBehavioralFingerprint(parsed, source);
+    return {
+      id: existingId ?? randomUUID(),
+      filePath,
+      name: parsed.name,
+      signature: parsed.signature,
+      purpose,
+      startLine: parsed.startLine,
+      endLine: parsed.endLine,
+      confidence,
+      accessCount: 0,
+      lastAccessed: null,
+      validationCount: 0,
+      outcomeHistory: { successes: 0, failures: 0 },
+      isPure: fingerprint.isPure,
+      hasSideEffects: fingerprint.hasSideEffects,
+      modifiesParams: fingerprint.modifiesParams,
+      throws: fingerprint.throws,
+      returnDependsOnInputs: fingerprint.returnDependsOnInputs,
+      effectSignature: fingerprint.effectSignature,
+    };
   }
 
   private buildModuleKnowledge(filePath: string, parsed: ParsedModule, functions: FunctionKnowledge[], purposeOverride?: string, existingId?: string, parserType?: string): ModuleKnowledge {
@@ -802,6 +822,88 @@ function extractLines(lines: string[], startLine: number, endLine: number): stri
   const end = Math.min(lines.length, Math.max(start, endLine));
   if (start >= lines.length || end <= start) return '';
   return lines.slice(start, end).join('\n');
+}
+
+type BehavioralFingerprint = {
+  isPure: boolean;
+  hasSideEffects: boolean;
+  modifiesParams: boolean;
+  throws: boolean;
+  returnDependsOnInputs: boolean;
+  effectSignature: string[];
+};
+
+function computeBehavioralFingerprint(parsed: ParsedFunction, source: string): BehavioralFingerprint {
+  const snippet = extractLines(source.split(/\r?\n/), parsed.startLine, parsed.endLine);
+  const parameters = extractSignatureParameterNames(parsed.signature);
+  const throws = /\bthrow\b/.test(snippet);
+  const modifiesParams = parameters.some((param) => parameterMutationRegex(param).test(snippet));
+  const hasIoCalls = /\b(console\.[a-z_$][\w$]*|process\.[a-z_$][\w$]*|fs\.[a-z_$][\w$]*|fetch\s*\(|axios\.[a-z_$][\w$]*|http\.[a-z_$][\w$]*|https\.[a-z_$][\w$]*)/i.test(snippet);
+  const writesGlobal = /\b(globalThis|global|window|document|process|module|this)\.[a-z_$][\w$]*\s*[\+\-\*\/%&|^]?=/i.test(snippet);
+  const mutatingCalls = /\.\s*(push|pop|shift|unshift|splice|sort|reverse|copyWithin|fill|set|add|delete|clear|write|append)\s*\(/.test(snippet);
+  const hasSideEffects = throws || modifiesParams || hasIoCalls || writesGlobal || mutatingCalls;
+  const returnDependsOnInputs = computeReturnDependsOnInputs(snippet, parameters);
+
+  const effectSignature: string[] = [];
+  if (hasIoCalls) effectSignature.push('io');
+  if (writesGlobal) effectSignature.push('global_write');
+  if (modifiesParams) effectSignature.push('param_mutation');
+  if (mutatingCalls) effectSignature.push('mutable_call');
+  if (throws) effectSignature.push('throws');
+  if (returnDependsOnInputs) effectSignature.push('return_depends_on_inputs');
+  if (!hasSideEffects) effectSignature.push('pure');
+
+  return {
+    isPure: !hasSideEffects,
+    hasSideEffects,
+    modifiesParams,
+    throws,
+    returnDependsOnInputs,
+    effectSignature,
+  };
+}
+
+function extractSignatureParameterNames(signature: string): string[] {
+  const match = signature.match(/\(([^)]*)\)/);
+  if (!match?.[1]) return [];
+  const names = new Set<string>();
+  for (const rawPart of match[1].split(',')) {
+    let part = rawPart.trim();
+    if (!part) continue;
+    part = part.replace(/^\.{3}/, '').trim();
+    if (!part || part.startsWith('{') || part.startsWith('[')) continue;
+    const nameMatch = part.match(/^([a-zA-Z_$][\w$]*)/);
+    if (nameMatch?.[1]) {
+      names.add(nameMatch[1]);
+    }
+  }
+  return Array.from(names);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parameterMutationRegex(parameter: string): RegExp {
+  const escaped = escapeRegExp(parameter);
+  return new RegExp(
+    `\\b${escaped}\\s*([+\\-*/%&|^]?=|\\+\\+|--)|(?:\\+\\+|--)\\s*${escaped}\\b|\\b${escaped}\\s*\\[[^\\]]+\\]\\s*=|\\b${escaped}\\.\\s*(push|pop|shift|unshift|splice|sort|reverse|copyWithin|fill|set|add|delete|clear)\\s*\\(`,
+    'm',
+  );
+}
+
+function computeReturnDependsOnInputs(snippet: string, parameters: string[]): boolean {
+  if (parameters.length === 0) return false;
+  const returnMatches = snippet.match(/return\s+([^;]+);?/g) ?? [];
+  for (const statement of returnMatches) {
+    for (const param of parameters) {
+      const token = new RegExp(`\\b${escapeRegExp(param)}\\b`);
+      if (token.test(statement)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];

@@ -58,6 +58,28 @@ jobs:
               - 'src/__tests__/index_correctness_suite.test.ts'
               - 'tests/fixtures/index-correctness-fixture/**'
 
+  detect-mcp-description-changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      mcp_descriptions: ${{ steps.filter.outputs.mcp_descriptions }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect MCP description changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            mcp_descriptions:
+              - 'src/mcp/server.ts'
+              - 'src/mcp/schema.ts'
+              - 'src/mcp/types.ts'
+              - 'src/mcp/__tests__/tool_triggering_compliance.test.ts'
+
   index-correctness:
     if: github.event_name == 'pull_request' && needs.detect-index-related-changes.outputs.index_related == 'true'
     needs: detect-index-related-changes
@@ -78,6 +100,27 @@ jobs:
 
       - name: Index correctness suite
         run: npm run test:index:correctness
+
+  mcp-tool-compliance:
+    if: github.event_name == 'pull_request' && needs.detect-mcp-description-changes.outputs.mcp_descriptions == 'true'
+    needs: detect-mcp-description-changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: MCP tool trigger compliance gate
+        run: npm test -- --run src/mcp/__tests__/tool_triggering_compliance.test.ts
 
   e2e-acceptance:
     if: github.event_name == 'pull_request'

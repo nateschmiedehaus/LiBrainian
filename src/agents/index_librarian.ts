@@ -1248,6 +1248,7 @@ export class IndexLibrarian implements IndexingAgent {
   ): GraphEdge[] {
     const now = new Date();
     const edges: GraphEdge[] = [];
+    const callsByCaller = new Map<string, Set<string>>();
 
     // Process call edges with quality-based confidence using ambiguity metadata
     for (const edge of callEdges) {
@@ -1274,6 +1275,50 @@ export class IndexLibrarian implements IndexingAgent {
         edgeType: 'calls',
         sourceFile: filePath,
         sourceLine: edge.sourceLine ?? null,
+        confidence,
+        computedAt: now,
+      });
+
+      const callees = callsByCaller.get(edge.fromId) ?? new Set<string>();
+      callees.add(edge.toId);
+      callsByCaller.set(edge.fromId, callees);
+    }
+
+    // Semantic entanglement fallback (co-call approximation):
+    // if two functions are frequently invoked by the same caller, treat them as behaviorally coupled.
+    const entanglementCounts = new Map<string, number>();
+    for (const callees of callsByCaller.values()) {
+      const ids = Array.from(callees).sort();
+      for (let i = 0; i < ids.length; i += 1) {
+        for (let j = i + 1; j < ids.length; j += 1) {
+          const pairKey = `${ids[i]}::${ids[j]}`;
+          entanglementCounts.set(pairKey, (entanglementCounts.get(pairKey) ?? 0) + 1);
+        }
+      }
+    }
+    for (const [pairKey, count] of entanglementCounts) {
+      const [left, right] = pairKey.split('::');
+      if (!left || !right) continue;
+      const confidence = Math.min(0.95, 0.55 + (count * 0.15));
+      edges.push({
+        fromId: left,
+        fromType: 'function',
+        toId: right,
+        toType: 'function',
+        edgeType: 'entangled',
+        sourceFile: filePath,
+        sourceLine: null,
+        confidence,
+        computedAt: now,
+      });
+      edges.push({
+        fromId: right,
+        fromType: 'function',
+        toId: left,
+        toType: 'function',
+        edgeType: 'entangled',
+        sourceFile: filePath,
+        sourceLine: null,
         confidence,
         computedAt: now,
       });

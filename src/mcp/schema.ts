@@ -62,6 +62,7 @@ const SearchFilterSchema = z.object({
   pathPrefix: z.string().min(1).optional().describe('Workspace-relative path prefix for scoped retrieval (example: packages/api/)'),
   language: z.string().min(1).optional().describe('Language filter (example: typescript, python, rust)'),
   isExported: z.boolean().optional().describe('Filter for exported/public symbols'),
+  isPure: z.boolean().optional().describe('Filter for functions classified as pure/impure by behavioral heuristics'),
   excludeTests: z.boolean().optional().describe('Exclude test/spec files from retrieval'),
   maxFileSizeBytes: z.number().int().positive().optional().describe('Optional max file size guard in bytes'),
 }).strict();
@@ -766,6 +767,7 @@ export const queryToolJsonSchema: JSONSchema = {
         pathPrefix: { type: 'string', description: 'Workspace-relative path prefix (example: packages/api/)', minLength: 1 },
         language: { type: 'string', description: 'Language filter (example: typescript, python, rust)', minLength: 1 },
         isExported: { type: 'boolean', description: 'Filter for exported/public symbols' },
+        isPure: { type: 'boolean', description: 'Filter for functions classified as pure/impure by behavioral heuristics' },
         excludeTests: { type: 'boolean', description: 'Exclude test/spec files from retrieval' },
         maxFileSizeBytes: { type: 'number', description: 'Optional max file size guard in bytes', minimum: 1 },
       },
@@ -806,6 +808,7 @@ export const semanticSearchToolJsonSchema: JSONSchema = {
         pathPrefix: { type: 'string', description: 'Workspace-relative path prefix (example: packages/api/)', minLength: 1 },
         language: { type: 'string', description: 'Language filter (example: typescript, python, rust)', minLength: 1 },
         isExported: { type: 'boolean', description: 'Filter for exported/public symbols' },
+        isPure: { type: 'boolean', description: 'Filter for functions classified as pure/impure by behavioral heuristics' },
         excludeTests: { type: 'boolean', description: 'Exclude test/spec files from retrieval' },
         maxFileSizeBytes: { type: 'number', description: 'Optional max file size guard in bytes', minimum: 1 },
       },

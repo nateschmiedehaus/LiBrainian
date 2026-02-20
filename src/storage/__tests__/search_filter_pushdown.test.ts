@@ -17,7 +17,12 @@ function normalize(values: number[]): Float32Array {
   return vector;
 }
 
-function buildFunction(id: string, filePath: string, signature = 'export function auth() {}'): FunctionKnowledge {
+function buildFunction(
+  id: string,
+  filePath: string,
+  signature = 'export function auth() {}',
+  options: Partial<Pick<FunctionKnowledge, 'isPure' | 'hasSideEffects' | 'modifiesParams' | 'throws' | 'returnDependsOnInputs' | 'effectSignature'>> = {},
+): FunctionKnowledge {
   return {
     id,
     filePath,
@@ -31,6 +36,7 @@ function buildFunction(id: string, filePath: string, signature = 'export functio
     lastAccessed: null,
     validationCount: 0,
     outcomeHistory: { successes: 0, failures: 0 },
+    ...options,
   };
 }
 
@@ -82,8 +88,17 @@ describe('search filter pushdown', () => {
     storage = createSqliteStorage(dbPath, tempDir);
     await storage.initialize();
 
-    await storage.upsertFunction(buildFunction('fn-web', webFile));
-    await storage.upsertFunction(buildFunction('fn-api', apiFile));
+    await storage.upsertFunction(buildFunction('fn-web', webFile, 'export function auth() {}', {
+      isPure: false,
+      hasSideEffects: true,
+      effectSignature: ['io'],
+    }));
+    await storage.upsertFunction(buildFunction('fn-api', apiFile, 'export function auth() {}', {
+      isPure: true,
+      hasSideEffects: false,
+      effectSignature: ['pure'],
+      returnDependsOnInputs: true,
+    }));
     await storage.setEmbedding('fn-web', normalize([1, 0]), {
       modelId: 'test-model',
       entityType: 'function',
@@ -145,5 +160,28 @@ describe('search filter pushdown', () => {
     expect(byPrefix).toHaveLength(1);
     expect(byPrefix[0]?.packId).toBe('pack-api');
   });
-});
 
+  it('applies isPure filter during semantic similarity search', async () => {
+    const query = normalize([1, 0]);
+
+    const pureOnly = await storage!.findSimilarByEmbedding(query, {
+      limit: 5,
+      minSimilarity: 0,
+      entityTypes: ['function'],
+      filter: {
+        isPure: true,
+      },
+    });
+    expect(pureOnly.results.map((entry) => entry.entityId)).toEqual(['fn-api']);
+
+    const impureOnly = await storage!.findSimilarByEmbedding(query, {
+      limit: 5,
+      minSimilarity: 0,
+      entityTypes: ['function'],
+      filter: {
+        isPure: false,
+      },
+    });
+    expect(impureOnly.results.map((entry) => entry.entityId)).toEqual(['fn-web']);
+  });
+});

@@ -580,6 +580,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       this.ensureEvolutionTables();
       this.ensureIndexCoordinationTables();
       this.ensureConfidenceColumns();
+      this.ensureFunctionBehaviorColumns();
       this.ensureContextPackOutcomeColumns();
       this.ensureConfidenceEventColumns();
       this.ensureUniversalKnowledgeTable();
@@ -798,6 +799,33 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     addColumnIfMissing('librarian_functions');
     addColumnIfMissing('librarian_modules');
     addColumnIfMissing('librarian_context_packs');
+  }
+
+  private ensureFunctionBehaviorColumns(): void {
+    const db = this.db;
+    if (!db) return;
+    const columns = db.prepare('PRAGMA table_info(librarian_functions)').all() as { name: string }[];
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('is_pure')) {
+      db.prepare('ALTER TABLE librarian_functions ADD COLUMN is_pure INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('has_side_effects')) {
+      db.prepare('ALTER TABLE librarian_functions ADD COLUMN has_side_effects INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('modifies_params')) {
+      db.prepare('ALTER TABLE librarian_functions ADD COLUMN modifies_params INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('throws')) {
+      db.prepare('ALTER TABLE librarian_functions ADD COLUMN throws INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('return_depends_on_inputs')) {
+      db.prepare('ALTER TABLE librarian_functions ADD COLUMN return_depends_on_inputs INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('effect_signature')) {
+      db.prepare('ALTER TABLE librarian_functions ADD COLUMN effect_signature TEXT NOT NULL DEFAULT \'[]\'').run();
+    }
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_functions_is_pure ON librarian_functions(is_pure)').run();
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_functions_side_effects ON librarian_functions(has_side_effects)').run();
   }
 
   private ensureContextPackOutcomeColumns(): void {
@@ -1273,6 +1301,9 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     counts = mergeRedactionCounts(counts, signatureResult.counts);
     const purposeResult = this.sanitizeString(fn.purpose);
     counts = mergeRedactionCounts(counts, purposeResult.counts);
+    const effectSignatureValues = Array.isArray(fn.effectSignature) ? fn.effectSignature : [];
+    const effectSignatureResult = this.sanitizeStringArray(effectSignatureValues);
+    counts = mergeRedactionCounts(counts, effectSignatureResult.counts);
 
     return {
       fn: {
@@ -1282,6 +1313,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
         name: nameResult.value,
         signature: signatureResult.value,
         purpose: purposeResult.value,
+        effectSignature: effectSignatureResult.values,
       },
       counts,
     };
@@ -1447,6 +1479,11 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       params.push(options.minConfidence);
     }
 
+    if (typeof options.isPure === 'boolean') {
+      sql += ' AND is_pure = ?';
+      params.push(options.isPure ? 1 : 0);
+    }
+
     const orderCol = validateOrderColumn(options.orderBy || 'confidence');
     const orderDir = validateOrderDirection(options.orderDirection || 'desc');
     sql += ` ORDER BY ${orderCol} ${orderDir}`;
@@ -1507,14 +1544,21 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     db.prepare(`
       INSERT INTO librarian_functions (
         id, file_path, name, signature, purpose, start_line, end_line,
+        is_pure, has_side_effects, modifies_params, throws, return_depends_on_inputs, effect_signature,
         confidence, access_count, last_accessed, validation_count,
         outcome_successes, outcome_failures, created_at, updated_at, last_verified_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(file_path, name) DO UPDATE SET
         signature = excluded.signature,
         purpose = excluded.purpose,
         start_line = excluded.start_line,
         end_line = excluded.end_line,
+        is_pure = excluded.is_pure,
+        has_side_effects = excluded.has_side_effects,
+        modifies_params = excluded.modifies_params,
+        throws = excluded.throws,
+        return_depends_on_inputs = excluded.return_depends_on_inputs,
+        effect_signature = excluded.effect_signature,
         confidence = excluded.confidence,
         access_count = excluded.access_count,
         last_accessed = excluded.last_accessed,
@@ -1531,6 +1575,12 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       sanitized.purpose,
       sanitized.startLine,
       sanitized.endLine,
+      sanitized.isPure ? 1 : 0,
+      sanitized.hasSideEffects ? 1 : 0,
+      sanitized.modifiesParams ? 1 : 0,
+      sanitized.throws ? 1 : 0,
+      sanitized.returnDependsOnInputs ? 1 : 0,
+      JSON.stringify(sanitized.effectSignature ?? []),
       sanitized.confidence,
       sanitized.accessCount,
       sanitized.lastAccessed?.toISOString() || null,
@@ -1549,14 +1599,21 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     const insert = db.prepare(`
       INSERT INTO librarian_functions (
         id, file_path, name, signature, purpose, start_line, end_line,
+        is_pure, has_side_effects, modifies_params, throws, return_depends_on_inputs, effect_signature,
         confidence, access_count, last_accessed, validation_count,
         outcome_successes, outcome_failures, created_at, updated_at, last_verified_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(file_path, name) DO UPDATE SET
         signature = excluded.signature,
         purpose = excluded.purpose,
         start_line = excluded.start_line,
         end_line = excluded.end_line,
+        is_pure = excluded.is_pure,
+        has_side_effects = excluded.has_side_effects,
+        modifies_params = excluded.modifies_params,
+        throws = excluded.throws,
+        return_depends_on_inputs = excluded.return_depends_on_inputs,
+        effect_signature = excluded.effect_signature,
         updated_at = excluded.updated_at,
         last_verified_at = excluded.last_verified_at
     `);
@@ -1579,6 +1636,12 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
           fn.purpose,
           fn.startLine,
           fn.endLine,
+          fn.isPure ? 1 : 0,
+          fn.hasSideEffects ? 1 : 0,
+          fn.modifiesParams ? 1 : 0,
+          fn.throws ? 1 : 0,
+          fn.returnDependsOnInputs ? 1 : 0,
+          JSON.stringify(fn.effectSignature ?? []),
           fn.confidence,
           fn.accessCount,
           fn.lastAccessed?.toISOString() || null,
@@ -3295,6 +3358,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
         filter.pathPrefix
         || filter.language
         || typeof filter.isExported === 'boolean'
+        || typeof filter.isPure === 'boolean'
         || filter.excludeTests
       )
     );
@@ -3335,6 +3399,16 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
           END = ?
         `);
         filterParams.push(filter.isExported ? 1 : 0);
+      }
+
+      if (typeof filter?.isPure === 'boolean') {
+        whereClauses.push(`
+          CASE
+            WHEN e.entity_type = 'function' THEN coalesce(f.is_pure, 0)
+            ELSE 0
+          END = ?
+        `);
+        filterParams.push(filter.isPure ? 1 : 0);
       }
     }
 
@@ -7070,6 +7144,12 @@ interface FunctionRow {
   purpose: string;
   start_line: number;
   end_line: number;
+  is_pure: number;
+  has_side_effects: number;
+  modifies_params: number;
+  throws: number;
+  return_depends_on_inputs: number;
+  effect_signature: string;
   confidence: number;
   access_count: number;
   last_accessed: string | null;
@@ -7391,6 +7471,12 @@ function rowToFunction(row: FunctionRow): FunctionKnowledge {
     purpose: row.purpose,
     startLine: row.start_line,
     endLine: row.end_line,
+    isPure: row.is_pure === 1,
+    hasSideEffects: row.has_side_effects === 1,
+    modifiesParams: row.modifies_params === 1,
+    throws: row.throws === 1,
+    returnDependsOnInputs: row.return_depends_on_inputs === 1,
+    effectSignature: parseStringArray(row.effect_signature),
     confidence: row.confidence,
     accessCount: row.access_count,
     lastAccessed: row.last_accessed ? new Date(row.last_accessed) : null,

@@ -205,6 +205,25 @@ librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.
 SLA reference:
 - `docs/performance-sla.md`
 
+## MCP Tool Trigger Compliance
+
+LiBrainian ships an explicit tool-trigger compliance gate for MCP descriptions.
+
+- Test: `src/mcp/__tests__/tool_triggering_compliance.test.ts`
+- Method: baseline (tool name only) vs treatment (tool name + description)
+- Coverage: all core MCP tools, 5 natural-language prompt variants per tool
+
+Current CI pass criteria:
+- Overall treatment compliance `>= 70%`
+- Treatment must be `>=` baseline compliance
+- At least 5 tools must each score `>= 70%` treatment compliance
+
+Run locally:
+
+```bash
+npm test -- --run src/mcp/__tests__/tool_triggering_compliance.test.ts
+```
+
 ## CLI Command Map
 
 ```bash
