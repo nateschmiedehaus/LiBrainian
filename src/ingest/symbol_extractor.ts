@@ -51,6 +51,9 @@ export interface SymbolExtractionOptions {
 
   /** Glob patterns to exclude */
   excludePatterns?: string[];
+
+  /** Max files processed concurrently during batched extraction */
+  batchSize?: number;
 }
 
 const DEFAULT_OPTIONS: SymbolExtractionOptions = {
@@ -58,6 +61,7 @@ const DEFAULT_OPTIONS: SymbolExtractionOptions = {
   includeFunctions: true,
   includeVariables: true,
   excludePatterns: ['node_modules', 'dist', 'build', '.git', '*.d.ts'],
+  batchSize: 20,
 };
 
 // ============================================================================
@@ -1053,18 +1057,29 @@ export async function extractSymbolsFromFiles(
   const filesWithErrors: string[] = [];
   let filesProcessed = 0;
 
-  for (const filePath of filePaths) {
-    try {
-      // Skip files matching exclude patterns
-      if (shouldExclude(filePath, options.excludePatterns)) {
-        continue;
-      }
+  const batchSize = resolveBatchSize(options.batchSize);
+  const candidateFiles = filePaths.filter((filePath) => !shouldExclude(filePath, options.excludePatterns));
 
-      const symbols = await extractSymbolsFromFile(filePath, options);
-      allSymbols.push(...symbols);
-      filesProcessed++;
-    } catch (error) {
-      filesWithErrors.push(filePath);
+  for (let index = 0; index < candidateFiles.length; index += batchSize) {
+    const batch = candidateFiles.slice(index, index + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (filePath) => {
+        try {
+          const symbols = await extractSymbolsFromFile(filePath, options);
+          return { filePath, symbols };
+        } catch {
+          return { filePath, symbols: null as SymbolEntry[] | null };
+        }
+      }),
+    );
+
+    for (const result of batchResults) {
+      if (result.symbols) {
+        allSymbols.push(...result.symbols);
+        filesProcessed += 1;
+      } else {
+        filesWithErrors.push(result.filePath);
+      }
     }
   }
 
@@ -1105,45 +1120,31 @@ export async function extractSymbolsFromDirectory(
   options: SymbolExtractionOptions = DEFAULT_OPTIONS
 ): Promise<SymbolExtractionResult> {
   const startTime = Date.now();
-  const allSymbols: SymbolEntry[] = [];
-  const filesWithErrors: string[] = [];
-  let filesProcessed = 0;
+  const discoveredFiles: string[] = [];
 
-  async function processDirectory(dir: string): Promise<void> {
+  async function collectDirectory(dir: string): Promise<void> {
     const entries = await fs.readdir(dir, { withFileTypes: true });
+    const childDirectories: string[] = [];
 
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-
       if (entry.isDirectory()) {
-        // Skip excluded directories
-        if (shouldExclude(fullPath + '/', options.excludePatterns)) {
-          continue;
+        if (!shouldExclude(`${fullPath}/`, options.excludePatterns)) {
+          childDirectories.push(fullPath);
         }
-        await processDirectory(fullPath);
-      } else if (entry.isFile() && isSupportedSourceFile(entry.name)) {
-        // Skip excluded files
-        if (shouldExclude(fullPath, options.excludePatterns)) {
-          continue;
-        }
-
-        try {
-          const symbols = await extractSymbolsFromFile(fullPath, options);
-          allSymbols.push(...symbols);
-          filesProcessed++;
-        } catch (error) {
-          filesWithErrors.push(fullPath);
-        }
+      } else if (entry.isFile() && isSupportedSourceFile(entry.name) && !shouldExclude(fullPath, options.excludePatterns)) {
+        discoveredFiles.push(fullPath);
       }
     }
+
+    await Promise.all(childDirectories.map((childDir) => collectDirectory(childDir)));
   }
 
-  await processDirectory(directory);
+  await collectDirectory(directory);
 
+  const result = await extractSymbolsFromFiles(discoveredFiles, options);
   return {
-    symbols: allSymbols,
-    filesProcessed,
-    filesWithErrors,
+    ...result,
     extractionTimeMs: Date.now() - startTime,
   };
 }
@@ -1167,6 +1168,14 @@ function getScriptKindForPath(filePath: string): ts.ScriptKind {
     return ts.ScriptKind.JS;
   }
   return ts.ScriptKind.TS;
+}
+
+function resolveBatchSize(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 20;
+  const normalized = Math.trunc(value as number);
+  if (normalized < 1) return 1;
+  if (normalized > 200) return 200;
+  return normalized;
 }
 
 // ============================================================================

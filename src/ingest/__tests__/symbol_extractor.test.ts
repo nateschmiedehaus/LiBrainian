@@ -14,7 +14,12 @@ import * as ts from 'typescript';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { extractSymbolsFromSource, extractSymbolsFromFile, extractSymbolsFromDirectory } from '../symbol_extractor.js';
+import {
+  extractSymbolsFromSource,
+  extractSymbolsFromFile,
+  extractSymbolsFromFiles,
+  extractSymbolsFromDirectory,
+} from '../symbol_extractor.js';
 
 /**
  * Helper to extract symbols from a TypeScript code string.
@@ -841,6 +846,57 @@ namespace API {
             exported: true,
           })
         );
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('continues batched extraction when one file fails', async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-extractor-batch-errors-'));
+      try {
+        const okA = path.join(tempDir, 'ok_a.ts');
+        const okB = path.join(tempDir, 'ok_b.ts');
+        const missing = path.join(tempDir, 'missing.ts');
+
+        await fs.writeFile(okA, 'export function alpha() { return 1; }', 'utf8');
+        await fs.writeFile(okB, 'export const BETA = 2;', 'utf8');
+
+        const result = await extractSymbolsFromFiles([okA, missing, okB], {
+          batchSize: 4,
+          includeFunctions: true,
+          includeVariables: true,
+        });
+
+        expect(result.filesProcessed).toBe(2);
+        expect(result.filesWithErrors).toContain(missing);
+        expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'alpha', kind: 'function' }));
+        expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'BETA', kind: 'const' }));
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('matches sequential symbol set when batch extraction is enabled', async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-extractor-batch-equivalence-'));
+      try {
+        const fileA = path.join(tempDir, 'a.ts');
+        const fileB = path.join(tempDir, 'b.ts');
+        const fileC = path.join(tempDir, 'c.ts');
+        await fs.writeFile(fileA, 'export class A { run() { return 1; } }', 'utf8');
+        await fs.writeFile(fileB, 'export interface B { id: string; }', 'utf8');
+        await fs.writeFile(fileC, 'export function c(value: number) { return value; }', 'utf8');
+
+        const sharedOptions = { includeFunctions: true, includeVariables: true };
+        const sequential = await extractSymbolsFromFiles([fileA, fileB, fileC], { ...sharedOptions, batchSize: 1 });
+        const batched = await extractSymbolsFromFiles([fileA, fileB, fileC], { ...sharedOptions, batchSize: 20 });
+
+        const toStableKey = (entry: { filePath?: string; name?: string; kind?: string }) =>
+          `${entry.filePath ?? ''}:${entry.name ?? ''}:${entry.kind ?? ''}`;
+
+        const sequentialSet = new Set(sequential.symbols.map(toStableKey));
+        const batchedSet = new Set(batched.symbols.map(toStableKey));
+
+        expect(batchedSet).toEqual(sequentialSet);
       } finally {
         await fs.rm(tempDir, { recursive: true, force: true });
       }
