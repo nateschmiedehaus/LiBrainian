@@ -727,6 +727,11 @@ export interface GraphEdgeQueryOptions {
   sourceFiles?: string[];
   fromIds?: string[];
   toIds?: string[];
+  /**
+   * Legacy singular filter alias.
+   * Prefer `edgeTypes` for new callsites.
+   */
+  edgeType?: GraphEdgeType;
   edgeTypes?: GraphEdgeType[];
   fromTypes?: GraphEntityType[];
   toTypes?: GraphEntityType[];

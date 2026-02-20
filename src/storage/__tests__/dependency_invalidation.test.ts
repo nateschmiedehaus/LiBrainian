@@ -175,6 +175,47 @@ describe('SqliteLibrarianStorage dependency invalidation', () => {
     });
   });
 
+  describe('getGraphEdges filters', () => {
+    it('supports both edgeType and edgeTypes filters', async () => {
+      await storage.upsertGraphEdges([
+        {
+          fromId: 'fnA',
+          fromType: 'function',
+          toId: 'fnB',
+          toType: 'function',
+          edgeType: 'calls',
+          sourceFile: 'src/a.ts',
+          sourceLine: 10,
+          confidence: 1.0,
+          computedAt: new Date(),
+        },
+        {
+          fromId: 'src/a.ts',
+          fromType: 'file',
+          toId: 'src/b.ts',
+          toType: 'file',
+          edgeType: 'imports',
+          sourceFile: 'src/a.ts',
+          sourceLine: 1,
+          confidence: 1.0,
+          computedAt: new Date(),
+        },
+      ]);
+
+      const callsOnly = await storage.getGraphEdges({ edgeType: 'calls' });
+      expect(callsOnly).toHaveLength(1);
+      expect(callsOnly[0]?.edgeType).toBe('calls');
+
+      const importsOnly = await storage.getGraphEdges({ edgeTypes: ['imports'] });
+      expect(importsOnly).toHaveLength(1);
+      expect(importsOnly[0]?.edgeType).toBe('imports');
+
+      const merged = await storage.getGraphEdges({ edgeType: 'calls', edgeTypes: ['imports'] });
+      expect(merged).toHaveLength(2);
+      expect(new Set(merged.map((edge) => edge.edgeType))).toEqual(new Set(['calls', 'imports']));
+    });
+  });
+
   describe('getReverseDependencies', () => {
     it('returns files that import the given file', async () => {
       // Create import edges

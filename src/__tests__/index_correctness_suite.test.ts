@@ -208,7 +208,7 @@ describe('Index correctness verification suite (issue #467)', () => {
       expect(functions.some((fn) => fn.name === name)).toBe(true);
     }
 
-    const edges = await storage.getGraphEdges({ edgeType: 'calls', limit: 2000 });
+    const edges = await storage.getGraphEdges({ edgeTypes: ['calls'], limit: 2000 });
     const predicted = new Set<string>();
     for (const edge of edges) {
       const from = functionById.get(edge.fromId);

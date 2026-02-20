@@ -112,7 +112,7 @@ describe('E2E acceptance gate (issue #466)', () => {
     expect(validateEmail).toBeTruthy();
     expect(loadUserByEmail).toBeTruthy();
 
-    const edges = await storage.getGraphEdges({ edgeType: 'calls' });
+    const edges = await storage.getGraphEdges({ edgeTypes: ['calls'] });
     const hasEdge = (fromId: string, toId: string): boolean =>
       edges.some((edge: GraphEdge) => edge.edgeType === 'calls' && edge.fromId === fromId && edge.toId === toId);
 

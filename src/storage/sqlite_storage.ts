@@ -2949,6 +2949,10 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     const db = this.ensureDb();
     const filters: string[] = [];
     const params: unknown[] = [];
+    const edgeTypes = Array.from(new Set([
+      ...(options.edgeTypes ?? []),
+      ...(options.edgeType ? [options.edgeType] : []),
+    ]));
 
     if (options.sourceFiles?.length) {
       const placeholders = options.sourceFiles.map(() => '?').join(', ');
@@ -2965,10 +2969,10 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       filters.push(`to_id IN (${placeholders})`);
       params.push(...options.toIds);
     }
-    if (options.edgeTypes?.length) {
-      const placeholders = options.edgeTypes.map(() => '?').join(', ');
+    if (edgeTypes.length) {
+      const placeholders = edgeTypes.map(() => '?').join(', ');
       filters.push(`edge_type IN (${placeholders})`);
-      params.push(...options.edgeTypes);
+      params.push(...edgeTypes);
     }
     if (options.fromTypes?.length) {
       const placeholders = options.fromTypes.map(() => '?').join(', ');
