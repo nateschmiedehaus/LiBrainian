@@ -12,7 +12,7 @@ This policy enforces black-box package reality checks so releases cannot pass on
 1. PR/verify gate:
    - Run strict tarball-based black-box E2E before publish (`npm run test:e2e:reality:tarball`).
 2. Release gate:
-   - `publish-npm` verify must pass strict tarball black-box E2E.
+   - `npm-publish` verify must pass strict tarball black-box E2E.
    - Publish auth must fail closed with actionable remediation if token/trusted publishing is misconfigured.
 3. Cadence gate:
    - Scheduled `e2e-cadence` runs:

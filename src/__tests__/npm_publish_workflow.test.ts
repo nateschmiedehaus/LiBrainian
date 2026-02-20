@@ -4,11 +4,11 @@ import path from 'node:path';
 
 describe('npm publish workflow', () => {
   it('defines a GitHub-driven publish workflow', () => {
-    const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'publish-npm.yml');
+    const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'npm-publish.yml');
     expect(fs.existsSync(workflowPath)).toBe(true);
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
-    expect(workflow).toContain('name: publish-npm');
+    expect(workflow).toContain('name: npm-publish');
     expect(workflow).toContain('workflow_dispatch:');
     expect(workflow).toContain('allow_trusted_fallback:');
     expect(workflow).toContain('release:');
