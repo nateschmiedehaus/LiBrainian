@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { parseArgs } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { CliError } from '../errors.js';
-import { OPENCLAW_SKILL_MARKDOWN } from '../../integrations/openclaw_skill_template.js';
+import { OPENCLAW_SKILL_MARKDOWN } from '../../connectors/openclaw_skill_template.js';
 import {
   OPENCLAW_REQUIRED_TOOL_NAMES,
   getOpenclawToolRegistryStatus,

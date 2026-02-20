@@ -474,7 +474,7 @@ function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {
         'src/guidance/**/*.ts',
         'src/homeostasis/**/*.ts',
         'src/integration/**/*.ts',
-        'src/integrations/**/*.ts',
+        'src/connectors/**/*.ts',
         'src/learning/**/*.ts',
         'src/mcp/**/*.ts',
         'src/measurement/**/*.ts',

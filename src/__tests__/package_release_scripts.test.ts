@@ -65,6 +65,7 @@ describe('package release scripts', () => {
     expect(script).toContain('Package unpacked size exceeds budget');
     expect(script).toContain('LIBRARIAN_MAX_UNPACKED_SIZE_MB');
     expect(script).toContain('Package contains legacy memory cache paths');
+    expect(script).toContain('Package contains deprecated integrations directory paths');
   });
 
   it('hardens package install smoke against lifecycle log noise', () => {

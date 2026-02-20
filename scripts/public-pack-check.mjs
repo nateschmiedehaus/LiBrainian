@@ -92,6 +92,7 @@ function main() {
   const evolutionFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evolution/'));
   const selfImprovementFiles = filePaths.filter((filePath) => filePath.startsWith('dist/agents/self_improvement/'));
   const memoryFiles = filePaths.filter((filePath) => filePath.startsWith('dist/memory/'));
+  const pluralIntegrationsFiles = filePaths.filter((filePath) => filePath.startsWith('dist/integrations/'));
 
   if (disallowed.length > 0) {
     throw new Error(
@@ -141,6 +142,15 @@ function main() {
   if (memoryFiles.length > 0) {
     throw new Error(
       `Package contains legacy memory cache paths:\n${memoryFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (pluralIntegrationsFiles.length > 0) {
+    throw new Error(
+      `Package contains deprecated integrations directory paths:\n${pluralIntegrationsFiles
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
         .join('\n')}`

@@ -6,8 +6,8 @@ import YAML from 'yaml';
 import { getErrorMessage } from '../utils/errors.js';
 import type { TaxonomyItem } from '../api/taxonomy.js';
 import type { IngestionContext, IngestionItem, IngestionResult, IngestionSource } from './types.js';
-import { loadCodeqlFindings, type CodeqlScan } from '../integrations/codeql_adapter.js';
-import { loadJoernFindings, type JoernScan } from '../integrations/joern_adapter.js';
+import { loadCodeqlFindings, type CodeqlScan } from '../connectors/codeql_adapter.js';
+import { loadJoernFindings, type JoernScan } from '../connectors/joern_adapter.js';
 import { emptyArray } from '../api/empty_values.js';
 import { safeJsonParse, getResultErrorMessage } from '../utils/safe_json.js';
 
