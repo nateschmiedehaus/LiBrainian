@@ -17,6 +17,7 @@ import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { emitJsonOutput } from '../json_output.js';
 import { collectVerificationProvenance, type VerificationProvenanceReport } from '../verification_provenance.js';
 import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
+import { isOfflineModeEnabled } from '../../utils/runtime_controls.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -41,6 +42,11 @@ type StatusReport = {
   workspace: string;
   workspaceOriginal?: string;
   version: { cli: string };
+  runtime?: {
+    offlineMode: boolean;
+    availableFeatures: string[];
+    unavailableFeatures: string[];
+  };
   storage: { status: 'ready' | 'not_initialized'; reason?: string };
   bootstrap?: {
     required: { mvp: boolean; full: boolean };
@@ -152,8 +158,16 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     workspace: workspaceRoot,
     workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
     version: { cli: LIBRARIAN_VERSION.string },
+    runtime: {
+      offlineMode: isOfflineModeEnabled(),
+      availableFeatures: ['search', 'graph', 'symbols'],
+      unavailableFeatures: [],
+    },
     storage: { status: 'not_initialized' },
   };
+  if (report.runtime.offlineMode) {
+    report.runtime.unavailableFeatures = ['synthesis', 'llm_enrichment'];
+  }
   report.provenance = await collectVerificationProvenance(workspaceRoot);
 
   if (format === 'text') {
@@ -162,6 +176,14 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
 
     console.log('Version Information:');
     printKeyValue([{ key: 'CLI Version', value: LIBRARIAN_VERSION.string }, { key: 'Workspace', value: workspaceRoot }]);
+    console.log();
+
+    console.log('Runtime Mode:');
+    printKeyValue([
+      { key: 'Offline Mode', value: report.runtime.offlineMode },
+      { key: 'Available Features', value: report.runtime.availableFeatures.join(', ') || 'none' },
+      { key: 'Unavailable Features', value: report.runtime.unavailableFeatures.join(', ') || 'none' },
+    ]);
     console.log();
 
     console.log('Verification Provenance:');

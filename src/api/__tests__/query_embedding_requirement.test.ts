@@ -50,6 +50,8 @@ describe('queryLibrarian embedding requirement', () => {
   afterEach(async () => {
     await storage?.close?.();
     storage = null;
+    delete process.env.LIBRARIAN_OFFLINE;
+    delete process.env.LIBRARIAN_LOCAL_ONLY;
   });
 
   it('throws when embeddings are required but unavailable', async () => {
@@ -123,5 +125,24 @@ describe('queryLibrarian embedding requirement', () => {
 
     expect(first.cacheHit).toBe(false);
     expect(second.cacheHit).toBe(false);
+  });
+
+  it('forces llmRequirement=disabled when offline mode is enabled', async () => {
+    const { queryLibrarian } = await import('../query.js');
+    storage = createSqliteStorage(getTempDbPath(), process.cwd());
+    await storage.initialize();
+    await seedStorage(storage);
+    process.env.LIBRARIAN_OFFLINE = '1';
+
+    const response = await queryLibrarian(
+      {
+        intent: 'where is auth handled',
+        depth: 'L0',
+      },
+      storage
+    );
+
+    expect(response.llmRequirement).toBe('disabled');
+    expect(response.disclosures.join(' ')).toContain('offline_mode');
   });
 });

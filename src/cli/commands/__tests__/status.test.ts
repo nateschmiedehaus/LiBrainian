@@ -204,6 +204,25 @@ describe('statusCommand', () => {
     expect(exitCode).toBe(0);
   });
 
+  it('reports offline runtime feature availability when LIBRARIAN_OFFLINE is enabled', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    process.env.LIBRARIAN_OFFLINE = '1';
+
+    try {
+      await statusCommand({ workspace, verbose: false, format: 'json' });
+
+      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const parsed = JSON.parse(output ?? '{}') as {
+        runtime?: { offlineMode?: boolean; availableFeatures?: string[]; unavailableFeatures?: string[] };
+      };
+      expect(parsed.runtime?.offlineMode).toBe(true);
+      expect(parsed.runtime?.availableFeatures).toContain('search');
+      expect(parsed.runtime?.unavailableFeatures).toContain('synthesis');
+    } finally {
+      delete process.env.LIBRARIAN_OFFLINE;
+    }
+  });
+
   it('includes freshness counts in JSON output when git data is available', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     mockStorage.getMetadata.mockResolvedValue({

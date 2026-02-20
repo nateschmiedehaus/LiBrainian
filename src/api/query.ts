@@ -81,6 +81,7 @@ import { analyzeResultCoherence, applyCoherenceAdjustment } from '../epistemics/
 import { collectCorrelationConflictDisclosures } from '../epistemics/event_ledger_bridge.js';
 import { getCurrentGitSha } from '../utils/git.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { isOfflineModeEnabled } from '../utils/runtime_controls.js';
 import { inferPerspective, getPerspectiveConfig, type PerspectiveConfig } from './perspective.js';
 import { enforceResponseTokenBudget, hasValidTokenBudget } from './token_budget.js';
 import {
@@ -1586,15 +1587,21 @@ export async function queryLibrarian(
     const envDisableSynthesis =
       process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS === '1' ||
       process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS === 'true';
+    const offlineMode = isOfflineModeEnabled();
     // Default to optional LLM usage: retrieval should work without a live chat model,
     // and synthesis should degrade gracefully when providers are unavailable.
-    const llmRequirement: LlmRequirement = envDisableSynthesis ? 'disabled' : (query.llmRequirement ?? 'optional');
+    const requestedLlmRequirement: LlmRequirement = query.llmRequirement ?? 'optional';
+    const llmRequirement: LlmRequirement =
+      (offlineMode || envDisableSynthesis) ? 'disabled' : requestedLlmRequirement;
     const embeddingRequirementExplicit = query.embeddingRequirement !== undefined;
     let embeddingRequirement: EmbeddingRequirement =
       query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required');
     let llmAvailable = llmRequirement === 'required';
     let llmProviderError: string | undefined;
     query = { ...query, llmRequirement, embeddingRequirement };
+    if (offlineMode) {
+      disclosures.push('unverified_by_trace(offline_mode): Runtime offline/local-only mode active; LLM synthesis disabled.');
+    }
     const capabilities = resolveStorageCapabilities(storage);
   const stageTracker = createStageTracker(stageObserver);
     const recordCoverageGap: RecordCoverageGap = (stage, message, severity = 'moderate', remediation) => {
