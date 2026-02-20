@@ -125,6 +125,63 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.aggregate_confidence?.highest_risk_element).toContain('p1');
   });
 
+  it('returns uncertainty diagnostics via librainian_get_uncertainty', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getRetrievalConfidenceLogs: vi.fn().mockResolvedValue([
+        {
+          queryHash: 'q1',
+          confidenceScore: 0.42,
+          retrievalEntropy: 1.9,
+          returnedPackIds: ['p1'],
+          timestamp: new Date().toISOString(),
+          intent: 'where is auth implemented?',
+        },
+      ]),
+    });
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'auth', keyFacts: [], relatedFiles: ['src/auth.ts'], confidence: 0.42 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-uncertainty',
+      constructionPlan: undefined,
+      totalConfidence: 0.42,
+      cacheHit: false,
+      latencyMs: 9,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+      retrievalEntropy: 1.9,
+      retrievalStatus: 'partial',
+    });
+
+    const result = await (server as any).executeLibrainianGetUncertainty({
+      query: 'where is auth implemented?',
+      workspace,
+      depth: 'L1',
+      topK: 5,
+    });
+
+    expect(result.tool).toBe('librainian_get_uncertainty');
+    expect(result.success).toBe(true);
+    expect(result.confidence_score).toBeCloseTo(0.42, 4);
+    expect(result.retrieval_entropy).toBeCloseTo(1.9, 4);
+    expect(Array.isArray(result.uncertaintyPacks)).toBe(true);
+    expect(result.uncertaintyPacks[0]?.packId).toBe('p1');
+    expect(result.retrievalConfidenceLogMatches[0]?.intent).toBe('where is auth implemented?');
+  });
+
   it('annotates stale context packs with freshness metadata and warning', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

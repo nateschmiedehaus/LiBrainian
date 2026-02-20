@@ -19,6 +19,7 @@ import {
   BootstrapToolInputSchema,
   GetSessionBriefingToolInputSchema,
   QueryToolInputSchema,
+  LibrainianGetUncertaintyToolInputSchema,
   GetContextPackToolInputSchema,
   EstimateBudgetToolInputSchema,
   EstimateTaskComplexityToolInputSchema,
@@ -60,6 +61,7 @@ import {
   isBootstrapToolInput,
   isGetSessionBriefingToolInput,
   isQueryToolInput,
+  isLibrainianGetUncertaintyToolInput,
   isGetContextPackToolInput,
   isEstimateBudgetToolInput,
   isEstimateTaskComplexityToolInput,
@@ -116,6 +118,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('estimate_budget');
       expect(schemas).toContain('estimate_task_complexity');
       expect(schemas).toContain('query');
+      expect(schemas).toContain('librainian_get_uncertainty');
       expect(schemas).toContain('synthesize_plan');
       expect(schemas).toContain('reset_session_state');
       expect(schemas).toContain('request_human_review');
@@ -158,7 +161,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_update');
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(52);
+      expect(schemas).toHaveLength(53);
     });
 
     it('should return schema for known tools', () => {
@@ -352,6 +355,31 @@ describe('MCP Schema', () => {
       expect(queryToolJsonSchema.description).toContain('semantic, cross-file retrieval');
       expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
       expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
+    });
+  });
+
+  describe('Librainian Get Uncertainty Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('librainian_get_uncertainty', {
+        query: 'where is auth implemented?',
+        depth: 'L1',
+        minConfidence: 0.2,
+        topK: 5,
+      });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should reject missing query', () => {
+      const result = validateToolInput('librainian_get_uncertainty', {});
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('should expose zod schema and type guard', () => {
+      expect(LibrainianGetUncertaintyToolInputSchema).toBeDefined();
+      expect(isLibrainianGetUncertaintyToolInput({ query: 'foo' })).toBe(true);
+      expect(isLibrainianGetUncertaintyToolInput({ query: '' })).toBe(false);
     });
   });
 

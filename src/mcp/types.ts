@@ -672,6 +672,24 @@ export interface QueryToolInput {
   streamChunkSize?: number;
 }
 
+/** librainian_get_uncertainty tool input */
+export interface LibrainianGetUncertaintyToolInput {
+  /** Natural-language query to evaluate uncertainty for */
+  query: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Depth of retrieval context to probe */
+  depth?: 'L0' | 'L1' | 'L2' | 'L3';
+
+  /** Minimum confidence threshold for candidate filtering */
+  minConfidence?: number;
+
+  /** Optional max packs to include in uncertainty detail */
+  topK?: number;
+}
+
 export type RetrievalConfidenceTier = 'definitive' | 'high' | 'medium' | 'low' | 'uncertain';
 
 export interface ConfidenceBreakdownEntry {
@@ -1346,6 +1364,9 @@ export interface ContextPackSummary {
   /** Confidence */
   confidence: number;
 
+  /** Snake-case confidence alias */
+  confidence_score?: number;
+
   /** Human-readable confidence tier */
   confidenceTier?: RetrievalConfidenceTier;
 
@@ -1377,6 +1398,12 @@ export interface ContextPackSummary {
 
   /** Source files that are newer than this context pack snapshot */
   staleFiles?: string[];
+
+  /** Response-level retrieval entropy associated with this pack for diagnostics */
+  retrievalEntropy?: number;
+
+  /** Snake-case alias for retrievalEntropy */
+  retrieval_entropy?: number;
 }
 
 export interface EvidenceSummary {
@@ -1885,6 +1912,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   query: {
     tool: 'query',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  librainian_get_uncertainty: {
+    tool: 'librainian_get_uncertainty',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',
@@ -2416,6 +2449,22 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
     && explainMissesAliasOk
     && streamOk
     && streamChunkSizeOk;
+}
+
+/** Type guard for LibrainianGetUncertaintyToolInput */
+export function isLibrainianGetUncertaintyToolInput(value: unknown): value is LibrainianGetUncertaintyToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const queryOk = typeof obj.query === 'string' && obj.query.trim().length > 0;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const depthOk = obj.depth === 'L0'
+    || obj.depth === 'L1'
+    || obj.depth === 'L2'
+    || obj.depth === 'L3'
+    || typeof obj.depth === 'undefined';
+  const minConfidenceOk = typeof obj.minConfidence === 'number' || typeof obj.minConfidence === 'undefined';
+  const topKOk = typeof obj.topK === 'number' || typeof obj.topK === 'undefined';
+  return queryOk && workspaceOk && depthOk && minConfidenceOk && topKOk;
 }
 
 /** Type guard for SynthesizePlanToolInput */

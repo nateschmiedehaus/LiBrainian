@@ -1828,6 +1828,14 @@ export async function queryLibrarian(
       if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
         cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
       }
+      await logRetrievalConfidenceObservation(storage, workspaceRoot, {
+        queryHash: queryId,
+        intent: query.intent,
+        confidenceScore: cachedResponse.totalConfidence,
+        retrievalEntropy: cachedResponse.retrievalEntropy ?? 0,
+        returnedPackIds: cachedResponse.packs.map((pack) => pack.packId),
+        timestamp: new Date().toISOString(),
+      });
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
         await cacheStore.recordQueryCacheAccess(cacheKey);
@@ -1889,6 +1897,14 @@ export async function queryLibrarian(
       if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
         cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
       }
+      await logRetrievalConfidenceObservation(storage, workspaceRoot, {
+        queryHash: queryId,
+        intent: query.intent,
+        confidenceScore: cachedResponse.totalConfidence,
+        retrievalEntropy: cachedResponse.retrievalEntropy ?? 0,
+        returnedPackIds: cachedResponse.packs.map((pack) => pack.packId),
+        timestamp: new Date().toISOString(),
+      });
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
         await cacheStore.recordQueryCacheAccess(semanticCached.matchedKey);
@@ -2737,7 +2753,8 @@ export async function queryLibrarian(
     const unchangedDepth = nextQuery.depth === currentDepth;
 
     if (!(unchangedIntent && unchangedDepth)) {
-      await logRetrievalEscalationEvent(workspaceRoot, {
+      await logRetrievalEscalationEvent(storage, workspaceRoot, {
+        queryHash: queryId,
         intent: query.intent,
         fromDepth: currentDepth,
         toDepth: nextQuery.depth,
@@ -2746,6 +2763,7 @@ export async function queryLibrarian(
         reasons: escalationDecision.reasons,
         attempt: escalationState.attempts + 1,
         maxEscalationDepth: escalationState.maxDepth,
+        returnedPackIds: finalPacks.map((pack) => pack.packId),
       });
 
       const escalatedResponse = await queryLibrarian(
@@ -3221,6 +3239,14 @@ export async function queryLibrarian(
   if (allowCache) {
     await setCachedQuery(cacheKey, response, storage, query);
   }
+  await logRetrievalConfidenceObservation(storage, workspaceRoot, {
+    queryHash: queryId,
+    intent: query.intent,
+    confidenceScore: response.totalConfidence,
+    retrievalEntropy: response.retrievalEntropy ?? 0,
+    returnedPackIds: response.packs.map((pack) => pack.packId),
+    timestamp: new Date().toISOString(),
+  });
   if (sessionWorkspaceRoot) {
     const relatedFiles = Array.from(
       new Set(
@@ -8088,7 +8114,8 @@ function normalizeEscalationDepth(value: number): number {
   return Math.max(0, Math.min(MAX_ALLOWED_ESCALATION_DEPTH, Math.floor(value)));
 }
 
-async function logRetrievalEscalationEvent(workspaceRoot: string, event: {
+async function logRetrievalEscalationEvent(storage: LibrarianStorage, workspaceRoot: string, event: {
+  queryHash: string;
   intent: string;
   fromDepth: LibrarianQuery['depth'];
   toDepth: LibrarianQuery['depth'];
@@ -8097,20 +8124,77 @@ async function logRetrievalEscalationEvent(workspaceRoot: string, event: {
   reasons: string[];
   attempt: number;
   maxEscalationDepth: number;
+  returnedPackIds: string[];
 }): Promise<void> {
+  const now = new Date().toISOString();
+  await logRetrievalConfidenceObservation(storage, workspaceRoot, {
+    queryHash: event.queryHash,
+    intent: event.intent,
+    confidenceScore: event.totalConfidence,
+    retrievalEntropy: event.retrievalEntropy,
+    returnedPackIds: event.returnedPackIds,
+    timestamp: now,
+    fromDepth: event.fromDepth,
+    toDepth: event.toDepth,
+    escalationReason: event.reasons.join('|') || 'policy_triggered',
+    attempt: event.attempt,
+    maxEscalationDepth: event.maxEscalationDepth,
+  });
+}
+
+async function logRetrievalConfidenceObservation(
+  storage: LibrarianStorage,
+  workspaceRoot: string,
+  event: {
+    queryHash: string;
+    intent?: string;
+    confidenceScore: number;
+    retrievalEntropy: number;
+    returnedPackIds: string[];
+    timestamp: string;
+    fromDepth?: LibrarianQuery['depth'];
+    toDepth?: LibrarianQuery['depth'];
+    escalationReason?: string;
+    attempt?: number;
+    maxEscalationDepth?: number;
+    routedStrategy?: string;
+  },
+): Promise<void> {
+  try {
+    await storage.appendRetrievalConfidenceLog({
+      queryHash: event.queryHash,
+      confidenceScore: Number(event.confidenceScore.toFixed(4)),
+      retrievalEntropy: Number(event.retrievalEntropy.toFixed(4)),
+      returnedPackIds: event.returnedPackIds.slice(0, 50),
+      timestamp: event.timestamp,
+      intent: event.intent,
+      fromDepth: event.fromDepth,
+      toDepth: event.toDepth,
+      escalationReason: event.escalationReason,
+      attempt: event.attempt,
+      maxEscalationDepth: event.maxEscalationDepth,
+      routedStrategy: event.routedStrategy,
+    });
+  } catch {
+    // Storage logging is best-effort and must never break query execution.
+  }
+
   try {
     const logPath = path.join(workspaceRoot, '.librarian', 'retrieval_confidence_log.jsonl');
     await fs.mkdir(path.dirname(logPath), { recursive: true });
     const record = {
-      timestamp: new Date().toISOString(),
-      escalation_reason: event.reasons.join('|') || 'policy_triggered',
+      timestamp: event.timestamp,
+      query_hash: event.queryHash,
+      escalation_reason: event.escalationReason ?? null,
       intent: event.intent,
-      from_depth: event.fromDepth,
-      to_depth: event.toDepth,
-      confidence_score: Number(event.totalConfidence.toFixed(4)),
+      from_depth: event.fromDepth ?? null,
+      to_depth: event.toDepth ?? null,
+      confidence_score: Number(event.confidenceScore.toFixed(4)),
       retrieval_entropy: Number(event.retrievalEntropy.toFixed(4)),
-      attempt: event.attempt,
-      max_escalation_depth: event.maxEscalationDepth,
+      returned_pack_ids: event.returnedPackIds.slice(0, 50),
+      attempt: event.attempt ?? null,
+      max_escalation_depth: event.maxEscalationDepth ?? null,
+      routed_strategy: event.routedStrategy ?? null,
     };
     await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
   } catch {

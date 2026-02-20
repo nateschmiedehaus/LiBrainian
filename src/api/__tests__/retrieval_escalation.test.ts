@@ -38,6 +38,43 @@ const pack = (overrides: Partial<ContextPack>): ContextPack => ({
 });
 
 describe('retrieval escalation policy', () => {
+  it('treats empty result sets as maximum uncertainty entropy', () => {
+    const entropy = computeRetrievalEntropy([]);
+    expect(entropy).toBeCloseTo(Math.log2(10), 3);
+  });
+
+  it('returns near-zero entropy for a single dominant match', () => {
+    const entropy = computeRetrievalEntropy([
+      pack({ confidence: 1.0 }),
+    ]);
+    expect(entropy).toBe(0);
+  });
+
+  it('matches log2(k) entropy for uniform confidence across k packs', () => {
+    const packs = Array.from({ length: 10 }, (_, idx) => pack({ packId: `p-${idx}`, confidence: 0.5 }));
+    const entropy = computeRetrievalEntropy(packs);
+    expect(entropy).toBeCloseTo(Math.log2(10), 3);
+  });
+
+  it('ranks uncertain retrievals above confident retrievals across 20 queries in 3 codebase suites', () => {
+    const codebaseSuites = ['typescript-repo', 'python-repo', 'go-repo'];
+    for (const suite of codebaseSuites) {
+      for (let i = 0; i < 20; i += 1) {
+        const confidentEntropy = computeRetrievalEntropy([
+          pack({ packId: `${suite}-c-${i}-1`, confidence: 0.95 }),
+          pack({ packId: `${suite}-c-${i}-2`, confidence: 0.03 }),
+          pack({ packId: `${suite}-c-${i}-3`, confidence: 0.02 }),
+        ]);
+        const uncertainEntropy = computeRetrievalEntropy([
+          pack({ packId: `${suite}-u-${i}-1`, confidence: 0.34 }),
+          pack({ packId: `${suite}-u-${i}-2`, confidence: 0.33 }),
+          pack({ packId: `${suite}-u-${i}-3`, confidence: 0.33 }),
+        ]);
+        expect(uncertainEntropy).toBeGreaterThan(confidentEntropy);
+      }
+    }
+  });
+
   it('computes retrieval entropy from pack confidence distribution', () => {
     const entropy = computeRetrievalEntropy([
       pack({ confidence: 0.5 }),

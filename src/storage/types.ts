@@ -189,6 +189,8 @@ export interface LibrarianStorage {
   upsertQueryCacheEntry(entry: QueryCacheEntry): Promise<void>;
   recordQueryCacheAccess(queryHash: string): Promise<void>;
   pruneQueryCache(options: QueryCachePruneOptions): Promise<number>;
+  appendRetrievalConfidenceLog(entry: RetrievalConfidenceLogEntry): Promise<void>;
+  getRetrievalConfidenceLogs(options?: RetrievalConfidenceLogQueryOptions): Promise<RetrievalConfidenceLogEntry[]>;
 
   // Evolution outcomes (for learning/adaptation) - REQUIRED for self-evolution
   recordEvolutionOutcome(outcome: EvolutionOutcome): Promise<void>;
@@ -935,6 +937,26 @@ export interface QueryCacheEntry {
 export interface QueryCachePruneOptions {
   maxEntries: number;
   maxAgeMs: number;
+}
+
+export interface RetrievalConfidenceLogEntry {
+  queryHash: string;
+  confidenceScore: number;
+  retrievalEntropy: number;
+  returnedPackIds: string[];
+  timestamp: string;
+  intent?: string;
+  fromDepth?: string;
+  toDepth?: string;
+  escalationReason?: string;
+  attempt?: number;
+  maxEscalationDepth?: number;
+  routedStrategy?: string;
+}
+
+export interface RetrievalConfidenceLogQueryOptions {
+  queryHash?: string;
+  limit?: number;
 }
 
 // ============================================================================

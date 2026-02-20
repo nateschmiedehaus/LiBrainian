@@ -29,6 +29,8 @@ import type {
   IngestionQueryOptions,
   QueryCacheEntry,
   QueryCachePruneOptions,
+  RetrievalConfidenceLogEntry,
+  RetrievalConfidenceLogQueryOptions,
   EvolutionOutcome,
   EvolutionOutcomeQueryOptions,
   LearnedMissingContext,
@@ -695,6 +697,25 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     if (!this.db) return;
     this.db.exec('CREATE TABLE IF NOT EXISTS librarian_cochange (file_a TEXT NOT NULL, file_b TEXT NOT NULL, change_count INTEGER NOT NULL, total_changes INTEGER NOT NULL, strength REAL NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (file_a, file_b)); CREATE INDEX IF NOT EXISTS idx_cochange_strength ON librarian_cochange(strength DESC); CREATE INDEX IF NOT EXISTS idx_cochange_file_a ON librarian_cochange(file_a);');
     this.db.exec('CREATE TABLE IF NOT EXISTS librarian_confidence_events (id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, delta REAL NOT NULL, updated_at TEXT NOT NULL, reason TEXT); CREATE INDEX IF NOT EXISTS idx_confidence_events_entity ON librarian_confidence_events(entity_id, entity_type); CREATE INDEX IF NOT EXISTS idx_confidence_events_time ON librarian_confidence_events(updated_at);');
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS retrieval_confidence_log (
+        id TEXT PRIMARY KEY,
+        query_hash TEXT NOT NULL,
+        confidence_score REAL NOT NULL,
+        retrieval_entropy REAL NOT NULL,
+        returned_pack_ids TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        intent TEXT,
+        from_depth TEXT,
+        to_depth TEXT,
+        escalation_reason TEXT,
+        attempt INTEGER,
+        max_escalation_depth INTEGER,
+        routed_strategy TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_retrieval_confidence_log_query_hash ON retrieval_confidence_log(query_hash);
+      CREATE INDEX IF NOT EXISTS idx_retrieval_confidence_log_timestamp ON retrieval_confidence_log(timestamp DESC);
+    `);
   }
 
   private ensureEvidenceTables(): void {
@@ -3811,6 +3832,80 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       }
     }
     return expired + trimmed;
+  }
+
+  async appendRetrievalConfidenceLog(entry: RetrievalConfidenceLogEntry): Promise<void> {
+    const db = this.ensureDb();
+    db.prepare(`
+      INSERT INTO retrieval_confidence_log (
+        id,
+        query_hash,
+        confidence_score,
+        retrieval_entropy,
+        returned_pack_ids,
+        timestamp,
+        intent,
+        from_depth,
+        to_depth,
+        escalation_reason,
+        attempt,
+        max_escalation_depth,
+        routed_strategy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      randomUUID(),
+      entry.queryHash,
+      entry.confidenceScore,
+      entry.retrievalEntropy,
+      JSON.stringify(entry.returnedPackIds),
+      entry.timestamp,
+      entry.intent ?? null,
+      entry.fromDepth ?? null,
+      entry.toDepth ?? null,
+      entry.escalationReason ?? null,
+      entry.attempt ?? null,
+      entry.maxEscalationDepth ?? null,
+      entry.routedStrategy ?? null,
+    );
+  }
+
+  async getRetrievalConfidenceLogs(options: RetrievalConfidenceLogQueryOptions = {}): Promise<RetrievalConfidenceLogEntry[]> {
+    const db = this.ensureDb();
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+
+    if (typeof options.queryHash === 'string' && options.queryHash.trim().length > 0) {
+      clauses.push('query_hash = ?');
+      params.push(options.queryHash.trim());
+    }
+
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const limit = typeof options.limit === 'number' && Number.isFinite(options.limit)
+      ? Math.max(1, Math.min(500, Math.trunc(options.limit)))
+      : 20;
+    const rows = db.prepare(`
+      SELECT query_hash, confidence_score, retrieval_entropy, returned_pack_ids, timestamp, intent, from_depth, to_depth,
+             escalation_reason, attempt, max_escalation_depth, routed_strategy
+      FROM retrieval_confidence_log
+      ${whereClause}
+      ORDER BY timestamp DESC
+      LIMIT ?
+    `).all(...params, limit) as RetrievalConfidenceLogRow[];
+
+    return rows.map((row) => ({
+      queryHash: row.query_hash,
+      confidenceScore: row.confidence_score,
+      retrievalEntropy: row.retrieval_entropy,
+      returnedPackIds: parseStringArray(row.returned_pack_ids),
+      timestamp: row.timestamp,
+      intent: row.intent ?? undefined,
+      fromDepth: row.from_depth ?? undefined,
+      toDepth: row.to_depth ?? undefined,
+      escalationReason: row.escalation_reason ?? undefined,
+      attempt: row.attempt ?? undefined,
+      maxEscalationDepth: row.max_escalation_depth ?? undefined,
+      routedStrategy: row.routed_strategy ?? undefined,
+    }));
   }
 
   private ensureVectorIndex(): VectorIndex | null {
@@ -7253,6 +7348,21 @@ interface QueryCacheRow {
   created_at: string;
   last_accessed: string;
   access_count: number;
+}
+
+interface RetrievalConfidenceLogRow {
+  query_hash: string;
+  confidence_score: number;
+  retrieval_entropy: number;
+  returned_pack_ids: string;
+  timestamp: string;
+  intent: string | null;
+  from_depth: string | null;
+  to_depth: string | null;
+  escalation_reason: string | null;
+  attempt: number | null;
+  max_escalation_depth: number | null;
+  routed_strategy: string | null;
 }
 
 interface IndexingHistoryRow {

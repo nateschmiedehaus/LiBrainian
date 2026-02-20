@@ -26,6 +26,7 @@ const LOW_CONFIDENCE = 0.4;
 const CRITICAL_CONFIDENCE = 0.2;
 const HIGH_ENTROPY = 1.5;
 const VERY_HIGH_ENTROPY = 2.0;
+const EMPTY_RESULT_ENTROPY_BASE = 10;
 
 const STOP_WORDS = new Set([
   'about', 'after', 'again', 'along', 'already', 'also', 'because', 'before', 'being',
@@ -36,7 +37,7 @@ const STOP_WORDS = new Set([
 ]);
 
 export function computeRetrievalEntropy(packs: Array<Pick<ContextPack, 'confidence'>>): number {
-  if (packs.length === 0) return 0;
+  if (packs.length === 0) return Number(Math.log2(EMPTY_RESULT_ENTROPY_BASE).toFixed(4));
   const weights = packs
     .map((pack) => Number.isFinite(pack.confidence) ? Math.max(0.0001, pack.confidence) : 0.0001);
   const total = weights.reduce((sum, value) => sum + value, 0);

@@ -43,6 +43,7 @@ import {
   type EstimateTaskComplexityToolInput,
   type SynthesizePlanToolInput,
   type QueryToolInput,
+  type LibrainianGetUncertaintyToolInput,
   type ResetSessionStateToolInput,
   type RequestHumanReviewToolInput,
   type ListConstructionsToolInput,
@@ -373,6 +374,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   compile_technique_composition: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   compile_intent_bundles: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   query: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 7000 },
+  librainian_get_uncertainty: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 1800 },
   synthesize_plan: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
@@ -1534,6 +1536,21 @@ export class LibrarianMCPServer {
             streamChunkSize: { type: 'number', description: 'Chunk size for stream metadata groups (default 5, max 200)' },
           },
           required: ['intent'],
+        },
+      },
+      {
+        name: 'librainian_get_uncertainty',
+        description: 'Return retrieval uncertainty diagnostics (confidence + entropy + recent confidence-log observations) for a natural-language query.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Natural-language query to evaluate retrieval uncertainty for' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth for uncertainty probe' },
+            minConfidence: { type: 'number', description: 'Minimum confidence threshold (0-1)' },
+            topK: { type: 'number', description: 'Maximum packs to include in uncertainty details (default 10, max 50)' },
+          },
+          required: ['query'],
         },
       },
       {
@@ -3343,6 +3360,8 @@ export class LibrarianMCPServer {
         return this.executeEstimateTaskComplexity(args as EstimateTaskComplexityToolInput);
       case 'query':
         return this.executeQuery(args as QueryToolInput, context);
+      case 'librainian_get_uncertainty':
+        return this.executeLibrainianGetUncertainty(args as LibrainianGetUncertaintyToolInput, context);
       case 'synthesize_plan':
         return this.executeSynthesizePlan(args as SynthesizePlanToolInput, context);
       case 'explain_function':
@@ -4953,6 +4972,7 @@ export class LibrarianMCPServer {
           keyFacts: pack.keyFacts,
           relatedFiles: pack.relatedFiles,
           confidence: pack.confidence,
+          confidence_score: pack.confidence,
           confidenceTier,
           confidence_tier: confidenceTier,
           confidenceStatement,
@@ -4969,6 +4989,10 @@ export class LibrarianMCPServer {
           freshness_score: freshness.freshnessScore,
           staleFiles: freshness.staleFiles,
           stale_files: freshness.staleFiles,
+          retrievalEntropy: response.retrievalEntropy
+            ?? computeRetrievalEntropy(response.packs.map((candidate) => ({ confidence: candidate.confidence ?? 0 }))),
+          retrieval_entropy: response.retrievalEntropy
+            ?? computeRetrievalEntropy(response.packs.map((candidate) => ({ confidence: candidate.confidence ?? 0 }))),
         };
       }));
       recordProgress('packs_transformed', {
@@ -5147,6 +5171,93 @@ export class LibrarianMCPServer {
         traceId: 'replay_unavailable',
         constructionPlan: undefined,
         epistemicsDebug,
+      };
+    }
+  }
+
+  private async executeLibrainianGetUncertainty(
+    input: LibrainianGetUncertaintyToolInput,
+    context: ToolExecutionContext = {},
+  ): Promise<unknown> {
+    try {
+      const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path;
+      if (!workspacePath) {
+        return {
+          tool: 'librainian_get_uncertainty',
+          success: false,
+          error: 'No indexed workspace available. Run bootstrap first.',
+        };
+      }
+
+      const topK = Number.isFinite(input.topK) ? Math.max(1, Math.min(50, Math.trunc(input.topK as number))) : 10;
+      const base = await this.executeQuery(
+        {
+          intent: input.query,
+          workspace: workspacePath,
+          depth: input.depth,
+          minConfidence: input.minConfidence,
+          pageSize: topK,
+          pageIdx: 0,
+          explainMisses: true,
+        },
+        context,
+      );
+
+      if (!base || typeof base !== 'object') {
+        return base;
+      }
+
+      const payload = base as Record<string, unknown>;
+      const packs = Array.isArray(payload.packs)
+        ? payload.packs.filter((pack): pack is Record<string, unknown> => !!pack && typeof pack === 'object')
+        : [];
+      const packConfidenceInputs = packs.map((pack) => ({
+        confidence: typeof pack.confidence === 'number' ? pack.confidence : 0,
+      }));
+      const retrievalEntropy = typeof payload.retrievalEntropy === 'number'
+        ? payload.retrievalEntropy
+        : computeRetrievalEntropy(packConfidenceInputs);
+      const totalConfidence = typeof payload.totalConfidence === 'number' ? payload.totalConfidence : 0;
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const recentLogs = await storage.getRetrievalConfidenceLogs({ limit: 20 }).catch(() => []);
+      const matchedLogs = recentLogs
+        .filter((entry) => entry.intent === input.query)
+        .slice(0, 5);
+
+      return {
+        tool: 'librainian_get_uncertainty',
+        success: true,
+        query: input.query,
+        workspace: workspacePath,
+        confidence_score: Number(totalConfidence.toFixed(4)),
+        retrieval_entropy: Number(retrievalEntropy.toFixed(4)),
+        retrievalStatus: payload.retrievalStatus ?? categorizeRetrievalStatus({
+          totalConfidence,
+          packCount: packs.length,
+        }),
+        retrievalInsufficient: payload.retrievalInsufficient ?? false,
+        uncertaintyPacks: packs.slice(0, topK).map((pack) => ({
+          packId: typeof pack.packId === 'string' ? pack.packId : 'unknown_pack',
+          packType: typeof pack.packType === 'string' ? pack.packType : 'unknown',
+          confidence_score: typeof pack.confidence === 'number' ? Number(pack.confidence.toFixed(4)) : 0,
+          retrieval_entropy: Number(retrievalEntropy.toFixed(4)),
+          relatedFiles: Array.isArray(pack.relatedFiles) ? pack.relatedFiles : [],
+          summary: typeof pack.summary === 'string' ? pack.summary : '',
+        })),
+        retrievalConfidenceLogMatches: matchedLogs,
+        recommendation: totalConfidence < 0.4 || retrievalEntropy > 1.5
+          ? 'Uncertainty high: escalate depth or call request_human_review before write operations.'
+          : 'Uncertainty acceptable for read-oriented analysis; verify before high-risk writes.',
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        tool: 'librainian_get_uncertainty',
+        success: false,
+        error: message,
       };
     }
   }

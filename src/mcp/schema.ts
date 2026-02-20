@@ -108,6 +108,17 @@ export const QueryToolInputSchema = z.object({
 }).strict();
 
 /**
+ * librainian_get_uncertainty tool input schema
+ */
+export const LibrainianGetUncertaintyToolInputSchema = z.object({
+  query: z.string().min(1).max(2000).describe('Natural-language query to evaluate retrieval uncertainty for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  depth: DepthSchema.optional().default('L1').describe('Depth of context to retrieve for uncertainty scoring'),
+  minConfidence: z.number().min(0).max(1).optional().default(0).describe('Minimum confidence threshold (0-1)'),
+  topK: z.number().int().min(1).max(50).optional().default(10).describe('Maximum packs to include in uncertainty details'),
+}).strict();
+
+/**
  * semantic_search tool input schema
  */
 export const SemanticSearchToolInputSchema = z.object({
@@ -649,6 +660,7 @@ export const GetSessionBriefingToolInputSchema = z.object({
 
 export type BootstrapToolInputType = z.infer<typeof BootstrapToolInputSchema>;
 export type QueryToolInputType = z.infer<typeof QueryToolInputSchema>;
+export type LibrainianGetUncertaintyToolInputType = z.infer<typeof LibrainianGetUncertaintyToolInputSchema>;
 export type SemanticSearchToolInputType = z.infer<typeof SemanticSearchToolInputSchema>;
 export type GetContextPackToolInputType = z.infer<typeof GetContextPackToolInputSchema>;
 export type EstimateBudgetToolInputType = z.infer<typeof EstimateBudgetToolInputSchema>;
@@ -716,6 +728,7 @@ export const TOOL_INPUT_SCHEMAS = {
   estimate_budget: EstimateBudgetToolInputSchema,
   estimate_task_complexity: EstimateTaskComplexityToolInputSchema,
   query: QueryToolInputSchema,
+  librainian_get_uncertainty: LibrainianGetUncertaintyToolInputSchema,
   synthesize_plan: SynthesizePlanToolInputSchema,
   explain_function: ExplainFunctionToolInputSchema,
   find_usages: FindUsagesToolInputSchema,
@@ -872,6 +885,24 @@ export const queryToolJsonSchema: JSONSchema = {
     streamChunkSize: { type: 'number', description: 'Chunk size for stream view metadata (default: 5, max: 200)', minimum: 1, maximum: 200, default: 5 },
   },
   required: ['intent'],
+  additionalProperties: false,
+};
+
+/** librainian_get_uncertainty tool JSON Schema */
+export const librainianGetUncertaintyToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/librainian-get-uncertainty-tool-input',
+  title: 'LibrainianGetUncertaintyToolInput',
+  description: 'Input for librainian_get_uncertainty - returns retrieval confidence/entropy diagnostics for a query',
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Natural-language query to evaluate retrieval uncertainty for', minLength: 1, maxLength: 2000 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context to retrieve for uncertainty scoring', default: 'L1' },
+    minConfidence: { type: 'number', description: 'Minimum confidence threshold (0-1)', minimum: 0, maximum: 1, default: 0 },
+    topK: { type: 'number', description: 'Maximum packs to include in uncertainty details', minimum: 1, maximum: 50, default: 10 },
+  },
+  required: ['query'],
   additionalProperties: false,
 };
 
@@ -1477,6 +1508,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   estimate_budget: estimateBudgetToolJsonSchema,
   estimate_task_complexity: estimateTaskComplexityToolJsonSchema,
   query: queryToolJsonSchema,
+  librainian_get_uncertainty: librainianGetUncertaintyToolJsonSchema,
   explain_function: explainFunctionToolJsonSchema,
   find_callers: findCallersToolJsonSchema,
   find_callees: findCalleesToolJsonSchema,
