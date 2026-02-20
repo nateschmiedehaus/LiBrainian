@@ -115,6 +115,7 @@ import {
 import { runSymbolLookupStage } from './symbol_lookup.js';
 import { runComparisonLookupStage, type ComparisonLookupStageResult } from './comparison_lookup.js';
 import { runGitQueryStage, type GitQueryStageResult } from './git_query.js';
+import { buildQueryResultContract, normalizeQueryIntentType } from './query_contracts.js';
 import {
   buildCoreMemoryDisclosure,
   getSessionState,
@@ -1524,6 +1525,7 @@ export async function queryLibrarian(
   traceOptions: QueryTraceOptions = {},
   executionOptions: QueryExecutionOptions = {}
 ): Promise<LibrarianResponse> {
+  query = normalizeQueryIntentType(query);
   // Initialize deterministic context if deterministic mode is enabled
   const deterministicCtx: DeterministicContext | null = query.deterministic
     ? createDeterministicContext(query.intent)
@@ -3068,6 +3070,7 @@ export async function queryLibrarian(
 
   const response = {
     query,
+    intentType: query.intentType,
     packs: finalPacks,
     disclosures,
     verificationPlan: verificationPlan ?? undefined,
@@ -3098,6 +3101,14 @@ export async function queryLibrarian(
     feedbackToken,
     tokenBudgetResult,
     edges: edgeQueryResult,
+    contract: buildQueryResultContract({
+      query,
+      packs: finalPacks,
+      synthesis,
+      totalConfidence,
+      version,
+      disclosures,
+    }),
   } as CachedResponse;
   response.explanation = explanation || undefined;
   response.coverageGaps = coverageGaps.length ? coverageGaps : undefined;

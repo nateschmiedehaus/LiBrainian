@@ -99,6 +99,16 @@ export {
   createRelatedQuery,
 } from './api/query.js';
 export {
+  QueryIntentTypeSchema,
+  QueryRelevantFileSchema,
+  UnderstandResponseSchema,
+  ImpactResponseSchema,
+  QueryResultContractSchema,
+  resolveQueryIntentType,
+  normalizeQueryIntentType,
+  buildQueryResultContract,
+} from './api/query_contracts.js';
+export {
   getRepoMap,
   generateRepoMap,
 } from './api/repo_map.js';
@@ -744,6 +754,11 @@ export type {
   BootstrapPhase,
   BootstrapReport,
   LibrarianQuery,
+  QueryIntentType,
+  QueryResultContract,
+  UnderstandQueryResultContract,
+  ImpactQueryResultContract,
+  QueryRelevantFile,
   LibrarianResponse,
   LibrarianMetadata,
   LibrarianEventType,

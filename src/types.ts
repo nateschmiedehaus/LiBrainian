@@ -944,6 +944,11 @@ export interface SearchFilter {
 
 export interface LibrarianQuery {
   intent: string;
+  /**
+   * Optional typed intent contract for callers that want deterministic output shapes.
+   * Supported values mirror MCP query intent categories.
+   */
+  intentType?: QueryIntentType;
   affectedFiles?: string[];
   /**
    * Optional monorepo/package scope alias.
@@ -1130,6 +1135,55 @@ export interface LibrarianQuery {
   enabledConstructables?: string[];
 }
 
+export type QueryIntentType =
+  | 'understand'
+  | 'debug'
+  | 'refactor'
+  | 'impact'
+  | 'security'
+  | 'test'
+  | 'document'
+  | 'navigate'
+  | 'general';
+
+export interface QueryRelevantFile {
+  path: string;
+  role: string;
+  confidence: number;
+}
+
+export interface UnderstandQueryResultContract {
+  intentType: 'understand';
+  summary: string;
+  keyFacts: string[];
+  relevantFiles: QueryRelevantFile[];
+  confidence: number;
+  dataAge: string;
+}
+
+export interface ImpactDirectEntry {
+  file: string;
+  reason: string;
+}
+
+export interface ImpactTransitiveEntry {
+  file: string;
+  hopDistance: number;
+}
+
+export interface ImpactQueryResultContract {
+  intentType: 'impact';
+  directImpact: ImpactDirectEntry[];
+  transitiveImpact: ImpactTransitiveEntry[];
+  safeToChange: boolean;
+  riskFactors: string[];
+  confidence: number;
+}
+
+export type QueryResultContract =
+  | UnderstandQueryResultContract
+  | ImpactQueryResultContract;
+
 export interface UCRequirementSet {
   ucIds: string[];
   priority?: 'low' | 'medium' | 'high';
@@ -1205,6 +1259,8 @@ export type SynthesisMode = 'llm' | 'heuristic' | 'cache';
 
 export interface LibrarianResponse {
   query: LibrarianQuery;
+  intentType?: QueryIntentType;
+  contract?: QueryResultContract;
   packs: ContextPack[];
   disclosures: string[];
   verificationPlan?: VerificationPlan;
