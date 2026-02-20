@@ -18,13 +18,49 @@
 import type { Librarian } from '../api/librarian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
-import { ASTFactExtractor, type ASTFact, type FunctionDefDetails, type ClassDetails, type CallDetails } from '../evaluation/ast_fact_extractor.js';
+import { loadEvaluationModule } from '../utils/evaluation_loader.js';
 import type {
   ConstructionCalibrationTracker,
   CalibratedConstruction,
   VerificationMethod,
 } from './calibration_tracker.js';
 import { generatePredictionId } from './calibration_tracker.js';
+
+type AstFactExtractorModule = typeof import('../evaluation/ast_fact_extractor.js');
+
+interface ASTFact {
+  type: string;
+  identifier: string;
+  details: Record<string, unknown>;
+}
+
+interface FunctionDefDetails {
+  parameters?: Array<{ name: string; type?: string }>;
+  returnType?: string;
+  isAsync?: boolean;
+}
+
+interface CallDetails {
+  callee: string;
+}
+
+interface ClassDetails {
+  extends?: string | string[];
+}
+
+interface AstExtractorLike {
+  extractFromFile(filePath: string): Promise<ASTFact[]>;
+}
+
+async function createAstExtractor(): Promise<AstExtractorLike> {
+  const externalModuleId = 'librainian-eval/ast_fact_extractor.js';
+  const mod = await loadEvaluationModule<AstFactExtractorModule>(
+    'BugInvestigationAssistant structural similarity',
+    () => import('../evaluation/ast_fact_extractor.js'),
+    () => import(externalModuleId) as Promise<AstFactExtractorModule>,
+  );
+  return new mod.ASTFactExtractor();
+}
 
 // ============================================================================
 // LOG CORRELATION TYPES
@@ -785,7 +821,7 @@ export function generateHypothesesWithLogs(
 
 export class BugInvestigationAssistant implements CalibratedConstruction {
   private librarian: Librarian;
-  private astExtractor: ASTFactExtractor;
+  private astExtractor?: AstExtractorLike;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
   static readonly CONSTRUCTION_ID = 'BugInvestigationAssistant';
@@ -800,7 +836,6 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
   constructor(librarian: Librarian) {
     this.librarian = librarian;
-    this.astExtractor = new ASTFactExtractor();
   }
 
   /**
@@ -1380,6 +1415,9 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     };
 
     try {
+      if (!this.astExtractor) {
+        this.astExtractor = await createAstExtractor();
+      }
       const facts = await this.astExtractor.extractFromFile(filePath);
 
       for (const fact of facts) {
@@ -1388,19 +1426,19 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
             const details = fact.details as FunctionDefDetails;
             const sig = this.normalizeFunctionSignature(
               fact.identifier,
-              details.parameters,
+              details.parameters ?? [],
               details.returnType
             );
             fingerprint.functionSignatures.push(sig);
 
             // Track async patterns
-            if (details.isAsync) {
+            if (details.isAsync === true) {
               fingerprint.controlFlowPatterns.push('async_function');
             }
             break;
           }
           case 'call': {
-            const details = fact.details as CallDetails;
+            const details = fact.details as unknown as CallDetails;
             fingerprint.callPatterns.push(details.callee);
 
             // Detect error handling calls

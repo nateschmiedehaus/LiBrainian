@@ -2,3 +2,4 @@
 dist/**/*.map
 dist/test/**
 dist/**/__tests__/**
+dist/evaluation/**

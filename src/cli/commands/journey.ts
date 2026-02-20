@@ -7,9 +7,21 @@
 import { parseArgs } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { runAgenticJourney, type JourneyLlmMode, type JourneyProtocol } from '../../evaluation/agentic_journey.js';
 import { createError } from '../errors.js';
 import { printKeyValue } from '../progress.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
+import type { JourneyLlmMode, JourneyProtocol } from '../../evaluation/agentic_journey.js';
+
+type AgenticJourneyModule = typeof import('../../evaluation/agentic_journey.js');
+
+async function loadAgenticJourneyModule(): Promise<AgenticJourneyModule> {
+  const externalModuleId = 'librainian-eval/agentic_journey.js';
+  return loadEvaluationModule<AgenticJourneyModule>(
+    'librarian journey',
+    () => import('../../evaluation/agentic_journey.js'),
+    () => import(externalModuleId) as Promise<AgenticJourneyModule>,
+  );
+}
 
 export interface JourneyCommandOptions {
   workspace: string;
@@ -176,7 +188,8 @@ export async function journeyCommand(options: JourneyCommandOptions): Promise<vo
     strictObjective,
     ...(artifactsDir ? { artifactRoot: artifactsDir } : {}),
   };
-  let report: Awaited<ReturnType<typeof runAgenticJourney>>;
+  const { runAgenticJourney } = await loadAgenticJourneyModule();
+  let report: Awaited<ReturnType<AgenticJourneyModule['runAgenticJourney']>>;
   try {
     report = await withTimeout(timeoutMs, 'journey', (signal) => runAgenticJourney({
       ...journeyOptions,

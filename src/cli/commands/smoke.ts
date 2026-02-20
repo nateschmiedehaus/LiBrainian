@@ -7,9 +7,20 @@
 import { parseArgs } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { runExternalRepoSmoke } from '../../evaluation/external_repo_smoke.js';
 import { createError } from '../errors.js';
 import { printKeyValue } from '../progress.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
+
+type ExternalRepoSmokeModule = typeof import('../../evaluation/external_repo_smoke.js');
+
+async function loadExternalRepoSmokeModule(): Promise<ExternalRepoSmokeModule> {
+  const externalModuleId = 'librainian-eval/external_repo_smoke.js';
+  return loadEvaluationModule<ExternalRepoSmokeModule>(
+    'librarian smoke',
+    () => import('../../evaluation/external_repo_smoke.js'),
+    () => import(externalModuleId) as Promise<ExternalRepoSmokeModule>,
+  );
+}
 
 export interface SmokeCommandOptions {
   workspace: string;
@@ -155,7 +166,8 @@ export async function smokeCommand(options: SmokeCommandOptions): Promise<void> 
     repoNames,
     ...(artifactsDir ? { artifactRoot: artifactsDir } : {}),
   };
-  let report: Awaited<ReturnType<typeof runExternalRepoSmoke>>;
+  const { runExternalRepoSmoke } = await loadExternalRepoSmokeModule();
+  let report: Awaited<ReturnType<ExternalRepoSmokeModule['runExternalRepoSmoke']>>;
   try {
     report = await withTimeout(timeoutMs, 'smoke', (signal) => runExternalRepoSmoke({
       ...smokeOptions,

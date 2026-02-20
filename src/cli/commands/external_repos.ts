@@ -14,7 +14,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { safeJsonParse } from '../../utils/safe_json.js';
-import { runExternalRepoSmoke } from '../../evaluation/external_repo_smoke.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
+
+type ExternalRepoSmokeModule = typeof import('../../evaluation/external_repo_smoke.js');
+
+async function loadExternalRepoSmokeModule(): Promise<ExternalRepoSmokeModule> {
+  const externalModuleId = 'librainian-eval/external_repo_smoke.js';
+  return loadEvaluationModule<ExternalRepoSmokeModule>(
+    'librarian external-repos --verify',
+    () => import('../../evaluation/external_repo_smoke.js'),
+    () => import(externalModuleId) as Promise<ExternalRepoSmokeModule>,
+  );
+}
 
 export interface ExternalReposCommandOptions {
   workspace: string;
@@ -221,6 +232,7 @@ export async function externalReposCommand(options: ExternalReposCommandOptions)
 
   let smokeReport: unknown | null = null;
   if (verify) {
+    const { runExternalRepoSmoke } = await loadExternalRepoSmokeModule();
     smokeReport = await runExternalRepoSmoke({ reposRoot, maxRepos });
   }
 

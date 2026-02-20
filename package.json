@@ -87,6 +87,7 @@
     "!dist/**/__tests__/**",
     "!dist/guidance/**",
     "!dist/skills/**",
+    "!dist/evaluation/**",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

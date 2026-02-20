@@ -9,10 +9,21 @@ import { parseArgs } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
-import { runLiveFireTrials } from '../../evaluation/live_fire_trials.js';
 import { createError } from '../errors.js';
 import { printKeyValue } from '../progress.js';
 import type { JourneyLlmMode } from '../../evaluation/agentic_journey.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
+
+type LiveFireTrialsModule = typeof import('../../evaluation/live_fire_trials.js');
+
+async function loadLiveFireTrialsModule(): Promise<LiveFireTrialsModule> {
+  const externalModuleId = 'librainian-eval/live_fire_trials.js';
+  return loadEvaluationModule<LiveFireTrialsModule>(
+    'librarian live-fire',
+    () => import('../../evaluation/live_fire_trials.js'),
+    () => import(externalModuleId) as Promise<LiveFireTrialsModule>,
+  );
+}
 
 export interface LiveFireCommandOptions {
   workspace: string;
@@ -385,6 +396,7 @@ export async function liveFireCommand(options: LiveFireCommandOptions): Promise<
   const outputPath = typeof values.output === 'string' && values.output.trim().length > 0
     ? path.resolve(values.output)
     : undefined;
+  const { runLiveFireTrials } = await loadLiveFireTrialsModule();
 
   const runSingleProfile = async (profileName: string, profile: LiveFireProfile | undefined) => {
     const singleProfileArtifactRoot = artifactsDirArg

@@ -15,11 +15,39 @@ import { parseArgs } from 'node:util';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Project, Node, SyntaxKind, SourceFile } from 'ts-morph';
-import {
-  createDeadCodeDetector,
-  type DeadCodeReport,
-  type DeadCodeCandidate,
-} from '../../evaluation/dead_code_detector.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
+
+type DeadCodeDetectorModule = typeof import('../../evaluation/dead_code_detector.js');
+
+interface DeadCodeCandidate {
+  file: string;
+  line: number;
+  type: string;
+  confidence: number;
+  identifier?: string;
+  reason: string;
+  codeSnippet?: string;
+}
+
+interface DeadCodeReport {
+  repoPath: string;
+  analyzedAt: string;
+  summary: {
+    totalCandidates: number;
+    highConfidence: number;
+    byType: Record<string, number>;
+  };
+  candidates: DeadCodeCandidate[];
+}
+
+async function loadDeadCodeDetectorModule(): Promise<DeadCodeDetectorModule> {
+  const externalModuleId = 'librainian-eval/dead_code_detector.js';
+  return loadEvaluationModule<DeadCodeDetectorModule>(
+    'librarian analyze',
+    () => import('../../evaluation/dead_code_detector.js'),
+    () => import(externalModuleId) as Promise<DeadCodeDetectorModule>,
+  );
+}
 
 // ============================================================================
 // Types
@@ -96,6 +124,7 @@ async function runDeadCodeAnalysis(
     console.log('Running dead code analysis...\n');
   }
 
+  const { createDeadCodeDetector } = await loadDeadCodeDetectorModule();
   const detector = createDeadCodeDetector({ commentedCodeMinLines: 3 });
   const report = await detector.detect(workspace);
 
@@ -200,6 +229,7 @@ async function runDeadWeightAnalysis(
     console.log('Running dead-weight analysis...\n');
   }
 
+  const { createDeadCodeDetector } = await loadDeadCodeDetectorModule();
   const detector = createDeadCodeDetector({ commentedCodeMinLines: 3 });
   const deadCodeReport = await detector.detect(workspace);
   const report = analyzeDeadWeight(workspace, deadCodeReport);

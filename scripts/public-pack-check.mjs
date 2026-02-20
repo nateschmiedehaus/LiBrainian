@@ -88,6 +88,7 @@ function main() {
   const filePaths = pack.files.map((entry) => String(entry.path));
   const disallowed = filePaths.filter((filePath) => !isAllowedPackPath(filePath));
   const sourcemaps = filePaths.filter((filePath) => filePath.endsWith('.map'));
+  const evaluationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evaluation/'));
 
   if (disallowed.length > 0) {
     throw new Error(
@@ -101,6 +102,15 @@ function main() {
   if (sourcemaps.length > 0) {
     throw new Error(
       `Package contains source maps unexpectedly:\n${sourcemaps
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (evaluationFiles.length > 0) {
+    throw new Error(
+      `Package contains internal evaluation harness files:\n${evaluationFiles
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
         .join('\n')}`
