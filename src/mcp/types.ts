@@ -773,6 +773,29 @@ export interface QueryToolOutput {
   /** Human-readable warning when one or more packs are critically stale */
   stalenessWarning?: string;
 
+  /** Query decomposition strategy selected by the analyzer */
+  decompositionStrategy?: 'none' | 'ambiguity_clarify' | 'multi_hop_parallel';
+
+  /** True when disambiguation is required before retrieval can proceed */
+  clarificationNeeded?: boolean;
+
+  /** Candidate symbols when ambiguity is detected */
+  candidateSymbols?: Array<{
+    symbol: string;
+    matchCount: number;
+    examples: string[];
+  }>;
+
+  /** Sub-query execution summaries when multi-hop decomposition is used */
+  subQueries?: Array<{
+    query: string;
+    packCount: number;
+    totalConfidence: number;
+    traceId?: string;
+    timedOut?: boolean;
+    error?: string;
+  }>;
+
   /** Evidence summary */
   evidenceSummary?: EvidenceSummary;
 

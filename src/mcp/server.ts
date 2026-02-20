@@ -120,7 +120,7 @@ import {
   queryLibrarian,
   generateRepoMap,
 } from '../api/index.js';
-import type { ContextPack, FunctionKnowledge, GraphEdge } from '../types.js';
+import type { ContextPack, FunctionKnowledge, GraphEdge, LibrarianQuery, LibrarianResponse } from '../types.js';
 import { estimateTokens } from '../api/token_budget.js';
 import {
   computeEmbeddingCoverage,
@@ -511,6 +511,9 @@ const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
 const SESSION_EPISODES_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_SESSION_EPISODES = 5000;
 const SESSION_EPISODE_DECAY_LAMBDA = 0.5;
+const AMBIGUOUS_SYMBOL_MATCH_THRESHOLD = 3;
+const MAX_QUERY_SYMBOL_CANDIDATES = 8;
+const MAX_DECOMPOSED_SUBQUERIES = 4;
 
 interface MutableToolSchemaNode {
   type?: string;
@@ -736,6 +739,26 @@ interface QueryProgressEvent {
   elapsedMs: number;
   details?: Record<string, unknown>;
 }
+
+type QueryDecompositionStrategy = 'none' | 'ambiguity_clarify' | 'multi_hop_parallel';
+
+interface QueryAmbiguityCandidate {
+  symbol: string;
+  matchCount: number;
+  examples: string[];
+}
+
+interface QueryDecompositionPlan {
+  strategy: QueryDecompositionStrategy;
+  clarificationNeeded: boolean;
+  candidateSymbols: QueryAmbiguityCandidate[];
+  subQueries: string[];
+}
+
+type QueryExecutionOutcome =
+  | { kind: 'ok'; query: string; response: LibrarianResponse }
+  | { kind: 'timeout'; query: string }
+  | { kind: 'error'; query: string; error: string };
 
 const TRACE_MESSAGE_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
 
@@ -5072,6 +5095,82 @@ export class LibrarianMCPServer {
         });
       };
 
+      const decompositionPlan = await this.analyzeQueryDecomposition(input.intent, storage);
+      recordProgress('query_analyzed', {
+        strategy: decompositionPlan.strategy,
+        subQueryCount: decompositionPlan.subQueries.length,
+        ambiguityCandidates: decompositionPlan.candidateSymbols.length,
+      });
+
+      if (decompositionPlan.strategy === 'ambiguity_clarify') {
+        const suggestedClarifyingQuestions = decompositionPlan.candidateSymbols.map((candidate) => (
+          `Which "${candidate.symbol}" did you mean? Candidates: ${candidate.examples.join(', ')}`
+        ));
+        const aggregateConfidence = this.buildAggregateConfidence([]);
+        const clarificationResult = {
+          packs: [],
+          totalConfidence: 0,
+          retrievalStatus: 'insufficient' as const,
+          retrievalEntropy: 0,
+          retrievalInsufficient: true,
+          suggestedClarifyingQuestions,
+          coverageGaps: ['Ambiguous symbol reference detected before retrieval.'],
+          nearMisses: [] as Array<{ packId: string; reason: string }>,
+          disclosures: [],
+          adequacy: undefined,
+          verificationPlan: undefined,
+          traceId: 'replay_unavailable',
+          constructionPlan: undefined,
+          intent: input.intent,
+          pagination: {
+            pageSize: input.pageSize ?? DEFAULT_PAGE_SIZE,
+            pageIdx: input.pageIdx ?? 0,
+            totalItems: 0,
+            pageCount: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            showingFrom: 0,
+            showingTo: 0,
+            showing: 'Showing 0-0 of 0. Next: none. Total pages: 0.',
+          },
+          sortOrder: 'retrieval_score_desc' as const,
+          aggregateConfidence,
+          decompositionStrategy: decompositionPlan.strategy,
+          clarificationNeeded: decompositionPlan.clarificationNeeded,
+          candidateSymbols: decompositionPlan.candidateSymbols,
+          subQueries: [] as Array<{ query: string; packCount: number; totalConfidence: number; traceId?: string; timedOut?: boolean; error?: string }>,
+          timedOut: false,
+          partial: false,
+          timeoutMs: undefined,
+          progress: {
+            completed: true,
+            events: progressEvents,
+          },
+          stream: streamEnabled
+            ? {
+                enabled: true,
+                chunkSize: streamChunkSize,
+                totalChunks: 0,
+                chunks: [],
+              }
+            : undefined,
+        };
+        return {
+          ...clarificationResult,
+          coverage_gaps: clarificationResult.coverageGaps,
+          aggregate_confidence: this.toAggregateConfidenceAlias(clarificationResult.aggregateConfidence),
+          near_misses: clarificationResult.nearMisses,
+          decomposition_strategy: clarificationResult.decompositionStrategy,
+          clarification_needed: clarificationResult.clarificationNeeded,
+          candidate_symbols: clarificationResult.candidateSymbols,
+          sub_queries: clarificationResult.subQueries,
+          timed_out: clarificationResult.timedOut,
+          partial_result: clarificationResult.partial,
+          progress_view: clarificationResult.progress,
+          stream_view: clarificationResult.stream,
+        };
+      }
+
       const contextHints = this.resolveQueryContextHints(input);
       const contextHintFiles = this.collectContextHintFiles(contextHints, workspace.path) ?? [];
       const contextHintIntentSuffix = this.buildContextHintIntentSuffix(contextHints);
@@ -5095,6 +5194,9 @@ export class LibrarianMCPServer {
       const enrichedIntent = contextHintIntentSuffix
         ? `${input.intent}\n${contextHintIntentSuffix}`
         : input.intent;
+      const decomposedIntents = decompositionPlan.strategy === 'multi_hop_parallel'
+        ? decompositionPlan.subQueries
+        : [input.intent];
 
       // Build query object
       const query = {
@@ -5122,24 +5224,56 @@ export class LibrarianMCPServer {
       // Execute query with an internal timeout for partial return semantics.
       const configuredTimeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
       const queryTimeoutMs = Math.max(1, configuredTimeoutMs - 25);
-      const timeoutToken = Symbol('query_timeout');
-      const responseOrTimeout = await Promise.race([
-        queryLibrarian(
-          query,
-          storage,
-          undefined,
-          undefined,
-          undefined,
-          {
-            evidenceLedger: workspace.evidenceLedger,
-          }
-        ),
-        new Promise<typeof timeoutToken>((resolve) => {
-          setTimeout(() => resolve(timeoutToken), queryTimeoutMs);
-        }),
-      ]);
+      const retrievalQueries = decomposedIntents.map((decomposedIntent) => ({
+        ...query,
+        intent: contextHintIntentSuffix
+          ? `${decomposedIntent}\n${contextHintIntentSuffix}`
+          : decomposedIntent,
+      }));
+      const outcomes = await Promise.all(
+        retrievalQueries.map((queryPayload) => this.executeQueryWithTimeout(queryPayload, storage, workspace, queryTimeoutMs)),
+      );
+      const timedOutQueries = outcomes
+        .filter((outcome): outcome is { kind: 'timeout'; query: string } => outcome.kind === 'timeout')
+        .map((outcome) => outcome.query);
+      const failedQueries = outcomes
+        .filter((outcome): outcome is { kind: 'error'; query: string; error: string } => outcome.kind === 'error');
+      const successfulResponses = outcomes
+        .filter((outcome): outcome is { kind: 'ok'; query: string; response: LibrarianResponse } => outcome.kind === 'ok')
+        .map((outcome) => outcome.response);
+      const subQueries = outcomes.map((outcome) => {
+        if (outcome.kind === 'ok') {
+          return {
+            query: outcome.query,
+            packCount: outcome.response.packs.length,
+            totalConfidence: outcome.response.totalConfidence,
+            traceId: sanitizeTraceId(outcome.response.traceId) ?? 'replay_unavailable',
+            timedOut: false,
+          };
+        }
+        if (outcome.kind === 'timeout') {
+          return {
+            query: outcome.query,
+            packCount: 0,
+            totalConfidence: 0,
+            timedOut: true,
+            error: `Timed out after ${queryTimeoutMs}ms`,
+          };
+        }
+        return {
+          query: outcome.query,
+          packCount: 0,
+          totalConfidence: 0,
+          timedOut: false,
+          error: outcome.error,
+        };
+      });
 
-      if (responseOrTimeout === timeoutToken) {
+      if (successfulResponses.length === 0) {
+        if (failedQueries.length > 0 && timedOutQueries.length === 0) {
+          const firstFailure = failedQueries[0];
+          throw new Error(firstFailure?.error ?? 'Query failed.');
+        }
         recordProgress('query_timed_out', { timeoutMs: queryTimeoutMs });
         const aggregateConfidence = this.buildAggregateConfidence([]);
         const timeoutResult = {
@@ -5170,6 +5304,10 @@ export class LibrarianMCPServer {
           },
           sortOrder: 'retrieval_score_desc' as const,
           aggregateConfidence,
+          decompositionStrategy: decompositionPlan.strategy,
+          clarificationNeeded: false,
+          candidateSymbols: [] as QueryAmbiguityCandidate[],
+          subQueries: decompositionPlan.strategy === 'multi_hop_parallel' ? subQueries : undefined,
           timedOut: true,
           partial: true,
           timeoutMs: queryTimeoutMs,
@@ -5201,6 +5339,10 @@ export class LibrarianMCPServer {
           coverage_gaps: timeoutResult.coverageGaps,
           aggregate_confidence: this.toAggregateConfidenceAlias(timeoutResult.aggregateConfidence),
           near_misses: timeoutResult.nearMisses,
+          decomposition_strategy: timeoutResult.decompositionStrategy,
+          clarification_needed: timeoutResult.clarificationNeeded,
+          candidate_symbols: timeoutResult.candidateSymbols,
+          sub_queries: timeoutResult.subQueries,
           timed_out: true,
           partial_result: true,
           progress_view: timeoutResult.progress,
@@ -5208,10 +5350,24 @@ export class LibrarianMCPServer {
         };
       }
 
-      const response = responseOrTimeout;
+      const response = successfulResponses.length === 1
+        ? successfulResponses[0]
+        : this.mergeParallelQueryResponses(successfulResponses, query);
+      if (timedOutQueries.length > 0 || failedQueries.length > 0) {
+        response.disclosures = [
+          ...(response.disclosures ?? []),
+          ...(timedOutQueries.length > 0
+            ? [`Parallel sub-query timeout for ${timedOutQueries.length}/${retrievalQueries.length} branch(es).`]
+            : []),
+          ...failedQueries.map((failure) => `Parallel sub-query failed (${failure.query}): ${failure.error}`),
+        ];
+      }
       recordProgress('query_retrieval_complete', {
         packCount: response.packs.length,
         totalConfidence: response.totalConfidence,
+        decompositionStrategy: decompositionPlan.strategy,
+        timedOutSubQueries: timedOutQueries.length,
+        failedSubQueries: failedQueries.length,
       });
 
       const freshnessHalfLifeMs = await this.resolveContextPackFreshnessHalfLifeMs(workspace.path);
@@ -5331,6 +5487,10 @@ export class LibrarianMCPServer {
         aggregateConfidence,
         stalenessWarning,
         sessionId,
+        decompositionStrategy: decompositionPlan.strategy,
+        clarificationNeeded: decompositionPlan.clarificationNeeded,
+        candidateSymbols: decompositionPlan.candidateSymbols,
+        subQueries: decompositionPlan.strategy === 'multi_hop_parallel' ? subQueries : undefined,
         contextHintApplied,
         episodicHints,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
@@ -5384,6 +5544,10 @@ export class LibrarianMCPServer {
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
         staleness_warning: resultWithHumanReview.stalenessWarning,
         session_id: resultWithHumanReview.sessionId,
+        decomposition_strategy: resultWithHumanReview.decompositionStrategy,
+        clarification_needed: resultWithHumanReview.clarificationNeeded,
+        candidate_symbols: resultWithHumanReview.candidateSymbols,
+        sub_queries: resultWithHumanReview.subQueries,
         context_hint_applied: resultWithHumanReview.contextHintApplied,
         episodic_hints: resultWithHumanReview.episodicHints,
         near_misses: resultWithHumanReview.nearMisses,
@@ -10171,6 +10335,238 @@ export class LibrarianMCPServer {
       }
     }
     return null;
+  }
+
+  private async analyzeQueryDecomposition(
+    intent: string,
+    storage: LibrarianStorage,
+  ): Promise<QueryDecompositionPlan> {
+    const candidateSymbols = await this.detectAmbiguousSymbols(intent, storage);
+    if (candidateSymbols.length > 0) {
+      return {
+        strategy: 'ambiguity_clarify',
+        clarificationNeeded: true,
+        candidateSymbols,
+        subQueries: [],
+      };
+    }
+
+    const subQueries = this.decomposeMultiHopQuery(intent);
+    if (subQueries.length >= 2) {
+      return {
+        strategy: 'multi_hop_parallel',
+        clarificationNeeded: false,
+        candidateSymbols: [],
+        subQueries,
+      };
+    }
+
+    return {
+      strategy: 'none',
+      clarificationNeeded: false,
+      candidateSymbols: [],
+      subQueries: [intent],
+    };
+  }
+
+  private async detectAmbiguousSymbols(
+    intent: string,
+    storage: LibrarianStorage,
+  ): Promise<QueryAmbiguityCandidate[]> {
+    if (typeof storage.getFunctionsByName !== 'function') {
+      return [];
+    }
+    const symbols = this.extractQuerySymbolCandidates(intent).slice(0, MAX_QUERY_SYMBOL_CANDIDATES);
+    const candidates: QueryAmbiguityCandidate[] = [];
+    for (const symbol of symbols) {
+      const matches = await storage.getFunctionsByName(symbol).catch(() => []);
+      const uniquePaths = Array.from(
+        new Set(
+          matches
+            .map((entry) => entry.filePath)
+            .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0),
+        ),
+      );
+      if (uniquePaths.length < AMBIGUOUS_SYMBOL_MATCH_THRESHOLD) {
+        continue;
+      }
+      candidates.push({
+        symbol,
+        matchCount: uniquePaths.length,
+        examples: uniquePaths.slice(0, 5),
+      });
+    }
+    return candidates
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .slice(0, 5);
+  }
+
+  private extractQuerySymbolCandidates(intent: string): string[] {
+    const normalized = String(intent ?? '').trim();
+    if (!normalized) return [];
+    const stopWords = new Set([
+      'about', 'after', 'again', 'against', 'between', 'class', 'could',
+      'does', 'flow', 'from', 'function', 'have', 'into', 'module', 'should', 'that', 'then',
+      'this', 'through', 'using', 'what', 'when', 'where', 'which', 'with',
+    ]);
+    const identifiers = new Set<string>();
+
+    for (const match of normalized.matchAll(/[`'"]([A-Za-z_][A-Za-z0-9_]*)[`'"]/g)) {
+      const value = match[1]?.trim();
+      if (value) identifiers.add(value);
+    }
+    for (const match of normalized.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b/g)) {
+      const value = match[0]?.trim();
+      if (!value) continue;
+      const tail = value.split('.').pop();
+      if (tail) identifiers.add(tail);
+    }
+    for (const token of normalized.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? []) {
+      const lower = token.toLowerCase();
+      if (stopWords.has(lower)) continue;
+      const looksLikeCodeIdentifier = /[A-Z_]/.test(token) || /[a-z][A-Z]/.test(token) || lower.endsWith('service');
+      if (looksLikeCodeIdentifier || token.length >= 6) {
+        identifiers.add(token);
+      }
+    }
+    return Array.from(identifiers);
+  }
+
+  private decomposeMultiHopQuery(intent: string): string[] {
+    const normalized = String(intent ?? '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return [];
+    const connectorPattern = /\b(?:and then|flow(?:s)? into|leads? to|as it relates to|then)\b|->|=>/i;
+    if (!connectorPattern.test(normalized)) {
+      return [normalized];
+    }
+    const parts = normalized
+      .split(/\b(?:and then|flow(?:s)? into|leads? to|as it relates to|then)\b|->|=>/i)
+      .map((entry) => entry.trim().replace(/^[,:;\-\s]+|[,:;\-\s]+$/g, ''))
+      .filter((entry) => entry.length >= 6);
+    if (parts.length < 2) {
+      return [normalized];
+    }
+    const deduped = Array.from(new Set(parts));
+    return deduped.slice(0, MAX_DECOMPOSED_SUBQUERIES);
+  }
+
+  private async executeQueryWithTimeout(
+    query: LibrarianQuery,
+    storage: LibrarianStorage,
+    workspace: WorkspaceState,
+    queryTimeoutMs: number,
+  ): Promise<QueryExecutionOutcome> {
+    const timeoutToken = Symbol('query_timeout');
+    const raced = await Promise.race([
+      queryLibrarian(
+        query,
+        storage,
+        undefined,
+        undefined,
+        undefined,
+        {
+          evidenceLedger: workspace.evidenceLedger,
+        }
+      )
+        .then((response) => ({ kind: 'ok' as const, query: query.intent, response }))
+        .catch((error) => ({
+          kind: 'error' as const,
+          query: query.intent,
+          error: error instanceof Error ? error.message : String(error),
+        })),
+      new Promise<typeof timeoutToken>((resolve) => {
+        setTimeout(() => resolve(timeoutToken), queryTimeoutMs);
+      }),
+    ]);
+    if (raced === timeoutToken) {
+      return { kind: 'timeout', query: query.intent };
+    }
+    return raced;
+  }
+
+  private mergeParallelQueryResponses(
+    responses: LibrarianResponse[],
+    fallbackQuery: LibrarianQuery,
+  ): LibrarianResponse {
+    const first = responses[0];
+    if (!first) {
+      throw new Error('No query responses to merge');
+    }
+
+    const packMap = new Map<string, ContextPack>();
+    for (const response of responses) {
+      for (const pack of response.packs ?? []) {
+        const key = pack.packId || `${pack.packType}:${pack.targetId}`;
+        const existing = packMap.get(key);
+        if (!existing) {
+          packMap.set(key, {
+            ...pack,
+            keyFacts: Array.from(new Set(pack.keyFacts ?? [])),
+            relatedFiles: Array.from(new Set(pack.relatedFiles ?? [])),
+          });
+          continue;
+        }
+        const existingConfidence = existing.confidence ?? 0;
+        const candidateConfidence = pack.confidence ?? 0;
+        if (candidateConfidence > existingConfidence) {
+          packMap.set(key, {
+            ...pack,
+            keyFacts: Array.from(new Set([...(existing.keyFacts ?? []), ...(pack.keyFacts ?? [])])),
+            relatedFiles: Array.from(new Set([...(existing.relatedFiles ?? []), ...(pack.relatedFiles ?? [])])),
+          });
+          continue;
+        }
+        existing.keyFacts = Array.from(new Set([...(existing.keyFacts ?? []), ...(pack.keyFacts ?? [])]));
+        existing.relatedFiles = Array.from(new Set([...(existing.relatedFiles ?? []), ...(pack.relatedFiles ?? [])]));
+      }
+    }
+
+    const mergedPacks = Array.from(packMap.values())
+      .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    const totalConfidence = responses.length > 0
+      ? responses.reduce((sum, response) => sum + (response.totalConfidence ?? 0), 0) / responses.length
+      : 0;
+    const retrievalEntropy = computeRetrievalEntropy(mergedPacks.map((pack) => ({ confidence: pack.confidence ?? 0 })));
+    const suggestedClarifyingQuestions = Array.from(
+      new Set(
+        responses.flatMap((response) => response.suggestedClarifyingQuestions ?? []),
+      ),
+    );
+    const coverageGaps = Array.from(
+      new Set(
+        responses.flatMap((response) => response.coverageGaps ?? []),
+      ),
+    );
+    const disclosures = Array.from(
+      new Set(
+        responses.flatMap((response) => response.disclosures ?? []),
+      ),
+    );
+    const drillDownHints = Array.from(
+      new Set(
+        responses.flatMap((response) => response.drillDownHints ?? []),
+      ),
+    );
+    const retrievalStatus = categorizeRetrievalStatus({
+      totalConfidence,
+      packCount: mergedPacks.length,
+    });
+
+    return {
+      ...first,
+      query: first.query ?? { intent: fallbackQuery.intent },
+      packs: mergedPacks,
+      totalConfidence,
+      retrievalEntropy,
+      retrievalStatus,
+      retrievalInsufficient: retrievalStatus === 'insufficient',
+      suggestedClarifyingQuestions,
+      coverageGaps,
+      disclosures,
+      drillDownHints,
+      cacheHit: responses.every((response) => response.cacheHit),
+      latencyMs: Math.max(...responses.map((response) => response.latencyMs ?? 0)),
+    };
   }
 
   private resolveQueryContextHints(input: QueryToolInput): QueryToolInput['contextHints'] | undefined {

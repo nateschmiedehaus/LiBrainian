@@ -192,6 +192,105 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.context_hint_applied?.usedIntentAugmentation).toBe(true);
   });
 
+  it('returns clarification guidance when symbol references are ambiguous', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getFunctionsByName: vi.fn(async (name: string) => {
+        if (String(name).toLowerCase() !== 'config') {
+          return [];
+        }
+        return [
+          { id: 'f1', name: 'config', filePath: 'src/a.ts' },
+          { id: 'f2', name: 'config', filePath: 'src/b.ts' },
+          { id: 'f3', name: 'config', filePath: 'src/c.ts' },
+          { id: 'f4', name: 'config', filePath: 'src/d.ts' },
+        ];
+      }),
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'what does config do in this repo?',
+    });
+
+    expect(queryLibrarianMock).not.toHaveBeenCalled();
+    expect(result.decomposition_strategy).toBe('ambiguity_clarify');
+    expect(result.clarification_needed).toBe(true);
+    expect(Array.isArray(result.candidate_symbols)).toBe(true);
+    expect(result.candidate_symbols[0]?.symbol).toBe('config');
+    expect(String(result.suggestedClarifyingQuestions?.[0])).toContain('Which "config"');
+  });
+
+  it('decomposes multi-hop queries into parallel retrieval branches and merges packs', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getFunctionsByName: vi.fn(async () => []),
+    });
+
+    queryLibrarianMock
+      .mockResolvedValueOnce({
+        packs: [
+          { packId: 'auth-pack', packType: 'function_context', targetId: 'auth', summary: 'auth flow', keyFacts: [], relatedFiles: ['src/auth.ts'], confidence: 0.9 },
+        ],
+        disclosures: [],
+        adequacy: undefined,
+        verificationPlan: undefined,
+        traceId: 'trace-auth',
+        constructionPlan: undefined,
+        totalConfidence: 0.9,
+        cacheHit: false,
+        latencyMs: 8,
+        drillDownHints: [],
+        synthesis: undefined,
+        synthesisMode: 'heuristic',
+        llmError: undefined,
+      })
+      .mockResolvedValueOnce({
+        packs: [
+          { packId: 'billing-pack', packType: 'module_context', targetId: 'billing', summary: 'billing flow', keyFacts: [], relatedFiles: ['src/billing.ts'], confidence: 0.82 },
+        ],
+        disclosures: [],
+        adequacy: undefined,
+        verificationPlan: undefined,
+        traceId: 'trace-billing',
+        constructionPlan: undefined,
+        totalConfidence: 0.82,
+        cacheHit: false,
+        latencyMs: 9,
+        drillDownHints: [],
+        synthesis: undefined,
+        synthesisMode: 'heuristic',
+        llmError: undefined,
+      });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'How does AuthService flow into BillingService?',
+    });
+
+    expect(queryLibrarianMock).toHaveBeenCalledTimes(2);
+    const calledIntents = queryLibrarianMock.mock.calls.map((call) => String(call[0]?.intent ?? ''));
+    expect(new Set(calledIntents).size).toBe(2);
+    expect(result.decomposition_strategy).toBe('multi_hop_parallel');
+    expect(Array.isArray(result.sub_queries)).toBe(true);
+    expect(result.sub_queries).toHaveLength(2);
+    expect(result.packs.map((pack: { packId: string }) => pack.packId)).toEqual(
+      expect.arrayContaining(['auth-pack', 'billing-pack']),
+    );
+  });
+
   it('paginates query packs and returns pagination metadata', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
