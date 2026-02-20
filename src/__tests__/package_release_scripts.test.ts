@@ -13,6 +13,9 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-identity']).toBe('node scripts/assert-package-identity.mjs');
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
+    expect(scripts['policy:npm:fresh']).toBe('node scripts/npm-freshness-guard.mjs');
+    expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/npm-external-blackbox-e2e.mjs');
+    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:reality && npm run test:e2e:acceptance');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['policy:hygiene']).toBe('node scripts/git-hygiene-guard.mjs --mode warn');
     expect(scripts['policy:hygiene:enforce']).toBe('node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');
@@ -46,6 +49,8 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-freshness-guard.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-external-blackbox-e2e.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs'))).toBe(true);

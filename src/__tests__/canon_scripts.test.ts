@@ -10,6 +10,8 @@ describe('canonical npm scripts', () => {
     const scripts = pkg.scripts ?? {};
 
     expect(scripts['test:tier0']).toBeTypeOf('string');
+    expect(scripts['test:e2e:reality']).toBeTypeOf('string');
+    expect(scripts['test:e2e:cadence']).toBeTypeOf('string');
     expect(scripts['tier1:dogfood']).toBeTypeOf('string');
     expect(scripts['complexity:check']).toBeTypeOf('string');
     expect(scripts['eval:publish-gate']).toBeTypeOf('string');
@@ -19,6 +21,7 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:testing-discipline']).toBeTypeOf('string');
     expect(scripts['eval:testing-tracker']).toBeTypeOf('string');
     expect(scripts['test:agentic:strict']).toBeTypeOf('string');
+    expect(scripts['policy:npm:fresh']).toBeTypeOf('string');
   });
 
   it('pins strict release-evidence enforcement in scripts', () => {
