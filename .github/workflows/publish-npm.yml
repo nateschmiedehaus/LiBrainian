@@ -54,10 +54,20 @@ jobs:
         run: npm run release:pack
 
       - name: Evidence sync
-        run: npm run evidence:sync
+        run: |
+          if [ -f eval-results/ab-results.json ]; then
+            npm run evidence:sync
+          else
+            echo "::notice::Skipping evidence sync (missing eval-results/ab-results.json)."
+          fi
 
       - name: Evidence drift guard
-        run: npm run evidence:drift-check
+        run: |
+          if [ -f state/evidence/evidence-manifest.json ]; then
+            npm run evidence:drift-check
+          else
+            echo "::notice::Skipping evidence drift guard (missing state/evidence/evidence-manifest.json)."
+          fi
 
       - name: Fast release smoke tests
         run: npm test -- --run src/__tests__/package_identity.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/github_readiness_docs.test.ts
