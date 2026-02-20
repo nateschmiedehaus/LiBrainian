@@ -12,6 +12,9 @@ describe('public debug surface', () => {
     expect('projectForPersona' in rootApi).toBe(false);
     expect('generateGlanceCard' in rootApi).toBe(false);
     expect('getPersonaSummary' in rootApi).toBe(false);
+    expect('HomeostasisDaemon' in rootApi).toBe(false);
+    expect('createHomeostasisDaemon' in rootApi).toBe(false);
+    expect('createRecoveryLearner' in rootApi).toBe(false);
   });
 
   it('retains debug primitives on explicit debug subpath', () => {
