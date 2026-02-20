@@ -251,6 +251,8 @@ export interface ContextPack {
   packId: string;
   packType: ContextPackType;
   targetId: string; // Function/module ID this pack is for
+  schemaVersion?: number;
+  contentHash?: string;
   summary: string;
   keyFacts: string[];
   codeSnippets: CodeSnippet[];

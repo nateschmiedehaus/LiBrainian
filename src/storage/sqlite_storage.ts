@@ -582,6 +582,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       this.ensureConfidenceColumns();
       this.ensureFunctionBehaviorColumns();
       this.ensureContextPackOutcomeColumns();
+      this.ensureContextPackVersioningColumns();
       this.ensureConfidenceEventColumns();
       this.ensureUniversalKnowledgeTable();
       this.ensureFileKnowledgeTable();
@@ -838,6 +839,24 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     }
     if (!names.has('failure_count')) {
       db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0').run();
+    }
+  }
+
+  private ensureContextPackVersioningColumns(): void {
+    const db = this.db;
+    if (!db) return;
+    const columns = db.prepare('PRAGMA table_info(librarian_context_packs)').all() as { name: string }[];
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('content_hash')) {
+      db.prepare("ALTER TABLE librarian_context_packs ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''").run();
+      db.prepare(`
+        UPDATE librarian_context_packs
+        SET content_hash = substr(pack_id || ':' || target_id || ':' || pack_type, 1, 128)
+        WHERE content_hash = ''
+      `).run();
+    }
+    if (!names.has('schema_version')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1').run();
     }
   }
 
@@ -1345,35 +1364,65 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     };
   }
 
+  private normalizeContextPackPath(rawPath: string): string {
+    const trimmed = rawPath.trim();
+    if (!trimmed) return trimmed;
+    const normalized = normalizeSqlPath(trimmed);
+    if (!this.workspaceRoot) {
+      return normalized;
+    }
+    const absolute = path.isAbsolute(normalized)
+      ? path.resolve(normalized)
+      : path.resolve(this.workspaceRoot, normalized);
+    const relative = normalizeSqlPath(path.relative(this.workspaceRoot, absolute));
+    if (relative && relative !== '.' && !relative.startsWith('..')) {
+      return relative;
+    }
+    return normalizeSqlPath(absolute);
+  }
+
+  private normalizeContextPack(pack: ContextPack): ContextPack {
+    return {
+      ...pack,
+      relatedFiles: pack.relatedFiles.map((filePath) => this.normalizeContextPackPath(filePath)),
+      invalidationTriggers: pack.invalidationTriggers.map((trigger) => this.normalizeContextPackPath(trigger)),
+      codeSnippets: pack.codeSnippets.map((snippet) => ({
+        ...snippet,
+        filePath: this.normalizeContextPackPath(snippet.filePath),
+      })),
+    };
+  }
+
   private sanitizeContextPack(pack: ContextPack): { pack: ContextPack; counts: RedactionCounts } {
+    const normalizedPack = this.normalizeContextPack(pack);
     let counts = createEmptyRedactionCounts();
-    const packIdResult = this.sanitizeString(pack.packId);
+    const packIdResult = this.sanitizeString(normalizedPack.packId);
     counts = mergeRedactionCounts(counts, packIdResult.counts);
-    const packTypeResult = this.sanitizeString(pack.packType);
+    const packTypeResult = this.sanitizeString(normalizedPack.packType);
     counts = mergeRedactionCounts(counts, packTypeResult.counts);
-    const targetIdResult = this.sanitizeString(pack.targetId);
+    const targetIdResult = this.sanitizeString(normalizedPack.targetId);
     counts = mergeRedactionCounts(counts, targetIdResult.counts);
-    const summaryResult = this.sanitizeString(pack.summary);
+    const summaryResult = this.sanitizeString(normalizedPack.summary);
     counts = mergeRedactionCounts(counts, summaryResult.counts);
-    const keyFactsResult = this.sanitizeStringArray(pack.keyFacts);
+    const keyFactsResult = this.sanitizeStringArray(normalizedPack.keyFacts);
     counts = mergeRedactionCounts(counts, keyFactsResult.counts);
-    const relatedFilesResult = this.sanitizeStringArray(pack.relatedFiles);
+    const relatedFilesResult = this.sanitizeStringArray(normalizedPack.relatedFiles);
     counts = mergeRedactionCounts(counts, relatedFilesResult.counts);
-    const invalidationResult = this.sanitizeStringArray(pack.invalidationTriggers);
+    const invalidationResult = this.sanitizeStringArray(normalizedPack.invalidationTriggers);
     counts = mergeRedactionCounts(counts, invalidationResult.counts);
-    const lastOutcomeResult = this.sanitizeString(pack.lastOutcome);
+    const lastOutcomeResult = this.sanitizeString(normalizedPack.lastOutcome);
     counts = mergeRedactionCounts(counts, lastOutcomeResult.counts);
-    const versionStringResult = this.sanitizeString(pack.version.string);
+    const versionStringResult = this.sanitizeString(normalizedPack.version.string);
     counts = mergeRedactionCounts(counts, versionStringResult.counts);
 
-    const snippetResults = pack.codeSnippets.map((snippet) => this.sanitizeSnippet(snippet));
+    const snippetResults = normalizedPack.codeSnippets.map((snippet) => this.sanitizeSnippet(snippet));
     for (const snippetResult of snippetResults) {
       counts = mergeRedactionCounts(counts, snippetResult.counts);
     }
 
     return {
       pack: {
-        ...pack,
+        ...normalizedPack,
         packId: packIdResult.value,
         packType: packTypeResult.value as ContextPack['packType'],
         targetId: targetIdResult.value,
@@ -2606,14 +2655,16 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   async upsertContextPack(pack: ContextPack): Promise<void> {
     const db = this.ensureDb();
     const { pack: sanitized, counts } = this.sanitizeContextPack(pack);
+    const schemaVersion = sanitized.schemaVersion ?? 1;
+    const contentHash = computeContextPackContentHash(sanitized);
 
     db.prepare(`
       INSERT INTO librarian_context_packs (
         pack_id, pack_type, target_id, summary, key_facts, code_snippets,
         related_files, confidence, created_at, access_count, last_outcome,
-        success_count, failure_count, version_string, invalidation_triggers,
+        success_count, failure_count, version_string, content_hash, schema_version, invalidation_triggers,
         invalidated, last_verified_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(target_id, pack_type) DO UPDATE SET
         summary = excluded.summary,
         key_facts = excluded.key_facts,
@@ -2623,6 +2674,8 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
         success_count = librarian_context_packs.success_count,
         failure_count = librarian_context_packs.failure_count,
         version_string = excluded.version_string,
+        content_hash = excluded.content_hash,
+        schema_version = excluded.schema_version,
         invalidation_triggers = excluded.invalidation_triggers,
         invalidated = 0,
         last_verified_at = excluded.last_verified_at
@@ -2641,6 +2694,8 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       sanitized.successCount ?? 0,
       sanitized.failureCount ?? 0,
       sanitized.version.string,
+      contentHash,
+      schemaVersion,
       JSON.stringify(sanitized.invalidationTriggers),
       0,
       new Date().toISOString()
@@ -7175,6 +7230,8 @@ interface ContextPackRow {
   pack_id: string;
   pack_type: string;
   target_id: string;
+  schema_version: number;
+  content_hash: string;
   summary: string;
   key_facts: string;
   code_snippets: string;
@@ -7440,6 +7497,44 @@ function parseStringArray(raw: string): string[] {
   return parseJsonArray<unknown>(raw).filter((value): value is string => typeof value === 'string');
 }
 
+function stableStringify(value: unknown, seen = new WeakSet<object>()): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (seen.has(value as object)) {
+    throw new Error('Cannot stable-stringify circular structure');
+  }
+  seen.add(value as object);
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item, seen)).join(',')}]`;
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort((a, b) => a.localeCompare(b));
+  const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key], seen)}`);
+  return `{${entries.join(',')}}`;
+}
+
+function computeContextPackContentHash(pack: ContextPack): string {
+  const canonicalPayload = {
+    schemaVersion: pack.schemaVersion ?? 1,
+    packType: pack.packType,
+    targetId: pack.targetId,
+    summary: pack.summary,
+    keyFacts: [...pack.keyFacts],
+    codeSnippets: pack.codeSnippets.map((snippet) => ({
+      filePath: normalizeSqlPath(snippet.filePath),
+      startLine: snippet.startLine,
+      endLine: snippet.endLine,
+      content: snippet.content,
+      language: snippet.language,
+    })),
+    relatedFiles: [...pack.relatedFiles].map((filePath) => normalizeSqlPath(filePath)).sort((a, b) => a.localeCompare(b)),
+    invalidationTriggers: [...pack.invalidationTriggers].map((filePath) => normalizeSqlPath(filePath)).sort((a, b) => a.localeCompare(b)),
+    versionString: pack.version.string,
+  };
+  return sha256Hex(stableStringify(canonicalPayload));
+}
+
 function isIndexingError(value: unknown): value is IndexingError {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
@@ -7508,6 +7603,8 @@ function rowToContextPack(row: ContextPackRow): ContextPack {
     packId: row.pack_id,
     packType: row.pack_type as ContextPack['packType'],
     targetId: row.target_id,
+    schemaVersion: row.schema_version ?? 1,
+    contentHash: row.content_hash || undefined,
     summary: row.summary,
     keyFacts: parseStringArray(row.key_facts),
     codeSnippets: parseCodeSnippets(row.code_snippets),

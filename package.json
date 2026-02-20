@@ -195,6 +195,8 @@
     "evidence:sync": "npm run evidence:manifest && npm run evidence:reconcile",
     "evidence:drift-check": "node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts",
     "evidence:refresh": "node scripts/refresh-final-verification.mjs --max-samples 6 --benchmark-timeout-ms 45000 && npm run evidence:sync",
+    "packs:export": "node scripts/context-pack-export.mjs",
+    "packs:diff": "node scripts/context-pack-diff.mjs",
     "release:pack": "npm run package:assert-identity && npm run clean && npm run build && npm run package:install-smoke && npm pack",
     "release:dry-run": "npm run release:pack",
     "dogfood": "node scripts/dogfood-sandbox.mjs",

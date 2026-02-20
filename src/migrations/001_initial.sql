@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS librarian_context_packs (
   success_count INTEGER NOT NULL DEFAULT 0,
   failure_count INTEGER NOT NULL DEFAULT 0,
   version_string TEXT NOT NULL,
+  content_hash TEXT NOT NULL DEFAULT '',
+  schema_version INTEGER NOT NULL DEFAULT 1,
   invalidation_triggers TEXT NOT NULL,
   invalidated INTEGER NOT NULL DEFAULT 0,
   UNIQUE(target_id, pack_type)
