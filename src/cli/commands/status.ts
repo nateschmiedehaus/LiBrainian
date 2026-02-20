@@ -19,6 +19,7 @@ import { emitJsonOutput } from '../json_output.js';
 import { collectVerificationProvenance, type VerificationProvenanceReport } from '../verification_provenance.js';
 import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 import { isOfflineModeEnabled } from '../../utils/runtime_controls.js';
+import { getTreeSitterLanguageConfigs } from '../../agents/parsers/tree_sitter_parser.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -100,6 +101,10 @@ type StatusReport = {
     cacheHitRate: number;
   };
   embeddingCoverage?: EmbeddingCoverageSummary;
+  languageCoverage?: {
+    totalFunctions: number;
+    byLanguage: Record<string, number>;
+  };
   metadata?: {
     version: string;
     qualityTier: string;
@@ -122,6 +127,32 @@ type StatusReport = {
   } | null;
   provenance?: VerificationProvenanceReport;
 };
+
+const LANGUAGE_NAME_OVERRIDES: Record<string, string> = {
+  c: 'C',
+  cpp: 'C++',
+  csharp: 'C#',
+  css: 'CSS',
+  dart: 'Dart',
+  go: 'Go',
+  html: 'HTML',
+  java: 'Java',
+  javascript: 'JavaScript',
+  json: 'JSON',
+  kotlin: 'Kotlin',
+  lua: 'Lua',
+  php: 'PHP',
+  python: 'Python',
+  ruby: 'Ruby',
+  rust: 'Rust',
+  scala: 'Scala',
+  sql: 'SQL',
+  swift: 'Swift',
+  typescript: 'TypeScript',
+  yaml: 'YAML',
+};
+
+const EXTENSION_LANGUAGE_MAP = buildExtensionLanguageMap();
 
 function toSafeDate(value: unknown): Date | null {
   if (value == null) return null;
@@ -440,6 +471,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       cacheHitRate: stats.cacheHitRate,
     };
     report.embeddingCoverage = computeEmbeddingCoverage(stats.totalFunctions, stats.totalEmbeddings);
+    report.languageCoverage = await collectLanguageCoverage(storage);
     report.metadata = metadata
       ? {
           version: metadata.version.string,
@@ -498,6 +530,17 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       { key: 'Cache Hit Rate', value: `${(stats.cacheHitRate * 100).toFixed(1)}%` },
     ]);
     console.log();
+
+    if (Object.keys(report.languageCoverage.byLanguage).length > 0) {
+      console.log('Language Coverage (Functions):');
+      printKeyValue(
+        Object.entries(report.languageCoverage.byLanguage).map(([language, count]) => ({
+          key: language,
+          value: count,
+        })),
+      );
+      console.log();
+    }
 
     if (metadata) {
       console.log('Metadata:');
@@ -587,6 +630,51 @@ function deriveStatusExitCode(report: StatusReport): number {
   const changed = freshness.staleFiles + freshness.missingFiles + freshness.newFiles;
   const ratio = changed / Math.max(freshness.totalIndexedFiles, 1);
   return ratio > 0.05 ? 1 : 0;
+}
+
+function normalizeExtension(ext: string): string {
+  return ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
+}
+
+function toLanguageDisplayName(language: string): string {
+  const normalized = language.trim().toLowerCase();
+  if (!normalized) return 'Unknown';
+  const mapped = LANGUAGE_NAME_OVERRIDES[normalized];
+  if (mapped) return mapped;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function buildExtensionLanguageMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const config of getTreeSitterLanguageConfigs()) {
+    for (const ext of config.extensions) {
+      map.set(normalizeExtension(ext), config.language);
+    }
+  }
+  return map;
+}
+
+async function collectLanguageCoverage(storage: LibrarianStorage): Promise<NonNullable<StatusReport['languageCoverage']>> {
+  const functions = await storage.getFunctions();
+  const byLanguage = new Map<string, number>();
+  for (const fn of functions) {
+    const ext = path.extname(fn.filePath).toLowerCase();
+    const language = ext ? EXTENSION_LANGUAGE_MAP.get(ext) ?? ext.slice(1) : 'unknown';
+    const display = toLanguageDisplayName(language);
+    byLanguage.set(display, (byLanguage.get(display) ?? 0) + 1);
+  }
+  const sorted = Array.from(byLanguage.entries()).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].localeCompare(b[0]);
+  });
+  const byLanguageRecord: Record<string, number> = {};
+  for (const [language, count] of sorted) {
+    byLanguageRecord[language] = count;
+  }
+  return {
+    totalFunctions: functions.length,
+    byLanguage: byLanguageRecord,
+  };
 }
 
 async function inspectServerPid(workspaceRoot: string): Promise<ServerStatus> {

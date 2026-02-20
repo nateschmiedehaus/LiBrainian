@@ -54,7 +54,9 @@ import { indexDiffs } from '../ingest/diff_indexer.js';
 import { indexReflog } from '../ingest/reflog_indexer.js';
 // Symbol extraction for symbol table population
 import { extractSymbolsFromFiles } from '../ingest/symbol_extractor.js';
+import { extractPolyglotFunctionSymbolsFromFiles } from '../ingest/polyglot_symbol_extractor.js';
 import { createSymbolStorage } from '../storage/symbol_storage.js';
+import type { SymbolEntry } from '../constructions/symbol_table.js';
 import { analyzeClones } from '../analysis/code_clone_analysis.js';
 import { analyzeDebt } from '../analysis/technical_debt_analysis.js';
 import { buildKnowledgeGraph } from '../graphs/knowledge_graph.js';
@@ -3542,13 +3544,29 @@ async function runSemanticIndexing(
   // Extract and store TypeScript symbols for direct symbol lookup
   // This populates the symbol table used by queries like "SqliteLibrarianStorage class"
   const tsFiles = astFiles.filter((f) => f.endsWith('.ts') || f.endsWith('.tsx'));
-  if (tsFiles.length > 0) {
+  const polyglotSymbolFiles = astFiles.filter((f) => !(f.endsWith('.ts') || f.endsWith('.tsx')));
+  if (tsFiles.length > 0 || polyglotSymbolFiles.length > 0) {
     try {
-      const symbolResult = await extractSymbolsFromFiles(tsFiles);
-      if (symbolResult.symbols.length > 0) {
+      const symbols: SymbolEntry[] = [];
+      if (tsFiles.length > 0) {
+        const tsSymbolResult = await extractSymbolsFromFiles(tsFiles);
+        symbols.push(...tsSymbolResult.symbols);
+      }
+      if (polyglotSymbolFiles.length > 0) {
+        const polyglotSymbolResult = await extractPolyglotFunctionSymbolsFromFiles(polyglotSymbolFiles, {
+          workspaceRoot: phaseConfig.workspace,
+        });
+        symbols.push(...polyglotSymbolResult.symbols);
+        if (polyglotSymbolResult.filesWithErrors.length > 0) {
+          logInfo('Bootstrap: Polyglot symbol extraction skipped some files', {
+            skippedFileCount: polyglotSymbolResult.filesWithErrors.length,
+          });
+        }
+      }
+      if (symbols.length > 0) {
         const symbolStorage = createSymbolStorage(phaseConfig.workspace);
         await symbolStorage.initialize();
-        symbolStorage.upsertSymbols(symbolResult.symbols);
+        symbolStorage.upsertSymbols(symbols);
         await symbolStorage.close();
       }
     } catch (symbolError) {
@@ -3556,6 +3574,7 @@ async function runSemanticIndexing(
       logWarning('Bootstrap: Symbol extraction failed', {
         error: symbolError instanceof Error ? symbolError.message : String(symbolError),
         tsFileCount: tsFiles.length,
+        polyglotFileCount: polyglotSymbolFiles.length,
       });
     }
   }

@@ -179,6 +179,12 @@ describe('statusCommand', () => {
 
   it('emits JSON when format is json', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.getFunctions.mockResolvedValue([
+      { filePath: `${workspace}/src/main.ts` },
+      { filePath: `${workspace}/src/helpers.ts` },
+      { filePath: `${workspace}/scripts/check.py` },
+      { filePath: `${workspace}/cmd/server.go` },
+    ]);
 
     const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
 
@@ -189,6 +195,7 @@ describe('statusCommand', () => {
       storage?: { status?: string };
       schema?: { current?: number | null; expected?: number; upToDate?: boolean };
       embeddingCoverage?: { coverage_pct?: number; total_functions?: number; embedded_functions?: number; needs_embedding_count?: number };
+      languageCoverage?: { totalFunctions?: number; byLanguage?: Record<string, number> };
       provenance?: { status?: string };
       server?: { status?: string };
       config?: { status?: string };
@@ -199,6 +206,10 @@ describe('statusCommand', () => {
     expect(parsed.embeddingCoverage?.embedded_functions).toBe(0);
     expect(parsed.embeddingCoverage?.coverage_pct).toBe(0);
     expect(parsed.embeddingCoverage?.needs_embedding_count).toBe(1);
+    expect(parsed.languageCoverage?.totalFunctions).toBe(4);
+    expect(parsed.languageCoverage?.byLanguage?.TypeScript).toBe(2);
+    expect(parsed.languageCoverage?.byLanguage?.Python).toBe(1);
+    expect(parsed.languageCoverage?.byLanguage?.Go).toBe(1);
     expect(parsed.schema?.expected).toBeTypeOf('number');
     expect(parsed.schema?.upToDate).toBe(false);
     expect(parsed.provenance?.status).toBeDefined();
