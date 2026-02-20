@@ -507,6 +507,10 @@ const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence tiers: definitive/high -> proce
 const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
+const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
+const SESSION_EPISODES_SCHEMA_VERSION = 1;
+const MAX_PERSISTED_SESSION_EPISODES = 5000;
+const SESSION_EPISODE_DECAY_LAMBDA = 0.5;
 
 interface MutableToolSchemaNode {
   type?: string;
@@ -659,6 +663,22 @@ interface BootstrapRunRecord {
   durationMs: number;
   stats: BootstrapRunStatsSnapshot;
   error?: string;
+}
+
+type SessionEpisodeEventType = 'query' | 'symbol_access' | 'pack_assembled';
+
+interface SessionEpisodeRecord {
+  episodeId: string;
+  sessionId: string;
+  workspace: string;
+  tool: 'query' | 'find_symbol' | 'get_context_pack_bundle';
+  eventType: SessionEpisodeEventType;
+  subject: string;
+  resultIds: string[];
+  touchedFiles: string[];
+  importance: number;
+  createdAtMs: number;
+  lastAccessedAtMs?: number;
 }
 
 type FindSymbolMatchKind =
@@ -2644,6 +2664,40 @@ export class LibrarianMCPServer {
     return created;
   }
 
+  private resolveSessionId(options: {
+    workspacePath: string;
+    context: ToolExecutionContext;
+    explicitSessionId?: string;
+  }): string {
+    const explicitSessionId = typeof options.explicitSessionId === 'string' && options.explicitSessionId.trim().length > 0
+      ? options.explicitSessionId.trim()
+      : undefined;
+    const contextSessionId = typeof options.context.sessionId === 'string' && options.context.sessionId.trim().length > 0
+      ? options.context.sessionId.trim()
+      : undefined;
+    return contextSessionId
+      ?? explicitSessionId
+      ?? this.buildAnonymousSessionId(options.workspacePath);
+  }
+
+  private mergeAffectedFilesWithEpisodicHints(
+    affectedFiles: string[] | undefined,
+    episodicHints: string[],
+  ): { merged: string[] | undefined; injected: string[] } {
+    const base = new Set<string>((affectedFiles ?? []).filter((entry) => entry.length > 0));
+    const injected: string[] = [];
+    for (const hint of episodicHints) {
+      if (!base.has(hint)) {
+        base.add(hint);
+        injected.push(hint);
+      }
+    }
+    if (base.size === 0) {
+      return { merged: undefined, injected: [] };
+    }
+    return { merged: Array.from(base), injected };
+  }
+
   private toPlanView(record: PlanRecord): {
     plan_id: string;
     planId: string;
@@ -3417,7 +3471,7 @@ export class LibrarianMCPServer {
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
-        return this.executeFindSymbol(args as FindSymbolToolInput);
+        return this.executeFindSymbol(args as FindSymbolToolInput, context);
       case 'verify_claim':
         return this.executeVerifyClaim(args as VerifyClaimToolInput);
       case 'run_audit':
@@ -3431,7 +3485,7 @@ export class LibrarianMCPServer {
       case 'get_repo_map':
         return this.executeGetRepoMap(args as GetRepoMapToolInput);
       case 'get_context_pack_bundle':
-        return this.executeGetContextPackBundle(args as GetContextPackBundleToolInput);
+        return this.executeGetContextPackBundle(args as GetContextPackBundleToolInput, context);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -3614,6 +3668,138 @@ export class LibrarianMCPServer {
       runs: runs.slice(0, MAX_PERSISTED_BOOTSTRAP_RUNS),
     };
     await storage.setState(BOOTSTRAP_RUN_HISTORY_STATE_KEY, JSON.stringify(payload));
+  }
+
+  private normalizeSessionEpisodes(raw: unknown): SessionEpisodeRecord[] {
+    if (!raw || typeof raw !== 'object') return [];
+    const envelope = raw as { items?: unknown };
+    if (!Array.isArray(envelope.items)) return [];
+    const normalized: SessionEpisodeRecord[] = [];
+    for (const item of envelope.items) {
+      if (!item || typeof item !== 'object') continue;
+      const record = item as Record<string, unknown>;
+      const episodeId = typeof record.episodeId === 'string' ? record.episodeId : '';
+      const sessionId = typeof record.sessionId === 'string' ? record.sessionId : '';
+      const workspace = typeof record.workspace === 'string' ? record.workspace : '';
+      const subject = typeof record.subject === 'string' ? record.subject : '';
+      const createdAtMs = Number(record.createdAtMs);
+      if (!episodeId || !sessionId || !workspace || !subject || !Number.isFinite(createdAtMs)) continue;
+      const tool = record.tool === 'find_symbol' || record.tool === 'get_context_pack_bundle'
+        ? record.tool
+        : 'query';
+      const eventType = record.eventType === 'symbol_access' || record.eventType === 'pack_assembled'
+        ? record.eventType
+        : 'query';
+      const resultIds = Array.isArray(record.resultIds)
+        ? record.resultIds.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+        : [];
+      const touchedFiles = Array.isArray(record.touchedFiles)
+        ? record.touchedFiles.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+        : [];
+      const importance = Number.isFinite(Number(record.importance))
+        ? Math.max(0, Math.min(1, Number(record.importance)))
+        : 0.5;
+      const lastAccessedAtMs = Number.isFinite(Number(record.lastAccessedAtMs))
+        ? Number(record.lastAccessedAtMs)
+        : undefined;
+      normalized.push({
+        episodeId,
+        sessionId,
+        workspace: path.resolve(workspace),
+        tool,
+        eventType,
+        subject,
+        resultIds,
+        touchedFiles,
+        importance,
+        createdAtMs,
+        lastAccessedAtMs,
+      });
+    }
+    normalized.sort((a, b) => b.createdAtMs - a.createdAtMs);
+    return normalized;
+  }
+
+  private async getSessionEpisodes(storage: LibrarianStorage): Promise<SessionEpisodeRecord[]> {
+    const store = storage as Partial<LibrarianStorage>;
+    if (typeof store.getState !== 'function') return [];
+    const raw = await store.getState(SESSION_EPISODES_STATE_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return this.normalizeSessionEpisodes(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  private async setSessionEpisodes(storage: LibrarianStorage, episodes: SessionEpisodeRecord[]): Promise<void> {
+    const store = storage as Partial<LibrarianStorage>;
+    if (typeof store.setState !== 'function') return;
+    const payload = {
+      schemaVersion: SESSION_EPISODES_SCHEMA_VERSION,
+      updatedAt: new Date().toISOString(),
+      items: episodes.slice(0, MAX_PERSISTED_SESSION_EPISODES),
+    };
+    await store.setState(SESSION_EPISODES_STATE_KEY, JSON.stringify(payload));
+  }
+
+  private async appendSessionEpisode(
+    storage: LibrarianStorage,
+    episode: Omit<SessionEpisodeRecord, 'episodeId' | 'createdAtMs' | 'workspace'> & {
+      workspace: string;
+    },
+  ): Promise<void> {
+    const nowMs = Date.now();
+    const episodes = await this.getSessionEpisodes(storage);
+    const next: SessionEpisodeRecord = {
+      ...episode,
+      episodeId: `ep_${this.generateId()}`,
+      workspace: path.resolve(episode.workspace),
+      createdAtMs: nowMs,
+    };
+    episodes.unshift(next);
+    await this.setSessionEpisodes(storage, episodes);
+  }
+
+  private computeEpisodeRecencyScore(createdAtMs: number, nowMs: number): number {
+    const ageHours = Math.max(0, (nowMs - createdAtMs) / 3_600_000);
+    return Math.exp(-SESSION_EPISODE_DECAY_LAMBDA * ageHours);
+  }
+
+  private async getRecentEpisodeFileHints(
+    storage: LibrarianStorage,
+    options: {
+      sessionId: string;
+      workspace: string;
+      limit?: number;
+      minScore?: number;
+    },
+  ): Promise<string[]> {
+    const episodes = await this.getSessionEpisodes(storage);
+    const nowMs = Date.now();
+    const workspace = path.resolve(options.workspace);
+    const maxFiles = Math.max(1, Math.min(20, Math.trunc(options.limit ?? 6)));
+    const minScore = Number.isFinite(options.minScore) ? Number(options.minScore) : 0.15;
+    const scores = new Map<string, number>();
+    for (const episode of episodes) {
+      if (episode.sessionId !== options.sessionId) continue;
+      if (episode.workspace !== workspace) continue;
+      if (!episode.touchedFiles.length) continue;
+      const recency = this.computeEpisodeRecencyScore(episode.createdAtMs, nowMs);
+      const weighted = recency * Math.max(0.1, Math.min(1, episode.importance));
+      if (weighted < minScore) continue;
+      for (const file of episode.touchedFiles) {
+        const current = scores.get(file) ?? 0;
+        if (weighted > current) {
+          scores.set(file, weighted);
+        }
+      }
+    }
+    return Array.from(scores.entries())
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, maxFiles)
+      .map(([file]) => file);
   }
 
   private async persistBootstrapRunRecord(
@@ -4830,6 +5016,11 @@ export class LibrarianMCPServer {
         input,
         context,
       });
+      const sessionId = this.resolveSessionId({
+        workspacePath: workspace.path,
+        context,
+        explicitSessionId: input.sessionId,
+      });
       const preLoopMetrics = sessionState
         ? this.collectLoopMetrics(sessionState.queryHistory, input.intent, workspace.path)
         : null;
@@ -4848,13 +5039,21 @@ export class LibrarianMCPServer {
       };
 
       const normalizedAffectedFiles = this.normalizeQueryAffectedFiles(input.affectedFiles, workspace.path);
+      const episodicHintFiles = await this.getRecentEpisodeFileHints(storage, {
+        sessionId,
+        workspace: workspace.path,
+      }).catch(() => []);
+      const { merged: mergedAffectedFiles, injected: injectedEpisodicFiles } = this.mergeAffectedFilesWithEpisodicHints(
+        normalizedAffectedFiles,
+        episodicHintFiles,
+      );
       const normalizedWorkingFile = this.normalizeQueryFileHint(input.workingFile, workspace.path);
 
       // Build query object
       const query = {
         intent: input.intent,
         intentType: input.intentType,
-        affectedFiles: normalizedAffectedFiles,
+        affectedFiles: mergedAffectedFiles,
         filter: input.filter,
         workingFile: normalizedWorkingFile,
         minConfidence: input.minConfidence,
@@ -4865,6 +5064,8 @@ export class LibrarianMCPServer {
       }
       recordProgress('query_started', {
         workspace: workspace.path,
+        sessionId,
+        episodicHintFiles: injectedEpisodicFiles.length,
         intentType: query.intentType ?? 'general',
         depth: query.depth,
         streamEnabled,
@@ -4937,6 +5138,16 @@ export class LibrarianMCPServer {
               }
             : undefined,
         };
+        void this.appendSessionEpisode(storage, {
+          sessionId,
+          workspace: workspace.path,
+          tool: 'query',
+          eventType: 'query',
+          subject: input.intent,
+          resultIds: [],
+          touchedFiles: mergedAffectedFiles ?? [],
+          importance: 0.2,
+        }).catch(() => undefined);
         return {
           ...timeoutResult,
           coverage_gaps: timeoutResult.coverageGaps,
@@ -5035,6 +5246,12 @@ export class LibrarianMCPServer {
       const stalenessWarning = criticallyStalePackIds.length > 0
         ? `[STALE] ${criticallyStalePackIds.length} context pack(s) are critically stale (freshness_score < 0.1): ${criticallyStalePackIds.join(', ')}`
         : undefined;
+      const episodicHints = injectedEpisodicFiles.length > 0
+        ? {
+            sessionId,
+            injectedFiles: injectedEpisodicFiles,
+          }
+        : undefined;
 
       const baseResult = {
         disclosures: userDisclosures,
@@ -5059,6 +5276,8 @@ export class LibrarianMCPServer {
         sortOrder: 'retrieval_score_desc',
         aggregateConfidence,
         stalenessWarning,
+        sessionId,
+        episodicHints,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
         nearMisses,
         loopDetection: sessionState
@@ -5109,6 +5328,8 @@ export class LibrarianMCPServer {
         coverage_gaps: resultWithHumanReview.coverageGaps,
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
         staleness_warning: resultWithHumanReview.stalenessWarning,
+        session_id: resultWithHumanReview.sessionId,
+        episodic_hints: resultWithHumanReview.episodicHints,
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
         ...(resultWithHumanReview.humanReviewRecommendation
@@ -5119,6 +5340,25 @@ export class LibrarianMCPServer {
         progress_view: resultWithHumanReview.progress,
         stream_view: resultWithHumanReview.stream,
       };
+
+      const touchedFiles = Array.from(
+        new Set(
+          [
+            ...(mergedAffectedFiles ?? []),
+            ...transformedPacks.flatMap((pack) => Array.isArray(pack.relatedFiles) ? pack.relatedFiles : []),
+          ].filter((entry): entry is string => typeof entry === 'string' && entry.length > 0),
+        ),
+      );
+      void this.appendSessionEpisode(storage, {
+        sessionId,
+        workspace: workspace.path,
+        tool: 'query',
+        eventType: 'query',
+        subject: input.intent,
+        resultIds: transformedPacks.map((pack) => pack.packId).slice(0, 200),
+        touchedFiles,
+        importance: retrievalInsufficient ? 0.35 : Math.max(0.4, Math.min(1, response.totalConfidence)),
+      }).catch(() => undefined);
 
       if (input.outputFile) {
         const reference = await this.writeOutputReference(
@@ -7750,7 +7990,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeFindSymbol(input: FindSymbolToolInput): Promise<unknown> {
+  private async executeFindSymbol(input: FindSymbolToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
     try {
       const limit = Math.max(1, Math.min(200, Math.trunc(input.limit ?? 20)));
       const workspaceHint = input.workspace
@@ -7795,6 +8035,10 @@ export class LibrarianMCPServer {
       }
 
       const storage = await this.getOrCreateStorage(workspacePath);
+      const sessionId = this.resolveSessionId({
+        workspacePath,
+        context,
+      });
       const matchMap = new Map<string, FindSymbolMatchRecord>();
       const includeKind = (kind: FindSymbolMatchKind): boolean => !input.kind || input.kind === kind;
 
@@ -7936,13 +8180,28 @@ export class LibrarianMCPServer {
           return a.name.localeCompare(b.name);
         });
 
+      const topMatches = matches.slice(0, limit);
+      void this.appendSessionEpisode(storage, {
+        sessionId,
+        workspace: workspacePath,
+        tool: 'find_symbol',
+        eventType: 'symbol_access',
+        subject: input.query,
+        resultIds: topMatches.map((match) => match.id),
+        touchedFiles: topMatches
+          .map((match) => match.filePath)
+          .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0),
+        importance: topMatches.length > 0 ? 0.55 : 0.25,
+      }).catch(() => undefined);
+
       return {
         success: true,
         query: input.query,
         kind: input.kind ?? 'any',
-        matches: matches.slice(0, limit),
+        matches: topMatches,
         totalMatches: matches.length,
         workspace: workspacePath,
+        sessionId,
       };
     } catch (error) {
       return {
@@ -9319,7 +9578,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async executeGetContextPackBundle(input: GetContextPackBundleToolInput): Promise<unknown> {
+  private async executeGetContextPackBundle(input: GetContextPackBundleToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
     const bundleId = this.generateId();
 
     try {
@@ -9334,6 +9593,10 @@ export class LibrarianMCPServer {
       }
 
       const storage = await this.getOrCreateStorage(workspace.path);
+      const sessionId = this.resolveSessionId({
+        workspacePath: workspace.path,
+        context,
+      });
       const bundledPacks: unknown[] = [];
 
       // Collect packs for each entity
@@ -9417,6 +9680,21 @@ export class LibrarianMCPServer {
           0
         )
       );
+      const touchedFiles = (pagedPacks as Array<{ relatedFiles?: unknown }>)
+        .flatMap((pack) => Array.isArray(pack.relatedFiles) ? pack.relatedFiles : [])
+        .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+      void this.appendSessionEpisode(storage, {
+        sessionId,
+        workspace: workspace.path,
+        tool: 'get_context_pack_bundle',
+        eventType: 'pack_assembled',
+        subject: (input.entityIds ?? []).join(', '),
+        resultIds: (pagedPacks as Array<{ packId?: unknown }>)
+          .map((pack) => (typeof pack.packId === 'string' ? pack.packId : undefined))
+          .filter((entry): entry is string => typeof entry === 'string'),
+        touchedFiles,
+        importance: (pagedPacks as unknown[]).length > 0 ? 0.6 : 0.3,
+      }).catch(() => undefined);
 
       if (input.outputFile) {
         const reference = await this.writeOutputReference(
@@ -9430,6 +9708,7 @@ export class LibrarianMCPServer {
             truncated: truncatedByTokens,
             truncatedByTokens,
             estimatedTokens,
+            sessionId,
             aggregateConfidence,
             aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
             coverageGaps: [],
@@ -9446,6 +9725,7 @@ export class LibrarianMCPServer {
           truncated: truncatedByTokens,
           truncatedByTokens,
           estimatedTokens,
+          sessionId,
           aggregateConfidence,
           aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
           coverageGaps: [],
@@ -9463,6 +9743,7 @@ export class LibrarianMCPServer {
         truncated: truncatedByTokens,
         truncatedByTokens,
         estimatedTokens,
+        sessionId,
         aggregateConfidence,
         aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
         coverageGaps: [],

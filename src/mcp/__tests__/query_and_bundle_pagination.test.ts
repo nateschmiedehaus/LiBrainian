@@ -18,8 +18,128 @@ vi.mock('../../api/index.js', async () => {
 import { createLibrarianMCPServer } from '../server.js';
 
 describe('MCP query and context bundle pagination', () => {
+  const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
+
   beforeEach(() => {
     queryLibrarianMock.mockReset();
+  });
+
+  it('injects recent episodic files into query affectedFiles for the same session', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const touchedFile = path.resolve(workspace, 'src/auth/session.ts');
+    const state = new Map<string, string>();
+    state.set(SESSION_EPISODES_STATE_KEY, JSON.stringify({
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      items: [
+        {
+          episodeId: 'ep_prev',
+          sessionId: 'session-1',
+          workspace,
+          tool: 'query',
+          eventType: 'query',
+          subject: 'prior query',
+          resultIds: ['pack-prev'],
+          touchedFiles: [touchedFile],
+          importance: 0.9,
+          createdAtMs: Date.now(),
+        },
+      ],
+    }));
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getState: vi.fn(async (key: string) => state.get(key) ?? null),
+      setState: vi.fn(async (key: string, value: string) => {
+        state.set(key, value);
+      }),
+    });
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [touchedFile], confidence: 0.9 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-episodic',
+      constructionPlan: undefined,
+      totalConfidence: 0.9,
+      cacheHit: false,
+      latencyMs: 9,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'find auth flow',
+      sessionId: 'session-1',
+    });
+
+    expect(queryLibrarianMock).toHaveBeenCalledTimes(1);
+    expect((queryLibrarianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles).toContain(touchedFile);
+    expect(result.episodic_hints?.sessionId).toBe('session-1');
+    expect(result.episodic_hints?.injectedFiles).toContain(touchedFile);
+  });
+
+  it('persists query session episodes with touched files', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const touchedFile = path.resolve(workspace, 'src/core/query.ts');
+    const state = new Map<string, string>();
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getState: vi.fn(async (key: string) => state.get(key) ?? null),
+      setState: vi.fn(async (key: string, value: string) => {
+        state.set(key, value);
+      }),
+    });
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [touchedFile], confidence: 0.85 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-episode-write',
+      constructionPlan: undefined,
+      totalConfidence: 0.85,
+      cacheHit: false,
+      latencyMs: 10,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    await (server as any).executeQuery({
+      workspace,
+      intent: 'query episode write',
+      sessionId: 'session-write',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const raw = state.get(SESSION_EPISODES_STATE_KEY);
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(String(raw));
+    expect(Array.isArray(parsed.items)).toBe(true);
+    expect(parsed.items[0]?.tool).toBe('query');
+    expect(parsed.items[0]?.sessionId).toBe('session-write');
+    expect(parsed.items[0]?.touchedFiles).toContain(touchedFile);
   });
 
   it('paginates query packs and returns pagination metadata', async () => {
