@@ -260,6 +260,19 @@ const HYDE_RRF_K = 60;
 const HYDE_MAX_STUB_CHARS = 1200;
 const HYDE_EMBEDDING_CACHE_PREFIX = 'hyde:embedding:';
 const HYDE_EXPANSION_CACHE_LIMIT = 128;
+const IDENTIFIER_EXPANSION_EMBEDDING_PREFIX = 'identifier:embedding:';
+const IDENTIFIER_EXPANSION_MAX_VARIANTS = 3;
+const IDENTIFIER_EXPANSION_SYNONYMS: Record<string, string[]> = {
+  permission: ['access', 'authorization', 'role'],
+  permissions: ['access', 'authorization', 'roles'],
+  auth: ['authentication', 'authorization'],
+  authenticate: ['login', 'sign in'],
+  login: ['authenticate', 'sign in'],
+  user: ['account', 'principal', 'identity'],
+  users: ['accounts', 'principals', 'identities'],
+  route: ['endpoint', 'path'],
+  routes: ['endpoints', 'paths'],
+};
 const GRAPH_NEIGHBOR_MIN_SIMILARITY = q(
   0.55,
   [0, 1],
@@ -3718,7 +3731,7 @@ async function runDirectPacksStage(options: {
 }
 
 function applySimilaritySearchDegradation(
-  source: 'direct' | 'hyde',
+  source: string,
   response: {
     degraded?: boolean;
     degradedReason?: string;
@@ -3836,7 +3849,7 @@ async function runSemanticRetrievalStage(options: {
       });
       applySimilaritySearchDegradation('direct', directSearchResponse, diagnostics, recordCoverageGap);
 
-      let similarResults = directSearchResponse.results;
+      const resultLists: SimilarityResult[][] = [directSearchResponse.results];
       if (resolvedEmbeddings.hydeEmbedding) {
         const hydeSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.hydeEmbedding, {
           limit: searchLimit,
@@ -3845,12 +3858,23 @@ async function runSemanticRetrievalStage(options: {
           filter: query.filter,
         });
         applySimilaritySearchDegradation('hyde', hydeSearchResponse, diagnostics, recordCoverageGap);
-        similarResults = fuseSimilarityResultsWithRrf(
-          directSearchResponse.results,
-          hydeSearchResponse.results,
-          searchLimit
-        );
+        resultLists.push(hydeSearchResponse.results);
       }
+
+      for (let i = 0; i < resolvedEmbeddings.identifierEmbeddings.length; i += 1) {
+        const expansionSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.identifierEmbeddings[i], {
+          limit: searchLimit,
+          minSimilarity: searchMinSimilarity,
+          entityTypes: queryClassification.entityTypes,
+          filter: query.filter,
+        });
+        applySimilaritySearchDegradation(`identifier_expansion_${i + 1}`, expansionSearchResponse, diagnostics, recordCoverageGap);
+        resultLists.push(expansionSearchResponse.results);
+      }
+
+      let similarResults = resultLists.length === 1
+        ? resultLists[0]
+        : fuseSimilarityResultListsWithRrf(resultLists, searchLimit);
 
       // Apply document bias for meta-queries
       if (queryClassification.isMetaQuery && queryClassification.documentBias > 0.3) {
@@ -6489,6 +6513,7 @@ async function collectDirectPacks(
 type ResolvedQueryEmbeddings = {
   directEmbedding: Float32Array;
   hydeEmbedding: Float32Array | null;
+  identifierEmbeddings: Float32Array[];
 };
 
 async function resolveQueryEmbeddings(
@@ -6503,20 +6528,35 @@ async function resolveQueryEmbeddings(
     governor
   );
 
+  const identifierEmbeddings: Float32Array[] = [];
+  const identifierVariants = buildIdentifierExpansionVariants(query.intent);
+  for (let i = 0; i < identifierVariants.length; i += 1) {
+    const variant = identifierVariants[i];
+    const key = `${IDENTIFIER_EXPANSION_EMBEDDING_PREFIX}${i}:${variant}`;
+    const embedding = await resolveEmbeddingForText(
+      embeddingService,
+      variant,
+      'query',
+      governor,
+      key
+    );
+    identifierEmbeddings.push(embedding);
+  }
+
   if (query.hydeExpansion !== true) {
-    return { directEmbedding, hydeEmbedding: null };
+    return { directEmbedding, hydeEmbedding: null, identifierEmbeddings };
   }
 
   const hydeKey = `${HYDE_EMBEDDING_CACHE_PREFIX}${query.intent}`;
   const cache = getEmbeddingCache(embeddingService);
   const cachedHyde = cache.get(hydeKey);
   if (cachedHyde) {
-    return { directEmbedding, hydeEmbedding: cachedHyde };
+    return { directEmbedding, hydeEmbedding: cachedHyde, identifierEmbeddings };
   }
 
   const hydeExpansion = await resolveHydeExpansion(query.intent, governor);
   if (!hydeExpansion) {
-    return { directEmbedding, hydeEmbedding: null };
+    return { directEmbedding, hydeEmbedding: null, identifierEmbeddings };
   }
 
   const hydeEmbedding = await resolveEmbeddingForText(
@@ -6526,7 +6566,45 @@ async function resolveQueryEmbeddings(
     governor,
     hydeKey
   );
-  return { directEmbedding, hydeEmbedding };
+  return { directEmbedding, hydeEmbedding, identifierEmbeddings };
+}
+
+function normalizeIdentifierToken(token: string): string {
+  return token.trim().toLowerCase();
+}
+
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildIdentifierExpansionVariants(intent: string): string[] {
+  const normalizedIntent = intent.trim();
+  if (!normalizedIntent) return emptyArray<string>();
+
+  const variants = new Set<string>();
+  const tokens = (normalizedIntent.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    .map((token) => normalizeIdentifierToken(token))
+    .filter(Boolean);
+  const tokenSet = new Set(tokens);
+
+  for (const token of tokenSet) {
+    const synonyms = IDENTIFIER_EXPANSION_SYNONYMS[token];
+    if (!synonyms || synonyms.length === 0) continue;
+    const replacementPattern = new RegExp(`\\b${escapeRegex(token)}\\b`, 'ig');
+    for (const synonym of synonyms.slice(0, 2)) {
+      const replaced = normalizedIntent.replace(replacementPattern, synonym);
+      if (replaced !== normalizedIntent) variants.add(replaced);
+    }
+  }
+
+  if (tokenSet.has('user') && (tokenSet.has('permission') || tokenSet.has('permissions') || tokenSet.has('role') || tokenSet.has('roles'))) {
+    variants.add('canAccessRoute checkUserRole authorizeUser');
+  }
+  if (tokenSet.has('auth') || tokenSet.has('authenticate') || tokenSet.has('login')) {
+    variants.add('authenticateUser authorizeRequest checkUserRole');
+  }
+
+  return Array.from(variants).slice(0, IDENTIFIER_EXPANSION_MAX_VARIANTS);
 }
 
 async function resolveEmbeddingForText(
@@ -6617,9 +6695,8 @@ function cacheHydeExpansion(key: string, value: string): void {
   }
 }
 
-function fuseSimilarityResultsWithRrf(
-  direct: SimilarityResult[],
-  hyde: SimilarityResult[],
+function fuseSimilarityResultListsWithRrf(
+  resultLists: SimilarityResult[][],
   limit: number
 ): SimilarityResult[] {
   const rankScores = new Map<string, { entityId: string; entityType: SimilarityResult['entityType']; rrf: number; maxSimilarity: number }>();
@@ -6644,8 +6721,9 @@ function fuseSimilarityResultsWithRrf(
     }
   };
 
-  applyList(direct);
-  applyList(hyde);
+  for (const list of resultLists) {
+    applyList(list);
+  }
 
   const ranked = Array.from(rankScores.values())
     .sort((a, b) => b.rrf - a.rrf || b.maxSimilarity - a.maxSimilarity)
@@ -6657,6 +6735,14 @@ function fuseSimilarityResultsWithRrf(
     entityType: entry.entityType,
     similarity: Math.max(entry.maxSimilarity, Math.min(1, entry.rrf / topRrf)),
   }));
+}
+
+function fuseSimilarityResultsWithRrf(
+  direct: SimilarityResult[],
+  hyde: SimilarityResult[],
+  limit: number
+): SimilarityResult[] {
+  return fuseSimilarityResultListsWithRrf([direct, hyde], limit);
 }
 
 async function searchSimilarWithEmbedding(snippet: string, limit: number, storage: LibrarianStorage, embeddingService: EmbeddingService, governor: GovernorContext): Promise<SimilarMatch[]> {
@@ -8248,6 +8334,8 @@ export const __testing = {
   buildSemanticCacheScopeSignature,
   buildHydePrompt,
   normalizeHydeExpansion,
+  buildIdentifierExpansionVariants,
+  fuseSimilarityResultListsWithRrf,
   fuseSimilarityResultsWithRrf,
 };
 

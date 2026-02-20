@@ -57,4 +57,36 @@ describe('HyDE retrieval helpers', () => {
     expect(fusedKeys).toContain('function:C');
     expect(fused[0]?.entityId).toBe('B');
   });
+
+  it('generates identifier-expansion variants for permission-style intents', async () => {
+    const { __testing } = await import('../query.js');
+    const variants = __testing.buildIdentifierExpansionVariants('where does the app handle user permissions?');
+
+    expect(variants.length).toBeGreaterThan(0);
+    expect(variants.some((variant) => /access|authorization|role/i.test(variant))).toBe(true);
+  });
+
+  it('fuses multiple expansion result lists into one RRF ranking', async () => {
+    const { __testing } = await import('../query.js');
+    const fused = __testing.fuseSimilarityResultListsWithRrf([
+      [
+        { entityId: 'A', entityType: 'function', similarity: 0.9 },
+        { entityId: 'B', entityType: 'module', similarity: 0.7 },
+      ],
+      [
+        { entityId: 'B', entityType: 'module', similarity: 0.8 },
+        { entityId: 'C', entityType: 'function', similarity: 0.65 },
+      ],
+      [
+        { entityId: 'D', entityType: 'function', similarity: 0.6 },
+      ],
+    ], 5);
+
+    const keys = fused.map((item) => `${item.entityType}:${item.entityId}`);
+    expect(keys).toContain('function:A');
+    expect(keys).toContain('module:B');
+    expect(keys).toContain('function:C');
+    expect(keys).toContain('function:D');
+    expect(fused[0]?.entityId).toBe('B');
+  });
 });
