@@ -26,6 +26,8 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('Enforce E2E gate outcomes');
     expect(workflow).toContain('continue-on-error: true');
     expect(workflow).toContain('npm run test:e2e:dev-truth');
+    expect(workflow).toContain('External natural-usage E2E gate (primary, release)');
+    expect(workflow).toContain('npm run eval:use-cases:agentic');
     expect(workflow).toContain('npm run test:e2e:acceptance');
     expect(workflow).toContain('node scripts/assert-trusted-publish-runtime.mjs');
     expect(workflow).toContain('npm publish --provenance --access public');

@@ -10,6 +10,11 @@ This policy enforces black-box package reality checks so releases cannot pass on
 - External-agent natural-usage critique evidence
 - CI cadence and release gating
 
+## Priority Rule
+- Full external natural-usage E2E is authoritative.
+- AB control-vs-treatment runs are diagnostic support, not a substitute for full external natural-usage E2E.
+- If there is a conflict, prioritize fixing full external natural-usage E2E failures first.
+
 ## Truth Lanes
 - Development truth lane (current `main`): install from current tarball and run strict reality gate (`test:e2e:dev-truth`).
 - Published truth lane (`npm latest`): run freshness guard + strict latest-published reality gate (`test:e2e:reality`).
@@ -17,12 +22,14 @@ This policy enforces black-box package reality checks so releases cannot pass on
 
 ## Required Gates
 1. PR/verify gate:
+   - Run primary external natural-usage E2E (`npm run eval:use-cases:agentic:quick` for cadence, `npm run eval:use-cases:agentic` for release verification).
    - Run strict outcome diagnostics (`npm run test:e2e:outcome`).
    - Run diagnosis triage (`npm run test:e2e:triage`) to classify immediate-action vs issue candidates.
    - Run strict development-truth tarball E2E (`npm run test:e2e:dev-truth`).
    - Run strict published-truth E2E with freshness (`npm run test:e2e:reality`).
+   - Run AB diagnostics as a secondary signal (`npm run test:e2e:diagnostic:ab:quick` / `npm run test:e2e:diagnostic:ab:release`).
 2. Release gate:
-   - `npm-publish` verify must pass strict outcome diagnostics and strict development-truth tarball E2E.
+   - `npm-publish` verify must pass primary external natural-usage E2E, strict outcome diagnostics, and strict development-truth tarball E2E.
    - Publish auth must fail closed with actionable remediation if token/trusted publishing is misconfigured.
 3. Cadence gate:
    - Commit-driven `e2e-cadence` runs (aggressive):

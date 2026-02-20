@@ -171,6 +171,10 @@ const report = await runAbExperiment({
   requireBaselineFailureForAgentTasks: args.values.requireBaselineFailureForAgentTasks ?? false,
 });
 
+console.log(
+  '[ab-harness] diagnostic lane only: AB control-vs-treatment is secondary evidence; full external natural-usage E2E is authoritative.'
+);
+
 await mkdir(path.dirname(outPath), { recursive: true });
 await writeFile(outPath, JSON.stringify(report, null, 2), 'utf8');
 

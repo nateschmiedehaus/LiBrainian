@@ -19,8 +19,12 @@ describe('package release scripts', () => {
     expect(scripts['test:e2e:dev-truth']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --artifact state/e2e/reality-dev-truth.json --outcome-artifact state/e2e/outcome-report.dev-truth.json');
     expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/e2e-reality-gate.mjs --source latest --strict --artifact state/e2e/reality-latest.json');
     expect(scripts['test:e2e:reality:tarball']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --artifact state/e2e/reality-tarball.json');
-    expect(scripts['test:e2e:cadence']).toBe('npm run policy:e2e:mainline && npm run test:e2e:dev-truth && npm run test:e2e:acceptance');
-    expect(scripts['test:e2e:cadence:full']).toBe('npm run policy:e2e:mainline && npm run test:e2e:dev-truth && npm run test:e2e:reality && npm run test:e2e:acceptance');
+    expect(scripts['test:e2e:diagnostic:ab:quick']).toBe('npm run eval:ab:agentic-bugfix:quick');
+    expect(scripts['test:e2e:diagnostic:ab:release']).toBe('npm run eval:ab:agentic-bugfix:codex');
+    expect(scripts['test:e2e:full:quick']).toBe('npm run policy:e2e:mainline && npm run test:e2e:dev-truth && npm run eval:use-cases:agentic:quick && npm run test:e2e:outcome && npm run test:e2e:triage && npm run test:e2e:reality && npm run test:e2e:acceptance');
+    expect(scripts['test:e2e:full']).toBe('npm run policy:e2e:mainline && npm run test:e2e:dev-truth && npm run eval:use-cases:agentic && npm run test:e2e:outcome && npm run test:e2e:triage && npm run test:e2e:reality && npm run test:e2e:acceptance');
+    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:full:quick');
+    expect(scripts['test:e2e:cadence:full']).toBe('npm run test:e2e:full');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['policy:hygiene']).toBe('node scripts/git-hygiene-guard.mjs --mode warn');
     expect(scripts['policy:hygiene:enforce']).toBe('node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');

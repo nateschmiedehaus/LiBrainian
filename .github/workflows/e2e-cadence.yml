@@ -31,6 +31,11 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npm run policy:e2e:mainline
 
+      - name: External natural-usage E2E gate (primary, quick)
+        id: external_usage_gate
+        continue-on-error: true
+        run: npm run eval:use-cases:agentic:quick
+
       - name: Outcome-based E2E diagnostics gate (strict)
         id: outcome_gate
         continue-on-error: true
@@ -76,6 +81,10 @@ jobs:
         run: |
           set -euo pipefail
           failed=0
+          if [ "${{ steps.external_usage_gate.outcome }}" != "success" ]; then
+            echo "::error::Primary external natural-usage E2E gate failed."
+            failed=1
+          fi
           if [ "${{ steps.outcome_gate.outcome }}" != "success" ]; then
             echo "::error::Outcome diagnostics gate failed."
             failed=1

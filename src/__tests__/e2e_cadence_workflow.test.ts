@@ -13,6 +13,8 @@ describe('e2e cadence workflow', () => {
     expect(workflow).toContain('pull_request:');
     expect(workflow).toContain('ready_for_review');
     expect(workflow).toContain('npm run policy:e2e:mainline');
+    expect(workflow).toContain('External natural-usage E2E gate (primary, quick)');
+    expect(workflow).toContain('npm run eval:use-cases:agentic:quick');
     expect(workflow).toContain('npm run test:e2e:outcome');
     expect(workflow).toContain('npm run test:e2e:triage');
     expect(workflow).toContain('--create-gh-issues');

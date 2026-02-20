@@ -34,7 +34,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,6 +74,11 @@ jobs:
         continue-on-error: true
         run: npm run test:e2e:dev-truth
 
+      - name: External natural-usage E2E gate (primary, release)
+        id: external_usage_gate
+        continue-on-error: true
+        run: npm run eval:use-cases:agentic
+
       - name: In-repo acceptance E2E gate
         id: acceptance_gate
         continue-on-error: true
@@ -94,6 +99,10 @@ jobs:
           fi
           if [ "${{ steps.reality_dev_truth.outcome }}" != "success" ]; then
             echo "::error::Development-truth tarball reality gate failed."
+            failed=1
+          fi
+          if [ "${{ steps.external_usage_gate.outcome }}" != "success" ]; then
+            echo "::error::Primary external natural-usage E2E gate failed."
             failed=1
           fi
           if [ "${{ steps.acceptance_gate.outcome }}" != "success" ]; then
