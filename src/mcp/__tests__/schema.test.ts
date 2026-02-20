@@ -271,6 +271,13 @@ describe('MCP Schema', () => {
         intent: 'How does authentication work?',
         intentType: 'understand',
         affectedFiles: ['src/auth.ts'],
+        contextHints: {
+          active_file: '/tmp/workspace/src/auth.ts',
+          active_symbol: 'refreshToken',
+          recently_edited_files: ['/tmp/workspace/src/session.ts'],
+          recent_tool_calls: ['find_symbol', 'query'],
+          conversation_context: 'Working on auth token expiry behavior',
+        },
         minConfidence: 0.7,
         depth: 'L2',
         includeEngines: true,
@@ -278,6 +285,17 @@ describe('MCP Schema', () => {
         pageSize: 10,
         pageIdx: 1,
         outputFile: '/tmp/query.json',
+      };
+      const result = validateToolInput('query', input);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept snake-case context_hints alias', () => {
+      const input = {
+        intent: 'trace auth flow',
+        context_hints: {
+          active_file: '/tmp/workspace/src/auth.ts',
+        },
       };
       const result = validateToolInput('query', input);
       expect(result.valid).toBe(true);
@@ -355,6 +373,7 @@ describe('MCP Schema', () => {
       expect(queryToolJsonSchema.description).toContain('semantic, cross-file retrieval');
       expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
       expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
+      expect(queryToolJsonSchema.properties.contextHints?.description).toContain('agent-state hints');
     });
   });
 

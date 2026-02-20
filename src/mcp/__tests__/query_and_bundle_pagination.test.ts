@@ -142,6 +142,56 @@ describe('MCP query and context bundle pagination', () => {
     expect(parsed.items[0]?.touchedFiles).toContain(touchedFile);
   });
 
+  it('applies context_hints to query intent and affected file scope', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const activeFile = path.resolve(workspace, 'src/auth/middleware.ts');
+    const editedFile = path.resolve(workspace, 'src/auth/tokens.ts');
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-context-hints',
+      constructionPlan: undefined,
+      totalConfidence: 0.2,
+      cacheHit: false,
+      latencyMs: 6,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'auth issue',
+      context_hints: {
+        active_file: activeFile,
+        active_symbol: 'refreshToken',
+        recently_edited_files: [editedFile],
+        recent_tool_calls: ['find_symbol'],
+      },
+    });
+
+    const queryArg = queryLibrarianMock.mock.calls[0]?.[0] as {
+      intent: string;
+      affectedFiles?: string[];
+    };
+    expect(queryArg.intent).toContain('[context_hints]');
+    expect(queryArg.intent).toContain('active_symbol: refreshToken');
+    expect(queryArg.affectedFiles).toContain(activeFile);
+    expect(queryArg.affectedFiles).toContain(editedFile);
+    expect(result.context_hint_applied?.usedIntentAugmentation).toBe(true);
+  });
+
   it('paginates query packs and returns pagination metadata', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

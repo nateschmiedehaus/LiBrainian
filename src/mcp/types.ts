@@ -616,6 +616,23 @@ export interface EstimateTaskComplexityToolInput {
 }
 
 /** Query tool input */
+export interface QueryContextHintsInput {
+  /** Absolute path of the currently active file */
+  active_file?: string;
+
+  /** Active symbol (function/class/module) in current editing focus */
+  active_symbol?: string;
+
+  /** Files recently edited in this session */
+  recently_edited_files?: string[];
+
+  /** Recent tool calls that indicate task trajectory */
+  recent_tool_calls?: string[];
+
+  /** Last-turn conversational context (trimmed) */
+  conversation_context?: string;
+}
+
 export interface QueryToolInput {
   /** Goal-oriented semantic question (architecture, behavior, impact), not a direct file-read request */
   intent: string;
@@ -631,6 +648,12 @@ export interface QueryToolInput {
 
   /** Affected files (for scoping) */
   affectedFiles?: string[];
+
+  /** Optional agent-state context hints for retrieval biasing */
+  contextHints?: QueryContextHintsInput;
+
+  /** Snake-case alias for contextHints */
+  context_hints?: QueryContextHintsInput;
 
   /** Optional structured retrieval filter */
   filter?: SearchFilter;

@@ -524,6 +524,18 @@ interface MutableToolSchemaNode {
 const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.depth': 'Context depth for retrieval scope. L0=summary only (fastest, ~500 tokens), L1=summary plus key facts (default, ~2000 tokens), L2=full pack with related files (~5000 tokens), L3=comprehensive cross-module context with richer call-graph evidence (~10000 tokens). Use L1 for routine work, L2 for impact analysis, and L3 only for deep architectural investigation.',
   'query.affectedFiles': 'Absolute paths of files to include as a hard retrieval scope filter. Use this when you already know likely hotspots and need precise context. If omitted, LiBrainian searches the full indexed workspace. Example: ["/workspace/src/auth.ts", "/workspace/src/middleware/session.ts"].',
+  'query.contextHints': 'Optional agent-state hints that bias retrieval toward the active session topology. Provide active_file and recently_edited_files to auto-scope context, active_symbol to bias semantic matching toward the current symbol neighborhood, and conversation_context for recent intent continuity.',
+  'query.context_hints': 'Snake-case alias for contextHints with identical retrieval semantics, preserving backward compatibility for clients that send snake-case payloads and expect consistent routing behavior.',
+  'query.contextHints.active_file': 'Absolute path to the file currently being edited. LiBrainian uses this as a strong topology prior so retrieval favors symbols near the active code region.',
+  'query.contextHints.active_symbol': 'Name of the function, class, or module currently in focus. LiBrainian uses this signal to bias retrieval toward semantically and structurally related entities.',
+  'query.contextHints.recently_edited_files': 'List of files recently edited in this session. These paths are merged into retrieval scope so follow-up queries stay aligned with ongoing work.',
+  'query.contextHints.recent_tool_calls': 'Recent tool names invoked by the agent, such as find_symbol or trace_imports. LiBrainian uses this to preserve trajectory continuity across consecutive reasoning steps.',
+  'query.contextHints.conversation_context': 'Short conversational snippet from the latest turns. LiBrainian appends this as lightweight routing context to reduce ambiguity in underspecified intents.',
+  'query.context_hints.active_file': 'Snake-case alias for contextHints.active_file. Provide an absolute active file path so retrieval can prioritize the local symbol neighborhood around current edits.',
+  'query.context_hints.active_symbol': 'Snake-case alias for contextHints.active_symbol. Provide active symbol identity so retrieval prioritizes directly connected implementations, call-graph neighbors, and module-level dependencies during multi-step investigations.',
+  'query.context_hints.recently_edited_files': 'Snake-case alias for contextHints.recently_edited_files. Include recent edits so retrieval scope stays aligned with the files currently changing in this implementation session.',
+  'query.context_hints.recent_tool_calls': 'Snake-case alias for contextHints.recent_tool_calls. Include recent tool history so LiBrainian preserves multi-step investigation trajectory and related context continuity between adjacent requests.',
+  'query.context_hints.conversation_context': 'Snake-case alias for contextHints.conversation_context. Include a compact recent summary so LiBrainian can disambiguate underspecified intents and overloaded query phrasing consistently.',
   'query.filter': 'Structured retrieval filter for scoped search. Use pathPrefix to isolate one package in a monorepo and optionally combine language, isExported, or excludeTests for higher precision.',
   'query.workingFile': 'Active file path hint used to auto-derive package scope in monorepos. When provided, LiBrainian infers a pathPrefix filter from workspace package boundaries.',
 };
@@ -1531,6 +1543,28 @@ export class LibrarianMCPServer {
             sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
             intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Intent mode: understand=explain, impact=blast radius, debug=root-cause, refactor=safe changes, security=risk review, test=coverage/tests, document=docs summary, navigate=where to look, general=fallback' },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
+            contextHints: {
+              type: 'object',
+              description: 'Optional agent-state hints that bias retrieval toward active session topology, allowing LiBrainian to prioritize files and symbols related to current work without rewriting the main intent.',
+              properties: {
+                active_file: { type: 'string', description: 'Absolute path for the file currently being edited so retrieval can prioritize nearby symbols, imports, and local implementation context during ranking.' },
+                active_symbol: { type: 'string', description: 'Name of the function, class, or module currently in focus so retrieval can bias toward the active symbol neighborhood and related graph edges.' },
+                recently_edited_files: { type: 'array', items: { type: 'string' }, description: 'List of files recently edited in this session so retrieval scope automatically includes active implementation hotspots without repeating them in intent text.' },
+                recent_tool_calls: { type: 'array', items: { type: 'string' }, description: 'Recent tool invocation names, such as find_symbol or trace_imports, used to preserve investigation trajectory and reduce context switching across sequential queries.' },
+                conversation_context: { type: 'string', description: 'Short recent conversational context used as a lightweight semantic hint to disambiguate broad intents and preserve continuity across adjacent turns.' },
+              },
+            },
+            context_hints: {
+              type: 'object',
+              description: 'Snake-case alias for contextHints with identical semantics, enabling backward-compatible clients to pass session topology hints while preserving the same retrieval behavior and prioritization logic.',
+              properties: {
+                active_file: { type: 'string', description: 'Snake-case alias for contextHints.active_file, providing the absolute path of the currently active file for topology-aware retrieval biasing.' },
+                active_symbol: { type: 'string', description: 'Snake-case alias for contextHints.active_symbol, identifying the active symbol so retrieval can prioritize directly related implementations and dependencies.' },
+                recently_edited_files: { type: 'array', items: { type: 'string' }, description: 'Snake-case alias for contextHints.recently_edited_files, listing recently edited files that should be merged into retrieval scope automatically.' },
+                recent_tool_calls: { type: 'array', items: { type: 'string' }, description: 'Snake-case alias for contextHints.recent_tool_calls, listing recent tool usage to preserve search trajectory in multi-step workflows.' },
+                conversation_context: { type: 'string', description: 'Snake-case alias for contextHints.conversation_context, carrying a compact recent context snippet that improves disambiguation for underspecified intents.' },
+              },
+            },
             filter: {
               type: 'object',
               description: 'Structured retrieval filter (pathPrefix, language, isExported, excludeTests, maxFileSizeBytes)',
@@ -5038,20 +5072,33 @@ export class LibrarianMCPServer {
         });
       };
 
+      const contextHints = this.resolveQueryContextHints(input);
+      const contextHintFiles = this.collectContextHintFiles(contextHints, workspace.path) ?? [];
+      const contextHintIntentSuffix = this.buildContextHintIntentSuffix(contextHints);
       const normalizedAffectedFiles = this.normalizeQueryAffectedFiles(input.affectedFiles, workspace.path);
+      const {
+        merged: hintedAffectedFiles,
+        injected: injectedContextHintFiles,
+      } = this.mergeAffectedFilesWithEpisodicHints(
+        normalizedAffectedFiles,
+        contextHintFiles,
+      );
       const episodicHintFiles = await this.getRecentEpisodeFileHints(storage, {
         sessionId,
         workspace: workspace.path,
       }).catch(() => []);
       const { merged: mergedAffectedFiles, injected: injectedEpisodicFiles } = this.mergeAffectedFilesWithEpisodicHints(
-        normalizedAffectedFiles,
+        hintedAffectedFiles,
         episodicHintFiles,
       );
       const normalizedWorkingFile = this.normalizeQueryFileHint(input.workingFile, workspace.path);
+      const enrichedIntent = contextHintIntentSuffix
+        ? `${input.intent}\n${contextHintIntentSuffix}`
+        : input.intent;
 
       // Build query object
       const query = {
-        intent: input.intent,
+        intent: enrichedIntent,
         intentType: input.intentType,
         affectedFiles: mergedAffectedFiles,
         filter: input.filter,
@@ -5065,6 +5112,7 @@ export class LibrarianMCPServer {
       recordProgress('query_started', {
         workspace: workspace.path,
         sessionId,
+        contextHintFiles: injectedContextHintFiles.length,
         episodicHintFiles: injectedEpisodicFiles.length,
         intentType: query.intentType ?? 'general',
         depth: query.depth,
@@ -5252,6 +5300,12 @@ export class LibrarianMCPServer {
             injectedFiles: injectedEpisodicFiles,
           }
         : undefined;
+      const contextHintApplied = (injectedContextHintFiles.length > 0 || contextHintIntentSuffix)
+        ? {
+            injectedFiles: injectedContextHintFiles,
+            usedIntentAugmentation: Boolean(contextHintIntentSuffix),
+          }
+        : undefined;
 
       const baseResult = {
         disclosures: userDisclosures,
@@ -5277,6 +5331,7 @@ export class LibrarianMCPServer {
         aggregateConfidence,
         stalenessWarning,
         sessionId,
+        contextHintApplied,
         episodicHints,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
         nearMisses,
@@ -5329,6 +5384,7 @@ export class LibrarianMCPServer {
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
         staleness_warning: resultWithHumanReview.stalenessWarning,
         session_id: resultWithHumanReview.sessionId,
+        context_hint_applied: resultWithHumanReview.contextHintApplied,
         episodic_hints: resultWithHumanReview.episodicHints,
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
@@ -10115,6 +10171,52 @@ export class LibrarianMCPServer {
       }
     }
     return null;
+  }
+
+  private resolveQueryContextHints(input: QueryToolInput): QueryToolInput['contextHints'] | undefined {
+    const candidate = input.contextHints ?? input.context_hints;
+    if (!candidate || typeof candidate !== 'object') return undefined;
+    return candidate;
+  }
+
+  private collectContextHintFiles(
+    contextHints: QueryToolInput['contextHints'] | undefined,
+    workspacePath: string,
+  ): string[] | undefined {
+    if (!contextHints) return undefined;
+    const files: string[] = [];
+    if (typeof contextHints.active_file === 'string' && contextHints.active_file.trim().length > 0) {
+      files.push(contextHints.active_file.trim());
+    }
+    for (const file of contextHints.recently_edited_files ?? []) {
+      if (typeof file === 'string' && file.trim().length > 0) {
+        files.push(file.trim());
+      }
+    }
+    return this.normalizeQueryAffectedFiles(files, workspacePath);
+  }
+
+  private buildContextHintIntentSuffix(
+    contextHints: QueryToolInput['contextHints'] | undefined,
+  ): string | undefined {
+    if (!contextHints) return undefined;
+    const parts: string[] = [];
+    if (typeof contextHints.active_symbol === 'string' && contextHints.active_symbol.trim().length > 0) {
+      parts.push(`active_symbol: ${contextHints.active_symbol.trim()}`);
+    }
+    if (Array.isArray(contextHints.recent_tool_calls) && contextHints.recent_tool_calls.length > 0) {
+      const calls = contextHints.recent_tool_calls
+        .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+        .slice(0, 8);
+      if (calls.length > 0) {
+        parts.push(`recent_tool_calls: ${calls.join(', ')}`);
+      }
+    }
+    if (typeof contextHints.conversation_context === 'string' && contextHints.conversation_context.trim().length > 0) {
+      parts.push(`conversation_context: ${contextHints.conversation_context.trim().slice(0, 500)}`);
+    }
+    if (parts.length === 0) return undefined;
+    return `[context_hints]\n${parts.join('\n')}`;
   }
 
   private normalizeQueryAffectedFiles(
