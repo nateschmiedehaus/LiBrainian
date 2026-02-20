@@ -945,6 +945,12 @@ export interface SearchFilter {
 export interface LibrarianQuery {
   intent: string;
   affectedFiles?: string[];
+  /**
+   * Optional monorepo/package scope alias.
+   * Equivalent to setting `filter.pathPrefix` but simpler for callers.
+   * Example: "apps/api" limits retrieval to files under that path prefix.
+   */
+  scope?: string;
   filter?: SearchFilter;
   workingFile?: string;
   taskType?: string;

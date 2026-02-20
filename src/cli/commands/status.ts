@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
+import { parseArgs } from 'node:util';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { isBootstrapRequired, getBootstrapStatus } from '../../api/bootstrap.js';
@@ -21,12 +22,19 @@ import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 import { isOfflineModeEnabled } from '../../utils/runtime_controls.js';
 import { getTreeSitterLanguageConfigs } from '../../agents/parsers/tree_sitter_parser.js';
 import { getMemoryStoreStats } from '../../memory/fact_store.js';
+import {
+  buildWorkspaceSetDependencyGraph,
+  loadWorkspaceSetConfig,
+  readWorkspaceSetState,
+  type WorkspaceSetPackageStatus,
+} from '../workspace_set.js';
 
 export interface StatusCommandOptions {
   workspace: string;
   verbose?: boolean;
   format?: 'text' | 'json';
   out?: string;
+  rawArgs?: string[];
 }
 
 type ServerStatus = {
@@ -132,6 +140,20 @@ type StatusReport = {
     selector: 'git-status';
   } | null;
   provenance?: VerificationProvenanceReport;
+  workspaceSet?: {
+    root: string;
+    configPath: string;
+    sharedDb: string | null;
+    graphEdges: number;
+    generatedAt: string | null;
+    packages: Array<{
+      name: string;
+      path: string;
+      dbPath: string;
+      status: WorkspaceSetPackageStatus;
+      reason?: string;
+    }>;
+  };
 };
 
 const LANGUAGE_NAME_OVERRIDES: Record<string, string> = {
@@ -185,7 +207,7 @@ function computeDurationMs(startedAt: unknown, completedAt: unknown): number | n
 }
 
 export async function statusCommand(options: StatusCommandOptions): Promise<number> {
-  const { workspace, verbose, format = 'text', out } = options;
+  const { workspace, verbose, format = 'text', out, rawArgs } = options;
   let workspaceRoot = path.resolve(workspace);
   if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
     const resolution = resolveWorkspaceRoot(workspaceRoot);
@@ -197,6 +219,18 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       }
     }
   }
+
+  const workspaceSetPath = parseWorkspaceSetArg(rawArgs);
+  if (workspaceSetPath) {
+    return await statusWorkspaceSet({
+      workspaceRoot,
+      workspaceOriginal: workspace,
+      format,
+      out,
+      workspaceSetPath,
+    });
+  }
+
   const runtime: NonNullable<StatusReport['runtime']> = {
     offlineMode: isOfflineModeEnabled(),
     availableFeatures: ['search', 'graph', 'symbols'],
@@ -638,6 +672,98 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   return deriveStatusExitCode(report);
 }
 
+async function statusWorkspaceSet(options: {
+  workspaceRoot: string;
+  workspaceOriginal: string;
+  format: 'text' | 'json';
+  out?: string;
+  workspaceSetPath: string;
+}): Promise<number> {
+  const { workspaceRoot, workspaceOriginal, format, out, workspaceSetPath } = options;
+  const workspaceSet = await loadWorkspaceSetConfig(workspaceSetPath, workspaceRoot);
+  const persisted = await readWorkspaceSetState(workspaceSet.root);
+  const graph = persisted?.graph ?? await buildWorkspaceSetDependencyGraph(workspaceSet);
+  const persistedPackageMap = new Map((persisted?.packages ?? []).map((pkg) => [pkg.name, pkg]));
+  const packages: NonNullable<StatusReport['workspaceSet']>['packages'] = [];
+
+  for (const pkg of workspaceSet.packages) {
+    const dbPath = await resolveDbPath(pkg.path);
+    const persistedPkg = persistedPackageMap.get(pkg.name);
+    let status: WorkspaceSetPackageStatus = persistedPkg?.status ?? 'missing';
+    let reason = persistedPkg?.error;
+
+    if (!persistedPkg) {
+      try {
+        await fs.access(dbPath);
+        const storage = createSqliteStorage(dbPath, pkg.path);
+        try {
+          await storage.initialize();
+          const bootstrapCheck = await isBootstrapRequired(pkg.path, storage, { targetQualityTier: 'full' });
+          status = bootstrapCheck.required ? 'stale' : 'ready';
+          reason = bootstrapCheck.required ? bootstrapCheck.reason : undefined;
+        } finally {
+          await storage.close();
+        }
+      } catch (error) {
+        status = 'missing';
+        reason = error instanceof Error ? error.message : 'workspace package not bootstrapped';
+      }
+    }
+
+    packages.push({
+      name: pkg.name,
+      path: pkg.path,
+      dbPath,
+      status,
+      reason,
+    });
+  }
+
+  const report: StatusReport = {
+    workspace: workspaceSet.root,
+    workspaceOriginal: workspaceRoot !== workspaceOriginal ? workspaceOriginal : undefined,
+    version: { cli: LIBRARIAN_VERSION.string },
+    storage: { status: 'ready' },
+    workspaceSet: {
+      root: workspaceSet.root,
+      configPath: workspaceSet.configPath,
+      sharedDb: workspaceSet.shared.sharedDb ?? null,
+      graphEdges: graph.edges.length,
+      generatedAt: persisted?.generatedAt ?? null,
+      packages,
+    },
+  };
+
+  if (format === 'json') {
+    await emitJsonOutput(report, out);
+  } else {
+    console.log('Librarian Workspace-Set Status');
+    console.log('=============================\n');
+    printKeyValue([
+      { key: 'Workspace Root', value: workspaceSet.root },
+      { key: 'Config Path', value: workspaceSet.configPath },
+      { key: 'Shared Graph DB', value: workspaceSet.shared.sharedDb ?? 'disabled' },
+      { key: 'Cross-package Edges', value: graph.edges.length },
+      { key: 'State Generated', value: formatTimestamp(persisted?.generatedAt ?? null) },
+    ]);
+    console.log();
+    console.log('Packages:');
+    for (const pkg of packages) {
+      printKeyValue([
+        { key: pkg.name, value: `${pkg.status} (${pkg.path})` },
+      ]);
+      if (pkg.reason && pkg.status !== 'ready') {
+        printKeyValue([{ key: `${pkg.name} Reason`, value: pkg.reason }]);
+      }
+    }
+    console.log();
+  }
+
+  if (packages.some((pkg) => pkg.status === 'failed' || pkg.status === 'missing')) return 2;
+  if (packages.some((pkg) => pkg.status === 'stale')) return 1;
+  return 0;
+}
+
 function deriveStatusExitCode(report: StatusReport): number {
   if (report.storage.status !== 'ready') return 2;
   const freshness = report.freshness;
@@ -646,6 +772,20 @@ function deriveStatusExitCode(report: StatusReport): number {
   const changed = freshness.staleFiles + freshness.missingFiles + freshness.newFiles;
   const ratio = changed / Math.max(freshness.totalIndexedFiles, 1);
   return ratio > 0.05 ? 1 : 0;
+}
+
+function parseWorkspaceSetArg(rawArgs: string[] | undefined): string | undefined {
+  if (!rawArgs || rawArgs.length === 0) return undefined;
+  const { values } = parseArgs({
+    args: rawArgs.slice(1),
+    options: {
+      'workspace-set': { type: 'string' },
+    },
+    strict: false,
+    allowPositionals: true,
+  });
+  const candidate = typeof values['workspace-set'] === 'string' ? values['workspace-set'].trim() : '';
+  return candidate.length > 0 ? candidate : undefined;
 }
 
 function normalizeExtension(ext: string): string {

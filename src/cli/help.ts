@@ -131,6 +131,7 @@ OPTIONS:
     --format text|json  Output format (default: text)
     --json              Alias for --format json
     --out <path>        Write JSON output to file (requires --json/--format json)
+    --workspace-set <path>  Load monorepo workspace-set config and report per-package status
 
 DESCRIPTION:
     Displays the current state of the librarian knowledge index, including:
@@ -178,6 +179,7 @@ USAGE:
 OPTIONS:
     --depth <level>     Query depth: L0 (shallow), L1 (default), L2 (deep), L3 (comprehensive)
     --files <paths>     Comma-separated list of affected files
+    --scope <path>      Workspace-relative scope alias (maps to filter.pathPrefix)
     --no-synthesis      Disable LLM synthesis/method hints (retrieval only)
     --deterministic     Enable deterministic mode for testing (skips LLM, stable sorting)
     --llm-provider <p>  Override LLM provider for synthesis: claude | codex (default: stored bootstrap setting or env)
@@ -322,6 +324,7 @@ OPTIONS:
     --force-resume      Resume bootstrap even if workspace fingerprint changed
     --scope <name>      Bootstrap scope: full | librarian (default: full)
     --mode <name>       Bootstrap mode: fast | full (default: full)
+    --workspace-set <path>  Bootstrap all packages from a workspace-set config JSON
     --emit-baseline     Write OnboardingBaseline.v1 after successful bootstrap
     --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
     --no-claude-md      Skip CLAUDE.md injection even when updating agent docs

@@ -23,6 +23,13 @@ import { runPreflightChecks, printPreflightReport } from '../../preflight/index.
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { planBootstrapRecovery } from './bootstrap_recovery.js';
 import {
+  buildWorkspaceSetDependencyGraph,
+  loadWorkspaceSetConfig,
+  persistWorkspaceSetGraphDb,
+  type WorkspaceSetPackageState,
+  writeWorkspaceSetState,
+} from '../workspace_set.js';
+import {
   scanWorkspaceLanguages,
   assessGrammarCoverage,
   getMissingGrammarPackages,
@@ -62,6 +69,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       'update-agent-docs': { type: 'boolean', default: false },
       'no-claude-md': { type: 'boolean', default: false },
       'install-grammars': { type: 'boolean', default: false },
+      'workspace-set': { type: 'string' },
       'llm-provider': { type: 'string' },
       'llm-model': { type: 'string' },
     },
@@ -78,6 +86,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   const updateAgentDocs = values['update-agent-docs'] as boolean;
   const noClaudeMd = values['no-claude-md'] as boolean;
   const installGrammars = values['install-grammars'] as boolean;
+  const workspaceSetPath = typeof values['workspace-set'] === 'string' ? values['workspace-set'].trim() : '';
   const bootstrapMode = bootstrapModeRaw === 'full' || bootstrapModeRaw === 'fast'
     ? bootstrapModeRaw
     : (() => { throw createError('INVALID_ARGUMENT', `Unknown mode "${bootstrapModeRaw}" (use "fast" or "full")`); })();
@@ -111,6 +120,9 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   console.log(`Agent docs update: ${updateAgentDocs ? 'enabled' : 'disabled (opt-in)'}`);
   if (updateAgentDocs) {
     console.log(`CLAUDE.md injection: ${noClaudeMd ? 'disabled (--no-claude-md)' : 'enabled'}`);
+  }
+  if (workspaceSetPath) {
+    console.log(`Workspace set: ${workspaceSetPath}`);
   }
 
   const runBootstrapFlow = async (
@@ -405,42 +417,108 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     }
   };
 
-  let attempt = 0;
-  let currentWorkspaceRoot = workspaceRoot;
-  let currentScope = scope;
-  let includeOverride: string[] | undefined;
-  let excludeOverride: string[] | undefined;
   const autoRetryEnabled = process.env.LIBRARIAN_DISABLE_BOOTSTRAP_AUTORETRY !== '1';
 
-  while (true) {
-    try {
-      await runBootstrapFlow(currentWorkspaceRoot, currentScope, includeOverride, excludeOverride);
-      break;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (attempt === 0 && autoRetryEnabled) {
-        const plan = planBootstrapRecovery({
-          workspaceRoot: currentWorkspaceRoot,
-          scope: currentScope,
-          errorMessage,
-        });
-        if (plan) {
-          console.log(`\nRetrying bootstrap: ${plan.reason}`);
-          if (plan.workspaceRoot) {
-            currentWorkspaceRoot = plan.workspaceRoot;
+  const runBootstrapWithAutoRetry = async (
+    initialWorkspaceRoot: string,
+    initialScope: string,
+    initialIncludeOverride?: string[],
+    initialExcludeOverride?: string[],
+  ): Promise<void> => {
+    let attempt = 0;
+    let currentWorkspaceRoot = initialWorkspaceRoot;
+    let currentScope = initialScope;
+    let includeOverride = initialIncludeOverride;
+    let excludeOverride = initialExcludeOverride;
+
+    while (true) {
+      try {
+        await runBootstrapFlow(currentWorkspaceRoot, currentScope, includeOverride, excludeOverride);
+        return;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (attempt === 0 && autoRetryEnabled) {
+          const plan = planBootstrapRecovery({
+            workspaceRoot: currentWorkspaceRoot,
+            scope: currentScope,
+            errorMessage,
+          });
+          if (plan) {
+            console.log(`\nRetrying bootstrap: ${plan.reason}`);
+            if (plan.workspaceRoot) {
+              currentWorkspaceRoot = plan.workspaceRoot;
+            }
+            if (plan.scopeOverride) {
+              currentScope = plan.scopeOverride;
+            }
+            includeOverride = plan.include ?? includeOverride;
+            excludeOverride = plan.exclude ?? excludeOverride;
+            attempt += 1;
+            continue;
           }
-          if (plan.scopeOverride) {
-            currentScope = plan.scopeOverride;
-          }
-          includeOverride = plan.include ?? includeOverride;
-          excludeOverride = plan.exclude ?? excludeOverride;
-          attempt += 1;
-          continue;
         }
+        throw error;
       }
-      throw error;
     }
+  };
+
+  if (workspaceSetPath) {
+    const workspaceSet = await loadWorkspaceSetConfig(workspaceSetPath, workspaceRoot);
+    const graph = await buildWorkspaceSetDependencyGraph(workspaceSet);
+    const sharedDb = await persistWorkspaceSetGraphDb(workspaceSet, graph);
+    const packageStates: WorkspaceSetPackageState[] = [];
+    let bootstrapError: unknown;
+
+    console.log(`\nWorkspace-set root: ${workspaceSet.root}`);
+    console.log(`Packages: ${workspaceSet.packages.length}`);
+    console.log(`Cross-package edges: ${graph.edges.length}`);
+    if (sharedDb) {
+      console.log(`Cross-package graph DB: ${sharedDb}`);
+    }
+
+    for (const pkg of workspaceSet.packages) {
+      console.log(`\n=== [workspace-set] ${pkg.name} (${pkg.relativePath}) ===\n`);
+      const dbPath = await resolveDbPath(pkg.path);
+      try {
+        await runBootstrapWithAutoRetry(pkg.path, scope, pkg.include, pkg.exclude);
+        packageStates.push({
+          name: pkg.name,
+          path: pkg.path,
+          dbPath,
+          status: 'ready',
+        });
+      } catch (error) {
+        packageStates.push({
+          name: pkg.name,
+          path: pkg.path,
+          dbPath,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        bootstrapError = error;
+        break;
+      }
+    }
+
+    const statePath = await writeWorkspaceSetState(workspaceSet.root, {
+      kind: 'WorkspaceSetState.v1',
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      root: workspaceSet.root,
+      configPath: workspaceSet.configPath,
+      sharedDb,
+      packages: packageStates,
+      graph,
+    });
+    console.log(`\nWorkspace-set state written: ${statePath}`);
+
+    if (bootstrapError) {
+      throw bootstrapError;
+    }
+    return;
   }
+
+  await runBootstrapWithAutoRetry(workspaceRoot, scope);
 }
 
 function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {

@@ -148,7 +148,7 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean): void 
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
     description: 'Show current librarian status',
-    usage: 'librarian status [--verbose] [--format text|json] [--out <path>]',
+    usage: 'librarian status [--verbose] [--format text|json] [--out <path>] [--workspace-set <path>]',
   },
   'stats': {
     description: 'Summarize tool-call cost and performance from evidence ledger',
@@ -156,7 +156,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
   },
   'repo-map': {
     description: 'Generate a compact codebase map ranked by function centrality',
@@ -168,7 +168,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
-    usage: 'librarian bootstrap [--force] [--force-resume] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+    usage: 'librarian bootstrap [--force] [--force-resume] [--workspace-set <path>] [--emit-baseline] [--install-grammars] [--no-claude-md]',
   },
   'embed': {
     description: 'Repair and backfill semantic embeddings',
@@ -460,6 +460,7 @@ async function main(): Promise<void> {
           verbose,
           format: defaultFormat as 'text' | 'json',
           out: getStringArg(args, '--out') ?? undefined,
+          rawArgs: args,
         });
         break;
       case 'stats':

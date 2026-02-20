@@ -52,6 +52,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     options: {
       depth: { type: 'string', default: 'L1' },
       files: { type: 'string' },
+      scope: { type: 'string' },
       timeout: { type: 'string', default: '0' },
       json: { type: 'boolean', default: false },
       'no-synthesis': { type: 'boolean', default: false },
@@ -98,6 +99,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   }
 
   const depth = validateDepth(values.depth as string);
+  const scope = typeof values.scope === 'string' ? values.scope.trim() : undefined;
   const affectedFiles = values.files
     ? (values.files as string).split(',').map((entry) => {
       const raw = entry.trim();
@@ -469,6 +471,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       intent,
       depth,
       affectedFiles,
+      scope: scope && scope.length > 0 ? scope : undefined,
       ucRequirements: ucIds ? {
         ucIds,
         priority: (ucPriority === 'low' || ucPriority === 'medium' || ucPriority === 'high') ? ucPriority : undefined,

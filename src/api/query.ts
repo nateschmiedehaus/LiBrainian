@@ -6907,8 +6907,14 @@ async function normalizeQueryScope(
   const disclosures: string[] = [];
   const affectedFiles = normalizeAffectedFilesForWorkspace(query.affectedFiles);
   const workingFile = normalizeSingleFileHint(query.workingFile, workspaceRoot);
+  const explicitScopePrefix = normalizePathPrefix(query.scope, workspaceRoot);
   const filter = normalizeSearchFilter(query.filter, workspaceRoot);
   let nextFilter = filter;
+
+  if (!nextFilter.pathPrefix && explicitScopePrefix) {
+    nextFilter = { ...nextFilter, pathPrefix: explicitScopePrefix };
+    disclosures.push(`scope_explicit: ${explicitScopePrefix}`);
+  }
 
   if (!nextFilter.pathPrefix && workingFile) {
     const derived = await derivePathPrefixFromWorkingFile(workspaceRoot, workingFile);
