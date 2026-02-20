@@ -13,7 +13,8 @@ import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.j
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
 import { getActiveProviderFailures } from '../utils/provider_failures.js';
-import { isNetworkAccessDisabled } from '../utils/runtime_controls.js';
+import { isNetworkAccessDisabled, isPrivacyModeStrict } from '../utils/runtime_controls.js';
+import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
 
 type AuthStatusSummary = Awaited<ReturnType<AuthChecker['checkAll']>>;
 const PROVIDER_FALLBACK_CHAIN: ProviderName[] = ['claude', 'codex'];
@@ -85,8 +86,24 @@ export async function runProviderReadinessGate(
   const remediationSteps = buildRemediationSteps(authStatus);
   const fallbackChain = PROVIDER_FALLBACK_CHAIN.slice();
   const networkDisabled = isNetworkAccessDisabled();
+  const privacyStrict = isPrivacyModeStrict();
   let lastSuccessfulProvider = await readLastSuccessfulProvider(workspaceRoot);
   const emitReport = options.emitReport ?? true;
+
+  if (privacyStrict) {
+    await appendPrivacyAuditEvent(workspaceRoot, {
+      ts: new Date().toISOString(),
+      op: 'provider_check',
+      files: [],
+      model: 'n/a',
+      local: true,
+      contentSent: false,
+      status: 'allowed',
+      note: 'strict privacy mode active',
+    }).catch(() => {
+      // Non-blocking audit write.
+    });
+  }
 
   let llmService: LlmServiceAdapter | null = null;
   let llmServiceError: string | null = null;

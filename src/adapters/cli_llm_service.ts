@@ -12,6 +12,8 @@ import {
   recordProviderSuccess,
   resolveProviderWorkspaceRoot,
 } from '../utils/provider_failures.js';
+import { isPrivacyModeStrict } from '../utils/runtime_controls.js';
+import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
 
 type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: number) => void; recordRetry?: () => void };
 
@@ -140,6 +142,7 @@ export class CliLlmService {
   };
 
   async chat(options: LlmChatOptions): Promise<ChatResult> {
+    await this.assertPrivacyAllowsRemoteLlm(options);
     const provider: CliProvider = resolveForcedProvider() ?? (options.provider === 'codex' ? 'codex' : 'claude');
     if (provider === 'codex') {
       return this.callCodex(options);
@@ -325,6 +328,13 @@ export class CliLlmService {
       if (governor) {
         governor.recordTokens(estimateTokenCount(content));
       }
+      await this.recordPrivacyAudit({
+        op: 'synthesize',
+        model: options.modelId || 'claude',
+        local: false,
+        contentSent: true,
+        status: 'allowed',
+      });
       await this.recordSuccess('claude');
       return { provider: 'claude', content };
     });
@@ -397,6 +407,13 @@ export class CliLlmService {
           governor.recordTokens(estimateTokenCount(content));
         }
 
+        await this.recordPrivacyAudit({
+          op: 'synthesize',
+          model: options.modelId || 'codex',
+          local: false,
+          contentSent: true,
+          status: 'allowed',
+        });
         await this.recordSuccess('codex');
         return { provider: 'codex', content };
       } finally {
@@ -442,6 +459,43 @@ export class CliLlmService {
         throw error;
       }
     }
+  }
+
+  private async assertPrivacyAllowsRemoteLlm(options: LlmChatOptions): Promise<void> {
+    if (!isPrivacyModeStrict()) return;
+    await this.recordPrivacyAudit({
+      op: 'synthesize',
+      model: options.modelId || options.provider || 'unknown',
+      local: false,
+      contentSent: false,
+      status: 'blocked',
+      note: 'strict privacy mode blocks external LLM providers',
+    });
+    throw new Error(
+      'Privacy mode is enabled. Configure a local embedding model: `LIBRARIAN_EMBEDDING_MODEL=onnx:all-MiniLM-L6-v2`.'
+    );
+  }
+
+  private async recordPrivacyAudit(event: {
+    op: string;
+    model: string;
+    local: boolean;
+    contentSent: boolean;
+    status: 'allowed' | 'blocked';
+    note?: string;
+  }): Promise<void> {
+    await appendPrivacyAuditEvent(this.providerWorkspaceRoot, {
+      ts: new Date().toISOString(),
+      op: event.op,
+      files: [],
+      model: event.model,
+      local: event.local,
+      contentSent: event.contentSent,
+      status: event.status,
+      note: event.note,
+    }).catch(() => {
+      // Non-blocking audit writes.
+    });
   }
 }
 

@@ -50,6 +50,7 @@
  *   librarian memory-bridge       - Show memory bridge annotation state
  *   librarian test-integration     - Run quantitative integration benchmark suites
  *   librarian benchmark           - Run local performance SLA diagnostics
+ *   librarian privacy-report      - Summarize privacy-mode audit evidence
  *
  * @packageDocumentation
  */
@@ -103,6 +104,7 @@ import { memoryBridgeCommand } from './commands/memory_bridge.js';
 import { testIntegrationCommand } from './commands/test_integration.js';
 import { benchmarkCommand } from './commands/benchmark.js';
 import { generateDocsCommand } from './commands/generate_docs.js';
+import { privacyReportCommand } from './commands/privacy_report.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
@@ -116,7 +118,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
+type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -338,6 +340,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'benchmark': {
     description: 'Run local performance SLA diagnostics',
     usage: 'librarian benchmark [--queries N] [--incremental-files N] [--json] [--out <path>] [--fail-on never|alert|block]',
+  },
+  'privacy-report': {
+    description: 'Summarize privacy-audit events and external content transmission',
+    usage: 'librarian privacy-report [--since <ISO-8601>] [--format text|json] [--out <path>]',
   },
   'help': {
     description: 'Show help information',
@@ -715,6 +721,14 @@ async function main(): Promise<void> {
         break;
       case 'benchmark':
         await benchmarkCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'privacy-report':
+        process.exitCode = await privacyReportCommand({
+          workspace,
+          since: getStringArg(args, '--since') ?? undefined,
+          format: defaultFormat as 'text' | 'json',
+          out: getStringArg(args, '--out') ?? undefined,
+        });
         break;
 	    }
   } catch (error) {

@@ -13,6 +13,7 @@ const WORKSPACE_POSITIONAL_COMMANDS = new Set([
   'diagnose',
   'health',
   'check-providers',
+  'privacy-report',
   'watch',
 ]);
 

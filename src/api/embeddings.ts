@@ -30,6 +30,7 @@ import { getErrorMessage } from '../utils/errors.js';
 import { emptyArray } from './empty_values.js';
 import { createEmptyRedactionCounts, mergeRedactionCounts, redactText, type RedactionCounts } from './redaction.js';
 import { configurable, resolveQuantifiedValue } from '../epistemics/quantification.js';
+import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
 
 export type EmbeddingKind = 'code' | 'query' | 'document';
 export type EmbeddingProvider = 'xenova' | 'sentence-transformers';
@@ -253,6 +254,7 @@ export interface EmbeddingServiceOptions {
   redactSensitive?: boolean;
   blockOnRedaction?: boolean;
   now?: () => Date;
+  workspaceRoot?: string;
 }
 
 type GovernorContextLike = {
@@ -342,6 +344,7 @@ export class EmbeddingService {
   private readonly redactSensitive: boolean;
   private readonly blockOnRedaction: boolean;
   private readonly now: () => Date;
+  private readonly workspaceRoot: string;
 
   constructor(options: EmbeddingServiceOptions = {}) {
     const explicitModelId = options.modelId ?? process.env.LIBRARIAN_EMBEDDING_MODEL;
@@ -370,6 +373,7 @@ export class EmbeddingService {
     this.redactSensitive = options.redactSensitive ?? true;
     this.blockOnRedaction = options.blockOnRedaction ?? false;
     this.now = options.now ?? (() => new Date());
+    this.workspaceRoot = options.workspaceRoot ?? process.cwd();
 
     // Validate dimension matches real embedding model
     if (this.embeddingDimension !== REAL_EMBEDDING_DIMENSION) {
@@ -548,6 +552,7 @@ export class EmbeddingService {
       }
     }
 
+    await this.recordPrivacyAuditForBatch(sanitizedBatch, results);
     return results;
   }
 
@@ -581,6 +586,26 @@ export class EmbeddingService {
       embedding: mergeChunkEmbeddings(chunkEmbeddings),
       provider,
     };
+  }
+
+  private async recordPrivacyAuditForBatch(batch: EmbeddingRequest[], results: EmbeddingResult[]): Promise<void> {
+    if (results.length === 0) return;
+    const files = batch
+      .map((request) => request.hint)
+      .filter((hint): hint is string => typeof hint === 'string' && hint.trim().length > 0);
+    const provider = results[0]?.provider ?? this.provider;
+    await appendPrivacyAuditEvent(this.workspaceRoot, {
+      ts: this.now().toISOString(),
+      op: 'embed',
+      files,
+      model: `${provider}/${this.modelId}`,
+      local: true,
+      contentSent: false,
+      status: 'allowed',
+      note: `count=${results.length}`,
+    }).catch(() => {
+      // Non-blocking audit trail. Never fail embeddings due to audit writes.
+    });
   }
 }
 

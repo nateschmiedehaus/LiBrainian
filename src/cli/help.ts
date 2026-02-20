@@ -34,6 +34,7 @@ COMMANDS:
     memory-bridge       Show MEMORY.md bridge state and manage session core memory
     test-integration    Run quantitative integration benchmark suites
     benchmark           Run local performance SLA diagnostics
+    privacy-report      Summarize privacy audit evidence
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
@@ -100,6 +101,7 @@ EXAMPLES:
     librainian memory-bridge remember auth_model "JWT expires in 1 hour"
     librainian test-integration --suite openclaw --json
     librainian benchmark --json
+    librainian privacy-report --since 2026-02-01T00:00:00Z --json
     librainian mcp --print-config --client claude
     librainian generate-docs --include tools,context,rules
     librainian compose "Prepare a release plan" --limit 1
@@ -553,6 +555,31 @@ EXAMPLES:
     librarian benchmark
     librarian benchmark --queries 12 --incremental-files 10
     librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
+`,
+
+  'privacy-report': `
+librarian privacy-report - Summarize strict privacy-mode audit evidence
+
+USAGE:
+    librarian privacy-report [options]
+
+OPTIONS:
+    --since <ISO-8601>     Only include events at/after this timestamp
+    --format <fmt>         Output format: text|json (default: text)
+    --json                 Shortcut for --format json
+    --out <path>           Write JSON report to file (requires --json)
+
+DESCRIPTION:
+    Reads .librarian/audit/privacy.log and produces a compliance summary:
+    - total privacy-audit events
+    - blocked operations in strict mode
+    - local-only operations
+    - external content transmissions (must be zero for strict compliance)
+
+EXAMPLES:
+    librarian privacy-report
+    librarian privacy-report --since 2026-02-01T00:00:00Z
+    librarian privacy-report --json --out state/audits/privacy-report.json
 `,
 
   mcp: `
