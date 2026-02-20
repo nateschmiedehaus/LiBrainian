@@ -6,6 +6,7 @@
  *   librarian status              - Show current librarian status
  *   librarian stats               - Summarize cost/performance from evidence ledger
  *   librarian query <intent>      - Run a query against the knowledge base
+ *   librarian repo-map            - Generate a compact repo map ranked by symbol centrality
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
  *   librarian embed --fix          - Backfill semantic embeddings and repair coverage
@@ -58,6 +59,7 @@ import { showHelp } from './help.js';
 import { statusCommand } from './commands/status.js';
 import { statsCommand } from './commands/stats.js';
 import { queryCommand } from './commands/query.js';
+import { repoMapCommand } from './commands/repo_map.js';
 import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
 import { embedCommand } from './commands/embed.js';
@@ -114,7 +116,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
+type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -148,6 +150,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'query': {
     description: 'Run a query against the knowledge base',
     usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+  },
+  'repo-map': {
+    description: 'Generate a compact codebase map ranked by function centrality',
+    usage: 'librarian repo-map [--style compact|detailed|json] [--max-tokens N] [--focus pathA,pathB] [--json]',
   },
   'feedback': {
     description: 'Submit task outcome feedback for a prior query',
@@ -439,6 +445,9 @@ async function main(): Promise<void> {
 
       case 'query':
         await queryCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'repo-map':
+        await repoMapCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'feedback':

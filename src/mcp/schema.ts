@@ -39,6 +39,7 @@ export const AuditTypeSchema = z.enum(['full', 'claims', 'coverage', 'security',
 
 /** Bundle type options */
 export const BundleTypeSchema = z.enum(['minimal', 'standard', 'comprehensive']);
+export const RepoMapStyleSchema = z.enum(['compact', 'detailed', 'json']);
 
 /** Symbol discovery kinds */
 export const FindSymbolKindSchema = z.enum([
@@ -488,6 +489,16 @@ export const GetContextPackBundleToolInputSchema = z.object({
 }).strict();
 
 /**
+ * Get repo map tool input schema
+ */
+export const GetRepoMapToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  maxTokens: z.number().int().min(128).max(50000).optional().default(4096).describe('Token budget cap for repo map output'),
+  focus: z.array(z.string().min(1)).max(64).optional().describe('Optional file/path focus hints that boost matching entries'),
+  style: RepoMapStyleSchema.optional().default('compact').describe('Output style: compact, detailed, or json'),
+}).strict().default({});
+
+/**
  * List verification plans tool input schema
  */
 export const ListVerificationPlansToolInputSchema = z.object({
@@ -631,6 +642,7 @@ export type ListRunsToolInputType = z.infer<typeof ListRunsToolInputSchema>;
 export type DiffRunsToolInputType = z.infer<typeof DiffRunsToolInputSchema>;
 export type ExportIndexToolInputType = z.infer<typeof ExportIndexToolInputSchema>;
 export type GetContextPackBundleToolInputType = z.infer<typeof GetContextPackBundleToolInputSchema>;
+export type GetRepoMapToolInputType = z.infer<typeof GetRepoMapToolInputSchema>;
 export type ListVerificationPlansToolInputType = z.infer<typeof ListVerificationPlansToolInputSchema>;
 export type ListEpisodesToolInputType = z.infer<typeof ListEpisodesToolInputSchema>;
 export type ListTechniquePrimitivesToolInputType = z.infer<typeof ListTechniquePrimitivesToolInputSchema>;
@@ -689,6 +701,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diff_runs: DiffRunsToolInputSchema,
   export_index: ExportIndexToolInputSchema,
   get_context_pack_bundle: GetContextPackBundleToolInputSchema,
+  get_repo_map: GetRepoMapToolInputSchema,
   list_verification_plans: ListVerificationPlansToolInputSchema,
   list_episodes: ListEpisodesToolInputSchema,
   list_technique_primitives: ListTechniquePrimitivesToolInputSchema,
@@ -1320,6 +1333,23 @@ export const findSymbolToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** get_repo_map tool JSON Schema */
+export const getRepoMapToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-repo-map-tool-input',
+  title: 'GetRepoMapToolInput',
+  description: 'Input for get_repo_map - compact PageRank-ranked repository map for fast orientation',
+  type: 'object',
+  properties: {
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    maxTokens: { type: 'number', description: 'Token budget cap for repo map output', minimum: 128, maximum: 50000, default: 4096 },
+    focus: { type: 'array', items: { type: 'string' }, description: 'Optional file/path focus hints that boost matching entries', minItems: 1 },
+    style: { type: 'string', enum: ['compact', 'detailed', 'json'], description: 'Output style', default: 'compact' },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
 /** All JSON schemas */
 export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
@@ -1353,6 +1383,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   harvest_session_knowledge: harvestSessionKnowledgeToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
+  get_repo_map: getRepoMapToolJsonSchema,
 };
 
 // ============================================================================

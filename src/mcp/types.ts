@@ -24,6 +24,7 @@
  * - list_runs
  * - diff_runs
  * - export_index
+ * - get_repo_map
  *
  * @packageDocumentation
  */
@@ -1618,6 +1619,21 @@ export interface ExportIndexToolOutput {
   durationMs: number;
 }
 
+/** Repo map tool input */
+export interface GetRepoMapToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Max token budget for repo map output */
+  maxTokens?: number;
+
+  /** Optional file/path focus hints */
+  focus?: string[];
+
+  /** Output style */
+  style?: 'compact' | 'detailed' | 'json';
+}
+
 /** Context pack bundle tool input */
 export interface GetContextPackBundleToolInput {
   /** Target entity IDs */
@@ -2004,6 +2020,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   get_context_pack_bundle: {
     tool: 'get_context_pack_bundle',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  get_repo_map: {
+    tool: 'get_repo_map',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',
@@ -2766,6 +2788,20 @@ export function isExportIndexToolInput(value: unknown): value is ExportIndexTool
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.format === 'string' && typeof obj.outputPath === 'string';
+}
+
+/** Type guard for GetRepoMapToolInput */
+export function isGetRepoMapToolInput(value: unknown): value is GetRepoMapToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const maxTokensOk = typeof obj.maxTokens === 'number' || typeof obj.maxTokens === 'undefined';
+  const focusOk = Array.isArray(obj.focus) || typeof obj.focus === 'undefined';
+  const styleOk = obj.style === 'compact'
+    || obj.style === 'detailed'
+    || obj.style === 'json'
+    || typeof obj.style === 'undefined';
+  return workspaceOk && maxTokensOk && focusOk && styleOk;
 }
 
 /** Type guard for GetContextPackBundleToolInput */

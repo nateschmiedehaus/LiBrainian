@@ -50,6 +50,7 @@ import {
   DiffRunsToolInputSchema,
   ExportIndexToolInputSchema,
   GetContextPackBundleToolInputSchema,
+  GetRepoMapToolInputSchema,
   FindSymbolToolInputSchema,
   queryToolJsonSchema,
   type ToolName,
@@ -89,6 +90,7 @@ import {
   isRunAuditToolInput,
   isDiffRunsToolInput,
   isExportIndexToolInput,
+  isGetRepoMapToolInput,
   isGetContextPackBundleToolInput,
   isFindSymbolToolInput,
 } from '../types.js';
@@ -135,6 +137,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('list_runs');
       expect(schemas).toContain('diff_runs');
       expect(schemas).toContain('export_index');
+      expect(schemas).toContain('get_repo_map');
       expect(schemas).toContain('get_context_pack_bundle');
       expect(schemas).toContain('list_verification_plans');
       expect(schemas).toContain('list_episodes');
@@ -151,7 +154,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(47);
+      expect(schemas).toHaveLength(48);
     });
 
     it('should return schema for known tools', () => {
@@ -1220,6 +1223,35 @@ describe('MCP Schema', () => {
       expect(isGetContextPackBundleToolInput({ entityIds: ['e1'] })).toBe(true);
       expect(isGetContextPackBundleToolInput({ entityIds: [] })).toBe(true); // Array.isArray passes
       expect(isGetContextPackBundleToolInput({})).toBe(false);
+    });
+  });
+
+  describe('Get Repo Map Tool Schema', () => {
+    it('should validate with defaults', () => {
+      expect(GetRepoMapToolInputSchema).toBeDefined();
+      const result = validateToolInput('get_repo_map', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate all options', () => {
+      const result = validateToolInput('get_repo_map', {
+        workspace: '/tmp/workspace',
+        maxTokens: 5000,
+        focus: ['src/api', 'src/auth'],
+        style: 'detailed',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject invalid style and maxTokens', () => {
+      expect(validateToolInput('get_repo_map', { style: 'invalid' }).valid).toBe(false);
+      expect(validateToolInput('get_repo_map', { maxTokens: 64 }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetRepoMapToolInput({})).toBe(true);
+      expect(isGetRepoMapToolInput({ style: 'compact', maxTokens: 4096 })).toBe(true);
+      expect(isGetRepoMapToolInput({ style: 'invalid' })).toBe(false);
     });
   });
 

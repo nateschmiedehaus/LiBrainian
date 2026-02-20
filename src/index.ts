@@ -99,6 +99,17 @@ export {
   createRelatedQuery,
 } from './api/query.js';
 export {
+  getRepoMap,
+  generateRepoMap,
+} from './api/repo_map.js';
+export type {
+  RepoMapOptions,
+  RepoMapStyle,
+  RepoMapSymbol,
+  RepoMapEntry,
+  RepoMapResult,
+} from './api/repo_map.js';
+export {
   executeQueryPipeline,
 } from './api/execution_pipeline.js';
 export type {

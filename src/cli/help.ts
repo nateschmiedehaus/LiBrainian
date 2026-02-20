@@ -22,6 +22,7 @@ COMMANDS:
     setup               Alias for quickstart (setup-oriented naming)
     init                Scaffold templates or run quickstart/editor onboarding
     query <intent>      Run a query against the knowledge base
+    repo-map            Generate a compact, ranked symbol map of the repository
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     stats               Summarize tool-call cost/performance telemetry
@@ -239,6 +240,35 @@ EXAMPLES:
     librarian query "How does auth work?" --session new --json
     librarian query "What about token refresh?" --session sess_abc123 --json
     librarian query --session sess_abc123 --drill-down src/auth/session.ts --json
+`,
+
+  'repo-map': `
+librarian repo-map - Generate a compact repo map ranked by symbol centrality
+
+USAGE:
+    librarian repo-map [options]
+
+OPTIONS:
+    --style <value>      Output style: compact | detailed | json (default: compact)
+    --focus <list>       Comma-separated file/path focus hints (boosts matching entries)
+    --max-tokens <n>     Token budget cap for included entries (default: 4096)
+    --json               Emit machine-readable JSON output (same as --style json)
+
+DESCRIPTION:
+    Generates a fast structural overview of the indexed codebase suitable for:
+    - Session-start orientation
+    - Prompt context injection with bounded token cost
+    - Quickly identifying high-centrality files and exported signatures
+
+    Results are ranked by function-level centrality metrics when available
+    (falling back to symbol density), then truncated to the requested token budget.
+
+EXAMPLES:
+    librarian repo-map
+    librarian repo-map --max-tokens 4096
+    librarian repo-map --focus src/auth,src/api
+    librarian repo-map --style detailed
+    librarian repo-map --json
 `,
 
   feedback: `

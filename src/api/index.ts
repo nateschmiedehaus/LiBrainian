@@ -106,6 +106,14 @@ export type {
 } from './context_assembly.js';
 export { resolveContextLevel, CONTEXT_LEVELS } from './context_levels.js';
 export type { ContextLevel, ContextLevelDefinition } from './context_levels.js';
+export { getRepoMap, generateRepoMap } from './repo_map.js';
+export type {
+  RepoMapOptions,
+  RepoMapStyle,
+  RepoMapSymbol,
+  RepoMapEntry,
+  RepoMapResult,
+} from './repo_map.js';
 
 // Test file correlation API
 export {

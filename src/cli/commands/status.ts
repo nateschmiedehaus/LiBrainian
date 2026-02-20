@@ -154,20 +154,22 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       }
     }
   }
+  const runtime: NonNullable<StatusReport['runtime']> = {
+    offlineMode: isOfflineModeEnabled(),
+    availableFeatures: ['search', 'graph', 'symbols'],
+    unavailableFeatures: [],
+  };
+  if (runtime.offlineMode) {
+    runtime.unavailableFeatures = ['synthesis', 'llm_enrichment'];
+  }
+
   const report: StatusReport = {
     workspace: workspaceRoot,
     workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
     version: { cli: LIBRARIAN_VERSION.string },
-    runtime: {
-      offlineMode: isOfflineModeEnabled(),
-      availableFeatures: ['search', 'graph', 'symbols'],
-      unavailableFeatures: [],
-    },
+    runtime,
     storage: { status: 'not_initialized' },
   };
-  if (report.runtime.offlineMode) {
-    report.runtime.unavailableFeatures = ['synthesis', 'llm_enrichment'];
-  }
   report.provenance = await collectVerificationProvenance(workspaceRoot);
 
   if (format === 'text') {
@@ -180,9 +182,9 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
 
     console.log('Runtime Mode:');
     printKeyValue([
-      { key: 'Offline Mode', value: report.runtime.offlineMode },
-      { key: 'Available Features', value: report.runtime.availableFeatures.join(', ') || 'none' },
-      { key: 'Unavailable Features', value: report.runtime.unavailableFeatures.join(', ') || 'none' },
+      { key: 'Offline Mode', value: runtime.offlineMode },
+      { key: 'Available Features', value: runtime.availableFeatures.join(', ') || 'none' },
+      { key: 'Unavailable Features', value: runtime.unavailableFeatures.join(', ') || 'none' },
     ]);
     console.log();
 

@@ -71,6 +71,7 @@ import {
   type ListRunsToolInput,
   type DiffRunsToolInput,
   type ExportIndexToolInput,
+  type GetRepoMapToolInput,
   type GetContextPackBundleToolInput,
   type SystemContractToolInput,
   type DiagnoseSelfToolInput,
@@ -88,6 +89,7 @@ import {
   isRunAuditToolInput,
   isDiffRunsToolInput,
   isExportIndexToolInput,
+  isGetRepoMapToolInput,
   isGetContextPackBundleToolInput,
 } from './types.js';
 
@@ -115,6 +117,7 @@ import {
   isBootstrapRequired,
   getBootstrapStatus,
   queryLibrarian,
+  generateRepoMap,
 } from '../api/index.js';
 import type { ContextPack, FunctionKnowledge, GraphEdge } from '../types.js';
 import { estimateTokens } from '../api/token_budget.js';
@@ -398,6 +401,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   diff_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3500 },
   list_runs: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   export_index: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2500 },
+  get_repo_map: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 4200 },
   get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
 };
 
@@ -1953,6 +1957,20 @@ export class LibrarianMCPServer {
         },
       },
       {
+        name: 'get_repo_map',
+        description: 'Generate a compact PageRank-ranked repository map for fast codebase orientation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+            maxTokens: { type: 'number', description: 'Token budget cap for repo map output (default 4096)' },
+            focus: { type: 'array', items: { type: 'string' }, description: 'Optional file/path focus hints that boost matching entries' },
+            style: { type: 'string', enum: ['compact', 'detailed', 'json'], description: 'Output style (default compact)' },
+          },
+          required: [],
+        },
+      },
+      {
         name: 'get_context_pack_bundle',
         description: `Get bundled context packs for entities (typically 4-20KB per page at pageSize=20). Discover entityIds via find_symbol kind=function/module/context_pack. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
@@ -3318,6 +3336,8 @@ export class LibrarianMCPServer {
         return this.executeDiffRuns(args as DiffRunsToolInput);
       case 'export_index':
         return this.executeExportIndex(args as ExportIndexToolInput);
+      case 'get_repo_map':
+        return this.executeGetRepoMap(args as GetRepoMapToolInput);
       case 'get_context_pack_bundle':
         return this.executeGetContextPackBundle(args as GetContextPackBundleToolInput);
       default:
@@ -8919,6 +8939,47 @@ export class LibrarianMCPServer {
         error: error instanceof Error ? error.message : String(error),
         format: input.format,
         outputPath: input.outputPath,
+      };
+    }
+  }
+
+  private async executeGetRepoMap(input: GetRepoMapToolInput): Promise<unknown> {
+    try {
+      if (!isGetRepoMapToolInput(input)) {
+        return {
+          success: false,
+          error: 'Invalid get_repo_map input payload',
+        };
+      }
+
+      const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          error: 'No workspace available for repo map generation',
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const style = input.style ?? 'compact';
+      const repoMap = await generateRepoMap(storage, workspacePath, {
+        maxTokens: input.maxTokens,
+        focus: input.focus,
+        style,
+      });
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        ...repoMap,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
