@@ -139,7 +139,7 @@ import { listTechniqueCompositions as listStoredTechniqueCompositions } from '..
 import { submitQueryFeedback } from '../integration/agent_protocol.js';
 import { createSqliteStorage, type LibrarianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
-import { CodePropertyGraphBuilder } from '../evaluation/code_property_graph.js';
+import { CodePropertyGraphBuilder } from '../analysis/code_property_graph.js';
 import {
   AuthenticationManager,
   createAuthenticationManager,
