@@ -15,6 +15,7 @@ describe('package release scripts', () => {
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['policy:npm:fresh']).toBe('node scripts/npm-freshness-guard.mjs');
     expect(scripts['test:e2e:outcome']).toBe('node scripts/e2e-outcome-harness.mjs --strict --artifact state/e2e/outcome-report.json --markdown state/e2e/outcome-report.md');
+    expect(scripts['test:e2e:triage']).toBe('node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.json --markdown state/e2e/outcome-triage.md');
     expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/e2e-reality-gate.mjs --source latest --strict --artifact state/e2e/reality-latest.json');
     expect(scripts['test:e2e:reality:tarball']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --artifact state/e2e/reality-tarball.json');
     expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:outcome && npm run test:e2e:reality && npm run test:e2e:reality:tarball && npm run test:e2e:acceptance');
@@ -57,6 +58,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-freshness-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-external-blackbox-e2e.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-harness.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-triage.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-reality-gate.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'context-pack-export.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'context-pack-diff.mjs'))).toBe(true);

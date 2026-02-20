@@ -11,6 +11,7 @@ describe('canonical npm scripts', () => {
 
     expect(scripts['test:tier0']).toBeTypeOf('string');
     expect(scripts['test:e2e:reality']).toBeTypeOf('string');
+    expect(scripts['test:e2e:triage']).toBeTypeOf('string');
     expect(scripts['test:e2e:cadence']).toBeTypeOf('string');
     expect(scripts['tier1:dogfood']).toBeTypeOf('string');
     expect(scripts['complexity:check']).toBeTypeOf('string');

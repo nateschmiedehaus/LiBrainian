@@ -128,6 +128,8 @@ describe('e2e outcome harness script', () => {
     expect(paired.pairedTasks).toBe(10);
     const markdown = await readFile(markdownPath, 'utf8');
     expect(markdown).toContain('## Disconfirmation');
+    expect(markdown).toContain('## Diagnoses');
+    expect(markdown).toContain('## Suggestions');
     expect(markdown).toContain('## Top Wins');
     expect(markdown).toContain('## Top Regressions');
 
@@ -172,6 +174,14 @@ describe('e2e outcome harness script', () => {
     expect(result.status).not.toBe(0);
     const report = JSON.parse(await readFile(artifactPath, 'utf8')) as JsonRecord;
     expect(report.status).toBe('failed');
+    const natural = report.naturalTasks as JsonRecord;
+    expect(natural.total).toBe(20);
+    const paired = report.controlVsTreatment as JsonRecord;
+    expect(paired.pairedTasks).toBe(10);
+    const diagnoses = Array.isArray(report.diagnoses) ? report.diagnoses.map((entry) => String(entry)) : [];
+    expect(diagnoses.length).toBeGreaterThan(0);
+    const suggestions = Array.isArray(report.suggestions) ? report.suggestions.map((entry) => String(entry)) : [];
+    expect(suggestions.length).toBeGreaterThan(0);
     const failures = Array.isArray(report.failures) ? report.failures.map((entry) => String(entry)) : [];
     expect(failures.some((entry) => entry.includes('freshness'))).toBe(true);
 

@@ -29,7 +29,35 @@ jobs:
         run: npm run policy:npm:fresh
 
       - name: Outcome-based E2E diagnostics gate (strict)
+        id: outcome_gate
+        continue-on-error: true
         run: npm run test:e2e:outcome
+
+      - name: Triage outcome diagnoses (always)
+        id: outcome_triage
+        if: always()
+        continue-on-error: true
+        run: npm run test:e2e:triage
+
+      - name: Create diagnosis issues from triage (scheduled cadence)
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        run: node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.issues.json --markdown state/e2e/outcome-triage.issues.md --create-gh-issues --repo "${GITHUB_REPOSITORY}" --max-issues 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Enforce outcome and triage gates
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.outcome_gate.outcome }}" != "success" ]; then
+            echo "::error::Outcome diagnostics gate failed."
+            exit 1
+          fi
+          if [ "${{ steps.outcome_triage.outcome }}" != "success" ]; then
+            echo "::error::Outcome triage requires immediate action."
+            exit 1
+          fi
 
       - name: Published-package black-box E2E (strict)
         run: npm run test:e2e:reality

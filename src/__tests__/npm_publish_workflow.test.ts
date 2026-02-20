@@ -22,6 +22,8 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('Skipping evidence drift guard (missing state/evidence/evidence-manifest.json).');
     expect(workflow).toContain('npm run release:pack');
     expect(workflow).toContain('npm run test:e2e:outcome');
+    expect(workflow).toContain('npm run test:e2e:triage');
+    expect(workflow).toContain('Enforce outcome and triage gates');
     expect(workflow).toContain('npm run test:e2e:reality:tarball');
     expect(workflow).toContain('npm run test:e2e:acceptance');
     expect(workflow).toContain('node scripts/assert-trusted-publish-runtime.mjs');

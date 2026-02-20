@@ -14,6 +14,14 @@ const DEFAULT_MIN_RELIABILITY_LIFT = 0;
 const DEFAULT_MIN_TIME_REDUCTION = 0;
 const DEFAULT_MIN_EVIDENCE_LINKED_PAIRS = 5;
 
+class OutcomeHarnessFailure extends Error {
+  constructor(message, report) {
+    super(message);
+    this.name = 'OutcomeHarnessFailure';
+    this.report = report;
+  }
+}
+
 function parseNumber(value, flagName) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -459,6 +467,26 @@ function buildMarkdownReport(report) {
   lines.push(`- Freshness age > ${report.thresholds.maxAgeHours} hours`);
   lines.push(`- Evidence-linked paired tasks < ${report.thresholds.minEvidenceLinkedPairs}`);
   lines.push('');
+  lines.push('## Diagnoses');
+  lines.push('');
+  if (!Array.isArray(report.diagnoses) || report.diagnoses.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const diagnosis of report.diagnoses) {
+      lines.push(`- ${diagnosis}`);
+    }
+  }
+  lines.push('');
+  lines.push('## Suggestions');
+  lines.push('');
+  if (!Array.isArray(report.suggestions) || report.suggestions.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const suggestion of report.suggestions) {
+      lines.push(`- ${suggestion}`);
+    }
+  }
+  lines.push('');
   lines.push('## Evidence Links');
   lines.push('');
   const evidenceLinks = report.controlVsTreatment.topWins
@@ -523,6 +551,36 @@ async function buildOutcomeReport(options) {
   }
   failures.push(...freshness.failures);
 
+  const diagnoses = [];
+  const suggestions = [];
+  if (controlVsTreatment.reliabilityLift < options.minReliabilityLift) {
+    diagnoses.push(
+      `Treatment reliability underperformed control (${(controlVsTreatment.reliabilityLift * 100).toFixed(2)}% lift).`
+    );
+    suggestions.push(
+      'Inspect failed treatment tasks in failureCases evidence and harden retrieval correctness before publish.'
+    );
+    suggestions.push(
+      'Run targeted AB reruns on failed tasks with stricter context-pack selection and verification hints.'
+    );
+  }
+  if (controlVsTreatment.timeReduction > 0 && controlVsTreatment.reliabilityLift < 0) {
+    diagnoses.push('Treatment is faster but less reliable, indicating a speed/correctness tradeoff regression.');
+    suggestions.push('Prioritize correctness gates over latency for treatment path until reliability lift is non-negative.');
+  }
+  if (freshness.failures.length > 0) {
+    diagnoses.push('Outcome evidence freshness is stale or missing.');
+    suggestions.push('Refresh agentic-use-case and AB artifacts before rerunning strict outcome gate.');
+  }
+  if (controlVsTreatment.evidenceLinkedPairs < options.minEvidenceLinkedPairs) {
+    diagnoses.push('Insufficient evidence-linked paired tasks reduces auditability.');
+    suggestions.push('Increase paired tasks with artifact capture enabled to improve diagnostic confidence.');
+  }
+  if (diagnoses.length === 0) {
+    diagnoses.push('No disqualifying diagnosis detected.');
+    suggestions.push('Continue periodic cadence runs to monitor regressions.');
+  }
+
   const status = failures.length === 0 ? 'passed' : 'failed';
   const report = {
     schema_version: 1,
@@ -550,6 +608,8 @@ async function buildOutcomeReport(options) {
       disconfirmed: failures.length > 0,
       reasons: failures,
     },
+    diagnoses,
+    suggestions,
     failures,
   };
   return report;
@@ -563,7 +623,10 @@ async function main() {
   await writeMarkdown(options.markdown, buildMarkdownReport(report));
 
   if (report.status !== 'passed' && options.strict) {
-    throw new Error(`Outcome harness failed strict thresholds: ${report.failures.join(', ')}`);
+    throw new OutcomeHarnessFailure(
+      `Outcome harness failed strict thresholds: ${report.failures.join(', ')}`,
+      report,
+    );
   }
   if (report.status === 'passed') {
     console.log(`[test:e2e:outcome] passed (pairedTasks=${report.controlVsTreatment.pairedTasks}, naturalTasks=${report.naturalTasks.executed}/${report.naturalTasks.total})`);
@@ -591,58 +654,64 @@ main().catch(async (error) => {
       minEvidenceLinkedPairs: DEFAULT_MIN_EVIDENCE_LINKED_PAIRS,
     };
   }
-  const report = {
-    schema_version: 1,
-    kind: 'E2EOutcomeReport.v1',
-    status: 'failed',
-    strict: options.strict,
-    createdAt: now,
-    error: error instanceof Error ? error.message : String(error),
-    thresholds: {
-      maxAgeHours: options.maxAgeHours,
-      minNaturalTasks: options.minNaturalTasks,
-      minNaturalRepos: options.minNaturalRepos,
-      minPairedTasks: options.minPairedTasks,
-      minReliabilityLift: options.minReliabilityLift,
-      minTimeReduction: options.minTimeReduction,
-      minEvidenceLinkedPairs: options.minEvidenceLinkedPairs,
-    },
-    failures: [
-      `execution_error:${error instanceof Error ? error.message : String(error)}`,
-    ],
-  };
-  await writeJson(options.artifact, report).catch(() => {});
-  await writeMarkdown(options.markdown, buildMarkdownReport({
-    ...report,
-    naturalTasks: {
-      total: 0,
-      executed: 0,
-      coverageRate: 0,
-      successRate: 0,
-      uniqueRepos: 0,
-      strictFailureShare: 0,
-    },
-    controlVsTreatment: {
-      pairedTasks: 0,
-      uniqueRepos: 0,
-      controlSuccessRate: 0,
-      treatmentSuccessRate: 0,
-      reliabilityLift: 0,
-      timeReduction: 0,
-      agentCommandTimeReduction: 0,
-      confidenceInterval95: { lower: 0, upper: 0 },
-      topWins: [],
-      topRegressions: [],
-      failureCases: [],
-      evidenceLinkedPairs: 0,
-    },
-    freshness: {
-      maxAgeHours: options.maxAgeHours,
-      ageBySourceHours: {},
-      failures: report.failures,
-      satisfied: false,
-    },
-  })).catch(() => {});
+  const strictReport = error instanceof OutcomeHarnessFailure ? error.report : null;
+  if (strictReport && typeof strictReport === 'object') {
+    await writeJson(options.artifact, strictReport).catch(() => {});
+    await writeMarkdown(options.markdown, buildMarkdownReport(strictReport)).catch(() => {});
+  } else {
+    const report = {
+      schema_version: 1,
+      kind: 'E2EOutcomeReport.v1',
+      status: 'failed',
+      strict: options.strict,
+      createdAt: now,
+      error: error instanceof Error ? error.message : String(error),
+      thresholds: {
+        maxAgeHours: options.maxAgeHours,
+        minNaturalTasks: options.minNaturalTasks,
+        minNaturalRepos: options.minNaturalRepos,
+        minPairedTasks: options.minPairedTasks,
+        minReliabilityLift: options.minReliabilityLift,
+        minTimeReduction: options.minTimeReduction,
+        minEvidenceLinkedPairs: options.minEvidenceLinkedPairs,
+      },
+      diagnoses: ['Harness execution error before report generation.'],
+      suggestions: ['Check input artifact paths and JSON validity, then rerun.'],
+      failures: [
+        `execution_error:${error instanceof Error ? error.message : String(error)}`,
+      ],
+      naturalTasks: {
+        total: 0,
+        executed: 0,
+        coverageRate: 0,
+        successRate: 0,
+        uniqueRepos: 0,
+        strictFailureShare: 0,
+      },
+      controlVsTreatment: {
+        pairedTasks: 0,
+        uniqueRepos: 0,
+        controlSuccessRate: 0,
+        treatmentSuccessRate: 0,
+        reliabilityLift: 0,
+        timeReduction: 0,
+        agentCommandTimeReduction: 0,
+        confidenceInterval95: { lower: 0, upper: 0 },
+        topWins: [],
+        topRegressions: [],
+        failureCases: [],
+        evidenceLinkedPairs: 0,
+      },
+      freshness: {
+        maxAgeHours: options.maxAgeHours,
+        ageBySourceHours: {},
+        failures: [`execution_error:${error instanceof Error ? error.message : String(error)}`],
+        satisfied: false,
+      },
+    };
+    await writeJson(options.artifact, report).catch(() => {});
+    await writeMarkdown(options.markdown, buildMarkdownReport(report)).catch(() => {});
+  }
   console.error('[test:e2e:outcome] failed');
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

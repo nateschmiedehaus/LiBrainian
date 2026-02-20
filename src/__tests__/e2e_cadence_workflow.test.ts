@@ -15,6 +15,9 @@ describe('e2e cadence workflow', () => {
     expect(workflow).toContain('- main');
     expect(workflow).toContain('npm run policy:npm:fresh');
     expect(workflow).toContain('npm run test:e2e:outcome');
+    expect(workflow).toContain('npm run test:e2e:triage');
+    expect(workflow).toContain('--create-gh-issues');
+    expect(workflow).toContain('Enforce outcome and triage gates');
     expect(workflow).toContain('npm run test:e2e:reality');
     expect(workflow).toContain('npm run test:e2e:reality:tarball');
     expect(workflow).toContain('npm run test:e2e:acceptance');
