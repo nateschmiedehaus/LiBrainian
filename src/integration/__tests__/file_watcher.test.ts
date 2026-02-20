@@ -793,11 +793,13 @@ describe('file_watcher', () => {
       added: [],
       modified: ['src/git-reconcile.ts'],
       deleted: [],
+      renamed: [],
     });
     vi.mocked(getGitStatusChanges).mockResolvedValue({
       added: [],
       modified: [],
       deleted: [],
+      renamed: [],
     });
     vi.mocked(getCurrentGitSha).mockResolvedValue('def456');
 

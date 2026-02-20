@@ -16,7 +16,7 @@ import { indexCommand, type IndexCommandOptions } from '../index.js';
 import { Librarian } from '../../../api/librarian.js';
 import { CliError } from '../../errors.js';
 import { globalEventBus } from '../../../events.js';
-import { getGitDiffNames, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
+import { getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 
 vi.mock('node:fs');
 vi.mock('../../../api/librarian.js');
@@ -37,6 +37,7 @@ vi.mock('../../../utils/git.js', () => ({
   getGitStatusChanges: vi.fn(async () => null),
   getGitStagedChanges: vi.fn(async () => null),
   getGitDiffNames: vi.fn(async () => null),
+  getGitFileContentAtRef: vi.fn(() => null),
 }));
 
 describe('indexCommand', () => {
@@ -85,6 +86,7 @@ describe('indexCommand', () => {
     vi.mocked(getGitStatusChanges).mockResolvedValue(null);
     vi.mocked(getGitStagedChanges).mockResolvedValue(null);
     vi.mocked(getGitDiffNames).mockResolvedValue(null);
+    vi.mocked(getGitFileContentAtRef).mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -151,6 +153,7 @@ describe('indexCommand', () => {
         added: ['src/new.ts'],
         modified: ['src/changed.ts'],
         deleted: ['src/deleted.ts'],
+        renamed: [],
       });
 
       const options: IndexCommandOptions = {
@@ -173,6 +176,7 @@ describe('indexCommand', () => {
         added: ['src/staged-new.ts'],
         modified: ['src/staged-change.ts'],
         deleted: [],
+        renamed: [],
       });
 
       const options: IndexCommandOptions = {
@@ -195,6 +199,7 @@ describe('indexCommand', () => {
         added: ['src/new-since.ts'],
         modified: [],
         deleted: [],
+        renamed: [],
       });
 
       const options: IndexCommandOptions = {
@@ -210,6 +215,44 @@ describe('indexCommand', () => {
       expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
         path.resolve(mockWorkspace, 'src/new-since.ts'),
       ]);
+    });
+
+    it('processes rename metadata for --since mode without breaking file selection', async () => {
+      vi.mocked(getGitDiffNames).mockResolvedValue({
+        added: ['src/new-name.ts'],
+        modified: [],
+        deleted: ['src/old-name.ts'],
+        renamed: [{ from: 'src/old-name.ts', to: 'src/new-name.ts' }],
+      });
+      vi.mocked(getGitFileContentAtRef).mockReturnValue(`
+        function oldName(a, b) {
+          return a + b;
+        }
+      `);
+      vi.mocked(fs.readFileSync).mockReturnValue(`
+        function newName(a, b) {
+          return a + b;
+        }
+      ` as any);
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        since: 'origin/main',
+        verbose: true,
+      };
+
+      await indexCommand(options);
+
+      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/new-name.ts'),
+      ]);
+      expect(getGitFileContentAtRef).toHaveBeenCalledWith(
+        mockWorkspace,
+        'origin/main',
+        'src/old-name.ts'
+      );
     });
 
     it('treats empty selector result as no-op success', async () => {

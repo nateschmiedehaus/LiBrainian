@@ -18,7 +18,15 @@ import * as path from 'node:path';
 import { Librarian } from '../../api/librarian.js';
 import { CliError } from '../errors.js';
 import { globalEventBus, type LibrarianEvent } from '../../events.js';
-import { getGitDiffNames, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../utils/git.js';
+import {
+  getGitDiffNames,
+  getGitFileContentAtRef,
+  getGitStagedChanges,
+  getGitStatusChanges,
+  isGitRepo,
+  type GitRename,
+} from '../../utils/git.js';
+import { detectFunctionRenames } from '../../indexing/commit_level_ast_diff.js';
 
 export interface IndexCommandOptions {
   workspace?: string;
@@ -328,8 +336,64 @@ async function resolveGitSelectedFiles(workspace: string, options: IndexCommandO
   if (changes.deleted.length > 0) {
     console.log(`WARNING: Skipping ${changes.deleted.length} deleted file(s).`);
   }
+  const renamed = changes.renamed ?? [];
+  if (options.since && renamed.length > 0) {
+    logCommitLevelRenameInsights(workspace, options.since, renamed, options.verbose === true);
+  }
 
   return [...changes.added, ...changes.modified].map((file) => path.resolve(workspace, file));
+}
+
+function logCommitLevelRenameInsights(
+  workspace: string,
+  baseRef: string,
+  renamedFiles: GitRename[],
+  verbose: boolean
+): void {
+  const supportedExt = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go']);
+  const insights: Array<{ file: string; renames: Array<{ from: string; to: string }> }> = [];
+
+  for (const fileRename of renamedFiles.slice(0, 30)) {
+    const ext = path.extname(fileRename.to).toLowerCase();
+    if (!supportedExt.has(ext)) continue;
+
+    const beforeSource = getGitFileContentAtRef(workspace, baseRef, fileRename.from);
+    if (!beforeSource) continue;
+
+    const afterPath = path.resolve(workspace, fileRename.to);
+    if (!fs.existsSync(afterPath)) continue;
+
+    let afterSource = '';
+    try {
+      afterSource = fs.readFileSync(afterPath, 'utf8');
+    } catch {
+      continue;
+    }
+
+    const renames = detectFunctionRenames(beforeSource, afterSource, fileRename.to);
+    if (renames.length > 0) {
+      insights.push({ file: fileRename.to, renames });
+    }
+  }
+
+  if (insights.length === 0) {
+    if (verbose) {
+      console.log(`Commit-level diff: ${renamedFiles.length} renamed file(s), no function rename signatures detected.`);
+    }
+    return;
+  }
+
+  const renameCount = insights.reduce((sum, item) => sum + item.renames.length, 0);
+  console.log(
+    `Commit-level diff: detected ${renameCount} function rename signature(s) across ${insights.length}/${renamedFiles.length} renamed file(s).`
+  );
+  if (!verbose) return;
+
+  for (const insight of insights) {
+    for (const rename of insight.renames.slice(0, 6)) {
+      console.log(`  - ${insight.file}: ${rename.from} -> ${rename.to}`);
+    }
+  }
 }
 
 function dedupeStrings(items: string[]): string[] {

@@ -20,6 +20,18 @@ export interface GitStatus {
   untracked: string[];
 }
 
+export interface GitRename {
+  from: string;
+  to: string;
+}
+
+export interface GitDiffChanges {
+  added: string[];
+  modified: string[];
+  deleted: string[];
+  renamed: GitRename[];
+}
+
 export function isGitRepo(dir: string): boolean {
   try {
     execSync('git rev-parse --git-dir', { cwd: dir, stdio: 'ignore' });
@@ -178,10 +190,10 @@ export function getFileDiff(filePath: string, dir?: string): string | null {
 export async function getGitDiffNames(
   dir: string,
   baseSha: string
-): Promise<{ added: string[]; modified: string[]; deleted: string[] } | null> {
+): Promise<GitDiffChanges | null> {
   if (!baseSha || !isGitRepo(dir)) return null;
   try {
-    const output = execSync(`git diff --name-status ${baseSha}..HEAD`, { cwd: dir, encoding: 'utf8' });
+    const output = execSync(`git diff --name-status -M ${baseSha}..HEAD`, { cwd: dir, encoding: 'utf8' });
     return parseNameStatusOutput(output);
   } catch {
     return null;
@@ -190,10 +202,10 @@ export async function getGitDiffNames(
 
 export async function getGitStagedChanges(
   dir: string
-): Promise<{ added: string[]; modified: string[]; deleted: string[] } | null> {
+): Promise<GitDiffChanges | null> {
   if (!isGitRepo(dir)) return null;
   try {
-    const output = execSync('git diff --cached --name-status', { cwd: dir, encoding: 'utf8' });
+    const output = execSync('git diff --cached --name-status -M', { cwd: dir, encoding: 'utf8' });
     return parseNameStatusOutput(output);
   } catch {
     return null;
@@ -202,23 +214,35 @@ export async function getGitStagedChanges(
 
 export async function getGitStatusChanges(
   dir: string
-): Promise<{ added: string[]; modified: string[]; deleted: string[] } | null> {
+): Promise<GitDiffChanges | null> {
   if (!isGitRepo(dir)) return null;
   const status = getStatus(dir);
   const added = [...status.added, ...status.untracked];
   const modified = status.modified.slice();
   const deleted = status.deleted.slice();
   if (added.length === 0 && modified.length === 0 && deleted.length === 0) return null;
-  return { added, modified, deleted };
+  return { added, modified, deleted, renamed: [] };
 }
 
-function parseNameStatusOutput(
+export function getGitFileContentAtRef(dir: string, ref: string, filePath: string): string | null {
+  if (!ref || !filePath || !isGitRepo(dir)) return null;
+  try {
+    // Path component is shell-escaped to avoid accidental command expansion.
+    const escapedPath = filePath.replace(/(["`$\\])/g, '\\$1');
+    return execSync(`git show ${ref}:\"${escapedPath}\"`, { cwd: dir, encoding: 'utf8' });
+  } catch {
+    return null;
+  }
+}
+
+export function parseNameStatusOutput(
   output: string
-): { added: string[]; modified: string[]; deleted: string[] } | null {
+): GitDiffChanges | null {
   if (!output.trim()) return null;
   const added: string[] = [];
   const modified: string[] = [];
   const deleted: string[] = [];
+  const renamed: GitRename[] = [];
 
   for (const line of output.trim().split('\n').filter(Boolean)) {
     const parts = line.split(/\s+/);
@@ -234,6 +258,9 @@ function parseNameStatusOutput(
     } else if (status.startsWith('R')) {
       if (pathA) deleted.push(pathA);
       if (pathB) added.push(pathB);
+      if (pathA && pathB) {
+        renamed.push({ from: pathA, to: pathB });
+      }
     } else if (status.startsWith('C') && pathB) {
       added.push(pathB);
     } else if (pathA) {
@@ -241,6 +268,6 @@ function parseNameStatusOutput(
     }
   }
 
-  if (added.length === 0 && modified.length === 0 && deleted.length === 0) return null;
-  return { added, modified, deleted };
+  if (added.length === 0 && modified.length === 0 && deleted.length === 0 && renamed.length === 0) return null;
+  return { added, modified, deleted, renamed };
 }
