@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { isBootstrapRequired, getBootstrapStatus } from '../../api/bootstrap.js';
+import { SCHEMA_VERSION } from '../../api/migrations.js';
 import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
@@ -48,6 +49,11 @@ type StatusReport = {
     unavailableFeatures: string[];
   };
   storage: { status: 'ready' | 'not_initialized'; reason?: string };
+  schema?: {
+    current: number | null;
+    expected: number;
+    upToDate: boolean;
+  };
   bootstrap?: {
     required: { mvp: boolean; full: boolean };
     reasons: { mvp: string; full: string };
@@ -231,13 +237,20 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   }
 
   try {
-    const [mvpBootstrapCheck, fullBootstrapCheck, lastBootstrap, indexState, metadata] = await Promise.all([
+    const [mvpBootstrapCheck, fullBootstrapCheck, lastBootstrap, indexState, metadata, schemaVersionRaw] = await Promise.all([
       isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'mvp' }),
       isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'full' }),
       storage.getLastBootstrapReport(),
       getIndexState(storage),
       storage.getMetadata(),
+      storage.getState('schema_version'),
     ]);
+    const schemaVersion = Number.parseInt(String(schemaVersionRaw ?? ''), 10);
+    report.schema = {
+      current: Number.isFinite(schemaVersion) ? schemaVersion : null,
+      expected: SCHEMA_VERSION,
+      upToDate: Number.isFinite(schemaVersion) ? schemaVersion === SCHEMA_VERSION : false,
+    };
     const bootstrapState = getBootstrapStatus(workspaceRoot);
 
     report.bootstrap = {
@@ -315,6 +328,14 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
           { key: 'Progress', value: `${indexState.progress.completed}/${indexState.progress.total}` },
         ]);
       }
+      console.log();
+
+      console.log('Schema Status:');
+      printKeyValue([
+        { key: 'Current Schema Version', value: report.schema.current ?? 'unknown' },
+        { key: 'Expected Schema Version', value: report.schema.expected },
+        { key: 'Up To Date', value: report.schema.upToDate },
+      ]);
       console.log();
     }
 

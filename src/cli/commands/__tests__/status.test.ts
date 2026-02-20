@@ -187,6 +187,7 @@ describe('statusCommand', () => {
     const parsed = JSON.parse(output ?? '{}') as {
       workspace?: string;
       storage?: { status?: string };
+      schema?: { current?: number | null; expected?: number; upToDate?: boolean };
       embeddingCoverage?: { coverage_pct?: number; total_functions?: number; embedded_functions?: number; needs_embedding_count?: number };
       provenance?: { status?: string };
       server?: { status?: string };
@@ -198,6 +199,8 @@ describe('statusCommand', () => {
     expect(parsed.embeddingCoverage?.embedded_functions).toBe(0);
     expect(parsed.embeddingCoverage?.coverage_pct).toBe(0);
     expect(parsed.embeddingCoverage?.needs_embedding_count).toBe(1);
+    expect(parsed.schema?.expected).toBeTypeOf('number');
+    expect(parsed.schema?.upToDate).toBe(false);
     expect(parsed.provenance?.status).toBeDefined();
     expect(parsed.server?.status).toBeDefined();
     expect(parsed.config?.status).toBeDefined();

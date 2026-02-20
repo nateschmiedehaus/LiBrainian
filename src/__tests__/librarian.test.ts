@@ -183,6 +183,24 @@ describe('Librarian Storage', () => {
     await storage.close();
   });
 
+  it('creates a pre-migration backup of .librarian state', async () => {
+    const librarianDir = path.join(workspace, '.librarian');
+    const dbPath = path.join(librarianDir, 'librarian.sqlite');
+    await fs.mkdir(librarianDir, { recursive: true });
+    await fs.writeFile(path.join(librarianDir, 'preexisting.txt'), 'seed\n', 'utf8');
+
+    const storage = createSqliteStorage(dbPath, workspace);
+    await storage.initialize();
+    await storage.close();
+
+    const rootEntries = await fs.readdir(workspace);
+    const backupDir = rootEntries.find((entry) => entry.startsWith('.librarian.backup.v0.'));
+    expect(backupDir).toBeTruthy();
+    const backupFile = path.join(workspace, backupDir ?? '', 'preexisting.txt');
+    const backupContent = await fs.readFile(backupFile, 'utf8');
+    expect(backupContent.trim()).toBe('seed');
+  });
+
   it('should store and retrieve functions', async () => {
     const dbPath = path.join(workspace, 'test.db');
     const storage = createSqliteStorage(dbPath);

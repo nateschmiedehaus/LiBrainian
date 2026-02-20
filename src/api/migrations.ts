@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import type Database from 'better-sqlite3';
 import { computeCanonRef, computeEnvironmentRef } from '../spine/refs.js';
 import { noResult } from './empty_values.js';
+import { LIBRARIAN_VERSION } from '../index.js';
 
 export interface MigrationDefinition { version: number; name: string; file: string; }
 export interface AppliedMigration { version: number; name: string; checksum: string; }
@@ -88,6 +89,8 @@ export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const resolveAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librarian', 'migrations');
+const resolveBackupDir = (workspaceRoot: string, fromVersion: number): string =>
+  path.join(workspaceRoot, `.librarian.backup.v${fromVersion}.${Date.now()}`);
 const hasMetadataTable = (db: Database.Database): boolean => Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librarian_metadata'").get());
 const hashSql = (sql: string): string => createHash('sha256').update(sql).digest('hex');
 const loadMigrationSql = async (file: string): Promise<string> => {
@@ -121,16 +124,46 @@ async function writeMigrationReport(workspaceRoot: string, report: LibrarianSche
   return reportPath;
 }
 
+async function backupLibrarianState(workspaceRoot: string, fromVersion: number): Promise<string | null> {
+  const librarianDir = path.join(workspaceRoot, '.librarian');
+  try {
+    const stat = await fs.stat(librarianDir);
+    if (!stat.isDirectory()) return noResult();
+  } catch {
+    return noResult();
+  }
+  const backupDir = resolveBackupDir(workspaceRoot, fromVersion);
+  await fs.cp(librarianDir, backupDir, { recursive: true, force: false, errorOnExist: true });
+  return backupDir;
+}
+
 export async function applyMigrations(db: Database.Database, workspaceRoot?: string): Promise<LibrarianSchemaMigrationReportV1 | null> {
   const fromVersion = readSchemaVersion(db);
+  if (fromVersion > SCHEMA_VERSION) {
+    throw new Error(
+      `Schema version ${fromVersion} is newer than librainian ${LIBRARIAN_VERSION.string} supports. Upgrade librainian.`
+    );
+  }
   const pending = MIGRATIONS.filter((migration) => migration.version > fromVersion);
   if (!pending.length) return noResult();
+  let backupPath: string | null = null;
+  if (workspaceRoot) {
+    backupPath = await backupLibrarianState(workspaceRoot, fromVersion);
+  }
   const applied: AppliedMigration[] = [];
-  for (const migration of pending) {
-    const sql = await loadMigrationSql(migration.file);
-    db.exec(sql);
-    writeSchemaVersion(db, migration.version);
-    applied.push({ version: migration.version, name: migration.name, checksum: hashSql(sql) });
+  try {
+    for (const migration of pending) {
+      const sql = await loadMigrationSql(migration.file);
+      db.exec(sql);
+      writeSchemaVersion(db, migration.version);
+      applied.push({ version: migration.version, name: migration.name, checksum: hashSql(sql) });
+    }
+  } catch (error) {
+    const baseMessage = error instanceof Error ? error.message : String(error);
+    const backupHint = backupPath
+      ? `Pre-migration backup preserved at ${backupPath}.`
+      : 'No backup was available; run `librarian bootstrap --force` to rebuild.';
+    throw new Error(`Schema migration failed: ${baseMessage}. ${backupHint}`);
   }
   if (!workspaceRoot) return noResult();
   const report: LibrarianSchemaMigrationReportV1 = {
