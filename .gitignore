@@ -22,6 +22,7 @@ eval-corpus/external-repos/*
 scenario-report.json
 debug_reach.ts
 .tmp/
+.patrol-tmp/
 *.wip
 *.private.md
 *.draft.md

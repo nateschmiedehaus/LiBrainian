@@ -50,6 +50,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'debt-prioritizer',
   'dead-code-detector',
   'onboarding-guide',
+  'patrol-dogfood',
 ] as const;
 
 export type OfficialConstructionSlug = typeof OFFICIAL_CONSTRUCTION_SLUGS[number];

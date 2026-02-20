@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { LibrarianStorage } from '../storage/types.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { FunctionKnowledge } from '../types.js';
+import type { FileKnowledge, FunctionKnowledge } from '../types.js';
 import type { GraphMetricsEntry } from '../graphs/metrics.js';
 
 export type RepoMapStyle = 'compact' | 'detailed' | 'json';
@@ -34,11 +34,16 @@ export interface RepoMapResult {
   maxTokens: number;
   consumedTokens: number;
   entries: RepoMapEntry[];
+  notice?: string;
   text?: string;
 }
 
 type GraphMetricsReader = LibrarianStorage & {
   getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: 'function' | 'module' }) => Promise<GraphMetricsEntry[]>;
+};
+
+type FileKnowledgeReader = LibrarianStorage & {
+  getFiles?: (options?: { limit?: number }) => Promise<FileKnowledge[]>;
 };
 
 const DEFAULT_MAX_TOKENS = 4096;
@@ -70,11 +75,21 @@ export async function generateRepoMap(
   const focusPatterns = (options.focus ?? []).map((value) => normalizePath(value)).filter(Boolean);
 
   const functions = await storage.getFunctions({ limit: 100_000 });
-  const pagerankByFunctionId = await loadFunctionPageRank(storage, functions);
-  const entries = buildEntries(functions, workspaceRoot, pagerankByFunctionId, focusPatterns, maxSymbolsPerFile);
+  const entries = await buildEntriesWithFallback(
+    storage,
+    functions,
+    workspaceRoot,
+    focusPatterns,
+    maxSymbolsPerFile,
+  );
   const selected = selectEntriesByTokenBudget(entries, maxTokens, style);
 
-  const rendered = style === 'json' ? undefined : renderRepoMap(selected.entries, style);
+  const notice = selected.entries.length === 0
+    ? 'No files indexed. Run `librarian bootstrap` first.'
+    : undefined;
+  const rendered = style === 'json'
+    ? undefined
+    : (selected.entries.length > 0 ? renderRepoMap(selected.entries, style) : notice);
   return {
     workspaceRoot,
     generatedAt: new Date().toISOString(),
@@ -82,8 +97,57 @@ export async function generateRepoMap(
     maxTokens,
     consumedTokens: selected.tokens,
     entries: selected.entries,
+    notice,
     text: rendered,
   };
+}
+
+async function buildEntriesWithFallback(
+  storage: LibrarianStorage,
+  functions: FunctionKnowledge[],
+  workspaceRoot: string,
+  focusPatterns: string[],
+  maxSymbolsPerFile: number,
+): Promise<RepoMapEntry[]> {
+  if (functions.length > 0) {
+    const pagerankByFunctionId = await loadFunctionPageRank(storage, functions);
+    return buildEntries(functions, workspaceRoot, pagerankByFunctionId, focusPatterns, maxSymbolsPerFile);
+  }
+
+  const fileStore = storage as FileKnowledgeReader;
+  if (!fileStore.getFiles) {
+    return [];
+  }
+  const files = await fileStore.getFiles({ limit: 100_000 });
+  if (files.length === 0) {
+    return [];
+  }
+  const entries = files.map((file) => {
+    const exports = Array.isArray(file.keyExports) ? file.keyExports : [];
+    const symbols = exports
+      .slice(0, maxSymbolsPerFile)
+      .map((name) => ({
+        name,
+        kind: 'function' as const,
+        line: 1,
+        signature: truncate(`${name}()`, 80),
+        isExported: true,
+      }));
+    const normalizedPath = normalizePath(file.relativePath || toRelativePath(file.path, workspaceRoot));
+    const score = (file.functionCount || 0) + (file.classCount || 0) + computeFocusBoost(normalizedPath, focusPatterns);
+    return {
+      path: file.relativePath || toRelativePath(file.path, workspaceRoot),
+      pagerankScore: score,
+      symbols,
+    };
+  });
+  entries.sort((left, right) => {
+    if (right.pagerankScore !== left.pagerankScore) {
+      return right.pagerankScore - left.pagerankScore;
+    }
+    return left.path.localeCompare(right.path);
+  });
+  return entries;
 }
 
 async function loadFunctionPageRank(

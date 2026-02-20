@@ -11,3 +11,6 @@ pre-push:
   commands:
     git-hygiene:
       run: node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link
+    patrol-smoke:
+      run: node scripts/agent-patrol.mjs --mode quick --no-issues 2>/dev/null || true
+      optional: true

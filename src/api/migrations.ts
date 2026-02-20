@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import type Database from 'better-sqlite3';
 import { computeCanonRef, computeEnvironmentRef } from '../spine/refs.js';
@@ -90,7 +90,7 @@ export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const resolveAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librarian', 'migrations');
 const resolveBackupDir = (workspaceRoot: string, fromVersion: number): string =>
-  path.join(workspaceRoot, `.librarian.backup.v${fromVersion}.${Date.now()}`);
+  path.join(workspaceRoot, `.librarian.backup.v${fromVersion}.${Date.now()}.${randomUUID()}`);
 const hasMetadataTable = (db: Database.Database): boolean => Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librarian_metadata'").get());
 const hashSql = (sql: string): string => createHash('sha256').update(sql).digest('hex');
 const loadMigrationSql = async (file: string): Promise<string> => {

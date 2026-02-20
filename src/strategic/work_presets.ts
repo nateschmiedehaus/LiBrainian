@@ -1118,6 +1118,10 @@ export function getPresetById(id: string): WorkPreset | undefined {
 
 /**
  * List all available preset IDs.
+ *
+ * Note: The 'patrol' preset is available via direct import from
+ * `./patrol_preset.js` but is not included here to avoid circular
+ * dependencies. Use `PATROL_PRESET` from `../strategic/patrol_preset.js`.
  */
 export function listPresetIds(): string[] {
   return ['strict', 'standard', 'exploratory'];

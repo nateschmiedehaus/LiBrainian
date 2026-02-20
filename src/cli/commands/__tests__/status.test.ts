@@ -177,6 +177,25 @@ describe('statusCommand', () => {
     expect(watchCall).toBeTruthy();
   });
 
+  it('runs bootstrap checks sequentially to avoid duplicate recovery warnings', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.mocked(isBootstrapRequired).mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return { required: false, reason: 'ok' };
+    });
+
+    await statusCommand({ workspace, verbose: false });
+
+    expect(vi.mocked(isBootstrapRequired)).toHaveBeenCalledTimes(2);
+    expect(maxInFlight).toBe(1);
+  });
+
   it('emits JSON when format is json', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     mockStorage.getFunctions.mockResolvedValue([
@@ -348,7 +367,7 @@ describe('statusCommand', () => {
     }
   });
 
-  it('returns exit code 1 when freshness drift exceeds 5%', async () => {
+  it('returns exit code 0 when only freshness drift exists', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     mockStorage.getMetadata.mockResolvedValue({
       version: { major: 1, minor: 2, patch: 3, string: '1.2.3' },
@@ -368,7 +387,7 @@ describe('statusCommand', () => {
     mockStorage.getFileByPath.mockResolvedValue({ id: 'changed' });
 
     const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(0);
   });
 
   it('returns exit code 2 when storage is not initialized', async () => {

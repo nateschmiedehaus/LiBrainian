@@ -1,0 +1,182 @@
+name: Agent Patrol
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Patrol mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - quick
+          - full
+          - release
+      repo:
+        description: 'Target specific repo (blank for default)'
+        required: false
+        default: ''
+        type: string
+      agent:
+        description: 'Agent CLI to use (auto-detect if blank)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+# Agent patrol auto-detects the available agent CLI (claude or codex).
+# Auth is inherited from the environment -- works with OAuth tokens,
+# API keys in secrets, or whatever the runner has configured.
+# Set PATROL_AGENT_BIN to override auto-detection.
+
+jobs:
+  patrol-quick:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+      - name: Install agent CLIs
+        run: |
+          npm install -g @anthropic-ai/claude-code || true
+          npm install -g @openai/codex || true
+
+      - name: Run patrol (quick)
+        run: node scripts/agent-patrol.mjs --mode quick --no-issues
+        env:
+          # Pass through all available provider secrets -- agent-patrol.mjs
+          # auto-detects which CLI is available and uses local auth config
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        timeout-minutes: 30
+
+      - name: Post-process
+        if: always()
+        run: |
+          node scripts/patrol-post-process.mjs \
+            --report 'state/patrol/patrol-run-*.json' \
+            --artifact state/patrol/patrol-summary.json \
+            --markdown state/patrol/patrol-summary.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patrol-quick-${{ github.sha }}
+          path: state/patrol/
+          retention-days: 30
+
+  patrol-full:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+      - name: Install agent CLIs
+        run: |
+          npm install -g @anthropic-ai/claude-code || true
+          npm install -g @openai/codex || true
+
+      - name: Run patrol (full)
+        run: node scripts/agent-patrol.mjs --mode full --max-repos 5
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        timeout-minutes: 165
+
+      - name: Post-process with issues
+        if: always()
+        run: |
+          node scripts/patrol-post-process.mjs \
+            --report 'state/patrol/patrol-run-*.json' \
+            --artifact state/patrol/patrol-summary.json \
+            --markdown state/patrol/patrol-summary.md \
+            --create-gh-issues \
+            --repo ${{ github.repository }} \
+            --ledger state/patrol/evidence-ledger.json \
+            --max-issues 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patrol-full-${{ github.run_id }}
+          path: state/patrol/
+          retention-days: 90
+
+  patrol-manual:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+      - name: Install agent CLIs
+        run: |
+          npm install -g @anthropic-ai/claude-code || true
+          npm install -g @openai/codex || true
+
+      - name: Run patrol
+        run: |
+          ARGS="--mode ${{ inputs.mode || 'full' }}"
+          if [ -n "${{ inputs.repo }}" ]; then
+            ARGS="$ARGS --repo ${{ inputs.repo }}"
+          fi
+          if [ -n "${{ inputs.agent }}" ]; then
+            ARGS="$ARGS --agent-bin ${{ inputs.agent }}"
+          fi
+          node scripts/agent-patrol.mjs $ARGS
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        timeout-minutes: 270
+
+      - name: Post-process
+        if: always()
+        run: |
+          node scripts/patrol-post-process.mjs \
+            --report 'state/patrol/patrol-run-*.json' \
+            --artifact state/patrol/patrol-summary.json \
+            --markdown state/patrol/patrol-summary.md \
+            --create-gh-issues \
+            --repo ${{ github.repository }} \
+            --ledger state/patrol/evidence-ledger.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patrol-${{ inputs.mode || 'full' }}-${{ github.run_id }}
+          path: state/patrol/
+          retention-days: 90

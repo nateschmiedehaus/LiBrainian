@@ -119,6 +119,27 @@ function normalizeClaudeErrorMessage(raw: string): string {
   return raw;
 }
 
+function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
+  const withoutAnsi = raw.replace(/\u001B\[[0-9;]*m/g, '');
+  const lines = withoutAnsi
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 25);
+  const preferred =
+    lines.find((line) => /\b(error|failed|unsupported|invalid|unavailable|timeout|quota|rate limit|auth)\b/i.test(line))
+    ?? lines[0]
+    ?? `${provider} CLI error`;
+  const compact = preferred.replace(/\s+/g, ' ').trim();
+  const clipped = compact.length > 220 ? `${compact.slice(0, 217)}...` : compact;
+  return clipped || `${provider} CLI error`;
+}
+
+function isStickyFailureReason(reason: string): boolean {
+  const normalized = reason.toLowerCase();
+  return normalized === 'auth_failed' || normalized === 'quota_exceeded';
+}
+
 function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
   return {
     provider,
@@ -144,10 +165,28 @@ export class CliLlmService {
   async chat(options: LlmChatOptions): Promise<ChatResult> {
     await this.assertPrivacyAllowsRemoteLlm(options);
     const provider: CliProvider = resolveForcedProvider() ?? (options.provider === 'codex' ? 'codex' : 'claude');
-    if (provider === 'codex') {
-      return this.callCodex(options);
+    const fallback: CliProvider = provider === 'codex' ? 'claude' : 'codex';
+    const tried: CliProvider[] = [];
+    let lastError: Error | null = null;
+
+    for (const candidate of [provider, fallback]) {
+      if (tried.includes(candidate)) continue;
+      tried.push(candidate);
+      try {
+        return candidate === 'codex'
+          ? await this.callCodex(options)
+          : await this.callClaude(options);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (candidate === fallback) break;
+        logWarning('CLI LLM: falling back to alternate provider', {
+          primary: candidate,
+          fallback,
+          error: lastError.message,
+        });
+      }
     }
-    return this.callClaude(options);
+    throw lastError ?? new Error('unverified_by_trace(llm_execution_failed): No LLM provider available');
   }
 
   async checkClaudeHealth(forceCheck = false): Promise<LlmProviderHealth> {
@@ -312,18 +351,19 @@ export class CliLlmService {
         env.CLAUDE_MODEL = options.modelId;
       }
       logInfo('CLI LLM: claude call', { promptLength: fullPrompt.length });
-      const result = await execa('claude', args, {
+        const result = await execa('claude', args, {
         input: fullPrompt,
         env,
         timeout: this.claudeTimeoutMs > 0 ? this.claudeTimeoutMs : undefined,
         reject: false,
       });
-      if (result.exitCode !== 0) {
-        const errorMsg = normalizeClaudeErrorMessage(String(result.stderr || result.stdout || 'Claude CLI error'));
-        logWarning('CLI LLM: Claude call failed', { error: errorMsg });
-        await this.recordFailure('claude', errorMsg);
-        throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
-      }
+        if (result.exitCode !== 0) {
+          const rawError = normalizeClaudeErrorMessage(String(result.stderr || result.stdout || 'Claude CLI error'));
+          const errorMsg = sanitizeCliErrorMessage(rawError, 'claude');
+          logWarning('CLI LLM: Claude call failed', { error: errorMsg });
+          await this.recordFailure('claude', errorMsg, rawError);
+          throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
+        }
       const content = String(result.stdout ?? '');
       if (governor) {
         governor.recordTokens(estimateTokenCount(content));
@@ -388,9 +428,10 @@ export class CliLlmService {
         });
 
         if (result.exitCode !== 0) {
-          const errorMsg = String(result.stderr || result.stdout || 'Codex CLI error');
+          const rawError = String(result.stderr || result.stdout || 'Codex CLI error');
+          const errorMsg = sanitizeCliErrorMessage(rawError, 'codex');
           logWarning('CLI LLM: Codex call failed', { error: errorMsg });
-          await this.recordFailure('codex', errorMsg);
+          await this.recordFailure('codex', errorMsg, rawError);
           throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
         }
 
@@ -424,9 +465,9 @@ export class CliLlmService {
     });
   }
 
-  private async recordFailure(provider: CliProvider, message: string): Promise<void> {
+  private async recordFailure(provider: CliProvider, message: string, rawMessage?: string): Promise<void> {
     try {
-      const classification = classifyProviderFailure(message);
+      const classification = classifyProviderFailure(rawMessage ?? message);
       await recordProviderFailure(this.providerWorkspaceRoot, {
         provider,
         reason: classification.reason,
@@ -452,6 +493,9 @@ export class CliLlmService {
       const failures = await getActiveProviderFailures(this.providerWorkspaceRoot);
       const failure = failures[provider];
       if (failure) {
+        if (!isStickyFailureReason(failure.reason)) {
+          return;
+        }
         throw new Error(`unverified_by_trace(provider_unavailable): recent ${failure.reason}: ${failure.message}`);
       }
     } catch (error) {

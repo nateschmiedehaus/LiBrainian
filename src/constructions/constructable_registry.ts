@@ -334,6 +334,14 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     description: 'Playwright end-to-end testing patterns',
     tags: ['testing', 'playwright'],
   },
+  {
+    id: 'patrol-dogfood',
+    basePriority: 45,
+    isCore: false,
+    availability: EXPERIMENTAL,
+    description: 'Agent patrol preset for self-dogfooding quality validation',
+    tags: ['meta', 'quality', 'dogfood', 'e2e'],
+  },
 ];
 
 export function listConstructableDefinitions(): ConstructableDefinition[] {

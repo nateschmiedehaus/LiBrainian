@@ -972,6 +972,14 @@ export {
   calculateBackoff,
 } from './work_presets.js';
 
+// Patrol Preset (agent patrol dogfooding)
+export {
+  PATROL_QUALITY_GATES,
+  PATROL_PRESET,
+  PATROL_THRESHOLDS,
+  validatePatrolObservation,
+} from './patrol_preset.js';
+
 // ============================================================================
 // ARCHITECTURE DECISIONS
 // ============================================================================

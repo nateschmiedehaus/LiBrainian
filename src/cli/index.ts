@@ -283,8 +283,8 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty]',
   },
   'constructions': {
-    description: 'List/search/describe/install/validate constructions',
-    usage: 'librarian constructions list|search|describe|install|validate [options]',
+    description: 'List/search/describe/install/run/validate constructions',
+    usage: 'librarian constructions list|search|describe|install|run|validate [options]',
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',

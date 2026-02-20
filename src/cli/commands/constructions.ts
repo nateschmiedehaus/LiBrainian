@@ -1,11 +1,14 @@
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';
+import { Librarian } from '../../api/librarian.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import {
   CONSTRUCTION_REGISTRY,
   getConstructionManifest,
+  invokeConstruction,
   listConstructions,
 } from '../../constructions/registry.js';
 import type { ConstructionManifest, ConstructionSchema, ConstructionTrustTier } from '../../constructions/types.js';
@@ -90,7 +93,9 @@ export async function constructionsCommand(options: ConstructionsCommandOptions)
       'trust-tier': { type: 'string' },
       language: { type: 'string' },
       'available-only': { type: 'boolean', default: false },
+      all: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
+      input: { type: 'string' },
       path: { type: 'string' },
     },
     allowPositionals: true,
@@ -119,6 +124,14 @@ export async function constructionsCommand(options: ConstructionsCommandOptions)
         dryRun: Boolean(values['dry-run']),
       });
       return;
+    case 'run':
+      await runRun({
+        workspace,
+        subcommandArgs,
+        json,
+        inputFlag: readStringArg(values.input),
+      });
+      return;
     case 'validate':
       await runValidate({
         workspace,
@@ -130,7 +143,7 @@ export async function constructionsCommand(options: ConstructionsCommandOptions)
     default:
       throw createError(
         'INVALID_ARGUMENT',
-        `Unknown constructions subcommand: ${subcommand}. Use list|search|describe|install|validate.`,
+        `Unknown constructions subcommand: ${subcommand}. Use list|search|describe|install|run|validate.`,
       );
   }
 }
@@ -150,7 +163,11 @@ async function runList(params: {
   const tags = parseCsv(readStringArg(values.tags));
   const capabilities = parseCsv(readStringArg(values.capabilities));
   const language = readStringArg(values.language)?.toLowerCase();
-  const availableOnly = Boolean(values['available-only']);
+  const showAll = Boolean(values.all);
+  let availableOnly = showAll ? false : true;
+  if (Boolean(values['available-only'])) {
+    availableOnly = true;
+  }
   const limit = parseNonNegativeInteger(readStringArg(values.limit), 'limit');
   const offset = parseNonNegativeInteger(readStringArg(values.offset), 'offset');
 
@@ -239,7 +256,7 @@ async function runSearch(params: {
       agentDescription: entry.manifest.agentDescription,
       tags: entry.manifest.tags,
       requiredCapabilities: entry.manifest.requiredCapabilities,
-      installCommand: `npm install ${toPackageName(entry.manifest.id)}@${entry.manifest.version}`,
+      installCommand: formatInstallCommand(entry.manifest),
     } satisfies SearchResult));
 
   const payload = {
@@ -282,6 +299,8 @@ async function runDescribe(params: {
   if (!manifest) {
     throw createError('ENTITY_NOT_FOUND', `Unknown construction id: ${id}`);
   }
+  const installMode = resolveInstallMode(manifest);
+  const installCommand = formatInstallCommand(manifest);
 
   const exampleInput = manifest.examples[0]?.input ?? {};
   const related = listConstructions({ availableOnly: true })
@@ -320,7 +339,9 @@ async function runDescribe(params: {
     exampleCode: buildExampleCode(manifest.id, exampleInput),
     relatedConstructions: related,
     packageName: toPackageName(manifest.id),
-    installCommand: `npm install ${toPackageName(manifest.id)}@${manifest.version}`,
+    installMode,
+    installCommand,
+    runCommand: `librarian constructions run ${manifest.id} --input '${JSON.stringify(exampleInput)}'`,
   };
 
   if (json) {
@@ -376,8 +397,23 @@ async function runInstall(params: {
   const packageSpec = `${packageName}@${manifest.version}`;
   let stderr = '';
   let stdout = '';
+  const installMode = resolveInstallMode(manifest);
 
-  if (!dryRun) {
+  if (installMode === 'unavailable') {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Construction ${manifest.id} is discoverable but not executable/installable in this runtime.`,
+      {
+        recoveryHints: [
+          'Run `librarian constructions list` to view executable constructions.',
+          'Use `librarian constructions run <id> --input <json>` for built-in constructions.',
+          'Use `librarian compose "<intent>"` for composition-based execution.',
+        ],
+      },
+    );
+  }
+
+  if (!dryRun && installMode === 'npm') {
     const result = spawnSync('npm', ['install', packageSpec], {
       cwd: workspace,
       encoding: 'utf8',
@@ -396,6 +432,7 @@ async function runInstall(params: {
     success: true,
     dryRun,
     installed: !dryRun,
+    installMode,
     id: manifest.id,
     packageName,
     packageSpec,
@@ -412,15 +449,89 @@ async function runInstall(params: {
     return;
   }
 
-  console.log(`Installing ${packageSpec}...`);
-  if (dryRun) {
-    console.log('[ok] Dry run complete (npm install skipped).');
+  if (installMode === 'builtin') {
+    console.log(`Preparing ${manifest.id}...`);
+    if (dryRun) {
+      console.log('[ok] Dry run complete (built-in construction; no npm install required).');
+    } else {
+      console.log('[ok] Built-in construction is already available');
+    }
   } else {
-    console.log('[ok] Package installed');
+    console.log(`Installing ${packageSpec}...`);
+    if (dryRun) {
+      console.log('[ok] Dry run complete (npm install skipped).');
+    } else {
+      console.log('[ok] Package installed');
+    }
   }
   console.log('[ok] Manifest validated');
   console.log(`[ok] Required capabilities available: ${manifest.requiredCapabilities.join(', ') || 'none'}`);
   console.log(`[ok] Construction registered: ${manifest.id}`);
+}
+
+async function runRun(params: {
+  workspace: string;
+  subcommandArgs: string[];
+  json: boolean;
+  inputFlag?: string;
+}): Promise<void> {
+  const { workspace, subcommandArgs, json, inputFlag } = params;
+  const id = subcommandArgs[0];
+  if (!id) {
+    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librarian constructions run <id> --input \'{"key":"value"}\'');
+  }
+  const manifest = getConstructionManifest(id);
+  if (!manifest) {
+    throw createError('ENTITY_NOT_FOUND', `Unknown construction id: ${id}`);
+  }
+  if (manifest.available === false) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Construction ${manifest.id} is not executable in this runtime.`,
+      {
+        recoveryHints: [
+          'Run `librarian constructions list` to see executable constructions.',
+          'Run `librarian constructions list --all` to inspect discovery-only entries.',
+          'Use `librarian compose "<intent>"` for composition workflows.',
+        ],
+      },
+    );
+  }
+  const input = parseRunInput(inputFlag, subcommandArgs.slice(1));
+  const librarian = new Librarian({
+    workspace,
+    autoBootstrap: false,
+    autoWatch: false,
+    llmProvider: (process.env.LIBRARIAN_LLM_PROVIDER as 'claude' | 'codex') || 'claude',
+    llmModelId: process.env.LIBRARIAN_LLM_MODEL,
+  });
+  await librarian.initialize();
+  try {
+    const output = await invokeConstruction(
+      manifest.id,
+      input,
+      {
+        deps: { librarian },
+        signal: new AbortController().signal,
+        sessionId: randomUUID(),
+      },
+    );
+    const payload = {
+      command: 'run',
+      success: true,
+      id: manifest.id,
+      input,
+      output,
+    };
+    if (json) {
+      console.log(JSON.stringify(payload));
+      return;
+    }
+    console.log(`Ran ${manifest.id}`);
+    console.log(JSON.stringify(output, null, 2));
+  } finally {
+    await librarian.shutdown();
+  }
 }
 
 async function runValidate(params: {
@@ -522,6 +633,43 @@ function toPackageName(id: string): string {
     return id;
   }
   return `@librainian-community/${id}`;
+}
+
+type InstallMode = 'builtin' | 'npm' | 'unavailable';
+
+function resolveInstallMode(manifest: ConstructionManifest): InstallMode {
+  if (manifest.available === false) return 'unavailable';
+  if (manifest.id.startsWith('librainian:')) return 'builtin';
+  if (manifest.id.startsWith('@')) return 'npm';
+  return manifest.scope === '@librainian' ? 'builtin' : 'npm';
+}
+
+function formatInstallCommand(manifest: ConstructionManifest): string {
+  const mode = resolveInstallMode(manifest);
+  if (mode === 'npm') {
+    return `npm install ${toPackageName(manifest.id)}@${manifest.version}`;
+  }
+  return `librarian constructions install ${manifest.id}`;
+}
+
+function parseRunInput(inputFlag: string | undefined, positionalRemainder: string[]): unknown {
+  if (inputFlag) {
+    return coerceInputPayload(inputFlag);
+  }
+  if (positionalRemainder.length === 0) {
+    return {};
+  }
+  return coerceInputPayload(positionalRemainder.join(' '));
+}
+
+function coerceInputPayload(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return { prompt: raw };
+  }
 }
 
 function describeSchema(schema: ConstructionSchema): string {

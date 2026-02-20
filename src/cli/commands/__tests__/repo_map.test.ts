@@ -71,4 +71,25 @@ describe('repoMapCommand', () => {
       rawArgs: ['repo-map', '--style', 'broken'],
     })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
+
+  it('prints a clear notice when repo-map has no entries', async () => {
+    vi.mocked(generateRepoMap).mockResolvedValue({
+      workspaceRoot: workspace,
+      generatedAt: '2026-02-20T00:00:00.000Z',
+      style: 'compact',
+      maxTokens: 500,
+      consumedTokens: 0,
+      entries: [],
+      text: 'No files indexed. Run `librarian bootstrap` first.',
+      notice: 'No files indexed. Run `librarian bootstrap` first.',
+    });
+
+    await repoMapCommand({
+      workspace,
+      args: [],
+      rawArgs: ['repo-map'],
+    });
+
+    expect(logSpy.mock.calls[0]?.[0]).toContain('No files indexed');
+  });
 });

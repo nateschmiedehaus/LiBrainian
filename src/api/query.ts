@@ -6271,7 +6271,11 @@ async function runMethodGuidanceStage(options: {
 }
 
 function stripTracePrefix(message: string): string {
-  return message.replace(/unverified_by_trace\([^)]+\):\s*/g, '').trim();
+  const stripped = message.replace(/unverified_by_trace\([^)]+\):\s*/g, '').trim();
+  const firstLine = stripped.split(/\r?\n/).map((line) => line.trim()).find((line) => line.length > 0) ?? '';
+  const compact = firstLine.replace(/\s+/g, ' ').trim();
+  if (compact.length <= 220) return compact;
+  return `${compact.slice(0, 217)}...`;
 }
 
 interface SynthesisStageResult {
@@ -8545,7 +8549,7 @@ function isCrossEncoderEnabled(): boolean {
   if (process.env.NODE_ENV === 'test' || process.env.WAVE0_TEST_MODE === 'true' || process.env.LIBRARIAN_DETERMINISTIC === '1') {
     return false;
   }
-  const flag = process.env.LIBRARIAN_LIBRARIAN_CROSS_ENCODER;
+  const flag = process.env.LIBRARIAN_CROSS_ENCODER;
   return flag !== '0' && flag !== 'false';
 }
 function dedupePacks(packs: ContextPack[]): ContextPack[] { const map = new Map<string, ContextPack>(); for (const pack of packs) if (!map.has(pack.packId)) map.set(pack.packId, pack); return Array.from(map.values()); }

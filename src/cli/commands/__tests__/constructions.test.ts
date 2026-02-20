@@ -4,12 +4,28 @@ import * as path from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { constructionsCommand } from '../constructions.js';
+import { invokeConstruction } from '../../../constructions/registry.js';
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
   return {
     ...actual,
     spawnSync: vi.fn(),
+  };
+});
+
+vi.mock('../../../api/librarian.js', () => ({
+  Librarian: vi.fn().mockImplementation(() => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock('../../../constructions/registry.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../constructions/registry.js')>();
+  return {
+    ...actual,
+    invokeConstruction: vi.fn(async () => ({ ok: true })),
   };
 });
 
@@ -64,6 +80,10 @@ describe('constructionsCommand', () => {
     expect(payload.results.length).toBeGreaterThan(0);
     expect(payload.results[0]?.score ?? 0).toBeGreaterThan(0);
     expect(payload.results.some((result) => result.id.includes('security-audit-helper'))).toBe(true);
+    const security = payload.results.find((result) => result.id === 'librainian:security-audit-helper') as
+      | (typeof payload.results[number] & { installCommand?: string })
+      | undefined;
+    expect(security?.installCommand).toBe('librarian constructions install librainian:security-audit-helper');
     for (let index = 1; index < payload.results.length; index += 1) {
       expect(payload.results[index - 1]!.score).toBeGreaterThanOrEqual(payload.results[index]!.score);
     }
@@ -79,7 +99,9 @@ describe('constructionsCommand', () => {
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload.id).toBe('librainian:security-audit-helper');
     expect(typeof payload.agentDescription).toBe('string');
-    expect(payload.installCommand).toBe('npm install @librainian/security-audit-helper@1.0.0');
+    expect(payload.installMode).toBe('builtin');
+    expect(payload.installCommand).toBe('librarian constructions install librainian:security-audit-helper');
+    expect(typeof payload.runCommand).toBe('string');
     expect((payload.requiredCapabilities as string[]).includes('security-analysis')).toBe(true);
   });
 
@@ -113,7 +135,7 @@ describe('constructionsCommand', () => {
     expect(payload.warnings.some((line) => line.includes('agentDescription'))).toBe(true);
   });
 
-  it('supports install dry-run and install execution', async () => {
+  it('supports install dry-run and install execution for built-in constructions without npm', async () => {
     await constructionsCommand({
       workspace: '/tmp/workspace',
       args: ['install', 'librainian:security-audit-helper'],
@@ -123,6 +145,7 @@ describe('constructionsCommand', () => {
     let payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload.success).toBe(true);
     expect(payload.dryRun).toBe(true);
+    expect(payload.installMode).toBe('builtin');
     expect(spawnSync).not.toHaveBeenCalled();
 
     logSpy.mockClear();
@@ -134,14 +157,20 @@ describe('constructionsCommand', () => {
 
     payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload.success).toBe(true);
-    expect(spawnSync).toHaveBeenCalledWith(
-      'npm',
-      ['install', '@librainian/security-audit-helper@1.0.0'],
-      expect.objectContaining({
-        cwd: '/tmp/workspace',
-        stdio: 'pipe',
-        encoding: 'utf8',
-      }),
-    );
+    expect(payload.installMode).toBe('builtin');
+    expect(spawnSync).not.toHaveBeenCalled();
+  });
+
+  it('runs a built-in construction via the run subcommand', async () => {
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'librainian:security-audit-helper'],
+      rawArgs: ['constructions', 'run', 'librainian:security-audit-helper', '--input', '{"files":["src/auth.ts"],"checkTypes":["auth"]}', '--json'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(payload.success).toBe(true);
+    expect(payload.id).toBe('librainian:security-audit-helper');
+    expect(invokeConstruction).toHaveBeenCalled();
   });
 });

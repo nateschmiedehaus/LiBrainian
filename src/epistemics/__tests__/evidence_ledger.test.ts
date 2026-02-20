@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -34,7 +35,7 @@ describe('EvidenceLedger', () => {
   let dbPath: string;
 
   beforeEach(async () => {
-    dbPath = path.join(os.tmpdir(), `test-ledger-${Date.now()}.db`);
+    dbPath = path.join(os.tmpdir(), `test-ledger-${randomUUID()}.db`);
     ledger = new SqliteEvidenceLedger(dbPath);
     await ledger.initialize();
   });

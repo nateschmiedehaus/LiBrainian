@@ -308,9 +308,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   }
 
   try {
-    const [mvpBootstrapCheck, fullBootstrapCheck, lastBootstrap, indexState, metadata, schemaVersionRaw, memoryStats] = await Promise.all([
-      isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'mvp' }),
-      isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'full' }),
+    // Run bootstrap checks sequentially to avoid duplicate side-effect logs when
+    // recovery state cleanup happens during concurrent checks.
+    const mvpBootstrapCheck = await isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'mvp' });
+    const fullBootstrapCheck = await isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'full' });
+    const [lastBootstrap, indexState, metadata, schemaVersionRaw, memoryStats] = await Promise.all([
       storage.getLastBootstrapReport(),
       getIndexState(storage),
       storage.getMetadata(),
@@ -766,12 +768,9 @@ async function statusWorkspaceSet(options: {
 
 function deriveStatusExitCode(report: StatusReport): number {
   if (report.storage.status !== 'ready') return 2;
-  const freshness = report.freshness;
-  if (!freshness) return 0;
-  if (freshness.totalIndexedFiles <= 0) return 0;
-  const changed = freshness.staleFiles + freshness.missingFiles + freshness.newFiles;
-  const ratio = changed / Math.max(freshness.totalIndexedFiles, 1);
-  return ratio > 0.05 ? 1 : 0;
+  if (report.bootstrap?.required.full) return 1;
+  if (report.watch?.health?.suspectedDead) return 1;
+  return 0;
 }
 
 function parseWorkspaceSetArg(rawArgs: string[] | undefined): string | undefined {

@@ -179,13 +179,96 @@ function isEvalCorpusPath(filePath: string | undefined): boolean {
          normalizedPath.includes('test-fixtures');
 }
 
+function isInternalArtifactPath(filePath: string | undefined): boolean {
+  if (!filePath) return false;
+  const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+  return normalizedPath.startsWith('.librarian/')
+    || normalizedPath.includes('/.librarian/')
+    || normalizedPath.startsWith('.librainian/')
+    || normalizedPath.includes('/.librainian/')
+    || normalizedPath.includes('/.ab-harness-artifacts/')
+    || normalizedPath.endsWith('/retrieval_confidence_log.jsonl')
+    || normalizedPath.includes('/retrieval_confidence_log.jsonl');
+}
+
+function dedupeByValue(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function sanitizePackForRanking(pack: ContextPack): ContextPack | null {
+  const relatedFiles = dedupeByValue(pack.relatedFiles.filter((file) => !isInternalArtifactPath(file)));
+  const codeSnippets = pack.codeSnippets.filter((snippet) => !isInternalArtifactPath(snippet.filePath));
+  const invalidationTriggers = dedupeByValue(pack.invalidationTriggers.filter((file) => !isInternalArtifactPath(file)));
+  const internalTargetOnly = isInternalArtifactPath(pack.targetId) && relatedFiles.length === 0 && codeSnippets.length === 0;
+
+  if (internalTargetOnly) return null;
+
+  const changed =
+    relatedFiles.length !== pack.relatedFiles.length
+    || codeSnippets.length !== pack.codeSnippets.length
+    || invalidationTriggers.length !== pack.invalidationTriggers.length;
+
+  if (!changed) return pack;
+
+  return {
+    ...pack,
+    relatedFiles,
+    codeSnippets,
+    invalidationTriggers: invalidationTriggers.length > 0 ? invalidationTriggers : relatedFiles,
+  };
+}
+
+function isShallowModulePack(pack: ContextPack): boolean {
+  if (pack.packType !== 'module_context') return false;
+  const facts = pack.keyFacts.map((fact) => fact.toLowerCase());
+  const hasConcreteFacts = facts.some((fact) =>
+    fact.startsWith('data structures:')
+    || fact.startsWith('top-level routines:')
+    || fact.startsWith('contains:')
+    || fact.startsWith('exports functions:')
+    || fact.startsWith('exports types:')
+    || fact.startsWith('exports constants:')
+  );
+  if (hasConcreteFacts) return false;
+  const snippetLength = pack.codeSnippets.reduce((total, snippet) => total + snippet.content.trim().length, 0);
+  return snippetLength < 100;
+}
+
+function hasConcreteModuleSnippet(pack: ContextPack): boolean {
+  if (pack.packType !== 'module_context') return false;
+  return pack.codeSnippets.some((snippet) =>
+    /\b(struct|typedef|enum|class|interface|function)\b/.test(snippet.content)
+  );
+}
+
+function computePackQualityMultiplier(pack: ContextPack): number {
+  let multiplier = 1;
+
+  const snippetLength = pack.codeSnippets.reduce((total, snippet) => total + snippet.content.trim().length, 0);
+  if (pack.codeSnippets.length === 0) multiplier -= 0.15;
+  else if (snippetLength < 120) multiplier -= 0.08;
+
+  if (pack.keyFacts.length < 2) multiplier -= 0.08;
+
+  if (pack.packType === 'module_context') {
+    if (isShallowModulePack(pack)) multiplier -= 0.22;
+    if (hasConcreteModuleSnippet(pack)) multiplier += 0.12;
+  }
+
+  return Math.max(0.55, Math.min(1.25, multiplier));
+}
+
 export function rankContextPacks(input: PackRankingInput): PackRankingResult {
   // Default to L1 pack limit (6) for agent ergonomics - reduced from previous 10
   const maxPacks = Math.max(1, input.maxPacks ?? 6);
   const depth = input.depth ?? 'L1';
   const taskType = normalizeTaskType(input.taskType);
+  const sanitized = input.packs
+    .map((pack) => sanitizePackForRanking(pack))
+    .filter((pack): pack is ContextPack => pack !== null);
+  if (sanitized.length === 0) return { packs: [], averageScore: 0 };
   const deduped = new Map<string, ContextPack>();
-  for (const pack of input.packs) {
+  for (const pack of sanitized) {
     if (!deduped.has(pack.packId)) deduped.set(pack.packId, pack);
   }
 
@@ -196,7 +279,8 @@ export function rankContextPacks(input: PackRankingInput): PackRankingResult {
     // Apply heavy penalty (0.1x) to eval-corpus and test fixture paths
     // This is defense-in-depth for any already-indexed files that should be excluded
     const hasEvalCorpusFile = pack.relatedFiles.some(isEvalCorpusPath);
-    const finalScore = hasEvalCorpusFile ? weightedScore * 0.1 : weightedScore;
+    const baseScore = hasEvalCorpusFile ? weightedScore * 0.1 : weightedScore;
+    const finalScore = baseScore * computePackQualityMultiplier(pack);
 
     return { pack, score: finalScore };
   });
@@ -516,8 +600,9 @@ async function buildModulePack(
   summarizer: PackSummarizer,
   storage: LibrarianStorage | null = null
 ): Promise<ContextPack> {
-  const snippet = await loadModuleSnippet(mod.path);
-  const summaryFallback = mod.purpose || `Module ${path.basename(mod.path, path.extname(mod.path))}`;
+  const moduleArtifacts = await loadModuleContextArtifacts(mod.path);
+  const snippet = moduleArtifacts.snippet;
+  const summaryFallback = mod.purpose || moduleArtifacts.summaryHint || `Module ${path.basename(mod.path, path.extname(mod.path))}`;
   const summary = await summarizer.summarize('module', buildModuleSummaryInput(mod, functions), summaryFallback);
   const relatedFiles = collectRelatedFiles(mod);
   // Use path-based targetId to align with embedding entity_id format
@@ -534,6 +619,12 @@ async function buildModulePack(
   // Add purpose if available (most useful for agents)
   if (mod.purpose) {
     keyFacts.push(`Purpose: ${mod.purpose}`);
+  }
+
+  // File-derived structural facts provide real code-grounded context, especially
+  // when module metadata is sparse in non-TS/JS codebases.
+  if (moduleArtifacts.structuralFacts.length > 0) {
+    keyFacts.push(...moduleArtifacts.structuralFacts);
   }
 
   // Categorized exports (more useful than raw list)
@@ -808,9 +899,35 @@ interface FunctionSnippetResult {
   parentContext?: ParentContextMetadata;
 }
 
+interface ModuleContextArtifacts {
+  snippet: CodeSnippet | null;
+  structuralFacts: string[];
+  summaryHint: string | null;
+}
+
 const IMPORT_LINE_PATTERN = /^\s*(import|export\s+\{[^}]*\}\s+from)\b/;
 const CLASS_SIGNATURE_PATTERN = /^\s*(export\s+)?(abstract\s+)?class\s+[A-Za-z_$][\w$]*/;
 const CONSTRUCTOR_SIGNATURE_PATTERN = /^\s*constructor\s*\(/;
+const C_INCLUDE_PATTERN = /^\s*#include\b/;
+const MACRO_PATTERN = /^\s*#define\s+([A-Za-z_][\w]*)/;
+const DATA_STRUCTURE_PATTERNS: RegExp[] = [
+  /^\s*(?:export\s+)?(?:interface|class|enum)\s+([A-Za-z_][\w]*)/,
+  /^\s*(?:export\s+)?type\s+([A-Za-z_][\w]*)\s*=/,
+  /^\s*(?:typedef\s+)?(?:struct|enum|union)\s+([A-Za-z_][\w]*)\s*\{/,
+  /^\s*typedef\s+(?:struct|enum|union)\s+([A-Za-z_][\w]*)\s*;/,
+];
+const FUNCTION_DECLARATION_PATTERNS: RegExp[] = [
+  /^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][\w]*)\s*\(/,
+  /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_][\w]*)\s*=\s*(?:async\s*)?\([^=;]*\)\s*=>/,
+  /^\s*(?:[A-Za-z_][\w\s*]*\s+)+([A-Za-z_][\w]*)\s*\([^;]*\)\s*\{/,
+];
+const CONSTANT_PATTERN = /^\s*(?:export\s+)?(?:const|static\s+const|constexpr)\b[^=;]*\b([A-Za-z_][\w]*)\b/;
+const MODULE_DECLARATION_LIMIT = 6;
+const MODULE_SNIPPET_LINES = 64;
+const MODULE_SNIPPET_CONTEXT_LINES = 4;
+const MODULE_NAME_STOPWORDS = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'sizeof', 'typeof', 'new',
+]);
 
 function estimateTokens(text: string): number {
   const trimmed = text.trim();
@@ -916,21 +1033,136 @@ async function loadFunctionSnippet(fn: FunctionKnowledge): Promise<FunctionSnipp
   }
 }
 
-async function loadModuleSnippet(filePath: string): Promise<CodeSnippet | null> {
+function addUniqueLimited(target: string[], value: string, limit: number): void {
+  const normalized = value.trim();
+  if (!normalized || target.includes(normalized)) return;
+  if (target.length < limit) target.push(normalized);
+}
+
+function normalizeLineForParsing(rawLine: string, state: { inBlockComment: boolean }): string {
+  let line = rawLine;
+  if (state.inBlockComment) {
+    const end = line.indexOf('*/');
+    if (end === -1) return '';
+    line = line.slice(end + 2);
+    state.inBlockComment = false;
+  }
+
+  while (true) {
+    const start = line.indexOf('/*');
+    if (start === -1) break;
+    const end = line.indexOf('*/', start + 2);
+    if (end === -1) {
+      line = line.slice(0, start);
+      state.inBlockComment = true;
+      break;
+    }
+    line = `${line.slice(0, start)} ${line.slice(end + 2)}`;
+  }
+
+  line = line.replace(/\/\/.*$/, '');
+  return line.trim();
+}
+
+function extractFirstMatch(line: string, patterns: RegExp[]): string | null {
+  for (const pattern of patterns) {
+    const match = line.match(pattern);
+    const name = match?.[1]?.trim();
+    if (!name) continue;
+    if (!MODULE_NAME_STOPWORDS.has(name.toLowerCase())) return name;
+  }
+  return null;
+}
+
+function isImportLikeLine(line: string): boolean {
+  return IMPORT_LINE_PATTERN.test(line) || C_INCLUDE_PATTERN.test(line);
+}
+
+function buildModuleSummaryHint(filePath: string, dataStructures: string[], routines: string[], macros: string[]): string | null {
+  const moduleName = path.basename(filePath, path.extname(filePath));
+  if (dataStructures.length > 0 && routines.length > 0) {
+    return `${moduleName} defines ${formatList(dataStructures, 2)} and implements ${formatList(routines, 2)}.`;
+  }
+  if (dataStructures.length > 0) {
+    return `${moduleName} defines ${formatList(dataStructures, 3)}.`;
+  }
+  if (routines.length > 0) {
+    return `${moduleName} implements ${formatList(routines, 3)}.`;
+  }
+  if (macros.length > 0) {
+    return `${moduleName} declares ${formatList(macros, 3)} macros.`;
+  }
+  return null;
+}
+
+async function loadModuleContextArtifacts(filePath: string): Promise<ModuleContextArtifacts> {
   try {
     const content = await fs.readFile(filePath, 'utf8');
     const lines = content.split('\n');
-    const snippet = lines.slice(0, Math.min(lines.length, 40)).join('\n');
+    const dataStructures: string[] = [];
+    const routines: string[] = [];
+    const macros: string[] = [];
+    const constants: string[] = [];
+    const commentState = { inBlockComment: false };
+
+    let firstSubstantiveLine = -1;
+    let firstSignalLine = -1;
+
+    for (let idx = 0; idx < lines.length; idx += 1) {
+      const parsed = normalizeLineForParsing(lines[idx] ?? '', commentState);
+      if (!parsed) continue;
+
+      if (firstSubstantiveLine < 0 && !isImportLikeLine(parsed)) {
+        firstSubstantiveLine = idx;
+      }
+
+      const dataStructure = extractFirstMatch(parsed, DATA_STRUCTURE_PATTERNS);
+      if (dataStructure) {
+        addUniqueLimited(dataStructures, dataStructure, MODULE_DECLARATION_LIMIT);
+        if (firstSignalLine < 0) firstSignalLine = idx;
+      }
+
+      const routine = extractFirstMatch(parsed, FUNCTION_DECLARATION_PATTERNS);
+      if (routine) {
+        addUniqueLimited(routines, routine, MODULE_DECLARATION_LIMIT);
+        if (firstSignalLine < 0) firstSignalLine = idx;
+      }
+
+      const macroMatch = parsed.match(MACRO_PATTERN)?.[1];
+      if (macroMatch) {
+        addUniqueLimited(macros, macroMatch, MODULE_DECLARATION_LIMIT);
+        if (firstSignalLine < 0) firstSignalLine = idx;
+      }
+
+      const constantMatch = parsed.match(CONSTANT_PATTERN)?.[1];
+      if (constantMatch) {
+        addUniqueLimited(constants, constantMatch, MODULE_DECLARATION_LIMIT);
+      }
+    }
+
+    const startIdx = Math.max(0, (firstSignalLine >= 0 ? firstSignalLine : Math.max(0, firstSubstantiveLine)) - MODULE_SNIPPET_CONTEXT_LINES);
+    const endIdx = Math.min(lines.length, startIdx + MODULE_SNIPPET_LINES);
+    const snippet = lines.slice(startIdx, endIdx).join('\n');
     const minimized = minimizeSnippet(snippet);
+    const structuralFacts: string[] = [];
+    if (dataStructures.length > 0) structuralFacts.push(`Data structures: ${formatList(dataStructures, 4)}`);
+    if (routines.length > 0) structuralFacts.push(`Top-level routines: ${formatList(routines, 5)}`);
+    if (macros.length > 0) structuralFacts.push(`Macros: ${formatList(macros, 4)}`);
+    if (constants.length > 0) structuralFacts.push(`Global constants: ${formatList(constants, 4)}`);
+
     return {
-      filePath,
-      startLine: 1,
-      endLine: Math.min(lines.length, 40),
-      content: minimized.text,
-      language: getLanguage(filePath),
+      snippet: {
+        filePath,
+        startLine: startIdx + 1,
+        endLine: endIdx,
+        content: minimized.text,
+        language: getLanguage(filePath),
+      },
+      structuralFacts,
+      summaryHint: buildModuleSummaryHint(filePath, dataStructures, routines, macros),
     };
   } catch {
-    return noResult();
+    return { snippet: null, structuralFacts: [], summaryHint: null };
   }
 }
 

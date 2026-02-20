@@ -1005,7 +1005,7 @@ EXAMPLES:
 `,
 
   constructions: `
-librarian constructions - Browse, search, describe, install, and validate constructions
+librarian constructions - Browse, search, describe, install, run, and validate constructions
 
 USAGE:
     librarian constructions <subcommand> [options]
@@ -1014,7 +1014,8 @@ SUBCOMMANDS:
     list                    List available constructions (grouped by trust tier)
     search "<query>"        Rank constructions by semantic relevance
     describe <id>           Show full manifest details and example usage
-    install <id>            npm install wrapper with capability checks
+    install <id>            Install/activate construction (built-in or npm)
+    run <id>                Execute a construction directly
     validate [manifest]     Validate a local construction manifest JSON
 
 OPTIONS:
@@ -1026,7 +1027,9 @@ OPTIONS:
     --trust-tier <tier>     official | partner | community
     --language <lang>       Filter list by language
     --available-only        List only constructions executable in current runtime
+    --all                   Include discovery-only constructions in list output
     --dry-run               For install: validate only, skip npm install
+    --input <json|string>   For run: input payload (JSON preferred)
     --path <file>           For validate: explicit manifest path
 
 DESCRIPTION:
@@ -1035,10 +1038,12 @@ DESCRIPTION:
 
 EXAMPLES:
     librarian constructions list
+    librarian constructions list --all
     librarian constructions list --trust-tier official --limit 20
     librarian constructions search "blast radius change impact"
     librarian constructions describe librainian:security-audit-helper
     librarian constructions install librainian:security-audit-helper --dry-run
+    librarian constructions run librainian:security-audit-helper --input '{"files":["src/auth.ts"],"checkTypes":["auth"]}'
     librarian constructions validate ./construction.manifest.json --json
 `,
 

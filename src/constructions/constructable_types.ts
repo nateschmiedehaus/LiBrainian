@@ -182,7 +182,9 @@ export type ConstructableId =
   | 'vitest-testing'
   | 'pytest-testing'
   | 'cypress-e2e'
-  | 'playwright-e2e';
+  | 'playwright-e2e'
+  // Meta/Quality
+  | 'patrol-dogfood';
 
 /**
  * Query classification flags that map to constructables.
