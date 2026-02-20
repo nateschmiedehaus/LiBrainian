@@ -8,6 +8,7 @@ function parseArgs(argv) {
     source: 'latest',
     artifact: 'state/e2e/reality-gate.json',
     outcomeArtifact: 'state/e2e/outcome-report.json',
+    agenticReport: null,
     strict: false,
   };
 
@@ -35,6 +36,15 @@ function parseArgs(argv) {
       options.strict = true;
       continue;
     }
+    if (arg === '--agentic-report') {
+      const value = argv[i + 1];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --agentic-report');
+      }
+      i += 1;
+      options.agenticReport = value;
+      continue;
+    }
     if (arg === '--outcome-artifact') {
       const value = argv[i + 1];
       if (!value || value.startsWith('--')) {
@@ -49,6 +59,9 @@ function parseArgs(argv) {
 
   if (options.source !== 'latest' && options.source !== 'tarball') {
     throw new Error(`Invalid --source value "${options.source}" (expected latest|tarball)`);
+  }
+  if (typeof options.agenticReport !== 'string' || options.agenticReport.trim().length === 0) {
+    throw new Error('Missing required --agentic-report path');
   }
 
   return options;
@@ -79,6 +92,8 @@ function runOutcomeHarness(options) {
     : `${options.outcomeArtifact}.md`;
   const args = [
     'scripts/e2e-outcome-harness.mjs',
+    '--agentic-report',
+    options.agenticReport,
     '--artifact',
     options.outcomeArtifact,
     '--markdown',

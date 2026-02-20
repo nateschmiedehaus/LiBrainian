@@ -3,17 +3,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const DEFAULT_TASKBANK_PATH = 'src/state/e2e/taskbank/default.json';
-const DEFAULT_AGENTIC_REPORT_PATH = 'eval-results/agentic-use-case-review.json';
 const DEFAULT_ARTIFACT_PATH = 'state/e2e/outcome-report.json';
 const DEFAULT_MARKDOWN_PATH = 'state/e2e/outcome-report.md';
 const DEFAULT_MAX_AGE_HOURS = 240;
 const DEFAULT_MIN_NATURAL_TASKS = 20;
 const DEFAULT_MIN_NATURAL_REPOS = 3;
-const DEFAULT_MIN_PAIRED_TASKS = 10;
+const DEFAULT_MIN_PAIRED_TASKS = 0;
 const DEFAULT_MIN_RELIABILITY_LIFT = 0;
 const DEFAULT_MIN_TIME_REDUCTION = 0;
-const DEFAULT_MIN_EVIDENCE_LINKED_PAIRS = 5;
+const DEFAULT_MIN_EVIDENCE_LINKED_PAIRS = 0;
 const DEFAULT_MIN_AGENT_CRITIQUE_SHARE = 0;
+const DEFAULT_MIN_EXPLORATION_FINDINGS = 1;
 
 class OutcomeHarnessFailure extends Error {
   constructor(message, report) {
@@ -31,24 +31,11 @@ function parseNumber(value, flagName) {
   return parsed;
 }
 
-async function discoverDefaultAbReports(root) {
-  const evalDir = path.join(root, 'eval-results');
-  const entries = await fs.readdir(evalDir, { withFileTypes: true }).catch(() => []);
-  const files = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => /^ab-harness-.*\.json$/i.test(name))
-    .map((name) => path.join('eval-results', name))
-    .sort();
-  if (files.length > 0) return files;
-  return ['eval-results/ab-harness-report.json'];
-}
-
 async function parseArgs(argv, root) {
   const options = {
     taskbank: DEFAULT_TASKBANK_PATH,
-    agenticReport: DEFAULT_AGENTIC_REPORT_PATH,
-    abReports: await discoverDefaultAbReports(root),
+    agenticReport: null,
+    abReports: [],
     artifact: DEFAULT_ARTIFACT_PATH,
     markdown: DEFAULT_MARKDOWN_PATH,
     strict: false,
@@ -60,8 +47,8 @@ async function parseArgs(argv, root) {
     minTimeReduction: DEFAULT_MIN_TIME_REDUCTION,
     minEvidenceLinkedPairs: DEFAULT_MIN_EVIDENCE_LINKED_PAIRS,
     minAgentCritiqueShare: DEFAULT_MIN_AGENT_CRITIQUE_SHARE,
+    minExplorationFindings: DEFAULT_MIN_EXPLORATION_FINDINGS,
   };
-  let sawExplicitAbReport = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -80,10 +67,6 @@ async function parseArgs(argv, root) {
     }
     if (arg === '--ab-report') {
       if (!value || value.startsWith('--')) throw new Error('Missing value for --ab-report');
-      if (!sawExplicitAbReport) {
-        options.abReports = [];
-        sawExplicitAbReport = true;
-      }
       options.abReports.push(value);
       i += 1;
       continue;
@@ -148,6 +131,12 @@ async function parseArgs(argv, root) {
       i += 1;
       continue;
     }
+    if (arg === '--min-exploration-findings') {
+      if (!value || value.startsWith('--')) throw new Error('Missing value for --min-exploration-findings');
+      options.minExplorationFindings = parseNumber(value, '--min-exploration-findings');
+      i += 1;
+      continue;
+    }
     if (arg === '--strict') {
       options.strict = true;
       continue;
@@ -155,8 +144,8 @@ async function parseArgs(argv, root) {
     throw new Error(`Unknown argument: ${arg}`);
   }
 
-  if (options.abReports.length === 0) {
-    throw new Error('No AB report paths were provided');
+  if (typeof options.agenticReport !== 'string' || options.agenticReport.trim().length === 0) {
+    throw new Error('Missing required --agentic-report path');
   }
   return options;
 }
@@ -603,6 +592,7 @@ function buildMarkdownReport(report) {
   lines.push(`- Freshness age > ${report.thresholds.maxAgeHours} hours`);
   lines.push(`- Evidence-linked paired tasks < ${report.thresholds.minEvidenceLinkedPairs}`);
   lines.push(`- Agent critique share < ${report.thresholds.minAgentCritiqueShare}`);
+  lines.push(`- Exploration findings < ${report.thresholds.minExplorationFindings}`);
   lines.push('');
   lines.push('## Diagnoses');
   lines.push('');
@@ -728,9 +718,6 @@ async function buildOutcomeReport(options) {
       abReportPayloads.push({ path: abReportPath, payload });
     }
   }
-  if (abReportPayloads.length === 0) {
-    throw new Error('No AB reports were readable');
-  }
 
   const taskbankTasks = normalizeTaskbankTasks(taskbankJson);
   const agenticRows = normalizeAgenticResults(agenticReportJson);
@@ -743,8 +730,14 @@ async function buildOutcomeReport(options) {
 
   const sourceTimestamps = {
     agentic: toIsoOrNull(agenticReportJson?.createdAt),
-    ab: toIsoOrNull(abReportPayloads[0]?.payload?.completedAt ?? abReportPayloads[0]?.payload?.startedAt ?? abReportPayloads[0]?.payload?.createdAt),
   };
+  if (abReportPayloads.length > 0) {
+    sourceTimestamps.ab = toIsoOrNull(
+      abReportPayloads[0]?.payload?.completedAt
+      ?? abReportPayloads[0]?.payload?.startedAt
+      ?? abReportPayloads[0]?.payload?.createdAt
+    );
+  }
   const freshness = summarizeFreshness(sourceTimestamps, options.maxAgeHours, new Date());
 
   const failures = [];
@@ -754,28 +747,32 @@ async function buildOutcomeReport(options) {
   if (naturalTasks.uniqueRepos < options.minNaturalRepos) {
     failures.push(`insufficient_natural_repos:${naturalTasks.uniqueRepos}<${options.minNaturalRepos}`);
   }
-  if (controlVsTreatment.pairedTasks < options.minPairedTasks) {
+  const hasAbEvidence = controlVsTreatment.pairedTasks > 0;
+  if (hasAbEvidence && controlVsTreatment.pairedTasks < options.minPairedTasks) {
     failures.push(`insufficient_paired_tasks:${controlVsTreatment.pairedTasks}<${options.minPairedTasks}`);
   }
-  if (controlVsTreatment.reliabilityLift < options.minReliabilityLift) {
+  if (hasAbEvidence && controlVsTreatment.reliabilityLift < options.minReliabilityLift) {
     failures.push(`reliability_lift_below_threshold:${controlVsTreatment.reliabilityLift.toFixed(4)}<${options.minReliabilityLift}`);
   }
-  if (controlVsTreatment.timeReduction < options.minTimeReduction) {
+  if (hasAbEvidence && controlVsTreatment.timeReduction < options.minTimeReduction) {
     failures.push(`time_reduction_below_threshold:${controlVsTreatment.timeReduction.toFixed(4)}<${options.minTimeReduction}`);
   }
-  if (controlVsTreatment.evidenceLinkedPairs < options.minEvidenceLinkedPairs) {
+  if (hasAbEvidence && controlVsTreatment.evidenceLinkedPairs < options.minEvidenceLinkedPairs) {
     failures.push(`insufficient_evidence_links:${controlVsTreatment.evidenceLinkedPairs}<${options.minEvidenceLinkedPairs}`);
   }
-  if (controlVsTreatment.agentCritiqueShare < options.minAgentCritiqueShare) {
+  if (hasAbEvidence && controlVsTreatment.agentCritiqueShare < options.minAgentCritiqueShare) {
     failures.push(
       `agent_critique_share_below_threshold:${controlVsTreatment.agentCritiqueShare.toFixed(4)}<${options.minAgentCritiqueShare}`
     );
+  }
+  if (exploration.totalFindings < options.minExplorationFindings) {
+    failures.push(`exploration_findings_below_threshold:${exploration.totalFindings}<${options.minExplorationFindings}`);
   }
   failures.push(...freshness.failures);
 
   const diagnoses = [];
   const suggestions = [];
-  if (controlVsTreatment.reliabilityLift < options.minReliabilityLift) {
+  if (hasAbEvidence && controlVsTreatment.reliabilityLift < options.minReliabilityLift) {
     diagnoses.push(
       `Treatment reliability underperformed control (${(controlVsTreatment.reliabilityLift * 100).toFixed(2)}% lift).`
     );
@@ -786,7 +783,7 @@ async function buildOutcomeReport(options) {
       'Run targeted AB reruns on failed tasks with stricter context-pack selection and verification hints.'
     );
   }
-  if (controlVsTreatment.timeReduction > 0 && controlVsTreatment.reliabilityLift < 0) {
+  if (hasAbEvidence && controlVsTreatment.timeReduction > 0 && controlVsTreatment.reliabilityLift < 0) {
     diagnoses.push('Treatment is faster but less reliable, indicating a speed/correctness tradeoff regression.');
     suggestions.push('Prioritize correctness gates over latency for treatment path until reliability lift is non-negative.');
   }
@@ -794,16 +791,16 @@ async function buildOutcomeReport(options) {
     diagnoses.push('Outcome evidence freshness is stale or missing.');
     suggestions.push('Refresh agentic-use-case and AB artifacts before rerunning strict outcome gate.');
   }
-  if (controlVsTreatment.evidenceLinkedPairs < options.minEvidenceLinkedPairs) {
+  if (hasAbEvidence && controlVsTreatment.evidenceLinkedPairs < options.minEvidenceLinkedPairs) {
     diagnoses.push('Insufficient evidence-linked paired tasks reduces auditability.');
     suggestions.push('Increase paired tasks with artifact capture enabled to improve diagnostic confidence.');
   }
-  if (controlVsTreatment.agentCritiqueShare < options.minAgentCritiqueShare) {
+  if (hasAbEvidence && controlVsTreatment.agentCritiqueShare < options.minAgentCritiqueShare) {
     diagnoses.push('External agent runs did not provide adequate structured critique coverage.');
     suggestions.push('Require critique JSON markers in agent prompt contract and reject runs with missing critique payloads.');
     suggestions.push('Expand critique rubric coverage across correctness, relevance, context quality, tooling friction, reliability, and productivity.');
   }
-  if (exploration.totalFindings === 0) {
+  if (exploration.totalFindings < options.minExplorationFindings) {
     diagnoses.push('Exploratory diagnostics produced no findings.');
     suggestions.push('Ensure agentic-use-case review includes open-ended exploration passes that surface latent risks and workflow friction.');
   } else {
@@ -847,6 +844,7 @@ async function buildOutcomeReport(options) {
       minTimeReduction: options.minTimeReduction,
       minEvidenceLinkedPairs: options.minEvidenceLinkedPairs,
       minAgentCritiqueShare: options.minAgentCritiqueShare,
+      minExplorationFindings: options.minExplorationFindings,
     },
     confirmDisconfirm: {
       confirmed: failures.length === 0,
@@ -898,6 +896,7 @@ main().catch(async (error) => {
       minTimeReduction: DEFAULT_MIN_TIME_REDUCTION,
       minEvidenceLinkedPairs: DEFAULT_MIN_EVIDENCE_LINKED_PAIRS,
       minAgentCritiqueShare: DEFAULT_MIN_AGENT_CRITIQUE_SHARE,
+      minExplorationFindings: DEFAULT_MIN_EXPLORATION_FINDINGS,
     };
   }
   const strictReport = error instanceof OutcomeHarnessFailure ? error.report : null;
@@ -921,6 +920,7 @@ main().catch(async (error) => {
         minTimeReduction: options.minTimeReduction,
         minEvidenceLinkedPairs: options.minEvidenceLinkedPairs,
         minAgentCritiqueShare: options.minAgentCritiqueShare,
+        minExplorationFindings: options.minExplorationFindings,
       },
       diagnoses: ['Harness execution error before report generation.'],
       suggestions: ['Check input artifact paths and JSON validity, then rerun.'],

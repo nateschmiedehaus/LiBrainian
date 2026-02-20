@@ -42,6 +42,42 @@ function buildAgenticReport(createdAt: string): JsonRecord {
       success: index % 9 !== 0,
       strictSignals: [],
     })),
+    exploration: {
+      findings: [
+        {
+          repo: 'repo-alpha',
+          intent: 'Explore likely hidden failure modes and suggest fixes.',
+          success: true,
+          packCount: 2,
+          evidenceCount: 4,
+          hasUsefulSummary: true,
+          totalConfidence: 0.83,
+          strictSignals: [],
+          errors: [],
+          summary: 'Found brittle dependency parsing assumptions around mixed-case directives.',
+          citations: [{ file: 'src/utils/dependencyParser.ts', line: 12 }],
+        },
+      ],
+      summary: {
+        enabled: true,
+        intentsPerRepo: 1,
+        totalRuns: 1,
+        successRate: 1,
+        usefulSummaryRate: 1,
+        evidenceRate: 1,
+        strictFailureShare: 0,
+        uniqueReposCovered: 1,
+        byRepo: {
+          'repo-alpha': {
+            runs: 1,
+            successes: 1,
+            usefulSummaries: 1,
+            evidenceBearing: 1,
+            strictFailures: 0,
+          },
+        },
+      },
+    },
   };
 }
 

@@ -6,14 +6,14 @@ import { spawnSync } from 'node:child_process';
 const DEFAULT_REPORT = 'state/e2e/outcome-report.json';
 const DEFAULT_ARTIFACT = 'state/e2e/outcome-triage.json';
 const DEFAULT_MARKDOWN = 'state/e2e/outcome-triage.md';
-const DEFAULT_MAX_ISSUES = 5;
+const DEFAULT_MAX_ISSUES = 0;
 
 function parseArgs(argv) {
   const options = {
     report: DEFAULT_REPORT,
     artifact: DEFAULT_ARTIFACT,
     markdown: DEFAULT_MARKDOWN,
-    createGhIssues: false,
+    createGhIssues: true,
     includeImmediate: true,
     repo: process.env.GITHUB_REPOSITORY || '',
     maxIssues: DEFAULT_MAX_ISSUES,
@@ -49,13 +49,17 @@ function parseArgs(argv) {
     if (arg === '--max-issues') {
       if (!value || value.startsWith('--')) throw new Error('Missing value for --max-issues');
       const parsed = Number.parseInt(value, 10);
-      if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`Invalid --max-issues value: ${value}`);
+      if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`Invalid --max-issues value: ${value}`);
       options.maxIssues = parsed;
       i += 1;
       continue;
     }
     if (arg === '--create-gh-issues') {
       options.createGhIssues = true;
+      continue;
+    }
+    if (arg === '--no-create-gh-issues') {
+      options.createGhIssues = false;
       continue;
     }
     if (arg === '--include-immediate') {
@@ -167,6 +171,15 @@ function classifyFailure(failure) {
       relatedIssues: [564],
     };
   }
+  if (text.includes('exploration_findings_below_threshold')) {
+    return {
+      key: 'outcome-exploration-findings-missing',
+      severity: 'high',
+      immediate: false,
+      summary: 'Exploratory diagnostics produced too few findings to be trusted.',
+      relatedIssues: [564],
+    };
+  }
   if (text.includes('time_reduction_below_threshold')) {
     return {
       key: 'outcome-time-reduction-regressed',
@@ -198,6 +211,86 @@ function dedupeByKey(items) {
     if (!map.has(item.key)) map.set(item.key, item);
   }
   return Array.from(map.values());
+}
+
+function countPatternHits(values, pattern) {
+  let count = 0;
+  for (const value of values) {
+    if (pattern.test(String(value))) count += 1;
+  }
+  return count;
+}
+
+function buildExperienceFindings(report, suggestions, noteworthyObservations, painPoints, improvementIdeas) {
+  const corpus = []
+    .concat(noteworthyObservations)
+    .concat(painPoints)
+    .concat(improvementIdeas);
+  const findings = [];
+
+  const gitMetadataHits = countPatternHits(corpus, /\bnot a git repository\b|\.git metadata|missing git|git diff --name-only/i);
+  if (gitMetadataHits > 0) {
+    findings.push({
+      key: 'theme-workspace-git-metadata-missing',
+      severity: gitMetadataHits >= 4 ? 'high' : 'medium',
+      immediate: false,
+      summary: 'External workspace snapshots are missing Git metadata required by task verification flows.',
+      source: 'experience_theme',
+      detail: `Detected ${gitMetadataHits} observation(s) indicating missing .git metadata or failing git verification commands.`,
+      suggestions,
+      noteworthyObservations,
+      painPoints,
+      improvementIdeas,
+      evidenceLinks: [],
+      relatedIssues: [564],
+    });
+  }
+
+  const missingHintHits = countPatternHits(corpus, /\bno librarian hints\b|minimal.*hint|context was minimal/i);
+  if (missingHintHits > 0) {
+    findings.push({
+      key: 'theme-librainian-hints-insufficient',
+      severity: 'medium',
+      immediate: false,
+      summary: 'LiBrainian localization hints/context were missing or too thin in multiple treatment runs.',
+      source: 'experience_theme',
+      detail: `Detected ${missingHintHits} observation(s) about insufficient LiBrainian hint quality/coverage.`,
+      suggestions,
+      noteworthyObservations,
+      painPoints,
+      improvementIdeas,
+      evidenceLinks: [],
+      relatedIssues: [564],
+    });
+  }
+
+  const blockedVerificationHits = countPatternHits(corpus, /\bno automated tests executed\b|allow running.*vitest|test coverage.*unchecked/i);
+  if (blockedVerificationHits > 0) {
+    findings.push({
+      key: 'theme-harness-verification-flow-friction',
+      severity: 'medium',
+      immediate: false,
+      summary: 'Harness verification flow blocked meaningful in-repo test execution in multiple runs.',
+      source: 'experience_theme',
+      detail: `Detected ${blockedVerificationHits} observation(s) where verification policy prevented or discouraged targeted test execution.`,
+      suggestions,
+      noteworthyObservations,
+      painPoints,
+      improvementIdeas,
+      evidenceLinks: [],
+      relatedIssues: [564],
+    });
+  }
+
+  return findings;
+}
+
+function isGhAvailable(repo) {
+  if (!repo) return false;
+  const binary = spawnSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
+  if (binary.status !== 0) return false;
+  const auth = spawnSync('gh', ['auth', 'status', '-h', 'github.com'], { encoding: 'utf8', stdio: 'pipe' });
+  return auth.status === 0;
 }
 
 function buildTriage(report) {
@@ -249,9 +342,23 @@ function buildTriage(report) {
     relatedIssues: [564],
   }));
 
-  const merged = dedupeByKey(findings.concat(diagnosisFindings));
+  const experienceFindings = buildExperienceFindings(
+    report,
+    suggestions,
+    noteworthyObservations,
+    painPoints,
+    improvementIdeas
+  );
+
+  const merged = dedupeByKey(findings.concat(diagnosisFindings, experienceFindings));
   const immediateActions = merged.filter((item) => item.immediate);
-  const issueCandidates = merged.filter((item) => !item.immediate);
+  const issueCandidates = merged
+    .filter((item) => !item.immediate)
+    .map((item) => ({
+      ...item,
+      accepted: true,
+      acceptanceReason: 'default_accepted',
+    }));
 
   return {
     schema_version: 1,
@@ -432,16 +539,30 @@ async function main() {
   const triage = buildTriage(report);
 
   const created = [];
-  if (options.createGhIssues) {
-    if (!options.repo) {
-      throw new Error('Missing --repo (or GITHUB_REPOSITORY) for --create-gh-issues mode');
-    }
+  const shouldCreateIssues = options.createGhIssues && isGhAvailable(options.repo);
+  if (shouldCreateIssues) {
     const issueBacklog = options.includeImmediate
       ? triage.immediateActions.concat(triage.issueCandidates)
       : triage.issueCandidates;
-    const candidates = issueBacklog.slice(0, options.maxIssues);
+    const candidates = options.maxIssues > 0 ? issueBacklog.slice(0, options.maxIssues) : issueBacklog;
     for (const finding of candidates) {
       created.push(createIssue(options.repo, finding));
+    }
+  } else {
+    const issueBacklog = options.includeImmediate
+      ? triage.immediateActions.concat(triage.issueCandidates)
+      : triage.issueCandidates;
+    const candidates = options.maxIssues > 0 ? issueBacklog.slice(0, options.maxIssues) : issueBacklog;
+    for (const finding of candidates) {
+      created.push({
+        action: 'accepted_pending_creation',
+        key: finding.key,
+        number: null,
+        url: null,
+        reason: options.createGhIssues
+          ? 'gh_unavailable_or_unauthenticated'
+          : 'auto_creation_disabled',
+      });
     }
   }
 

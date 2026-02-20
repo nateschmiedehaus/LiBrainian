@@ -357,7 +357,7 @@ export class Librarian {
     } catch (error) {
       this.evidenceLedger = null;
       logWarning('Evidence ledger initialization failed; replay unavailable.', {
-        context: 'librarian',
+        context: 'librainian',
         workspace: this.config.workspace,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -368,25 +368,25 @@ export class Librarian {
       this.storageCapabilities = this.storage.getCapabilities();
       if (!this.storageCapabilities.optional.embeddings) {
         logWarning('Storage lacks embedding support; semantic retrieval is disabled.', {
-          context: 'librarian',
+          context: 'librainian',
           workspace: this.config.workspace,
         });
       }
       if (!this.storageCapabilities.optional.graphMetrics) {
         logWarning('Storage lacks graph metrics; graph expansion is disabled.', {
-          context: 'librarian',
+          context: 'librainian',
           workspace: this.config.workspace,
         });
       }
       if (!this.storageCapabilities.optional.multiVectors) {
         logWarning('Storage lacks multi-vector support; multi-vector scoring is disabled.', {
-          context: 'librarian',
+          context: 'librainian',
           workspace: this.config.workspace,
         });
       }
     } catch (error) {
       logWarning('Storage capability detection failed; defaulting to optimistic feature flags.', {
-        context: 'librarian',
+        context: 'librainian',
         workspace: this.config.workspace,
         error: error instanceof Error ? error.message : String(error),
       });

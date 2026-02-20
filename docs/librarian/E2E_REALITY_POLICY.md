@@ -106,5 +106,6 @@ Each artifact includes:
 - Trusted publish failures must return actionable CI error text, not silent fallback behavior.
 - Outcome triage must run even when outcome gate fails.
 - Critical triage findings are immediate-action blockers (fail closed).
-- High/medium triage findings must become tracked GH issues unless already deduplicated by diagnosis key.
+- High/medium triage findings are accepted by default as issue backlog items and should be auto-created on GitHub when auth is available.
+- If GitHub issue creation is unavailable in-session, triage must still record accepted pending items for later publish.
 - Cadence must produce a prioritized resolution queue artifact (`state/plans/agent-issue-fix-plan.json`) so failures always generate executable next work, not only red status.

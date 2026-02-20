@@ -35,6 +35,7 @@ function main() {
   const combined = `${update.stdout}\n${update.stderr}`;
   const softFailureReasons = [
     'Librarian not bootstrapped',
+    'LiBrainian not bootstrapped',
     'No valid files to index',
     'No files specified',
     'ProviderUnavailable',
