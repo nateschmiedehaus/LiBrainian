@@ -85,4 +85,16 @@ describe('resolveWorkspaceArg', () => {
     expect(result.workspace).toBe('/tmp/project');
     expect(result.commandArgs).toEqual(['--diff', 'HEAD~1..HEAD']);
   });
+
+  it('supports positional workspace for features command', () => {
+    const result = resolveWorkspaceArg({
+      command: 'features',
+      commandArgs: ['/tmp/project', '--json'],
+      rawArgs: ['features', '/tmp/project', '--json'],
+      defaultWorkspace: '/cwd',
+    });
+
+    expect(result.workspace).toBe('/tmp/project');
+    expect(result.commandArgs).toEqual(['--json']);
+  });
 });

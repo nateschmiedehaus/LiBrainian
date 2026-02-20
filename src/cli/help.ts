@@ -37,6 +37,7 @@ COMMANDS:
     privacy-report      Summarize privacy audit evidence
     export              Export portable .librarian index bundle
     import              Import portable .librarian index bundle
+    features            Show dynamic feature registry and current status
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
@@ -108,6 +109,7 @@ EXAMPLES:
     librainian privacy-report --since 2026-02-01T00:00:00Z --json
     librainian export --output state/exports/librarian-index.tar.gz
     librainian import --input state/exports/librarian-index.tar.gz
+    librainian features --json
     librainian mcp --print-config --client claude
     librainian generate-docs --include tools,context,rules
     librainian compose "Prepare a release plan" --limit 1
@@ -649,6 +651,28 @@ DESCRIPTION:
 EXAMPLES:
     librarian import --input state/exports/librarian-index.tar.gz
     librarian import --input ./librarian-index.tar.gz --json
+`,
+
+  'features': `
+librarian features - Show dynamic feature registry with status and config hints
+
+USAGE:
+    librarian features [options]
+
+OPTIONS:
+    --json               Emit machine-readable feature registry
+    --verbose            Include docs links and configuration hints in text output
+    --out <path>         Write JSON output to file (requires --json)
+
+DESCRIPTION:
+    Lists core and experimental LiBrainian capabilities, their runtime status
+    (active/limited/inactive/not_implemented), and where to configure or learn
+    more. This command is designed to run quickly without deep index scans.
+
+EXAMPLES:
+    librarian features
+    librarian features --verbose
+    librarian features --json --out state/features.json
 `,
 
   mcp: `

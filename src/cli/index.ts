@@ -53,6 +53,7 @@
  *   librarian privacy-report      - Summarize privacy-mode audit evidence
  *   librarian export              - Export portable .librarian index bundle
  *   librarian import              - Import portable .librarian index bundle
+ *   librarian features            - Show dynamic feature registry and status
  *
  * @packageDocumentation
  */
@@ -108,6 +109,7 @@ import { benchmarkCommand } from './commands/benchmark.js';
 import { generateDocsCommand } from './commands/generate_docs.js';
 import { privacyReportCommand } from './commands/privacy_report.js';
 import { exportIndexStateCommand, importIndexStateCommand } from './commands/index_state_bundle.js';
+import { featuresCommand } from './commands/features.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
@@ -121,7 +123,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'help';
+type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -355,6 +357,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'import': {
     description: 'Import portable .librarian index state bundle',
     usage: 'librarian import --input <bundle.tar.gz> [--json] [--out <path>]',
+  },
+  'features': {
+    description: 'List dynamic LiBrainian feature registry and current status',
+    usage: 'librarian features [--json] [--verbose] [--out <path>]',
   },
   'help': {
     description: 'Show help information',
@@ -746,6 +752,9 @@ async function main(): Promise<void> {
         break;
       case 'import':
         await importIndexStateCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'features':
+        await featuresCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 	    }
   } catch (error) {

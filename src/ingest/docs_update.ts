@@ -14,6 +14,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'node:crypto';
 import type { BootstrapCapabilities, BootstrapReport } from '../types.js';
+import { collectFeatureRegistry, type FeatureEntry } from '../features/registry.js';
 
 export interface DocsUpdateConfig {
   /** Workspace root directory */
@@ -104,7 +105,8 @@ export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpda
   }
 
   // Generate the librarian section content
-  const sectionContent = generateLibrarianSection(report, capabilities);
+  const featureRegistry = await collectFeatureRegistry(workspace);
+  const sectionContent = generateLibrarianSection(report, capabilities, featureRegistry);
   const sectionLineCount = sectionContent.split('\n').length;
   const state = await readLibrarianState(workspace);
   const claudeFileHashes = state.docs?.claudeFileHashes ?? {};
@@ -247,7 +249,11 @@ async function findAgentDocs(workspace: string): Promise<string[]> {
 /**
  * Generate the librarian documentation section content.
  */
-function generateLibrarianSection(report: BootstrapReport, capabilities: BootstrapCapabilities): string {
+function generateLibrarianSection(
+  report: BootstrapReport,
+  capabilities: BootstrapCapabilities,
+  featureRegistry: FeatureEntry[],
+): string {
   const stats = report.phases.reduce((acc, phase) => {
     acc[phase.phase.name] = phase.itemsProcessed;
     return acc;
@@ -262,6 +268,12 @@ function generateLibrarianSection(report: BootstrapReport, capabilities: Bootstr
     .map(([name]) => formatCapabilityName(name));
 
   const lastIndexed = report.completedAt?.toISOString() ?? new Date().toISOString();
+  const featureSnapshot = featureRegistry.map((feature) => ({
+    name: feature.name,
+    status: feature.status,
+    requiresConfig: feature.requiresConfig,
+    docs: feature.docs,
+  }));
 
   const lines: string[] = [
     LIBRARIAN_SECTION_START,
@@ -336,6 +348,12 @@ function generateLibrarianSection(report: BootstrapReport, capabilities: Bootstr
     limitedCapabilities.length > 0
       ? `**Limited/Unavailable**: ${limitedCapabilities.join(', ')}`
       : '',
+    '',
+    '### Feature Registry Snapshot',
+    '',
+    '```json',
+    JSON.stringify(featureSnapshot, null, 2),
+    '```',
     '',
     '### Index Statistics',
     '',
