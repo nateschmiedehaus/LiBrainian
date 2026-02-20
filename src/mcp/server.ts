@@ -510,7 +510,9 @@ const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
 const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
 const SESSION_EPISODES_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_SESSION_EPISODES = 5000;
-const SESSION_EPISODE_DECAY_LAMBDA = 0.5;
+const SESSION_EPISODE_RECENCY_HALF_LIFE_HOURS = 0.5;
+const DEFAULT_RECENCY_WEIGHT = 0.3;
+const RECENCY_SEMANTIC_FLOOR = 0.2;
 const AMBIGUOUS_SYMBOL_MATCH_THRESHOLD = 3;
 const MAX_QUERY_SYMBOL_CANDIDATES = 8;
 const MAX_DECOMPOSED_SUBQUERIES = 4;
@@ -541,6 +543,8 @@ const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.context_hints.conversation_context': 'Snake-case alias for contextHints.conversation_context. Include a compact recent summary so LiBrainian can disambiguate underspecified intents and overloaded query phrasing consistently.',
   'query.filter': 'Structured retrieval filter for scoped search. Use pathPrefix to isolate one package in a monorepo and optionally combine language, isExported, or excludeTests for higher precision.',
   'query.workingFile': 'Active file path hint used to auto-derive package scope in monorepos. When provided, LiBrainian infers a pathPrefix filter from workspace package boundaries.',
+  'query.recencyWeight': 'Optional episodic recency-bias weight in [0,1]. Set 0 to disable recency influence, or increase toward 1 to prioritize recently accessed files that still satisfy semantic relevance checks.',
+  'query.recency_weight': 'Snake-case alias for recencyWeight with identical semantics, preserving backward-compatible payloads while tuning episodic recency influence in retrieval ranking and hint injection.',
 };
 
 function countWords(value: string): number {
@@ -1600,6 +1604,8 @@ export class LibrarianMCPServer {
               },
             },
             workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection' },
+            recencyWeight: { type: 'number', description: 'Optional episodic recency-bias weight in [0,1]. Set 0 for cold retrieval, or increase toward 1 to prioritize recent files that remain semantically relevant.' },
+            recency_weight: { type: 'number', description: 'Snake-case alias for recencyWeight with identical semantics, preserving compatibility with clients that prefer snake-case payload conventions.' },
             minConfidence: { type: 'number', description: `Min confidence (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },
             includeEngines: { type: 'boolean', description: 'Include engine results' },
@@ -3821,32 +3827,53 @@ export class LibrarianMCPServer {
 
   private computeEpisodeRecencyScore(createdAtMs: number, nowMs: number): number {
     const ageHours = Math.max(0, (nowMs - createdAtMs) / 3_600_000);
-    return Math.exp(-SESSION_EPISODE_DECAY_LAMBDA * ageHours);
+    return Math.exp((-Math.LN2 * ageHours) / SESSION_EPISODE_RECENCY_HALF_LIFE_HOURS);
   }
 
-  private async getRecentEpisodeFileHints(
+  private resolveRecencyWeight(input: QueryToolInput): number {
+    const raw = (input.recencyWeight ?? input.recency_weight);
+    if (raw === undefined || raw === null) {
+      return DEFAULT_RECENCY_WEIGHT;
+    }
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) {
+      return DEFAULT_RECENCY_WEIGHT;
+    }
+    return Math.max(0, Math.min(1, numeric));
+  }
+
+  private async getRecentEpisodeFileBoosts(
     storage: LibrarianStorage,
     options: {
       sessionId: string;
       workspace: string;
+      intent: string;
+      recencyWeight: number;
+      semanticFloor?: number;
       limit?: number;
-      minScore?: number;
+      minBoost?: number;
     },
-  ): Promise<string[]> {
+  ): Promise<Array<{ file: string; boostScore: number }>> {
+    if (!(options.recencyWeight > 0)) {
+      return [];
+    }
     const episodes = await this.getSessionEpisodes(storage);
     const nowMs = Date.now();
     const workspace = path.resolve(options.workspace);
     const maxFiles = Math.max(1, Math.min(20, Math.trunc(options.limit ?? 6)));
-    const minScore = Number.isFinite(options.minScore) ? Number(options.minScore) : 0.15;
+    const semanticFloor = Number.isFinite(options.semanticFloor) ? Number(options.semanticFloor) : RECENCY_SEMANTIC_FLOOR;
+    const minBoost = Number.isFinite(options.minBoost) ? Number(options.minBoost) : 0.01;
     const scores = new Map<string, number>();
     for (const episode of episodes) {
       if (episode.sessionId !== options.sessionId) continue;
       if (episode.workspace !== workspace) continue;
       if (!episode.touchedFiles.length) continue;
       const recency = this.computeEpisodeRecencyScore(episode.createdAtMs, nowMs);
-      const weighted = recency * Math.max(0.1, Math.min(1, episode.importance));
-      if (weighted < minScore) continue;
+      const weighted = recency * Math.max(0.1, Math.min(1, episode.importance)) * options.recencyWeight;
+      if (weighted < minBoost) continue;
       for (const file of episode.touchedFiles) {
+        const semanticRelevance = this.scoreFindSymbolCandidate(options.intent, file);
+        if (semanticRelevance < semanticFloor) continue;
         const current = scores.get(file) ?? 0;
         if (weighted > current) {
           scores.set(file, weighted);
@@ -3856,7 +3883,10 @@ export class LibrarianMCPServer {
     return Array.from(scores.entries())
       .sort((left, right) => right[1] - left[1])
       .slice(0, maxFiles)
-      .map(([file]) => file);
+      .map(([file, boostScore]) => ({
+        file,
+        boostScore: Number(boostScore.toFixed(4)),
+      }));
   }
 
   private async persistBootstrapRunRecord(
@@ -5174,6 +5204,7 @@ export class LibrarianMCPServer {
       const contextHints = this.resolveQueryContextHints(input);
       const contextHintFiles = this.collectContextHintFiles(contextHints, workspace.path) ?? [];
       const contextHintIntentSuffix = this.buildContextHintIntentSuffix(contextHints);
+      const recencyWeight = this.resolveRecencyWeight(input);
       const normalizedAffectedFiles = this.normalizeQueryAffectedFiles(input.affectedFiles, workspace.path);
       const {
         merged: hintedAffectedFiles,
@@ -5182,10 +5213,13 @@ export class LibrarianMCPServer {
         normalizedAffectedFiles,
         contextHintFiles,
       );
-      const episodicHintFiles = await this.getRecentEpisodeFileHints(storage, {
+      const episodicBoostedFiles = await this.getRecentEpisodeFileBoosts(storage, {
         sessionId,
         workspace: workspace.path,
+        intent: input.intent,
+        recencyWeight,
       }).catch(() => []);
+      const episodicHintFiles = episodicBoostedFiles.map((entry) => entry.file);
       const { merged: mergedAffectedFiles, injected: injectedEpisodicFiles } = this.mergeAffectedFilesWithEpisodicHints(
         hintedAffectedFiles,
         episodicHintFiles,
@@ -5216,6 +5250,7 @@ export class LibrarianMCPServer {
         sessionId,
         contextHintFiles: injectedContextHintFiles.length,
         episodicHintFiles: injectedEpisodicFiles.length,
+        recencyWeight,
         intentType: query.intentType ?? 'general',
         depth: query.depth,
         streamEnabled,
@@ -5304,6 +5339,8 @@ export class LibrarianMCPServer {
           },
           sortOrder: 'retrieval_score_desc' as const,
           aggregateConfidence,
+          recencyWeightUsed: recencyWeight,
+          recencyBoostedFiles: episodicBoostedFiles.length > 0 ? episodicBoostedFiles : undefined,
           decompositionStrategy: decompositionPlan.strategy,
           clarificationNeeded: false,
           candidateSymbols: [] as QueryAmbiguityCandidate[],
@@ -5339,6 +5376,8 @@ export class LibrarianMCPServer {
           coverage_gaps: timeoutResult.coverageGaps,
           aggregate_confidence: this.toAggregateConfidenceAlias(timeoutResult.aggregateConfidence),
           near_misses: timeoutResult.nearMisses,
+          recency_weight_used: timeoutResult.recencyWeightUsed,
+          recency_boosted_files: timeoutResult.recencyBoostedFiles,
           decomposition_strategy: timeoutResult.decompositionStrategy,
           clarification_needed: timeoutResult.clarificationNeeded,
           candidate_symbols: timeoutResult.candidateSymbols,
@@ -5485,6 +5524,8 @@ export class LibrarianMCPServer {
         pagination,
         sortOrder: 'retrieval_score_desc',
         aggregateConfidence,
+        recencyWeightUsed: recencyWeight,
+        recencyBoostedFiles: episodicBoostedFiles.length > 0 ? episodicBoostedFiles : undefined,
         stalenessWarning,
         sessionId,
         decompositionStrategy: decompositionPlan.strategy,
@@ -5542,6 +5583,8 @@ export class LibrarianMCPServer {
         ...resultWithHumanReview,
         coverage_gaps: resultWithHumanReview.coverageGaps,
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
+        recency_weight_used: resultWithHumanReview.recencyWeightUsed,
+        recency_boosted_files: resultWithHumanReview.recencyBoostedFiles,
         staleness_warning: resultWithHumanReview.stalenessWarning,
         session_id: resultWithHumanReview.sessionId,
         decomposition_strategy: resultWithHumanReview.decompositionStrategy,

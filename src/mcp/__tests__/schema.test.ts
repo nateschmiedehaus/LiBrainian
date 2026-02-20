@@ -301,6 +301,11 @@ describe('MCP Schema', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('should accept recencyWeight and recency_weight aliases', () => {
+      expect(validateToolInput('query', { intent: 'trace auth flow', recencyWeight: 0.3 }).valid).toBe(true);
+      expect(validateToolInput('query', { intent: 'trace auth flow', recency_weight: 0 }).valid).toBe(true);
+    });
+
     it('should validate streaming options', () => {
       const input = {
         intent: 'Trace auth request lifecycle',
@@ -341,6 +346,11 @@ describe('MCP Schema', () => {
       expect(validateToolInput('query', { intent: 'test', minConfidence: 1.1 }).valid).toBe(false);
     });
 
+    it('should reject recency weights out of range', () => {
+      expect(validateToolInput('query', { intent: 'test', recencyWeight: -0.1 }).valid).toBe(false);
+      expect(validateToolInput('query', { intent: 'test', recency_weight: 1.1 }).valid).toBe(false);
+    });
+
     it('should reject invalid depth', () => {
       const result = validateToolInput('query', {
         intent: 'test',
@@ -374,6 +384,7 @@ describe('MCP Schema', () => {
       expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
       expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
       expect(queryToolJsonSchema.properties.contextHints?.description).toContain('agent-state hints');
+      expect(queryToolJsonSchema.properties.recencyWeight?.description).toContain('episodic recency-bias');
     });
   });
 

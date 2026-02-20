@@ -661,6 +661,12 @@ export interface QueryToolInput {
   /** Optional active file path hint used for package-scope auto-detection */
   workingFile?: string;
 
+  /** Per-query recency bias weight for episodic file boosting (0 disables, 1 max boost) */
+  recencyWeight?: number;
+
+  /** Snake-case alias for recencyWeight */
+  recency_weight?: number;
+
   /** Minimum confidence threshold */
   minConfidence?: number;
 
@@ -772,6 +778,15 @@ export interface QueryToolOutput {
 
   /** Human-readable warning when one or more packs are critically stale */
   stalenessWarning?: string;
+
+  /** Effective recency weight used for this retrieval execution */
+  recencyWeightUsed?: number;
+
+  /** Episodic file boosts that were eligible and applied */
+  recencyBoostedFiles?: Array<{
+    file: string;
+    boostScore: number;
+  }>;
 
   /** Query decomposition strategy selected by the analyzer */
   decompositionStrategy?: 'none' | 'ambiguity_clarify' | 'multi_hop_parallel';
@@ -2482,6 +2497,8 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
   const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
   const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  const recencyWeightOk = typeof obj.recencyWeight === 'number' || typeof obj.recencyWeight === 'undefined';
+  const recencyWeightAliasOk = typeof obj.recency_weight === 'number' || typeof obj.recency_weight === 'undefined';
   const explainMissesOk = typeof obj.explainMisses === 'boolean' || typeof obj.explainMisses === 'undefined';
   const explainMissesAliasOk = typeof obj.explain_misses === 'boolean' || typeof obj.explain_misses === 'undefined';
   const streamOk = typeof obj.stream === 'boolean' || typeof obj.stream === 'undefined';
@@ -2491,6 +2508,8 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
     && pageSizeOk
     && pageIdxOk
     && outputFileOk
+    && recencyWeightOk
+    && recencyWeightAliasOk
     && explainMissesOk
     && explainMissesAliasOk
     && streamOk

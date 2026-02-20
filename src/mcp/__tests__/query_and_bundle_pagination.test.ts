@@ -88,6 +88,135 @@ describe('MCP query and context bundle pagination', () => {
     expect((queryLibrarianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles).toContain(touchedFile);
     expect(result.episodic_hints?.sessionId).toBe('session-1');
     expect(result.episodic_hints?.injectedFiles).toContain(touchedFile);
+    expect(result.recency_weight_used).toBe(0.3);
+    expect(result.recency_boosted_files?.[0]?.file).toBe(touchedFile);
+    expect(result.recency_boosted_files?.[0]?.boostScore).toBeGreaterThan(0.15);
+  });
+
+  it('disables recency episodic boosting when recencyWeight is set to 0', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const touchedFile = path.resolve(workspace, 'src/auth/session.ts');
+    const state = new Map<string, string>();
+    state.set(SESSION_EPISODES_STATE_KEY, JSON.stringify({
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      items: [
+        {
+          episodeId: 'ep_prev',
+          sessionId: 'session-2',
+          workspace,
+          tool: 'query',
+          eventType: 'query',
+          subject: 'prior query',
+          resultIds: ['pack-prev'],
+          touchedFiles: [touchedFile],
+          importance: 0.9,
+          createdAtMs: Date.now(),
+        },
+      ],
+    }));
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getState: vi.fn(async (key: string) => state.get(key) ?? null),
+      setState: vi.fn(async (key: string, value: string) => {
+        state.set(key, value);
+      }),
+    });
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-no-recency',
+      constructionPlan: undefined,
+      totalConfidence: 0.4,
+      cacheHit: false,
+      latencyMs: 6,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    await (server as any).executeQuery({
+      workspace,
+      intent: 'find auth flow',
+      sessionId: 'session-2',
+      recencyWeight: 0,
+    });
+
+    const affected = (queryLibrarianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles ?? [];
+    expect(affected).not.toContain(touchedFile);
+  });
+
+  it('decays recency boost toward zero for old episodic traces', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const touchedFile = path.resolve(workspace, 'src/auth/session.ts');
+    const state = new Map<string, string>();
+    state.set(SESSION_EPISODES_STATE_KEY, JSON.stringify({
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      items: [
+        {
+          episodeId: 'ep_old',
+          sessionId: 'session-3',
+          workspace,
+          tool: 'query',
+          eventType: 'query',
+          subject: 'old query',
+          resultIds: ['pack-old'],
+          touchedFiles: [touchedFile],
+          importance: 0.9,
+          createdAtMs: Date.now() - (3 * 60 * 60 * 1000),
+        },
+      ],
+    }));
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getState: vi.fn(async (key: string) => state.get(key) ?? null),
+      setState: vi.fn(async (key: string, value: string) => {
+        state.set(key, value);
+      }),
+    });
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-old-recency',
+      constructionPlan: undefined,
+      totalConfidence: 0.35,
+      cacheHit: false,
+      latencyMs: 6,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'find auth flow',
+      sessionId: 'session-3',
+      recencyWeight: 1,
+    });
+
+    expect(result.recency_boosted_files?.[0]?.file).toBe(touchedFile);
+    expect(result.recency_boosted_files?.[0]?.boostScore).toBeLessThan(0.02);
   });
 
   it('persists query session episodes with touched files', async () => {
