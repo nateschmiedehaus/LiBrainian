@@ -91,6 +91,7 @@ function main() {
   const evaluationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evaluation/'));
   const evolutionFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evolution/'));
   const selfImprovementFiles = filePaths.filter((filePath) => filePath.startsWith('dist/agents/self_improvement/'));
+  const memoryFiles = filePaths.filter((filePath) => filePath.startsWith('dist/memory/'));
 
   if (disallowed.length > 0) {
     throw new Error(
@@ -131,6 +132,15 @@ function main() {
   if (selfImprovementFiles.length > 0) {
     throw new Error(
       `Package contains internal self-improvement tooling files:\n${selfImprovementFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (memoryFiles.length > 0) {
+    throw new Error(
+      `Package contains legacy memory cache paths:\n${memoryFiles
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
         .join('\n')}`

@@ -59,7 +59,7 @@ import { getIndexState, isReadyPhase, waitForIndexReady } from '../state/index_s
 import type { IndexState } from '../state/index_state.js';
 import { getWatchState, type WatchState } from '../state/watch_state.js';
 import { deriveWatchHealth, type WatchHealth } from '../state/watch_health.js';
-import { HierarchicalMemory, type MemoryTier } from '../memory/hierarchical_memory.js';
+import { HierarchicalMemory, type MemoryTier } from '../cache/tiered_cache.js';
 import { resolveMethodGuidance } from '../methods/method_guidance.js';
 import { globalEventBus, createQueryCompleteEvent, createQueryReceivedEvent, createQueryStartEvent, createQueryResultEvent, createQueryErrorEvent } from '../events.js';
 import { scoreCandidatesWithMultiSignals } from '../query/scoring.js';
