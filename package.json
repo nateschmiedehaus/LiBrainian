@@ -87,6 +87,7 @@
     "!dist/**/__tests__/**",
     "!dist/guidance/**",
     "!dist/skills/**",
+    "!dist/federation/**",
     "!dist/evaluation/**",
     "!dist/evolution/**",
     "!dist/agents/self_improvement/**",

@@ -71,6 +71,8 @@ describe('package release scripts', () => {
     expect(script).toContain('LIBRARIAN_MAX_UNPACKED_SIZE_MB');
     expect(script).toContain('Package contains legacy memory cache paths');
     expect(script).toContain('Package contains deprecated integrations directory paths');
+    expect(script).toContain('Package contains aspirational federation paths');
+    expect(script).toContain('Zero-importer federation policy violated');
     expect(script).toContain('extractRelativeImportSpecifiers');
     expect(script).toContain('resolveRelativeImportCandidates');
     expect(script).toContain('Package excludes runtime-imported dist modules');
@@ -172,6 +174,7 @@ describe('package release scripts', () => {
       '!dist/**/__tests__/**',
       '!dist/guidance/**',
       '!dist/skills/**',
+      '!dist/federation/**',
       '!dist/evaluation/**',
       '!dist/evolution/**',
       '!dist/agents/self_improvement/**',
@@ -199,6 +202,7 @@ describe('package release scripts', () => {
     expect(npmignore).toContain('dist/test/**');
     expect(npmignore).toContain('dist/**/__tests__/**');
     expect(npmignore).toContain('dist/evaluation/**');
+    expect(npmignore).toContain('dist/federation/**');
     expect(npmignore).toContain('dist/evolution/**');
     expect(npmignore).toContain('dist/agents/self_improvement/**');
   });

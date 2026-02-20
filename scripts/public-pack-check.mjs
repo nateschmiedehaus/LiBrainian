@@ -101,6 +101,48 @@ function resolveMaxUnpackedSizeBytes() {
   return Math.round(parsed * 1024 * 1024);
 }
 
+function collectFilesRecursive(rootDir, extensionFilter) {
+  const files = [];
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || !fs.existsSync(current)) continue;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const absolutePath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(absolutePath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (extensionFilter && !extensionFilter.some((ext) => entry.name.endsWith(ext))) continue;
+      files.push(absolutePath);
+    }
+  }
+  return files;
+}
+
+function findSourceFederationImporters(workspaceRoot) {
+  const srcRoot = path.join(workspaceRoot, 'src');
+  const sourceFiles = collectFilesRecursive(srcRoot, ['.ts', '.js', '.mjs', '.cjs']);
+  const importers = [];
+  const federationPattern = /(?:from\s+['"][^'"]*federation[^'"]*['"]|import\s*\(\s*['"][^'"]*federation[^'"]*['"])/;
+  for (const absolutePath of sourceFiles) {
+    const relativePath = path.relative(workspaceRoot, absolutePath).replace(/\\/g, '/');
+    if (relativePath.startsWith('src/federation/')) continue;
+    if (relativePath.includes('/__tests__/') || relativePath.endsWith('.test.ts') || relativePath.endsWith('.spec.ts')) continue;
+    let content = '';
+    try {
+      content = fs.readFileSync(absolutePath, 'utf8');
+    } catch {
+      continue;
+    }
+    if (federationPattern.test(content)) {
+      importers.push(relativePath);
+    }
+  }
+  return importers;
+}
+
 function main() {
   const raw = run('npm', ['pack', '--dry-run', '--json']);
   const parsed = parsePackOutput(raw);
@@ -114,6 +156,7 @@ function main() {
   const disallowed = filePaths.filter((filePath) => !isAllowedPackPath(filePath));
   const sourcemaps = filePaths.filter((filePath) => filePath.endsWith('.map'));
   const packedRuntimeJs = filePaths.filter((filePath) => filePath.startsWith('dist/') && filePath.endsWith('.js'));
+  const federationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/federation/'));
   const evaluationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evaluation/'));
   const evolutionFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evolution/'));
   const selfImprovementFiles = filePaths.filter((filePath) => filePath.startsWith('dist/agents/self_improvement/'));
@@ -162,6 +205,25 @@ function main() {
   if (evaluationFiles.length > 0) {
     throw new Error(
       `Package contains internal evaluation harness files:\n${evaluationFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (federationFiles.length > 0) {
+    throw new Error(
+      `Package contains aspirational federation paths:\n${federationFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  const sourceFederationImporters = findSourceFederationImporters(process.cwd());
+  if (sourceFederationImporters.length > 0) {
+    throw new Error(
+      `Zero-importer federation policy violated:\n${sourceFederationImporters
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
         .join('\n')}`

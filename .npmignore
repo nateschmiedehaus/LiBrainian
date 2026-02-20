@@ -2,6 +2,7 @@
 dist/**/*.map
 dist/test/**
 dist/**/__tests__/**
+dist/federation/**
 dist/evaluation/**
 dist/evolution/**
 dist/agents/self_improvement/**
