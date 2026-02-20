@@ -4,6 +4,7 @@
  *
  * Commands:
  *   librarian status              - Show current librarian status
+ *   librarian stats               - Summarize cost/performance from evidence ledger
  *   librarian query <intent>      - Run a query against the knowledge base
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
@@ -53,6 +54,7 @@
 import { parseArgs } from 'node:util';
 import { showHelp } from './help.js';
 import { statusCommand } from './commands/status.js';
+import { statsCommand } from './commands/stats.js';
 import { queryCommand } from './commands/query.js';
 import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
@@ -110,7 +112,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
+type Command = 'status' | 'stats' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -136,6 +138,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
     description: 'Show current librarian status',
     usage: 'librarian status [--verbose] [--format text|json] [--out <path>]',
+  },
+  'stats': {
+    description: 'Summarize tool-call cost and performance from evidence ledger',
+    usage: 'librarian stats [--days N] [--limit N] [--json]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
@@ -420,6 +426,9 @@ async function main(): Promise<void> {
           format: defaultFormat as 'text' | 'json',
           out: getStringArg(args, '--out') ?? undefined,
         });
+        break;
+      case 'stats':
+        await statsCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'query':

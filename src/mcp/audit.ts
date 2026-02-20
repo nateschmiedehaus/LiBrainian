@@ -314,6 +314,15 @@ export class AuditLogger {
       if (event.type !== 'tool_call') return;
 
       const sessionId = event.sessionId ? createSessionId(event.sessionId) : undefined;
+      const estimated = this.estimateToolCallMetrics(event);
+      const metadata = event.metadata && typeof event.metadata === 'object'
+        ? event.metadata as Record<string, unknown>
+        : {};
+      const explicitCost = this.toFiniteNumber(metadata.costUsd);
+      const explicitAttempt = this.toFiniteNumber(metadata.attemptNumber);
+      const cacheHit = this.toBoolean(metadata.cacheHit)
+        ?? this.toBoolean((event.output as Record<string, unknown> | undefined)?.cacheHit)
+        ?? false;
       await ledger.append({
         kind: 'tool_call',
         payload: {
@@ -322,6 +331,11 @@ export class AuditLogger {
           result: event.output ?? null,
           success: event.status === 'success',
           durationMs: event.durationMs ?? 0,
+          costUsd: explicitCost ?? estimated.costUsd,
+          agentId: event.clientId,
+          attemptNumber: explicitAttempt ? Math.max(1, Math.trunc(explicitAttempt)) : 1,
+          cacheHit,
+          tokenUsage: estimated.tokenUsage,
           errorMessage: event.error,
         },
         provenance: {
@@ -336,6 +350,7 @@ export class AuditLogger {
             severity: event.severity,
             status: event.status,
             workspace: event.workspace,
+            estimatedCost: explicitCost === null,
           },
         },
         relatedEntries: [],
@@ -367,6 +382,7 @@ export class AuditLogger {
     input?: Record<string, unknown>;
     output?: Record<string, unknown>;
     durationMs?: number;
+    metadata?: Record<string, unknown>;
     error?: string;
   }): AuditEvent {
     return this.log({
@@ -843,6 +859,74 @@ export class AuditLogger {
     } catch {
       // Ignore cleanup errors
     }
+  }
+
+  private estimateToolCallMetrics(event: AuditEvent): {
+    costUsd: number;
+    tokenUsage: {
+      input: number;
+      output: number;
+      total: number;
+      estimator: 'chars_div_4';
+      model?: string;
+    };
+  } {
+    const metadata = event.metadata && typeof event.metadata === 'object'
+      ? event.metadata as Record<string, unknown>
+      : {};
+    const model = typeof metadata.model === 'string' ? metadata.model : undefined;
+    const inputTokens = this.estimateTokens(event.input);
+    const outputTokens = this.estimateTokens(event.output);
+    const totalTokens = inputTokens + outputTokens;
+
+    const inputRate = this.readCostRate('LIBRARIAN_COST_INPUT_PER_1M', 3);
+    const outputRate = this.readCostRate('LIBRARIAN_COST_OUTPUT_PER_1M', 15);
+    const costUsd = Number((((inputTokens / 1_000_000) * inputRate) + ((outputTokens / 1_000_000) * outputRate)).toFixed(8));
+
+    return {
+      costUsd,
+      tokenUsage: {
+        input: inputTokens,
+        output: outputTokens,
+        total: totalTokens,
+        estimator: 'chars_div_4',
+        ...(model ? { model } : {}),
+      },
+    };
+  }
+
+  private estimateTokens(value: unknown): number {
+    if (value === undefined || value === null) return 0;
+    try {
+      return Math.max(1, Math.ceil(JSON.stringify(value).length / 4));
+    } catch {
+      return 0;
+    }
+  }
+
+  private readCostRate(envVar: string, fallback: number): number {
+    const raw = process.env[envVar];
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  }
+
+  private toFiniteNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
+
+  private toBoolean(value: unknown): boolean | null {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      if (value.toLowerCase() === 'true') return true;
+      if (value.toLowerCase() === 'false') return false;
+    }
+    return null;
   }
 }
 

@@ -97,6 +97,53 @@ describe('EvidenceLedger', () => {
       expect(retrieved).not.toBeNull();
       expect(retrieved!.payload).toEqual(payload);
     });
+
+    it('persists tool-call metrics columns for cost/performance telemetry', async () => {
+      const entry = await ledger.append({
+        kind: 'tool_call',
+        payload: {
+          toolName: 'query',
+          arguments: { intent: 'auth flow' },
+          result: { success: true },
+          success: true,
+          durationMs: 123,
+          costUsd: 0.0192,
+          agentId: 'agent-test',
+          attemptNumber: 2,
+          cacheHit: true,
+        },
+        provenance: {
+          source: 'tool_output',
+          method: 'unit_test',
+          agent: { type: 'tool', identifier: 'agent-test' },
+        },
+        relatedEntries: [],
+      });
+
+      const BetterSqlite3 = (await import('better-sqlite3')).default;
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        const row = db.prepare(`
+          SELECT cost_usd, duration_ms, agent_id, attempt_number, cache_hit
+          FROM evidence_ledger
+          WHERE id = ?
+        `).get(entry.id) as {
+          cost_usd: number | null;
+          duration_ms: number | null;
+          agent_id: string | null;
+          attempt_number: number | null;
+          cache_hit: number | null;
+        };
+
+        expect(row.cost_usd).toBeCloseTo(0.0192, 6);
+        expect(row.duration_ms).toBe(123);
+        expect(row.agent_id).toBe('agent-test');
+        expect(row.attempt_number).toBe(2);
+        expect(row.cache_hit).toBe(1);
+      } finally {
+        db.close();
+      }
+    });
   });
 
   describe('appendBatch', () => {

@@ -296,6 +296,17 @@ export interface ToolCallEvidence {
   result: unknown;
   success: boolean;
   durationMs: number;
+  costUsd?: number;
+  agentId?: string;
+  attemptNumber?: number;
+  cacheHit?: boolean;
+  tokenUsage?: {
+    input: number;
+    output: number;
+    total: number;
+    estimator: 'chars_div_4' | 'provider_reported';
+    model?: string;
+  };
   errorMessage?: string;
 }
 
@@ -626,6 +637,11 @@ interface LedgerRow {
   confidence: string | null;
   related_entries: string;
   session_id: string | null;
+  cost_usd: number | null;
+  duration_ms: number | null;
+  agent_id: string | null;
+  attempt_number: number | null;
+  cache_hit: number | null;
 }
 
 /**
@@ -699,6 +715,11 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
         confidence TEXT,
         related_entries TEXT NOT NULL DEFAULT '[]',
         session_id TEXT,
+        cost_usd REAL,
+        duration_ms INTEGER,
+        agent_id TEXT,
+        attempt_number INTEGER,
+        cache_hit INTEGER,
 
         CONSTRAINT valid_kind CHECK (kind IN (
           'extraction', 'retrieval', 'synthesis', 'claim',
@@ -711,7 +732,22 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
       CREATE INDEX IF NOT EXISTS idx_ledger_kind ON evidence_ledger(kind);
       CREATE INDEX IF NOT EXISTS idx_ledger_session ON evidence_ledger(session_id);
       CREATE INDEX IF NOT EXISTS idx_ledger_kind_timestamp ON evidence_ledger(kind, timestamp);
+      CREATE INDEX IF NOT EXISTS idx_ledger_tool_cost ON evidence_ledger(kind, cost_usd);
+      CREATE INDEX IF NOT EXISTS idx_ledger_tool_agent ON evidence_ledger(kind, agent_id);
     `);
+
+    this.ensureColumn('cost_usd', 'REAL');
+    this.ensureColumn('duration_ms', 'INTEGER');
+    this.ensureColumn('agent_id', 'TEXT');
+    this.ensureColumn('attempt_number', 'INTEGER');
+    this.ensureColumn('cache_hit', 'INTEGER');
+  }
+
+  private ensureColumn(columnName: string, columnType: string): void {
+    if (!this.db) return;
+    const columns = this.db.prepare('PRAGMA table_info(evidence_ledger)').all() as Array<{ name: string }>;
+    if (columns.some((column) => column.name === columnName)) return;
+    this.db.exec(`ALTER TABLE evidence_ledger ADD COLUMN ${columnName} ${columnType}`);
   }
 
   async close(): Promise<void> {
@@ -749,11 +785,16 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
       'evidence_ledger.append'
     );
 
+    const metrics = this.extractToolCallMetrics(entry);
+
     this.db
       .prepare(
         `
-      INSERT INTO evidence_ledger (id, timestamp, kind, payload, provenance, confidence, related_entries, session_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO evidence_ledger (
+        id, timestamp, kind, payload, provenance, confidence, related_entries, session_id,
+        cost_usd, duration_ms, agent_id, attempt_number, cache_hit
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
       )
       .run(
@@ -764,7 +805,12 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
         JSON.stringify(entry.provenance),
         entry.confidence ? JSON.stringify(entry.confidence) : null,
         JSON.stringify(entry.relatedEntries),
-        entry.sessionId ?? null
+        entry.sessionId ?? null,
+        metrics.costUsd,
+        metrics.durationMs,
+        metrics.agentId,
+        metrics.attemptNumber,
+        metrics.cacheHit
       );
 
     // Notify subscribers
@@ -791,8 +837,11 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
     const timestamp = new Date();
 
     const stmt = this.db.prepare(`
-      INSERT INTO evidence_ledger (id, timestamp, kind, payload, provenance, confidence, related_entries, session_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO evidence_ledger (
+        id, timestamp, kind, payload, provenance, confidence, related_entries, session_id,
+        cost_usd, duration_ms, agent_id, attempt_number, cache_hit
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertMany = this.db.transaction((entries: Omit<EvidenceEntry, 'id' | 'timestamp'>[]) => {
@@ -805,6 +854,7 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
           { kind: entry.kind, payload: entry.payload, confidence: entry.confidence },
           'evidence_ledger.appendBatch'
         );
+        const metrics = this.extractToolCallMetrics(entry);
 
         stmt.run(
           id,
@@ -814,7 +864,12 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
           JSON.stringify(entry.provenance),
           entry.confidence ? JSON.stringify(entry.confidence) : null,
           JSON.stringify(entry.relatedEntries),
-          entry.sessionId ?? null
+          entry.sessionId ?? null,
+          metrics.costUsd,
+          metrics.durationMs,
+          metrics.agentId,
+          metrics.attemptNumber,
+          metrics.cacheHit
         );
       }
     });
@@ -1262,6 +1317,39 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
       confidence: row.confidence ? (JSON.parse(row.confidence) as ConfidenceValue) : undefined,
       relatedEntries,
       sessionId: row.session_id ? (row.session_id as SessionId) : undefined,
+    };
+  }
+
+  private extractToolCallMetrics(entry: Omit<EvidenceEntry, 'id' | 'timestamp'>): {
+    costUsd: number | null;
+    durationMs: number | null;
+    agentId: string | null;
+    attemptNumber: number | null;
+    cacheHit: number | null;
+  } {
+    if (entry.kind !== 'tool_call') {
+      return {
+        costUsd: null,
+        durationMs: null,
+        agentId: null,
+        attemptNumber: null,
+        cacheHit: null,
+      };
+    }
+
+    const payload = entry.payload as ToolCallEvidence;
+    return {
+      costUsd: typeof payload.costUsd === 'number' && Number.isFinite(payload.costUsd)
+        ? payload.costUsd
+        : null,
+      durationMs: Number.isFinite(payload.durationMs) ? Math.max(0, Math.trunc(payload.durationMs)) : null,
+      agentId: typeof payload.agentId === 'string' && payload.agentId.length > 0
+        ? payload.agentId
+        : (entry.provenance.agent?.identifier ?? null),
+      attemptNumber: typeof payload.attemptNumber === 'number' && Number.isFinite(payload.attemptNumber)
+        ? Math.max(1, Math.trunc(payload.attemptNumber))
+        : null,
+      cacheHit: typeof payload.cacheHit === 'boolean' ? (payload.cacheHit ? 1 : 0) : null,
     };
   }
 }

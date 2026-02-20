@@ -15,6 +15,7 @@ START HERE:
     librainian setup --depth quick
     librainian query "How does authentication work?"
     librainian status --format json
+    librainian stats --json
 
 COMMANDS:
     quickstart          Smooth onboarding and recovery flow
@@ -23,6 +24,7 @@ COMMANDS:
     query <intent>      Run a query against the knowledge base
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
+    stats               Summarize tool-call cost/performance telemetry
     bootstrap           Initialize or refresh the knowledge index
     embed               Repair and backfill semantic embeddings
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
@@ -129,6 +131,29 @@ EXAMPLES:
     librarian status
     librarian status --verbose
     librarian status --json --out /tmp/librarian-status.json
+`,
+
+  stats: `
+librarian stats - Summarize evidence-ledger tool-call cost/performance telemetry
+
+USAGE:
+    librarian stats [options]
+
+OPTIONS:
+    --days <n>          Rolling window in days (default: 7)
+    --limit <n>         Number of top tools in breakdown (default: 5)
+    --json              Output machine-readable JSON report
+
+DESCRIPTION:
+    Aggregates MCP tool-call telemetry from .librarian/evidence_ledger.db:
+    - Total calls, estimated cost, average duration, cache-hit rate
+    - Top expensive tools in the selected time window
+    - Daily trend snapshot and optimization recommendations
+
+EXAMPLES:
+    librarian stats
+    librarian stats --days 30 --limit 10
+    librarian stats --json
 `,
 
   query: `
