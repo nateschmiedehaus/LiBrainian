@@ -4,7 +4,7 @@
  * Provides comprehensive health diagnostics for the Librarian system.
  * Checks database, embeddings, packs, vector index, graph edges, and bootstrap status.
  *
- * Usage: librarian doctor [--verbose] [--json] [--heal] [--fix]
+ * Usage: librarian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency]
  *
  * @packageDocumentation
  */
@@ -12,6 +12,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import Database from 'better-sqlite3';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { isBootstrapRequired, getBootstrapStatus, bootstrapProject, createBootstrapConfig } from '../../api/bootstrap.js';
@@ -76,6 +77,7 @@ export interface DoctorCommandOptions {
   json?: boolean;
   heal?: boolean;
   fix?: boolean;
+  checkConsistency?: boolean;
   installGrammars?: boolean;
   riskTolerance?: 'safe' | 'low' | 'medium';
 }
@@ -116,6 +118,10 @@ const ACTION_BY_CHECK: Record<string, ActionTemplate> = {
   },
   'Cross-DB Consistency': {
     command: 'librarian bootstrap --force',
+    expectedArtifact: '.librarian/librarian.sqlite',
+  },
+  'Cross-DB Referential Integrity': {
+    command: 'librarian doctor --check-consistency --json',
     expectedArtifact: '.librarian/librarian.sqlite',
   },
   Modules: {
@@ -1076,6 +1082,184 @@ async function checkCrossDbConsistency(
 }
 
 /**
+ * Check: strict referential integrity across core knowledge tables.
+ *
+ * Triggered by `doctor --check-consistency` for deeper consistency audits.
+ */
+async function checkCrossDbReferentialIntegrity(
+  workspace: string,
+  dbPath: string
+): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = {
+    name: 'Cross-DB Referential Integrity',
+    status: 'OK',
+    message: '',
+  };
+
+  const tableExists = (db: Database.Database, table: string): boolean => {
+    const row = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+      .get(table) as { 1?: number } | undefined;
+    return Boolean(row);
+  };
+
+  const collectSample = (db: Database.Database, sql: string, limit = 8): string[] => {
+    const rows = db.prepare(`${sql} LIMIT ?`).all(limit) as Array<{ ref?: string }>;
+    return rows
+      .map((row) => (typeof row.ref === 'string' ? row.ref : null))
+      .filter((value): value is string => Boolean(value));
+  };
+
+  try {
+    if (!fs.existsSync(dbPath)) {
+      check.status = 'WARNING';
+      check.message = 'Consistency check skipped: active database not found';
+      check.suggestion = 'Run `librarian bootstrap --force` to create the active store';
+      return check;
+    }
+
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    try {
+      const requiredTables = [
+        'librarian_embeddings',
+        'librarian_functions',
+        'librarian_modules',
+        'librarian_context_packs',
+        'librarian_confidence_events',
+        'librarian_evidence',
+      ];
+      const presentTables = requiredTables.filter((table) => tableExists(db, table));
+      const missingTables = requiredTables.filter((table) => !presentTables.includes(table));
+
+      const orphanEmbeddingCount = presentTables.includes('librarian_embeddings')
+        && presentTables.includes('librarian_functions')
+        && presentTables.includes('librarian_modules')
+        ? Number((db.prepare(`
+          SELECT COUNT(*) AS count
+          FROM librarian_embeddings e
+          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          WHERE (e.entity_type = 'function' AND f.id IS NULL)
+             OR (e.entity_type = 'module' AND m.id IS NULL)
+        `).get() as { count?: number } | undefined)?.count ?? 0)
+        : null;
+
+      const orphanEmbeddingSample = orphanEmbeddingCount && orphanEmbeddingCount > 0
+        ? collectSample(db, `
+          SELECT e.entity_type || ':' || e.entity_id AS ref
+          FROM librarian_embeddings e
+          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          WHERE (e.entity_type = 'function' AND f.id IS NULL)
+             OR (e.entity_type = 'module' AND m.id IS NULL)
+        `)
+        : [];
+
+      const orphanConfidenceCount = presentTables.includes('librarian_confidence_events')
+        && presentTables.includes('librarian_functions')
+        && presentTables.includes('librarian_modules')
+        && presentTables.includes('librarian_context_packs')
+        ? Number((db.prepare(`
+          SELECT COUNT(*) AS count
+          FROM librarian_confidence_events c
+          LEFT JOIN librarian_functions f ON c.entity_type = 'function' AND f.id = c.entity_id
+          LEFT JOIN librarian_modules m ON c.entity_type = 'module' AND m.id = c.entity_id
+          LEFT JOIN librarian_context_packs p ON c.entity_type = 'context_pack' AND p.pack_id = c.entity_id
+          WHERE (c.entity_type = 'function' AND f.id IS NULL)
+             OR (c.entity_type = 'module' AND m.id IS NULL)
+             OR (c.entity_type = 'context_pack' AND p.pack_id IS NULL)
+        `).get() as { count?: number } | undefined)?.count ?? 0)
+        : null;
+
+      const orphanConfidenceSample = orphanConfidenceCount && orphanConfidenceCount > 0
+        ? collectSample(db, `
+          SELECT c.entity_type || ':' || c.entity_id AS ref
+          FROM librarian_confidence_events c
+          LEFT JOIN librarian_functions f ON c.entity_type = 'function' AND f.id = c.entity_id
+          LEFT JOIN librarian_modules m ON c.entity_type = 'module' AND m.id = c.entity_id
+          LEFT JOIN librarian_context_packs p ON c.entity_type = 'context_pack' AND p.pack_id = c.entity_id
+          WHERE (c.entity_type = 'function' AND f.id IS NULL)
+             OR (c.entity_type = 'module' AND m.id IS NULL)
+             OR (c.entity_type = 'context_pack' AND p.pack_id IS NULL)
+        `)
+        : [];
+
+      const orphanEvidenceCount = presentTables.includes('librarian_evidence')
+        && presentTables.includes('librarian_functions')
+        && presentTables.includes('librarian_modules')
+        ? Number((db.prepare(`
+          SELECT COUNT(*) AS count
+          FROM librarian_evidence e
+          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          WHERE (e.entity_type = 'function' AND f.id IS NULL)
+             OR (e.entity_type = 'module' AND m.id IS NULL)
+        `).get() as { count?: number } | undefined)?.count ?? 0)
+        : null;
+
+      const orphanEvidenceSample = orphanEvidenceCount && orphanEvidenceCount > 0
+        ? collectSample(db, `
+          SELECT e.entity_type || ':' || e.entity_id AS ref
+          FROM librarian_evidence e
+          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          WHERE (e.entity_type = 'function' AND f.id IS NULL)
+             OR (e.entity_type = 'module' AND m.id IS NULL)
+        `)
+        : [];
+
+      const orphanTotal = [orphanEmbeddingCount, orphanConfidenceCount, orphanEvidenceCount]
+        .filter((value): value is number => typeof value === 'number')
+        .reduce((sum, value) => sum + value, 0);
+
+      check.details = {
+        workspace,
+        dbPath,
+        presentTables,
+        missingTables,
+        orphanEmbeddingCount,
+        orphanEmbeddingSample,
+        orphanConfidenceCount,
+        orphanConfidenceSample,
+        orphanEvidenceCount,
+        orphanEvidenceSample,
+      };
+
+      if (presentTables.length === 0) {
+        check.status = 'WARNING';
+        check.message = 'Consistency check skipped: core tables were not found in active DB';
+        check.suggestion = 'Run `librarian bootstrap --force` to initialize schema tables';
+        return check;
+      }
+
+      if (orphanTotal > 0) {
+        check.status = 'ERROR';
+        check.message = `Detected ${orphanTotal} orphan references across active consistency tables`;
+        check.suggestion = 'Run `librarian bootstrap --force` and re-run `librarian doctor --check-consistency --json`';
+        return check;
+      }
+
+      if (missingTables.length > 0) {
+        check.status = 'WARNING';
+        check.message = 'No orphan references detected in available tables, but some consistency tables are missing';
+        check.suggestion = 'Run `librarian bootstrap --force` to restore missing schema tables';
+        return check;
+      }
+
+      check.message = 'No orphan references detected across consistency tables';
+      return check;
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    check.status = 'ERROR';
+    check.message = `Failed to run strict consistency check: ${error instanceof Error ? error.message : String(error)}`;
+    check.suggestion = 'Run `librarian bootstrap --force` and retry `librarian doctor --check-consistency`';
+    return check;
+  }
+}
+
+/**
  * Check: stale lock files in workspace lock directories.
  */
 async function checkLockFileStaleness(
@@ -1714,6 +1898,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     json = false,
     heal = false,
     fix = false,
+    checkConsistency = false,
     installGrammars = false,
     riskTolerance = 'low',
   } = options;
@@ -1913,6 +2098,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     checkMcpRegistration(),
     checkInstallFootprint(workspaceRoot),
     checkGrammarCoverage(workspaceRoot, installGrammars, json),
+    ...(checkConsistency ? [checkCrossDbReferentialIntegrity(workspaceRoot, dbPath)] : []),
   ]);
 
   report.checks = healChecks.length > 0 ? [...healChecks, ...checks] : checks;

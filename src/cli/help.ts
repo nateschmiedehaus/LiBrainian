@@ -1318,6 +1318,7 @@ OPTIONS:
     --json              Output results as JSON
     --heal              Attempt automatic healing (config + bootstrap)
     --fix               Purge invalid embeddings and re-embed via bootstrap
+    --check-consistency Run strict referential integrity checks across store tables
     --install-grammars  Install missing tree-sitter grammar packages
     --risk-tolerance    Max risk for config fixes (safe|low|medium)
 
@@ -1393,6 +1394,7 @@ EXAMPLES:
     librarian doctor --verbose --json
     librarian doctor --heal
     librarian doctor --fix
+    librarian doctor --check-consistency --json
 	    librarian doctor --heal --risk-tolerance safe
 	    librarian doctor --install-grammars
 		`,

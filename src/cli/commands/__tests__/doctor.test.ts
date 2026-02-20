@@ -188,6 +188,13 @@ describe('doctorCommand', () => {
     expect(vi.mocked(bootstrapProject)).not.toHaveBeenCalled();
   });
 
+  it('runs strict referential integrity checks when requested', async () => {
+    await doctorCommand({ workspace, json: true, checkConsistency: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    expect(report.checks.some((check: { name: string }) => check.name === 'Cross-DB Referential Integrity')).toBe(true);
+  });
+
   it('does not error on low confidence when no functions are indexed', async () => {
     vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub({
       totalFunctions: 0,

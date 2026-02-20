@@ -281,7 +281,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'doctor': {
     description: 'Run health diagnostics to identify issues',
-    usage: 'librarian doctor [--verbose] [--json] [--heal] [--fix] [--install-grammars] [--risk-tolerance safe|low|medium]',
+    usage: 'librarian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency] [--install-grammars] [--risk-tolerance safe|low|medium]',
   },
   'publish-gate': {
     description: 'Run strict publish-readiness gate checks',
@@ -650,6 +650,7 @@ async function main(): Promise<void> {
 		            json: jsonMode,
 		            heal: args.includes('--heal'),
                 fix,
+                checkConsistency: args.includes('--check-consistency'),
 		            installGrammars: args.includes('--install-grammars'),
 		            riskTolerance,
 		          });
