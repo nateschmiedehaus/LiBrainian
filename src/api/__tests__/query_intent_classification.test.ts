@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { classifyQueryIntent, applyDocumentBias, applyDefinitionBias, isDefinitionEntity, type QueryClassification } from '../query.js';
+import {
+  classifyQueryIntent,
+  applyDocumentBias,
+  applyDefinitionBias,
+  applyIntentTypeRoutingOverrides,
+  isDefinitionEntity,
+  type QueryClassification,
+} from '../query.js';
 import {
   classifyUnifiedQueryIntent,
   applyRetrievalStrategyAdjustments,
@@ -390,6 +397,45 @@ describe('classifyQueryIntent', () => {
       expect(result.isArchitectureVerificationQuery).toBe(true);
       expect(result.isArchitectureOverviewQuery).toBe(false);
     });
+  });
+});
+
+describe('applyIntentTypeRoutingOverrides', () => {
+  it('forces document-first routing for document intent type', () => {
+    const base = classifyQueryIntent('where is queryLibrarian defined');
+    const routed = applyIntentTypeRoutingOverrides(base, 'document');
+
+    expect(routed.isMetaQuery).toBe(true);
+    expect(routed.entityTypes[0]).toBe('document');
+    expect(routed.documentBias).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('forces refactoring-safety routing for impact intent type', () => {
+    const base = classifyQueryIntent('show files touching auth');
+    const routed = applyIntentTypeRoutingOverrides(base, 'impact', ['src/auth/session.ts']);
+
+    expect(routed.isRefactoringSafetyQuery).toBe(true);
+    expect(routed.refactoringTarget).toBe('session');
+    expect(routed.entityTypes).toContain('function');
+    expect(routed.entityTypes).toContain('module');
+  });
+
+  it('forces bug-investigation routing for debug intent type', () => {
+    const base = classifyQueryIntent('show me auth behavior');
+    const routed = applyIntentTypeRoutingOverrides(base, 'debug');
+
+    expect(routed.isBugInvestigationQuery).toBe(true);
+    expect(routed.entityTypes).toContain('function');
+    expect(routed.entityTypes).toContain('module');
+  });
+
+  it('forces test-oriented routing for test intent type', () => {
+    const base = classifyQueryIntent('auth behavior');
+    const routed = applyIntentTypeRoutingOverrides(base, 'test');
+
+    expect(routed.isTestQuery).toBe(true);
+    expect(routed.isCodeQuery).toBe(true);
+    expect(routed.documentBias).toBeLessThanOrEqual(0.15);
   });
 });
 
