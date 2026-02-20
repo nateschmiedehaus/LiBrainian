@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const DEFAULT_MAX_UNPACKED_SIZE_MB = 15;
 
@@ -65,6 +67,28 @@ function formatMiB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
 }
 
+function resolveRelativeImportCandidates(importerPath, specifier) {
+  const importerDir = path.posix.dirname(importerPath);
+  const normalized = path.posix.normalize(path.posix.join(importerDir, specifier));
+  const candidates = new Set([normalized]);
+  if (!path.posix.extname(normalized)) {
+    candidates.add(`${normalized}.js`);
+    candidates.add(path.posix.join(normalized, 'index.js'));
+  }
+  return [...candidates];
+}
+
+function extractRelativeImportSpecifiers(source) {
+  const specifiers = [];
+  const staticImport = /^\s*(?:import|export)\s.+?\sfrom\s+['"](\.[^'"]+)['"]/gm;
+  let match = staticImport.exec(source);
+  while (match) {
+    specifiers.push(match[1]);
+    match = staticImport.exec(source);
+  }
+  return specifiers;
+}
+
 function resolveMaxUnpackedSizeBytes() {
   const raw = process.env.LIBRARIAN_MAX_UNPACKED_SIZE_MB;
   if (!raw) {
@@ -86,13 +110,36 @@ function main() {
   }
 
   const filePaths = pack.files.map((entry) => String(entry.path));
+  const filePathSet = new Set(filePaths);
   const disallowed = filePaths.filter((filePath) => !isAllowedPackPath(filePath));
   const sourcemaps = filePaths.filter((filePath) => filePath.endsWith('.map'));
+  const packedRuntimeJs = filePaths.filter((filePath) => filePath.startsWith('dist/') && filePath.endsWith('.js'));
   const evaluationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evaluation/'));
   const evolutionFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evolution/'));
   const selfImprovementFiles = filePaths.filter((filePath) => filePath.startsWith('dist/agents/self_improvement/'));
   const memoryFiles = filePaths.filter((filePath) => filePath.startsWith('dist/memory/'));
   const pluralIntegrationsFiles = filePaths.filter((filePath) => filePath.startsWith('dist/integrations/'));
+  const missingRuntimeImports = [];
+
+  for (const runtimeFile of packedRuntimeJs) {
+    const runtimePath = path.join(process.cwd(), runtimeFile);
+    let source = '';
+    try {
+      source = fs.readFileSync(runtimePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const specifiers = extractRelativeImportSpecifiers(source);
+    for (const specifier of specifiers) {
+      const candidates = resolveRelativeImportCandidates(runtimeFile, specifier);
+      const distCandidates = candidates.filter((candidate) => candidate.startsWith('dist/'));
+      if (distCandidates.length === 0) continue;
+      const hasPackMatch = distCandidates.some((candidate) => filePathSet.has(candidate));
+      if (!hasPackMatch) {
+        missingRuntimeImports.push(`${runtimeFile} -> ${distCandidates[0]}`);
+      }
+    }
+  }
 
   if (disallowed.length > 0) {
     throw new Error(
@@ -153,6 +200,15 @@ function main() {
       `Package contains deprecated integrations directory paths:\n${pluralIntegrationsFiles
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (missingRuntimeImports.length > 0) {
+    throw new Error(
+      `Package excludes runtime-imported dist modules:\n${missingRuntimeImports
+        .slice(0, 25)
+        .map((entry) => `- ${entry}`)
         .join('\n')}`
     );
   }

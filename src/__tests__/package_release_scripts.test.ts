@@ -71,6 +71,9 @@ describe('package release scripts', () => {
     expect(script).toContain('LIBRARIAN_MAX_UNPACKED_SIZE_MB');
     expect(script).toContain('Package contains legacy memory cache paths');
     expect(script).toContain('Package contains deprecated integrations directory paths');
+    expect(script).toContain('extractRelativeImportSpecifiers');
+    expect(script).toContain('resolveRelativeImportCandidates');
+    expect(script).toContain('Package excludes runtime-imported dist modules');
   });
 
   it('hardens package install smoke against lifecycle log noise', () => {

@@ -125,11 +125,10 @@ jobs:
 
       - name: Publish to npm (trusted)
         if: steps.npm-auth.outputs.mode == 'trusted'
-        run: |
-          trusted_npmrc="$(mktemp)"
-          trap 'rm -f "$trusted_npmrc"' EXIT
-          printf "registry=https://registry.npmjs.org/\n" > "$trusted_npmrc"
-          NPM_CONFIG_USERCONFIG="$trusted_npmrc" NODE_AUTH_TOKEN= NPM_TOKEN= npm publish --provenance --access public --ignore-scripts
+        run: npm publish --provenance --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ''
+          NPM_TOKEN: ''
 
       - name: Publish to GitHub Packages
         run: npm run release:github-packages
@@ -192,12 +191,10 @@ jobs:
 
       - name: Publish to npm (manual trusted)
         if: steps.npm-auth.outputs.mode == 'trusted'
-        run: |
-          trusted_npmrc="$(mktemp)"
-          trap 'rm -f "$trusted_npmrc"' EXIT
-          printf "registry=https://registry.npmjs.org/\n" > "$trusted_npmrc"
-          NPM_CONFIG_USERCONFIG="$trusted_npmrc" NODE_AUTH_TOKEN= NPM_TOKEN= npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
+        run: npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
         env:
+          NODE_AUTH_TOKEN: ''
+          NPM_TOKEN: ''
           NPM_TAG: ${{ inputs.npm_tag }}
 
       - name: Publish to GitHub Packages (manual)
