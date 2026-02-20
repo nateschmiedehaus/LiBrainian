@@ -186,6 +186,11 @@ import {
   expandEscalationIntent,
 } from './retrieval_escalation.js';
 import {
+  selectAndRecordRetrievalStrategy,
+  selectRetrievalStrategyForIntent,
+  type RetrievalStrategyArm,
+} from './retrieval_strategy_bandit.js';
+import {
   SecurityAuditHelper,
   createSecurityAuditHelper,
   type SecurityReport,
@@ -1878,6 +1883,10 @@ export async function queryLibrarian(
   let queryEmbedding: Float32Array | null = null;
   const governor = governorContext ?? new GovernorContext({ phase: 'query', config: DEFAULT_GOVERNOR_CONFIG }); governor.checkBudget();
   const version = await storage.getVersion() || getCurrentVersion();
+  const retrievalIntentType = (query.intentType ?? query.taskType ?? 'general').toString();
+  const retrievalStrategySelection = await selectRetrievalStrategyForIntent(storage, retrievalIntentType);
+  const selectedRetrievalStrategy: RetrievalStrategyArm = retrievalStrategySelection.strategyId;
+  disclosures.push(`retrieval_strategy: ${selectedRetrievalStrategy} (thompson_sampling)`);
   let indexState = await getIndexState(storage);
   if (query.waitForIndexMs && !isReadyPhase(indexState.phase)) {
     indexState = await waitForIndexReady(storage, { timeoutMs: query.waitForIndexMs });
@@ -1924,7 +1933,14 @@ export async function queryLibrarian(
         retrievalEntropy: cachedResponse.retrievalEntropy ?? 0,
         returnedPackIds: cachedResponse.packs.map((pack) => pack.packId),
         timestamp: new Date().toISOString(),
+        routedStrategy: selectedRetrievalStrategy,
       });
+      await selectAndRecordRetrievalStrategy(
+        storage,
+        typeof cachedResponse.feedbackToken === 'string' ? cachedResponse.feedbackToken : queryId,
+        retrievalIntentType,
+        new Date().toISOString()
+      );
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
         await cacheStore.recordQueryCacheAccess(cacheKey);
@@ -1993,7 +2009,14 @@ export async function queryLibrarian(
         retrievalEntropy: cachedResponse.retrievalEntropy ?? 0,
         returnedPackIds: cachedResponse.packs.map((pack) => pack.packId),
         timestamp: new Date().toISOString(),
+        routedStrategy: selectedRetrievalStrategy,
       });
+      await selectAndRecordRetrievalStrategy(
+        storage,
+        typeof cachedResponse.feedbackToken === 'string' ? cachedResponse.feedbackToken : queryId,
+        retrievalIntentType,
+        new Date().toISOString()
+      );
       const cacheStore = storage as QueryCacheStore;
       if (cacheStore.recordQueryCacheAccess) {
         await cacheStore.recordQueryCacheAccess(semanticCached.matchedKey);
@@ -3171,7 +3194,15 @@ export async function queryLibrarian(
     queryIntent: query.intent ?? '',
     queryDepth: query.depth ?? 'L1',
     createdAt: getNow(),
+    retrievalStrategyId: selectedRetrievalStrategy,
+    retrievalIntentType: retrievalIntentType,
   }, storage);
+  await selectAndRecordRetrievalStrategy(
+    storage,
+    feedbackToken,
+    retrievalIntentType,
+    getNow()
+  );
 
   // Mark the first/best pack as the primary result for agent ergonomics
   // This gives agents a clear "start here" signal
@@ -3339,6 +3370,7 @@ export async function queryLibrarian(
     retrievalEntropy: response.retrievalEntropy ?? 0,
     returnedPackIds: response.packs.map((pack) => pack.packId),
     timestamp: new Date().toISOString(),
+    routedStrategy: selectedRetrievalStrategy,
   });
   if (sessionWorkspaceRoot) {
     const relatedFiles = Array.from(
@@ -3459,6 +3491,8 @@ export interface FeedbackContext {
   queryIntent: string;
   queryDepth: string;
   createdAt: string;
+  retrievalStrategyId?: string;
+  retrievalIntentType?: string;
 }
 
 const FEEDBACK_CONTEXT_LIMIT = 500;
@@ -3479,7 +3513,9 @@ function parseFeedbackContextList(raw: string | null): FeedbackContext[] {
         Array.isArray(record.packIds) &&
         typeof record.queryIntent === 'string' &&
         typeof record.queryDepth === 'string' &&
-        typeof record.createdAt === 'string'
+        typeof record.createdAt === 'string' &&
+        (typeof record.retrievalStrategyId === 'string' || typeof record.retrievalStrategyId === 'undefined') &&
+        (typeof record.retrievalIntentType === 'string' || typeof record.retrievalIntentType === 'undefined')
       );
     });
   } catch {

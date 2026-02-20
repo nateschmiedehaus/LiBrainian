@@ -59,6 +59,8 @@ import {
   type QueryClaimsToolInput,
   type HarvestSessionKnowledgeToolInput,
   type SubmitFeedbackToolInput,
+  type FeedbackRetrievalResultToolInput,
+  type GetRetrievalStatsToolInput,
   type ExplainFunctionToolInput,
   type FindCallersToolInput,
   type FindCalleesToolInput,
@@ -395,6 +397,8 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   memory_update: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
   memory_delete: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 700 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
+  feedback_retrieval_result: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 900 },
+  get_retrieval_stats: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_callers: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
   find_callees: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
@@ -2074,6 +2078,34 @@ export class LibrarianMCPServer {
         },
       },
       {
+        name: 'feedback_retrieval_result',
+        description: 'Submit retrieval helpfulness feedback for a prior query feedbackToken',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            feedbackToken: { type: 'string', description: 'Feedback token from query response' },
+            wasHelpful: { type: 'boolean', description: 'Whether retrieved context was helpful' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            agentId: { type: 'string', description: 'Agent identifier' },
+            missingContext: { type: 'string', description: 'Description of missing context' },
+          },
+          required: ['feedbackToken', 'wasHelpful'],
+        },
+      },
+      {
+        name: 'get_retrieval_stats',
+        description: 'Summarize retrieval strategy routing outcomes and rewards for Thompson-sampling diagnostics',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            intentType: { type: 'string', description: 'Optional retrieval intent type filter' },
+            limit: { type: 'number', description: 'Maximum selection events to return (default 200, max 1000)' },
+          },
+          required: [],
+        },
+      },
+      {
         name: 'verify_claim',
         description: 'Verify a knowledge claim against evidence (discover claimId via find_symbol kind=claim)',
         inputSchema: {
@@ -3550,6 +3582,10 @@ export class LibrarianMCPServer {
         return this.executeMemoryDelete(args as Record<string, unknown>);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
+      case 'feedback_retrieval_result':
+        return this.executeFeedbackRetrievalResult(args as FeedbackRetrievalResultToolInput);
+      case 'get_retrieval_stats':
+        return this.executeGetRetrievalStats(args as GetRetrievalStatsToolInput);
       case 'find_symbol':
         return this.executeFindSymbol(args as FindSymbolToolInput, context);
       case 'verify_claim':
@@ -7216,6 +7252,180 @@ export class LibrarianMCPServer {
         outcome: input.outcome,
         success: false,
         adjustmentsApplied: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeFeedbackRetrievalResult(input: FeedbackRetrievalResultToolInput): Promise<unknown> {
+    const mappedOutcome: 'success' | 'failure' = input.wasHelpful ? 'success' : 'failure';
+    const result = await this.executeSubmitFeedback({
+      feedbackToken: input.feedbackToken,
+      outcome: mappedOutcome,
+      workspace: input.workspace,
+      agentId: input.agentId,
+      missingContext: input.missingContext,
+    });
+    if (!result || typeof result !== 'object') {
+      return result;
+    }
+    return {
+      ...result,
+      tool: 'feedback_retrieval_result',
+      wasHelpful: input.wasHelpful,
+      mappedOutcome,
+    };
+  }
+
+  private async executeGetRetrievalStats(input: GetRetrievalStatsToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (typeof input.workspace === 'string' && input.workspace.trim().length > 0) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        workspacePath = this.findReadyWorkspace()?.path
+          ?? this.state.workspaces.keys().next().value
+          ?? this.config.workspaces[0];
+      }
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          tool: 'get_retrieval_stats',
+          error: 'No workspace available. Provide workspace or run bootstrap first.',
+        };
+      }
+
+      const resolvedWorkspace = path.resolve(workspacePath);
+      if (!this.state.workspaces.has(resolvedWorkspace)) {
+        this.registerWorkspace(resolvedWorkspace);
+      }
+      const storage = await this.getOrCreateStorage(resolvedWorkspace);
+      if (typeof storage.getRetrievalStrategyRewards !== 'function'
+        || typeof storage.getRetrievalStrategySelections !== 'function') {
+        return {
+          success: false,
+          tool: 'get_retrieval_stats',
+          workspace: resolvedWorkspace,
+          error: 'Storage backend does not support retrieval strategy statistics.',
+        };
+      }
+
+      const normalizedIntentType = typeof input.intentType === 'string' && input.intentType.trim().length > 0
+        ? input.intentType.trim()
+        : undefined;
+      const limit = typeof input.limit === 'number' && Number.isFinite(input.limit)
+        ? Math.max(1, Math.min(1000, Math.trunc(input.limit)))
+        : 200;
+      const [rewards, selections] = await Promise.all([
+        storage.getRetrievalStrategyRewards(normalizedIntentType),
+        storage.getRetrievalStrategySelections({ intentType: normalizedIntentType, limit }),
+      ]);
+
+      const strategyStats = new Map<string, {
+        strategyId: string;
+        selectedCount: number;
+        feedbackCount: number;
+        helpfulCount: number;
+        successCount: number;
+        failureCount: number;
+        partialCount: number;
+        rewardSuccessCount: number;
+        rewardFailureCount: number;
+        posteriorMean: number;
+        intentTypes: Set<string>;
+      }>();
+      const upsertStrategy = (strategyId: string) => {
+        const existing = strategyStats.get(strategyId);
+        if (existing) return existing;
+        const created = {
+          strategyId,
+          selectedCount: 0,
+          feedbackCount: 0,
+          helpfulCount: 0,
+          successCount: 0,
+          failureCount: 0,
+          partialCount: 0,
+          rewardSuccessCount: 0,
+          rewardFailureCount: 0,
+          posteriorMean: 0.5,
+          intentTypes: new Set<string>(),
+        };
+        strategyStats.set(strategyId, created);
+        return created;
+      };
+
+      for (const selection of selections) {
+        const entry = upsertStrategy(selection.strategyId);
+        entry.selectedCount += 1;
+        entry.intentTypes.add(selection.intentType);
+        if (selection.feedbackOutcome) {
+          entry.feedbackCount += 1;
+          if (selection.feedbackOutcome === 'success') {
+            entry.successCount += 1;
+            entry.helpfulCount += 1;
+          } else if (selection.feedbackOutcome === 'failure') {
+            entry.failureCount += 1;
+          } else {
+            entry.partialCount += 1;
+            entry.helpfulCount += 1;
+          }
+        }
+      }
+
+      for (const reward of rewards) {
+        const entry = upsertStrategy(reward.strategyId);
+        entry.rewardSuccessCount += reward.successCount;
+        entry.rewardFailureCount += reward.failureCount;
+        entry.intentTypes.add(reward.intentType);
+      }
+
+      const rankedStrategies = Array.from(strategyStats.values())
+        .map((entry) => {
+          const posteriorMean = (entry.rewardSuccessCount + 1)
+            / (entry.rewardSuccessCount + entry.rewardFailureCount + 2);
+          return {
+            strategyId: entry.strategyId,
+            selectedCount: entry.selectedCount,
+            feedbackCount: entry.feedbackCount,
+            helpfulCount: entry.helpfulCount,
+            helpfulRate: entry.feedbackCount > 0 ? entry.helpfulCount / entry.feedbackCount : undefined,
+            successCount: entry.successCount,
+            failureCount: entry.failureCount,
+            partialCount: entry.partialCount,
+            rewardSuccessCount: entry.rewardSuccessCount,
+            rewardFailureCount: entry.rewardFailureCount,
+            posteriorMean,
+            intentTypes: Array.from(entry.intentTypes).sort(),
+          };
+        })
+        .sort((a, b) => (b.posteriorMean - a.posteriorMean)
+          || (b.selectedCount - a.selectedCount)
+          || a.strategyId.localeCompare(b.strategyId));
+
+      const feedbackRecorded = selections.filter((selection) => typeof selection.feedbackOutcome === 'string').length;
+
+      return {
+        success: true,
+        tool: 'get_retrieval_stats',
+        workspace: resolvedWorkspace,
+        intentType: normalizedIntentType,
+        limit,
+        summary: {
+          totalRewardRows: rewards.length,
+          totalSelectionRows: selections.length,
+          feedbackRecorded,
+          feedbackCoverage: selections.length > 0 ? feedbackRecorded / selections.length : 0,
+          topStrategyByPosterior: rankedStrategies[0]?.strategyId,
+        },
+        rewards,
+        recentSelections: selections,
+        strategyStats: rankedStrategies,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'get_retrieval_stats',
         error: error instanceof Error ? error.message : String(error),
       };
     }

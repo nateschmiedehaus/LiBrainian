@@ -109,6 +109,7 @@ export const buildKnowledgeProtocolPrompt = (taskId?: string): string => {
 import type { LibrarianStorage } from '../storage/types.js';
 import { processAgentFeedback, createTaskOutcomeFeedback, type AgentFeedback } from './agent_feedback.js';
 import { getFeedbackContext } from '../api/query.js';
+import { applyRetrievalStrategyFeedbackForQuery } from '../api/retrieval_strategy_bandit.js';
 
 /**
  * Submit feedback for a query result.
@@ -180,6 +181,15 @@ export async function submitQueryFeedback(
 
     // Process the feedback
     const result = await processAgentFeedback(feedback, storage);
+    const wasHelpful = outcome !== 'failure';
+    await applyRetrievalStrategyFeedbackForQuery(
+      storage,
+      feedbackToken,
+      wasHelpful,
+      outcome
+    ).catch(() => {
+      // Retrieval strategy feedback is best-effort and must not fail user feedback.
+    });
 
     return {
       success: true,

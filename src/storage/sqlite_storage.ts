@@ -31,6 +31,9 @@ import type {
   QueryCachePruneOptions,
   RetrievalConfidenceLogEntry,
   RetrievalConfidenceLogQueryOptions,
+  RetrievalStrategyReward,
+  RetrievalStrategySelection,
+  RetrievalStrategySelectionQueryOptions,
   EvolutionOutcome,
   EvolutionOutcomeQueryOptions,
   LearnedMissingContext,
@@ -719,6 +722,27 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       );
       CREATE INDEX IF NOT EXISTS idx_retrieval_confidence_log_query_hash ON retrieval_confidence_log(query_hash);
       CREATE INDEX IF NOT EXISTS idx_retrieval_confidence_log_timestamp ON retrieval_confidence_log(timestamp DESC);
+
+      CREATE TABLE IF NOT EXISTS retrieval_strategy_rewards (
+        strategy_id TEXT NOT NULL,
+        intent_type TEXT NOT NULL,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        failure_count INTEGER NOT NULL DEFAULT 0,
+        last_updated TEXT NOT NULL,
+        PRIMARY KEY (strategy_id, intent_type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_retrieval_strategy_rewards_intent ON retrieval_strategy_rewards(intent_type);
+
+      CREATE TABLE IF NOT EXISTS retrieval_strategy_queries (
+        query_id TEXT PRIMARY KEY,
+        strategy_id TEXT NOT NULL,
+        intent_type TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        feedback_outcome TEXT,
+        feedback_recorded_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_retrieval_strategy_queries_intent ON retrieval_strategy_queries(intent_type);
+      CREATE INDEX IF NOT EXISTS idx_retrieval_strategy_queries_strategy ON retrieval_strategy_queries(strategy_id);
     `);
   }
 
@@ -3909,6 +3933,176 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       attempt: row.attempt ?? undefined,
       maxEscalationDepth: row.max_escalation_depth ?? undefined,
       routedStrategy: row.routed_strategy ?? undefined,
+    }));
+  }
+
+  async getRetrievalStrategyRewards(intentType?: string): Promise<RetrievalStrategyReward[]> {
+    const db = this.ensureDb();
+    const normalizedIntent = typeof intentType === 'string' ? intentType.trim() : '';
+    const rows = normalizedIntent.length > 0
+      ? db.prepare(`
+        SELECT strategy_id, intent_type, success_count, failure_count, last_updated
+        FROM retrieval_strategy_rewards
+        WHERE intent_type = ?
+        ORDER BY strategy_id ASC
+      `).all(normalizedIntent) as RetrievalStrategyRewardRow[]
+      : db.prepare(`
+        SELECT strategy_id, intent_type, success_count, failure_count, last_updated
+        FROM retrieval_strategy_rewards
+        ORDER BY intent_type ASC, strategy_id ASC
+      `).all() as RetrievalStrategyRewardRow[];
+
+    return rows.map((row) => ({
+      strategyId: row.strategy_id,
+      intentType: row.intent_type,
+      successCount: row.success_count,
+      failureCount: row.failure_count,
+      lastUpdated: row.last_updated,
+    }));
+  }
+
+  async recordRetrievalStrategySelection(selection: RetrievalStrategySelection): Promise<void> {
+    const db = this.ensureDb();
+    const createdAt = selection.createdAt || new Date().toISOString();
+    db.prepare(`
+      INSERT INTO retrieval_strategy_queries (
+        query_id,
+        strategy_id,
+        intent_type,
+        created_at,
+        feedback_outcome,
+        feedback_recorded_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(query_id) DO UPDATE SET
+        strategy_id = excluded.strategy_id,
+        intent_type = excluded.intent_type,
+        created_at = excluded.created_at
+    `).run(
+      selection.queryId,
+      selection.strategyId,
+      selection.intentType,
+      createdAt,
+      selection.feedbackOutcome ?? null,
+      selection.feedbackRecordedAt ?? null,
+    );
+
+    db.prepare(`
+      INSERT INTO retrieval_strategy_rewards (strategy_id, intent_type, success_count, failure_count, last_updated)
+      VALUES (?, ?, 0, 0, ?)
+      ON CONFLICT(strategy_id, intent_type) DO NOTHING
+    `).run(selection.strategyId, selection.intentType, createdAt);
+  }
+
+  async getRetrievalStrategySelection(queryId: string): Promise<RetrievalStrategySelection | null> {
+    const db = this.ensureDb();
+    const row = db.prepare(`
+      SELECT query_id, strategy_id, intent_type, created_at, feedback_outcome, feedback_recorded_at
+      FROM retrieval_strategy_queries
+      WHERE query_id = ?
+      LIMIT 1
+    `).get(queryId) as RetrievalStrategySelectionRow | undefined;
+    if (!row) return null;
+    return {
+      queryId: row.query_id,
+      strategyId: row.strategy_id,
+      intentType: row.intent_type,
+      createdAt: row.created_at,
+      feedbackOutcome: row.feedback_outcome ?? undefined,
+      feedbackRecordedAt: row.feedback_recorded_at ?? undefined,
+    };
+  }
+
+  async applyRetrievalStrategyFeedback(
+    queryId: string,
+    wasHelpful: boolean,
+    outcome: 'success' | 'failure' | 'partial' = wasHelpful ? 'success' : 'failure'
+  ): Promise<RetrievalStrategyReward | null> {
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const update = db.transaction((id: string): RetrievalStrategyReward | null => {
+      const selection = db.prepare(`
+        SELECT query_id, strategy_id, intent_type, created_at, feedback_outcome, feedback_recorded_at
+        FROM retrieval_strategy_queries
+        WHERE query_id = ?
+        LIMIT 1
+      `).get(id) as RetrievalStrategySelectionRow | undefined;
+      if (!selection) return null;
+
+      db.prepare(`
+        INSERT INTO retrieval_strategy_rewards (strategy_id, intent_type, success_count, failure_count, last_updated)
+        VALUES (?, ?, 0, 0, ?)
+        ON CONFLICT(strategy_id, intent_type) DO NOTHING
+      `).run(selection.strategy_id, selection.intent_type, now);
+
+      if (!selection.feedback_outcome) {
+        if (wasHelpful) {
+          db.prepare(`
+            UPDATE retrieval_strategy_rewards
+            SET success_count = success_count + 1, last_updated = ?
+            WHERE strategy_id = ? AND intent_type = ?
+          `).run(now, selection.strategy_id, selection.intent_type);
+        } else {
+          db.prepare(`
+            UPDATE retrieval_strategy_rewards
+            SET failure_count = failure_count + 1, last_updated = ?
+            WHERE strategy_id = ? AND intent_type = ?
+          `).run(now, selection.strategy_id, selection.intent_type);
+        }
+
+        db.prepare(`
+          UPDATE retrieval_strategy_queries
+          SET feedback_outcome = ?, feedback_recorded_at = ?
+          WHERE query_id = ?
+        `).run(outcome, now, id);
+      }
+
+      const rewardRow = db.prepare(`
+        SELECT strategy_id, intent_type, success_count, failure_count, last_updated
+        FROM retrieval_strategy_rewards
+        WHERE strategy_id = ? AND intent_type = ?
+        LIMIT 1
+      `).get(selection.strategy_id, selection.intent_type) as RetrievalStrategyRewardRow | undefined;
+      if (!rewardRow) return null;
+      return {
+        strategyId: rewardRow.strategy_id,
+        intentType: rewardRow.intent_type,
+        successCount: rewardRow.success_count,
+        failureCount: rewardRow.failure_count,
+        lastUpdated: rewardRow.last_updated,
+      };
+    });
+    return update(queryId);
+  }
+
+  async getRetrievalStrategySelections(
+    options: RetrievalStrategySelectionQueryOptions = {}
+  ): Promise<RetrievalStrategySelection[]> {
+    const db = this.ensureDb();
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (typeof options.intentType === 'string' && options.intentType.trim().length > 0) {
+      clauses.push('intent_type = ?');
+      params.push(options.intentType.trim());
+    }
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const limit = typeof options.limit === 'number' && Number.isFinite(options.limit)
+      ? Math.max(1, Math.min(1000, Math.trunc(options.limit)))
+      : 200;
+    const rows = db.prepare(`
+      SELECT query_id, strategy_id, intent_type, created_at, feedback_outcome, feedback_recorded_at
+      FROM retrieval_strategy_queries
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(...params, limit) as RetrievalStrategySelectionRow[];
+
+    return rows.map((row) => ({
+      queryId: row.query_id,
+      strategyId: row.strategy_id,
+      intentType: row.intent_type,
+      createdAt: row.created_at,
+      feedbackOutcome: row.feedback_outcome ?? undefined,
+      feedbackRecordedAt: row.feedback_recorded_at ?? undefined,
     }));
   }
 
@@ -7367,6 +7561,23 @@ interface RetrievalConfidenceLogRow {
   attempt: number | null;
   max_escalation_depth: number | null;
   routed_strategy: string | null;
+}
+
+interface RetrievalStrategyRewardRow {
+  strategy_id: string;
+  intent_type: string;
+  success_count: number;
+  failure_count: number;
+  last_updated: string;
+}
+
+interface RetrievalStrategySelectionRow {
+  query_id: string;
+  strategy_id: string;
+  intent_type: string;
+  created_at: string;
+  feedback_outcome: 'success' | 'failure' | 'partial' | null;
+  feedback_recorded_at: string | null;
 }
 
 interface IndexingHistoryRow {

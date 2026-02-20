@@ -1223,6 +1223,36 @@ export interface SubmitFeedbackToolInput {
   }>;
 }
 
+/** feedback_retrieval_result tool input */
+export interface FeedbackRetrievalResultToolInput {
+  /** Feedback token from query response */
+  feedbackToken: string;
+
+  /** Whether retrieved context was helpful */
+  wasHelpful: boolean;
+
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Agent identifier */
+  agentId?: string;
+
+  /** Description of missing context */
+  missingContext?: string;
+}
+
+/** get_retrieval_stats tool input */
+export interface GetRetrievalStatsToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional intent type filter */
+  intentType?: string;
+
+  /** Maximum selection events returned */
+  limit?: number;
+}
+
 export interface SubmitFeedbackToolOutput {
   /** Feedback token */
   feedbackToken: string;
@@ -2094,6 +2124,18 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  feedback_retrieval_result: {
+    tool: 'feedback_retrieval_result',
+    requiredScopes: ['read', 'write'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  get_retrieval_stats: {
+    tool: 'get_retrieval_stats',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   explain_function: {
     tool: 'explain_function',
     requiredScopes: ['read'],
@@ -2788,6 +2830,30 @@ export function isSubmitFeedbackToolInput(value: unknown): value is SubmitFeedba
   const missingContextOk = typeof obj.missingContext === 'string' || typeof obj.missingContext === 'undefined';
   const ratingsOk = Array.isArray(obj.customRatings) || typeof obj.customRatings === 'undefined';
   return tokenOk && outcomeOk && workspaceOk && agentIdOk && missingContextOk && ratingsOk;
+}
+
+/** Type guard for FeedbackRetrievalResultToolInput */
+export function isFeedbackRetrievalResultToolInput(value: unknown): value is FeedbackRetrievalResultToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const tokenOk = typeof obj.feedbackToken === 'string';
+  const wasHelpfulOk = typeof obj.wasHelpful === 'boolean';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const agentIdOk = typeof obj.agentId === 'string' || typeof obj.agentId === 'undefined';
+  const missingContextOk = typeof obj.missingContext === 'string' || typeof obj.missingContext === 'undefined';
+  return tokenOk && wasHelpfulOk && workspaceOk && agentIdOk && missingContextOk;
+}
+
+/** Type guard for GetRetrievalStatsToolInput */
+export function isGetRetrievalStatsToolInput(value: unknown): value is GetRetrievalStatsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const intentTypeOk = typeof obj.intentType === 'string' || typeof obj.intentType === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 1000
+    : typeof obj.limit === 'undefined';
+  return workspaceOk && intentTypeOk && limitOk;
 }
 
 /** Type guard for ExplainFunctionToolInput */

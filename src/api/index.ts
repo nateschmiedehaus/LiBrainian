@@ -682,6 +682,21 @@ export type {
   UnifiedQueryIntent,
 } from './query_intent.js';
 
+export {
+  RETRIEVAL_STRATEGY_ARMS,
+  isRetrievalStrategyArm,
+  sampleBeta,
+  selectRetrievalStrategyArm,
+  selectRetrievalStrategyForIntent,
+  selectAndRecordRetrievalStrategy,
+  applyRetrievalStrategyFeedbackForQuery,
+} from './retrieval_strategy_bandit.js';
+export type {
+  RetrievalStrategyArm,
+  RetrievalStrategySelectionResult,
+  RetrievalStrategyRewardSnapshot,
+} from './retrieval_strategy_bandit.js';
+
 // Query-conditioned context assembly templates
 export {
   classifyAssemblyIntent,

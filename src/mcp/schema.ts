@@ -327,6 +327,26 @@ export const SubmitFeedbackToolInputSchema = z.object({
 }).strict();
 
 /**
+ * feedback_retrieval_result tool input schema
+ */
+export const FeedbackRetrievalResultToolInputSchema = z.object({
+  feedbackToken: z.string().min(1).describe('Feedback token from query response'),
+  wasHelpful: z.boolean().describe('Whether retrieved context was helpful'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  agentId: z.string().optional().describe('Agent identifier'),
+  missingContext: z.string().optional().describe('Description of missing context'),
+}).strict();
+
+/**
+ * get_retrieval_stats tool input schema
+ */
+export const GetRetrievalStatsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  intentType: z.string().min(1).optional().describe('Optional retrieval intent type filter'),
+  limit: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum selection events to return (default 200, max 1000)'),
+}).strict().default({});
+
+/**
  * Explain function tool input schema
  */
 export const ExplainFunctionToolInputSchema = z.object({
@@ -695,6 +715,8 @@ export type MemorySearchToolInputType = z.infer<typeof MemorySearchToolInputSche
 export type MemoryUpdateToolInputType = z.infer<typeof MemoryUpdateToolInputSchema>;
 export type MemoryDeleteToolInputType = z.infer<typeof MemoryDeleteToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
+export type FeedbackRetrievalResultToolInputType = z.infer<typeof FeedbackRetrievalResultToolInputSchema>;
+export type GetRetrievalStatsToolInputType = z.infer<typeof GetRetrievalStatsToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindCallersToolInputType = z.infer<typeof FindCallersToolInputSchema>;
 export type FindCalleesToolInputType = z.infer<typeof FindCalleesToolInputSchema>;
@@ -771,6 +793,8 @@ export const TOOL_INPUT_SCHEMAS = {
   memory_update: MemoryUpdateToolInputSchema,
   memory_delete: MemoryDeleteToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
+  feedback_retrieval_result: FeedbackRetrievalResultToolInputSchema,
+  get_retrieval_stats: GetRetrievalStatsToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_callers: FindCallersToolInputSchema,
   find_callees: FindCalleesToolInputSchema,
@@ -1260,6 +1284,40 @@ export const submitFeedbackToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** feedback_retrieval_result tool JSON Schema */
+export const feedbackRetrievalResultToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/feedback-retrieval-result-tool-input',
+  title: 'FeedbackRetrievalResultToolInput',
+  description: 'Input for feedback_retrieval_result - submit retrieval helpfulness outcome from a query feedback token',
+  type: 'object',
+  properties: {
+    feedbackToken: { type: 'string', description: 'Feedback token from query response', minLength: 1 },
+    wasHelpful: { type: 'boolean', description: 'Whether retrieved context was helpful' },
+    workspace: { type: 'string', description: 'Workspace path' },
+    agentId: { type: 'string', description: 'Agent identifier' },
+    missingContext: { type: 'string', description: 'Description of missing context' },
+  },
+  required: ['feedbackToken', 'wasHelpful'],
+  additionalProperties: false,
+};
+
+/** get_retrieval_stats tool JSON Schema */
+export const getRetrievalStatsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-retrieval-stats-tool-input',
+  title: 'GetRetrievalStatsToolInput',
+  description: 'Input for get_retrieval_stats - summarize retrieval strategy routing outcomes and rewards',
+  type: 'object',
+  properties: {
+    workspace: { type: 'string', description: 'Workspace path' },
+    intentType: { type: 'string', description: 'Optional retrieval intent type filter', minLength: 1 },
+    limit: { type: 'number', description: 'Maximum selection events to return', minimum: 1, maximum: 1000, default: 200 },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
 /** Explain function tool JSON Schema */
 export const explainFunctionToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -1580,6 +1638,8 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   memory_update: memoryUpdateToolJsonSchema,
   memory_delete: memoryDeleteToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
+  feedback_retrieval_result: feedbackRetrievalResultToolJsonSchema,
+  get_retrieval_stats: getRetrievalStatsToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
   get_repo_map: getRepoMapToolJsonSchema,
 };

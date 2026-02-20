@@ -191,6 +191,15 @@ export interface LibrarianStorage {
   pruneQueryCache(options: QueryCachePruneOptions): Promise<number>;
   appendRetrievalConfidenceLog(entry: RetrievalConfidenceLogEntry): Promise<void>;
   getRetrievalConfidenceLogs(options?: RetrievalConfidenceLogQueryOptions): Promise<RetrievalConfidenceLogEntry[]>;
+  getRetrievalStrategyRewards?(intentType?: string): Promise<RetrievalStrategyReward[]>;
+  recordRetrievalStrategySelection?(selection: RetrievalStrategySelection): Promise<void>;
+  getRetrievalStrategySelection?(queryId: string): Promise<RetrievalStrategySelection | null>;
+  applyRetrievalStrategyFeedback?(
+    queryId: string,
+    wasHelpful: boolean,
+    outcome?: 'success' | 'failure' | 'partial'
+  ): Promise<RetrievalStrategyReward | null>;
+  getRetrievalStrategySelections?(options?: RetrievalStrategySelectionQueryOptions): Promise<RetrievalStrategySelection[]>;
 
   // Evolution outcomes (for learning/adaptation) - REQUIRED for self-evolution
   recordEvolutionOutcome(outcome: EvolutionOutcome): Promise<void>;
@@ -956,6 +965,28 @@ export interface RetrievalConfidenceLogEntry {
 
 export interface RetrievalConfidenceLogQueryOptions {
   queryHash?: string;
+  limit?: number;
+}
+
+export interface RetrievalStrategyReward {
+  strategyId: string;
+  intentType: string;
+  successCount: number;
+  failureCount: number;
+  lastUpdated: string;
+}
+
+export interface RetrievalStrategySelection {
+  queryId: string;
+  strategyId: string;
+  intentType: string;
+  createdAt: string;
+  feedbackOutcome?: 'success' | 'failure' | 'partial';
+  feedbackRecordedAt?: string;
+}
+
+export interface RetrievalStrategySelectionQueryOptions {
+  intentType?: string;
   limit?: number;
 }
 

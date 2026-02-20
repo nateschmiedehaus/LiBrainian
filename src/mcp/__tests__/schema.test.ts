@@ -39,6 +39,8 @@ import {
   ExplainOperatorToolInputSchema,
   CheckConstructionTypesToolInputSchema,
   SubmitFeedbackToolInputSchema,
+  FeedbackRetrievalResultToolInputSchema,
+  GetRetrievalStatsToolInputSchema,
   ExplainFunctionToolInputSchema,
   FindCallersToolInputSchema,
   FindCalleesToolInputSchema,
@@ -81,6 +83,8 @@ import {
   isExplainOperatorToolInput,
   isCheckConstructionTypesToolInput,
   isSubmitFeedbackToolInput,
+  isFeedbackRetrievalResultToolInput,
+  isGetRetrievalStatsToolInput,
   isExplainFunctionToolInput,
   isFindCallersToolInput,
   isFindCalleesToolInput,
@@ -128,6 +132,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('explain_operator');
       expect(schemas).toContain('check_construction_types');
       expect(schemas).toContain('submit_feedback');
+      expect(schemas).toContain('feedback_retrieval_result');
+      expect(schemas).toContain('get_retrieval_stats');
       expect(schemas).toContain('explain_function');
       expect(schemas).toContain('find_callers');
       expect(schemas).toContain('find_callees');
@@ -161,7 +167,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_update');
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(53);
+      expect(schemas).toHaveLength(55);
     });
 
     it('should return schema for known tools', () => {
@@ -594,6 +600,49 @@ describe('MCP Schema', () => {
     it('should pass type guard', () => {
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'failure' })).toBe(true);
       expect(isSubmitFeedbackToolInput({ feedbackToken: 'fbk_123', outcome: 'bad' })).toBe(false);
+    });
+  });
+
+  describe('Feedback Retrieval Result Tool Schema', () => {
+    it('should validate correct input', () => {
+      const result = validateToolInput('feedback_retrieval_result', {
+        feedbackToken: 'fbk_123',
+        wasHelpful: true,
+      });
+      expect(result.valid).toBe(true);
+      expect(FeedbackRetrievalResultToolInputSchema).toBeDefined();
+    });
+
+    it('should reject missing required fields', () => {
+      expect(validateToolInput('feedback_retrieval_result', { wasHelpful: true }).valid).toBe(false);
+      expect(validateToolInput('feedback_retrieval_result', { feedbackToken: 'fbk_123' }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isFeedbackRetrievalResultToolInput({ feedbackToken: 'fbk_123', wasHelpful: false })).toBe(true);
+      expect(isFeedbackRetrievalResultToolInput({ feedbackToken: 'fbk_123', wasHelpful: 'yes' })).toBe(false);
+    });
+  });
+
+  describe('Get Retrieval Stats Tool Schema', () => {
+    it('should validate optional fields', () => {
+      const result = validateToolInput('get_retrieval_stats', {
+        intentType: 'debug',
+        limit: 50,
+      });
+      expect(result.valid).toBe(true);
+      expect(GetRetrievalStatsToolInputSchema).toBeDefined();
+    });
+
+    it('should reject invalid limit', () => {
+      expect(validateToolInput('get_retrieval_stats', { limit: 0 }).valid).toBe(false);
+      expect(validateToolInput('get_retrieval_stats', { limit: 1001 }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetRetrievalStatsToolInput({})).toBe(true);
+      expect(isGetRetrievalStatsToolInput({ intentType: 'understand', limit: 25 })).toBe(true);
+      expect(isGetRetrievalStatsToolInput({ limit: -1 })).toBe(false);
     });
   });
 
