@@ -125,6 +125,60 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.aggregate_confidence?.highest_risk_element).toContain('p1');
   });
 
+  it('annotates stale context packs with freshness metadata and warning', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-freshness-'));
+    const filePath = path.join(workspace, 'src', 'auth.ts');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, 'export const auth = true;\n', 'utf8');
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        {
+          packId: 'stale-pack',
+          packType: 'module_context',
+          targetId: 'auth',
+          summary: 'stale auth context',
+          keyFacts: [],
+          relatedFiles: ['src/auth.ts'],
+          confidence: 0.75,
+          createdAt: new Date(Date.now() - (6 * 60 * 60 * 1000)),
+        },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-freshness',
+      constructionPlan: undefined,
+      totalConfidence: 0.75,
+      cacheHit: false,
+      latencyMs: 10,
+      drillDownHints: [],
+      synthesis: 'answer',
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'staleness check',
+      pageSize: 5,
+      pageIdx: 0,
+    });
+
+    expect(result.packs).toHaveLength(1);
+    expect(result.packs[0]?.freshness_score).toBeLessThan(0.1);
+    expect(result.packs[0]?.stale_files).toContain('src/auth.ts');
+    expect(String(result.staleness_warning)).toContain('[STALE]');
+  });
+
   it('writes query page payload to outputFile and returns reference metadata', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },

@@ -494,6 +494,9 @@ const DEFAULT_STREAM_CHUNK_SIZE = 5;
 const MAX_STREAM_CHUNK_SIZE = 200;
 const DEFAULT_RUN_LIST_LIMIT = 10;
 const MAX_RUN_LIST_LIMIT = 100;
+const DEFAULT_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS = 60 * 60 * 1000;
+const MIN_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS = 60 * 1000;
+const MAX_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000;
 const MIN_PARAMETER_DESCRIPTION_WORDS = 20;
 const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const LOW_CONFIDENCE_THRESHOLD = 0.35;
@@ -4933,13 +4936,15 @@ export class LibrarianMCPServer {
         totalConfidence: response.totalConfidence,
       });
 
-      const transformedPacks = response.packs.map((pack) => {
+      const freshnessHalfLifeMs = await this.resolveContextPackFreshnessHalfLifeMs(workspace.path);
+      const transformedPacks = await Promise.all(response.packs.map(async (pack) => {
         const confidenceTier = this.classifyExplainabilityConfidenceTier(pack.confidence ?? 0);
         const retrievalRationale = this.buildRetrievalRationale(pack, input);
         const coverageNote = this.buildCoverageNote(pack);
         const confidenceStatement = this.buildConfidenceStatement(confidenceTier, pack);
         const verificationGuidance = this.buildVerificationGuidance(confidenceTier);
         const confidenceBreakdown = this.buildConfidenceBreakdown(pack, confidenceTier);
+        const freshness = await this.computeContextPackFreshness(pack, workspace.path, freshnessHalfLifeMs);
         return {
           packId: pack.packId,
           packType: pack.packType,
@@ -4960,8 +4965,12 @@ export class LibrarianMCPServer {
           retrieval_rationale: retrievalRationale,
           coverageNote,
           coverage_note: coverageNote,
+          freshnessScore: freshness.freshnessScore,
+          freshness_score: freshness.freshnessScore,
+          staleFiles: freshness.staleFiles,
+          stale_files: freshness.staleFiles,
         };
-      });
+      }));
       recordProgress('packs_transformed', {
         transformedCount: transformedPacks.length,
       });
@@ -4996,6 +5005,12 @@ export class LibrarianMCPServer {
             reason: `Excluded by pagination window (pageIdx=${pagination.pageIdx}, pageSize=${pagination.pageSize}) despite matching retrieval criteria.`,
           }))
         : undefined;
+      const criticallyStalePackIds = pagedPacks
+        .filter((pack) => typeof pack.freshnessScore === 'number' && pack.freshnessScore < 0.1)
+        .map((pack) => pack.packId);
+      const stalenessWarning = criticallyStalePackIds.length > 0
+        ? `[STALE] ${criticallyStalePackIds.length} context pack(s) are critically stale (freshness_score < 0.1): ${criticallyStalePackIds.join(', ')}`
+        : undefined;
 
       const baseResult = {
         disclosures: userDisclosures,
@@ -5019,6 +5034,7 @@ export class LibrarianMCPServer {
         pagination,
         sortOrder: 'retrieval_score_desc',
         aggregateConfidence,
+        stalenessWarning,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
         nearMisses,
         loopDetection: sessionState
@@ -5068,6 +5084,7 @@ export class LibrarianMCPServer {
         ...resultWithHumanReview,
         coverage_gaps: resultWithHumanReview.coverageGaps,
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
+        staleness_warning: resultWithHumanReview.stalenessWarning,
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
         ...(resultWithHumanReview.humanReviewRecommendation
@@ -9736,6 +9753,103 @@ export class LibrarianMCPServer {
     return path.isAbsolute(trimmed)
       ? path.resolve(trimmed)
       : path.resolve(workspacePath, trimmed);
+  }
+
+  private async resolveContextPackFreshnessHalfLifeMs(workspacePath: string): Promise<number> {
+    const configPaths = [
+      path.join(workspacePath, 'librainian.config.json'),
+      path.join(workspacePath, '.librarian', 'config.json'),
+      path.join(workspacePath, '.librainian.json'),
+    ];
+    for (const configPath of configPaths) {
+      try {
+        const raw = await fs.readFile(configPath, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+        if (!parsed || typeof parsed !== 'object') continue;
+        const retrieval = parsed.retrieval;
+        const retrievalConfig = retrieval && typeof retrieval === 'object'
+          ? retrieval as Record<string, unknown>
+          : null;
+        const candidates = [
+          parsed.freshness_half_life_ms,
+          parsed.freshnessHalfLifeMs,
+          parsed.context_pack_freshness_half_life_ms,
+          parsed.contextPackFreshnessHalfLifeMs,
+          retrievalConfig?.freshness_half_life_ms,
+          retrievalConfig?.freshnessHalfLifeMs,
+          retrievalConfig?.context_pack_freshness_half_life_ms,
+          retrievalConfig?.contextPackFreshnessHalfLifeMs,
+        ];
+        for (const candidate of candidates) {
+          if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+            return Math.max(
+              MIN_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS,
+              Math.min(MAX_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS, Math.trunc(candidate))
+            );
+          }
+        }
+      } catch {
+        // Optional config file; fall through to defaults.
+      }
+    }
+    return DEFAULT_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS;
+  }
+
+  private computeFreshnessDecayScore(ageMs: number, halfLifeMs: number): number {
+    if (!Number.isFinite(ageMs) || ageMs <= 0) return 1;
+    if (!Number.isFinite(halfLifeMs) || halfLifeMs <= 0) return 1;
+    const clampedAge = Math.max(0, ageMs);
+    const decay = Math.exp((-Math.LN2 * clampedAge) / halfLifeMs);
+    const bounded = Math.max(0, Math.min(1, decay));
+    return Number(bounded.toFixed(4));
+  }
+
+  private async computeContextPackFreshness(
+    pack: { createdAt?: Date | string; relatedFiles?: string[] },
+    workspacePath: string,
+    halfLifeMs: number,
+  ): Promise<{ freshnessScore: number; staleFiles: string[] }> {
+    const parsedCreatedAt = pack.createdAt instanceof Date
+      ? pack.createdAt
+      : (typeof pack.createdAt === 'string' ? new Date(pack.createdAt) : null);
+    const createdAtMs = parsedCreatedAt && !Number.isNaN(parsedCreatedAt.getTime())
+      ? parsedCreatedAt.getTime()
+      : Date.now();
+    const relatedFiles = Array.isArray(pack.relatedFiles)
+      ? pack.relatedFiles.filter((file): file is string => typeof file === 'string' && file.trim().length > 0)
+      : [];
+
+    if (relatedFiles.length === 0) {
+      return {
+        freshnessScore: this.computeFreshnessDecayScore(Date.now() - createdAtMs, halfLifeMs),
+        staleFiles: [],
+      };
+    }
+
+    const stale = new Set<string>();
+    let freshnessScore = 1;
+    for (const file of relatedFiles.slice(0, 25)) {
+      const resolvedPath = path.isAbsolute(file)
+        ? path.resolve(file)
+        : path.resolve(workspacePath, file);
+      try {
+        const stat = await fs.stat(resolvedPath);
+        const modifiedAtMs = stat.mtime.getTime();
+        if (modifiedAtMs > createdAtMs) {
+          stale.add(file);
+          const score = this.computeFreshnessDecayScore(modifiedAtMs - createdAtMs, halfLifeMs);
+          freshnessScore = Math.min(freshnessScore, score);
+        }
+      } catch {
+        stale.add(file);
+        freshnessScore = 0;
+      }
+    }
+
+    return {
+      freshnessScore: Number(Math.max(0, Math.min(1, freshnessScore)).toFixed(4)),
+      staleFiles: Array.from(stale),
+    };
   }
 
   private async isProactiveInjectionEnabledForWorkspace(workspaceRoot: string): Promise<boolean> {

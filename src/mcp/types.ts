@@ -729,6 +729,9 @@ export interface QueryToolOutput {
     highestRiskElement: string;
   };
 
+  /** Human-readable warning when one or more packs are critically stale */
+  stalenessWarning?: string;
+
   /** Evidence summary */
   evidenceSummary?: EvidenceSummary;
 
@@ -1368,6 +1371,12 @@ export interface ContextPackSummary {
 
   /** Related files */
   relatedFiles: string[];
+
+  /** Freshness score for this context pack (0-1, higher is fresher) */
+  freshnessScore?: number;
+
+  /** Source files that are newer than this context pack snapshot */
+  staleFiles?: string[];
 }
 
 export interface EvidenceSummary {
