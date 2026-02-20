@@ -1,6 +1,7 @@
 const WORKSPACE_POSITIONAL_COMMANDS = new Set([
   'status',
   'bootstrap',
+  'generate-docs',
   'uninstall',
   'quickstart',
   'setup',

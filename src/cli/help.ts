@@ -33,6 +33,7 @@ COMMANDS:
     benchmark           Run local performance SLA diagnostics
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
+    generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
     check-providers     Check provider availability and authentication
     audit-skill         Audit a SKILL.md for malicious patterns
     watch               Watch for file changes and auto-reindex
@@ -95,6 +96,7 @@ EXAMPLES:
     librainian test-integration --suite openclaw --json
     librainian benchmark --json
     librainian mcp --print-config --client claude
+    librainian generate-docs --include tools,context,rules
     librainian compose "Prepare a release plan" --limit 1
     librainian constructions search "security audit"
     librainian publish-gate --profile release --json
@@ -535,6 +537,38 @@ EXAMPLES:
     librarian eject-docs
     librarian eject-docs --dry-run
     librarian eject-docs --json
+`,
+
+  'generate-docs': `
+librarian generate-docs - Generate prompt-injection docs (TOOLS/CONTEXT/RULES)
+
+USAGE:
+    librarian generate-docs [options]
+
+OPTIONS:
+    --output-dir <path>      Output directory (default: workspace root)
+    --include <list>         Comma-separated docs: tools,context,rules
+    --no-tools               Exclude LIBRAINIAN_TOOLS.md
+    --no-context             Exclude LIBRAINIAN_CONTEXT.md
+    --no-rules               Exclude LIBRAINIAN_RULES.md
+    --max-tokens <n>         Per-file token budget cap (default: 1800, max: 2000)
+    --combined               Also write LIBRAINIAN_PROMPT_DOCS.md
+    --json                   Output generation summary as JSON
+
+DESCRIPTION:
+    Generates separated markdown docs intended for agent prompt injection:
+    - LIBRAINIAN_TOOLS.md: MCP tool catalog with compact invocation examples
+    - LIBRAINIAN_CONTEXT.md: workspace language/module/entrypoint/index summary
+    - LIBRAINIAN_RULES.md: retrieval, confidence, and evidence handling rules
+
+    Docs can be toggled per-workspace through config keys:
+    - promptDocs.tools / promptDocs.context / promptDocs.rules
+    - prompt_docs.tools / prompt_docs.context / prompt_docs.rules
+
+EXAMPLES:
+    librarian generate-docs
+    librarian generate-docs --output-dir docs/generated --combined
+    librarian generate-docs --include tools,context --json
 `,
 
   quickstart: `

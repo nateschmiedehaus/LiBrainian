@@ -11,6 +11,7 @@
  *   librarian uninstall           - Remove LiBrainian bootstrap artifacts
  *   librarian mcp                 - Start MCP stdio server / print client config
  *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
+ *   librarian generate-docs       - Generate TOOLS/CONTEXT/RULES prompt docs
  *   librarian index --force <...> - Incrementally index specific files or git-selected changes
  *   librarian inspect <module>    - Inspect a module's knowledge
  *   librarian confidence <entity> - Show confidence scores for an entity
@@ -95,6 +96,7 @@ import { openclawDaemonCommand } from './commands/openclaw_daemon.js';
 import { memoryBridgeCommand } from './commands/memory_bridge.js';
 import { testIntegrationCommand } from './commands/test_integration.js';
 import { benchmarkCommand } from './commands/benchmark.js';
+import { generateDocsCommand } from './commands/generate_docs.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
@@ -108,7 +110,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
+type Command = 'status' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -162,6 +164,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'eject-docs': {
     description: 'Remove injected librarian docs from CLAUDE.md files',
     usage: 'librarian eject-docs [--dry-run] [--json]',
+  },
+  'generate-docs': {
+    description: 'Generate TOOLS/CONTEXT/RULES prompt docs for agent injection',
+    usage: 'librarian generate-docs [--output-dir <path>] [--include tools,context,rules] [--no-tools] [--no-context] [--no-rules] [--max-tokens <n>] [--combined] [--json]',
   },
   'inspect': {
     description: 'Inspect a module or function\'s knowledge',
@@ -438,6 +444,9 @@ async function main(): Promise<void> {
         break;
       case 'eject-docs':
         await ejectDocsCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'generate-docs':
+        await generateDocsCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'inspect':
