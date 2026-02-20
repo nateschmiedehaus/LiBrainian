@@ -916,6 +916,52 @@ describe('computeAbLiftSummary', () => {
     ).toBe(true);
   });
 
+  it('enforces agent critique share thresholds for agent-command evidence', async () => {
+    const repoRoot = await createRepoFixture();
+    const parent = path.dirname(repoRoot);
+    const repoName = path.basename(repoRoot);
+    const task: AbTaskDefinition = {
+      id: 'task-realism-critique-share',
+      repo: repoName,
+      complexity: 'T3',
+      description: 'Agent run without critique markers should fail critique share gate.',
+      contextLevel: 1,
+      mode: 'agent_command',
+      targetFiles: ['src/feature.ts'],
+      agentExecution: {
+        commandTemplate: 'node -e "const fs=require(\'node:fs\');fs.writeFileSync(\'src/feature.ts\',\'export function greet() { return \\\\\\"no critique\\\\\\"; }\\\\n\');"',
+      },
+      verification: {
+        tests: ['node -e "process.exit(0)"'],
+      },
+      contextByLevel: {
+        L1: ['src/feature.ts'],
+      },
+      requireTargetFileModification: true,
+    };
+
+    const report = await runAbExperiment({
+      reposRoot: parent,
+      tasks: [task],
+      workerTypes: ['control'],
+      maxTasks: 1,
+      minAgentCommandShare: 0,
+      minAgentVerifiedExecutionShare: 0,
+      minAgentCritiqueShare: 1,
+      requireNoCriticalFailures: false,
+      minT3SuccessRateLift: 0,
+      requireT3Significance: false,
+      requireT3CeilingTimeReduction: false,
+    });
+
+    expect(report.diagnostics.agentCritiqueShare).toBe(0);
+    expect(
+      report.gates.reasons.some((reason) =>
+        reason.startsWith('agent_critique_share_below_threshold:')
+      )
+    ).toBe(true);
+  });
+
   it('counts verified execution when verification commands run but assertions fail', async () => {
     const repoRoot = await createRepoFixture();
     const parent = path.dirname(repoRoot);
@@ -992,6 +1038,101 @@ describe('computeAbLiftSummary', () => {
     expect(result.artifactIntegrity?.missingFiles ?? []).toHaveLength(0);
     expect(result.artifacts?.files.agent_command_result).toBeDefined();
     expect(result.artifacts?.files.prompt).toBeDefined();
+  });
+
+  it('fails agent-command runs when critique contract is required but missing', async () => {
+    const repoRoot = await createRepoFixture();
+    const task: AbTaskDefinition = {
+      id: 'task-critique-missing',
+      repo: 'fixture',
+      complexity: 'T3',
+      description: 'Agent modifies target file but omits critique JSON markers.',
+      contextLevel: 1,
+      mode: 'agent_command',
+      targetFiles: ['src/feature.ts'],
+      agentExecution: {
+        commandTemplate: 'node -e "const fs=require(\'node:fs\');fs.writeFileSync(\'src/feature.ts\',\'export function greet() { return \\\\\\"critique missing\\\\\\"; }\\\\n\')"',
+      },
+      verification: {
+        tests: ['node -e "process.exit(0)"'],
+      },
+      contextByLevel: {
+        L1: ['src/feature.ts'],
+      },
+    };
+
+    const result = await runAbTask(task, repoRoot, {
+      workerType: 'control',
+      requireAgentCritique: true,
+      resolveExtraContext: async () => [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.failureReason).toBe('agent_critique_missing');
+    expect(result.agentCritique?.valid).toBe(false);
+    expect(result.artifacts?.files.agent_critique).toBeDefined();
+  });
+
+  it('records valid critique artifacts when agent emits critique JSON markers', async () => {
+    const repoRoot = await createRepoFixture();
+    await writeFile(
+      path.join(repoRoot, 'scripts', 'agent-critique-ok.cjs'),
+      [
+        'const fs = require("node:fs");',
+        'const p = "src/feature.ts";',
+        'fs.writeFileSync(p, "export function greet() { return \\"critique ok\\"; }\\n");',
+        'console.log("AB_AGENT_CRITIQUE_JSON_START");',
+        'console.log(JSON.stringify({',
+        '  summary: "Used Librarian hints to localize quickly and verified final diff.",',
+        '  workOutcome: "successful",',
+        '  librarianEffectiveness: "good",',
+        '  confidence: 0.9,',
+        '  issues: [',
+        '    {',
+        '      perspective: "reliability",',
+        '      severity: "medium",',
+        '      title: "Acceptance command ambiguity",',
+        '      diagnosis: "Only one acceptance command can run, reducing confidence in edge cases.",',
+        '      recommendation: "Allow a bounded second acceptance command for high-risk tasks."',
+        '    }',
+        '  ],',
+        '  suggestions: ["Add explicit acceptance command priority ordering."]',
+        '}));',
+        'console.log("AB_AGENT_CRITIQUE_JSON_END");',
+      ].join('\n'),
+      'utf8'
+    );
+
+    const task: AbTaskDefinition = {
+      id: 'task-critique-valid',
+      repo: 'fixture',
+      complexity: 'T3',
+      description: 'Agent modifies target file and emits critique JSON.',
+      contextLevel: 1,
+      mode: 'agent_command',
+      targetFiles: ['src/feature.ts'],
+      agentExecution: {
+        commandTemplate: 'node scripts/agent-critique-ok.cjs',
+      },
+      verification: {
+        tests: ['node -e "const fs=require(\'node:fs\');process.exit(fs.readFileSync(\'src/feature.ts\', \'utf8\').includes(\'critique ok\') ? 0 : 1)"'],
+      },
+      contextByLevel: {
+        L1: ['src/feature.ts'],
+      },
+    };
+
+    const result = await runAbTask(task, repoRoot, {
+      workerType: 'control',
+      requireAgentCritique: true,
+      resolveExtraContext: async () => [],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.failureReason).toBeUndefined();
+    expect(result.agentCritique?.valid).toBe(true);
+    expect(result.agentCritique?.critique?.workOutcome).toBe('successful');
+    expect(result.agentCritique?.critique?.issues.length).toBeGreaterThan(0);
   });
 
   it('enforces artifact integrity threshold for agent-command evidence completeness', async () => {

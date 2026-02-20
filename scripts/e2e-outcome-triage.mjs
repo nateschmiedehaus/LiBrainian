@@ -158,6 +158,15 @@ function classifyFailure(failure) {
       relatedIssues: [564],
     };
   }
+  if (text.includes('agent_critique_share_below_threshold')) {
+    return {
+      key: 'outcome-agent-critique-insufficient',
+      severity: 'high',
+      immediate: false,
+      summary: 'External agent critique coverage is below threshold.',
+      relatedIssues: [564],
+    };
+  }
   if (text.includes('time_reduction_below_threshold')) {
     return {
       key: 'outcome-time-reduction-regressed',

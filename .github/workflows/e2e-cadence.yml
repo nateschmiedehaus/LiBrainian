@@ -48,27 +48,47 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Enforce outcome and triage gates
-        if: always()
-        run: |
-          set -euo pipefail
-          if [ "${{ steps.outcome_gate.outcome }}" != "success" ]; then
-            echo "::error::Outcome diagnostics gate failed."
-            exit 1
-          fi
-          if [ "${{ steps.outcome_triage.outcome }}" != "success" ]; then
-            echo "::error::Outcome triage requires immediate action."
-            exit 1
-          fi
-
       - name: Published-package black-box E2E (strict)
+        id: reality_latest
+        continue-on-error: true
         run: npm run test:e2e:reality
 
       - name: Tarball black-box E2E (strict)
+        id: reality_tarball
+        continue-on-error: true
         run: npm run test:e2e:reality:tarball
 
       - name: In-repo acceptance E2E (strict)
+        id: acceptance_gate
+        continue-on-error: true
         run: npm run test:e2e:acceptance
+
+      - name: Enforce E2E gate outcomes
+        if: always()
+        run: |
+          set -euo pipefail
+          failed=0
+          if [ "${{ steps.outcome_gate.outcome }}" != "success" ]; then
+            echo "::error::Outcome diagnostics gate failed."
+            failed=1
+          fi
+          if [ "${{ steps.outcome_triage.outcome }}" != "success" ]; then
+            echo "::error::Outcome triage requires immediate action."
+            failed=1
+          fi
+          if [ "${{ steps.reality_latest.outcome }}" != "success" ]; then
+            echo "::error::Published-package reality gate failed."
+            failed=1
+          fi
+          if [ "${{ steps.reality_tarball.outcome }}" != "success" ]; then
+            echo "::error::Tarball reality gate failed."
+            failed=1
+          fi
+          if [ "${{ steps.acceptance_gate.outcome }}" != "success" ]; then
+            echo "::error::Acceptance gate failed."
+            failed=1
+          fi
+          exit "$failed"
 
       - name: Upload E2E reality artifacts
         if: always()

@@ -102,6 +102,11 @@ export interface AbTaskRunResult {
   extraContextFiles: string[];
   modifiedFiles: string[];
   agentCommand?: AbCommandResult;
+  agentCritique?: {
+    valid: boolean;
+    reason?: string;
+    critique?: AbAgentCritique;
+  };
   artifacts?: {
     directory: string;
     files: Record<string, string>;
@@ -135,6 +140,7 @@ export interface AbTaskRunOptions {
   resolveExtraContext?: (request: AbContextRequest) => Promise<string[]>;
   commandTimeoutMs?: number;
   artifactRoot?: string;
+  requireAgentCritique?: boolean;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -156,6 +162,7 @@ export interface AbHarnessOptions {
   requireT3Significance?: boolean;
   requireNoCriticalFailures?: boolean;
   minAgentVerifiedExecutionShare?: number;
+  minAgentCritiqueShare?: number;
   requireBaselineFailureForAgentTasks?: boolean;
   minArtifactIntegrityShare?: number;
   maxVerificationFallbackShare?: number;
@@ -225,6 +232,7 @@ export interface AbExperimentReport {
     agentCommandShare: number;
     agentVerifiedExecutionShare: number;
     agentBaselineGuardShare: number;
+    agentCritiqueShare: number;
     artifactIntegrityShare: number;
     verificationFallbackRuns: number;
     verificationFallbackShare: number;
@@ -242,6 +250,7 @@ export interface AbExperimentReport {
       requireT3Significance: boolean;
       requireNoCriticalFailures: boolean;
       minAgentVerifiedExecutionShare: number;
+      minAgentCritiqueShare: number;
       requireBaselineFailureForAgentTasks: boolean;
       minArtifactIntegrityShare: number;
       maxVerificationFallbackShare: number;
@@ -262,6 +271,25 @@ const AB_CEILING_MIN_TIME_REDUCTION = 0.01;
 const AB_MAX_LIBRARIAN_CONTEXT_FILES = 2;
 const AB_PROMPT_EXCERPT_MAX_FILES = 2;
 const AB_PROMPT_EXCERPT_MAX_CHARS = 900;
+const AB_AGENT_CRITIQUE_JSON_START = 'AB_AGENT_CRITIQUE_JSON_START';
+const AB_AGENT_CRITIQUE_JSON_END = 'AB_AGENT_CRITIQUE_JSON_END';
+
+export interface AbAgentCritiqueIssue {
+  perspective: 'correctness' | 'relevance' | 'context' | 'tooling' | 'reliability' | 'productivity' | 'other';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  diagnosis: string;
+  recommendation: string;
+}
+
+export interface AbAgentCritique {
+  summary: string;
+  workOutcome: 'failed' | 'partial' | 'successful';
+  librarianEffectiveness: 'poor' | 'mixed' | 'good' | 'excellent';
+  confidence: number;
+  issues: AbAgentCritiqueIssue[];
+  suggestions: string[];
+}
 const DEFAULT_AGENT_PROMPT_TEMPLATE = [
   'Task ID: {{TASK_ID}}',
   'Description:',
@@ -281,6 +309,11 @@ const DEFAULT_AGENT_PROMPT_TEMPLATE = [
   '',
   'Context Excerpts:',
   '{{CONTEXT_EXCERPTS}}',
+  '',
+  'Required report contract (must be included in agent stdout):',
+  `${AB_AGENT_CRITIQUE_JSON_START}`,
+  '{"summary":"...", "workOutcome":"failed|partial|successful", "librarianEffectiveness":"poor|mixed|good|excellent", "confidence":0.0, "issues":[{"perspective":"correctness|relevance|context|tooling|reliability|productivity|other","severity":"low|medium|high|critical","title":"...","diagnosis":"...","recommendation":"..."}], "suggestions":["..."]}',
+  `${AB_AGENT_CRITIQUE_JSON_END}`,
 ].join('\n');
 const SKIP_DIRS = new Set([
   '.git',
@@ -600,6 +633,114 @@ function mergeUniquePaths(values: string[]): string[] {
 function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
   return `${value.slice(0, maxChars)}\n...<truncated>`;
+}
+
+function extractMarkedJsonBlock(stdout: string, startMarker: string, endMarker: string): string | null {
+  const start = stdout.lastIndexOf(startMarker);
+  if (start < 0) return null;
+  const afterStart = stdout.slice(start + startMarker.length);
+  const end = afterStart.indexOf(endMarker);
+  if (end < 0) return null;
+  const payload = afterStart.slice(0, end).trim();
+  return payload.length > 0 ? payload : null;
+}
+
+function isCritiquePerspective(value: string): value is AbAgentCritiqueIssue['perspective'] {
+  return (
+    value === 'correctness'
+    || value === 'relevance'
+    || value === 'context'
+    || value === 'tooling'
+    || value === 'reliability'
+    || value === 'productivity'
+    || value === 'other'
+  );
+}
+
+function isCritiqueSeverity(value: string): value is AbAgentCritiqueIssue['severity'] {
+  return value === 'low' || value === 'medium' || value === 'high' || value === 'critical';
+}
+
+function normalizeAgentCritiqueIssue(value: unknown): AbAgentCritiqueIssue | null {
+  if (!value || typeof value !== 'object') return null;
+  const issue = value as Record<string, unknown>;
+  const perspective = typeof issue.perspective === 'string' ? issue.perspective.trim().toLowerCase() : '';
+  const severity = typeof issue.severity === 'string' ? issue.severity.trim().toLowerCase() : '';
+  const title = typeof issue.title === 'string' ? issue.title.trim() : '';
+  const diagnosis = typeof issue.diagnosis === 'string' ? issue.diagnosis.trim() : '';
+  const recommendation = typeof issue.recommendation === 'string' ? issue.recommendation.trim() : '';
+  if (!isCritiquePerspective(perspective)) return null;
+  if (!isCritiqueSeverity(severity)) return null;
+  if (title.length < 3 || diagnosis.length < 8 || recommendation.length < 8) return null;
+  return { perspective, severity, title, diagnosis, recommendation };
+}
+
+function normalizeAgentCritique(value: unknown): AbAgentCritique | null {
+  if (!value || typeof value !== 'object') return null;
+  const critique = value as Record<string, unknown>;
+  const summary = typeof critique.summary === 'string' ? critique.summary.trim() : '';
+  const workOutcome = typeof critique.workOutcome === 'string' ? critique.workOutcome.trim().toLowerCase() : '';
+  const librarianEffectiveness = typeof critique.librarianEffectiveness === 'string'
+    ? critique.librarianEffectiveness.trim().toLowerCase()
+    : '';
+  const confidence = Number(critique.confidence);
+  const issues = Array.isArray(critique.issues)
+    ? critique.issues
+      .map((issue) => normalizeAgentCritiqueIssue(issue))
+      .filter((issue): issue is AbAgentCritiqueIssue => Boolean(issue))
+    : [];
+  const suggestions = Array.isArray(critique.suggestions)
+    ? critique.suggestions
+      .map((item) => typeof item === 'string' ? item.trim() : '')
+      .filter((item) => item.length >= 4)
+      .slice(0, 8)
+    : [];
+
+  if (summary.length < 16) return null;
+  if (workOutcome !== 'failed' && workOutcome !== 'partial' && workOutcome !== 'successful') return null;
+  if (
+    librarianEffectiveness !== 'poor'
+    && librarianEffectiveness !== 'mixed'
+    && librarianEffectiveness !== 'good'
+    && librarianEffectiveness !== 'excellent'
+  ) {
+    return null;
+  }
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) return null;
+  if (issues.length === 0) return null;
+  if (suggestions.length === 0) return null;
+
+  return {
+    summary,
+    workOutcome,
+    librarianEffectiveness,
+    confidence,
+    issues,
+    suggestions,
+  };
+}
+
+function parseAgentCritiqueFromCommandResult(result: AbCommandResult): {
+  valid: boolean;
+  reason?: string;
+  critique?: AbAgentCritique;
+} {
+  const block = extractMarkedJsonBlock(result.stdout, AB_AGENT_CRITIQUE_JSON_START, AB_AGENT_CRITIQUE_JSON_END);
+  if (!block) {
+    return { valid: false, reason: 'agent_critique_missing' };
+  }
+  const parsed = safeJsonParse<unknown>(block);
+  if (!parsed.ok) {
+    return { valid: false, reason: 'agent_critique_json_invalid' };
+  }
+  const critique = normalizeAgentCritique(parsed.value);
+  if (!critique) {
+    return { valid: false, reason: 'agent_critique_schema_invalid' };
+  }
+  return {
+    valid: true,
+    critique,
+  };
 }
 
 function formatContextList(values: string[]): string {
@@ -1003,6 +1144,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
   const extraContextFiles: string[] = [];
   const commandTimeoutMs = options.commandTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const setupTimeoutMs = Math.max(commandTimeoutMs, DEFAULT_SETUP_TIMEOUT_MS);
+  const requireAgentCritique = options.requireAgentCritique === true;
   const runEnv: NodeJS.ProcessEnv = { ...process.env, ...(options.env ?? {}) };
   const artifactRoot = options.artifactRoot ?? path.join(repoRoot, '.ab-harness-artifacts');
   const requireTargetFileModification = task.requireTargetFileModification
@@ -1047,6 +1189,11 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
     modifiedFiles: string[];
     verification: AbVerificationResult;
     agentCommand?: AbCommandResult;
+    agentCritique?: {
+      valid: boolean;
+      reason?: string;
+      critique?: AbAgentCritique;
+    };
   }): Promise<AbTaskRunResult> => {
     const requiredArtifactKeys = ['task', 'context', 'result'];
     const verificationExecuted = Boolean(
@@ -1061,6 +1208,9 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
     if (payload.verification.baseline) requiredArtifactKeys.push('baseline');
     if (mode === 'agent_command') {
       requiredArtifactKeys.push('prompt', 'agent_command', 'agent_command_result');
+      if (requireAgentCritique) {
+        requiredArtifactKeys.push('agent_critique');
+      }
     }
 
     const result: AbTaskRunResult = {
@@ -1077,6 +1227,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       extraContextFiles,
       modifiedFiles: payload.modifiedFiles,
       agentCommand: payload.agentCommand,
+      agentCritique: payload.agentCritique,
       verification: payload.verification,
       verificationPolicy,
     };
@@ -1235,6 +1386,11 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
 
   let modifiedFiles: string[] = [];
   let agentCommandResult: AbCommandResult | undefined;
+  let agentCritiqueResult: {
+    valid: boolean;
+    reason?: string;
+    critique?: AbAgentCritique;
+  } | undefined;
 
   if (mode === 'agent_command') {
     const commandTemplate = resolveAgentCommandTemplate(task.agentExecution, options.workerType);
@@ -1322,6 +1478,19 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       });
     }
 
+    agentCritiqueResult = parseAgentCritiqueFromCommandResult(agentCommandResult);
+    await writeArtifactJson(artifactState, 'agent_critique', agentCritiqueResult);
+    if (requireAgentCritique && !agentCritiqueResult.valid) {
+      return finalize({
+        success: false,
+        failureReason: agentCritiqueResult.reason ?? 'agent_critique_missing',
+        modifiedFiles: [],
+        verification: { setup: setupResult, baseline: baselineResult },
+        agentCommand: agentCommandResult,
+        agentCritique: agentCritiqueResult,
+      });
+    }
+
     const afterSnapshot = await snapshotFiles(repoRoot, targetFiles);
     modifiedFiles = detectModifiedFiles(beforeSnapshot, afterSnapshot);
   } else {
@@ -1344,6 +1513,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       modifiedFiles,
       verification: { setup: setupResult, baseline: baselineResult },
       agentCommand: agentCommandResult,
+      agentCritique: agentCritiqueResult,
     });
   }
 
@@ -1366,6 +1536,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
     modifiedFiles,
     verification: { ...verification, setup: setupResult, baseline: baselineResult },
     agentCommand: agentCommandResult,
+    agentCritique: agentCritiqueResult,
   });
 }
 
@@ -1726,6 +1897,7 @@ function computeAgentRunDiagnostics(results: AbTaskRunResult[]): {
   totalAgentRuns: number;
   agentVerifiedExecutionShare: number;
   agentBaselineGuardShare: number;
+  agentCritiqueShare: number;
 } {
   const agentRuns = results.filter((result) => (result.mode ?? 'deterministic_edit') === 'agent_command');
   const totalAgentRuns = agentRuns.length;
@@ -1734,6 +1906,7 @@ function computeAgentRunDiagnostics(results: AbTaskRunResult[]): {
       totalAgentRuns: 0,
       agentVerifiedExecutionShare: 0,
       agentBaselineGuardShare: 0,
+      agentCritiqueShare: 0,
     };
   }
 
@@ -1750,11 +1923,13 @@ function computeAgentRunDiagnostics(results: AbTaskRunResult[]): {
     result.verificationPolicy.requireBaselineFailure
     && result.verificationPolicy.baselineCommandsConfigured > 0
   ).length;
+  const critiqueReadyRuns = agentRuns.filter((result) => result.agentCritique?.valid === true).length;
 
   return {
     totalAgentRuns,
     agentVerifiedExecutionShare: verifiedAgentRuns / totalAgentRuns,
     agentBaselineGuardShare: guardedAgentRuns / totalAgentRuns,
+    agentCritiqueShare: critiqueReadyRuns / totalAgentRuns,
   };
 }
 
@@ -1787,6 +1962,7 @@ function computeExperimentGates(input: {
   t3PlusLift: AbLiftSummary | null;
   agentVerifiedExecutionShare: number;
   agentBaselineGuardShare: number;
+  agentCritiqueShare: number;
   artifactIntegrityShare: number;
   verificationFallbackShare: number;
   thresholds: {
@@ -1796,6 +1972,7 @@ function computeExperimentGates(input: {
     requireT3Significance: boolean;
     requireNoCriticalFailures: boolean;
     minAgentVerifiedExecutionShare: number;
+    minAgentCritiqueShare: number;
     requireBaselineFailureForAgentTasks: boolean;
     minArtifactIntegrityShare: number;
     maxVerificationFallbackShare: number;
@@ -1815,6 +1992,7 @@ function computeExperimentGates(input: {
     t3PlusLift,
     agentVerifiedExecutionShare,
     agentBaselineGuardShare,
+    agentCritiqueShare,
     artifactIntegrityShare,
     verificationFallbackShare,
     thresholds,
@@ -1836,6 +2014,11 @@ function computeExperimentGates(input: {
   }
   if (thresholds.requireBaselineFailureForAgentTasks && agentBaselineGuardShare < 1) {
     reasons.push(`agent_baseline_guard_share_below_threshold:${agentBaselineGuardShare.toFixed(3)}<1.000`);
+  }
+  if (agentCritiqueShare < thresholds.minAgentCritiqueShare) {
+    reasons.push(
+      `agent_critique_share_below_threshold:${agentCritiqueShare.toFixed(3)}<${thresholds.minAgentCritiqueShare.toFixed(3)}`
+    );
   }
   if (artifactIntegrityShare < thresholds.minArtifactIntegrityShare) {
     reasons.push(
@@ -1995,6 +2178,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
     requireT3Significance: options.requireT3Significance ?? false,
     requireNoCriticalFailures: options.requireNoCriticalFailures ?? true,
     minAgentVerifiedExecutionShare: clamp01(options.minAgentVerifiedExecutionShare ?? 0),
+    minAgentCritiqueShare: clamp01(options.minAgentCritiqueShare ?? 0),
     requireBaselineFailureForAgentTasks: options.requireBaselineFailureForAgentTasks ?? false,
     minArtifactIntegrityShare: clamp01(options.minArtifactIntegrityShare ?? 0),
     maxVerificationFallbackShare: clamp01(options.maxVerificationFallbackShare ?? 0),
@@ -2059,6 +2243,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
             commandTimeoutMs: options.commandTimeoutMs,
             artifactRoot: options.artifactRoot ?? path.join(options.reposRoot, '.ab-harness-artifacts'),
             resolveExtraContext,
+            requireAgentCritique: thresholds.minAgentCritiqueShare > 0,
           });
           results.push(result);
           if (verbose) {
@@ -2098,6 +2283,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
   const {
     agentVerifiedExecutionShare,
     agentBaselineGuardShare,
+    agentCritiqueShare,
   } = computeAgentRunDiagnostics(results);
   const artifactIntegrityShare = computeArtifactIntegrityShare(results);
   const {
@@ -2110,6 +2296,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
     t3PlusLift,
     agentVerifiedExecutionShare,
     agentBaselineGuardShare,
+    agentCritiqueShare,
     artifactIntegrityShare,
     verificationFallbackShare,
     thresholds,
@@ -2140,6 +2327,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
       agentCommandShare,
       agentVerifiedExecutionShare,
       agentBaselineGuardShare,
+      agentCritiqueShare,
       artifactIntegrityShare,
       verificationFallbackRuns,
       verificationFallbackShare,

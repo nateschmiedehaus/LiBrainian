@@ -143,6 +143,8 @@ describe('ab-agent-codex script', () => {
     });
     expect(exitCode).toBe(0);
     expect(captured).toContain('Do not invoke `apply_patch` as a shell command');
+    expect(captured).toContain('AB_AGENT_CRITIQUE_JSON_START');
+    expect(captured).toContain('AB_AGENT_CRITIQUE_JSON_END');
   });
 
   it('fails fast when codex subprocess exceeds wrapper timeout', async () => {

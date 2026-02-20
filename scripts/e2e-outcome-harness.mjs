@@ -13,6 +13,7 @@ const DEFAULT_MIN_PAIRED_TASKS = 10;
 const DEFAULT_MIN_RELIABILITY_LIFT = 0;
 const DEFAULT_MIN_TIME_REDUCTION = 0;
 const DEFAULT_MIN_EVIDENCE_LINKED_PAIRS = 5;
+const DEFAULT_MIN_AGENT_CRITIQUE_SHARE = 1;
 
 class OutcomeHarnessFailure extends Error {
   constructor(message, report) {
@@ -58,6 +59,7 @@ async function parseArgs(argv, root) {
     minReliabilityLift: DEFAULT_MIN_RELIABILITY_LIFT,
     minTimeReduction: DEFAULT_MIN_TIME_REDUCTION,
     minEvidenceLinkedPairs: DEFAULT_MIN_EVIDENCE_LINKED_PAIRS,
+    minAgentCritiqueShare: DEFAULT_MIN_AGENT_CRITIQUE_SHARE,
   };
   let sawExplicitAbReport = false;
 
@@ -137,6 +139,12 @@ async function parseArgs(argv, root) {
     if (arg === '--min-evidence-linked-pairs') {
       if (!value || value.startsWith('--')) throw new Error('Missing value for --min-evidence-linked-pairs');
       options.minEvidenceLinkedPairs = parseNumber(value, '--min-evidence-linked-pairs');
+      i += 1;
+      continue;
+    }
+    if (arg === '--min-agent-critique-share') {
+      if (!value || value.startsWith('--')) throw new Error('Missing value for --min-agent-critique-share');
+      options.minAgentCritiqueShare = parseNumber(value, '--min-agent-critique-share');
       i += 1;
       continue;
     }
@@ -252,6 +260,8 @@ function normalizeAbRows(report, sourcePath) {
       durationMs: toFiniteNumber(row?.durationMs, 0),
       agentCommandDurationMs: toFiniteNumber(row?.agentCommand?.durationMs, 0),
       artifacts: row?.artifacts ?? null,
+      mode: String(row?.mode ?? '').trim(),
+      agentCritiqueValid: row?.agentCritique?.valid === true,
       sourcePath,
       sourceTimestamp,
     }))
@@ -330,6 +340,9 @@ function summarizePairs(abRows) {
 
   const controlSuccesses = pairs.filter((pair) => pair.control.success).length;
   const treatmentSuccesses = pairs.filter((pair) => pair.treatment.success).length;
+  const latestRows = Array.from(newestByTaskAndWorker.values());
+  const agentRuns = latestRows.filter((row) => row.mode === 'agent_command');
+  const agentCritiqueReadyRuns = agentRuns.filter((row) => row.agentCritiqueValid === true).length;
   const controlDurations = pairs.map((pair) => pair.control.durationMs).filter((value) => value > 0);
   const treatmentDurations = pairs.map((pair) => pair.treatment.durationMs).filter((value) => value > 0);
   const controlAgentCommandDurations = pairs.map((pair) => pair.control.agentCommandDurationMs).filter((value) => value > 0);
@@ -376,6 +389,8 @@ function summarizePairs(abRows) {
     timeReduction,
     agentCommandTimeReduction,
     confidenceInterval95: calculateConfidenceInterval95(controlSuccesses, treatmentSuccesses, pairedTasks),
+    agentRuns: agentRuns.length,
+    agentCritiqueShare: safeRate(agentCritiqueReadyRuns, agentRuns.length),
     topWins,
     topRegressions,
     failureCases,
@@ -420,6 +435,7 @@ function buildMarkdownReport(report) {
   lines.push(`- Natural tasks: ${report.naturalTasks.executed}/${report.naturalTasks.total} (coverage ${(report.naturalTasks.coverageRate * 100).toFixed(1)}%)`);
   lines.push(`- Natural repos: ${report.naturalTasks.uniqueRepos}`);
   lines.push(`- Paired control/treatment tasks: ${report.controlVsTreatment.pairedTasks}`);
+  lines.push(`- Agent-command critique share: ${(report.controlVsTreatment.agentCritiqueShare * 100).toFixed(1)}% (${report.controlVsTreatment.agentRuns} agent runs)`);
   lines.push(`- Reliability lift: ${(report.controlVsTreatment.reliabilityLift * 100).toFixed(2)}%`);
   lines.push(`- Time reduction: ${(report.controlVsTreatment.timeReduction * 100).toFixed(2)}%`);
   lines.push(`- Agent command time reduction: ${(report.controlVsTreatment.agentCommandTimeReduction * 100).toFixed(2)}%`);
@@ -466,6 +482,7 @@ function buildMarkdownReport(report) {
   lines.push(`- Time reduction < ${report.thresholds.minTimeReduction}`);
   lines.push(`- Freshness age > ${report.thresholds.maxAgeHours} hours`);
   lines.push(`- Evidence-linked paired tasks < ${report.thresholds.minEvidenceLinkedPairs}`);
+  lines.push(`- Agent critique share < ${report.thresholds.minAgentCritiqueShare}`);
   lines.push('');
   lines.push('## Diagnoses');
   lines.push('');
@@ -549,6 +566,11 @@ async function buildOutcomeReport(options) {
   if (controlVsTreatment.evidenceLinkedPairs < options.minEvidenceLinkedPairs) {
     failures.push(`insufficient_evidence_links:${controlVsTreatment.evidenceLinkedPairs}<${options.minEvidenceLinkedPairs}`);
   }
+  if (controlVsTreatment.agentCritiqueShare < options.minAgentCritiqueShare) {
+    failures.push(
+      `agent_critique_share_below_threshold:${controlVsTreatment.agentCritiqueShare.toFixed(4)}<${options.minAgentCritiqueShare}`
+    );
+  }
   failures.push(...freshness.failures);
 
   const diagnoses = [];
@@ -576,6 +598,11 @@ async function buildOutcomeReport(options) {
     diagnoses.push('Insufficient evidence-linked paired tasks reduces auditability.');
     suggestions.push('Increase paired tasks with artifact capture enabled to improve diagnostic confidence.');
   }
+  if (controlVsTreatment.agentCritiqueShare < options.minAgentCritiqueShare) {
+    diagnoses.push('External agent runs did not provide adequate structured critique coverage.');
+    suggestions.push('Require critique JSON markers in agent prompt contract and reject runs with missing critique payloads.');
+    suggestions.push('Expand critique rubric coverage across correctness, relevance, context quality, tooling friction, reliability, and productivity.');
+  }
   if (diagnoses.length === 0) {
     diagnoses.push('No disqualifying diagnosis detected.');
     suggestions.push('Continue periodic cadence runs to monitor regressions.');
@@ -602,6 +629,7 @@ async function buildOutcomeReport(options) {
       minReliabilityLift: options.minReliabilityLift,
       minTimeReduction: options.minTimeReduction,
       minEvidenceLinkedPairs: options.minEvidenceLinkedPairs,
+      minAgentCritiqueShare: options.minAgentCritiqueShare,
     },
     confirmDisconfirm: {
       confirmed: failures.length === 0,
@@ -652,6 +680,7 @@ main().catch(async (error) => {
       minReliabilityLift: DEFAULT_MIN_RELIABILITY_LIFT,
       minTimeReduction: DEFAULT_MIN_TIME_REDUCTION,
       minEvidenceLinkedPairs: DEFAULT_MIN_EVIDENCE_LINKED_PAIRS,
+      minAgentCritiqueShare: DEFAULT_MIN_AGENT_CRITIQUE_SHARE,
     };
   }
   const strictReport = error instanceof OutcomeHarnessFailure ? error.report : null;
@@ -674,6 +703,7 @@ main().catch(async (error) => {
         minReliabilityLift: options.minReliabilityLift,
         minTimeReduction: options.minTimeReduction,
         minEvidenceLinkedPairs: options.minEvidenceLinkedPairs,
+        minAgentCritiqueShare: options.minAgentCritiqueShare,
       },
       diagnoses: ['Harness execution error before report generation.'],
       suggestions: ['Check input artifact paths and JSON validity, then rerun.'],
@@ -697,6 +727,8 @@ main().catch(async (error) => {
         timeReduction: 0,
         agentCommandTimeReduction: 0,
         confidenceInterval95: { lower: 0, upper: 0 },
+        agentRuns: 0,
+        agentCritiqueShare: 0,
         topWins: [],
         topRegressions: [],
         failureCases: [],

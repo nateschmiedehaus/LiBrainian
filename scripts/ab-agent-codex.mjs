@@ -156,12 +156,21 @@ const harnessInstructions = [
   workerType === 'treatment'
     ? '11) Use Librarian hints as the primary localization path before broad searching; edit hinted files first.'
     : '11) No Librarian localization hints are available; localize via repo evidence and failing checks.',
+  '12) Include a structured critique report in stdout between markers AB_AGENT_CRITIQUE_JSON_START and AB_AGENT_CRITIQUE_JSON_END.',
+  '13) The critique JSON must include: summary, workOutcome, librarianEffectiveness, confidence, issues[], suggestions[].',
+  '14) Critique must include both strengths and weaknesses from natural usage, including any LiBrainian package/API/CLI friction you observe.',
+  '15) When possible, mention concrete evidence paths/commands behind each critique item.',
   ACCEPTANCE_COMMANDS.length > 0
     ? [
       'Acceptance command(s) (optional; run at most one):',
       ...ACCEPTANCE_COMMANDS.map((command) => `- ${command}`),
     ].join('\n')
     : null,
+  '',
+  'Critique JSON template (emit exactly once at the end):',
+  'AB_AGENT_CRITIQUE_JSON_START',
+  '{"summary":"...", "workOutcome":"failed|partial|successful", "librarianEffectiveness":"poor|mixed|good|excellent", "confidence":0.0, "issues":[{"perspective":"correctness|relevance|context|tooling|reliability|productivity|other","severity":"low|medium|high|critical","title":"...","diagnosis":"...","recommendation":"..."}], "suggestions":["..."]}',
+  'AB_AGENT_CRITIQUE_JSON_END',
   '',
   'Task prompt follows:',
 ].filter(Boolean).join('\n');

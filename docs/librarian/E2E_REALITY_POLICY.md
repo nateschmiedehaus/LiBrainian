@@ -7,6 +7,7 @@ This policy enforces black-box package reality checks so releases cannot pass on
 - npm package shape and runtime behavior
 - External workspace install/use paths (CLI + programmatic API)
 - Outcome-level control-vs-treatment evidence with disconfirmation criteria
+- External-agent natural-usage critique evidence
 - CI cadence and release gating
 
 ## Required Gates
@@ -45,10 +46,28 @@ Each artifact includes:
 `E2EOutcomeReport.v1` must include:
 - natural-task coverage and repo diversity
 - paired control-vs-treatment deltas
+- agent-command critique share for external runs
 - confidence interval + disconfirmation reasons
 - evidence-linked wins/regressions
 - freshness checks for source artifacts
 - diagnoses + suggested remediation actions
+
+## External Agent Critique Contract
+- External agent runs must do real task execution on external repositories before critique.
+- Prompt contract must require two outcomes in the same run:
+  - natural task execution intended to produce useful work
+  - explicit critique/diagnosis of LiBrainian usage quality
+- Agent critique payload must be structured and machine-verifiable, including:
+  - overall summary
+  - work outcome (`failed|partial|successful`)
+  - LiBrainian effectiveness rating (`poor|mixed|good|excellent`)
+  - confidence (`0..1`)
+  - issue list with perspective/severity/diagnosis/recommendation
+  - actionable suggestions
+- Agent critique payload is emitted between markers:
+  - `AB_AGENT_CRITIQUE_JSON_START`
+  - `AB_AGENT_CRITIQUE_JSON_END`
+- Release and strict E2E gates fail closed when critique coverage is below threshold.
 
 `E2EOutcomeTriage.v1` must include:
 - severity classification for each diagnosis

@@ -35,10 +35,12 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:publish-gate']).toContain('npm run canon:guard');
     expect(scripts['eval:publish-gate']).toContain('npm run complexity:check');
     expect(scripts['eval:ab:agentic']).toContain('--maxVerificationFallbackShare 0');
+    expect(scripts['eval:ab:agentic']).toContain('--minAgentCritiqueShare 1');
     expect(scripts['eval:ab:agentic']).toContain('--requireT3Significance');
     expect(scripts['eval:ab:agentic']).toContain('--evidenceProfile release');
     expect(scripts['eval:ab:agentic']).toContain('--timeoutMs 420000');
     expect(scripts['eval:ab:agentic-bugfix']).toContain('--maxVerificationFallbackShare 0');
+    expect(scripts['eval:ab:agentic-bugfix']).toContain('--minAgentCritiqueShare 1');
     expect(scripts['eval:ab:agentic-bugfix']).toContain('--requireT3Significance');
     expect(scripts['eval:ab:agentic-bugfix']).toContain('--evidenceProfile release');
     expect(scripts['eval:ab:agentic-bugfix']).toContain('--timeoutMs 420000');
@@ -47,6 +49,7 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--timeoutMs 180000');
     expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--maxTasks 6');
     expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--selectionMode adaptive');
+    expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--minAgentCritiqueShare 1');
     expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--uncertaintyHistoryPath eval-results/ab-harness-report.json');
     expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--out eval-results/ab-harness-report.quick.json');
     expect(scripts['eval:ab:agentic-bugfix:quick']).toContain('--evidenceProfile quick');

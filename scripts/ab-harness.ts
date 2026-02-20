@@ -73,6 +73,7 @@ const args = parseArgs({
     requireAgentCommandTasks: { type: 'boolean', default: true },
     minAgentCommandShare: { type: 'string' },
     minAgentVerifiedExecutionShare: { type: 'string' },
+    minAgentCritiqueShare: { type: 'string' },
     minArtifactIntegrityShare: { type: 'string' },
     maxVerificationFallbackShare: { type: 'string' },
     minT3SuccessRateLift: { type: 'string' },
@@ -120,6 +121,7 @@ const taskIds = parseList(args.values.taskIds);
 const timeoutMs = parseNumber(args.values.timeoutMs);
 const minAgentCommandShare = parseNumber(args.values.minAgentCommandShare) ?? 1;
 const minAgentVerifiedExecutionShare = parseNumber(args.values.minAgentVerifiedExecutionShare) ?? 1;
+const minAgentCritiqueShare = parseNumber(args.values.minAgentCritiqueShare) ?? 0;
 const minArtifactIntegrityShare = parseNumber(args.values.minArtifactIntegrityShare) ?? 1;
 const maxVerificationFallbackShare = parseNumber(args.values.maxVerificationFallbackShare) ?? 0;
 const minT3SuccessRateLift = parseNumber(args.values.minT3SuccessRateLift) ?? 0.25;
@@ -155,6 +157,7 @@ const report = await runAbExperiment({
   requireAgentCommandTasks: args.values.requireAgentCommandTasks ?? true,
   minAgentCommandShare,
   minAgentVerifiedExecutionShare,
+  minAgentCritiqueShare,
   minArtifactIntegrityShare,
   maxVerificationFallbackShare,
   minT3SuccessRateLift,
@@ -225,6 +228,7 @@ if (!report.gates.passed) {
 console.log(`Agent-command share: ${(report.diagnostics.agentCommandShare * 100).toFixed(1)}%`);
 console.log(`Agent verified execution share: ${(report.diagnostics.agentVerifiedExecutionShare * 100).toFixed(1)}%`);
 console.log(`Agent baseline-guard share: ${(report.diagnostics.agentBaselineGuardShare * 100).toFixed(1)}%`);
+console.log(`Agent critique share: ${(report.diagnostics.agentCritiqueShare * 100).toFixed(1)}%`);
 console.log(`Artifact integrity share: ${(report.diagnostics.artifactIntegrityShare * 100).toFixed(1)}%`);
 console.log(`Verification fallback share: ${(report.diagnostics.verificationFallbackShare * 100).toFixed(1)}%`);
 if (Object.keys(report.diagnostics.failureReasons).length > 0) {
