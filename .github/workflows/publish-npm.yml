@@ -178,7 +178,7 @@ jobs:
           set -e
           if [ "$status" -ne 0 ]; then
             echo "::error::Trusted publishing failed (likely npm trusted publisher not configured for this repo/workflow)."
-            echo "::error::Configure npm trusted publishing for package 'librainian' and GitHub workflow 'npm-publish.yml' in npm package settings."
+            echo "::error::Configure npm trusted publishing for package 'librainian' and GitHub workflow 'publish-npm.yml' in npm package settings."
             echo "::error::Or provide a valid NPM_TOKEN/NODE_AUTH_TOKEN secret and rerun."
             exit "$status"
           fi
@@ -306,7 +306,7 @@ jobs:
           set -e
           if [ "$status" -ne 0 ]; then
             echo "::error::Trusted publishing failed (likely npm trusted publisher not configured for this repo/workflow)."
-            echo "::error::Configure npm trusted publishing for package 'librainian' and GitHub workflow 'npm-publish.yml' in npm package settings."
+            echo "::error::Configure npm trusted publishing for package 'librainian' and GitHub workflow 'publish-npm.yml' in npm package settings."
             echo "::error::Or provide a valid NPM_TOKEN/NODE_AUTH_TOKEN secret and rerun."
             exit "$status"
           fi

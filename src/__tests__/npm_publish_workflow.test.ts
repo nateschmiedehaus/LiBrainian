@@ -4,7 +4,7 @@ import path from 'node:path';
 
 describe('npm publish workflow', () => {
   it('defines a GitHub-driven publish workflow', () => {
-    const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'npm-publish.yml');
+    const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'publish-npm.yml');
     expect(fs.existsSync(workflowPath)).toBe(true);
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 

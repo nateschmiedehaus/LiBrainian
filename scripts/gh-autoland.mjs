@@ -229,7 +229,7 @@ function main() {
       'body-file': { type: 'string' },
       'comment-issue-link': { type: 'boolean', default: true },
       'dispatch-publish': { type: 'string', default: 'none' },
-      'publish-workflow': { type: 'string', default: 'npm-publish.yml' },
+      'publish-workflow': { type: 'string', default: 'publish-npm.yml' },
       'npm-tag': { type: 'string', default: 'latest' },
       'no-watch': { type: 'boolean', default: false },
       'watch-timeout-minutes': { type: 'string', default: '45' },
@@ -254,7 +254,7 @@ function main() {
   if (!new Set(['none', 'verify', 'publish']).has(dispatchPublishMode)) {
     throw new Error(`Invalid --dispatch-publish value: ${String(values['dispatch-publish'])}. Expected one of: none, verify, publish.`);
   }
-  const publishWorkflow = String(values['publish-workflow'] ?? 'npm-publish.yml').trim() || 'npm-publish.yml';
+  const publishWorkflow = String(values['publish-workflow'] ?? 'publish-npm.yml').trim() || 'publish-npm.yml';
   const npmTag = String(values['npm-tag'] ?? 'latest').trim() || 'latest';
 
   if (typeof values['preflight-npm-script'] === 'string' && values['preflight-npm-script'].trim().length > 0) {

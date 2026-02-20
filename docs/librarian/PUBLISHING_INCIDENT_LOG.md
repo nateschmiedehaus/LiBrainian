@@ -36,12 +36,12 @@ This log tracks release/publish failures with concrete fixes and prevention chec
   - npm trusted publishing requires Node >= 22.14 and npm >= 11.5.1.
   - npm trusted publisher mapping may still need verification after runtime correction.
 - Resolution:
-  - Renamed workflow file and identity from `publish-npm` to `npm-publish`.
+  - Confirmed npm trusted publisher is configured to workflow file `publish-npm.yml` and environment `npm-publish`.
   - Upgraded publish workflow runtime to Node 24.
   - Added trusted-publish runtime guard:
     - `scripts/assert-trusted-publish-runtime.mjs`
   - Updated workflow references and tests:
-    - `.github/workflows/npm-publish.yml`
+    - `.github/workflows/publish-npm.yml`
     - `scripts/gh-autoland.mjs`
     - `src/__tests__/npm_publish_workflow.test.ts`
 - Prevention:
