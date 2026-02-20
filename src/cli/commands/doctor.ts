@@ -31,6 +31,7 @@ import {
 import type { LibrarianStorage } from '../../storage/types.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
+import { getSessionState } from '../../memory/session_store.js';
 
 // ============================================================================
 // TYPES
@@ -1799,6 +1800,45 @@ async function checkWatchFreshness(
   }
 }
 
+async function checkSessionMemory(workspace: string): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = {
+    name: 'Session Memory',
+    status: 'OK',
+    message: 'Session memory healthy',
+  };
+
+  try {
+    const state = await getSessionState(workspace);
+    const startedAtMs = Date.parse(state.startedAt);
+    const lastActiveMs = Date.parse(state.lastActiveAt);
+    const ageMinutes = Number.isFinite(startedAtMs)
+      ? Math.max(0, Math.floor((Date.now() - startedAtMs) / 60000))
+      : null;
+    const inactiveMinutes = Number.isFinite(lastActiveMs)
+      ? Math.max(0, Math.floor((Date.now() - lastActiveMs) / 60000))
+      : null;
+    check.message = state.episodicLog.length > 0
+      ? `Session active (${state.episodicLog.length} episodic events)`
+      : 'Session initialized (no episodic events yet)';
+    check.details = {
+      startedAt: state.startedAt,
+      lastActiveAt: state.lastActiveAt,
+      ageMinutes,
+      inactiveMinutes,
+      activeTask: state.workingContext.activeTask ?? null,
+      recentQueries: state.workingContext.recentQueries.slice(0, 5),
+      recentFiles: state.workingContext.recentFiles.slice(0, 5),
+      coreMemoryEntries: Object.keys(state.workingContext.coreMemory).length,
+    };
+  } catch (error) {
+    check.status = 'WARNING';
+    check.message = `Session memory unavailable: ${error instanceof Error ? error.message : String(error)}`;
+    check.suggestion = 'Run a query to initialize session memory and retry `librarian doctor --json`.';
+  }
+
+  return check;
+}
+
 async function runEmbeddingIntegrityFix(
   workspace: string,
   dbPath: string
@@ -2083,6 +2123,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     checkBootstrapStatus(workspaceRoot, dbPath),
     checkIndexFreshness(workspaceRoot, dbPath),
     checkWatchFreshness(workspaceRoot, dbPath),
+    checkSessionMemory(workspaceRoot),
     checkLockFileStaleness(workspaceRoot),
     checkFunctionsVsEmbeddings(workspaceRoot, dbPath),
     checkCrossDbConsistency(workspaceRoot, dbPath),

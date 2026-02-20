@@ -31,7 +31,7 @@ COMMANDS:
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
     install-openclaw-skill Install official OpenClaw skill and config wiring
     openclaw-daemon     Manage OpenClaw daemon registration and state
-    memory-bridge       Show MEMORY.md bridge annotation state
+    memory-bridge       Show MEMORY.md bridge state and manage session core memory
     test-integration    Run quantitative integration benchmark suites
     benchmark           Run local performance SLA diagnostics
     mcp                 Start MCP stdio server / print client config snippets
@@ -97,6 +97,7 @@ EXAMPLES:
     librainian install-openclaw-skill --dry-run
     librainian openclaw-daemon start --json
     librainian memory-bridge status --json
+    librainian memory-bridge remember auth_model "JWT expires in 1 hour"
     librainian test-integration --suite openclaw --json
     librainian benchmark --json
     librainian mcp --print-config --client claude
@@ -466,25 +467,32 @@ EXAMPLES:
 `,
 
   'memory-bridge': `
-librarian memory-bridge - Inspect memory bridge state for annotated MEMORY.md claims
+librarian memory-bridge - Inspect memory bridge state and manage session core memory
 
 USAGE:
     librarian memory-bridge status [options]
+    librarian memory-bridge remember <key> <value> [--json]
 
 OPTIONS:
     --memory-file <path>    Override MEMORY.md location (default: <workspace>/.openclaw/memory/MEMORY.md)
     --json                  Emit machine-readable JSON report
 
 DESCRIPTION:
+    status:
     Reads the memory-bridge state file adjacent to MEMORY.md and reports:
     - total harvested entries
     - active (non-defeated, non-expired) entries
     - defeated entries
     - state freshness metadata
 
+    remember:
+    Stores a key/value fact in .librarian/session.json core memory so future
+    queries can receive session-core-memory disclosure context.
+
 EXAMPLES:
     librarian memory-bridge status
     librarian memory-bridge status --memory-file /tmp/.openclaw/memory/MEMORY.md --json
+    librarian memory-bridge remember auth_model "JWT expires in 1 hour"
 `,
 
   'test-integration': `

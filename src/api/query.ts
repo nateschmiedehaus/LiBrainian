@@ -116,6 +116,12 @@ import { runSymbolLookupStage } from './symbol_lookup.js';
 import { runComparisonLookupStage, type ComparisonLookupStageResult } from './comparison_lookup.js';
 import { runGitQueryStage, type GitQueryStageResult } from './git_query.js';
 import {
+  buildCoreMemoryDisclosure,
+  getSessionState,
+  recordSessionError,
+  recordSessionQuery,
+} from '../memory/session_store.js';
+import {
   detectEnumerationIntent,
   enumerateByCategory,
   formatEnumerationResult,
@@ -1538,6 +1544,7 @@ export async function queryLibrarian(
   const disclosures: string[] = [];
   let traceSessionId: SessionId | undefined;
   let traceId: string = REPLAY_UNAVAILABLE_TRACE;
+  let sessionWorkspaceRoot: string | null = null;
   let constructionPlan: ConstructionPlan = {
     id: generateUUID('cp_'),
     templateId: 'T1',
@@ -1574,6 +1581,16 @@ export async function queryLibrarian(
         : onStage
     );
     const workspaceRoot = await resolveWorkspaceRoot(storage);
+    sessionWorkspaceRoot = workspaceRoot;
+    try {
+      const session = await getSessionState(workspaceRoot);
+      const coreMemoryDisclosure = buildCoreMemoryDisclosure(session);
+      if (coreMemoryDisclosure) {
+        disclosures.unshift(coreMemoryDisclosure);
+      }
+    } catch (error) {
+      logWarning('[query] Failed to load session state', { error: getErrorMessage(error) });
+    }
     const normalizedScope = await normalizeQueryScope(query, workspaceRoot);
     query = normalizedScope.query;
     if (normalizedScope.disclosures.length) {
@@ -3182,6 +3199,19 @@ export async function queryLibrarian(
   if (allowCache) {
     await setCachedQuery(cacheKey, response, storage, query);
   }
+  if (sessionWorkspaceRoot) {
+    const relatedFiles = Array.from(
+      new Set(
+        response.packs
+          .flatMap((pack) => pack.relatedFiles)
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      )
+    ).slice(0, 30);
+    await recordSessionQuery(sessionWorkspaceRoot, query.intent ?? '', relatedFiles).catch((error) => {
+      logWarning('[query] Failed to persist session query event', { error: getErrorMessage(error) });
+    });
+  }
   void globalEventBus.emit(createQueryCompleteEvent(queryId, response.packs.length, cacheHit, response.latencyMs, traceSessionId));
   void globalEventBus.emit(createQueryResultEvent(queryId, response.packs.length, response.totalConfidence, response.latencyMs, traceSessionId));
   if (traceOptions.evidenceLedger && traceSessionId) {
@@ -3198,6 +3228,11 @@ export async function queryLibrarian(
   } catch (error) {
     // Emit query_error event when query fails
     const errorMessage = error instanceof Error ? error.message : String(error);
+    if (sessionWorkspaceRoot) {
+      await recordSessionError(sessionWorkspaceRoot, errorMessage).catch((sessionError) => {
+        logWarning('[query] Failed to persist session error event', { error: getErrorMessage(sessionError) });
+      });
+    }
     void globalEventBus.emit(createQueryErrorEvent(errorQueryId, errorMessage, traceSessionId));
     if (traceOptions.evidenceLedger && traceSessionId) {
       void appendQueryEvidence(traceOptions.evidenceLedger, traceSessionId, 'query_error', {

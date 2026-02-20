@@ -62,4 +62,32 @@ describe('memoryBridgeCommand', () => {
       await fs.rm(workspace, { recursive: true, force: true });
     }
   });
+
+  it('stores core memory entries in session state via remember action', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-memory-bridge-remember-'));
+    const sessionPath = path.join(workspace, '.librarian', 'session.json');
+
+    try {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await memoryBridgeCommand({
+          workspace,
+          args: ['remember', 'auth_model', 'JWT expires in 1 hour'],
+          rawArgs: ['memory-bridge', 'remember', 'auth_model', 'JWT expires in 1 hour', '--json'],
+        });
+      } finally {
+        logSpy.mockRestore();
+      }
+
+      const raw = await fs.readFile(sessionPath, 'utf8');
+      const parsed = JSON.parse(raw) as {
+        kind: string;
+        workingContext: { coreMemory?: Record<string, string> };
+      };
+      expect(parsed.kind).toBe('LibrarianSession.v1');
+      expect(parsed.workingContext.coreMemory?.auth_model).toBe('JWT expires in 1 hour');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
 });

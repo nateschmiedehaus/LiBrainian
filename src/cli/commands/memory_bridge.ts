@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { parseArgs } from 'node:util';
 import { CliError } from '../errors.js';
 import type { MemoryBridgeState } from '../../memory_bridge/entry.js';
+import { setSessionCoreMemory } from '../../memory/session_store.js';
 
 export interface MemoryBridgeCommandOptions {
   workspace: string;
@@ -10,7 +11,7 @@ export interface MemoryBridgeCommandOptions {
   rawArgs: string[];
 }
 
-type MemoryBridgeAction = 'status';
+type MemoryBridgeAction = 'status' | 'remember';
 
 interface MemoryBridgeStatusReport {
   success: boolean;
@@ -29,8 +30,9 @@ const STATE_FILE_NAME = '.librainian-memory-bridge.json';
 
 function toAction(value: string | undefined): MemoryBridgeAction {
   if (value === 'status') return value;
+  if (value === 'remember') return value;
   throw new CliError(
-    `Unknown or missing action: ${value ?? '<none>'}. Usage: librarian memory-bridge <status> [--memory-file <path>] [--json]`,
+    `Unknown or missing action: ${value ?? '<none>'}. Usage: librarian memory-bridge <status|remember> [...]`,
     'INVALID_ARGUMENT',
   );
 }
@@ -114,11 +116,34 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
   });
 
   const action = toAction(positionals[0] ?? options.args[0]);
-  if (action !== 'status') {
-    throw new CliError(
-      `Unsupported memory-bridge action: ${action}`,
-      'INVALID_ARGUMENT',
-    );
+  if (action === 'remember') {
+    const key = (positionals[1] ?? options.args[1] ?? '').trim();
+    const rawValueParts = positionals.length > 2 ? positionals.slice(2) : options.args.slice(2);
+    const value = rawValueParts.join(' ').trim();
+    if (!key || !value) {
+      throw new CliError(
+        'Usage: librarian memory-bridge remember <key> <value>',
+        'INVALID_ARGUMENT',
+      );
+    }
+    const state = await setSessionCoreMemory(options.workspace, key, value);
+    const report = {
+      success: true,
+      action: 'remember' as const,
+      workspace: path.resolve(options.workspace),
+      key,
+      valueLength: value.length,
+      coreMemoryEntries: Object.keys(state.workingContext.coreMemory).length,
+      updatedAt: state.lastActiveAt,
+    };
+    const jsonMode = Boolean(values.json) || options.rawArgs.includes('--json');
+    if (jsonMode) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      console.log(`Stored session core memory entry "${key}" (${value.length} chars).`);
+      console.log(`Total core memory entries: ${report.coreMemoryEntries}`);
+    }
+    return;
   }
 
   const memoryFilePath = resolveMemoryFilePath(
