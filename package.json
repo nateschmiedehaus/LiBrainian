@@ -88,6 +88,8 @@
     "!dist/guidance/**",
     "!dist/skills/**",
     "!dist/evaluation/**",
+    "!dist/evolution/**",
+    "!dist/agents/self_improvement/**",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

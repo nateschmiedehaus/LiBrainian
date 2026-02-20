@@ -3,3 +3,5 @@ dist/**/*.map
 dist/test/**
 dist/**/__tests__/**
 dist/evaluation/**
+dist/evolution/**
+dist/agents/self_improvement/**

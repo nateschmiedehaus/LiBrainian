@@ -652,10 +652,6 @@ export { bayesianUpdate, bayesianDelta, calculateCalibration, CONFIDENCE_CONFIGS
 export { applyDefeaterResults, createDefeater } from './knowledge/defeater_activation.js';
 export type { DefeaterCheckContext, DefeaterCheckResult, ActivationSummary } from './knowledge/defeater_activation.js';
 
-// Persona Views
-export { projectForPersona, generateGlanceCard, getPersonaSummary } from './views/persona_views.js';
-export type { Persona, PersonaView, GlanceCard, KeyMetric, Alert, Action } from './views/persona_views.js';
-
 // Visualization
 export { generateMermaidDiagram } from './visualization/mermaid_generator.js';
 export { generateASCIITree, generateDependencyBox, generateHealthSummary } from './visualization/ascii_diagrams.js';

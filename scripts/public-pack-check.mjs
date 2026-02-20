@@ -89,6 +89,8 @@ function main() {
   const disallowed = filePaths.filter((filePath) => !isAllowedPackPath(filePath));
   const sourcemaps = filePaths.filter((filePath) => filePath.endsWith('.map'));
   const evaluationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evaluation/'));
+  const evolutionFiles = filePaths.filter((filePath) => filePath.startsWith('dist/evolution/'));
+  const selfImprovementFiles = filePaths.filter((filePath) => filePath.startsWith('dist/agents/self_improvement/'));
 
   if (disallowed.length > 0) {
     throw new Error(
@@ -111,6 +113,24 @@ function main() {
   if (evaluationFiles.length > 0) {
     throw new Error(
       `Package contains internal evaluation harness files:\n${evaluationFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (evolutionFiles.length > 0) {
+    throw new Error(
+      `Package contains internal evolution harness files:\n${evolutionFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (selfImprovementFiles.length > 0) {
+    throw new Error(
+      `Package contains internal self-improvement tooling files:\n${selfImprovementFiles
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
         .join('\n')}`

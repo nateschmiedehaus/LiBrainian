@@ -4,7 +4,7 @@
  * A pragmatic DETECT -> FIX -> VERIFY loop for getting Librarian into
  * operational shape, with an evidence audit artifact written to disk.
  *
- * Usage: librarian ralph [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]
+ * Usage: librarian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]
  */
 
 import * as fs from 'node:fs';
@@ -15,9 +15,12 @@ import { runOnboardingRecovery, type OnboardingRecoveryResult } from '../../api/
 import { checkAllProviders } from '../../api/provider_check.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { generateStateReport, type LibrarianStateReport } from '../../measurement/observability.js';
-import { runStagedEvaluation, type FitnessReport, type EvaluationContext, type Variant } from '../../evolution/index.js';
+import type { FitnessReport, EvaluationContext, Variant } from '../../evolution/index.js';
 import { doctorCommand, type DoctorReport } from './doctor.js';
 import { externalReposCommand } from './external_repos.js';
+import { loadEvolutionModule } from '../../utils/evolution_loader.js';
+
+type EvolutionModule = typeof import('../../evolution/index.js');
 
 export interface RalphCommandOptions {
   workspace: string;
@@ -61,6 +64,16 @@ export interface RalphLoopReportV1 {
   };
 }
 
+export async function repairCommand(options: RalphCommandOptions): Promise<void> {
+  const rawArgs = options.rawArgs.length > 0
+    ? ['repair', ...options.rawArgs.slice(1)]
+    : ['repair'];
+  await ralphCommand({
+    ...options,
+    rawArgs,
+  });
+}
+
 export async function ralphCommand(options: RalphCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
 
@@ -95,6 +108,11 @@ export async function ralphCommand(options: RalphCommandOptions): Promise<void> 
   const defaultCycles = objective === 'worldclass' ? 10 : 2;
   const resolvedMaxCycles = Number.isFinite(maxCycles) && maxCycles > 0 ? maxCycles : defaultCycles;
   const dbPath = await resolveDbPath(workspace);
+  const invokedAs = (rawArgs[0] ?? 'repair').toLowerCase();
+
+  if (invokedAs === 'ralph' && !json) {
+    console.warn('[deprecated] `librarian ralph` is deprecated. Use `librarian repair`.');
+  }
 
   const providerStatus = await checkAllProviders({ workspaceRoot: workspace });
   const providerSummary = {
@@ -201,7 +219,7 @@ export async function ralphCommand(options: RalphCommandOptions): Promise<void> 
   if (json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log('\n=== Librarian Ralph Loop ===\n');
+    console.log('\n=== Librarian Repair Loop ===\n');
     console.log(`Workspace: ${workspace}`);
     console.log(`Mode: ${mode}`);
     console.log(`Cycles: ${report.cyclesRun}/${resolvedMaxCycles}`);
@@ -298,6 +316,12 @@ async function runEvaluation(options: {
   // Stages range currently not configurable via runStagedEvaluation; budgets/providerAvailable
   // drive evaluator skipping. Keep the argument for forward compatibility.
   void options.stages;
+  const externalModuleId = 'librainian-devtools/evolution/index.js';
+  const { runStagedEvaluation } = await loadEvolutionModule<EvolutionModule>(
+    'repair command',
+    () => import('../../evolution/index.js'),
+    () => import(externalModuleId) as Promise<EvolutionModule>,
+  );
   const result = await runStagedEvaluation(variant, context, { stopOnFailure: false });
   return result.fitnessReport;
 }

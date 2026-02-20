@@ -42,6 +42,8 @@
  *   librarian config heal         - Auto-detect and fix suboptimal config
  *   librarian doctor              - Run health diagnostics to identify issues
  *   librarian publish-gate        - Run strict publish-readiness gate checks
+ *   librarian repair              - Run DETECT->FIX->VERIFY loop and write an audit report
+ *   librarian ralph               - Deprecated alias for `repair`
  *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
  *   librarian openclaw-daemon     - Manage OpenClaw daemon registration + state
  *   librarian memory-bridge       - Show memory bridge annotation state
@@ -91,7 +93,7 @@ import { analyzeCommand } from './commands/analyze.js';
 import { configHealCommand } from './commands/config_heal.js';
 import { doctorCommand } from './commands/doctor.js';
 import { publishGateCommand } from './commands/publish_gate.js';
-import { ralphCommand } from './commands/ralph.js';
+import { ralphCommand, repairCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
 import { installOpenclawSkillCommand } from './commands/install_openclaw_skill.js';
 import { openclawDaemonCommand } from './commands/openclaw_daemon.js';
@@ -112,7 +114,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
+type Command = 'status' | 'stats' | 'query' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -299,8 +301,12 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     description: 'Run strict publish-readiness gate checks',
     usage: 'librarian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
   },
-  'ralph': {
+  'repair': {
     description: 'Run DETECT->FIX->VERIFY loop and write an audit report',
+    usage: 'librarian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
+  },
+  'ralph': {
+    description: '[deprecated] alias for repair',
     usage: 'librarian ralph [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
   },
   'external-repos': {
@@ -677,9 +683,12 @@ async function main(): Promise<void> {
       case 'publish-gate':
         await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
-	      case 'ralph':
-	        await ralphCommand({ workspace, args: commandArgs, rawArgs: args });
-	        break;
+      case 'repair':
+        await repairCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'ralph':
+        await ralphCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
 	      case 'external-repos':
 	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
 	        break;

@@ -13,16 +13,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import {
-  runStagedEvaluation,
-  type FitnessReport,
-  type EvaluationContext,
-  type Variant,
-  type StageResult,
+import type {
+  FitnessReport,
+  EvaluationContext,
+  Variant,
 } from '../../evolution/index.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 import { generateStateReport } from '../../measurement/observability.js';
 import { sanitizeTraceMarkerMessage, sanitizeTraceStatus } from '../user_messages.js';
+import { loadEvolutionModule } from '../../utils/evolution_loader.js';
+
+type EvolutionModule = typeof import('../../evolution/index.js');
 
 interface EvalOptions {
   workspace: string;
@@ -113,6 +114,13 @@ export async function evalCommand(options: EvalOptions): Promise<void> {
       mutationDescription: 'Baseline evaluation of current state',
       evaluated: false,
     };
+
+    const externalModuleId = 'librainian-devtools/evolution/index.js';
+    const { runStagedEvaluation } = await loadEvolutionModule<EvolutionModule>(
+      'eval command',
+      () => import('../../evolution/index.js'),
+      () => import(externalModuleId) as Promise<EvolutionModule>,
+    );
 
     const result = await runStagedEvaluation(baselineVariant, context, {
       stopOnFailure: false,

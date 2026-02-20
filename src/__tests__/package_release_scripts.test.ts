@@ -163,6 +163,8 @@ describe('package release scripts', () => {
       '!dist/guidance/**',
       '!dist/skills/**',
       '!dist/evaluation/**',
+      '!dist/evolution/**',
+      '!dist/agents/self_improvement/**',
       'README.md',
       'LICENSE',
       'CHANGELOG.md',
@@ -187,6 +189,8 @@ describe('package release scripts', () => {
     expect(npmignore).toContain('dist/test/**');
     expect(npmignore).toContain('dist/**/__tests__/**');
     expect(npmignore).toContain('dist/evaluation/**');
+    expect(npmignore).toContain('dist/evolution/**');
+    expect(npmignore).toContain('dist/agents/self_improvement/**');
   });
 
   it('defines lint-staged integration for staged incremental indexing', () => {

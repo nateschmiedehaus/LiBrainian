@@ -67,7 +67,8 @@ ADVANCED:
     scan --secrets      Report secret redaction audit totals
     analyze             Run static analysis (dead code, complexity)
     config heal         Auto-detect and fix suboptimal configuration
-    ralph               Run DETECT->FIX->VERIFY loop and write an audit report
+    repair              Run DETECT->FIX->VERIFY loop and write an audit report
+    ralph               Deprecated alias for repair
     external-repos      Sync external repo corpus from manifest.json
 
 GLOBAL OPTIONS:
@@ -1495,11 +1496,11 @@ EXAMPLES:
 	    librarian publish-gate --gates-file /tmp/GATES.json --status-file /tmp/STATUS.md --json
 	`,
 
-	  ralph: `
-	librarian ralph - Run DETECT->FIX->VERIFY loop and write an audit report
+	  repair: `
+	librarian repair - Run DETECT->FIX->VERIFY loop and write an audit report
 
 	USAGE:
-	    librarian ralph [options]
+	    librarian repair [options]
 
 	OPTIONS:
 	    --mode fast|full       fast bootstraps without LLM; full enables evaluation (default: fast)
@@ -1517,9 +1518,20 @@ EXAMPLES:
 	    - Writes a single audit artifact for evidence and debugging
 
 	EXAMPLES:
-	    librarian ralph
-	    librarian ralph --mode full
-	    librarian ralph --mode full --max-cycles 3 --json
+	    librarian repair
+	    librarian repair --mode full
+	    librarian repair --mode full --max-cycles 3 --json
+	`,
+
+	  ralph: `
+	librarian ralph - Deprecated alias for librarian repair
+
+	USAGE:
+	    librarian ralph [options]
+
+	DESCRIPTION:
+	    This command still works for backward compatibility, but is deprecated.
+	    Use \`librarian repair\` for all new scripts and documentation.
 	`,
 
 	  'external-repos': `

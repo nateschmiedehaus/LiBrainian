@@ -13,14 +13,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import {
-  createEvolutionController,
-  type EvolutionConfig,
-  type EvolutionCycleResult,
-  type EmitterStats,
+import type {
+  EvolutionConfig,
 } from '../../evolution/index.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 import { generateStateReport } from '../../measurement/observability.js';
+import { loadEvolutionModule } from '../../utils/evolution_loader.js';
+
+type EvolutionModule = typeof import('../../evolution/index.js');
 
 interface EvolveOptions {
   workspace: string;
@@ -92,6 +92,13 @@ export async function evolveCommand(options: EvolveOptions): Promise<void> {
       maxCycles: cycles,
       candidatesPerCycle: candidates,
     };
+
+    const externalModuleId = 'librainian-devtools/evolution/index.js';
+    const { createEvolutionController } = await loadEvolutionModule<EvolutionModule>(
+      'evolve command',
+      () => import('../../evolution/index.js'),
+      () => import(externalModuleId) as Promise<EvolutionModule>,
+    );
 
     const controller = createEvolutionController({
       workspaceRoot: workspace,

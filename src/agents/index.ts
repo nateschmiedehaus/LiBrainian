@@ -151,34 +151,6 @@ export type {
   PlannerStrategy,
 } from './hierarchical_orchestrator.js';
 
-// Self-Improvement Primitives (Meta-epistemic loop)
-export {
-  selfBootstrap,
-  createSelfBootstrap,
-  selfRefresh,
-  createSelfRefresh,
-  analyzeArchitecture,
-  createAnalyzeArchitecture,
-} from './self_improvement/index.js';
-export type {
-  SelfBootstrapResult,
-  SelfBootstrapOptions,
-  CoverageMetrics,
-  SelfRefreshResult,
-  SelfRefreshOptions,
-  ChangeSummary,
-  ArchitectureAnalysisResult,
-  AnalyzeArchitectureOptions,
-  ModuleInfo,
-  DependencyInfo,
-  CycleInfo,
-  ViolationInfo,
-  CouplingMetrics,
-  ArchitectureSuggestion,
-  ArchitectureCheck,
-  ArchitectureThresholds,
-} from './self_improvement/index.js';
-
 // Tree-sitter Universal Parser (WU-LANG-001)
 export {
   TreeSitterParser,

@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { ralphCommand } from '../ralph.js';
+import { ralphCommand, repairCommand } from '../ralph.js';
 import { resolveDbPath } from '../../db_path.js';
 import { runOnboardingRecovery } from '../../../api/onboarding_recovery.js';
 import { checkAllProviders } from '../../../api/provider_check.js';
@@ -40,10 +40,12 @@ vi.mock('../external_repos.js', () => ({
 describe('ralphCommand', () => {
   let workspace: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ralph-'));
 
     vi.mocked(resolveDbPath).mockResolvedValue(path.join(workspace, '.librarian', 'librarian.sqlite'));
@@ -74,6 +76,7 @@ describe('ralphCommand', () => {
 
   afterEach(async () => {
     consoleLogSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
     await fs.rm(workspace, { recursive: true, force: true });
   });
 
@@ -92,6 +95,30 @@ describe('ralphCommand', () => {
     const parsed = JSON.parse(payload!);
     expect(parsed.schema).toBe('RalphLoopReport.v1');
     expect(parsed.cyclesRun).toBe(1);
+  });
+
+  it('supports repair command name and does not emit deprecation warning', async () => {
+    await repairCommand({
+      workspace,
+      args: [],
+      rawArgs: ['repair', '--json', '--mode', 'fast', '--max-cycles', '1'],
+    });
+
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    const payload = consoleLogSpy.mock.calls
+      .map((call) => call[0])
+      .find((value) => typeof value === 'string' && value.includes('"RalphLoopReport.v1"')) as string | undefined;
+    expect(payload).toBeTruthy();
+  });
+
+  it('warns when deprecated ralph alias is used in text mode', async () => {
+    await ralphCommand({
+      workspace,
+      args: [],
+      rawArgs: ['ralph', '--mode', 'fast', '--max-cycles', '1'],
+    });
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith('[deprecated] `librarian ralph` is deprecated. Use `librarian repair`.');
   });
 
   it('does not run evaluation in fast mode by default', async () => {

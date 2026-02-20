@@ -9,6 +9,9 @@ describe('public debug surface', () => {
     expect('globalTracer' in rootApi).toBe(false);
     expect('LibrarianTracer' in rootApi).toBe(false);
     expect('LibrarianInspector' in rootApi).toBe(false);
+    expect('projectForPersona' in rootApi).toBe(false);
+    expect('generateGlanceCard' in rootApi).toBe(false);
+    expect('getPersonaSummary' in rootApi).toBe(false);
   });
 
   it('retains debug primitives on explicit debug subpath', () => {
