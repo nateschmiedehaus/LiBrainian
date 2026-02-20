@@ -43,6 +43,45 @@ export interface AgenticUseCaseRunResult {
   errors: string[];
 }
 
+export interface AgenticUseCaseExplorationCitation {
+  file: string;
+  line: number | null;
+}
+
+export interface AgenticUseCaseExplorationFinding {
+  repo: string;
+  intent: string;
+  success: boolean;
+  packCount: number;
+  evidenceCount: number;
+  hasUsefulSummary: boolean;
+  totalConfidence: number;
+  strictSignals: string[];
+  errors: string[];
+  summary: string | null;
+  citations: AgenticUseCaseExplorationCitation[];
+}
+
+export interface AgenticUseCaseExplorationRepoMetrics {
+  runs: number;
+  successes: number;
+  usefulSummaries: number;
+  evidenceBearing: number;
+  strictFailures: number;
+}
+
+export interface AgenticUseCaseExplorationSummary {
+  enabled: boolean;
+  intentsPerRepo: number;
+  totalRuns: number;
+  successRate: number;
+  usefulSummaryRate: number;
+  evidenceRate: number;
+  strictFailureShare: number;
+  uniqueReposCovered: number;
+  byRepo: Record<string, AgenticUseCaseExplorationRepoMetrics>;
+}
+
 export interface AgenticUseCaseDomainMetrics {
   runs: number;
   passRate: number;
@@ -113,6 +152,7 @@ export interface AgenticUseCaseReviewReport {
     uncertaintyHistoryPath?: string;
     progressivePrerequisites: boolean;
     deterministicQueries: boolean;
+    explorationIntentsPerRepo: number;
     initTimeoutMs: number;
     queryTimeoutMs: number;
     maxRunsPerRepo: number;
@@ -120,6 +160,10 @@ export interface AgenticUseCaseReviewReport {
   selectedUseCases: AgenticUseCase[];
   plannedUseCases: AgenticUseCasePlanItem[];
   results: AgenticUseCaseRunResult[];
+  exploration: {
+    findings: AgenticUseCaseExplorationFinding[];
+    summary: AgenticUseCaseExplorationSummary;
+  };
   summary: AgenticUseCaseReviewSummary;
   gate: AgenticUseCaseReviewGate;
   artifacts?: {
@@ -142,6 +186,7 @@ export interface AgenticUseCaseReviewOptions {
   uncertaintyHistoryPath?: string;
   progressivePrerequisites?: boolean;
   deterministicQueries?: boolean;
+  explorationIntentsPerRepo?: number;
   thresholds?: Partial<AgenticUseCaseReviewThresholds>;
   artifactRoot?: string;
   runLabel?: string;
@@ -205,6 +250,34 @@ export function createAgenticUseCaseQuery(options: AgenticUseCaseQueryOptions): 
 
 function buildUseCaseIntent(useCase: Pick<AgenticUseCase, 'id' | 'need'>): string {
   return `What is the evidence-grounded implementation context for ${useCase.id}: ${useCase.need}? Include concrete file references.`;
+}
+
+function buildExplorationIntents(): string[] {
+  return [
+    'Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.',
+    'Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.',
+    'If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.',
+    'Call out likely hidden failure modes or brittle assumptions not obvious from happy-path behavior. Include file-level evidence.',
+  ];
+}
+
+function resolveExplorationIntentsPerRepo(
+  requested: number | undefined,
+  evidenceProfile: AgenticUseCaseEvidenceProfile
+): number {
+  if (typeof requested === 'number' && Number.isFinite(requested) && requested >= 0) {
+    return Math.floor(requested);
+  }
+  switch (evidenceProfile) {
+    case 'quick':
+      return 1;
+    case 'diagnostic':
+      return 4;
+    case 'release':
+      return 3;
+    default:
+      return 1;
+  }
 }
 
 export function resolveReviewThresholds(
@@ -297,6 +370,11 @@ function parseDependencies(raw: string): string[] {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
+}
+
+function safeRate(numerator: number, denominator: number): number {
+  if (!Number.isFinite(denominator) || denominator <= 0) return 0;
+  return numerator / denominator;
 }
 
 function parseUseCaseLine(line: string): AgenticUseCase | null {
@@ -1040,6 +1118,94 @@ function summarizeResponseQuality(response: LibrarianResponse): {
   };
 }
 
+function summarizeExplorationAnswer(response: LibrarianResponse): string | null {
+  const synthesisAnswer = response.synthesis?.answer?.trim();
+  if (synthesisAnswer && synthesisAnswer.length > 0) {
+    return synthesisAnswer;
+  }
+  for (const pack of response.packs ?? []) {
+    const summary = (pack.summary ?? '').trim();
+    if (summary.length > 0 && !EMPTY_SUMMARIES.has(summary)) {
+      return summary;
+    }
+  }
+  return null;
+}
+
+function extractExplorationCitations(response: LibrarianResponse, limit = 6): AgenticUseCaseExplorationCitation[] {
+  const out: AgenticUseCaseExplorationCitation[] = [];
+  const seen = new Set<string>();
+  const citations = response.synthesis?.citations ?? [];
+  for (const citation of citations) {
+    const file = typeof citation?.file === 'string' ? citation.file.trim() : '';
+    if (!file) continue;
+    const line = typeof citation?.line === 'number' && Number.isFinite(citation.line)
+      ? citation.line
+      : null;
+    const key = `${file}:${line ?? 'null'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ file, line });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function summarizeExplorationFindings(
+  findings: AgenticUseCaseExplorationFinding[],
+  selectedRepos: string[],
+  intentsPerRepo: number
+): AgenticUseCaseExplorationSummary {
+  const byRepo = new Map<string, AgenticUseCaseExplorationRepoMetrics>();
+  for (const repo of selectedRepos) {
+    byRepo.set(repo, {
+      runs: 0,
+      successes: 0,
+      usefulSummaries: 0,
+      evidenceBearing: 0,
+      strictFailures: 0,
+    });
+  }
+  for (const finding of findings) {
+    const metrics = byRepo.get(finding.repo) ?? {
+      runs: 0,
+      successes: 0,
+      usefulSummaries: 0,
+      evidenceBearing: 0,
+      strictFailures: 0,
+    };
+    metrics.runs += 1;
+    if (finding.success) metrics.successes += 1;
+    if (finding.hasUsefulSummary) metrics.usefulSummaries += 1;
+    if (finding.evidenceCount > 0) metrics.evidenceBearing += 1;
+    if (finding.strictSignals.length > 0) metrics.strictFailures += 1;
+    byRepo.set(finding.repo, metrics);
+  }
+
+  const totalRuns = findings.length;
+  const successfulRuns = findings.filter((finding) => finding.success).length;
+  const usefulRuns = findings.filter((finding) => finding.hasUsefulSummary).length;
+  const evidenceRuns = findings.filter((finding) => finding.evidenceCount > 0).length;
+  const strictFailures = findings.filter((finding) => finding.strictSignals.length > 0).length;
+
+  const byRepoObject: Record<string, AgenticUseCaseExplorationRepoMetrics> = {};
+  for (const [repo, metrics] of byRepo.entries()) {
+    byRepoObject[repo] = metrics;
+  }
+
+  return {
+    enabled: intentsPerRepo > 0,
+    intentsPerRepo,
+    totalRuns,
+    successRate: safeRate(successfulRuns, totalRuns),
+    usefulSummaryRate: safeRate(usefulRuns, totalRuns),
+    evidenceRate: safeRate(evidenceRuns, totalRuns),
+    strictFailureShare: safeRate(strictFailures, totalRuns),
+    uniqueReposCovered: new Set(findings.map((finding) => finding.repo).filter(Boolean)).size,
+    byRepo: byRepoObject,
+  };
+}
+
 function computeDomainMetrics(results: AgenticUseCaseRunResult[]): Record<string, AgenticUseCaseDomainMetrics> {
   const grouped = new Map<string, AgenticUseCaseRunResult[]>();
   for (const result of results) {
@@ -1239,6 +1405,11 @@ export async function runAgenticUseCaseReview(
   const maxUseCases = options.maxUseCases ?? 120;
   const initTimeoutMs = resolveTimeoutMs(options.initTimeoutMs, 'LIBRARIAN_USE_CASE_INIT_TIMEOUT_MS', 300_000);
   const queryTimeoutMs = resolveTimeoutMs(options.queryTimeoutMs, 'LIBRARIAN_USE_CASE_QUERY_TIMEOUT_MS', 120_000);
+  const explorationIntentsPerRepo = resolveExplorationIntentsPerRepo(
+    options.explorationIntentsPerRepo,
+    evidenceProfile
+  );
+  const explorationIntentTemplates = buildExplorationIntents();
   const thresholds = resolveReviewThresholds(options.thresholds);
 
   const matrixMarkdown = await readFile(matrixPath, 'utf8');
@@ -1286,6 +1457,7 @@ export async function runAgenticUseCaseReview(
   );
 
   const results: AgenticUseCaseRunResult[] = [];
+  const explorationFindings: AgenticUseCaseExplorationFinding[] = [];
   const repoReportPaths: string[] = [];
   const runLabel = options.runLabel?.trim().length
     ? sanitizePathSegment(options.runLabel)
@@ -1293,6 +1465,12 @@ export async function runAgenticUseCaseReview(
   const artifactsRoot = options.artifactRoot?.trim().length
     ? path.resolve(options.artifactRoot, runLabel)
     : null;
+  const resolveRepoExplorationIntents = (): string[] =>
+    Array.from({ length: explorationIntentsPerRepo }, (_, index) => {
+      const template = explorationIntentTemplates[index];
+      if (template) return template;
+      return `Explore this repository from a fresh angle (#${index + 1}) and surface likely high-impact problems, root causes, and concrete fixes with file citations.`;
+    });
 
   for (const repoName of selectedRepos) {
     throwIfAborted(options.signal, 'agentic_use_case_review');
@@ -1305,6 +1483,7 @@ export async function runAgenticUseCaseReview(
     const repoPlannedUseCases = repoPlan.plannedUseCases;
     const dependencyClosureByTarget = repoPlan.dependencyClosureByTarget;
     let repoStats: Array<AgenticUseCaseRunResult> = [];
+    const repoExplorationFindings: AgenticUseCaseExplorationFinding[] = [];
     let repoError: string | null = null;
     let providerSnapshot: unknown = null;
     let librarianForCleanup: { shutdown(): Promise<void> } | null = null;
@@ -1492,6 +1671,62 @@ export async function runAgenticUseCaseReview(
           }
         }
       }
+      const repoExplorationIntents = resolveRepoExplorationIntents();
+      for (const intent of repoExplorationIntents) {
+        throwIfAborted(options.signal, 'agentic_use_case_review');
+        try {
+          const queryInput = createAgenticUseCaseQuery({
+            intent,
+            deterministicQueries,
+            queryTimeoutMs,
+          });
+          const response = await withTimeout(
+            gateResult.librarian.queryRequired(queryInput),
+            queryTimeoutMs,
+            { context: `unverified_by_trace(timeout_query): ${repoName}:exploration` }
+          );
+          const quality = summarizeResponseQuality(response);
+          const strictSignals = uniqueStrings([...quality.strictSignals]);
+          const success =
+            quality.packCount > 0
+            && quality.evidenceCount > 0
+            && quality.hasUsefulSummary
+            && strictSignals.length === 0;
+          const finding: AgenticUseCaseExplorationFinding = {
+            repo: repoName,
+            intent,
+            success,
+            packCount: quality.packCount,
+            evidenceCount: quality.evidenceCount,
+            hasUsefulSummary: quality.hasUsefulSummary,
+            totalConfidence: response.totalConfidence ?? 0,
+            strictSignals,
+            errors: [],
+            summary: summarizeExplorationAnswer(response),
+            citations: extractExplorationCitations(response),
+          };
+          explorationFindings.push(finding);
+          repoExplorationFindings.push(finding);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const strictSignals = uniqueStrings(detectStrictSignals(message));
+          const finding: AgenticUseCaseExplorationFinding = {
+            repo: repoName,
+            intent,
+            success: false,
+            packCount: 0,
+            evidenceCount: 0,
+            hasUsefulSummary: false,
+            totalConfidence: 0,
+            strictSignals,
+            errors: [message],
+            summary: null,
+            citations: [],
+          };
+          explorationFindings.push(finding);
+          repoExplorationFindings.push(finding);
+        }
+      }
     } catch (error) {
       repoError = error instanceof Error ? error.message : String(error);
       for (const useCase of repoPlannedUseCases) {
@@ -1524,6 +1759,24 @@ export async function runAgenticUseCaseReview(
         results.push(run);
         repoStats.push(run);
       }
+      for (const intent of resolveRepoExplorationIntents()) {
+        const strictSignals = uniqueStrings(detectStrictSignals(repoError));
+        const finding: AgenticUseCaseExplorationFinding = {
+          repo: repoName,
+          intent,
+          success: false,
+          packCount: 0,
+          evidenceCount: 0,
+          hasUsefulSummary: false,
+          totalConfidence: 0,
+          strictSignals,
+          errors: [repoError],
+          summary: null,
+          citations: [],
+        };
+        explorationFindings.push(finding);
+        repoExplorationFindings.push(finding);
+      }
     } finally {
       if (librarianForCleanup) {
         await librarianForCleanup.shutdown().catch(() => {});
@@ -1542,14 +1795,23 @@ export async function runAgenticUseCaseReview(
           providerSnapshot,
           error: repoError,
           results: repoStats,
+          explorationFindings: repoExplorationFindings,
         }, null, 2),
         'utf8'
       );
       repoReportPaths.push(repoReportPath);
     }
-    console.log(`[use-case-review] repo=${repoName} complete runs=${repoStats.length} error=${repoError ?? 'none'}`);
+    console.log(
+      `[use-case-review] repo=${repoName} complete runs=${repoStats.length}`
+      + ` explorationRuns=${repoExplorationFindings.length} error=${repoError ?? 'none'}`
+    );
   }
 
+  const explorationSummary = summarizeExplorationFindings(
+    explorationFindings,
+    selectedRepos,
+    explorationIntentsPerRepo
+  );
   const summary = summarizeUseCaseReview(results, selectedUseCases, selectedRepos, {
     plannedUseCases,
     progressiveEnabled: progressivePrerequisites && plannedUseCases.some((useCase) => useCase.stepKind === 'prerequisite'),
@@ -1574,6 +1836,7 @@ export async function runAgenticUseCaseReview(
           : undefined,
       progressivePrerequisites,
       deterministicQueries,
+      explorationIntentsPerRepo,
       initTimeoutMs,
       queryTimeoutMs,
       maxRunsPerRepo,
@@ -1581,6 +1844,10 @@ export async function runAgenticUseCaseReview(
     selectedUseCases,
     plannedUseCases,
     results,
+    exploration: {
+      findings: explorationFindings,
+      summary: explorationSummary,
+    },
     summary,
     gate,
   };

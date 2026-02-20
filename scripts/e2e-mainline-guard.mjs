@@ -18,8 +18,43 @@ function fail(message, details = []) {
   process.exit(1);
 }
 
+function parseRepoFromRemoteUrl(remoteUrl) {
+  const trimmed = String(remoteUrl ?? '').trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/github\.com[:/](.+?)(?:\.git)?$/i);
+  return match?.[1] ?? null;
+}
+
+function resolveRepo() {
+  const remote = run('git remote get-url origin');
+  const parsed = parseRepoFromRemoteUrl(remote);
+  if (!parsed) {
+    fail('Unable to infer GitHub repository from origin remote URL.');
+  }
+  return parsed;
+}
+
+async function fetchBranchPr(repo, branch) {
+  const owner = repo.split('/')[0];
+  const head = `${owner}:${branch}`;
+  const url = `https://api.github.com/repos/${repo}/pulls?state=all&head=${encodeURIComponent(head)}&per_page=10`;
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'librainian-e2e-mainline-guard',
+    },
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub API request failed (${response.status}): ${body.slice(0, 200)}`);
+  }
+  const payload = await response.json();
+  if (!Array.isArray(payload) || payload.length === 0) return null;
+  return payload[0];
+}
+
 function listRemoteBranches(prefix) {
-  const output = run(`git for-each-ref --format=%(refname:short) refs/remotes/origin/${prefix}*`);
+  const output = run(`git for-each-ref --format='%(refname:short)' refs/remotes/origin/${prefix}*`);
   return output
     .split('\n')
     .map((line) => line.trim())
@@ -38,7 +73,7 @@ function isAncestor(ancestorRef, descendantRef) {
   }
 }
 
-function main() {
+async function main() {
   const { values } = parseArgs({
     options: {
       base: { type: 'string', default: 'main' },
@@ -78,12 +113,42 @@ function main() {
   }
 
   const remoteBranches = listRemoteBranches(prefix);
-  const unmerged = remoteBranches.filter((branch) => !isAncestor(`origin/${branch}`, `origin/${baseBranch}`));
-  if (unmerged.length > 0) {
+  const repo = resolveRepo();
+  const activeUnmerged = [];
+  const staleUnmerged = [];
+  const unresolved = [];
+  for (const branch of remoteBranches) {
+    if (isAncestor(`origin/${branch}`, `origin/${baseBranch}`)) {
+      continue;
+    }
+    try {
+      const pr = await fetchBranchPr(repo, branch);
+      if (pr?.state === 'open') {
+        activeUnmerged.push(branch);
+      } else {
+        const reason = pr ? `pr_state=${pr.state} merged_at=${pr.merged_at ?? 'null'}` : 'no_pr_found';
+        staleUnmerged.push(`${branch} (${reason})`);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      unresolved.push(`${branch} (${reason})`);
+    }
+  }
+
+  if (activeUnmerged.length > 0 || unresolved.length > 0) {
     fail(`Unmerged developmental branches remain for prefix "${prefix}".`, [
-      ...unmerged.map((branch) => `unmerged: ${branch}`),
-      'Merge/close these branches before authoritative developmental-truth E2E.',
+      ...activeUnmerged.map((branch) => `active_unmerged: ${branch}`),
+      ...unresolved.map((branch) => `unresolved_state: ${branch}`),
+      'Merge/close active branches before authoritative developmental-truth E2E.',
     ]);
+  }
+
+  if (staleUnmerged.length > 0) {
+    console.warn(`[policy:e2e:mainline] Non-blocking stale branch debt detected (${staleUnmerged.length}).`);
+    for (const branch of staleUnmerged) {
+      console.warn(`  - stale_unmerged: ${branch}`);
+    }
+    console.warn('  - Run `npm run gh:branches:cleanup` after any needed archival/cherry-picks.');
   }
 
   console.log(
@@ -91,4 +156,7 @@ function main() {
   );
 }
 
-main();
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  fail('Unexpected guard failure.', [message]);
+});

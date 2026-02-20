@@ -53,6 +53,8 @@ describe('Agentic use-case review (system)', () => {
     expect(report.plannedUseCases.length).toBeGreaterThanOrEqual(report.selectedUseCases.length);
     expect(report.summary.totalRuns).toBeGreaterThan(0);
     expect(report.summary.progression.targetRuns).toBeGreaterThan(0);
+    expect(report.exploration.summary.enabled).toBe(true);
+    expect(report.exploration.summary.totalRuns).toBeGreaterThan(0);
     expect(report.summary.uniqueRepos).toBeGreaterThan(0);
     expect(report.summary.uniqueUseCases).toBeGreaterThan(0);
     expect(report.artifacts?.reportPath).toBeDefined();

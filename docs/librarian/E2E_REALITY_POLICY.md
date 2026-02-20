@@ -59,6 +59,7 @@ Each artifact includes:
 - natural-task coverage and repo diversity
 - paired control-vs-treatment deltas
 - agent-command critique share for external runs
+- open-ended exploratory diagnostics across external repos (observations, concern signals, coverage)
 - confidence interval + disconfirmation reasons
 - evidence-linked wins/regressions
 - freshness checks for source artifacts
@@ -79,7 +80,9 @@ Each artifact includes:
 - Agent critique payload is emitted between markers:
   - `AB_AGENT_CRITIQUE_JSON_START`
   - `AB_AGENT_CRITIQUE_JSON_END`
-- Release and strict E2E gates fail closed when critique coverage is below threshold.
+- Critique coverage is diagnostic; it must not be the sole strict gate for full E2E.
+- Full E2E must always include open-ended exploratory diagnostics so failure discovery is not purely formulaic.
+- E2E agent diagnostics must not impose arbitrary word-count caps on critiques/observations.
 
 `E2EOutcomeTriage.v1` must include:
 - severity classification for each diagnosis

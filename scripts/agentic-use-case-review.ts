@@ -30,6 +30,7 @@ const args = parseArgs({
     uncertaintyHistoryPath: { type: 'string' },
     progressive: { type: 'boolean', default: true },
     deterministicQueries: { type: 'boolean', default: false },
+    explorationIntentsPerRepo: { type: 'string' },
     minPassRate: { type: 'string' },
     minEvidenceRate: { type: 'string' },
     minUsefulSummaryRate: { type: 'string' },
@@ -96,6 +97,7 @@ const report = await runAgenticUseCaseReview({
     : undefined,
   progressivePrerequisites: args.values.progressive ?? true,
   deterministicQueries: args.values.deterministicQueries ?? false,
+  explorationIntentsPerRepo: parseNumber(args.values.explorationIntentsPerRepo),
   thresholds: thresholdOverrides,
   artifactRoot,
   runLabel: args.values.runLabel,
@@ -113,6 +115,9 @@ console.log(`Pass rate: ${(report.summary.passRate * 100).toFixed(1)}%`);
 console.log(`Evidence rate: ${(report.summary.evidenceRate * 100).toFixed(1)}%`);
 console.log(`Useful summary rate: ${(report.summary.usefulSummaryRate * 100).toFixed(1)}%`);
 console.log(`Strict failure share: ${(report.summary.strictFailureShare * 100).toFixed(1)}%`);
+console.log(`Exploration runs: ${report.exploration.summary.totalRuns}`);
+console.log(`Exploration success rate: ${(report.exploration.summary.successRate * 100).toFixed(1)}%`);
+console.log(`Exploration repo coverage: ${report.exploration.summary.uniqueReposCovered}`);
 console.log(`Progressive enabled: ${report.summary.progression.enabled}`);
 console.log(`Prerequisite pass rate: ${(report.summary.progression.prerequisitePassRate * 100).toFixed(1)}%`);
 console.log(`Target pass rate: ${(report.summary.progression.targetPassRate * 100).toFixed(1)}%`);

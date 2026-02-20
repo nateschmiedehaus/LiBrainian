@@ -13,7 +13,7 @@ const DEFAULT_MIN_PAIRED_TASKS = 10;
 const DEFAULT_MIN_RELIABILITY_LIFT = 0;
 const DEFAULT_MIN_TIME_REDUCTION = 0;
 const DEFAULT_MIN_EVIDENCE_LINKED_PAIRS = 5;
-const DEFAULT_MIN_AGENT_CRITIQUE_SHARE = 1;
+const DEFAULT_MIN_AGENT_CRITIQUE_SHARE = 0;
 
 class OutcomeHarnessFailure extends Error {
   constructor(message, report) {
@@ -269,7 +269,7 @@ function normalizeAbRows(report, sourcePath) {
     .filter((row) => row.taskId.length > 0 && (row.workerType === 'control' || row.workerType === 'treatment'));
 }
 
-function dedupeStrings(values, limit = 12) {
+function dedupeStrings(values, limit = Number.POSITIVE_INFINITY) {
   const seen = new Set();
   const out = [];
   for (const value of values) {
@@ -278,7 +278,7 @@ function dedupeStrings(values, limit = 12) {
     if (seen.has(text)) continue;
     seen.add(text);
     out.push(text);
-    if (out.length >= limit) break;
+    if (Number.isFinite(limit) && out.length >= limit) break;
   }
   return out;
 }
@@ -330,9 +330,61 @@ function summarizeAgentExperience(rows) {
   return {
     critiqueSamples: critiqueRows.length,
     perspectiveCounts,
-    noteworthyObservations: dedupeStrings(noteworthy, 16),
-    painPoints: dedupeStrings(painPoints, 12),
-    improvementIdeas: dedupeStrings(ideas, 16),
+    noteworthyObservations: dedupeStrings(noteworthy),
+    painPoints: dedupeStrings(painPoints),
+    improvementIdeas: dedupeStrings(ideas),
+  };
+}
+
+function normalizeExplorationFindings(agenticReport) {
+  const findings = Array.isArray(agenticReport?.exploration?.findings)
+    ? agenticReport.exploration.findings
+    : [];
+  return findings
+    .map((entry) => ({
+      repo: String(entry?.repo ?? '').trim(),
+      intent: String(entry?.intent ?? '').trim(),
+      success: entry?.success === true,
+      evidenceCount: toFiniteNumber(entry?.evidenceCount, 0),
+      hasUsefulSummary: entry?.hasUsefulSummary === true,
+      strictSignals: Array.isArray(entry?.strictSignals)
+        ? entry.strictSignals.map((value) => String(value ?? '').trim()).filter(Boolean)
+        : [],
+      summary: typeof entry?.summary === 'string' ? entry.summary.trim() : '',
+      errors: Array.isArray(entry?.errors)
+        ? entry.errors.map((value) => String(value ?? '').trim()).filter(Boolean)
+        : [],
+    }))
+    .filter((entry) => entry.repo.length > 0 || entry.intent.length > 0);
+}
+
+function summarizeExploration(findings, fallbackRepoCount) {
+  const total = findings.length;
+  const successful = findings.filter((entry) => entry.success).length;
+  const useful = findings.filter((entry) => entry.hasUsefulSummary).length;
+  const evidenceBearing = findings.filter((entry) => entry.evidenceCount > 0).length;
+  const strictFailures = findings.filter((entry) => entry.strictSignals.length > 0).length;
+  const uniqueReposCovered = new Set(findings.map((entry) => entry.repo).filter(Boolean)).size;
+  const repoDenominator = Math.max(uniqueReposCovered, toFiniteNumber(fallbackRepoCount, 0));
+  const observations = dedupeStrings(
+    findings
+      .map((entry) => entry.summary)
+      .filter((summary) => typeof summary === 'string' && summary.length > 0)
+  );
+  const concernSignals = dedupeStrings(
+    findings.flatMap((entry) => entry.strictSignals.concat(entry.errors))
+  );
+
+  return {
+    totalFindings: total,
+    successfulFindings: successful,
+    usefulSummaryShare: safeRate(useful, total),
+    evidenceShare: safeRate(evidenceBearing, total),
+    strictFailureShare: safeRate(strictFailures, total),
+    uniqueReposCovered,
+    repoCoverageShare: safeRate(uniqueReposCovered, repoDenominator),
+    observations,
+    concernSignals,
   };
 }
 
@@ -432,8 +484,8 @@ function summarizePairs(abRows) {
     }))
     .sort((left, right) => right.durationDeltaMs - left.durationDeltaMs);
 
-  const topWins = durationChanges.slice(0, 5);
-  const topRegressions = durationChanges.slice(-5).reverse();
+  const topWins = durationChanges;
+  const topRegressions = [...durationChanges].reverse();
   const failureCases = durationChanges.filter((entry) => !entry.treatmentSuccess);
   const evidenceLinkedPairs = durationChanges.filter((entry) => typeof entry.evidence === 'string' && entry.evidence.length > 0).length;
 
@@ -617,6 +669,38 @@ function buildMarkdownReport(report) {
     }
   }
   lines.push('');
+  lines.push('## Exploratory Diagnostics');
+  lines.push('');
+  lines.push(`- Findings: ${report.exploration?.totalFindings ?? 0}`);
+  lines.push(`- Repo coverage: ${((report.exploration?.repoCoverageShare ?? 0) * 100).toFixed(1)}%`);
+  lines.push(`- Useful summary share: ${((report.exploration?.usefulSummaryShare ?? 0) * 100).toFixed(1)}%`);
+  lines.push(`- Evidence share: ${((report.exploration?.evidenceShare ?? 0) * 100).toFixed(1)}%`);
+  lines.push(`- Strict failure share: ${((report.exploration?.strictFailureShare ?? 0) * 100).toFixed(1)}%`);
+  lines.push('');
+  lines.push('### Observations');
+  const explorationObservations = Array.isArray(report.exploration?.observations)
+    ? report.exploration.observations
+    : [];
+  if (explorationObservations.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const observation of explorationObservations) {
+      lines.push(`- ${observation}`);
+    }
+  }
+  lines.push('');
+  lines.push('### Concern Signals');
+  const explorationSignals = Array.isArray(report.exploration?.concernSignals)
+    ? report.exploration.concernSignals
+    : [];
+  if (explorationSignals.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const signal of explorationSignals) {
+      lines.push(`- ${signal}`);
+    }
+  }
+  lines.push('');
   lines.push('## Evidence Links');
   lines.push('');
   const evidenceLinks = report.controlVsTreatment.topWins
@@ -650,10 +734,12 @@ async function buildOutcomeReport(options) {
 
   const taskbankTasks = normalizeTaskbankTasks(taskbankJson);
   const agenticRows = normalizeAgenticResults(agenticReportJson);
+  const explorationFindings = normalizeExplorationFindings(agenticReportJson);
   const abRows = abReportPayloads.flatMap(({ path: reportPath, payload }) => normalizeAbRows(payload, reportPath));
   const naturalTasks = summarizeNaturalTasks(taskbankTasks, agenticRows);
   const controlVsTreatment = summarizePairs(abRows);
   const agentExperience = summarizeAgentExperience(abRows);
+  const exploration = summarizeExploration(explorationFindings, naturalTasks.uniqueRepos);
 
   const sourceTimestamps = {
     agentic: toIsoOrNull(agenticReportJson?.createdAt),
@@ -717,9 +803,18 @@ async function buildOutcomeReport(options) {
     suggestions.push('Require critique JSON markers in agent prompt contract and reject runs with missing critique payloads.');
     suggestions.push('Expand critique rubric coverage across correctness, relevance, context quality, tooling friction, reliability, and productivity.');
   }
+  if (exploration.totalFindings === 0) {
+    diagnoses.push('Exploratory diagnostics produced no findings.');
+    suggestions.push('Ensure agentic-use-case review includes open-ended exploration passes that surface latent risks and workflow friction.');
+  } else {
+    diagnoses.push(`Exploratory diagnostics captured ${exploration.totalFindings} finding(s) across ${exploration.uniqueReposCovered} repo(s).`);
+    for (const observation of exploration.observations.slice(0, 6)) {
+      suggestions.push(`Exploration note: ${observation}`);
+    }
+  }
   if (agentExperience.painPoints.length > 0) {
     diagnoses.push(`Agent critiques reported ${agentExperience.painPoints.length} notable pain-point(s).`);
-    for (const idea of agentExperience.improvementIdeas.slice(0, 4)) {
+    for (const idea of agentExperience.improvementIdeas) {
       suggestions.push(`Agent idea: ${idea}`);
     }
   }
@@ -741,6 +836,7 @@ async function buildOutcomeReport(options) {
     naturalTasks,
     controlVsTreatment,
     agentExperience,
+    exploration,
     freshness,
     thresholds: {
       maxAgeHours: options.maxAgeHours,
@@ -861,6 +957,17 @@ main().catch(async (error) => {
         noteworthyObservations: [],
         painPoints: [],
         improvementIdeas: [],
+      },
+      exploration: {
+        totalFindings: 0,
+        successfulFindings: 0,
+        usefulSummaryShare: 0,
+        evidenceShare: 0,
+        strictFailureShare: 0,
+        uniqueReposCovered: 0,
+        repoCoverageShare: 0,
+        observations: [],
+        concernSignals: [],
       },
       freshness: {
         maxAgeHours: options.maxAgeHours,

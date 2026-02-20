@@ -136,6 +136,7 @@ describe('e2e outcome harness script', () => {
     expect(markdown).toContain('## Suggestions');
     expect(markdown).toContain('## Top Wins');
     expect(markdown).toContain('## Top Regressions');
+    expect(markdown).toContain('## Exploratory Diagnostics');
 
     await rm(workspace, { recursive: true, force: true });
   });
