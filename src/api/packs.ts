@@ -367,7 +367,8 @@ async function buildFunctionPack(
   summarizer: PackSummarizer,
   storage: LibrarianStorage | null = null
 ): Promise<ContextPack> {
-  const snippet = await loadFunctionSnippet(fn);
+  const snippetResult = await loadFunctionSnippet(fn);
+  const snippet = snippetResult?.snippet ?? null;
   const summaryFallback = fn.purpose || `Function ${fn.name} in ${path.basename(fn.filePath)}`;
   const summary = await summarizer.summarize('function', buildFunctionSummaryInput(fn), summaryFallback);
   // Use path-based targetId to align with embedding entity_id format
@@ -416,6 +417,16 @@ async function buildFunctionPack(
 
   // Add file context (simplified)
   keyFacts.push(`File: ${path.basename(fn.filePath)}`);
+  if (snippetResult?.parentContext?.classSignature) {
+    keyFacts.push(`Parent class: ${snippetResult.parentContext.classSignature}`);
+  }
+  if (snippetResult?.parentContext?.constructorSignature) {
+    keyFacts.push(`Constructor context: ${snippetResult.parentContext.constructorSignature}`);
+  }
+  const parentOverheadTokens = snippetResult?.parentContext?.overheadTokens ?? 0;
+  if (parentOverheadTokens > 0) {
+    keyFacts.push(`Parent context overhead: ~${parentOverheadTokens} tokens`);
+  }
 
   return {
     packId: randomUUID(),
@@ -786,20 +797,119 @@ async function buildSimilarTasksPack(
   };
 }
 
-async function loadFunctionSnippet(fn: FunctionKnowledge): Promise<CodeSnippet | null> {
+interface ParentContextMetadata {
+  classSignature?: string;
+  constructorSignature?: string;
+  overheadTokens: number;
+}
+
+interface FunctionSnippetResult {
+  snippet: CodeSnippet;
+  parentContext?: ParentContextMetadata;
+}
+
+const IMPORT_LINE_PATTERN = /^\s*(import|export\s+\{[^}]*\}\s+from)\b/;
+const CLASS_SIGNATURE_PATTERN = /^\s*(export\s+)?(abstract\s+)?class\s+[A-Za-z_$][\w$]*/;
+const CONSTRUCTOR_SIGNATURE_PATTERN = /^\s*constructor\s*\(/;
+
+function estimateTokens(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return Math.max(1, Math.ceil(trimmed.length / 4));
+}
+
+function collectImportBlock(lines: string[]): string[] {
+  const imports: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (imports.length > 0) break;
+      continue;
+    }
+    if (IMPORT_LINE_PATTERN.test(line)) {
+      imports.push(line);
+      continue;
+    }
+    if (imports.length > 0) break;
+  }
+  return imports.slice(0, 12);
+}
+
+function findEnclosingClass(lines: string[], startIdx: number): { index: number; signature: string } | null {
+  for (let i = Math.max(0, startIdx - 1); i >= 0; i -= 1) {
+    const line = lines[i];
+    if (!CLASS_SIGNATURE_PATTERN.test(line)) continue;
+    const signature = line.trim();
+    return { index: i, signature };
+  }
+  return null;
+}
+
+function findConstructorSignature(lines: string[], classIndex: number, fnStartIdx: number): string | null {
+  const scanEnd = Math.min(lines.length, fnStartIdx + 120);
+  for (let i = classIndex + 1; i < scanEnd; i += 1) {
+    const line = lines[i];
+    if (CONSTRUCTOR_SIGNATURE_PATTERN.test(line)) {
+      return line.trim();
+    }
+  }
+  return null;
+}
+
+function buildParentContextPrefix(lines: string[], startIdx: number, snippet: string): {
+  prefix: string;
+  parentContext?: ParentContextMetadata;
+} {
+  const sections: string[] = [];
+  const parentContext: ParentContextMetadata = { overheadTokens: 0 };
+  const imports = collectImportBlock(lines);
+  if (imports.length > 0) {
+    sections.push('// Parent module imports');
+    sections.push(...imports);
+  }
+
+  const enclosingClass = findEnclosingClass(lines, startIdx);
+  if (enclosingClass && !snippet.includes(enclosingClass.signature)) {
+    sections.push('// Parent class signature');
+    sections.push(enclosingClass.signature);
+    parentContext.classSignature = enclosingClass.signature;
+    const constructorSignature = findConstructorSignature(lines, enclosingClass.index, startIdx);
+    if (constructorSignature && !snippet.includes(constructorSignature)) {
+      sections.push('// Parent constructor signature');
+      sections.push(constructorSignature);
+      parentContext.constructorSignature = constructorSignature;
+    }
+  }
+
+  const prefix = sections.join('\n').trim();
+  if (!prefix) {
+    return { prefix: '' };
+  }
+  parentContext.overheadTokens = estimateTokens(prefix);
+  return { prefix, parentContext };
+}
+
+async function loadFunctionSnippet(fn: FunctionKnowledge): Promise<FunctionSnippetResult | null> {
   try {
     const content = await fs.readFile(fn.filePath, 'utf8');
     const lines = content.split('\n');
     const startIdx = Math.max(0, fn.startLine - 1);
     const endIdx = Math.min(lines.length, fn.endLine);
     const snippet = lines.slice(startIdx, endIdx).join('\n');
-    const minimized = minimizeSnippet(snippet);
+    const parentContext = buildParentContextPrefix(lines, startIdx, snippet);
+    const withParentContext = parentContext.prefix
+      ? `${parentContext.prefix}\n\n${snippet}`
+      : snippet;
+    const minimized = minimizeSnippet(withParentContext);
     return {
-      filePath: fn.filePath,
-      startLine: fn.startLine,
-      endLine: fn.endLine,
-      content: minimized.text,
-      language: getLanguage(fn.filePath),
+      snippet: {
+        filePath: fn.filePath,
+        startLine: fn.startLine,
+        endLine: fn.endLine,
+        content: minimized.text,
+        language: getLanguage(fn.filePath),
+      },
+      parentContext: parentContext.parentContext,
     };
   } catch {
     return noResult();
