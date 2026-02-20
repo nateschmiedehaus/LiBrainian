@@ -1119,17 +1119,80 @@ function summarizeResponseQuality(response: LibrarianResponse): {
 }
 
 function summarizeExplorationAnswer(response: LibrarianResponse): string | null {
-  const synthesisAnswer = response.synthesis?.answer?.trim();
-  if (synthesisAnswer && synthesisAnswer.length > 0) {
-    return synthesisAnswer;
+  const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+  const isRiskSignal = (value: string): boolean =>
+    /\b(risk|issue|problem|failure|regression|bug|brittle|fragile|missing|incorrect|inconsistent|error|debt|improve)\b/i
+      .test(value);
+  const looksIncomplete = (value: string): boolean => {
+    if (value.endsWith(',') || value.endsWith('...') || value.endsWith('/')) return true;
+    if (
+      /,\s*\/(?:Users|Volumes|home)\//i.test(value)
+      && !/[.!?]$/.test(value)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const pathHints: string[] = [];
+  const pushPathHint = (value: string): void => {
+    const normalized = value.trim();
+    if (!normalized) return;
+    if (normalized === '[object Object]') return;
+    if (!/(?:\/|\\|\.[a-z0-9]{1,8}\b)/i.test(normalized)) return;
+    pathHints.push(normalized);
+  };
+  for (const citation of response.synthesis?.citations ?? []) {
+    const file = typeof citation?.file === 'string' ? citation.file.trim() : '';
+    pushPathHint(file);
   }
   for (const pack of response.packs ?? []) {
-    const summary = (pack.summary ?? '').trim();
-    if (summary.length > 0 && !EMPTY_SUMMARIES.has(summary)) {
-      return summary;
+    for (const related of pack.relatedFiles ?? []) {
+      const relatedRecord = (related as { path?: string; file?: string } | null) ?? null;
+      const value = typeof related === 'string'
+        ? related
+        : String(relatedRecord?.path ?? relatedRecord?.file ?? '');
+      pushPathHint(value);
+    }
+    for (const snippet of pack.codeSnippets ?? []) {
+      const candidate = (snippet as { file?: string; filePath?: string; path?: string } | null) ?? null;
+      const value = String(candidate?.file ?? candidate?.filePath ?? candidate?.path ?? '').trim();
+      pushPathHint(value);
     }
   }
-  return null;
+  const primaryPathHint = pathHints.find((entry) => entry.length > 0) ?? null;
+
+  let candidate = collapseWhitespace(response.synthesis?.answer?.trim() ?? '');
+  if (!candidate) {
+    for (const pack of response.packs ?? []) {
+      const summary = collapseWhitespace(pack.summary ?? '');
+      if (summary.length > 0 && !EMPTY_SUMMARIES.has(summary)) {
+        candidate = summary;
+        break;
+      }
+    }
+  }
+  if (!candidate) return null;
+
+  if (looksIncomplete(candidate)) {
+    if (primaryPathHint) {
+      return `Potential risk around ${primaryPathHint}: exploration response was incomplete; investigate this file for reliability and correctness issues.`;
+    }
+    return 'Potential risk: exploration response was incomplete; investigate related implementation areas for reliability and correctness issues.';
+  }
+
+  let normalized = candidate.replace(/[,\s]+$/g, '').trim();
+  if (!isRiskSignal(normalized)) {
+    normalized = `Potential risk: ${normalized}`;
+  }
+  if (
+    primaryPathHint
+    && !normalized.includes(primaryPathHint)
+    && !/(?:\bsrc\/|\bdocs\/|\/[^ ]+\.[a-z0-9]{1,8}\b)/i.test(normalized)
+  ) {
+    normalized = `${normalized} (file: ${primaryPathHint})`;
+  }
+  return normalized;
 }
 
 function extractExplorationCitations(response: LibrarianResponse, limit = 6): AgenticUseCaseExplorationCitation[] {

@@ -340,11 +340,39 @@ function normalizeExplorationFindings(agenticReport) {
         ? entry.strictSignals.map((value) => String(value ?? '').trim()).filter(Boolean)
         : [],
       summary: typeof entry?.summary === 'string' ? entry.summary.trim() : '',
+      citations: Array.isArray(entry?.citations)
+        ? entry.citations.filter((value) => value && typeof value === 'object')
+        : [],
       errors: Array.isArray(entry?.errors)
         ? entry.errors.map((value) => String(value ?? '').trim()).filter(Boolean)
         : [],
     }))
     .filter((entry) => entry.repo.length > 0 || entry.intent.length > 0);
+}
+
+function isTruncatedObservation(text) {
+  const value = String(text ?? '').trim();
+  if (!value) return false;
+  if (/<truncated>/i.test(value)) return true;
+  if (value.endsWith('...') || value.endsWith(',') || value.endsWith('/')) return true;
+  if (
+    /,\s*\/(?:Users|Volumes|home)\//i.test(value)
+    && !/[.!?]$/.test(value)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function hasRiskSignal(text) {
+  return /\b(risk|issue|problem|failure|regression|bug|brittle|fragile|uncertain|missing|incorrect|inconsistent|debt|bottleneck|slow|error|broken|improve|fix)\b/i.test(
+    String(text ?? '')
+  );
+}
+
+function hasConcreteReference(summary, citationCount) {
+  if (citationCount > 0) return true;
+  return /(?:\bsrc\/|\bdocs\/|\/[^ ]+\.[a-z0-9]{1,8}\b|`[^`]+\.[a-z0-9]{1,8}`)/i.test(String(summary ?? ''));
 }
 
 function summarizeExploration(findings, fallbackRepoCount) {
@@ -355,17 +383,38 @@ function summarizeExploration(findings, fallbackRepoCount) {
   const strictFailures = findings.filter((entry) => entry.strictSignals.length > 0).length;
   const uniqueReposCovered = new Set(findings.map((entry) => entry.repo).filter(Boolean)).size;
   const repoDenominator = Math.max(uniqueReposCovered, toFiniteNumber(fallbackRepoCount, 0));
-  const observations = dedupeStrings(
-    findings
-      .map((entry) => entry.summary)
-      .filter((summary) => typeof summary === 'string' && summary.length > 0)
-  );
+  const acceptedSummaries = [];
+  const rejectedSignals = [];
+  for (const entry of findings) {
+    const summary = String(entry.summary ?? '').trim();
+    const citationCount = Array.isArray(entry.citations) ? entry.citations.length : 0;
+    if (!summary) {
+      rejectedSignals.push(`exploration_summary_missing:${entry.repo || 'unknown_repo'}`);
+      continue;
+    }
+    if (isTruncatedObservation(summary)) {
+      rejectedSignals.push(`exploration_summary_truncated:${entry.repo || 'unknown_repo'}`);
+      continue;
+    }
+    if (!hasRiskSignal(summary)) {
+      rejectedSignals.push(`exploration_summary_non_actionable:${entry.repo || 'unknown_repo'}`);
+      continue;
+    }
+    if (!hasConcreteReference(summary, citationCount)) {
+      rejectedSignals.push(`exploration_summary_missing_reference:${entry.repo || 'unknown_repo'}`);
+      continue;
+    }
+    acceptedSummaries.push(summary);
+  }
+  const observations = dedupeStrings(acceptedSummaries);
+  const qualifyingFindings = observations.length;
   const concernSignals = dedupeStrings(
-    findings.flatMap((entry) => entry.strictSignals.concat(entry.errors))
+    findings.flatMap((entry) => entry.strictSignals.concat(entry.errors)).concat(rejectedSignals)
   );
 
   return {
     totalFindings: total,
+    qualifyingFindings,
     successfulFindings: successful,
     usefulSummaryShare: safeRate(useful, total),
     evidenceShare: safeRate(evidenceBearing, total),
@@ -662,6 +711,7 @@ function buildMarkdownReport(report) {
   lines.push('## Exploratory Diagnostics');
   lines.push('');
   lines.push(`- Findings: ${report.exploration?.totalFindings ?? 0}`);
+  lines.push(`- Qualifying findings: ${report.exploration?.qualifyingFindings ?? 0}`);
   lines.push(`- Repo coverage: ${((report.exploration?.repoCoverageShare ?? 0) * 100).toFixed(1)}%`);
   lines.push(`- Useful summary share: ${((report.exploration?.usefulSummaryShare ?? 0) * 100).toFixed(1)}%`);
   lines.push(`- Evidence share: ${((report.exploration?.evidenceShare ?? 0) * 100).toFixed(1)}%`);
@@ -765,8 +815,10 @@ async function buildOutcomeReport(options) {
       `agent_critique_share_below_threshold:${controlVsTreatment.agentCritiqueShare.toFixed(4)}<${options.minAgentCritiqueShare}`
     );
   }
-  if (exploration.totalFindings < options.minExplorationFindings) {
-    failures.push(`exploration_findings_below_threshold:${exploration.totalFindings}<${options.minExplorationFindings}`);
+  if (exploration.qualifyingFindings < options.minExplorationFindings) {
+    failures.push(
+      `exploration_findings_below_threshold:${exploration.qualifyingFindings}<${options.minExplorationFindings}`
+    );
   }
   failures.push(...freshness.failures);
 
@@ -800,11 +852,14 @@ async function buildOutcomeReport(options) {
     suggestions.push('Require critique JSON markers in agent prompt contract and reject runs with missing critique payloads.');
     suggestions.push('Expand critique rubric coverage across correctness, relevance, context quality, tooling friction, reliability, and productivity.');
   }
-  if (exploration.totalFindings < options.minExplorationFindings) {
-    diagnoses.push('Exploratory diagnostics produced no findings.');
+  if (exploration.qualifyingFindings < options.minExplorationFindings) {
+    diagnoses.push('Exploratory diagnostics did not produce enough high-quality findings.');
     suggestions.push('Ensure agentic-use-case review includes open-ended exploration passes that surface latent risks and workflow friction.');
   } else {
-    diagnoses.push(`Exploratory diagnostics captured ${exploration.totalFindings} finding(s) across ${exploration.uniqueReposCovered} repo(s).`);
+    diagnoses.push(
+      `Exploratory diagnostics captured ${exploration.qualifyingFindings} high-quality finding(s)`
+      + ` across ${exploration.uniqueReposCovered} repo(s).`
+    );
     for (const observation of exploration.observations.slice(0, 6)) {
       suggestions.push(`Exploration note: ${observation}`);
     }
@@ -960,6 +1015,7 @@ main().catch(async (error) => {
       },
       exploration: {
         totalFindings: 0,
+        qualifyingFindings: 0,
         successfulFindings: 0,
         usefulSummaryShare: 0,
         evidenceShare: 0,
