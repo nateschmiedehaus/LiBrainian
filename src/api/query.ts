@@ -52,6 +52,7 @@ import { safeJsonParse } from '../utils/safe_json.js';
 import { checkProviderSnapshot, ProviderUnavailableError } from './provider_check.js';
 import { checkExtractionSnapshot } from './extraction_gate.js';
 import { ensureDailyModelSelection } from '../adapters/model_policy.js';
+import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
 import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
 import type { IngestionItem } from '../ingest/types.js';
 import { getIndexState, isReadyPhase, waitForIndexReady } from '../state/index_state.js';
@@ -241,6 +242,10 @@ const EMBEDDING_QUERY_MIN_SIMILARITY = q(
   [0, 1],
   'Minimum similarity for query embedding search.'
 );
+const HYDE_RRF_K = 60;
+const HYDE_MAX_STUB_CHARS = 1200;
+const HYDE_EMBEDDING_CACHE_PREFIX = 'hyde:embedding:';
+const HYDE_EXPANSION_CACHE_LIMIT = 128;
 const GRAPH_NEIGHBOR_MIN_SIMILARITY = q(
   0.55,
   [0, 1],
@@ -3163,6 +3168,7 @@ export async function assembleContext(query: LibrarianQuery, storage: LibrarianS
 const defaultEmbeddingService = new EmbeddingService();
 const EMBEDDING_CACHE_LIMIT = 64;
 const embeddingCache = new WeakMap<EmbeddingService, Map<string, Float32Array>>();
+const hydeExpansionCache = new Map<string, string>();
 const QUERY_CACHE_TTL_L1_MS = 5 * 60 * 1000;
 const QUERY_CACHE_TTL_L2_MS = 30 * 60 * 1000;
 const QUERY_CACHE_L1_LIMIT = 100;
@@ -3630,6 +3636,38 @@ async function runDirectPacksStage(options: {
   return { directPacks, cacheHit };
 }
 
+function applySimilaritySearchDegradation(
+  source: 'direct' | 'hyde',
+  response: {
+    degraded?: boolean;
+    degradedReason?: string;
+  },
+  diagnostics: {
+    vectorIndexDegraded: boolean;
+    vectorIndexEmpty: boolean;
+    noSemanticMatches: boolean;
+    embeddingUnavailable: boolean;
+    degradedReason?: string;
+  },
+  recordCoverageGap: RecordCoverageGap
+): void {
+  if (!response.degraded) return;
+  diagnostics.vectorIndexDegraded = true;
+  if (!diagnostics.degradedReason) {
+    diagnostics.degradedReason = response.degradedReason;
+  }
+  const emptyIndex = response.degradedReason === 'vector_index_empty' || response.degradedReason === 'vector_index_null';
+  if (emptyIndex) {
+    diagnostics.vectorIndexEmpty = true;
+  }
+  recordCoverageGap(
+    'semantic_retrieval',
+    `Similarity search (${source}) degraded: ${response.degradedReason ?? 'unknown'}`,
+    emptyIndex ? 'significant' : 'moderate',
+    'Re-bootstrap the index or check embedding configuration.'
+  );
+}
+
 async function runSemanticRetrievalStage(options: {
   storage: LibrarianStorage;
   query: LibrarianQuery;
@@ -3696,7 +3734,8 @@ async function runSemanticRetrievalStage(options: {
         capabilities.optional.embeddings ? 'Authenticate a live embedding provider.' : 'Use a storage backend with embedding support.'
       );
     } else {
-      queryEmbedding = await resolveQueryEmbedding(query, embeddingService, governor);
+      const resolvedEmbeddings = await resolveQueryEmbeddings(query, embeddingService, governor);
+      queryEmbedding = resolvedEmbeddings.hydeEmbedding ?? resolvedEmbeddings.directEmbedding;
       const minSimilarity = version.qualityTier === 'mvp'
         ? MIN_SIMILARITY_MVP
         : MIN_SIMILARITY_FULL;
@@ -3704,29 +3743,31 @@ async function runSemanticRetrievalStage(options: {
       // Classify query to determine entity type routing
       queryClassification = classifyQueryIntent(query.intent ?? '');
 
+      const searchLimit = queryClassification.isMetaQuery ? 20 : 14;
+      const searchMinSimilarity = queryClassification.isMetaQuery ? minSimilarity * 0.9 : minSimilarity;
+
       // Use classified entity types (includes 'document' for meta-queries)
-      const similarSearchResponse = await storage.findSimilarByEmbedding(queryEmbedding, {
-        limit: queryClassification.isMetaQuery ? 20 : 14, // More results for meta-queries
-        minSimilarity: queryClassification.isMetaQuery ? minSimilarity * 0.9 : minSimilarity, // Lower threshold for docs
+      const directSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.directEmbedding, {
+        limit: searchLimit,
+        minSimilarity: searchMinSimilarity,
         entityTypes: queryClassification.entityTypes,
         filter: query.filter,
       });
-      let similarResults = similarSearchResponse.results;
+      applySimilaritySearchDegradation('direct', directSearchResponse, diagnostics, recordCoverageGap);
 
-      // Record degradation if vector index had issues
-      if (similarSearchResponse.degraded) {
-        diagnostics.vectorIndexDegraded = true;
-        diagnostics.degradedReason = similarSearchResponse.degradedReason;
-        if (similarSearchResponse.degradedReason === 'vector_index_empty' || similarSearchResponse.degradedReason === 'vector_index_null') {
-          diagnostics.vectorIndexEmpty = true;
-        }
-        recordCoverageGap(
-          'semantic_retrieval',
-          `Similarity search degraded: ${similarSearchResponse.degradedReason ?? 'unknown'}`,
-          similarSearchResponse.degradedReason === 'vector_index_empty' || similarSearchResponse.degradedReason === 'vector_index_null'
-            ? 'significant'
-            : 'moderate',
-          'Re-bootstrap the index or check embedding configuration.'
+      let similarResults = directSearchResponse.results;
+      if (resolvedEmbeddings.hydeEmbedding) {
+        const hydeSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.hydeEmbedding, {
+          limit: searchLimit,
+          minSimilarity: searchMinSimilarity,
+          entityTypes: queryClassification.entityTypes,
+          filter: query.filter,
+        });
+        applySimilaritySearchDegradation('hyde', hydeSearchResponse, diagnostics, recordCoverageGap);
+        similarResults = fuseSimilarityResultsWithRrf(
+          directSearchResponse.results,
+          hydeSearchResponse.results,
+          searchLimit
         );
       }
 
@@ -6043,7 +6084,8 @@ function buildQueryCacheKey(
   const embeddingRequirement = query.embeddingRequirement ?? '';
   const methodGuidanceFlag = query.disableMethodGuidance === true ? 1 : 0;
   const forceSummarySynthesisFlag = query.forceSummarySynthesis === true ? 1 : 0;
-  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${normalizedIntent}|${files}|wf:${workingFile}|flt:${filterKey}`;
+  const hydeExpansionFlag = query.hydeExpansion === true ? 1 : 0;
+  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|hyde:${hydeExpansionFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${normalizedIntent}|${files}|wf:${workingFile}|flt:${filterKey}`;
 }
 
 const QUERY_CACHE_STOP_WORDS = new Set([
@@ -6233,13 +6275,180 @@ async function collectDirectPacks(
   }));
   return dedupePacks(packs).slice(0, 40);
 }
-async function resolveQueryEmbedding(query: LibrarianQuery, embeddingService: EmbeddingService, governor: GovernorContext): Promise<Float32Array> {
-  const cache = getEmbeddingCache(embeddingService); const cached = cache.get(query.intent); if (cached) return cached;
-  governor.recordTokens(estimateTokenCount(query.intent));
-  const embeddingResult = await embeddingService.generateEmbedding({ text: query.intent, kind: 'query' }, { governorContext: governor });
-  if (!(embeddingResult.embedding instanceof Float32Array)) throw new Error('unverified_by_trace(provider_invalid_output): query embedding is not a Float32Array');
-  cacheEmbedding(cache, query.intent, embeddingResult.embedding); return embeddingResult.embedding;
+
+type ResolvedQueryEmbeddings = {
+  directEmbedding: Float32Array;
+  hydeEmbedding: Float32Array | null;
+};
+
+async function resolveQueryEmbeddings(
+  query: LibrarianQuery,
+  embeddingService: EmbeddingService,
+  governor: GovernorContext,
+): Promise<ResolvedQueryEmbeddings> {
+  const directEmbedding = await resolveEmbeddingForText(
+    embeddingService,
+    query.intent,
+    'query',
+    governor
+  );
+
+  if (query.hydeExpansion !== true) {
+    return { directEmbedding, hydeEmbedding: null };
+  }
+
+  const hydeKey = `${HYDE_EMBEDDING_CACHE_PREFIX}${query.intent}`;
+  const cache = getEmbeddingCache(embeddingService);
+  const cachedHyde = cache.get(hydeKey);
+  if (cachedHyde) {
+    return { directEmbedding, hydeEmbedding: cachedHyde };
+  }
+
+  const hydeExpansion = await resolveHydeExpansion(query.intent, governor);
+  if (!hydeExpansion) {
+    return { directEmbedding, hydeEmbedding: null };
+  }
+
+  const hydeEmbedding = await resolveEmbeddingForText(
+    embeddingService,
+    hydeExpansion,
+    'code',
+    governor,
+    hydeKey
+  );
+  return { directEmbedding, hydeEmbedding };
 }
+
+async function resolveEmbeddingForText(
+  embeddingService: EmbeddingService,
+  text: string,
+  kind: 'query' | 'code',
+  governor: GovernorContext,
+  cacheKey?: string,
+): Promise<Float32Array> {
+  const key = cacheKey ?? text;
+  const cache = getEmbeddingCache(embeddingService);
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  governor.recordTokens(estimateTokenCount(text));
+  const embeddingResult = await embeddingService.generateEmbedding({ text, kind }, { governorContext: governor });
+  if (!(embeddingResult.embedding instanceof Float32Array)) {
+    throw new Error('unverified_by_trace(provider_invalid_output): query embedding is not a Float32Array');
+  }
+  cacheEmbedding(cache, key, embeddingResult.embedding);
+  return embeddingResult.embedding;
+}
+
+async function resolveHydeExpansion(intent: string, governor: GovernorContext): Promise<string | null> {
+  const cacheKey = normalizeIntentForCache(intent);
+  const cached = hydeExpansionCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const modelConfig = await resolveLibrarianModelConfigWithDiscovery();
+    const llmService = resolveLlmServiceAdapter();
+    const prompt = buildHydePrompt(intent);
+    governor.recordTokens(estimateTokenCount(prompt));
+    const response = await llmService.chat({
+      provider: modelConfig.provider,
+      modelId: modelConfig.modelId,
+      messages: [
+        {
+          role: 'system',
+          content: 'You generate compact hypothetical TypeScript snippets for retrieval expansion. Return code only.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      maxTokens: 320,
+      governorContext: governor,
+    });
+    const normalized = normalizeHydeExpansion(response.content);
+    if (!normalized) return null;
+    cacheHydeExpansion(cacheKey, normalized);
+    return normalized;
+  } catch (error: unknown) {
+    logWarning('HyDE expansion unavailable; continuing with direct query embedding', {
+      error: getErrorMessage(error),
+    });
+    return null;
+  }
+}
+
+function buildHydePrompt(intent: string): string {
+  return [
+    'Write a TypeScript function signature plus a concise 2-line docstring that would implement this request.',
+    'Keep it grounded to likely production code and avoid placeholders.',
+    '',
+    `Request: ${intent}`,
+  ].join('\n');
+}
+
+function normalizeHydeExpansion(content: string): string | null {
+  const withoutFences = content
+    .replace(/^```[a-zA-Z]*\s*/g, '')
+    .replace(/```$/g, '')
+    .trim();
+  if (!withoutFences) return null;
+  return withoutFences.slice(0, HYDE_MAX_STUB_CHARS);
+}
+
+function cacheHydeExpansion(key: string, value: string): void {
+  if (hydeExpansionCache.has(key)) {
+    hydeExpansionCache.delete(key);
+  }
+  hydeExpansionCache.set(key, value);
+  if (hydeExpansionCache.size > HYDE_EXPANSION_CACHE_LIMIT) {
+    const oldest = hydeExpansionCache.keys().next().value as string | undefined;
+    if (oldest) hydeExpansionCache.delete(oldest);
+  }
+}
+
+function fuseSimilarityResultsWithRrf(
+  direct: SimilarityResult[],
+  hyde: SimilarityResult[],
+  limit: number
+): SimilarityResult[] {
+  const rankScores = new Map<string, { entityId: string; entityType: SimilarityResult['entityType']; rrf: number; maxSimilarity: number }>();
+
+  const applyList = (results: SimilarityResult[]): void => {
+    for (let i = 0; i < results.length; i += 1) {
+      const result = results[i];
+      const key = `${result.entityType}:${result.entityId}`;
+      const existing = rankScores.get(key);
+      const rrfIncrement = 1 / (HYDE_RRF_K + i + 1);
+      if (existing) {
+        existing.rrf += rrfIncrement;
+        existing.maxSimilarity = Math.max(existing.maxSimilarity, result.similarity);
+      } else {
+        rankScores.set(key, {
+          entityId: result.entityId,
+          entityType: result.entityType,
+          rrf: rrfIncrement,
+          maxSimilarity: result.similarity,
+        });
+      }
+    }
+  };
+
+  applyList(direct);
+  applyList(hyde);
+
+  const ranked = Array.from(rankScores.values())
+    .sort((a, b) => b.rrf - a.rrf || b.maxSimilarity - a.maxSimilarity)
+    .slice(0, Math.max(1, limit));
+
+  const topRrf = ranked[0]?.rrf ?? 1;
+  return ranked.map((entry) => ({
+    entityId: entry.entityId,
+    entityType: entry.entityType,
+    similarity: Math.max(entry.maxSimilarity, Math.min(1, entry.rrf / topRrf)),
+  }));
+}
+
 async function searchSimilarWithEmbedding(snippet: string, limit: number, storage: LibrarianStorage, embeddingService: EmbeddingService, governor: GovernorContext): Promise<SimilarMatch[]> {
   governor.recordTokens(estimateTokenCount(snippet)); const embeddingResult = await embeddingService.generateEmbedding({ text: snippet, kind: 'code' }, { governorContext: governor });
   if (!(embeddingResult.embedding instanceof Float32Array)) throw new Error('unverified_by_trace(provider_invalid_output): similarity embedding is not a Float32Array');
@@ -7822,6 +8031,9 @@ export const __testing = {
   expandPathCandidates,
   buildQueryCacheKey,
   normalizeIntentForCache,
+  buildHydePrompt,
+  normalizeHydeExpansion,
+  fuseSimilarityResultsWithRrf,
 };
 
 /**

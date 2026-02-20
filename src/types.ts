@@ -1012,6 +1012,15 @@ export interface LibrarianQuery {
   disableCache?: boolean;
 
   /**
+   * Enable HyDE (Hypothetical Document Expansion) for semantic retrieval.
+   * When true, retrieval generates a concise hypothetical TypeScript stub from intent,
+   * embeds it, and fuses direct+HyDE rankings via reciprocal-rank fusion.
+   *
+   * Default: false (opt-in due to additional LLM latency).
+   */
+  hydeExpansion?: boolean;
+
+  /**
    * Maximum number of automatic retrieval escalations for this query.
    * Defaults to 2 when not provided.
    */
