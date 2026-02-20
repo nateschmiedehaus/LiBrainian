@@ -18,7 +18,9 @@ This policy enforces black-box package reality checks so releases cannot pass on
    - `npm-publish` verify must pass strict outcome diagnostics and strict tarball black-box E2E.
    - Publish auth must fail closed with actionable remediation if token/trusted publishing is misconfigured.
 3. Cadence gate:
-   - Scheduled `e2e-cadence` runs:
+   - Commit-driven `e2e-cadence` runs (aggressive):
+     - on push commits
+     - on pull-request commit updates (`opened`, `synchronize`, `reopened`, `ready_for_review`)
      - strict outcome diagnostics
      - npm freshness check (`policy:npm:fresh`)
      - strict latest-published black-box E2E

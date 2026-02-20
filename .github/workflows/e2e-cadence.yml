@@ -2,10 +2,12 @@ name: e2e-cadence
 
 on:
   push:
-    branches:
-      - main
-  schedule:
-    - cron: '0 6 * * *'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   workflow_dispatch:
 
 jobs:
@@ -39,8 +41,8 @@ jobs:
         continue-on-error: true
         run: npm run test:e2e:triage
 
-      - name: Create diagnosis issues from triage (scheduled cadence)
-        if: always() && github.event_name == 'schedule'
+      - name: Create diagnosis issues from triage (main commit cadence)
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         run: node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.issues.json --markdown state/e2e/outcome-triage.issues.md --create-gh-issues --repo "${GITHUB_REPOSITORY}" --max-issues 5
         env:
