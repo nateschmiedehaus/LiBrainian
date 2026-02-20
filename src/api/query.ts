@@ -1736,6 +1736,7 @@ export async function queryLibrarian(
       void globalEventBus.emit(createQueryReceivedEvent(queryId, query.intent ?? '', query.depth ?? 'L1', traceSessionId));
       const cachedResponse = {
         ...cached,
+        query,
         cacheHit: true,
         latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
         version,
@@ -6026,6 +6027,7 @@ function buildQueryCacheKey(
   llmRequirement: LlmRequirement,
   synthesisEnabled: boolean
 ): string {
+  const normalizedIntent = normalizeIntentForCache(query.intent);
   const files = query.affectedFiles?.slice().sort().join('|') ?? '';
   const filterKey = query.filter
     ? [
@@ -6041,7 +6043,65 @@ function buildQueryCacheKey(
   const embeddingRequirement = query.embeddingRequirement ?? '';
   const methodGuidanceFlag = query.disableMethodGuidance === true ? 1 : 0;
   const forceSummarySynthesisFlag = query.forceSummarySynthesis === true ? 1 : 0;
-  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${query.intent}|${files}|wf:${workingFile}|flt:${filterKey}`;
+  return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${normalizedIntent}|${files}|wf:${workingFile}|flt:${filterKey}`;
+}
+
+const QUERY_CACHE_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'does',
+  'do',
+  'describe',
+  'for',
+  'how',
+  'in',
+  'is',
+  'me',
+  'of',
+  'or',
+  'please',
+  'the',
+  'to',
+  'what',
+]);
+
+const QUERY_CACHE_SYNONYMS: Record<string, string> = {
+  authentication: 'auth',
+  authenticate: 'auth',
+  authenticated: 'auth',
+  authn: 'auth',
+  login: 'auth',
+  logins: 'auth',
+  explain: 'describe',
+  explains: 'describe',
+  flow: 'workflow',
+  flows: 'workflow',
+  work: 'workflow',
+  works: 'workflow',
+};
+
+function normalizeIntentForCache(intent: string): string {
+  const tokens = intent
+    .toLowerCase()
+    .match(/[a-z0-9_]+/g)
+    ?.map((token) => QUERY_CACHE_SYNONYMS[token] ?? token)
+    .map((token) => stripSimpleSuffix(token))
+    .filter((token) => token.length > 1 && !QUERY_CACHE_STOP_WORDS.has(token));
+
+  if (!tokens || tokens.length === 0) {
+    return intent.trim().toLowerCase();
+  }
+  return Array.from(new Set(tokens)).sort().join(' ');
+}
+
+function stripSimpleSuffix(token: string): string {
+  if (token.length > 5 && token.endsWith('ing')) return token.slice(0, -3);
+  if (token.length > 4 && token.endsWith('ed')) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith('es')) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith('s')) return token.slice(0, -1);
+  return token;
 }
 function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResponse> {
   const existing = queryCacheByStorage.get(storage);
@@ -7760,6 +7820,8 @@ export const __testing = {
   rankHeuristicFallbackPacks,
   normalizeQueryScope,
   expandPathCandidates,
+  buildQueryCacheKey,
+  normalizeIntentForCache,
 };
 
 /**
