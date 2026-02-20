@@ -61,6 +61,9 @@ jobs:
       - name: Strict external tarball E2E gate
         run: npm run test:e2e:reality:tarball
 
+      - name: In-repo acceptance E2E gate
+        run: npm run test:e2e:acceptance
+
       - name: Evidence sync
         run: |
           if [ -f eval-results/ab-results.json ]; then
@@ -154,13 +157,17 @@ jobs:
           fi
 
       - name: Publish to npm (token)
+        id: npm-publish-token
         if: steps.npm-auth.outputs.mode == 'token'
+        continue-on-error: true
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NODE_AUTH_TOKEN }}
 
       - name: Publish to npm (trusted)
+        id: npm-publish-trusted
         if: steps.npm-auth.outputs.mode == 'trusted'
+        continue-on-error: true
         run: |
           set +e
           npm publish --provenance --access public --ignore-scripts
@@ -177,11 +184,36 @@ jobs:
           NPM_TOKEN: ''
 
       - name: Publish to GitHub Packages
+        if: always()
         run: npm run release:github-packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           LIBRARIAN_GH_PACKAGE_REGISTRY: https://npm.pkg.github.com
+
+      - name: Enforce npm publish success
+        if: always()
+        run: |
+          set -euo pipefail
+          mode="${{ steps.npm-auth.outputs.mode }}"
+          token_outcome="${{ steps.npm-publish-token.outcome }}"
+          trusted_outcome="${{ steps.npm-publish-trusted.outcome }}"
+          if [ "$mode" = "token" ]; then
+            if [ "$token_outcome" != "success" ]; then
+              echo "::error::npm publish (token mode) failed."
+              exit 1
+            fi
+            exit 0
+          fi
+          if [ "$mode" = "trusted" ]; then
+            if [ "$trusted_outcome" != "success" ]; then
+              echo "::error::npm publish (trusted mode) failed."
+              exit 1
+            fi
+            exit 0
+          fi
+          echo "::error::Unknown npm auth mode: $mode"
+          exit 1
 
   publish-manual:
     if: github.event_name == 'workflow_dispatch' && inputs.publish == true
@@ -249,14 +281,18 @@ jobs:
           fi
 
       - name: Publish to npm (manual token)
+        id: npm-publish-token
         if: steps.npm-auth.outputs.mode == 'token'
+        continue-on-error: true
         run: npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NODE_AUTH_TOKEN }}
           NPM_TAG: ${{ inputs.npm_tag }}
 
       - name: Publish to npm (manual trusted)
+        id: npm-publish-trusted
         if: steps.npm-auth.outputs.mode == 'trusted'
+        continue-on-error: true
         run: |
           set +e
           npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
@@ -274,9 +310,34 @@ jobs:
           NPM_TAG: ${{ inputs.npm_tag }}
 
       - name: Publish to GitHub Packages (manual)
+        if: always()
         run: npm run release:github-packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           LIBRARIAN_GH_PACKAGE_REGISTRY: https://npm.pkg.github.com
           NPM_TAG: ${{ inputs.npm_tag }}
+
+      - name: Enforce npm publish success (manual)
+        if: always()
+        run: |
+          set -euo pipefail
+          mode="${{ steps.npm-auth.outputs.mode }}"
+          token_outcome="${{ steps.npm-publish-token.outcome }}"
+          trusted_outcome="${{ steps.npm-publish-trusted.outcome }}"
+          if [ "$mode" = "token" ]; then
+            if [ "$token_outcome" != "success" ]; then
+              echo "::error::npm publish (manual token mode) failed."
+              exit 1
+            fi
+            exit 0
+          fi
+          if [ "$mode" = "trusted" ]; then
+            if [ "$trusted_outcome" != "success" ]; then
+              echo "::error::npm publish (manual trusted mode) failed."
+              exit 1
+            fi
+            exit 0
+          fi
+          echo "::error::Unknown npm auth mode: $mode"
+          exit 1
