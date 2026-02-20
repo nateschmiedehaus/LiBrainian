@@ -18,6 +18,8 @@
  * - explain_function
  * - find_usages
  * - trace_imports
+ * - trace_control_flow
+ * - trace_data_flow
  * - run_audit
  * - list_runs
  * - diff_runs
@@ -1248,6 +1250,85 @@ export interface TraceImportsToolOutput {
   error?: string;
 }
 
+/** trace_control_flow tool input */
+export interface TraceControlFlowToolInput {
+  /** Target function ID or name */
+  functionId: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+
+  /** Maximum basic blocks to return (default: 200, max: 1000) */
+  maxBlocks?: number;
+}
+
+/** trace_control_flow tool output */
+export interface TraceControlFlowToolOutput {
+  success: boolean;
+  functionId: string;
+  resolvedFunctionId?: string;
+  resolvedFunctionName?: string;
+  filePath?: string;
+  workspace?: string;
+  basicBlocks: Array<{
+    id: string;
+    line: number;
+    kind: string;
+    branchCondition?: string;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    type: 'cfg_successor' | 'cfg_predecessor';
+    branch?: string;
+    isBackEdge?: boolean;
+  }>;
+  totalBlocks: number;
+  error?: string;
+}
+
+/** trace_data_flow tool input */
+export interface TraceDataFlowToolInput {
+  /** Source expression or variable (for example: req.params.userId) */
+  source: string;
+
+  /** Sink function or expression (for example: db.query) */
+  sink: string;
+
+  /** Optional function ID or name to scope tracing */
+  functionId?: string;
+
+  /** Workspace path (optional, uses first ready workspace if not specified) */
+  workspace?: string;
+}
+
+/** trace_data_flow tool output */
+export interface TraceDataFlowToolOutput {
+  success: boolean;
+  source: string;
+  sink: string;
+  workspace?: string;
+  matches: Array<{
+    filePath: string;
+    functionId?: string;
+    functionName?: string;
+    sourceNodeId: string;
+    sourceName?: string;
+    sinkCallId: string;
+    sinkName?: string;
+    edges: Array<{
+      id: string;
+      from: string;
+      to: string;
+      type: 'defines' | 'uses' | 'data_flow' | 'ast_child' | 'call';
+      fromLine?: number;
+      toLine?: number;
+    }>;
+  }>;
+  totalMatches: number;
+  error?: string;
+}
+
 export interface ContextPackSummary {
   /** Pack ID */
   packId: string;
@@ -1905,6 +1986,18 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   trace_imports: {
     tool: 'trace_imports',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  trace_control_flow: {
+    tool: 'trace_control_flow',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  trace_data_flow: {
+    tool: 'trace_data_flow',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',
@@ -2595,6 +2688,29 @@ export function isTraceImportsToolInput(value: unknown): value is TraceImportsTo
   const depthOk = typeof obj.depth === 'number' || typeof obj.depth === 'undefined';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   return filePathOk && directionOk && depthOk && workspaceOk;
+}
+
+/** Type guard for TraceControlFlowToolInput */
+export function isTraceControlFlowToolInput(value: unknown): value is TraceControlFlowToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const functionIdOk = typeof obj.functionId === 'string';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const maxBlocksOk = typeof obj.maxBlocks === 'number'
+    ? Number.isFinite(obj.maxBlocks) && obj.maxBlocks >= 1 && obj.maxBlocks <= 1000
+    : typeof obj.maxBlocks === 'undefined';
+  return functionIdOk && workspaceOk && maxBlocksOk;
+}
+
+/** Type guard for TraceDataFlowToolInput */
+export function isTraceDataFlowToolInput(value: unknown): value is TraceDataFlowToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const sourceOk = typeof obj.source === 'string' && obj.source.trim().length > 0;
+  const sinkOk = typeof obj.sink === 'string' && obj.sink.trim().length > 0;
+  const functionIdOk = typeof obj.functionId === 'string' || typeof obj.functionId === 'undefined';
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return sourceOk && sinkOk && functionIdOk && workspaceOk;
 }
 
 /** Type guard for VerifyClaimToolInput */

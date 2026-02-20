@@ -305,6 +305,25 @@ export const TraceImportsToolInputSchema = z.object({
 }).strict();
 
 /**
+ * Trace control flow tool input schema
+ */
+export const TraceControlFlowToolInputSchema = z.object({
+  functionId: z.string().min(1).max(500).describe('Target function ID or name to trace control flow for'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+  maxBlocks: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum basic blocks to return (default: 200, max: 1000)'),
+}).strict();
+
+/**
+ * Trace data flow tool input schema
+ */
+export const TraceDataFlowToolInputSchema = z.object({
+  source: z.string().min(1).max(500).describe('Source expression or variable (for example: req.params.userId)'),
+  sink: z.string().min(1).max(500).describe('Sink function or expression (for example: db.query)'),
+  functionId: z.string().min(1).max(500).optional().describe('Optional function ID or name to scope tracing'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
+}).strict();
+
+/**
  * Reset session state tool input schema
  */
 export const ResetSessionStateToolInputSchema = z.object({
@@ -596,6 +615,8 @@ export type FindCallersToolInputType = z.infer<typeof FindCallersToolInputSchema
 export type FindCalleesToolInputType = z.infer<typeof FindCalleesToolInputSchema>;
 export type FindUsagesToolInputType = z.infer<typeof FindUsagesToolInputSchema>;
 export type TraceImportsToolInputType = z.infer<typeof TraceImportsToolInputSchema>;
+export type TraceControlFlowToolInputType = z.infer<typeof TraceControlFlowToolInputSchema>;
+export type TraceDataFlowToolInputType = z.infer<typeof TraceDataFlowToolInputSchema>;
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type ListConstructionsToolInputType = z.infer<typeof ListConstructionsToolInputSchema>;
@@ -642,6 +663,8 @@ export const TOOL_INPUT_SCHEMAS = {
   explain_function: ExplainFunctionToolInputSchema,
   find_usages: FindUsagesToolInputSchema,
   trace_imports: TraceImportsToolInputSchema,
+  trace_control_flow: TraceControlFlowToolInputSchema,
+  trace_data_flow: TraceDataFlowToolInputSchema,
   reset_session_state: ResetSessionStateToolInputSchema,
   request_human_review: RequestHumanReviewToolInputSchema,
   list_constructions: ListConstructionsToolInputSchema,
@@ -1114,6 +1137,39 @@ export const traceImportsToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** Trace control flow tool JSON Schema */
+export const traceControlFlowToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/trace-control-flow-tool-input',
+  title: 'TraceControlFlowToolInput',
+  description: 'Input for trace_control_flow - return CFG/basic-block sequence for a function',
+  type: 'object',
+  properties: {
+    functionId: { type: 'string', description: 'Target function ID or name to trace control flow for', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+    maxBlocks: { type: 'number', description: 'Maximum basic blocks to return (default: 200, max: 1000)', minimum: 1, maximum: 1000, default: 200 },
+  },
+  required: ['functionId'],
+  additionalProperties: false,
+};
+
+/** Trace data flow tool JSON Schema */
+export const traceDataFlowToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/trace-data-flow-tool-input',
+  title: 'TraceDataFlowToolInput',
+  description: 'Input for trace_data_flow - return source-to-sink data flow evidence',
+  type: 'object',
+  properties: {
+    source: { type: 'string', description: 'Source expression or variable (for example: req.params.userId)', minLength: 1, maxLength: 500 },
+    sink: { type: 'string', description: 'Sink function or expression (for example: db.query)', minLength: 1, maxLength: 500 },
+    functionId: { type: 'string', description: 'Optional function ID or name to scope tracing', minLength: 1, maxLength: 500 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
+  },
+  required: ['source', 'sink'],
+  additionalProperties: false,
+};
+
 /** Reset session state tool JSON Schema */
 export const resetSessionStateToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -1278,6 +1334,8 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   find_callees: findCalleesToolJsonSchema,
   find_usages: findUsagesToolJsonSchema,
   trace_imports: traceImportsToolJsonSchema,
+  trace_control_flow: traceControlFlowToolJsonSchema,
+  trace_data_flow: traceDataFlowToolJsonSchema,
   synthesize_plan: synthesizePlanToolJsonSchema,
   reset_session_state: resetSessionStateToolJsonSchema,
   request_human_review: requestHumanReviewToolJsonSchema,

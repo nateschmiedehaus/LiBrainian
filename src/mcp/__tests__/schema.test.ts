@@ -43,6 +43,8 @@ import {
   FindCalleesToolInputSchema,
   FindUsagesToolInputSchema,
   TraceImportsToolInputSchema,
+  TraceControlFlowToolInputSchema,
+  TraceDataFlowToolInputSchema,
   VerifyClaimToolInputSchema,
   RunAuditToolInputSchema,
   DiffRunsToolInputSchema,
@@ -81,6 +83,8 @@ import {
   isFindCalleesToolInput,
   isFindUsagesToolInput,
   isTraceImportsToolInput,
+  isTraceControlFlowToolInput,
+  isTraceDataFlowToolInput,
   isVerifyClaimToolInput,
   isRunAuditToolInput,
   isDiffRunsToolInput,
@@ -124,6 +128,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('find_callees');
       expect(schemas).toContain('find_usages');
       expect(schemas).toContain('trace_imports');
+      expect(schemas).toContain('trace_control_flow');
+      expect(schemas).toContain('trace_data_flow');
       expect(schemas).toContain('verify_claim');
       expect(schemas).toContain('run_audit');
       expect(schemas).toContain('list_runs');
@@ -145,7 +151,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(45);
+      expect(schemas).toHaveLength(47);
     });
 
     it('should return schema for known tools', () => {
@@ -706,6 +712,26 @@ describe('MCP Schema', () => {
       expect(isTraceImportsToolInput({ filePath: 'src/api/index.ts', direction: 'imports' })).toBe(true);
       expect(isTraceImportsToolInput({ filePath: 'src/api/index.ts', direction: 'invalid' })).toBe(false);
       expect(TraceImportsToolInputSchema).toBeDefined();
+    });
+
+    it('validates trace_control_flow input and type guard', () => {
+      const result = validateToolInput('trace_control_flow', { functionId: 'getUserById', maxBlocks: 50 });
+      expect(result.valid).toBe(true);
+      expect(isTraceControlFlowToolInput({ functionId: 'getUserById' })).toBe(true);
+      expect(isTraceControlFlowToolInput({ functionId: 'getUserById', maxBlocks: 0 })).toBe(false);
+      expect(TraceControlFlowToolInputSchema).toBeDefined();
+    });
+
+    it('validates trace_data_flow input and type guard', () => {
+      const result = validateToolInput('trace_data_flow', {
+        source: 'req.params.userId',
+        sink: 'db.query',
+        functionId: 'getUserById',
+      });
+      expect(result.valid).toBe(true);
+      expect(isTraceDataFlowToolInput({ source: 'req.params.userId', sink: 'db.query' })).toBe(true);
+      expect(isTraceDataFlowToolInput({ source: 'req.params.userId' })).toBe(false);
+      expect(TraceDataFlowToolInputSchema).toBeDefined();
     });
   });
 

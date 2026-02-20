@@ -63,6 +63,8 @@ import {
   type FindCalleesToolInput,
   type FindUsagesToolInput,
   type TraceImportsToolInput,
+  type TraceControlFlowToolInput,
+  type TraceDataFlowToolInput,
   type FindSymbolToolInput,
   type VerifyClaimToolInput,
   type RunAuditToolInput,
@@ -134,6 +136,7 @@ import { listTechniqueCompositions as listStoredTechniqueCompositions } from '..
 import { submitQueryFeedback } from '../integration/agent_protocol.js';
 import { createSqliteStorage, type LibrarianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
+import { CodePropertyGraphBuilder } from '../evaluation/code_property_graph.js';
 import {
   AuthenticationManager,
   createAuthenticationManager,
@@ -387,6 +390,8 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   find_callees: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
   find_usages: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
   trace_imports: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2400 },
+  trace_control_flow: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
+  trace_data_flow: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2800 },
   find_symbol: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1700 },
   verify_claim: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   run_audit: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 5200 },
@@ -1599,6 +1604,33 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
           },
           required: ['filePath'],
+        },
+      },
+      {
+        name: 'trace_control_flow',
+        description: 'Trace control flow for a function and return basic blocks with branch edges',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            functionId: { type: 'string', description: 'Function identifier or human-readable function name used to resolve the target routine before extracting CFG/basic-block structure and branch-oriented execution paths.' },
+            workspace: { type: 'string', description: 'Workspace path override for multi-repo sessions; when omitted, the server uses the first ready indexed workspace to guarantee deterministic graph traversal behavior.' },
+            maxBlocks: { type: 'number', description: 'Upper bound on returned basic blocks so large functions do not overwhelm context budgets; use lower values for concise summaries and higher values for full traces.' },
+          },
+          required: ['functionId'],
+        },
+      },
+      {
+        name: 'trace_data_flow',
+        description: 'Trace source-to-sink data flow evidence for a variable/expression and sink call',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            source: { type: 'string', description: 'Untrusted or interesting source variable/expression to track, such as req.params.userId, enabling taint-style analysis from ingress values through downstream uses.' },
+            sink: { type: 'string', description: 'Target sink call or expression where risky data may land, such as db.query, file writes, or response emitters requiring explicit data-flow evidence.' },
+            functionId: { type: 'string', description: 'Optional function identifier/name to constrain analysis to a known routine when global matching is too broad or when similar symbol names appear across modules.' },
+            workspace: { type: 'string', description: 'Workspace path override for multi-repo sessions; when omitted, the server uses the first ready indexed workspace before performing data-flow graph construction.' },
+          },
+          required: ['source', 'sink'],
         },
       },
       {
@@ -3240,6 +3272,10 @@ export class LibrarianMCPServer {
         return this.executeFindUsages(args as FindUsagesToolInput);
       case 'trace_imports':
         return this.executeTraceImports(args as TraceImportsToolInput);
+      case 'trace_control_flow':
+        return this.executeTraceControlFlow(args as TraceControlFlowToolInput);
+      case 'trace_data_flow':
+        return this.executeTraceDataFlow(args as TraceDataFlowToolInput);
       case 'reset_session_state':
         return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
       case 'request_human_review':
@@ -7006,6 +7042,455 @@ export class LibrarianMCPServer {
         imports: [],
         importedBy: [],
         edges: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeTraceControlFlow(input: TraceControlFlowToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          basicBlocks: [],
+          edges: [],
+          totalBlocks: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          basicBlocks: [],
+          edges: [],
+          totalBlocks: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          functionId: input.functionId,
+          basicBlocks: [],
+          edges: [],
+          totalBlocks: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const targets = await this.resolveFunctionTargetsForLookup(storage, input.functionId);
+      if (targets.length === 0) {
+        return {
+          success: true,
+          functionId: input.functionId,
+          basicBlocks: [],
+          edges: [],
+          totalBlocks: 0,
+          workspace: workspacePath,
+        };
+      }
+
+      const selected = targets[0];
+      if (!selected?.filePath) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          resolvedFunctionId: selected?.id,
+          resolvedFunctionName: selected?.name,
+          basicBlocks: [],
+          edges: [],
+          totalBlocks: 0,
+          workspace: workspacePath,
+          error: 'Resolved function has no file path',
+        };
+      }
+
+      const resolvedFilePath = path.isAbsolute(selected.filePath)
+        ? path.normalize(selected.filePath)
+        : path.resolve(workspacePath, selected.filePath);
+      const builder = new CodePropertyGraphBuilder();
+      const graph = await builder.buildFromFile(resolvedFilePath);
+
+      const maxBlocks = Math.max(1, Math.min(1000, Math.trunc(input.maxBlocks ?? 200)));
+      const functionNode = Array.from(graph.nodes.values()).find((node) =>
+        node.type === 'function' && node.name === selected.name
+      ) ?? Array.from(graph.nodes.values()).find((node) =>
+        node.type === 'function' && node.name === input.functionId
+      );
+
+      if (!functionNode) {
+        return {
+          success: false,
+          functionId: input.functionId,
+          resolvedFunctionId: selected.id,
+          resolvedFunctionName: selected.name,
+          filePath: selected.filePath,
+          basicBlocks: [],
+          edges: [],
+          totalBlocks: 0,
+          workspace: workspacePath,
+          error: `Function not found in CPG for file: ${selected.filePath}`,
+        };
+      }
+
+      const primaryBlockIds = new Set(
+        Array.from(graph.nodes.values())
+          .filter((node) => {
+            if (node.type !== 'statement') return false;
+            const containingFunction = (node.properties as Record<string, unknown>).containingFunction;
+            return containingFunction === functionNode.id;
+          })
+          .map((node) => node.id)
+      );
+
+      const blockIds = new Set<string>(primaryBlockIds);
+      for (const edge of graph.edges.values()) {
+        if (edge.type !== 'cfg_successor' && edge.type !== 'cfg_predecessor') continue;
+        const fromInSet = blockIds.has(edge.from);
+        const toInSet = blockIds.has(edge.to);
+        if (!fromInSet && !toInSet) continue;
+
+        const fromNode = graph.nodes.get(edge.from);
+        const toNode = graph.nodes.get(edge.to);
+        if (fromNode?.type === 'statement' && fromNode.location.file === resolvedFilePath && blockIds.size < maxBlocks) {
+          blockIds.add(fromNode.id);
+        }
+        if (toNode?.type === 'statement' && toNode.location.file === resolvedFilePath && blockIds.size < maxBlocks) {
+          blockIds.add(toNode.id);
+        }
+      }
+
+      const functionSource = await fs.readFile(resolvedFilePath, 'utf8').catch(() => '');
+      const sourceLines = functionSource.length > 0 ? functionSource.split('\n') : [];
+      const inferIfCondition = (line: number): string | undefined => {
+        if (line < 1 || line > sourceLines.length) return undefined;
+        const text = sourceLines[line - 1]?.trim() ?? '';
+        const match = text.match(/\bif\s*\((.*)\)/);
+        return match?.[1]?.trim();
+      };
+
+      const basicBlocks = Array.from(blockIds)
+        .map((id) => graph.nodes.get(id))
+        .filter((node): node is NonNullable<typeof node> => Boolean(node))
+        .filter((node) => node.type === 'statement')
+        .sort((a, b) => a.location.line - b.location.line || a.id.localeCompare(b.id))
+        .slice(0, maxBlocks)
+        .map((node) => {
+          const kind = String((node.properties as Record<string, unknown>).kind ?? 'Statement');
+          const branchCondition = kind === 'IfStatement' ? inferIfCondition(node.location.line) : undefined;
+          return {
+            id: node.id,
+            line: node.location.line,
+            kind,
+            branchCondition,
+          };
+        });
+
+      const retainedBlockIds = new Set(basicBlocks.map((block) => block.id));
+      const edges = Array.from(graph.edges.values())
+        .filter((edge) => (edge.type === 'cfg_successor' || edge.type === 'cfg_predecessor'))
+        .filter((edge) => retainedBlockIds.has(edge.from) && retainedBlockIds.has(edge.to))
+        .map((edge) => ({
+          from: edge.from,
+          to: edge.to,
+          type: edge.type,
+          branch: typeof edge.properties?.branch === 'string' ? edge.properties.branch : undefined,
+          isBackEdge: Boolean(edge.properties?.isBackEdge),
+        }));
+
+      return {
+        success: true,
+        functionId: input.functionId,
+        resolvedFunctionId: selected.id,
+        resolvedFunctionName: selected.name,
+        filePath: selected.filePath,
+        workspace: workspacePath,
+        basicBlocks,
+        edges,
+        totalBlocks: basicBlocks.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        functionId: input.functionId,
+        basicBlocks: [],
+        edges: [],
+        totalBlocks: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeTraceDataFlow(input: TraceDataFlowToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          source: input.source,
+          sink: input.sink,
+          matches: [],
+          totalMatches: 0,
+          error: 'No workspace specified and no workspaces registered',
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          source: input.source,
+          sink: input.sink,
+          matches: [],
+          totalMatches: 0,
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          source: input.source,
+          sink: input.sink,
+          matches: [],
+          totalMatches: 0,
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const scopedFunctions = input.functionId
+        ? await this.resolveFunctionTargetsForLookup(storage, input.functionId)
+        : [];
+
+      const candidateFilePaths = new Set<string>();
+      for (const fn of scopedFunctions) {
+        if (typeof fn.filePath === 'string' && fn.filePath.length > 0) {
+          candidateFilePaths.add(fn.filePath);
+        }
+      }
+
+      const sinkTail = input.sink.split('.').pop()?.trim() ?? input.sink.trim();
+      if (candidateFilePaths.size === 0 && sinkTail.length > 0) {
+        const sinkFunctions = await storage.getFunctionsByName(sinkTail).catch(() => []);
+        for (const fn of sinkFunctions) {
+          if (typeof fn.filePath === 'string' && fn.filePath.length > 0) {
+            candidateFilePaths.add(fn.filePath);
+          }
+        }
+      }
+
+      if (candidateFilePaths.size === 0) {
+        const files = await storage.getFiles({ limit: 250 }).catch(() => []);
+        for (const file of files as Array<{ path?: string; relativePath?: string }>) {
+          const candidate = file.path ?? file.relativePath;
+          if (typeof candidate === 'string' && candidate.length > 0) {
+            candidateFilePaths.add(candidate);
+          }
+        }
+      }
+
+      const sourceTokens = input.source.match(/[A-Za-z_$][A-Za-z0-9_$]*/g) ?? [];
+      const sourceCandidates = Array.from(new Set([
+        input.source.trim(),
+        ...sourceTokens,
+        sourceTokens[sourceTokens.length - 1] ?? '',
+      ].filter((token) => token.length > 0)));
+      const sinkNeedle = input.sink.trim().toLowerCase();
+      const scopedFunctionNames = new Set(scopedFunctions.map((fn) => fn.name));
+
+      const matches: Array<{
+        filePath: string;
+        functionId?: string;
+        functionName?: string;
+        sourceNodeId: string;
+        sourceName?: string;
+        sinkCallId: string;
+        sinkName?: string;
+        edges: Array<{
+          id: string;
+          from: string;
+          to: string;
+          type: 'defines' | 'uses' | 'data_flow' | 'ast_child' | 'call';
+          fromLine?: number;
+          toLine?: number;
+        }>;
+      }> = [];
+      const seen = new Set<string>();
+
+      for (const filePath of Array.from(candidateFilePaths).slice(0, 250)) {
+        const resolvedFilePath = path.isAbsolute(filePath)
+          ? path.normalize(filePath)
+          : path.resolve(workspacePath, filePath);
+
+        const builder = new CodePropertyGraphBuilder();
+        const graph = await builder.buildFromFile(resolvedFilePath);
+        if (graph.nodes.size === 0) continue;
+
+        const dataFlowEdges = sourceCandidates.flatMap((candidate) => builder.findDataFlow(graph, candidate));
+        const sourceNodes = Array.from(graph.nodes.values()).filter((node) =>
+          (node.type === 'variable' || node.type === 'parameter')
+          && typeof node.name === 'string'
+          && sourceCandidates.includes(node.name)
+        );
+        const sinkCalls = Array.from(graph.nodes.values()).filter((node) => {
+          if (node.type !== 'call') return false;
+          const callee = String((node.properties as Record<string, unknown>).callee ?? node.name ?? '').toLowerCase();
+          if (callee.length === 0) return false;
+          return callee.includes(sinkNeedle)
+            || callee === sinkTail.toLowerCase()
+            || callee.endsWith(`.${sinkTail.toLowerCase()}`);
+        });
+
+        if (sourceNodes.length === 0 || sinkCalls.length === 0) continue;
+
+        const functionNodes = Array.from(graph.nodes.values()).filter((node) => node.type === 'function');
+        const functionIdToName = new Map(functionNodes.map((node) => [node.id, node.name ?? node.id]));
+        const scopedFunctionIds = new Set(
+          functionNodes
+            .filter((node) => scopedFunctionNames.size === 0 || scopedFunctionNames.has(node.name ?? ''))
+            .map((node) => node.id)
+        );
+
+        const sourceNodeToFunctionId = new Map<string, string | undefined>();
+        for (const sourceNode of sourceNodes) {
+          const parentFunctionEdge = Array.from(graph.edges.values()).find((edge) =>
+            edge.type === 'ast_child'
+            && edge.to === sourceNode.id
+            && graph.nodes.get(edge.from)?.type === 'function'
+          );
+          sourceNodeToFunctionId.set(sourceNode.id, parentFunctionEdge?.from);
+        }
+
+        for (const sourceNode of sourceNodes) {
+          const sourceFunctionId = sourceNodeToFunctionId.get(sourceNode.id);
+          for (const sinkCall of sinkCalls) {
+            const sinkFunctionIdRaw = (sinkCall.properties as Record<string, unknown>).containingFunction;
+            const sinkFunctionId = typeof sinkFunctionIdRaw === 'string' ? sinkFunctionIdRaw : undefined;
+
+            if (scopedFunctionIds.size > 0) {
+              if (sinkFunctionId && !scopedFunctionIds.has(sinkFunctionId)) continue;
+              if (sourceFunctionId && !scopedFunctionIds.has(sourceFunctionId)) continue;
+            }
+            if (sourceFunctionId && sinkFunctionId && sourceFunctionId !== sinkFunctionId) continue;
+            if (sourceNode.location.line > sinkCall.location.line) continue;
+
+            const supportEdges = Array.from(graph.edges.values()).filter((edge) => (
+              (edge.type === 'defines' || edge.type === 'uses' || edge.type === 'data_flow')
+              && (edge.from === sourceNode.id || edge.to === sourceNode.id)
+            ));
+            const parentEdge = sourceFunctionId
+              ? Array.from(graph.edges.values()).find((edge) =>
+                edge.type === 'ast_child' && edge.from === sourceFunctionId && edge.to === sourceNode.id
+              )
+              : undefined;
+            const callEdge = sinkFunctionId
+              ? Array.from(graph.edges.values()).find((edge) =>
+                edge.type === 'call' && edge.from === sinkFunctionId && edge.to === sinkCall.id
+              )
+              : undefined;
+
+            const mergedEdges = [
+              ...supportEdges,
+              ...dataFlowEdges.filter((edge) => edge.from === sourceNode.id || edge.to === sourceNode.id),
+              ...(parentEdge ? [parentEdge] : []),
+              ...(callEdge ? [callEdge] : []),
+            ];
+            const dedupEdgeIds = new Set<string>();
+            const isSupportedFlowEdgeType = (
+              edgeType: string
+            ): edgeType is 'defines' | 'uses' | 'data_flow' | 'ast_child' | 'call' => (
+              edgeType === 'defines'
+              || edgeType === 'uses'
+              || edgeType === 'data_flow'
+              || edgeType === 'ast_child'
+              || edgeType === 'call'
+            );
+            const edges: Array<{
+              id: string;
+              from: string;
+              to: string;
+              type: 'defines' | 'uses' | 'data_flow' | 'ast_child' | 'call';
+              fromLine?: number;
+              toLine?: number;
+            }> = [];
+            for (const edge of mergedEdges) {
+              if (dedupEdgeIds.has(edge.id)) continue;
+              dedupEdgeIds.add(edge.id);
+              if (!isSupportedFlowEdgeType(edge.type)) continue;
+
+              const mappedEdge: {
+                id: string;
+                from: string;
+                to: string;
+                type: 'defines' | 'uses' | 'data_flow' | 'ast_child' | 'call';
+                fromLine?: number;
+                toLine?: number;
+              } = {
+                id: edge.id,
+                from: edge.from,
+                to: edge.to,
+                type: edge.type,
+              };
+              if (typeof edge.properties?.fromLine === 'number') {
+                mappedEdge.fromLine = edge.properties.fromLine;
+              }
+              if (typeof edge.properties?.toLine === 'number') {
+                mappedEdge.toLine = edge.properties.toLine;
+              }
+              edges.push(mappedEdge);
+            }
+
+            const key = `${resolvedFilePath}:${sourceNode.id}:${sinkCall.id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            matches.push({
+              filePath,
+              functionId: sinkFunctionId ?? sourceFunctionId,
+              functionName: sinkFunctionId
+                ? functionIdToName.get(sinkFunctionId)
+                : sourceFunctionId
+                  ? functionIdToName.get(sourceFunctionId)
+                  : undefined,
+              sourceNodeId: sourceNode.id,
+              sourceName: sourceNode.name,
+              sinkCallId: sinkCall.id,
+              sinkName: sinkCall.name,
+              edges,
+            });
+          }
+        }
+      }
+
+      return {
+        success: true,
+        source: input.source,
+        sink: input.sink,
+        workspace: workspacePath,
+        matches,
+        totalMatches: matches.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        source: input.source,
+        sink: input.sink,
+        matches: [],
+        totalMatches: 0,
         error: error instanceof Error ? error.message : String(error),
       };
     }

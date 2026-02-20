@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import * as fs from 'node:fs/promises';
 import { createLibrarianMCPServer } from '../server.js';
 
 describe('MCP symbol lookup tools', () => {
@@ -250,5 +251,136 @@ describe('MCP symbol lookup tools', () => {
     expect(result.success).toBe(true);
     expect(result.imports).toEqual(expect.arrayContaining(['src/b.ts', 'src/c.ts']));
     expect(result.importedBy).toEqual(expect.arrayContaining(['src/d.ts']));
+  });
+
+  it('trace_control_flow returns basic blocks and cfg edges for a function', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    await fs.mkdir('/tmp/workspace/src', { recursive: true });
+    await fs.writeFile(
+      '/tmp/workspace/src/user.ts',
+      [
+        'export async function getUserById(req: any, db: any) {',
+        '  if (!req?.params?.userId) {',
+        "    return null;",
+        '  }',
+        "  return db.query('select * from users where id = ?', [req.params.userId]);",
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const storage = {
+      getFunction: vi.fn().mockImplementation(async (id: string) => {
+        if (id === 'fn-target') {
+          return {
+            id: 'fn-target',
+            name: 'getUserById',
+            signature: 'getUserById(req, db)',
+            filePath: '/tmp/workspace/src/user.ts',
+          };
+        }
+        return null;
+      }),
+      getFunctionsByName: vi.fn().mockImplementation(async (name: string) => {
+        if (name === 'getUserById') {
+          return [{
+            id: 'fn-target',
+            name: 'getUserById',
+            signature: 'getUserById(req, db)',
+            filePath: '/tmp/workspace/src/user.ts',
+          }];
+        }
+        return [];
+      }),
+      getFunctions: vi.fn().mockResolvedValue([]),
+    };
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue(storage);
+
+    const result = await (server as any).executeTraceControlFlow({
+      workspace,
+      functionId: 'getUserById',
+      maxBlocks: 30,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.resolvedFunctionName).toBe('getUserById');
+    expect(Array.isArray(result.basicBlocks)).toBe(true);
+    expect(result.totalBlocks).toBeGreaterThan(0);
+    expect(Array.isArray(result.edges)).toBe(true);
+  });
+
+  it('trace_data_flow finds source-to-sink evidence for request params into db.query', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    await fs.mkdir('/tmp/workspace/src', { recursive: true });
+    await fs.writeFile(
+      '/tmp/workspace/src/user.ts',
+      [
+        'export async function getUserById(req: any, db: any) {',
+        '  const userId = req.params.userId;',
+        "  return db.query('select * from users where id = ?', [userId]);",
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const storage = {
+      getFunctionsByName: vi.fn().mockImplementation(async (name: string) => {
+        if (name === 'getUserById') {
+          return [{
+            id: 'fn-target',
+            name: 'getUserById',
+            signature: 'getUserById(req, db)',
+            filePath: '/tmp/workspace/src/user.ts',
+          }];
+        }
+        if (name === 'query') {
+          return [{
+            id: 'fn-query',
+            name: 'query',
+            signature: 'query(sql, params)',
+            filePath: '/tmp/workspace/src/user.ts',
+          }];
+        }
+        return [];
+      }),
+      getFunction: vi.fn().mockResolvedValue(null),
+      getFunctions: vi.fn().mockResolvedValue([]),
+      getFiles: vi.fn().mockResolvedValue([
+        {
+          path: '/tmp/workspace/src/user.ts',
+          relativePath: 'src/user.ts',
+          imports: [],
+          importedBy: [],
+        },
+      ]),
+    };
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue(storage);
+
+    const result = await (server as any).executeTraceDataFlow({
+      workspace,
+      source: 'req.params.userId',
+      sink: 'db.query',
+      functionId: 'getUserById',
+    });
+
+    expect(result.success).toBe(true);
+    expect(Array.isArray(result.matches)).toBe(true);
+    expect(result.totalMatches).toBeGreaterThanOrEqual(1);
   });
 });
