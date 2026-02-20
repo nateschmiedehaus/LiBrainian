@@ -5729,12 +5729,20 @@ async function runRerankStage(options: {
     forceRerank,
   } = options;
   const rerankRunner = rerank ?? maybeRerankWithCrossEncoder;
+  const mmrEligible = query.diversify === true && finalPacks.length >= 2;
   const rerankEligible =
     Boolean(query.intent) &&
     finalPacks.length >= 2 &&
     (query.depth === 'L2' || query.depth === 'L3') &&
     (forceRerank || isCrossEncoderEnabled());
-  const rerankStage = stageTracker.start('reranking', rerankEligible ? finalPacks.length : 0);
+  const rerankStage = stageTracker.start('reranking', (rerankEligible || mmrEligible) ? finalPacks.length : 0);
+  const applyMmr = (packs: ContextPack[]): ContextPack[] => applyMmrDiversification({
+    packs,
+    query,
+    candidateScoreMap,
+    explanationParts,
+    recordCoverageGap,
+  });
   if (rerankEligible) {
     try {
       const reranked = await rerankRunner(
@@ -5747,13 +5755,13 @@ async function runRerankStage(options: {
       if (!Array.isArray(reranked) || reranked.length === 0 || reranked.length !== finalPacks.length) {
         recordCoverageGap('reranking', 'Cross-encoder rerank produced invalid output; using original order.', 'minor');
         stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
-        return finalPacks;
+        return applyMmr(finalPacks);
       }
       const outputIds = reranked.map((pack) => pack?.packId);
       if (outputIds.some((id) => !id)) {
         recordCoverageGap('reranking', 'Cross-encoder rerank returned invalid pack IDs; using original order.', 'minor');
         stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
-        return finalPacks;
+        return applyMmr(finalPacks);
       }
       const normalizedOutputIds = outputIds as string[];
       const inputIds = new Set(finalPacks.map((pack) => pack.packId));
@@ -5761,26 +5769,134 @@ async function runRerankStage(options: {
       if (outputIdSet.size !== normalizedOutputIds.length || outputIdSet.size !== inputIds.size) {
         recordCoverageGap('reranking', 'Cross-encoder rerank returned mismatched packs; using original order.', 'minor');
         stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
-        return finalPacks;
+        return applyMmr(finalPacks);
       }
       for (const id of inputIds) {
         if (!outputIdSet.has(id)) {
           recordCoverageGap('reranking', 'Cross-encoder rerank returned mismatched packs; using original order.', 'minor');
           stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
-          return finalPacks;
+          return applyMmr(finalPacks);
         }
       }
       stageTracker.finish(rerankStage, { outputCount: reranked.length, filteredCount: 0 });
-      return reranked;
+      return applyMmr(reranked);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       recordCoverageGap('reranking', `Cross-encoder rerank failed: ${message}`, 'minor');
       stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'failed' });
-      return finalPacks;
+      return applyMmr(finalPacks);
     }
+  }
+  if (mmrEligible) {
+    stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0 });
+    return applyMmr(finalPacks);
   }
   stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'skipped' });
   return finalPacks;
+}
+
+const MMR_DEFAULT_LAMBDA = 0.5;
+
+function tokenizeForMmr(pack: ContextPack): string[] {
+  const parts: string[] = [pack.targetId, pack.summary];
+  if (Array.isArray(pack.keyFacts)) {
+    parts.push(...pack.keyFacts);
+  }
+  if (Array.isArray(pack.relatedFiles)) {
+    parts.push(...pack.relatedFiles);
+  }
+  return parts
+    .join(' ')
+    .toLowerCase()
+    .split(/[^a-z0-9_]+/g)
+    .filter((token) => token.length >= 2);
+}
+
+function buildTfVector(tokens: string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const token of tokens) {
+    counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function cosineSimilarity(left: Map<string, number>, right: Map<string, number>): number {
+  if (left.size === 0 || right.size === 0) return 0;
+  let dot = 0;
+  let normLeft = 0;
+  let normRight = 0;
+  for (const value of left.values()) {
+    normLeft += value * value;
+  }
+  for (const value of right.values()) {
+    normRight += value * value;
+  }
+  for (const [token, leftValue] of left.entries()) {
+    const rightValue = right.get(token);
+    if (!rightValue) continue;
+    dot += leftValue * rightValue;
+  }
+  if (normLeft === 0 || normRight === 0) return 0;
+  return dot / (Math.sqrt(normLeft) * Math.sqrt(normRight));
+}
+
+function clampMmrLambda(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return MMR_DEFAULT_LAMBDA;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function applyMmrDiversification(options: {
+  packs: ContextPack[];
+  query: LibrarianQuery;
+  candidateScoreMap: Map<string, number>;
+  explanationParts: string[];
+  recordCoverageGap: RecordCoverageGap;
+}): ContextPack[] {
+  const { packs, query, candidateScoreMap, explanationParts, recordCoverageGap } = options;
+  if (query.diversify !== true || packs.length < 2) return packs;
+
+  const lambda = clampMmrLambda(query.diversityLambda);
+  const vectors = packs.map((pack) => buildTfVector(tokenizeForMmr(pack)));
+  const relevance = packs.map((pack) => {
+    const scored = candidateScoreMap.get(pack.targetId) ?? pack.confidence;
+    return Number.isFinite(scored) ? Math.max(0, Math.min(1, scored)) : Math.max(0, Math.min(1, pack.confidence));
+  });
+
+  if (relevance.every((value) => value === 0)) {
+    recordCoverageGap('reranking', 'MMR diversification skipped due to zero relevance scores.', 'minor');
+    return packs;
+  }
+
+  const selectedIndexes: number[] = [];
+  const remaining = new Set<number>(packs.map((_, index) => index));
+
+  while (remaining.size > 0) {
+    let bestIndex = -1;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const index of remaining) {
+      const maxSimilarity = selectedIndexes.length === 0
+        ? 0
+        : Math.max(...selectedIndexes.map((picked) => cosineSimilarity(vectors[index], vectors[picked])));
+      const mmrScore = (lambda * relevance[index]) - ((1 - lambda) * maxSimilarity);
+      if (mmrScore > bestScore) {
+        bestScore = mmrScore;
+        bestIndex = index;
+      }
+    }
+    if (bestIndex < 0) break;
+    remaining.delete(bestIndex);
+    selectedIndexes.push(bestIndex);
+  }
+
+  if (selectedIndexes.length !== packs.length) {
+    recordCoverageGap('reranking', 'MMR diversification produced incomplete output; preserving original order.', 'minor');
+    return packs;
+  }
+
+  explanationParts.push(`Applied MMR diversification (lambda=${lambda.toFixed(2)}) to reduce redundant packs.`);
+  return selectedIndexes.map((index) => packs[index]);
 }
 
 function resolveDefeaterFilePath(pack: ContextPack, workspaceRoot?: string): string | null {

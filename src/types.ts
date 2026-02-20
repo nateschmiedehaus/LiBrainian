@@ -951,6 +951,16 @@ export interface LibrarianQuery {
    * Example: "apps/api" limits retrieval to files under that path prefix.
    */
   scope?: string;
+  /**
+   * Enable Maximal Marginal Relevance (MMR) diversification during reranking.
+   * When true, balances relevance with non-redundancy across returned packs.
+   */
+  diversify?: boolean;
+  /**
+   * MMR lambda in [0,1]. 1 prioritizes relevance, 0 prioritizes diversity.
+   * Ignored unless `diversify` is true.
+   */
+  diversityLambda?: number;
   filter?: SearchFilter;
   workingFile?: string;
   taskType?: string;

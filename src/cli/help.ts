@@ -180,6 +180,8 @@ OPTIONS:
     --depth <level>     Query depth: L0 (shallow), L1 (default), L2 (deep), L3 (comprehensive)
     --files <paths>     Comma-separated list of affected files
     --scope <path>      Workspace-relative scope alias (maps to filter.pathPrefix)
+    --diversify         Enable MMR diversification to reduce redundant packs
+    --diversity-lambda <n>  MMR lambda in [0,1] (1=relevance, 0=diversity, default: 0.5)
     --no-synthesis      Disable LLM synthesis/method hints (retrieval only)
     --deterministic     Enable deterministic mode for testing (skips LLM, stable sorting)
     --llm-provider <p>  Override LLM provider for synthesis: claude | codex (default: stored bootstrap setting or env)

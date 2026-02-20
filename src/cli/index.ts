@@ -156,7 +156,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--diversify] [--diversity-lambda <0-1>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
   },
   'repo-map': {
     description: 'Generate a compact codebase map ranked by function centrality',

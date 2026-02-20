@@ -135,6 +135,91 @@ describe('query pipeline definition', () => {
     expect(report?.status).toBe('partial');
   });
 
+  it('applies MMR diversification when query.diversify is enabled', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const explanationParts: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+
+    const packA = createPack({
+      packId: 'pack-a',
+      targetId: 'auth-a',
+      summary: 'JWT refresh token validation and rotation flow',
+      keyFacts: ['JWT', 'refresh token', 'rotation'],
+    });
+    const packB = createPack({
+      packId: 'pack-b',
+      targetId: 'auth-b',
+      summary: 'JWT refresh token validation and signature checks',
+      keyFacts: ['JWT', 'refresh token', 'signature'],
+    });
+    const packC = createPack({
+      packId: 'pack-c',
+      targetId: 'auth-c',
+      summary: 'Password hashing with bcrypt salt rounds and timing-safe compare',
+      keyFacts: ['bcrypt', 'password hashing', 'timing safe compare'],
+    });
+
+    const reranked = await __testing.runRerankStage({
+      query: {
+        intent: 'authentication',
+        depth: 'L1',
+        diversify: true,
+        diversityLambda: 0.2,
+      },
+      finalPacks: [packA, packB, packC],
+      candidateScoreMap: new Map([
+        ['auth-a', 0.95],
+        ['auth-b', 0.9],
+        ['auth-c', 0.7],
+      ]),
+      stageTracker,
+      explanationParts,
+      recordCoverageGap,
+      forceRerank: false,
+      rerank: vi.fn(),
+    });
+
+    expect(reranked.map((pack) => pack.packId)).toEqual(['pack-a', 'pack-c', 'pack-b']);
+    expect(explanationParts.some((entry) => entry.includes('MMR diversification'))).toBe(true);
+    const report = stageTracker.report().find((stage) => stage.stage === 'reranking');
+    expect(report?.status).toBe('success');
+  });
+
+  it('clamps MMR lambda when callers provide out-of-range values', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const explanationParts: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+
+    const reranked = await __testing.runRerankStage({
+      query: {
+        intent: 'auth',
+        depth: 'L1',
+        diversify: true,
+        diversityLambda: 9,
+      },
+      finalPacks: [
+        createPack({ packId: 'pack-a', targetId: 'a', summary: 'jwt auth flow' }),
+        createPack({ packId: 'pack-b', targetId: 'b', summary: 'password hashing flow' }),
+      ],
+      candidateScoreMap: new Map([
+        ['a', 0.8],
+        ['b', 0.6],
+      ]),
+      stageTracker,
+      explanationParts,
+      recordCoverageGap,
+      forceRerank: false,
+      rerank: vi.fn(),
+    });
+
+    expect(reranked).toHaveLength(2);
+    expect(explanationParts.some((entry) => entry.includes('lambda=1.00'))).toBe(true);
+  });
+
   it('excludes packs when defeater checks fail', async () => {
     const stageTracker = __testing.createStageTracker();
     const coverageGaps: string[] = [];

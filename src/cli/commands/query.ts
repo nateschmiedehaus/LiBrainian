@@ -53,6 +53,8 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       depth: { type: 'string', default: 'L1' },
       files: { type: 'string' },
       scope: { type: 'string' },
+      diversify: { type: 'boolean', default: false },
+      'diversity-lambda': { type: 'string' },
       timeout: { type: 'string', default: '0' },
       json: { type: 'boolean', default: false },
       'no-synthesis': { type: 'boolean', default: false },
@@ -100,6 +102,14 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
   const depth = validateDepth(values.depth as string);
   const scope = typeof values.scope === 'string' ? values.scope.trim() : undefined;
+  const diversify = values.diversify as boolean;
+  const diversityLambdaRaw = typeof values['diversity-lambda'] === 'string'
+    ? values['diversity-lambda'].trim()
+    : '';
+  const diversityLambda = diversityLambdaRaw.length > 0 ? Number.parseFloat(diversityLambdaRaw) : undefined;
+  if (diversityLambdaRaw.length > 0 && (!Number.isFinite(diversityLambda) || diversityLambda! < 0 || diversityLambda! > 1)) {
+    throw createError('INVALID_ARGUMENT', `Invalid --diversity-lambda "${diversityLambdaRaw}" (must be a number in [0,1]).`);
+  }
   const affectedFiles = values.files
     ? (values.files as string).split(',').map((entry) => {
       const raw = entry.trim();
@@ -472,6 +482,8 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       depth,
       affectedFiles,
       scope: scope && scope.length > 0 ? scope : undefined,
+      diversify,
+      diversityLambda,
       ucRequirements: ucIds ? {
         ucIds,
         priority: (ucPriority === 'low' || ucPriority === 'medium' || ucPriority === 'high') ? ucPriority : undefined,
