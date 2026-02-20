@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { ContextPack, LibrarianResponse, LibrarianVersion } from '../../types.js';
 import { assembleContextFromResponse } from '../context_assembly.js';
 import {
@@ -194,5 +197,56 @@ describe('query-conditioned context assembly', () => {
     expect(bugFix.primaryIntent).toBe('bug_fix');
     expect(architecture.primaryIntent).toBe('architecture');
     expect(bugFix.primaryIntent).not.toBe(architecture.primaryIntent);
+  });
+
+  it('prepends sticky-scroll class headers for mid-method snippets when workspace is available', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'context-assembly-sticky-'));
+    const sourceDir = path.join(workspace, 'src', 'auth');
+    await fs.mkdir(sourceDir, { recursive: true });
+    const sourcePath = path.join(sourceDir, 'user_service.ts');
+    await fs.writeFile(
+      sourcePath,
+      [
+        'export class UserService extends BaseService {',
+        '  private enabled = true;',
+        '',
+        '  authenticate(token: string): boolean {',
+        '    return token.length > 0;',
+        '  }',
+        '}',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      const response = makeResponse('Fix auth failures', [
+        makePack({
+          packId: 'p-method',
+          packType: 'function_context',
+          relatedFiles: ['src/auth/user_service.ts'],
+          codeSnippets: [{
+            filePath: 'src/auth/user_service.ts',
+            startLine: 4,
+            endLine: 6,
+            language: 'typescript',
+            content: [
+              '  authenticate(token: string): boolean {',
+              '    return token.length > 0;',
+              '  }',
+            ].join('\n'),
+          }],
+        }),
+      ]);
+
+      const context = await assembleContextFromResponse(response, { level: 'L1', workspace });
+      const snippet = context.required.targetFiles[0]?.snippets[0];
+
+      expect(snippet).toBeTruthy();
+      expect(snippet?.content).toContain('export class UserService extends BaseService {');
+      expect(snippet?.content).toContain('\n...\n');
+      expect(snippet?.content).toContain('authenticate(token: string): boolean');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   });
 });
