@@ -231,6 +231,24 @@ console.log(`Agent baseline-guard share: ${(report.diagnostics.agentBaselineGuar
 console.log(`Agent critique share: ${(report.diagnostics.agentCritiqueShare * 100).toFixed(1)}%`);
 console.log(`Artifact integrity share: ${(report.diagnostics.artifactIntegrityShare * 100).toFixed(1)}%`);
 console.log(`Verification fallback share: ${(report.diagnostics.verificationFallbackShare * 100).toFixed(1)}%`);
+if (report.diagnostics.providerPreflight) {
+  const preflight = report.diagnostics.providerPreflight;
+  const llmState = preflight.llm.available
+    ? `${preflight.llm.provider}:${preflight.llm.model}`
+    : `unavailable (${preflight.llm.error ?? 'unknown'})`;
+  const embeddingState = preflight.embedding.available
+    ? `${preflight.embedding.provider}:${preflight.embedding.model}`
+    : `unavailable (${preflight.embedding.error ?? 'unknown'})`;
+  console.log(`Treatment provider preflight: ${preflight.ready ? 'ready' : 'not ready'}`);
+  console.log(`  LLM: ${llmState}`);
+  console.log(`  Embedding: ${embeddingState}`);
+  if (preflight.reason) {
+    console.log(`  Reason: ${preflight.reason}`);
+  }
+  if (preflight.remediationSteps.length > 0) {
+    console.log(`  Remediation: ${preflight.remediationSteps.slice(0, 3).join(' | ')}`);
+  }
+}
 if (Object.keys(report.diagnostics.failureReasons).length > 0) {
   console.log(`Failure reasons: ${JSON.stringify(report.diagnostics.failureReasons)}`);
 }

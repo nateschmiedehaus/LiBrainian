@@ -205,6 +205,16 @@ function buildTriage(report) {
   const diagnoses = Array.isArray(report.diagnoses) ? report.diagnoses : [];
   const suggestions = Array.isArray(report.suggestions) ? report.suggestions : [];
 
+  const noteworthyObservations = Array.isArray(report.agentExperience?.noteworthyObservations)
+    ? report.agentExperience.noteworthyObservations
+    : [];
+  const painPoints = Array.isArray(report.agentExperience?.painPoints)
+    ? report.agentExperience.painPoints
+    : [];
+  const improvementIdeas = Array.isArray(report.agentExperience?.improvementIdeas)
+    ? report.agentExperience.improvementIdeas
+    : [];
+
   const findings = failures.map((failure) => {
     const classified = classifyFailure(failure);
     return {
@@ -212,6 +222,9 @@ function buildTriage(report) {
       source: 'failure',
       detail: String(failure),
       suggestions,
+      noteworthyObservations,
+      painPoints,
+      improvementIdeas,
       evidenceLinks: Array.isArray(report.controlVsTreatment?.topRegressions)
         ? report.controlVsTreatment.topRegressions
           .map((entry) => entry?.evidence)
@@ -229,6 +242,9 @@ function buildTriage(report) {
     source: 'diagnosis',
     detail: String(diagnosis),
     suggestions,
+    noteworthyObservations,
+    painPoints,
+    improvementIdeas,
     evidenceLinks: [],
     relatedIssues: [564],
   }));
@@ -276,6 +292,36 @@ function buildIssueBody(finding) {
     }
   } else {
     lines.push('- Add targeted rerun and debug investigation for this diagnosis.');
+  }
+  lines.push('');
+  lines.push('## Noteworthy Observations');
+  const noteworthy = Array.isArray(finding.noteworthyObservations) ? finding.noteworthyObservations : [];
+  if (noteworthy.length > 0) {
+    for (const observation of noteworthy.slice(0, 8)) {
+      lines.push(`- ${observation}`);
+    }
+  } else {
+    lines.push('- None captured in this run.');
+  }
+  lines.push('');
+  lines.push('## Pain Points');
+  const painPoints = Array.isArray(finding.painPoints) ? finding.painPoints : [];
+  if (painPoints.length > 0) {
+    for (const point of painPoints.slice(0, 8)) {
+      lines.push(`- ${point}`);
+    }
+  } else {
+    lines.push('- None captured in this run.');
+  }
+  lines.push('');
+  lines.push('## Improvement Ideas');
+  const ideas = Array.isArray(finding.improvementIdeas) ? finding.improvementIdeas : [];
+  if (ideas.length > 0) {
+    for (const idea of ideas.slice(0, 8)) {
+      lines.push(`- ${idea}`);
+    }
+  } else {
+    lines.push('- None captured in this run.');
   }
   lines.push('');
   lines.push('## Evidence');

@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { safeJsonParse } from '../utils/safe_json.js';
 import { initializeLibrarian } from '../orchestrator/unified_init.js';
 import type { LibrarianResponse } from '../types.js';
+import { checkProviderSnapshot, type ProviderGateSnapshot } from '../api/provider_check.js';
 import {
   classifyGateReasons,
   countByCategory,
@@ -106,6 +107,10 @@ export interface AbTaskRunResult {
     valid: boolean;
     reason?: string;
     critique?: AbAgentCritique;
+  };
+  librarianError?: {
+    reason: string;
+    message: string;
   };
   artifacts?: {
     directory: string;
@@ -236,6 +241,7 @@ export interface AbExperimentReport {
     artifactIntegrityShare: number;
     verificationFallbackRuns: number;
     verificationFallbackShare: number;
+    providerPreflight?: AbProviderPreflightSummary | null;
   };
   gates: {
     passed: boolean;
@@ -257,6 +263,25 @@ export interface AbExperimentReport {
       requireT3CeilingTimeReduction: boolean;
       minT3CeilingTimeReduction: number;
     };
+  };
+}
+
+export interface AbProviderPreflightSummary {
+  checked: boolean;
+  ready: boolean;
+  reason?: string;
+  remediationSteps: string[];
+  llm: {
+    available: boolean;
+    provider: string;
+    model: string;
+    error?: string;
+  };
+  embedding: {
+    available: boolean;
+    provider: string;
+    model: string;
+    error?: string;
   };
 }
 
@@ -849,6 +874,43 @@ function classifyLibrarianError(error: unknown): 'librarian_provider_unavailable
   return 'librarian_context_unavailable';
 }
 
+function summarizeProviderPreflight(snapshot: ProviderGateSnapshot): AbProviderPreflightSummary {
+  return {
+    checked: true,
+    ready: snapshot.status.llm.available && snapshot.status.embedding.available,
+    reason: snapshot.reason,
+    remediationSteps: snapshot.remediationSteps,
+    llm: {
+      available: snapshot.status.llm.available,
+      provider: snapshot.status.llm.provider,
+      model: snapshot.status.llm.model,
+      error: snapshot.status.llm.error,
+    },
+    embedding: {
+      available: snapshot.status.embedding.available,
+      provider: snapshot.status.embedding.provider,
+      model: snapshot.status.embedding.model,
+      error: snapshot.status.embedding.error,
+    },
+  };
+}
+
+function formatProviderPreflightFailure(preflight: AbProviderPreflightSummary): string {
+  const remediation = preflight.remediationSteps.slice(0, 3).join(' | ');
+  const llm = preflight.llm.available
+    ? `${preflight.llm.provider}:${preflight.llm.model}`
+    : `${preflight.llm.provider}:${preflight.llm.error ?? 'unavailable'}`;
+  const embedding = preflight.embedding.available
+    ? `${preflight.embedding.provider}:${preflight.embedding.model}`
+    : `${preflight.embedding.provider}:${preflight.embedding.error ?? 'unavailable'}`;
+  return (
+    'unverified_by_trace(provider_unavailable): treatment provider preflight failed'
+    + ` (llm=${llm}; embedding=${embedding})`
+    + (preflight.reason ? ` reason=${preflight.reason}` : '')
+    + (remediation ? ` remediation=${remediation}` : '')
+  );
+}
+
 function commandMissing(result: AbCommandResult): boolean {
   if (result.exitCode === 127) return true;
   const combined = `${result.stdout}\n${result.stderr}`.toLowerCase();
@@ -1142,6 +1204,12 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
     await buildContextFiles(task, repoRoot, contextLevel)
   );
   const extraContextFiles: string[] = [];
+  let librarianError:
+    | {
+      reason: string;
+      message: string;
+    }
+    | undefined;
   const commandTimeoutMs = options.commandTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const setupTimeoutMs = Math.max(commandTimeoutMs, DEFAULT_SETUP_TIMEOUT_MS);
   const requireAgentCritique = options.requireAgentCritique === true;
@@ -1194,6 +1262,10 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       reason?: string;
       critique?: AbAgentCritique;
     };
+    librarianError?: {
+      reason: string;
+      message: string;
+    };
   }): Promise<AbTaskRunResult> => {
     const requiredArtifactKeys = ['task', 'context', 'result'];
     const verificationExecuted = Boolean(
@@ -1228,6 +1300,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       modifiedFiles: payload.modifiedFiles,
       agentCommand: payload.agentCommand,
       agentCritique: payload.agentCritique,
+      librarianError: payload.librarianError ?? librarianError,
       verification: payload.verification,
       verificationPolicy,
     };
@@ -1343,15 +1416,20 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       const refinedExtra = refineLibrarianContextFiles(extraContextFiles, targetFiles);
       extraContextFiles.splice(0, extraContextFiles.length, ...refinedExtra);
     } catch (error) {
-      await writeArtifactJson(artifactState, 'librarian_error', {
+      librarianError = {
         reason: classifyLibrarianError(error),
         message: error instanceof Error ? error.message : String(error),
+      };
+      await writeArtifactJson(artifactState, 'librarian_error', {
+        reason: librarianError.reason,
+        message: librarianError.message,
       });
       return finalize({
         success: false,
         failureReason: classifyLibrarianError(error),
         modifiedFiles: [],
         verification: { setup: setupResult, baseline: baselineResult },
+        librarianError,
       });
     }
   }
@@ -2191,8 +2269,50 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
   const results: AbTaskRunResult[] = [];
   const contextCache = new Map<string, string[]>();
   const librarianSessionCache = new Map<string, InitializedLibrarianSession>();
+  let providerPreflight: AbProviderPreflightSummary | null = null;
   const totalRuns = tasks.length * workerTypes.length;
   let runIndex = 0;
+
+  if (workerTypes.includes('treatment') && !options.resolveExtraContext) {
+    try {
+      const snapshot = await checkProviderSnapshot({
+        workspaceRoot: options.reposRoot,
+        forceProbe: true,
+      });
+      providerPreflight = summarizeProviderPreflight(snapshot);
+    } catch (error) {
+      providerPreflight = {
+        checked: true,
+        ready: false,
+        reason: error instanceof Error ? error.message : String(error),
+        remediationSteps: [],
+        llm: {
+          available: false,
+          provider: 'unknown',
+          model: 'unknown',
+          error: 'provider preflight failed',
+        },
+        embedding: {
+          available: false,
+          provider: 'unknown',
+          model: 'unknown',
+          error: 'provider preflight failed',
+        },
+      };
+    }
+
+    if (verbose && providerPreflight) {
+      const llmState = providerPreflight.llm.available
+        ? `${providerPreflight.llm.provider}:${providerPreflight.llm.model}`
+        : `unavailable (${providerPreflight.llm.error ?? 'unknown'})`;
+      const embeddingState = providerPreflight.embedding.available
+        ? `${providerPreflight.embedding.provider}:${providerPreflight.embedding.model}`
+        : `unavailable (${providerPreflight.embedding.error ?? 'unknown'})`;
+      console.log(
+        `[ab-harness] treatment provider preflight ready=${providerPreflight.ready} llm=${llmState} embedding=${embeddingState}`
+      );
+    }
+  }
 
   const getLibrarianSession = async (repoRoot: string): Promise<InitializedLibrarianSession> => {
     const cached = librarianSessionCache.get(repoRoot);
@@ -2224,6 +2344,9 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
         try {
           const resolveExtraContext = workerType === 'treatment'
             ? async (request: AbContextRequest) => {
+              if (providerPreflight && !providerPreflight.ready) {
+                throw new Error(formatProviderPreflightFailure(providerPreflight));
+              }
               const effectiveLevel = contextLevelOverride ?? task.contextLevel;
               const key = `${repoRoot}::${task.id}::${effectiveLevel}`;
               const cached = contextCache.get(key);
@@ -2331,6 +2454,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
       artifactIntegrityShare,
       verificationFallbackRuns,
       verificationFallbackShare,
+      providerPreflight,
     },
     gates: {
       ...gates,

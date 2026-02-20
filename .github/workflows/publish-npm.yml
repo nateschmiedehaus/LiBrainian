@@ -69,10 +69,10 @@ jobs:
         continue-on-error: true
         run: npm run test:e2e:triage
 
-      - name: Strict external tarball E2E gate
-        id: reality_tarball
+      - name: Development-truth tarball E2E gate
+        id: reality_dev_truth
         continue-on-error: true
-        run: npm run test:e2e:reality:tarball
+        run: npm run test:e2e:dev-truth
 
       - name: In-repo acceptance E2E gate
         id: acceptance_gate
@@ -92,8 +92,8 @@ jobs:
             echo "::error::Outcome triage requires immediate action."
             failed=1
           fi
-          if [ "${{ steps.reality_tarball.outcome }}" != "success" ]; then
-            echo "::error::Tarball reality gate failed."
+          if [ "${{ steps.reality_dev_truth.outcome }}" != "success" ]; then
+            echo "::error::Development-truth tarball reality gate failed."
             failed=1
           fi
           if [ "${{ steps.acceptance_gate.outcome }}" != "success" ]; then

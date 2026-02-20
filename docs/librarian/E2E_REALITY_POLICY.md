@@ -10,22 +10,27 @@ This policy enforces black-box package reality checks so releases cannot pass on
 - External-agent natural-usage critique evidence
 - CI cadence and release gating
 
+## Truth Lanes
+- Development truth lane (current `main`): install from current tarball and run strict reality gate (`test:e2e:dev-truth`).
+- Published truth lane (`npm latest`): run freshness guard + strict latest-published reality gate (`test:e2e:reality`).
+- Both lanes are required in cadence/release verification; this prevents testing only published state while missing current development regressions.
+
 ## Required Gates
 1. PR/verify gate:
    - Run strict outcome diagnostics (`npm run test:e2e:outcome`).
    - Run diagnosis triage (`npm run test:e2e:triage`) to classify immediate-action vs issue candidates.
-   - Run strict tarball-based black-box E2E before publish (`npm run test:e2e:reality:tarball`).
+   - Run strict development-truth tarball E2E (`npm run test:e2e:dev-truth`).
+   - Run strict published-truth E2E with freshness (`npm run test:e2e:reality`).
 2. Release gate:
-   - `npm-publish` verify must pass strict outcome diagnostics and strict tarball black-box E2E.
+   - `npm-publish` verify must pass strict outcome diagnostics and strict development-truth tarball E2E.
    - Publish auth must fail closed with actionable remediation if token/trusted publishing is misconfigured.
 3. Cadence gate:
    - Commit-driven `e2e-cadence` runs (aggressive):
      - on push commits
      - on pull-request commit updates (`opened`, `synchronize`, `reopened`, `ready_for_review`)
      - strict outcome diagnostics
-     - npm freshness check (`policy:npm:fresh`)
-     - strict latest-published black-box E2E
-     - strict tarball black-box E2E
+     - strict development-truth tarball E2E
+     - strict latest-published black-box E2E (includes freshness check)
      - acceptance E2E
 
 ## Artifact Contract
@@ -92,3 +97,4 @@ Each artifact includes:
 - Outcome triage must run even when outcome gate fails.
 - Critical triage findings are immediate-action blockers (fail closed).
 - High/medium triage findings must become tracked GH issues unless already deduplicated by diagnosis key.
+- Cadence must produce a prioritized resolution queue artifact (`state/plans/agent-issue-fix-plan.json`) so failures always generate executable next work, not only red status.

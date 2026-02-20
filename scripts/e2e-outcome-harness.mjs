@@ -262,10 +262,78 @@ function normalizeAbRows(report, sourcePath) {
       artifacts: row?.artifacts ?? null,
       mode: String(row?.mode ?? '').trim(),
       agentCritiqueValid: row?.agentCritique?.valid === true,
+      agentCritique: row?.agentCritique?.critique ?? null,
       sourcePath,
       sourceTimestamp,
     }))
     .filter((row) => row.taskId.length > 0 && (row.workerType === 'control' || row.workerType === 'treatment'));
+}
+
+function dedupeStrings(values, limit = 12) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (!text) continue;
+    if (seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function summarizeAgentExperience(rows) {
+  const critiqueRows = rows.filter((row) =>
+    row.mode === 'agent_command'
+    && row.agentCritiqueValid === true
+    && row.agentCritique
+    && typeof row.agentCritique === 'object'
+  );
+  const perspectiveCounts = {};
+  const noteworthy = [];
+  const painPoints = [];
+  const ideas = [];
+
+  for (const row of critiqueRows) {
+    const critique = row.agentCritique;
+    const summary = typeof critique.summary === 'string' ? critique.summary.trim() : '';
+    if (summary) {
+      noteworthy.push(`[${row.workerType}/${row.taskId}] ${summary}`);
+    }
+    const issues = Array.isArray(critique.issues) ? critique.issues : [];
+    for (const issue of issues) {
+      const perspective = String(issue?.perspective ?? 'other').trim().toLowerCase();
+      perspectiveCounts[perspective] = (perspectiveCounts[perspective] ?? 0) + 1;
+      const severity = String(issue?.severity ?? 'low').trim().toLowerCase();
+      const title = String(issue?.title ?? '').trim();
+      const diagnosis = String(issue?.diagnosis ?? '').trim();
+      const recommendation = String(issue?.recommendation ?? '').trim();
+      if (title || diagnosis) {
+        const detail = `[${severity}] ${title}${diagnosis ? `: ${diagnosis}` : ''}`;
+        if (severity === 'high' || severity === 'critical') {
+          painPoints.push(detail);
+        } else {
+          noteworthy.push(detail);
+        }
+      }
+      if (recommendation) {
+        ideas.push(recommendation);
+      }
+    }
+    const suggestions = Array.isArray(critique.suggestions) ? critique.suggestions : [];
+    for (const suggestion of suggestions) {
+      ideas.push(String(suggestion));
+    }
+  }
+
+  return {
+    critiqueSamples: critiqueRows.length,
+    perspectiveCounts,
+    noteworthyObservations: dedupeStrings(noteworthy, 16),
+    painPoints: dedupeStrings(painPoints, 12),
+    improvementIdeas: dedupeStrings(ideas, 16),
+  };
 }
 
 function summarizeNaturalTasks(taskbankTasks, agenticRows) {
@@ -504,6 +572,51 @@ function buildMarkdownReport(report) {
     }
   }
   lines.push('');
+  lines.push('## Agent Experience');
+  lines.push('');
+  lines.push(`- Critique samples: ${report.agentExperience?.critiqueSamples ?? 0}`);
+  const perspectiveCounts = report.agentExperience?.perspectiveCounts ?? {};
+  const perspectiveSummary = Object.keys(perspectiveCounts).length > 0
+    ? Object.entries(perspectiveCounts).map(([key, value]) => `${key}=${value}`).join(', ')
+    : 'none';
+  lines.push(`- Perspective coverage: ${perspectiveSummary}`);
+  lines.push('');
+  lines.push('### Noteworthy Observations');
+  const noteworthy = Array.isArray(report.agentExperience?.noteworthyObservations)
+    ? report.agentExperience.noteworthyObservations
+    : [];
+  if (noteworthy.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const observation of noteworthy) {
+      lines.push(`- ${observation}`);
+    }
+  }
+  lines.push('');
+  lines.push('### Pain Points');
+  const painPoints = Array.isArray(report.agentExperience?.painPoints)
+    ? report.agentExperience.painPoints
+    : [];
+  if (painPoints.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const painPoint of painPoints) {
+      lines.push(`- ${painPoint}`);
+    }
+  }
+  lines.push('');
+  lines.push('### Improvement Ideas');
+  const ideas = Array.isArray(report.agentExperience?.improvementIdeas)
+    ? report.agentExperience.improvementIdeas
+    : [];
+  if (ideas.length === 0) {
+    lines.push('- None');
+  } else {
+    for (const idea of ideas) {
+      lines.push(`- ${idea}`);
+    }
+  }
+  lines.push('');
   lines.push('## Evidence Links');
   lines.push('');
   const evidenceLinks = report.controlVsTreatment.topWins
@@ -540,6 +653,7 @@ async function buildOutcomeReport(options) {
   const abRows = abReportPayloads.flatMap(({ path: reportPath, payload }) => normalizeAbRows(payload, reportPath));
   const naturalTasks = summarizeNaturalTasks(taskbankTasks, agenticRows);
   const controlVsTreatment = summarizePairs(abRows);
+  const agentExperience = summarizeAgentExperience(abRows);
 
   const sourceTimestamps = {
     agentic: toIsoOrNull(agenticReportJson?.createdAt),
@@ -603,6 +717,12 @@ async function buildOutcomeReport(options) {
     suggestions.push('Require critique JSON markers in agent prompt contract and reject runs with missing critique payloads.');
     suggestions.push('Expand critique rubric coverage across correctness, relevance, context quality, tooling friction, reliability, and productivity.');
   }
+  if (agentExperience.painPoints.length > 0) {
+    diagnoses.push(`Agent critiques reported ${agentExperience.painPoints.length} notable pain-point(s).`);
+    for (const idea of agentExperience.improvementIdeas.slice(0, 4)) {
+      suggestions.push(`Agent idea: ${idea}`);
+    }
+  }
   if (diagnoses.length === 0) {
     diagnoses.push('No disqualifying diagnosis detected.');
     suggestions.push('Continue periodic cadence runs to monitor regressions.');
@@ -620,6 +740,7 @@ async function buildOutcomeReport(options) {
     abReportPaths: options.abReports,
     naturalTasks,
     controlVsTreatment,
+    agentExperience,
     freshness,
     thresholds: {
       maxAgeHours: options.maxAgeHours,
@@ -733,6 +854,13 @@ main().catch(async (error) => {
         topRegressions: [],
         failureCases: [],
         evidenceLinkedPairs: 0,
+      },
+      agentExperience: {
+        critiqueSamples: 0,
+        perspectiveCounts: {},
+        noteworthyObservations: [],
+        painPoints: [],
+        improvementIdeas: [],
       },
       freshness: {
         maxAgeHours: options.maxAgeHours,

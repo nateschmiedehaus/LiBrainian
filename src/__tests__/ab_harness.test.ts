@@ -560,6 +560,8 @@ describe('ab harness runner', () => {
 
     expect(providerResult.success).toBe(false);
     expect(providerResult.failureReason).toBe('librarian_provider_unavailable');
+    expect(providerResult.librarianError?.reason).toBe('librarian_provider_unavailable');
+    expect(providerResult.librarianError?.message).toContain('provider_unavailable');
 
     const emptyStorageResult = await runAbTask(providerTask, repoRoot, {
       workerType: 'treatment',
@@ -1287,6 +1289,7 @@ describe('computeAbLiftSummary', () => {
     expect(report.t3PlusLift?.treatmentSuccessRate).toBe(1);
     expect(report.t3PlusLift?.timeReduction ?? 0).toBeGreaterThan(0.05);
     expect(report.t3PlusLift?.agentCommandTimeReduction ?? 0).toBeGreaterThan(0.05);
+    expect(report.diagnostics.providerPreflight).toBeNull();
     expect(
       report.gates.reasons.some((reason) => reason.startsWith('t3_plus_lift_below_threshold:'))
     ).toBe(false);
@@ -1354,6 +1357,7 @@ describe('computeAbLiftSummary', () => {
     expect(report.t3PlusLift?.treatmentSuccessRate).toBe(1);
     expect(report.t3PlusLift?.timeReduction ?? 0).toBeLessThan(0);
     expect(report.t3PlusLift?.agentCommandTimeReduction ?? 0).toBeLessThanOrEqual(0);
+    expect(report.diagnostics.providerPreflight).toBeNull();
     expect(
       report.gates.reasons.some((reason) => reason.startsWith('t3_plus_ceiling_time_reduction_below_threshold:'))
     ).toBe(false);
@@ -1419,6 +1423,7 @@ describe('computeAbLiftSummary', () => {
     expect(report.t3PlusLift?.controlSuccessRate).toBe(1);
     expect(report.t3PlusLift?.treatmentSuccessRate).toBe(1);
     expect(report.t3PlusLift?.timeReduction ?? 0).toBeLessThan(0);
+    expect(report.diagnostics.providerPreflight).toBeNull();
     expect(
       report.gates.reasons.some((reason) => reason.startsWith('t3_plus_ceiling_time_reduction_below_threshold:'))
     ).toBe(true);

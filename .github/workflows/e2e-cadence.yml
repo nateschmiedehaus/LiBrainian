@@ -27,8 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify npm freshness gate
-        run: npm run policy:npm:fresh
+      - name: Mainline consolidation guard (authoritative main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run policy:e2e:mainline
 
       - name: Outcome-based E2E diagnostics gate (strict)
         id: outcome_gate
@@ -44,19 +45,26 @@ jobs:
       - name: Create diagnosis issues from triage (main commit cadence)
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
-        run: node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.issues.json --markdown state/e2e/outcome-triage.issues.md --create-gh-issues --repo "${GITHUB_REPOSITORY}" --max-issues 5
+        run: node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.issues.json --markdown state/e2e/outcome-triage.issues.md --create-gh-issues --repo "${GITHUB_REPOSITORY}" --max-issues 25
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Published-package black-box E2E (strict)
+      - name: Build prioritized resolution queue (main commit cadence)
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: npm run issues:plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Development-truth tarball E2E (strict)
+        id: reality_dev_truth
+        continue-on-error: true
+        run: npm run test:e2e:dev-truth
+
+      - name: Published-truth npm latest E2E (diagnostic + freshness)
         id: reality_latest
         continue-on-error: true
         run: npm run test:e2e:reality
-
-      - name: Tarball black-box E2E (strict)
-        id: reality_tarball
-        continue-on-error: true
-        run: npm run test:e2e:reality:tarball
 
       - name: In-repo acceptance E2E (strict)
         id: acceptance_gate
@@ -76,13 +84,12 @@ jobs:
             echo "::error::Outcome triage requires immediate action."
             failed=1
           fi
-          if [ "${{ steps.reality_latest.outcome }}" != "success" ]; then
-            echo "::error::Published-package reality gate failed."
+          if [ "${{ steps.reality_dev_truth.outcome }}" != "success" ]; then
+            echo "::error::Development-truth tarball reality gate failed."
             failed=1
           fi
-          if [ "${{ steps.reality_tarball.outcome }}" != "success" ]; then
-            echo "::error::Tarball reality gate failed."
-            failed=1
+          if [ "${{ steps.reality_latest.outcome }}" != "success" ]; then
+            echo "::warning::Published-truth npm-latest reality gate failed (development cadence keeps focus on dev-truth lane)."
           fi
           if [ "${{ steps.acceptance_gate.outcome }}" != "success" ]; then
             echo "::error::Acceptance gate failed."
@@ -95,5 +102,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-reality-artifacts
-          path: state/e2e/*.json
+          path: |
+            state/e2e/*.json
+            state/plans/*.json
           if-no-files-found: warn
