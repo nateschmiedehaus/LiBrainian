@@ -21,6 +21,10 @@ import { computeGraphMetrics, writeGraphMetricsReport, type GraphMetricsEntry } 
 import { emptyArray, noResult } from '../api/empty_values.js';
 import { globalEventBus, createLanguageOnboardingEvent } from '../events.js';
 import { sha256Hex } from '../spine/hashes.js';
+import {
+  ScipTypescriptBackend,
+  type ScipBackend,
+} from '../indexing/scip_typescript_backend.js';
 
 export type LlmProvider = 'claude' | 'codex';
 
@@ -44,6 +48,10 @@ export interface AstIndexerOptions {
   maxPromptChars?: number;
   resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>;
   resolveModuleId?: (filePath: string) => Promise<string | null>;
+  /** Optional SCIP backend for TS/JS symbol extraction. */
+  scipBackend?: ScipBackend;
+  /** Enable optional SCIP backend; default: LIBRARIAN_ENABLE_SCIP_TYPESCRIPT=1 */
+  enableScipBackend?: boolean;
 }
 
 export interface AstIndexResult {
@@ -69,7 +77,7 @@ const PARSER_BEGIN_MARKER = 'BEGIN_PARSER_JSON', PARSER_END_MARKER = 'END_PARSER
 const DEFAULT_MAX_PROMPT_CHARS = 12000, MAX_ANALYSIS_RESPONSE_CHARS = 200_000;
 
 export class AstIndexer {
-  private registry: ParserRegistry; private readonly llmProvider: LlmProvider | null; private readonly llmModelId: string | null; private readonly llmService: LlmServiceAdapter | null; private readonly analysisEnabled: boolean; private readonly fallbackEnabled: boolean; private readonly embeddingService: EmbeddingService | null; private readonly embeddingsEnabled: boolean; private readonly storage?: LibrarianStorage; private readonly workspaceRoot?: string; private readonly computeMetrics: boolean; private governor: GovernorContext | null; private readonly maxPromptChars: number; private readonly resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>; private readonly resolveModuleId?: (filePath: string) => Promise<string | null>;
+  private registry: ParserRegistry; private readonly llmProvider: LlmProvider | null; private readonly llmModelId: string | null; private readonly llmService: LlmServiceAdapter | null; private readonly analysisEnabled: boolean; private readonly fallbackEnabled: boolean; private readonly embeddingService: EmbeddingService | null; private readonly embeddingsEnabled: boolean; private readonly storage?: LibrarianStorage; private readonly workspaceRoot?: string; private readonly computeMetrics: boolean; private governor: GovernorContext | null; private readonly maxPromptChars: number; private readonly resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>; private readonly resolveModuleId?: (filePath: string) => Promise<string | null>; private readonly scipBackend: ScipBackend | null;
 
   constructor(options: AstIndexerOptions) {
     this.registry = options.registry ?? ParserRegistry.getInstance();
@@ -92,6 +100,17 @@ export class AstIndexer {
     this.maxPromptChars = options.maxPromptChars ?? DEFAULT_MAX_PROMPT_CHARS;
     this.resolveFunctionIds = options.resolveFunctionIds;
     this.resolveModuleId = options.resolveModuleId;
+    const envEnableScip = String(process.env.LIBRARIAN_ENABLE_SCIP_TYPESCRIPT ?? '0') === '1';
+    const enableScipBackend = options.enableScipBackend ?? envEnableScip;
+    this.scipBackend = options.scipBackend
+      ?? (
+        enableScipBackend && options.workspaceRoot
+          ? new ScipTypescriptBackend({
+            workspaceRoot: options.workspaceRoot,
+            enabled: true,
+          })
+          : null
+      );
   }
 
   setGovernorContext(governor: GovernorContext | null): void { this.governor = governor; }
@@ -102,7 +121,24 @@ export class AstIndexer {
     let parserFallback = false;
     const governor = this.governor;
     try {
-      parsed = this.registry.parseFile(filePath, source);
+      if (this.scipBackend) {
+        try {
+          const scipParsed = await this.scipBackend.parseFile(filePath);
+          if (scipParsed) {
+            parsed = scipParsed;
+          } else {
+            parsed = this.registry.parseFile(filePath, source);
+          }
+        } catch (error: unknown) {
+          logWarning('SCIP backend parse failed; falling back to deterministic parser registry', {
+            filePath,
+            error: getErrorMessage(error),
+          });
+          parsed = this.registry.parseFile(filePath, source);
+        }
+      } else {
+        parsed = this.registry.parseFile(filePath, source);
+      }
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       if (
