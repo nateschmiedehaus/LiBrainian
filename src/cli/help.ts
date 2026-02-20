@@ -35,6 +35,8 @@ COMMANDS:
     test-integration    Run quantitative integration benchmark suites
     benchmark           Run local performance SLA diagnostics
     privacy-report      Summarize privacy audit evidence
+    export              Export portable .librarian index bundle
+    import              Import portable .librarian index bundle
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
@@ -72,6 +74,8 @@ ADVANCED:
     repair              Run DETECT->FIX->VERIFY loop and write an audit report
     ralph               Deprecated alias for repair
     external-repos      Sync external repo corpus from manifest.json
+    export              Export portable index bundle for team/CI reuse
+    import              Import portable index bundle from another machine
 
 GLOBAL OPTIONS:
     -h, --help          Show help information
@@ -102,6 +106,8 @@ EXAMPLES:
     librainian test-integration --suite openclaw --json
     librainian benchmark --json
     librainian privacy-report --since 2026-02-01T00:00:00Z --json
+    librainian export --output state/exports/librarian-index.tar.gz
+    librainian import --input state/exports/librarian-index.tar.gz
     librainian mcp --print-config --client claude
     librainian generate-docs --include tools,context,rules
     librainian compose "Prepare a release plan" --limit 1
@@ -580,6 +586,58 @@ EXAMPLES:
     librarian privacy-report
     librarian privacy-report --since 2026-02-01T00:00:00Z
     librarian privacy-report --json --out state/audits/privacy-report.json
+`,
+
+  'export': `
+librarian export - Export a portable .librarian index bundle
+
+USAGE:
+    librarian export [options]
+
+OPTIONS:
+    --output <path>      Output bundle path (default: .librarian/exports/librarian-index.tar.gz)
+    --json               Emit machine-readable JSON output
+    --out <path>         Write JSON output to file
+
+DESCRIPTION:
+    Creates a transportable archive of current index artifacts for team sharing
+    and CI warm-starts. Export includes:
+    - librarian.sqlite
+    - knowledge.db (if present)
+    - evidence_ledger.db (if present)
+    - hnsw.bin (if present)
+    - manifest.json with schema/version/git SHA metadata
+
+    Absolute workspace paths in SQLite text columns are rewritten to a
+    placeholder token, so bundles can be imported on different machines.
+
+EXAMPLES:
+    librarian export
+    librarian export --output state/exports/librarian-index.tar.gz
+    librarian export --json --out state/exports/index-export.json
+`,
+
+  'import': `
+librarian import - Import a portable .librarian index bundle
+
+USAGE:
+    librarian import --input <bundle.tar.gz> [options]
+
+OPTIONS:
+    --input <path>       Path to exported bundle tarball
+    --json               Emit machine-readable JSON output
+    --out <path>         Write JSON output to file
+
+DESCRIPTION:
+    Imports an exported index bundle into the current workspace .librarian
+    directory, validates manifest compatibility/checksums, and rewrites the
+    workspace placeholder token back to this machine's absolute workspace root.
+    If git HEAD differs from the bundle SHA, import warns and suggests running:
+      librarian update --since <bundleSha>
+
+EXAMPLES:
+    librarian import --input state/exports/librarian-index.tar.gz
+    librarian import --input ./librarian-index.tar.gz --json
 `,
 
   mcp: `

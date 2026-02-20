@@ -51,6 +51,8 @@
  *   librarian test-integration     - Run quantitative integration benchmark suites
  *   librarian benchmark           - Run local performance SLA diagnostics
  *   librarian privacy-report      - Summarize privacy-mode audit evidence
+ *   librarian export              - Export portable .librarian index bundle
+ *   librarian import              - Import portable .librarian index bundle
  *
  * @packageDocumentation
  */
@@ -105,6 +107,7 @@ import { testIntegrationCommand } from './commands/test_integration.js';
 import { benchmarkCommand } from './commands/benchmark.js';
 import { generateDocsCommand } from './commands/generate_docs.js';
 import { privacyReportCommand } from './commands/privacy_report.js';
+import { exportIndexStateCommand, importIndexStateCommand } from './commands/index_state_bundle.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
 import {
@@ -118,7 +121,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'help';
+type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -344,6 +347,14 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'privacy-report': {
     description: 'Summarize privacy-audit events and external content transmission',
     usage: 'librarian privacy-report [--since <ISO-8601>] [--format text|json] [--out <path>]',
+  },
+  'export': {
+    description: 'Export portable .librarian index state bundle',
+    usage: 'librarian export [--output <bundle.tar.gz>] [--json] [--out <path>]',
+  },
+  'import': {
+    description: 'Import portable .librarian index state bundle',
+    usage: 'librarian import --input <bundle.tar.gz> [--json] [--out <path>]',
   },
   'help': {
     description: 'Show help information',
@@ -729,6 +740,12 @@ async function main(): Promise<void> {
           format: defaultFormat as 'text' | 'json',
           out: getStringArg(args, '--out') ?? undefined,
         });
+        break;
+      case 'export':
+        await exportIndexStateCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'import':
+        await importIndexStateCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 	    }
   } catch (error) {
