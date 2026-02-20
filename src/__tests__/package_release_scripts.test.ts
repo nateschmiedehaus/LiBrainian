@@ -39,6 +39,7 @@ describe('package release scripts', () => {
     expect(scripts.dogfood).toBe('node scripts/dogfood-sandbox.mjs');
     expect(scripts.prepublishOnly).toContain('npm run package:assert-identity');
     expect(scripts.prepublishOnly).toContain('npm run package:assert-release-provenance');
+    expect(scripts.prepublishOnly).toContain('npm run public:pack');
     expect(scripts.prepublishOnly).toContain('npm run package:install-smoke');
   });
 
@@ -73,6 +74,7 @@ describe('package release scripts', () => {
     expect(script).toContain('Package contains deprecated integrations directory paths');
     expect(script).toContain('Package contains aspirational federation paths');
     expect(script).toContain('Zero-importer federation policy violated');
+    expect(script).toContain('Package contains TODO/FIXME debt markers in runtime JS');
     expect(script).toContain('extractRelativeImportSpecifiers');
     expect(script).toContain('resolveRelativeImportCandidates');
     expect(script).toContain('Package excludes runtime-imported dist modules');
@@ -187,8 +189,10 @@ describe('package release scripts', () => {
   it('excludes test sources from distributable build output', () => {
     const tsconfigPath = path.join(process.cwd(), 'tsconfig.json');
     const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, 'utf8')) as {
+      compilerOptions?: { removeComments?: boolean };
       exclude?: string[];
     };
+    expect(tsconfig.compilerOptions?.removeComments).toBe(true);
     const excludes = tsconfig.exclude ?? [];
     expect(excludes).toContain('**/*.test.ts');
     expect(excludes).toContain('**/__tests__/**');

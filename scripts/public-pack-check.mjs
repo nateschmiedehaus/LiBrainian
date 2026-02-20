@@ -163,6 +163,7 @@ function main() {
   const memoryFiles = filePaths.filter((filePath) => filePath.startsWith('dist/memory/'));
   const pluralIntegrationsFiles = filePaths.filter((filePath) => filePath.startsWith('dist/integrations/'));
   const missingRuntimeImports = [];
+  const debtMarkerFiles = [];
 
   for (const runtimeFile of packedRuntimeJs) {
     const runtimePath = path.join(process.cwd(), runtimeFile);
@@ -173,6 +174,9 @@ function main() {
       continue;
     }
     const specifiers = extractRelativeImportSpecifiers(source);
+    if (/(?:\/\/\s*(?:TODO|FIXME|XXX|HACK)\b|\/\*\s*(?:TODO|FIXME|XXX|HACK)\b)/.test(source)) {
+      debtMarkerFiles.push(runtimeFile);
+    }
     for (const specifier of specifiers) {
       const candidates = resolveRelativeImportCandidates(runtimeFile, specifier);
       const distCandidates = candidates.filter((candidate) => candidate.startsWith('dist/'));
@@ -271,6 +275,15 @@ function main() {
       `Package excludes runtime-imported dist modules:\n${missingRuntimeImports
         .slice(0, 25)
         .map((entry) => `- ${entry}`)
+        .join('\n')}`
+    );
+  }
+
+  if (debtMarkerFiles.length > 0) {
+    throw new Error(
+      `Package contains TODO/FIXME debt markers in runtime JS:\n${debtMarkerFiles
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
         .join('\n')}`
     );
   }
