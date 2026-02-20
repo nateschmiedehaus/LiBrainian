@@ -19,6 +19,7 @@ import { createLibrarianMCPServer } from '../server.js';
 
 describe('MCP query and context bundle pagination', () => {
   const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
+  const CONFORMAL_CALIBRATION_STATE_KEY = 'librarian.mcp.conformal_calibration.v1';
 
   beforeEach(() => {
     queryLibrarianMock.mockReset();
@@ -418,6 +419,58 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.packs.map((pack: { packId: string }) => pack.packId)).toEqual(
       expect.arrayContaining(['auth-pack', 'billing-pack']),
     );
+  });
+
+  it('applies conformal alpha routing and exposes coverage guarantee metadata', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/workspace';
+    const state = new Map<string, string>();
+    state.set(CONFORMAL_CALIBRATION_STATE_KEY, JSON.stringify({
+      entries: [
+        { alpha: 0.1, tau: 0.27, calibrationSetSize: 128, calibratedAt: '2026-02-20T00:00:00.000Z' },
+      ],
+    }));
+
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, { indexState: 'ready' });
+    (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({
+      getState: vi.fn(async (key: string) => state.get(key) ?? null),
+      setState: vi.fn(async (key: string, value: string) => state.set(key, value)),
+    });
+
+    queryLibrarianMock.mockResolvedValue({
+      packs: [
+        { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.8 },
+      ],
+      disclosures: [],
+      adequacy: undefined,
+      verificationPlan: undefined,
+      traceId: 'trace-conformal',
+      constructionPlan: undefined,
+      totalConfidence: 0.8,
+      cacheHit: false,
+      latencyMs: 8,
+      drillDownHints: [],
+      synthesis: undefined,
+      synthesisMode: 'heuristic',
+      llmError: undefined,
+    });
+
+    const result = await (server as any).executeQuery({
+      workspace,
+      intent: 'where does auth routing happen',
+      alpha: 0.1,
+    });
+
+    const queryArg = queryLibrarianMock.mock.calls[0]?.[0] as { minConfidence?: number };
+    expect(queryArg.minConfidence).toBeCloseTo(0.27, 4);
+    expect(result.coverage_guarantee).toBe(0.9);
+    expect(result.conformal_calibration?.source).toBe('state');
+    expect(result.conformal_calibration?.tau).toBeCloseTo(0.27, 4);
+    expect(result.conformal_calibration?.calibrationSetSize).toBe(128);
   });
 
   it('paginates query packs and returns pagination metadata', async () => {
@@ -1037,6 +1090,7 @@ describe('MCP query and context bundle pagination', () => {
     });
 
     expect(result.error).toContain('Specified workspace not registered');
+    expect(result.coverage_guarantee).toBe(0.9);
     expect(result.disclosures.join(' ')).not.toContain('unverified_by_trace');
     expect(result.fix).toEqual(
       expect.arrayContaining([

@@ -306,6 +306,11 @@ describe('MCP Schema', () => {
       expect(validateToolInput('query', { intent: 'trace auth flow', recency_weight: 0 }).valid).toBe(true);
     });
 
+    it('should accept conformal alpha in supported range', () => {
+      expect(validateToolInput('query', { intent: 'trace auth flow', alpha: 0.1 }).valid).toBe(true);
+      expect(validateToolInput('query', { intent: 'trace auth flow', alpha: 0.05 }).valid).toBe(true);
+    });
+
     it('should validate streaming options', () => {
       const input = {
         intent: 'Trace auth request lifecycle',
@@ -351,6 +356,11 @@ describe('MCP Schema', () => {
       expect(validateToolInput('query', { intent: 'test', recency_weight: 1.1 }).valid).toBe(false);
     });
 
+    it('should reject alpha out of range', () => {
+      expect(validateToolInput('query', { intent: 'test', alpha: 0 }).valid).toBe(false);
+      expect(validateToolInput('query', { intent: 'test', alpha: 0.8 }).valid).toBe(false);
+    });
+
     it('should reject invalid depth', () => {
       const result = validateToolInput('query', {
         intent: 'test',
@@ -384,6 +394,7 @@ describe('MCP Schema', () => {
       expect(queryToolJsonSchema.properties.intent?.description).toContain('Goal-oriented question');
       expect(queryToolJsonSchema.properties.intentType?.description).toContain('understand=explain');
       expect(queryToolJsonSchema.properties.contextHints?.description).toContain('agent-state hints');
+      expect(queryToolJsonSchema.properties.alpha?.description).toContain('Conformal error-rate target alpha');
       expect(queryToolJsonSchema.properties.recencyWeight?.description).toContain('episodic recency-bias');
     });
   });

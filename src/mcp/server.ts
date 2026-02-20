@@ -513,6 +513,13 @@ const MAX_PERSISTED_SESSION_EPISODES = 5000;
 const SESSION_EPISODE_RECENCY_HALF_LIFE_HOURS = 0.5;
 const DEFAULT_RECENCY_WEIGHT = 0.3;
 const RECENCY_SEMANTIC_FLOOR = 0.2;
+const CONFORMAL_CALIBRATION_STATE_KEY = 'librarian.mcp.conformal_calibration.v1';
+const DEFAULT_CONFORMAL_ALPHA = 0.1;
+const DEFAULT_CONFORMAL_TAU_BY_ALPHA: Record<string, number> = {
+  '0.05': 0.32,
+  '0.10': 0.4,
+  '0.20': 0.52,
+};
 const AMBIGUOUS_SYMBOL_MATCH_THRESHOLD = 3;
 const MAX_QUERY_SYMBOL_CANDIDATES = 8;
 const MAX_DECOMPOSED_SUBQUERIES = 4;
@@ -543,6 +550,7 @@ const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.context_hints.conversation_context': 'Snake-case alias for contextHints.conversation_context. Include a compact recent summary so LiBrainian can disambiguate underspecified intents and overloaded query phrasing consistently.',
   'query.filter': 'Structured retrieval filter for scoped search. Use pathPrefix to isolate one package in a monorepo and optionally combine language, isExported, or excludeTests for higher precision.',
   'query.workingFile': 'Active file path hint used to auto-derive package scope in monorepos. When provided, LiBrainian infers a pathPrefix filter from workspace package boundaries.',
+  'query.alpha': 'Conformal error-rate target alpha in [0.01, 0.5]. Lower alpha requests stricter coverage guarantees, while higher alpha allows tighter context sets with lower guaranteed coverage.',
   'query.recencyWeight': 'Optional episodic recency-bias weight in [0,1]. Set 0 to disable recency influence, or increase toward 1 to prioritize recently accessed files that still satisfy semantic relevance checks.',
   'query.recency_weight': 'Snake-case alias for recencyWeight with identical semantics, preserving backward-compatible payloads while tuning episodic recency influence in retrieval ranking and hint injection.',
 };
@@ -763,6 +771,14 @@ type QueryExecutionOutcome =
   | { kind: 'ok'; query: string; response: LibrarianResponse }
   | { kind: 'timeout'; query: string }
   | { kind: 'error'; query: string; error: string };
+
+interface ConformalCalibrationProfile {
+  alpha: number;
+  tau: number;
+  source: 'state' | 'default';
+  calibrationSetSize?: number;
+  calibratedAt?: string;
+}
 
 const TRACE_MESSAGE_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
 
@@ -1604,6 +1620,7 @@ export class LibrarianMCPServer {
               },
             },
             workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection' },
+            alpha: { type: 'number', description: 'Conformal error-rate target alpha in [0.01, 0.5]. Example: alpha=0.10 targets a 90% coverage guarantee and adjusts retrieval thresholds accordingly.' },
             recencyWeight: { type: 'number', description: 'Optional episodic recency-bias weight in [0,1]. Set 0 for cold retrieval, or increase toward 1 to prioritize recent files that remain semantically relevant.' },
             recency_weight: { type: 'number', description: 'Snake-case alias for recencyWeight with identical semantics, preserving compatibility with clients that prefer snake-case payload conventions.' },
             minConfidence: { type: 'number', description: `Min confidence (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
@@ -3842,6 +3859,90 @@ export class LibrarianMCPServer {
     return Math.max(0, Math.min(1, numeric));
   }
 
+  private resolveConformalAlpha(input: QueryToolInput): number {
+    const raw = input.alpha;
+    if (raw === undefined || raw === null) {
+      return DEFAULT_CONFORMAL_ALPHA;
+    }
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) {
+      return DEFAULT_CONFORMAL_ALPHA;
+    }
+    const clamped = Math.max(0.01, Math.min(0.5, numeric));
+    if (Math.abs(clamped - 0.05) <= 0.005) return 0.05;
+    if (Math.abs(clamped - 0.1) <= 0.01) return 0.1;
+    if (Math.abs(clamped - 0.2) <= 0.02) return 0.2;
+    return Number(clamped.toFixed(2));
+  }
+
+  private lookupDefaultConformalTau(alpha: number): number {
+    const canonical = alpha.toFixed(2);
+    const direct = DEFAULT_CONFORMAL_TAU_BY_ALPHA[canonical];
+    if (typeof direct === 'number') return direct;
+    if (alpha <= 0.05) return DEFAULT_CONFORMAL_TAU_BY_ALPHA['0.05']!;
+    if (alpha <= 0.1) return DEFAULT_CONFORMAL_TAU_BY_ALPHA['0.10']!;
+    return DEFAULT_CONFORMAL_TAU_BY_ALPHA['0.20']!;
+  }
+
+  private async resolveConformalCalibrationProfile(
+    storage: LibrarianStorage,
+    alpha: number,
+  ): Promise<ConformalCalibrationProfile> {
+    const store = storage as Partial<LibrarianStorage>;
+    if (typeof store.getState !== 'function') {
+      return {
+        alpha,
+        tau: this.lookupDefaultConformalTau(alpha),
+        source: 'default',
+      };
+    }
+    const raw = await store.getState(CONFORMAL_CALIBRATION_STATE_KEY).catch(() => null);
+    if (!raw) {
+      return {
+        alpha,
+        tau: this.lookupDefaultConformalTau(alpha),
+        source: 'default',
+      };
+    }
+    try {
+      const parsed = JSON.parse(raw) as {
+        entries?: Array<{
+          alpha?: number;
+          tau?: number;
+          calibrationSetSize?: number;
+          calibratedAt?: string;
+        }>;
+      } | null;
+      const entries = Array.isArray(parsed?.entries) ? parsed.entries : [];
+      const match = entries.find((entry) => {
+        const candidateAlpha = Number(entry.alpha);
+        return Number.isFinite(candidateAlpha) && Math.abs(candidateAlpha - alpha) <= 0.001;
+      });
+      if (!match || !Number.isFinite(Number(match.tau))) {
+        return {
+          alpha,
+          tau: this.lookupDefaultConformalTau(alpha),
+          source: 'default',
+        };
+      }
+      return {
+        alpha,
+        tau: Math.max(0, Math.min(1, Number(match.tau))),
+        source: 'state',
+        calibrationSetSize: Number.isFinite(Number(match.calibrationSetSize))
+          ? Number(match.calibrationSetSize)
+          : undefined,
+        calibratedAt: typeof match.calibratedAt === 'string' ? match.calibratedAt : undefined,
+      };
+    } catch {
+      return {
+        alpha,
+        tau: this.lookupDefaultConformalTau(alpha),
+        source: 'default',
+      };
+    }
+  }
+
   private async getRecentEpisodeFileBoosts(
     storage: LibrarianStorage,
     options: {
@@ -5020,6 +5121,13 @@ export class LibrarianMCPServer {
   }
 
   private async executeQuery(input: QueryToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
+    const requestedAlpha = this.resolveConformalAlpha(input);
+    const fallbackConformalCalibration: ConformalCalibrationProfile = {
+      alpha: requestedAlpha,
+      tau: this.lookupDefaultConformalTau(requestedAlpha),
+      source: 'default',
+    };
+    const fallbackCoverageGuarantee = Number((1 - fallbackConformalCalibration.alpha).toFixed(2));
     try {
       // Find workspace - use specified or find first ready
       let workspace: WorkspaceState | undefined;
@@ -5037,6 +5145,10 @@ export class LibrarianMCPServer {
             retrievalEntropy: 0,
             retrievalInsufficient: true,
             suggestedClarifyingQuestions: [],
+            coverageGuarantee: fallbackCoverageGuarantee,
+            coverage_guarantee: fallbackCoverageGuarantee,
+            conformalCalibration: fallbackConformalCalibration,
+            conformal_calibration: fallbackConformalCalibration,
             error: `Specified workspace not registered: ${input.workspace}. Available: ${Array.from(this.state.workspaces.keys()).join(', ') || 'none'}`,
             intent: input.intent,
             disclosures: userDisclosures,
@@ -5059,6 +5171,10 @@ export class LibrarianMCPServer {
             retrievalEntropy: 0,
             retrievalInsufficient: true,
             suggestedClarifyingQuestions: [],
+            coverageGuarantee: fallbackCoverageGuarantee,
+            coverage_guarantee: fallbackCoverageGuarantee,
+            conformalCalibration: fallbackConformalCalibration,
+            conformal_calibration: fallbackConformalCalibration,
             error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
             intent: input.intent,
             workspace: resolvedPath,
@@ -5084,6 +5200,10 @@ export class LibrarianMCPServer {
             retrievalEntropy: 0,
             retrievalInsufficient: true,
             suggestedClarifyingQuestions: [],
+            coverageGuarantee: fallbackCoverageGuarantee,
+            coverage_guarantee: fallbackCoverageGuarantee,
+            conformalCalibration: fallbackConformalCalibration,
+            conformal_calibration: fallbackConformalCalibration,
             error: 'No indexed workspace available. Run bootstrap first.',
             intent: input.intent,
             disclosures: userDisclosures,
@@ -5126,10 +5246,15 @@ export class LibrarianMCPServer {
       };
 
       const decompositionPlan = await this.analyzeQueryDecomposition(input.intent, storage);
+      const conformalAlpha = requestedAlpha;
+      const conformalCalibration = await this.resolveConformalCalibrationProfile(storage, conformalAlpha);
+      const coverageGuarantee = Number((1 - conformalCalibration.alpha).toFixed(2));
       recordProgress('query_analyzed', {
         strategy: decompositionPlan.strategy,
         subQueryCount: decompositionPlan.subQueries.length,
         ambiguityCandidates: decompositionPlan.candidateSymbols.length,
+        conformalAlpha: conformalCalibration.alpha,
+        conformalTau: conformalCalibration.tau,
       });
 
       if (decompositionPlan.strategy === 'ambiguity_clarify') {
@@ -5165,6 +5290,8 @@ export class LibrarianMCPServer {
           },
           sortOrder: 'retrieval_score_desc' as const,
           aggregateConfidence,
+          coverageGuarantee,
+          conformalCalibration,
           decompositionStrategy: decompositionPlan.strategy,
           clarificationNeeded: decompositionPlan.clarificationNeeded,
           candidateSymbols: decompositionPlan.candidateSymbols,
@@ -5190,6 +5317,8 @@ export class LibrarianMCPServer {
           coverage_gaps: clarificationResult.coverageGaps,
           aggregate_confidence: this.toAggregateConfidenceAlias(clarificationResult.aggregateConfidence),
           near_misses: clarificationResult.nearMisses,
+          coverage_guarantee: clarificationResult.coverageGuarantee,
+          conformal_calibration: clarificationResult.conformalCalibration,
           decomposition_strategy: clarificationResult.decompositionStrategy,
           clarification_needed: clarificationResult.clarificationNeeded,
           candidate_symbols: clarificationResult.candidateSymbols,
@@ -5231,6 +5360,9 @@ export class LibrarianMCPServer {
       const decomposedIntents = decompositionPlan.strategy === 'multi_hop_parallel'
         ? decompositionPlan.subQueries
         : [input.intent];
+      const effectiveMinConfidence = typeof input.minConfidence === 'number'
+        ? Math.min(input.minConfidence, conformalCalibration.tau)
+        : conformalCalibration.tau;
 
       // Build query object
       const query = {
@@ -5239,7 +5371,7 @@ export class LibrarianMCPServer {
         affectedFiles: mergedAffectedFiles,
         filter: input.filter,
         workingFile: normalizedWorkingFile,
-        minConfidence: input.minConfidence,
+        minConfidence: effectiveMinConfidence,
         depth: (input.depth as 'L0' | 'L1' | 'L2' | 'L3') ?? 'L1',
       };
       if (sessionState && preLoopMetrics && this.config.loopDetection.autoEscalateStrategy) {
@@ -5251,6 +5383,8 @@ export class LibrarianMCPServer {
         contextHintFiles: injectedContextHintFiles.length,
         episodicHintFiles: injectedEpisodicFiles.length,
         recencyWeight,
+        conformalAlpha: conformalCalibration.alpha,
+        conformalTau: conformalCalibration.tau,
         intentType: query.intentType ?? 'general',
         depth: query.depth,
         streamEnabled,
@@ -5339,6 +5473,8 @@ export class LibrarianMCPServer {
           },
           sortOrder: 'retrieval_score_desc' as const,
           aggregateConfidence,
+          coverageGuarantee,
+          conformalCalibration,
           recencyWeightUsed: recencyWeight,
           recencyBoostedFiles: episodicBoostedFiles.length > 0 ? episodicBoostedFiles : undefined,
           decompositionStrategy: decompositionPlan.strategy,
@@ -5376,6 +5512,8 @@ export class LibrarianMCPServer {
           coverage_gaps: timeoutResult.coverageGaps,
           aggregate_confidence: this.toAggregateConfidenceAlias(timeoutResult.aggregateConfidence),
           near_misses: timeoutResult.nearMisses,
+          coverage_guarantee: timeoutResult.coverageGuarantee,
+          conformal_calibration: timeoutResult.conformalCalibration,
           recency_weight_used: timeoutResult.recencyWeightUsed,
           recency_boosted_files: timeoutResult.recencyBoostedFiles,
           decomposition_strategy: timeoutResult.decompositionStrategy,
@@ -5524,6 +5662,8 @@ export class LibrarianMCPServer {
         pagination,
         sortOrder: 'retrieval_score_desc',
         aggregateConfidence,
+        coverageGuarantee,
+        conformalCalibration,
         recencyWeightUsed: recencyWeight,
         recencyBoostedFiles: episodicBoostedFiles.length > 0 ? episodicBoostedFiles : undefined,
         stalenessWarning,
@@ -5583,6 +5723,8 @@ export class LibrarianMCPServer {
         ...resultWithHumanReview,
         coverage_gaps: resultWithHumanReview.coverageGaps,
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
+        coverage_guarantee: resultWithHumanReview.coverageGuarantee,
+        conformal_calibration: resultWithHumanReview.conformalCalibration,
         recency_weight_used: resultWithHumanReview.recencyWeightUsed,
         recency_boosted_files: resultWithHumanReview.recencyBoostedFiles,
         staleness_warning: resultWithHumanReview.stalenessWarning,
@@ -5665,6 +5807,10 @@ export class LibrarianMCPServer {
         coverage_gaps: [],
         nearMisses: [],
         near_misses: [],
+        coverageGuarantee: fallbackCoverageGuarantee,
+        coverage_guarantee: fallbackCoverageGuarantee,
+        conformalCalibration: fallbackConformalCalibration,
+        conformal_calibration: fallbackConformalCalibration,
         error: parsedError.userMessage || 'Query failed.',
         intent: input.intent,
         disclosures: userDisclosures,
