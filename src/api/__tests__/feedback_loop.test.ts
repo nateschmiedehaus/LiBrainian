@@ -160,6 +160,41 @@ describe('Feedback Loop Integration', () => {
       expect(result.disclosures.some((entry) => entry.includes('unverified_by_trace(replay_unavailable)'))).toBe(true);
     });
 
+    it('records query access logs when retrieval targets are returned', async () => {
+      const { queryLibrarian } = await import('../query.js');
+      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
+      await storage.initialize();
+      await seedStorageForQuery(storage, 'src/auth.ts');
+
+      const firstResult = await queryLibrarian(
+        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        storage
+      );
+      const secondResult = await queryLibrarian(
+        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        storage
+      );
+
+      if (typeof storage.getQueryAccessLogs !== 'function') {
+        throw new Error('getQueryAccessLogs is required');
+      }
+
+      const returnedTargets = new Set(
+        [...firstResult.packs, ...secondResult.packs]
+          .map((pack) => (typeof pack.targetId === 'string' ? pack.targetId.trim() : ''))
+          .filter((targetId) => targetId.length > 0)
+      );
+      const logs = await storage.getQueryAccessLogs({ limit: 50 });
+      if (returnedTargets.size === 0) {
+        expect(logs.length).toBe(0);
+        return;
+      }
+
+      expect(logs.length).toBeGreaterThan(0);
+      const totalCount = logs.reduce((sum, entry) => sum + entry.queryCount, 0);
+      expect(totalCount).toBeGreaterThanOrEqual(2);
+    });
+
     it('records construction plan evidence when ledger is provided', async () => {
       const { queryLibrarian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);

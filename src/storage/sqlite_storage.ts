@@ -34,6 +34,10 @@ import type {
   RetrievalStrategyReward,
   RetrievalStrategySelection,
   RetrievalStrategySelectionQueryOptions,
+  QueryAccessLogEntry,
+  QueryAccessLogQueryOptions,
+  ExplorationSuggestion,
+  ExplorationSuggestionQueryOptions,
   EvolutionOutcome,
   EvolutionOutcomeQueryOptions,
   LearnedMissingContext,
@@ -743,6 +747,16 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       );
       CREATE INDEX IF NOT EXISTS idx_retrieval_strategy_queries_intent ON retrieval_strategy_queries(intent_type);
       CREATE INDEX IF NOT EXISTS idx_retrieval_strategy_queries_strategy ON retrieval_strategy_queries(strategy_id);
+
+      CREATE TABLE IF NOT EXISTS query_access_log (
+        entity_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        last_queried_at TEXT NOT NULL,
+        query_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (entity_id, entity_type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_query_access_log_entity_type ON query_access_log(entity_type);
+      CREATE INDEX IF NOT EXISTS idx_query_access_log_last_queried ON query_access_log(last_queried_at DESC);
     `);
   }
 
@@ -4104,6 +4118,133 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       feedbackOutcome: row.feedback_outcome ?? undefined,
       feedbackRecordedAt: row.feedback_recorded_at ?? undefined,
     }));
+  }
+
+  async recordQueryAccessLogs(entries: QueryAccessLogEntry[]): Promise<void> {
+    if (!entries.length) return;
+    const db = this.ensureDb();
+    const upsert = db.prepare(`
+      INSERT INTO query_access_log (entity_id, entity_type, last_queried_at, query_count)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(entity_id, entity_type) DO UPDATE SET
+        query_count = query_access_log.query_count + excluded.query_count,
+        last_queried_at = CASE
+          WHEN excluded.last_queried_at > query_access_log.last_queried_at THEN excluded.last_queried_at
+          ELSE query_access_log.last_queried_at
+        END
+    `);
+    const tx = db.transaction((rows: QueryAccessLogEntry[]) => {
+      for (const row of rows) {
+        if (row.entityType !== 'function' && row.entityType !== 'module') continue;
+        if (typeof row.entityId !== 'string' || row.entityId.trim().length === 0) continue;
+        const count = Math.max(1, Number.isFinite(row.queryCount) ? Math.trunc(row.queryCount) : 1);
+        const timestamp = typeof row.lastQueriedAt === 'string' && row.lastQueriedAt.trim().length > 0
+          ? row.lastQueriedAt
+          : new Date().toISOString();
+        upsert.run(row.entityId.trim(), row.entityType, timestamp, count);
+      }
+    });
+    tx(entries);
+  }
+
+  async getQueryAccessLogs(options: QueryAccessLogQueryOptions = {}): Promise<QueryAccessLogEntry[]> {
+    const db = this.ensureDb();
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (options.entityType) {
+      clauses.push('entity_type = ?');
+      params.push(options.entityType);
+    }
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const limit = typeof options.limit === 'number' && Number.isFinite(options.limit)
+      ? Math.max(1, Math.min(5000, Math.trunc(options.limit)))
+      : 200;
+    const rows = db.prepare(`
+      SELECT entity_id, entity_type, last_queried_at, query_count
+      FROM query_access_log
+      ${whereClause}
+      ORDER BY query_count DESC, last_queried_at DESC
+      LIMIT ?
+    `).all(...params, limit) as QueryAccessLogRow[];
+    return rows.map((row) => ({
+      entityId: row.entity_id,
+      entityType: row.entity_type,
+      lastQueriedAt: row.last_queried_at,
+      queryCount: row.query_count,
+    }));
+  }
+
+  async getExplorationSuggestions(
+    options: ExplorationSuggestionQueryOptions = {}
+  ): Promise<ExplorationSuggestion[]> {
+    const db = this.ensureDb();
+    const entityType = options.entityType ?? 'module';
+    const limit = typeof options.limit === 'number' && Number.isFinite(options.limit)
+      ? Math.max(1, Math.min(200, Math.trunc(options.limit)))
+      : 5;
+    const metricRows = db.prepare(`
+      SELECT
+        gm.entity_id,
+        gm.entity_type,
+        gm.pagerank,
+        gm.betweenness,
+        gm.closeness,
+        gm.eigenvector,
+        qal.query_count,
+        qal.last_queried_at
+      FROM librarian_graph_metrics gm
+      LEFT JOIN query_access_log qal
+        ON qal.entity_id = gm.entity_id
+       AND qal.entity_type = gm.entity_type
+      WHERE gm.entity_type = ?
+      ORDER BY gm.pagerank DESC
+      LIMIT 5000
+    `).all(entityType) as ExplorationMetricRow[];
+    if (metricRows.length === 0) return [];
+
+    const entityIds = metricRows.map((row) => row.entity_id);
+    const dependentCounts = new Map<string, number>();
+    if (entityIds.length > 0) {
+      const placeholders = entityIds.map(() => '?').join(',');
+      const dependentRows = db.prepare(`
+        SELECT to_id AS entity_id, COUNT(*) AS dependent_count
+        FROM librarian_graph_edges
+        WHERE to_type = ?
+          AND to_id IN (${placeholders})
+        GROUP BY to_id
+      `).all(entityType, ...entityIds) as ExplorationDependentRow[];
+      for (const row of dependentRows) {
+        dependentCounts.set(row.entity_id, row.dependent_count);
+      }
+    }
+
+    const scored = metricRows
+      .map((row) => {
+        const queryCount = Math.max(0, row.query_count ?? 0);
+        const centralityScore = (row.pagerank + row.betweenness + row.closeness + row.eigenvector) / 4;
+        const denominator = Math.log(1 + Math.max(1, queryCount));
+        const explorationValue = centralityScore / (denominator > 0 ? denominator : 1);
+        const dependentCount = dependentCounts.get(row.entity_id) ?? 0;
+        const rationale = queryCount === 0
+          ? `High-centrality ${row.entity_type} has never been queried${dependentCount > 0 ? ` and has ${dependentCount} dependents` : ''}.`
+          : `High-centrality ${row.entity_type} has low exploration relative to query_count=${queryCount}${dependentCount > 0 ? ` and ${dependentCount} dependents` : ''}.`;
+        return {
+          entityId: row.entity_id,
+          entityType: row.entity_type,
+          centralityScore,
+          queryCount,
+          explorationValue,
+          lastQueriedAt: row.last_queried_at ?? undefined,
+          dependentCount,
+          rationale,
+        };
+      })
+      .sort((a, b) => (b.explorationValue - a.explorationValue)
+        || (b.centralityScore - a.centralityScore)
+        || (a.queryCount - b.queryCount)
+        || a.entityId.localeCompare(b.entityId));
+
+    return scored.slice(0, limit);
   }
 
   private ensureVectorIndex(): VectorIndex | null {
@@ -7578,6 +7719,29 @@ interface RetrievalStrategySelectionRow {
   created_at: string;
   feedback_outcome: 'success' | 'failure' | 'partial' | null;
   feedback_recorded_at: string | null;
+}
+
+interface QueryAccessLogRow {
+  entity_id: string;
+  entity_type: 'function' | 'module';
+  last_queried_at: string;
+  query_count: number;
+}
+
+interface ExplorationMetricRow {
+  entity_id: string;
+  entity_type: 'function' | 'module';
+  pagerank: number;
+  betweenness: number;
+  closeness: number;
+  eigenvector: number;
+  query_count: number | null;
+  last_queried_at: string | null;
+}
+
+interface ExplorationDependentRow {
+  entity_id: string;
+  dependent_count: number;
 }
 
 interface IndexingHistoryRow {

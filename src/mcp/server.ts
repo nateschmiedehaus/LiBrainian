@@ -61,6 +61,7 @@ import {
   type SubmitFeedbackToolInput,
   type FeedbackRetrievalResultToolInput,
   type GetRetrievalStatsToolInput,
+  type GetExplorationSuggestionsToolInput,
   type ExplainFunctionToolInput,
   type FindCallersToolInput,
   type FindCalleesToolInput,
@@ -399,6 +400,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   feedback_retrieval_result: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 900 },
   get_retrieval_stats: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
+  get_exploration_suggestions: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1100 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_callers: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
   find_callees: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
@@ -2106,6 +2108,19 @@ export class LibrarianMCPServer {
         },
       },
       {
+        name: 'get_exploration_suggestions',
+        description: 'Surface high-centrality, underqueried code entities (dark zones) for proactive exploration',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            entityType: { type: 'string', enum: ['function', 'module'], description: 'Entity type filter (default module)' },
+            limit: { type: 'number', description: 'Maximum suggestions to return (default 5, max 200)' },
+          },
+          required: [],
+        },
+      },
+      {
         name: 'verify_claim',
         description: 'Verify a knowledge claim against evidence (discover claimId via find_symbol kind=claim)',
         inputSchema: {
@@ -3586,6 +3601,8 @@ export class LibrarianMCPServer {
         return this.executeFeedbackRetrievalResult(args as FeedbackRetrievalResultToolInput);
       case 'get_retrieval_stats':
         return this.executeGetRetrievalStats(args as GetRetrievalStatsToolInput);
+      case 'get_exploration_suggestions':
+        return this.executeGetExplorationSuggestions(args as GetExplorationSuggestionsToolInput);
       case 'find_symbol':
         return this.executeFindSymbol(args as FindSymbolToolInput, context);
       case 'verify_claim':
@@ -7426,6 +7443,60 @@ export class LibrarianMCPServer {
       return {
         success: false,
         tool: 'get_retrieval_stats',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeGetExplorationSuggestions(input: GetExplorationSuggestionsToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (typeof input.workspace === 'string' && input.workspace.trim().length > 0) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        workspacePath = this.findReadyWorkspace()?.path
+          ?? this.state.workspaces.keys().next().value
+          ?? this.config.workspaces[0];
+      }
+      if (!workspacePath) {
+        return {
+          success: false,
+          tool: 'get_exploration_suggestions',
+          error: 'No workspace available. Provide workspace or run bootstrap first.',
+        };
+      }
+
+      const resolvedWorkspace = path.resolve(workspacePath);
+      if (!this.state.workspaces.has(resolvedWorkspace)) {
+        this.registerWorkspace(resolvedWorkspace);
+      }
+      const storage = await this.getOrCreateStorage(resolvedWorkspace);
+      if (typeof storage.getExplorationSuggestions !== 'function') {
+        return {
+          success: false,
+          tool: 'get_exploration_suggestions',
+          workspace: resolvedWorkspace,
+          error: 'Storage backend does not support exploration suggestions.',
+        };
+      }
+
+      const entityType = input.entityType === 'function' ? 'function' : 'module';
+      const limit = typeof input.limit === 'number' && Number.isFinite(input.limit)
+        ? Math.max(1, Math.min(200, Math.trunc(input.limit)))
+        : 5;
+      const suggestions = await storage.getExplorationSuggestions({ entityType, limit });
+      return {
+        success: true,
+        tool: 'get_exploration_suggestions',
+        workspace: resolvedWorkspace,
+        entityType,
+        limit,
+        suggestions,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'get_exploration_suggestions',
         error: error instanceof Error ? error.message : String(error),
       };
     }

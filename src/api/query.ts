@@ -3,7 +3,16 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { glob } from 'glob';
-import type { LibrarianStorage, SimilarityResult, QueryCacheEntry, MultiVectorRecord, MultiVectorQueryOptions, StorageCapabilities, EmbeddableEntityType } from '../storage/types.js';
+import type {
+  LibrarianStorage,
+  SimilarityResult,
+  QueryCacheEntry,
+  MultiVectorRecord,
+  MultiVectorQueryOptions,
+  StorageCapabilities,
+  EmbeddableEntityType,
+  QueryAccessLogEntry,
+} from '../storage/types.js';
 import type {
   LibrarianQuery,
   LibrarianResponse,
@@ -1946,6 +1955,7 @@ export async function queryLibrarian(
         await cacheStore.recordQueryCacheAccess(cacheKey);
       }
       for (const pack of cachedResponse.packs) await storage.recordContextPackAccess(pack.packId);
+      await recordQueryAccessLogsForPacks(storage, cachedResponse.packs, getNow());
       void globalEventBus.emit(createQueryCompleteEvent(queryId, cachedResponse.packs.length, true, cachedResponse.latencyMs, traceSessionId));
       if (traceOptions.evidenceLedger && traceSessionId) {
         void appendQueryEvidence(traceOptions.evidenceLedger, traceSessionId, 'query_start', {
@@ -2022,6 +2032,7 @@ export async function queryLibrarian(
         await cacheStore.recordQueryCacheAccess(semanticCached.matchedKey);
       }
       for (const pack of cachedResponse.packs) await storage.recordContextPackAccess(pack.packId);
+      await recordQueryAccessLogsForPacks(storage, cachedResponse.packs, getNow());
       void globalEventBus.emit(createQueryCompleteEvent(queryId, cachedResponse.packs.length, true, cachedResponse.latencyMs, traceSessionId));
       if (traceOptions.evidenceLedger && traceSessionId) {
         void appendQueryEvidence(traceOptions.evidenceLedger, traceSessionId, 'query_start', {
@@ -3197,6 +3208,7 @@ export async function queryLibrarian(
     retrievalStrategyId: selectedRetrievalStrategy,
     retrievalIntentType: retrievalIntentType,
   }, storage);
+  await recordQueryAccessLogsForPacks(storage, finalPacks, getNow());
   await selectAndRecordRetrievalStrategy(
     storage,
     feedbackToken,
@@ -8333,6 +8345,50 @@ async function logRetrievalConfidenceObservation(
     await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
   } catch {
     // Logging must never break query execution.
+  }
+}
+
+function inferQueryAccessEntityType(pack: ContextPack): QueryAccessLogEntry['entityType'] | null {
+  if (pack.packType === 'module_context' || pack.packType === 'project_understanding') {
+    return 'module';
+  }
+  return 'function';
+}
+
+function buildQueryAccessLogEntries(packs: ContextPack[], timestamp: string): QueryAccessLogEntry[] {
+  const counts = new Map<string, QueryAccessLogEntry>();
+  for (const pack of packs) {
+    if (typeof pack.targetId !== 'string' || pack.targetId.trim().length === 0) continue;
+    const entityType = inferQueryAccessEntityType(pack);
+    if (!entityType) continue;
+    const key = `${entityType}:${pack.targetId}`;
+    const existing = counts.get(key);
+    if (existing) {
+      existing.queryCount += 1;
+      continue;
+    }
+    counts.set(key, {
+      entityId: pack.targetId,
+      entityType,
+      lastQueriedAt: timestamp,
+      queryCount: 1,
+    });
+  }
+  return Array.from(counts.values());
+}
+
+async function recordQueryAccessLogsForPacks(
+  storage: LibrarianStorage,
+  packs: ContextPack[],
+  timestamp: string,
+): Promise<void> {
+  if (typeof storage.recordQueryAccessLogs !== 'function') return;
+  const entries = buildQueryAccessLogEntries(packs, timestamp);
+  if (entries.length === 0) return;
+  try {
+    await storage.recordQueryAccessLogs(entries);
+  } catch {
+    // Access logging must never break query execution.
   }
 }
 

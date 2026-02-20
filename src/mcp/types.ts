@@ -1253,6 +1253,18 @@ export interface GetRetrievalStatsToolInput {
   limit?: number;
 }
 
+/** get_exploration_suggestions tool input */
+export interface GetExplorationSuggestionsToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Entity type filter (module recommended for dark-zone surfacing) */
+  entityType?: 'function' | 'module';
+
+  /** Maximum exploration suggestions returned */
+  limit?: number;
+}
+
 export interface SubmitFeedbackToolOutput {
   /** Feedback token */
   feedbackToken: string;
@@ -2136,6 +2148,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  get_exploration_suggestions: {
+    tool: 'get_exploration_suggestions',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   explain_function: {
     tool: 'explain_function',
     requiredScopes: ['read'],
@@ -2854,6 +2872,20 @@ export function isGetRetrievalStatsToolInput(value: unknown): value is GetRetrie
     ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 1000
     : typeof obj.limit === 'undefined';
   return workspaceOk && intentTypeOk && limitOk;
+}
+
+/** Type guard for GetExplorationSuggestionsToolInput */
+export function isGetExplorationSuggestionsToolInput(value: unknown): value is GetExplorationSuggestionsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const entityTypeOk = obj.entityType === 'function'
+    || obj.entityType === 'module'
+    || typeof obj.entityType === 'undefined';
+  const limitOk = typeof obj.limit === 'number'
+    ? Number.isFinite(obj.limit) && obj.limit >= 1 && obj.limit <= 200
+    : typeof obj.limit === 'undefined';
+  return workspaceOk && entityTypeOk && limitOk;
 }
 
 /** Type guard for ExplainFunctionToolInput */

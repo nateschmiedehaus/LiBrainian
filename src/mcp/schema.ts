@@ -347,6 +347,15 @@ export const GetRetrievalStatsToolInputSchema = z.object({
 }).strict().default({});
 
 /**
+ * get_exploration_suggestions tool input schema
+ */
+export const GetExplorationSuggestionsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  entityType: z.enum(['function', 'module']).optional().default('module').describe('Entity type filter (module recommended)'),
+  limit: z.number().int().min(1).max(200).optional().default(5).describe('Maximum suggestions to return (default 5, max 200)'),
+}).strict().default({});
+
+/**
  * Explain function tool input schema
  */
 export const ExplainFunctionToolInputSchema = z.object({
@@ -717,6 +726,7 @@ export type MemoryDeleteToolInputType = z.infer<typeof MemoryDeleteToolInputSche
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type FeedbackRetrievalResultToolInputType = z.infer<typeof FeedbackRetrievalResultToolInputSchema>;
 export type GetRetrievalStatsToolInputType = z.infer<typeof GetRetrievalStatsToolInputSchema>;
+export type GetExplorationSuggestionsToolInputType = z.infer<typeof GetExplorationSuggestionsToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindCallersToolInputType = z.infer<typeof FindCallersToolInputSchema>;
 export type FindCalleesToolInputType = z.infer<typeof FindCalleesToolInputSchema>;
@@ -795,6 +805,7 @@ export const TOOL_INPUT_SCHEMAS = {
   submit_feedback: SubmitFeedbackToolInputSchema,
   feedback_retrieval_result: FeedbackRetrievalResultToolInputSchema,
   get_retrieval_stats: GetRetrievalStatsToolInputSchema,
+  get_exploration_suggestions: GetExplorationSuggestionsToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_callers: FindCallersToolInputSchema,
   find_callees: FindCalleesToolInputSchema,
@@ -1318,6 +1329,22 @@ export const getRetrievalStatsToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** get_exploration_suggestions tool JSON Schema */
+export const getExplorationSuggestionsToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/get-exploration-suggestions-tool-input',
+  title: 'GetExplorationSuggestionsToolInput',
+  description: 'Input for get_exploration_suggestions - surface high-centrality low-query dark zones for exploration',
+  type: 'object',
+  properties: {
+    workspace: { type: 'string', description: 'Workspace path' },
+    entityType: { type: 'string', enum: ['function', 'module'], description: 'Entity type filter', default: 'module' },
+    limit: { type: 'number', description: 'Maximum suggestions to return', minimum: 1, maximum: 200, default: 5 },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
 /** Explain function tool JSON Schema */
 export const explainFunctionToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -1640,6 +1667,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   submit_feedback: submitFeedbackToolJsonSchema,
   feedback_retrieval_result: feedbackRetrievalResultToolJsonSchema,
   get_retrieval_stats: getRetrievalStatsToolJsonSchema,
+  get_exploration_suggestions: getExplorationSuggestionsToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
   get_repo_map: getRepoMapToolJsonSchema,
 };

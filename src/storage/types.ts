@@ -200,6 +200,9 @@ export interface LibrarianStorage {
     outcome?: 'success' | 'failure' | 'partial'
   ): Promise<RetrievalStrategyReward | null>;
   getRetrievalStrategySelections?(options?: RetrievalStrategySelectionQueryOptions): Promise<RetrievalStrategySelection[]>;
+  recordQueryAccessLogs?(entries: QueryAccessLogEntry[]): Promise<void>;
+  getQueryAccessLogs?(options?: QueryAccessLogQueryOptions): Promise<QueryAccessLogEntry[]>;
+  getExplorationSuggestions?(options?: ExplorationSuggestionQueryOptions): Promise<ExplorationSuggestion[]>;
 
   // Evolution outcomes (for learning/adaptation) - REQUIRED for self-evolution
   recordEvolutionOutcome(outcome: EvolutionOutcome): Promise<void>;
@@ -987,6 +990,34 @@ export interface RetrievalStrategySelection {
 
 export interface RetrievalStrategySelectionQueryOptions {
   intentType?: string;
+  limit?: number;
+}
+
+export interface QueryAccessLogEntry {
+  entityId: string;
+  entityType: 'function' | 'module';
+  lastQueriedAt: string;
+  queryCount: number;
+}
+
+export interface QueryAccessLogQueryOptions {
+  entityType?: 'function' | 'module';
+  limit?: number;
+}
+
+export interface ExplorationSuggestion {
+  entityId: string;
+  entityType: 'function' | 'module';
+  centralityScore: number;
+  queryCount: number;
+  explorationValue: number;
+  lastQueriedAt?: string;
+  dependentCount?: number;
+  rationale: string;
+}
+
+export interface ExplorationSuggestionQueryOptions {
+  entityType?: 'function' | 'module';
   limit?: number;
 }
 

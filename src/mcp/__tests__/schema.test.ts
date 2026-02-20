@@ -41,6 +41,7 @@ import {
   SubmitFeedbackToolInputSchema,
   FeedbackRetrievalResultToolInputSchema,
   GetRetrievalStatsToolInputSchema,
+  GetExplorationSuggestionsToolInputSchema,
   ExplainFunctionToolInputSchema,
   FindCallersToolInputSchema,
   FindCalleesToolInputSchema,
@@ -85,6 +86,7 @@ import {
   isSubmitFeedbackToolInput,
   isFeedbackRetrievalResultToolInput,
   isGetRetrievalStatsToolInput,
+  isGetExplorationSuggestionsToolInput,
   isExplainFunctionToolInput,
   isFindCallersToolInput,
   isFindCalleesToolInput,
@@ -134,6 +136,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('submit_feedback');
       expect(schemas).toContain('feedback_retrieval_result');
       expect(schemas).toContain('get_retrieval_stats');
+      expect(schemas).toContain('get_exploration_suggestions');
       expect(schemas).toContain('explain_function');
       expect(schemas).toContain('find_callers');
       expect(schemas).toContain('find_callees');
@@ -167,7 +170,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_update');
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(55);
+      expect(schemas).toHaveLength(56);
     });
 
     it('should return schema for known tools', () => {
@@ -643,6 +646,29 @@ describe('MCP Schema', () => {
       expect(isGetRetrievalStatsToolInput({})).toBe(true);
       expect(isGetRetrievalStatsToolInput({ intentType: 'understand', limit: 25 })).toBe(true);
       expect(isGetRetrievalStatsToolInput({ limit: -1 })).toBe(false);
+    });
+  });
+
+  describe('Get Exploration Suggestions Tool Schema', () => {
+    it('should validate optional fields', () => {
+      const result = validateToolInput('get_exploration_suggestions', {
+        entityType: 'module',
+        limit: 10,
+      });
+      expect(result.valid).toBe(true);
+      expect(GetExplorationSuggestionsToolInputSchema).toBeDefined();
+    });
+
+    it('should reject invalid entityType or limit', () => {
+      expect(validateToolInput('get_exploration_suggestions', { entityType: 'file' }).valid).toBe(false);
+      expect(validateToolInput('get_exploration_suggestions', { limit: 0 }).valid).toBe(false);
+      expect(validateToolInput('get_exploration_suggestions', { limit: 201 }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isGetExplorationSuggestionsToolInput({})).toBe(true);
+      expect(isGetExplorationSuggestionsToolInput({ entityType: 'function', limit: 5 })).toBe(true);
+      expect(isGetExplorationSuggestionsToolInput({ entityType: 'bad' })).toBe(false);
     });
   });
 
