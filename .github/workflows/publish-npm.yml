@@ -58,6 +58,9 @@ jobs:
       - name: Build and pack
         run: npm run release:pack
 
+      - name: Outcome-based E2E diagnostics gate
+        run: npm run test:e2e:outcome
+
       - name: Strict external tarball E2E gate
         run: npm run test:e2e:reality:tarball
 

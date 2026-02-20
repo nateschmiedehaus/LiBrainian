@@ -28,6 +28,9 @@ jobs:
       - name: Verify npm freshness gate
         run: npm run policy:npm:fresh
 
+      - name: Outcome-based E2E diagnostics gate (strict)
+        run: npm run test:e2e:outcome
+
       - name: Published-package black-box E2E (strict)
         run: npm run test:e2e:reality
 

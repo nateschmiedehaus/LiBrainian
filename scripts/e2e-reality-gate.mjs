@@ -7,6 +7,7 @@ function parseArgs(argv) {
   const options = {
     source: 'latest',
     artifact: 'state/e2e/reality-gate.json',
+    outcomeArtifact: 'state/e2e/outcome-report.json',
     strict: false,
   };
 
@@ -32,6 +33,15 @@ function parseArgs(argv) {
     }
     if (arg === '--strict') {
       options.strict = true;
+      continue;
+    }
+    if (arg === '--outcome-artifact') {
+      const value = argv[i + 1];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --outcome-artifact');
+      }
+      i += 1;
+      options.outcomeArtifact = value;
       continue;
     }
     throw new Error(`Unknown argument: ${arg}`);
@@ -63,6 +73,47 @@ function runRealityScript(options) {
   }
 }
 
+function runOutcomeHarness(options) {
+  const markdownPath = options.outcomeArtifact.endsWith('.json')
+    ? `${options.outcomeArtifact.slice(0, -5)}.md`
+    : `${options.outcomeArtifact}.md`;
+  const args = [
+    'scripts/e2e-outcome-harness.mjs',
+    '--artifact',
+    options.outcomeArtifact,
+    '--markdown',
+    markdownPath,
+  ];
+  if (options.strict) {
+    args.push('--strict');
+  }
+  const result = spawnSync(process.execPath, args, {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: 'utf8',
+    stdio: 'inherit',
+  });
+  if (result.status !== 0) {
+    throw new Error(`Outcome harness failed strict thresholds (artifact=${options.outcomeArtifact})`);
+  }
+}
+
+async function verifyOutcomeArtifact(options) {
+  const absolutePath = path.resolve(process.cwd(), options.outcomeArtifact);
+  let payload;
+  try {
+    payload = JSON.parse(await fs.readFile(absolutePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Outcome harness artifact missing or unreadable: ${absolutePath}`);
+  }
+  if (payload?.kind !== 'E2EOutcomeReport.v1') {
+    throw new Error(`Outcome harness artifact has unexpected kind (expected E2EOutcomeReport.v1)`);
+  }
+  if (payload?.status !== 'passed') {
+    throw new Error(`Outcome harness artifact status must be passed (received ${String(payload?.status ?? 'unknown')})`);
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const skipReason = String(process.env.LIBRARIAN_E2E_SKIP_REASON ?? '').trim();
@@ -86,6 +137,8 @@ async function main() {
   }
 
   runRealityScript(options);
+  runOutcomeHarness(options);
+  await verifyOutcomeArtifact(options);
   await writeArtifact(options.artifact, {
     schema_version: 1,
     kind: 'RealityGateReport.v1',

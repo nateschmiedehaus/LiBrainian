@@ -14,9 +14,10 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['policy:npm:fresh']).toBe('node scripts/npm-freshness-guard.mjs');
+    expect(scripts['test:e2e:outcome']).toBe('node scripts/e2e-outcome-harness.mjs --strict --artifact state/e2e/outcome-report.json --markdown state/e2e/outcome-report.md');
     expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/e2e-reality-gate.mjs --source latest --strict --artifact state/e2e/reality-latest.json');
     expect(scripts['test:e2e:reality:tarball']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --artifact state/e2e/reality-tarball.json');
-    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:reality && npm run test:e2e:reality:tarball && npm run test:e2e:acceptance');
+    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:outcome && npm run test:e2e:reality && npm run test:e2e:reality:tarball && npm run test:e2e:acceptance');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['policy:hygiene']).toBe('node scripts/git-hygiene-guard.mjs --mode warn');
     expect(scripts['policy:hygiene:enforce']).toBe('node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');
@@ -55,6 +56,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-freshness-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-external-blackbox-e2e.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-harness.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-reality-gate.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'context-pack-export.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'context-pack-diff.mjs'))).toBe(true);
@@ -101,6 +103,8 @@ describe('package release scripts', () => {
     expect(script).toContain('Strict reality gate cannot skip');
     expect(script).toContain("kind: 'RealityGateReport.v1'");
     expect(script).toContain("'scripts/npm-external-blackbox-e2e.mjs'");
+    expect(script).toContain("'scripts/e2e-outcome-harness.mjs'");
+    expect(script).toContain('Outcome harness artifact missing');
   });
 
   it('publishes GitHub packages with repository-linked metadata for package visibility', () => {

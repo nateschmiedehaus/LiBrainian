@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "E2EOutcomeTaskbank.v1",
+  "createdAt": "2026-02-20T00:00:00.000Z",
+  "tasks": [
+    { "taskId": "UC-001", "repo": "typedriver-ts", "complexity": "T2", "prompt": "Inventory files, languages, and build tools for onboarding." },
+    { "taskId": "UC-005", "repo": "typedriver-ts", "complexity": "T2", "prompt": "Enumerate external dependencies and runtime surfaces." },
+    { "taskId": "UC-029", "repo": "typedriver-ts", "complexity": "T3", "prompt": "Map vendor and third-party boundaries." },
+    { "taskId": "UC-048", "repo": "typedriver-ts", "complexity": "T3", "prompt": "Determine observability and diagnostics touchpoints." },
+    { "taskId": "UC-067", "repo": "typedriver-ts", "complexity": "T3", "prompt": "Explain migration and compatibility pathways." },
+    { "taskId": "UC-011", "repo": "srtd-ts", "complexity": "T2", "prompt": "Produce component and module orientation context." },
+    { "taskId": "UC-020", "repo": "srtd-ts", "complexity": "T2", "prompt": "Provide architecture and ownership map." },
+    { "taskId": "UC-039", "repo": "srtd-ts", "complexity": "T3", "prompt": "Map feature-flag and behavior toggles." },
+    { "taskId": "UC-058", "repo": "srtd-ts", "complexity": "T3", "prompt": "Clarify failure domains and escalation points." },
+    { "taskId": "UC-077", "repo": "srtd-ts", "complexity": "T3", "prompt": "Map build-cache and generated artifact flow." },
+    { "taskId": "UC-002", "repo": "quickpickle-ts", "complexity": "T2", "prompt": "Identify repository entry points and key commands." },
+    { "taskId": "UC-026", "repo": "quickpickle-ts", "complexity": "T2", "prompt": "Track expertise concentration by module ownership." },
+    { "taskId": "UC-030", "repo": "quickpickle-ts", "complexity": "T3", "prompt": "Establish ownership and dependency boundaries." },
+    { "taskId": "UC-049", "repo": "quickpickle-ts", "complexity": "T3", "prompt": "Identify user-facing risks for integration changes." },
+    { "taskId": "UC-068", "repo": "quickpickle-ts", "complexity": "T3", "prompt": "Identify data quality and correctness risk points." },
+    { "taskId": "UC-003", "repo": "reccmp-py", "complexity": "T2", "prompt": "Produce domain model overview and core entities." },
+    { "taskId": "UC-027", "repo": "reccmp-py", "complexity": "T2", "prompt": "Identify code smells and refactor opportunities." },
+    { "taskId": "UC-046", "repo": "reccmp-py", "complexity": "T3", "prompt": "Identify security-critical data and access paths." },
+    { "taskId": "UC-050", "repo": "reccmp-py", "complexity": "T3", "prompt": "Determine rollback, failure, and recovery pathways." },
+    { "taskId": "UC-069", "repo": "reccmp-py", "complexity": "T3", "prompt": "Map analytics and instrumentation coverage." }
+  ]
+}
