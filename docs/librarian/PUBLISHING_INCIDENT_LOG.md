@@ -32,15 +32,21 @@ This log tracks release/publish failures with concrete fixes and prevention chec
 - Symptom:
   - `publish-manual` job failed at `npm publish` with `ENEEDAUTH`.
 - Root cause:
-  - npm trusted publisher mapping did not match the workflow identity used by the repo.
+  - Publish workflow used Node 20, which can run an npm CLI version below trusted-publishing requirements.
+  - npm trusted publishing requires Node >= 22.14 and npm >= 11.5.1.
+  - npm trusted publisher mapping may still need verification after runtime correction.
 - Resolution:
   - Renamed workflow file and identity from `publish-npm` to `npm-publish`.
+  - Upgraded publish workflow runtime to Node 24.
+  - Added trusted-publish runtime guard:
+    - `scripts/assert-trusted-publish-runtime.mjs`
   - Updated workflow references and tests:
     - `.github/workflows/npm-publish.yml`
     - `scripts/gh-autoland.mjs`
     - `src/__tests__/npm_publish_workflow.test.ts`
 - Prevention:
   - Keep publish workflow identity test in CI.
+  - Keep trusted runtime guard in publish jobs so Node/npm drift fails fast.
   - Treat npm trusted publisher/workflow identity mismatch as first-check diagnostic.
 
 ## 2026-02-20: local npm auth fallback unavailable
@@ -79,4 +85,3 @@ This log tracks release/publish failures with concrete fixes and prevention chec
     - verify active thread count
     - close completed/stale sessions
     - then allocate 4-way issue batches.
-
