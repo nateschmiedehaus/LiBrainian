@@ -284,6 +284,23 @@ describe('MCP Server', () => {
       expect(harvestTool?.description?.toLowerCase()).toContain('memory');
     });
 
+    it('includes persistent memory CRUD/search tools', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const memoryAdd = tools.find((tool) => tool.name === 'memory_add');
+      const memorySearch = tools.find((tool) => tool.name === 'memory_search');
+      const memoryUpdate = tools.find((tool) => tool.name === 'memory_update');
+      const memoryDelete = tools.find((tool) => tool.name === 'memory_delete');
+
+      expect(memoryAdd).toBeDefined();
+      expect(memorySearch).toBeDefined();
+      expect(memoryUpdate).toBeDefined();
+      expect(memoryDelete).toBeDefined();
+      expect(memorySearch?.description?.toLowerCase()).toContain('memory');
+    });
+
     it('documents query tool usage guidance', () => {
       const tools = (server as any).getAvailableTools() as Array<{ name: string; description?: string; inputSchema?: { properties?: Record<string, { description?: string }> } }>;
       const queryTool = tools.find((tool) => tool.name === 'query');
@@ -740,6 +757,34 @@ describe('MCP Server', () => {
       expect(harvested.success).toBe(true);
       expect(harvested.summary?.totalClaims).toBe(1);
       expect(harvested.summary?.topTags?.map((entry: { tag: string }) => entry.tag)).toContain('auth');
+    });
+
+    it('supports memory_add, memory_search, memory_update, and memory_delete', async () => {
+      const added = await (server as any).executeMemoryAdd({
+        content: 'validateToken has race condition under concurrent refresh',
+        scope: 'function',
+        scopeKey: 'validateToken',
+      });
+      expect(added.success).toBe(true);
+      expect(added.fact?.id).toBeDefined();
+
+      const searched = await (server as any).executeMemorySearch({
+        query: 'token validation race',
+      });
+      expect(searched.success).toBe(true);
+      expect(searched.total).toBeGreaterThanOrEqual(1);
+
+      const memoryId = added.fact.id as string;
+      const updated = await (server as any).executeMemoryUpdate({
+        id: memoryId,
+        content: 'validateToken has known race condition during refresh retries',
+      });
+      expect(updated.success).toBe(true);
+      expect(updated.fact?.content).toContain('refresh retries');
+
+      const deleted = await (server as any).executeMemoryDelete({ id: memoryId });
+      expect(deleted.success).toBe(true);
+      expect(deleted.deleted).toBe(true);
     });
   });
 

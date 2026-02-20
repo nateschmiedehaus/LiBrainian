@@ -4,6 +4,13 @@ import { parseArgs } from 'node:util';
 import { CliError } from '../errors.js';
 import type { MemoryBridgeState } from '../../memory_bridge/entry.js';
 import { setSessionCoreMemory } from '../../memory/session_store.js';
+import {
+  addMemoryFact,
+  deleteMemoryFact,
+  getMemoryStoreStats,
+  searchMemoryFacts,
+  updateMemoryFact,
+} from '../../memory/fact_store.js';
 
 export interface MemoryBridgeCommandOptions {
   workspace: string;
@@ -11,7 +18,7 @@ export interface MemoryBridgeCommandOptions {
   rawArgs: string[];
 }
 
-type MemoryBridgeAction = 'status' | 'remember';
+type MemoryBridgeAction = 'status' | 'remember' | 'add' | 'search' | 'update' | 'delete';
 
 interface MemoryBridgeStatusReport {
   success: boolean;
@@ -31,8 +38,12 @@ const STATE_FILE_NAME = '.librainian-memory-bridge.json';
 function toAction(value: string | undefined): MemoryBridgeAction {
   if (value === 'status') return value;
   if (value === 'remember') return value;
+  if (value === 'add') return value;
+  if (value === 'search') return value;
+  if (value === 'update') return value;
+  if (value === 'delete') return value;
   throw new CliError(
-    `Unknown or missing action: ${value ?? '<none>'}. Usage: librarian memory-bridge <status|remember> [...]`,
+    `Unknown or missing action: ${value ?? '<none>'}. Usage: librarian memory-bridge <status|remember|add|search|update|delete> [...]`,
     'INVALID_ARGUMENT',
   );
 }
@@ -110,6 +121,12 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
     options: {
       json: { type: 'boolean', default: false },
       'memory-file': { type: 'string' },
+      scope: { type: 'string' },
+      'scope-key': { type: 'string' },
+      source: { type: 'string' },
+      confidence: { type: 'string' },
+      evergreen: { type: 'boolean', default: false },
+      limit: { type: 'string' },
     },
     allowPositionals: true,
     strict: false,
@@ -146,6 +163,111 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
     return;
   }
 
+  if (action === 'add') {
+    const content = (positionals.slice(1).join(' ') || options.args.slice(1).join(' ')).trim();
+    if (!content) {
+      throw new CliError('Usage: librarian memory-bridge add <content> [--scope codebase|module|function] [--scope-key <id>]', 'INVALID_ARGUMENT');
+    }
+    const sourceRaw = typeof values.source === 'string' ? values.source.trim() : '';
+    const source = sourceRaw === 'agent' || sourceRaw === 'analysis' || sourceRaw === 'user'
+      ? sourceRaw
+      : undefined;
+    const scopeRaw = typeof values.scope === 'string' ? values.scope.trim() : '';
+    const scope = scopeRaw === 'codebase' || scopeRaw === 'module' || scopeRaw === 'function'
+      ? scopeRaw
+      : undefined;
+    const confidenceRaw = typeof values.confidence === 'string' ? Number.parseFloat(values.confidence) : undefined;
+    const result = await addMemoryFact(options.workspace, {
+      content,
+      scope,
+      scopeKey: typeof values['scope-key'] === 'string' ? values['scope-key'] : undefined,
+      source,
+      confidence: Number.isFinite(confidenceRaw ?? NaN) ? confidenceRaw : undefined,
+      evergreen: Boolean(values.evergreen),
+    });
+    const payload = {
+      success: true,
+      action: 'add' as const,
+      dedupeAction: result.action,
+      fact: result.fact,
+    };
+    const jsonMode = Boolean(values.json) || options.rawArgs.includes('--json');
+    if (jsonMode) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.log(`${result.action === 'added' ? 'Added' : 'Updated'} memory fact ${result.fact.id}`);
+      console.log(result.fact.content);
+    }
+    return;
+  }
+
+  if (action === 'search') {
+    const query = (positionals.slice(1).join(' ') || options.args.slice(1).join(' ')).trim();
+    if (!query) {
+      throw new CliError('Usage: librarian memory-bridge search <query> [--limit <n>]', 'INVALID_ARGUMENT');
+    }
+    const limitRaw = typeof values.limit === 'string' ? Number.parseInt(values.limit, 10) : undefined;
+    const limit = Number.isFinite(limitRaw ?? NaN) ? limitRaw : undefined;
+    const results = await searchMemoryFacts(options.workspace, query, {
+      limit,
+      scopeKey: typeof values['scope-key'] === 'string' ? values['scope-key'] : undefined,
+      minScore: 0.1,
+    });
+    const payload = {
+      success: true,
+      action: 'search' as const,
+      query,
+      total: results.length,
+      results,
+    };
+    const jsonMode = Boolean(values.json) || options.rawArgs.includes('--json');
+    if (jsonMode) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.log(`Memory search results (${results.length})`);
+      for (const row of results) {
+        console.log(`- [${row.id}] score=${row.score.toFixed(2)} ${row.content}`);
+      }
+    }
+    return;
+  }
+
+  if (action === 'update') {
+    const id = (positionals[1] ?? options.args[1] ?? '').trim();
+    const content = (positionals.slice(2).join(' ') || options.args.slice(2).join(' ')).trim();
+    if (!id || !content) {
+      throw new CliError('Usage: librarian memory-bridge update <id> <content>', 'INVALID_ARGUMENT');
+    }
+    const fact = await updateMemoryFact(options.workspace, id, content);
+    const payload = { success: true, action: 'update' as const, fact };
+    const jsonMode = Boolean(values.json) || options.rawArgs.includes('--json');
+    if (jsonMode) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.log(`Updated memory fact ${fact.id}`);
+      console.log(fact.content);
+    }
+    return;
+  }
+
+  if (action === 'delete') {
+    const id = (positionals[1] ?? options.args[1] ?? '').trim();
+    if (!id) {
+      throw new CliError('Usage: librarian memory-bridge delete <id>', 'INVALID_ARGUMENT');
+    }
+    const deleted = await deleteMemoryFact(options.workspace, id);
+    const payload = { success: true, action: 'delete' as const, id, deleted };
+    const jsonMode = Boolean(values.json) || options.rawArgs.includes('--json');
+    if (jsonMode) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else if (deleted) {
+      console.log(`Deleted memory fact ${id}`);
+    } else {
+      console.log(`Memory fact not found: ${id}`);
+    }
+    return;
+  }
+
   const memoryFilePath = resolveMemoryFilePath(
     options.workspace,
     typeof values['memory-file'] === 'string' ? values['memory-file'] : undefined,
@@ -153,12 +275,27 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
   const stateFilePath = path.join(path.dirname(memoryFilePath), STATE_FILE_NAME);
   const state = await loadState(stateFilePath);
   const report = toStatusReport(options.workspace, memoryFilePath, stateFilePath, state);
+  const memoryStats = await getMemoryStoreStats(options.workspace).catch(() => ({
+    totalFacts: 0,
+    oldestFactAt: null,
+    newestFactAt: null,
+  }));
+  const enrichedReport = {
+    ...report,
+    memoryFacts: memoryStats.totalFacts,
+    memoryOldestFactAt: memoryStats.oldestFactAt,
+    memoryNewestFactAt: memoryStats.newestFactAt,
+  };
   const jsonMode = Boolean(values.json) || options.rawArgs.includes('--json');
 
   if (jsonMode) {
-    console.log(JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(enrichedReport, null, 2));
     return;
   }
 
   printTextReport(report);
+  console.log(`Memory facts: ${memoryStats.totalFacts}`);
+  if (memoryStats.oldestFactAt) {
+    console.log(`Oldest memory fact: ${memoryStats.oldestFactAt}`);
+  }
 }

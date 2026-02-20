@@ -20,6 +20,7 @@ import { collectVerificationProvenance, type VerificationProvenanceReport } from
 import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 import { isOfflineModeEnabled } from '../../utils/runtime_controls.js';
 import { getTreeSitterLanguageConfigs } from '../../agents/parsers/tree_sitter_parser.js';
+import { getMemoryStoreStats } from '../../memory/fact_store.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -112,6 +113,11 @@ type StatusReport = {
     lastIndexing: string | null;
     totalFiles: number;
   } | null;
+  memory?: {
+    totalFacts: number;
+    oldestFactAt: string | null;
+    newestFactAt: string | null;
+  };
   providers?: {
     storedDefaults: { provider: string | null; model: string | null };
     status: AllProviderStatus | null;
@@ -268,13 +274,14 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   }
 
   try {
-    const [mvpBootstrapCheck, fullBootstrapCheck, lastBootstrap, indexState, metadata, schemaVersionRaw] = await Promise.all([
+    const [mvpBootstrapCheck, fullBootstrapCheck, lastBootstrap, indexState, metadata, schemaVersionRaw, memoryStats] = await Promise.all([
       isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'mvp' }),
       isBootstrapRequired(workspaceRoot, storage, { targetQualityTier: 'full' }),
       storage.getLastBootstrapReport(),
       getIndexState(storage),
       storage.getMetadata(),
       storage.getState('schema_version'),
+      getMemoryStoreStats(workspaceRoot).catch(() => ({ totalFacts: 0, oldestFactAt: null, newestFactAt: null })),
     ]);
     const schemaVersion = Number.parseInt(String(schemaVersionRaw ?? ''), 10);
     report.schema = {
@@ -313,6 +320,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         ? { completed: indexState.progress.completed, total: indexState.progress.total }
         : null,
     };
+    report.memory = memoryStats;
 
     if (format === 'text') {
       console.log('Bootstrap Status:');
@@ -359,6 +367,14 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
           { key: 'Progress', value: `${indexState.progress.completed}/${indexState.progress.total}` },
         ]);
       }
+      console.log();
+
+      console.log('Persistent Memory:');
+      printKeyValue([
+        { key: 'Memory Facts', value: memoryStats.totalFacts },
+        { key: 'Oldest Fact', value: formatTimestamp(memoryStats.oldestFactAt) },
+        { key: 'Newest Fact', value: formatTimestamp(memoryStats.newestFactAt) },
+      ]);
       console.log();
 
       console.log('Schema Status:');

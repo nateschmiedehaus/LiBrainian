@@ -334,7 +334,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'memory-bridge': {
     description: 'Show memory bridge entry and state-file health',
-    usage: 'librarian memory-bridge status [--memory-file <path>] [--json] | librarian memory-bridge remember <key> <value> [--json]',
+    usage: 'librarian memory-bridge status|remember|add|search|update|delete [options]',
   },
   'test-integration': {
     description: 'Run quantitative integration test suites (currently OpenClaw)',

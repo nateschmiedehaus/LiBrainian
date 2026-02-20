@@ -480,6 +480,10 @@ librarian memory-bridge - Inspect memory bridge state and manage session core me
 USAGE:
     librarian memory-bridge status [options]
     librarian memory-bridge remember <key> <value> [--json]
+    librarian memory-bridge add <content> [--scope codebase|module|function] [--scope-key <id>] [--json]
+    librarian memory-bridge search <query> [--limit <n>] [--json]
+    librarian memory-bridge update <id> <content> [--json]
+    librarian memory-bridge delete <id> [--json]
 
 OPTIONS:
     --memory-file <path>    Override MEMORY.md location (default: <workspace>/.openclaw/memory/MEMORY.md)
@@ -497,10 +501,17 @@ DESCRIPTION:
     Stores a key/value fact in .librarian/session.json core memory so future
     queries can receive session-core-memory disclosure context.
 
+    add/search/update/delete:
+    Manages persistent semantic memory facts in .librarian/memory.db.
+    Add operations are dedupe-aware: similar facts update existing records
+    instead of creating duplicates.
+
 EXAMPLES:
     librarian memory-bridge status
     librarian memory-bridge status --memory-file /tmp/.openclaw/memory/MEMORY.md --json
     librarian memory-bridge remember auth_model "JWT expires in 1 hour"
+    librarian memory-bridge add "validateToken has race condition under refresh" --scope function --scope-key validateToken
+    librarian memory-bridge search "token validation race"
 `,
 
   'test-integration': `

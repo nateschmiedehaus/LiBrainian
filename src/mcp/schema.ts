@@ -241,6 +241,47 @@ export const HarvestSessionKnowledgeToolInputSchema = z.object({
 }).strict().default({});
 
 /**
+ * memory_add tool input schema
+ */
+export const MemoryAddToolInputSchema = z.object({
+  content: z.string().min(1).describe('Memory fact content to persist'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  scope: z.enum(['codebase', 'module', 'function']).optional().default('codebase').describe('Memory scope'),
+  scopeKey: z.string().min(1).optional().describe('Optional scope key (module path or symbol ID)'),
+  source: z.enum(['agent', 'analysis', 'user']).optional().default('agent').describe('Fact source'),
+  confidence: z.number().min(0).max(1).optional().default(0.7).describe('Confidence score in [0,1]'),
+  evergreen: z.boolean().optional().default(false).describe('Disable age decay for this fact'),
+}).strict();
+
+/**
+ * memory_search tool input schema
+ */
+export const MemorySearchToolInputSchema = z.object({
+  query: z.string().min(1).describe('Semantic query for memory facts'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  scopeKey: z.string().min(1).optional().describe('Optional scope key filter'),
+  limit: z.number().int().min(1).max(200).optional().default(10).describe('Maximum facts to return'),
+  minScore: z.number().min(0).max(1).optional().default(0.1).describe('Minimum scored threshold'),
+}).strict();
+
+/**
+ * memory_update tool input schema
+ */
+export const MemoryUpdateToolInputSchema = z.object({
+  id: z.string().min(1).describe('Memory fact ID'),
+  content: z.string().min(1).describe('Updated memory content'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+}).strict();
+
+/**
+ * memory_delete tool input schema
+ */
+export const MemoryDeleteToolInputSchema = z.object({
+  id: z.string().min(1).describe('Memory fact ID'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+}).strict();
+
+/**
  * Submit feedback tool input schema
  */
 export const SubmitFeedbackToolInputSchema = z.object({
@@ -620,6 +661,10 @@ export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInput
 export type AppendClaimToolInputType = z.infer<typeof AppendClaimToolInputSchema>;
 export type QueryClaimsToolInputType = z.infer<typeof QueryClaimsToolInputSchema>;
 export type HarvestSessionKnowledgeToolInputType = z.infer<typeof HarvestSessionKnowledgeToolInputSchema>;
+export type MemoryAddToolInputType = z.infer<typeof MemoryAddToolInputSchema>;
+export type MemorySearchToolInputType = z.infer<typeof MemorySearchToolInputSchema>;
+export type MemoryUpdateToolInputType = z.infer<typeof MemoryUpdateToolInputSchema>;
+export type MemoryDeleteToolInputType = z.infer<typeof MemoryDeleteToolInputSchema>;
 export type SubmitFeedbackToolInputType = z.infer<typeof SubmitFeedbackToolInputSchema>;
 export type ExplainFunctionToolInputType = z.infer<typeof ExplainFunctionToolInputSchema>;
 export type FindCallersToolInputType = z.infer<typeof FindCallersToolInputSchema>;
@@ -691,6 +736,10 @@ export const TOOL_INPUT_SCHEMAS = {
   append_claim: AppendClaimToolInputSchema,
   query_claims: QueryClaimsToolInputSchema,
   harvest_session_knowledge: HarvestSessionKnowledgeToolInputSchema,
+  memory_add: MemoryAddToolInputSchema,
+  memory_search: MemorySearchToolInputSchema,
+  memory_update: MemoryUpdateToolInputSchema,
+  memory_delete: MemoryDeleteToolInputSchema,
   submit_feedback: SubmitFeedbackToolInputSchema,
   verify_claim: VerifyClaimToolInputSchema,
   find_callers: FindCallersToolInputSchema,
@@ -1048,6 +1097,75 @@ export const harvestSessionKnowledgeToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** memory_add tool JSON Schema */
+export const memoryAddToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/memory-add-tool-input',
+  title: 'MemoryAddToolInput',
+  description: 'Input for memory_add - persist a semantic memory fact',
+  type: 'object',
+  properties: {
+    content: { type: 'string', description: 'Memory fact content to persist', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional)' },
+    scope: { type: 'string', enum: ['codebase', 'module', 'function'], description: 'Memory scope', default: 'codebase' },
+    scopeKey: { type: 'string', description: 'Optional scope key (module path or symbol ID)', minLength: 1 },
+    source: { type: 'string', enum: ['agent', 'analysis', 'user'], description: 'Fact source', default: 'agent' },
+    confidence: { type: 'number', description: 'Confidence score in [0,1]', minimum: 0, maximum: 1, default: 0.7 },
+    evergreen: { type: 'boolean', description: 'Disable age decay for this fact', default: false },
+  },
+  required: ['content'],
+  additionalProperties: false,
+};
+
+/** memory_search tool JSON Schema */
+export const memorySearchToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/memory-search-tool-input',
+  title: 'MemorySearchToolInput',
+  description: 'Input for memory_search - retrieve semantically relevant memory facts',
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'Semantic query for memory facts', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional)' },
+    scopeKey: { type: 'string', description: 'Optional scope key filter', minLength: 1 },
+    limit: { type: 'number', description: 'Maximum facts to return', minimum: 1, maximum: 200, default: 10 },
+    minScore: { type: 'number', description: 'Minimum scored threshold', minimum: 0, maximum: 1, default: 0.1 },
+  },
+  required: ['query'],
+  additionalProperties: false,
+};
+
+/** memory_update tool JSON Schema */
+export const memoryUpdateToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/memory-update-tool-input',
+  title: 'MemoryUpdateToolInput',
+  description: 'Input for memory_update - update an existing memory fact',
+  type: 'object',
+  properties: {
+    id: { type: 'string', description: 'Memory fact ID', minLength: 1 },
+    content: { type: 'string', description: 'Updated memory content', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional)' },
+  },
+  required: ['id', 'content'],
+  additionalProperties: false,
+};
+
+/** memory_delete tool JSON Schema */
+export const memoryDeleteToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/memory-delete-tool-input',
+  title: 'MemoryDeleteToolInput',
+  description: 'Input for memory_delete - delete a memory fact',
+  type: 'object',
+  properties: {
+    id: { type: 'string', description: 'Memory fact ID', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional)' },
+  },
+  required: ['id'],
+  additionalProperties: false,
+};
+
 /** Submit feedback tool JSON Schema */
 export const submitFeedbackToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -1381,6 +1499,10 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   append_claim: appendClaimToolJsonSchema,
   query_claims: queryClaimsToolJsonSchema,
   harvest_session_knowledge: harvestSessionKnowledgeToolJsonSchema,
+  memory_add: memoryAddToolJsonSchema,
+  memory_search: memorySearchToolJsonSchema,
+  memory_update: memoryUpdateToolJsonSchema,
+  memory_delete: memoryDeleteToolJsonSchema,
   submit_feedback: submitFeedbackToolJsonSchema,
   find_symbol: findSymbolToolJsonSchema,
   get_repo_map: getRepoMapToolJsonSchema,

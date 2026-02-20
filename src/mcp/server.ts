@@ -153,6 +153,7 @@ import { createAuditLogger, type AuditLogger } from './audit.js';
 import { SqliteEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import { AuditBackedToolAdapter, type ToolAdapter } from '../adapters/tool_adapter.js';
 import { MemoryBridgeDaemon } from '../memory_bridge/daemon.js';
+import { addMemoryFact, deleteMemoryFact, searchMemoryFacts, updateMemoryFact } from '../memory/fact_store.js';
 import {
   CONSTRUCTION_REGISTRY,
   getConstructionManifest,
@@ -387,6 +388,10 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   append_claim: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   query_claims: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
   harvest_session_knowledge: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
+  memory_add: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  memory_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
+  memory_update: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  memory_delete: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 700 },
   submit_feedback: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1500 },
   explain_function: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
   find_callers: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2200 },
@@ -1863,6 +1868,63 @@ export class LibrarianMCPServer {
         },
       },
       {
+        name: 'memory_add',
+        description: 'Persist a semantic memory fact (dedupe-aware add/update) for future sessions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            content: { type: 'string', description: 'Memory fact content to persist' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            scope: { type: 'string', enum: ['codebase', 'module', 'function'], description: 'Memory scope (default codebase)' },
+            scopeKey: { type: 'string', description: 'Optional scope key (module path or symbol ID)' },
+            source: { type: 'string', enum: ['agent', 'analysis', 'user'], description: 'Fact source (default agent)' },
+            confidence: { type: 'number', description: 'Confidence score in [0,1] (default 0.7)' },
+            evergreen: { type: 'boolean', description: 'Disable age decay for this fact (default false)' },
+          },
+          required: ['content'],
+        },
+      },
+      {
+        name: 'memory_search',
+        description: 'Retrieve semantically relevant persistent memory facts',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Semantic memory query' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            scopeKey: { type: 'string', description: 'Optional scope key filter' },
+            limit: { type: 'number', description: 'Maximum results to return (default 10, max 200)' },
+            minScore: { type: 'number', description: 'Minimum score threshold in [0,1] (default 0.1)' },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'memory_update',
+        description: 'Update an existing persistent memory fact by ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Memory fact ID' },
+            content: { type: 'string', description: 'Updated memory content' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+          },
+          required: ['id', 'content'],
+        },
+      },
+      {
+        name: 'memory_delete',
+        description: 'Delete a persistent memory fact by ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Memory fact ID' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+          },
+          required: ['id'],
+        },
+      },
+      {
         name: 'submit_feedback',
         description: 'Submit outcome feedback for a prior query feedbackToken',
         inputSchema: {
@@ -3322,6 +3384,14 @@ export class LibrarianMCPServer {
         return this.executeQueryClaims(args as QueryClaimsToolInput);
       case 'harvest_session_knowledge':
         return this.executeHarvestSessionKnowledge(args as HarvestSessionKnowledgeToolInput, context);
+      case 'memory_add':
+        return this.executeMemoryAdd(args as Record<string, unknown>);
+      case 'memory_search':
+        return this.executeMemorySearch(args as Record<string, unknown>);
+      case 'memory_update':
+        return this.executeMemoryUpdate(args as Record<string, unknown>);
+      case 'memory_delete':
+        return this.executeMemoryDelete(args as Record<string, unknown>);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
       case 'find_symbol':
@@ -8367,6 +8437,143 @@ export class LibrarianMCPServer {
         : [],
       memoryBridge,
     };
+  }
+
+  private resolveMemoryWorkspace(input: Record<string, unknown>): string {
+    const requested = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+      ? path.resolve(input.workspace)
+      : null;
+    if (requested) return requested;
+    const ready = this.findReadyWorkspace();
+    if (ready?.path) return ready.path;
+    const firstKnown = this.state.workspaces.keys().next().value;
+    if (typeof firstKnown === 'string' && firstKnown.length > 0) return firstKnown;
+    return process.cwd();
+  }
+
+  private async executeMemoryAdd(input: Record<string, unknown>): Promise<unknown> {
+    try {
+      const content = typeof input.content === 'string' ? input.content.trim() : '';
+      if (!content) {
+        return { success: false, tool: 'memory_add', error: 'content must be a non-empty string.' };
+      }
+      const workspace = this.resolveMemoryWorkspace(input);
+      const scopeRaw = typeof input.scope === 'string' ? input.scope.trim() : '';
+      const scope = (scopeRaw === 'codebase' || scopeRaw === 'module' || scopeRaw === 'function')
+        ? scopeRaw
+        : undefined;
+      const sourceRaw = typeof input.source === 'string' ? input.source.trim() : '';
+      const source = (sourceRaw === 'agent' || sourceRaw === 'analysis' || sourceRaw === 'user')
+        ? sourceRaw
+        : undefined;
+      const confidence = typeof input.confidence === 'number'
+        ? input.confidence
+        : undefined;
+      const scopeKey = typeof input.scopeKey === 'string' ? input.scopeKey : undefined;
+      const evergreen = input.evergreen === true;
+
+      const result = await addMemoryFact(workspace, {
+        content,
+        scope,
+        source,
+        confidence,
+        scopeKey,
+        evergreen,
+      });
+      return {
+        success: true,
+        tool: 'memory_add',
+        workspace,
+        action: result.action,
+        fact: result.fact,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'memory_add',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeMemorySearch(input: Record<string, unknown>): Promise<unknown> {
+    try {
+      const query = typeof input.query === 'string' ? input.query.trim() : '';
+      if (!query) {
+        return { success: false, tool: 'memory_search', error: 'query must be a non-empty string.' };
+      }
+      const workspace = this.resolveMemoryWorkspace(input);
+      const limit = typeof input.limit === 'number' ? input.limit : undefined;
+      const minScore = typeof input.minScore === 'number' ? input.minScore : undefined;
+      const scopeKey = typeof input.scopeKey === 'string' ? input.scopeKey : undefined;
+      const results = await searchMemoryFacts(workspace, query, {
+        limit,
+        minScore,
+        scopeKey,
+      });
+      return {
+        success: true,
+        tool: 'memory_search',
+        workspace,
+        query,
+        total: results.length,
+        results,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'memory_search',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeMemoryUpdate(input: Record<string, unknown>): Promise<unknown> {
+    try {
+      const id = typeof input.id === 'string' ? input.id.trim() : '';
+      const content = typeof input.content === 'string' ? input.content.trim() : '';
+      if (!id || !content) {
+        return { success: false, tool: 'memory_update', error: 'id and content are required.' };
+      }
+      const workspace = this.resolveMemoryWorkspace(input);
+      const fact = await updateMemoryFact(workspace, id, content);
+      return {
+        success: true,
+        tool: 'memory_update',
+        workspace,
+        fact,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'memory_update',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeMemoryDelete(input: Record<string, unknown>): Promise<unknown> {
+    try {
+      const id = typeof input.id === 'string' ? input.id.trim() : '';
+      if (!id) {
+        return { success: false, tool: 'memory_delete', error: 'id is required.' };
+      }
+      const workspace = this.resolveMemoryWorkspace(input);
+      const deleted = await deleteMemoryFact(workspace, id);
+      return {
+        success: true,
+        tool: 'memory_delete',
+        workspace,
+        id,
+        deleted,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'memory_delete',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   private resolveHarvestMemoryFilePath(

@@ -121,6 +121,7 @@ import {
   recordSessionError,
   recordSessionQuery,
 } from '../memory/session_store.js';
+import { searchMemoryFacts } from '../memory/fact_store.js';
 import {
   detectEnumerationIntent,
   enumerateByCategory,
@@ -1587,6 +1588,16 @@ export async function queryLibrarian(
       const coreMemoryDisclosure = buildCoreMemoryDisclosure(session);
       if (coreMemoryDisclosure) {
         disclosures.unshift(coreMemoryDisclosure);
+      }
+      const semanticMemory = await searchMemoryFacts(workspaceRoot, query.intent, {
+        limit: 3,
+        minScore: 0.2,
+      });
+      if (semanticMemory.length > 0) {
+        const summary = semanticMemory
+          .map((fact) => `${fact.content} [score=${fact.score.toFixed(2)}]`)
+          .join(' | ');
+        disclosures.unshift(`persistent_memory: ${summary}`);
       }
     } catch (error) {
       logWarning('[query] Failed to load session state', { error: getErrorMessage(error) });

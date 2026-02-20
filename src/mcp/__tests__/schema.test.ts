@@ -153,8 +153,12 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('append_claim');
       expect(schemas).toContain('query_claims');
       expect(schemas).toContain('harvest_session_knowledge');
+      expect(schemas).toContain('memory_add');
+      expect(schemas).toContain('memory_search');
+      expect(schemas).toContain('memory_update');
+      expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(48);
+      expect(schemas).toHaveLength(52);
     });
 
     it('should return schema for known tools', () => {
@@ -1269,6 +1273,28 @@ describe('MCP Schema', () => {
     it('rejects invalid page controls for list_verification_plans', () => {
       expect(validateToolInput('list_verification_plans', { pageSize: 0 }).valid).toBe(false);
       expect(validateToolInput('list_verification_plans', { pageIdx: -1 }).valid).toBe(false);
+    });
+  });
+
+  describe('Persistent Memory Tool Schema', () => {
+    it('validates memory_add with required content', () => {
+      const result = validateToolInput('memory_add', {
+        content: 'validateToken has race condition under refresh',
+        scope: 'function',
+        scopeKey: 'validateToken',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('validates memory_search and rejects invalid limits', () => {
+      expect(validateToolInput('memory_search', { query: 'token validation race', limit: 5 }).valid).toBe(true);
+      expect(validateToolInput('memory_search', { query: 'x', limit: 0 }).valid).toBe(false);
+    });
+
+    it('validates memory_update and memory_delete identifiers', () => {
+      expect(validateToolInput('memory_update', { id: 'fact-1', content: 'updated content' }).valid).toBe(true);
+      expect(validateToolInput('memory_delete', { id: 'fact-1' }).valid).toBe(true);
+      expect(validateToolInput('memory_update', { id: '', content: 'x' }).valid).toBe(false);
     });
   });
 
