@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: latest
+      allow_trusted_fallback:
+        description: allow trusted publishing fallback when no valid npm token is available
+        required: false
+        type: boolean
+        default: false
   release:
     types:
       - published
@@ -53,6 +58,9 @@ jobs:
       - name: Build and pack
         run: npm run release:pack
 
+      - name: Strict external tarball E2E gate
+        run: npm run test:e2e:reality:tarball
+
       - name: Evidence sync
         run: |
           if [ -f eval-results/ab-results.json ]; then
@@ -71,6 +79,14 @@ jobs:
 
       - name: Fast release smoke tests
         run: npm test -- --run src/__tests__/package_identity.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/github_readiness_docs.test.ts
+
+      - name: Upload pre-publish E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-e2e-artifacts
+          path: state/e2e/*.json
+          if-no-files-found: warn
 
   publish-release:
     if: github.event_name == 'release'
@@ -100,9 +116,11 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+          ALLOW_TRUSTED_FALLBACK: ${{ vars.LIBRARIAN_ALLOW_TRUSTED_FALLBACK || 'false' }}
         run: |
           set -euo pipefail
           candidate_token="${NPM_TOKEN:-${NODE_AUTH_TOKEN:-}}"
+          allow_trusted="$(echo "${ALLOW_TRUSTED_FALLBACK:-false}" | tr '[:upper:]' '[:lower:]')"
           if [ -n "${candidate_token:-}" ]; then
             npmrc="$(mktemp)"
             trap 'rm -f "$npmrc"' EXIT
@@ -110,11 +128,29 @@ jobs:
             if NPM_CONFIG_USERCONFIG="$npmrc" npm whoami --registry=https://registry.npmjs.org >/dev/null 2>&1; then
               echo "mode=token" >> "$GITHUB_OUTPUT"
             else
-              echo "::warning::Registry token is invalid or revoked; falling back to trusted publishing (OIDC)."
-              echo "mode=trusted" >> "$GITHUB_OUTPUT"
+              if [ "$allow_trusted" = "true" ]; then
+                echo "::warning::Registry token is invalid or revoked; using explicitly-allowed trusted publishing fallback (OIDC)."
+                echo "mode=trusted" >> "$GITHUB_OUTPUT"
+              else
+                echo "::error::No valid npm token detected. Refusing implicit fallback."
+                echo "::error::Set a valid NPM_TOKEN/NODE_AUTH_TOKEN secret, or set LIBRARIAN_ALLOW_TRUSTED_FALLBACK=true after configuring npm trusted publishing for this repository."
+                exit 1
+              fi
             fi
           else
-            echo "mode=trusted" >> "$GITHUB_OUTPUT"
+            if [ "$allow_trusted" = "true" ]; then
+              echo "::warning::No npm token provided; using explicitly-allowed trusted publishing fallback (OIDC)."
+              echo "mode=trusted" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::No npm token provided and trusted fallback is disabled."
+              echo "::error::Set a valid NPM_TOKEN/NODE_AUTH_TOKEN secret, or set LIBRARIAN_ALLOW_TRUSTED_FALLBACK=true after configuring npm trusted publishing."
+              exit 1
+            fi
+          fi
+          if [ "$(cat "$GITHUB_OUTPUT" | tail -n 1)" = "mode=trusted" ] && [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::Trusted publishing selected but OIDC id-token is unavailable."
+            echo "::error::Ensure workflow permissions include id-token: write."
+            exit 1
           fi
 
       - name: Publish to npm (token)
@@ -125,7 +161,17 @@ jobs:
 
       - name: Publish to npm (trusted)
         if: steps.npm-auth.outputs.mode == 'trusted'
-        run: npm publish --provenance --access public --ignore-scripts
+        run: |
+          set +e
+          npm publish --provenance --access public --ignore-scripts
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Trusted publishing failed (likely npm trusted publisher not configured for this repo/workflow)."
+            echo "::error::Configure npm trusted publishing for package 'librainian' and GitHub workflow 'publish-npm.yml' in npm package settings."
+            echo "::error::Or provide a valid NPM_TOKEN/NODE_AUTH_TOKEN secret and rerun."
+            exit "$status"
+          fi
         env:
           NODE_AUTH_TOKEN: ''
           NPM_TOKEN: ''
@@ -165,9 +211,11 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+          ALLOW_TRUSTED_FALLBACK: ${{ inputs.allow_trusted_fallback && 'true' || (vars.LIBRARIAN_ALLOW_TRUSTED_FALLBACK || 'false') }}
         run: |
           set -euo pipefail
           candidate_token="${NPM_TOKEN:-${NODE_AUTH_TOKEN:-}}"
+          allow_trusted="$(echo "${ALLOW_TRUSTED_FALLBACK:-false}" | tr '[:upper:]' '[:lower:]')"
           if [ -n "${candidate_token:-}" ]; then
             npmrc="$(mktemp)"
             trap 'rm -f "$npmrc"' EXIT
@@ -175,11 +223,29 @@ jobs:
             if NPM_CONFIG_USERCONFIG="$npmrc" npm whoami --registry=https://registry.npmjs.org >/dev/null 2>&1; then
               echo "mode=token" >> "$GITHUB_OUTPUT"
             else
-              echo "::warning::Registry token is invalid or revoked; falling back to trusted publishing (OIDC)."
-              echo "mode=trusted" >> "$GITHUB_OUTPUT"
+              if [ "$allow_trusted" = "true" ]; then
+                echo "::warning::Registry token is invalid or revoked; using explicitly-allowed trusted publishing fallback (OIDC)."
+                echo "mode=trusted" >> "$GITHUB_OUTPUT"
+              else
+                echo "::error::No valid npm token detected. Refusing implicit fallback."
+                echo "::error::Set a valid NPM_TOKEN/NODE_AUTH_TOKEN secret, or run workflow_dispatch with allow_trusted_fallback=true after configuring npm trusted publishing."
+                exit 1
+              fi
             fi
           else
-            echo "mode=trusted" >> "$GITHUB_OUTPUT"
+            if [ "$allow_trusted" = "true" ]; then
+              echo "::warning::No npm token provided; using explicitly-allowed trusted publishing fallback (OIDC)."
+              echo "mode=trusted" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::No npm token provided and trusted fallback is disabled."
+              echo "::error::Set a valid NPM_TOKEN/NODE_AUTH_TOKEN secret, or re-run with allow_trusted_fallback=true after configuring npm trusted publishing."
+              exit 1
+            fi
+          fi
+          if [ "$(cat "$GITHUB_OUTPUT" | tail -n 1)" = "mode=trusted" ] && [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::Trusted publishing selected but OIDC id-token is unavailable."
+            echo "::error::Ensure workflow permissions include id-token: write."
+            exit 1
           fi
 
       - name: Publish to npm (manual token)
@@ -191,7 +257,17 @@ jobs:
 
       - name: Publish to npm (manual trusted)
         if: steps.npm-auth.outputs.mode == 'trusted'
-        run: npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
+        run: |
+          set +e
+          npm publish --provenance --access public --ignore-scripts --tag "${NPM_TAG:-latest}"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Trusted publishing failed (likely npm trusted publisher not configured for this repo/workflow)."
+            echo "::error::Configure npm trusted publishing for package 'librainian' and GitHub workflow 'publish-npm.yml' in npm package settings."
+            echo "::error::Or provide a valid NPM_TOKEN/NODE_AUTH_TOKEN secret and rerun."
+            exit "$status"
+          fi
         env:
           NODE_AUTH_TOKEN: ''
           NPM_TOKEN: ''

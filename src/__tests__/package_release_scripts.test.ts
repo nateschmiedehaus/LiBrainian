@@ -14,8 +14,9 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['policy:npm:fresh']).toBe('node scripts/npm-freshness-guard.mjs');
-    expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/npm-external-blackbox-e2e.mjs');
-    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:reality && npm run test:e2e:acceptance');
+    expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/e2e-reality-gate.mjs --source latest --strict --artifact state/e2e/reality-latest.json');
+    expect(scripts['test:e2e:reality:tarball']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --artifact state/e2e/reality-tarball.json');
+    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:reality && npm run test:e2e:reality:tarball && npm run test:e2e:acceptance');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
     expect(scripts['policy:hygiene']).toBe('node scripts/git-hygiene-guard.mjs --mode warn');
     expect(scripts['policy:hygiene:enforce']).toBe('node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');
@@ -52,6 +53,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-freshness-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-external-blackbox-e2e.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-reality-gate.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs'))).toBe(true);
@@ -86,6 +88,15 @@ describe('package release scripts', () => {
     expect(script).toContain('function parsePackOutput');
     expect(script).toContain('Lifecycle hooks can write plain text before npm\'s JSON payload');
     expect(script).toContain('Unable to locate JSON payload in npm pack output');
+  });
+
+  it('enforces strict reality-gate skip semantics and artifact output', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'e2e-reality-gate.mjs');
+    const script = fs.readFileSync(scriptPath, 'utf8');
+    expect(script).toContain('LIBRARIAN_E2E_SKIP_REASON');
+    expect(script).toContain('Strict reality gate cannot skip');
+    expect(script).toContain("kind: 'RealityGateReport.v1'");
+    expect(script).toContain("'scripts/npm-external-blackbox-e2e.mjs'");
   });
 
   it('publishes GitHub packages with repository-linked metadata for package visibility', () => {

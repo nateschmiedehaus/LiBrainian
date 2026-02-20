@@ -10,6 +10,7 @@ describe('npm publish workflow', () => {
 
     expect(workflow).toContain('name: publish-npm');
     expect(workflow).toContain('workflow_dispatch:');
+    expect(workflow).toContain('allow_trusted_fallback:');
     expect(workflow).toContain('release:');
     expect(workflow).toContain('types:');
     expect(workflow).toContain('published');
@@ -19,7 +20,10 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('Skipping evidence sync (missing eval-results/ab-results.json).');
     expect(workflow).toContain('Skipping evidence drift guard (missing state/evidence/evidence-manifest.json).');
     expect(workflow).toContain('npm run release:pack');
+    expect(workflow).toContain('npm run test:e2e:reality:tarball');
     expect(workflow).toContain('npm publish --provenance --access public');
+    expect(workflow).toContain('No valid npm token detected. Refusing implicit fallback.');
+    expect(workflow).toContain('Trusted publishing failed (likely npm trusted publisher not configured for this repo/workflow).');
     expect(workflow).toContain('npm run release:github-packages');
     expect(workflow).toContain('https://npm.pkg.github.com');
   });

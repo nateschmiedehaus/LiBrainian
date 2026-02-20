@@ -4,6 +4,42 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+function parseArgs(argv) {
+  const options = {
+    source: 'latest',
+    artifact: null,
+  };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--source') {
+      const value = argv[i + 1];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --source (expected latest|tarball)');
+      }
+      i += 1;
+      options.source = value;
+      continue;
+    }
+    if (arg === '--artifact') {
+      const value = argv[i + 1];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --artifact');
+      }
+      i += 1;
+      options.artifact = value;
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  if (options.source !== 'latest' && options.source !== 'tarball') {
+    throw new Error(`Invalid --source value "${options.source}" (expected latest|tarball)`);
+  }
+
+  return options;
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? process.cwd(),
@@ -23,7 +59,42 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() ?? '';
 }
 
+function parsePackOutput(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  const arrayStart = text.lastIndexOf('[');
+  if (arrayStart < 0) return null;
+  const candidate = text.slice(arrayStart);
+  try {
+    const parsed = JSON.parse(candidate);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeArtifact(artifactPath, payload) {
+  if (!artifactPath) return;
+  const absolutePath = path.resolve(process.cwd(), artifactPath);
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.writeFile(absolutePath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
+}
+
+async function resolvePackageInstallSpec(root, packageName, source) {
+  if (source === 'latest') {
+    return `${packageName}@latest`;
+  }
+
+  const packOutput = run('npm', ['pack', '--json', '--ignore-scripts'], { cwd: root });
+  const packJson = parsePackOutput(packOutput);
+  if (!packJson || typeof packJson.filename !== 'string') {
+    throw new Error('Unable to parse npm pack output for tarball install source');
+  }
+  return path.resolve(root, packJson.filename);
+}
+
 async function main() {
+  const options = parseArgs(process.argv.slice(2));
   const root = process.cwd();
   const packageJson = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const packageName = String(packageJson.name ?? '').trim();
@@ -47,7 +118,8 @@ async function main() {
   );
 
   try {
-    run('npm', ['install', '--no-save', `${packageName}@latest`], { cwd: externalWorkspace });
+    const packageSpec = await resolvePackageInstallSpec(root, packageName, options.source);
+    run('npm', ['install', '--no-save', packageSpec], { cwd: externalWorkspace });
     const installedPackageJsonPath = path.join(externalWorkspace, 'node_modules', packageName, 'package.json');
     const installedPackageJson = JSON.parse(await fs.readFile(installedPackageJsonPath, 'utf8'));
     const installedVersion = String(installedPackageJson.version ?? '').trim();
@@ -98,13 +170,39 @@ async function main() {
       }
     );
 
+    await writeArtifact(options.artifact, {
+      schema_version: 1,
+      kind: 'ExternalBlackboxE2EReport.v1',
+      status: 'passed',
+      source: options.source,
+      packageName,
+      expectedVersion,
+      installedVersion,
+      createdAt: new Date().toISOString(),
+    });
+
     console.log(`[test:e2e:reality] ok (${packageName}@${installedVersion})`);
   } finally {
     await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
+  const options = (() => {
+    try {
+      return parseArgs(process.argv.slice(2));
+    } catch {
+      return { source: 'latest', artifact: null };
+    }
+  })();
+  await writeArtifact(options.artifact, {
+    schema_version: 1,
+    kind: 'ExternalBlackboxE2EReport.v1',
+    status: 'failed',
+    source: options.source,
+    createdAt: new Date().toISOString(),
+    error: error instanceof Error ? error.message : String(error),
+  }).catch(() => {});
   console.error('[test:e2e:reality] failed');
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

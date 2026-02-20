@@ -15,6 +15,9 @@ describe('e2e cadence workflow', () => {
     expect(workflow).toContain('- main');
     expect(workflow).toContain('npm run policy:npm:fresh');
     expect(workflow).toContain('npm run test:e2e:reality');
+    expect(workflow).toContain('npm run test:e2e:reality:tarball');
     expect(workflow).toContain('npm run test:e2e:acceptance');
+    expect(workflow).toContain('actions/upload-artifact@v4');
+    expect(workflow).toContain('state/e2e/*.json');
   });
 });

@@ -28,8 +28,19 @@ jobs:
       - name: Verify npm freshness gate
         run: npm run policy:npm:fresh
 
-      - name: Published-package black-box E2E
+      - name: Published-package black-box E2E (strict)
         run: npm run test:e2e:reality
 
-      - name: In-repo acceptance E2E
+      - name: Tarball black-box E2E (strict)
+        run: npm run test:e2e:reality:tarball
+
+      - name: In-repo acceptance E2E (strict)
         run: npm run test:e2e:acceptance
+
+      - name: Upload E2E reality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reality-artifacts
+          path: state/e2e/*.json
+          if-no-files-found: warn
