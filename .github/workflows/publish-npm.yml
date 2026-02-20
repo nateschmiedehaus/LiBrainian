@@ -50,14 +50,14 @@ jobs:
       - name: Package identity guard
         run: npm run package:assert-identity
 
+      - name: Build and pack
+        run: npm run release:pack
+
       - name: Evidence sync
         run: npm run evidence:sync
 
       - name: Evidence drift guard
         run: npm run evidence:drift-check
-
-      - name: Build and pack
-        run: npm run release:pack
 
       - name: Fast release smoke tests
         run: npm test -- --run src/__tests__/package_identity.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/github_readiness_docs.test.ts
