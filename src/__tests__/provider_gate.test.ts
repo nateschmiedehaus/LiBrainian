@@ -362,6 +362,28 @@ describe('runProviderReadinessGate', () => {
     expect(result.selectedProvider).toBe('claude');
   });
 
+  it('auto-registers default LLM factory before default adapter health probes', async () => {
+    const authChecker = {
+      checkAll: async () => buildAuthStatus(),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const result = await runProviderReadinessGate('/tmp', {
+      authChecker,
+      embeddingHealthCheck: async () => ({
+        provider: 'xenova',
+        available: true,
+        lastCheck: Date.now(),
+      }),
+      emitReport: false,
+    });
+
+    const providerErrors = result.providers
+      .map((provider) => provider.error)
+      .filter((value): value is string => typeof value === 'string');
+    expect(providerErrors.some((value) => value.includes('llm_adapter_unavailable'))).toBe(false);
+  });
+
   it('records adapter validation failures from registry', async () => {
     const authChecker = {
       checkAll: async () => buildAuthStatus(),
