@@ -433,6 +433,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   private db: Database.Database | null = null;
   private readonly dbPath: string;
   private readonly lockPath: string;
+  private readonly usesProcessLock: boolean;
   private releaseLock: (() => Promise<void>) | null = null;
   private transactionChain: Promise<void> = Promise.resolve();
   private readonly workspaceRoot?: string;
@@ -445,6 +446,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   constructor(dbPath: string, workspaceRoot?: string) {
     this.dbPath = dbPath;
     this.lockPath = `${dbPath}.lock`;
+    this.usesProcessLock = dbPath !== ':memory:';
     this.workspaceRoot = workspaceRoot;
     this.redactionTotals = createEmptyRedactionCounts();
   }
@@ -522,47 +524,49 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
-    await fs.writeFile(this.dbPath, '', { flag: 'a' });
+    if (this.usesProcessLock) {
+      await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
+      await fs.writeFile(this.dbPath, '', { flag: 'a' });
 
-    // Proactively clear stale lock artifacts from prior interrupted runs.
-    try {
-      const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
-      if (proactiveRecovery.recovered) {
-        logWarning('Recovered stale lock state before acquisition', {
+      // Proactively clear stale lock artifacts from prior interrupted runs.
+      try {
+        const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+        if (proactiveRecovery.recovered) {
+          logWarning('Recovered stale lock state before acquisition', {
+            path: this.lockPath,
+            actions: proactiveRecovery.actions,
+          });
+        }
+      } catch (checkError) {
+        // Recovery check failed; direct acquisition path still handles stale locks.
+        logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
           path: this.lockPath,
-          actions: proactiveRecovery.actions,
+          error: checkError instanceof Error ? checkError.message : String(checkError),
         });
       }
-    } catch (checkError) {
-      // Recovery check failed; direct acquisition path still handles stale locks.
-      logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
-        path: this.lockPath,
-        error: checkError instanceof Error ? checkError.message : String(checkError),
-      });
-    }
 
-    try {
-      await this.acquireProcessLock();
-    } catch (error) {
-      const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
-        recovered: false,
-        actions: [] as string[],
-        errors: [String(recoveryError)],
-      }));
-      if (!recovery.recovered) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`unverified_by_trace:storage_locked:${message}`);
-      }
-      logWarning('Recovered storage lock state; retrying lock acquisition', {
-        path: this.lockPath,
-        actions: recovery.actions,
-      });
       try {
         await this.acquireProcessLock();
-      } catch (retryError) {
-        const message = retryError instanceof Error ? retryError.message : String(retryError);
-        throw new Error(`unverified_by_trace:storage_locked:${message}`);
+      } catch (error) {
+        const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+          recovered: false,
+          actions: [] as string[],
+          errors: [String(recoveryError)],
+        }));
+        if (!recovery.recovered) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(`unverified_by_trace:storage_locked:${message}`);
+        }
+        logWarning('Recovered storage lock state; retrying lock acquisition', {
+          path: this.lockPath,
+          actions: recovery.actions,
+        });
+        try {
+          await this.acquireProcessLock();
+        } catch (retryError) {
+          const message = retryError instanceof Error ? retryError.message : String(retryError);
+          throw new Error(`unverified_by_trace:storage_locked:${message}`);
+        }
       }
     }
 

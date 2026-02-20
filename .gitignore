@@ -4,6 +4,7 @@ state/
 !src/state/
 !src/state/**
 .librarian/
+.librarian.backup.v0.*/
 .librainian/
 .openclaw/
 :memory

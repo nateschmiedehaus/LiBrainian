@@ -74,4 +74,17 @@ describe('sqlite lock recovery on initialize', () => {
     const storage = createSqliteStorage(dbPath, dir);
     await expect(storage.initialize()).rejects.toThrow(/storage_locked:\s*indexing in progress/i);
   });
+
+  it('allows concurrent :memory: storages without lock contention', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    tempDirs.push(dir);
+
+    const storageA = createSqliteStorage(':memory:', dir);
+    const storageB = createSqliteStorage(':memory:', dir);
+
+    await expect(Promise.all([storageA.initialize(), storageB.initialize()])).resolves.toEqual([undefined, undefined]);
+
+    await storageA.close();
+    await storageB.close();
+  });
 });
