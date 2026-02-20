@@ -179,6 +179,30 @@ describe('query-conditioned context assembly', () => {
     expect(assembled.skippedSteps.some((entry) => entry.step === 'recent_changes')).toBe(true);
   });
 
+  it('applies relevance floor and lost-in-middle position optimization', () => {
+    const packs = [
+      makePack({ packId: 'p-top', confidence: 0.95, summary: 'top', relatedFiles: ['src/top.ts'] }),
+      makePack({ packId: 'p-second', confidence: 0.9, summary: 'second', relatedFiles: ['src/second.ts'] }),
+      makePack({ packId: 'p-third', confidence: 0.75, summary: 'third', relatedFiles: ['src/third.ts'] }),
+      makePack({ packId: 'p-low', confidence: 0.2, summary: 'low', relatedFiles: ['src/low.ts'] }),
+    ];
+
+    const assembled = assembleIntentConditionedPacks(packs, {
+      queryIntent: 'Fix access control bug',
+      maxTokens: 1200,
+      minConfidenceFloor: 0.3,
+    });
+    const orderedIds = assembled.packs.map((pack) => pack.packId);
+
+    expect(orderedIds).toContain('p-top');
+    expect(orderedIds).toContain('p-second');
+    expect(orderedIds).toContain('p-third');
+    expect(orderedIds).not.toContain('p-low');
+    expect(orderedIds[0]).toBe('p-top');
+    expect(orderedIds[orderedIds.length - 1]).toBe('p-second');
+    expect(assembled.skippedSteps.some((entry) => entry.reason === 'relevance_filtered')).toBe(true);
+  });
+
   it('defines all five core query-conditioned templates', () => {
     const templates = listContextTemplates();
     const intents = templates.map((template) => template.intent);

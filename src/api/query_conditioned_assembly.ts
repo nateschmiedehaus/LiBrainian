@@ -42,7 +42,7 @@ export interface IntentClassificationResult {
 
 export interface SkippedStep {
   step: string;
-  reason: 'budget_exhausted' | 'no_matches' | 'step_budget_exhausted';
+  reason: 'budget_exhausted' | 'no_matches' | 'step_budget_exhausted' | 'relevance_filtered';
 }
 
 export interface IntentConditionedPackSelection {
@@ -56,6 +56,7 @@ export interface IntentConditionedPackSelection {
 }
 
 const DEFAULT_TEMPLATE_TOKEN_BUDGET = 4000;
+const DEFAULT_RELEVANCE_FLOOR = 0.3;
 
 const TEMPLATE_REGISTRY = new Map<QueryAssemblyIntent, ContextTemplate>([
   ['bug_fix', {
@@ -385,6 +386,7 @@ export function assembleIntentConditionedPacks(
     queryIntent: string;
     maxTokens?: number;
     templateOverride?: ContextTemplate;
+    minConfidenceFloor?: number;
   }
 ): IntentConditionedPackSelection {
   const classification = classifyAssemblyIntent(options.queryIntent);
@@ -447,9 +449,16 @@ export function assembleIntentConditionedPacks(
     }
   }
 
-  const tokensUsed = tokenBudget - remaining;
+  const relevanceFloor = Math.max(0, Math.min(1, options.minConfidenceFloor ?? DEFAULT_RELEVANCE_FLOOR));
+  const relevanceFiltered = selected.filter((pack) => pack.confidence >= relevanceFloor);
+  if (relevanceFiltered.length < selected.length) {
+    skippedSteps.push({ step: 'relevance_floor', reason: 'relevance_filtered' });
+  }
+
+  const attentionOrdered = optimizeLostInMiddleOrdering(relevanceFiltered);
+  const tokensUsed = attentionOrdered.reduce((sum, pack) => sum + estimatePackTokenCost(pack), 0);
   return {
-    packs: selected,
+    packs: attentionOrdered,
     intent: classification.primaryIntent,
     confidence: classification.confidence,
     tokensUsed,
@@ -457,6 +466,15 @@ export function assembleIntentConditionedPacks(
     template,
     skippedSteps,
   };
+}
+
+function optimizeLostInMiddleOrdering(packs: ContextPack[]): ContextPack[] {
+  if (packs.length <= 2) return packs;
+  const sorted = [...packs].sort((left, right) => right.confidence - left.confidence);
+  const first = sorted[0];
+  const second = sorted[1];
+  const middle = sorted.slice(2);
+  return [first, ...middle, second];
 }
 
 export const __testing = {
