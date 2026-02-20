@@ -205,7 +205,20 @@ export type { LibrarianQuery, LibrarianResponse, ContextPack };
 type Candidate = { entityId: string; entityType: GraphEntityType; path?: string; semanticSimilarity: number; confidence: number; recency: number; pagerank: number; centrality: number; communityId: number | null; graphSimilarity?: number; cochange?: number; score?: number; };
 type GraphMetricsStore = LibrarianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]>; };
 type CachedResponse = LibrarianResponse & { explanation?: string; coverageGaps?: string[]; evidenceByPack?: Record<string, EvidenceRef[]> };
-type QueryCacheStore = LibrarianStorage & { getQueryCacheEntry?: (queryHash: string) => Promise<QueryCacheEntry | null>; upsertQueryCacheEntry?: (entry: QueryCacheEntry) => Promise<void>; recordQueryCacheAccess?: (queryHash: string) => Promise<void>; pruneQueryCache?: (options: { maxEntries: number; maxAgeMs: number }) => Promise<number>; };
+type QueryCacheStore = LibrarianStorage & {
+  getQueryCacheEntry?: (queryHash: string) => Promise<QueryCacheEntry | null>;
+  upsertQueryCacheEntry?: (entry: QueryCacheEntry) => Promise<void>;
+  recordQueryCacheAccess?: (queryHash: string) => Promise<void>;
+  pruneQueryCache?: (options: { maxEntries: number; maxAgeMs: number }) => Promise<number>;
+  getRecentQueryCacheEntries?: (limit: number) => Promise<QueryCacheEntry[]>;
+};
+type SemanticCacheCategory = 'lookup' | 'conceptual' | 'diagnostic';
+const SEMANTIC_CACHE_THRESHOLDS: Record<SemanticCacheCategory, number> = {
+  lookup: 0.95,
+  conceptual: 0.7,
+  diagnostic: 0.8,
+};
+const SEMANTIC_CACHE_CANDIDATE_LIMIT = 120;
 
 export interface QueryTraceOptions {
   evidenceLedger?: IEvidenceLedger;
@@ -1781,6 +1794,67 @@ export async function queryLibrarian(
         void appendQueryEvidence(traceOptions.evidenceLedger, traceSessionId, 'query_cache_hit', {
           queryId,
           cacheKey,
+          packCount: cachedResponse.packs.length,
+          latencyMs: cachedResponse.latencyMs,
+          templateId: constructionPlan.templateId,
+        });
+      }
+      return cachedResponse;
+    }
+    const semanticCached = await trySemanticCacheLookup({
+      query,
+      version,
+      cacheKey,
+      storage,
+      cache,
+    });
+    if (semanticCached) {
+      const queryId = cacheKey || generateUUID('qry_');
+      errorQueryId = queryId;
+      void globalEventBus.emit(createQueryReceivedEvent(queryId, query.intent ?? '', query.depth ?? 'L1', traceSessionId));
+      const semanticDisclosure = `semantic_cache_hit(category=${semanticCached.category}, similarity=${semanticCached.similarity.toFixed(2)})`;
+      const cachedResponse = {
+        ...semanticCached.response,
+        query,
+        cacheHit: true,
+        latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
+        version,
+        traceId,
+        disclosures: [...disclosures, semanticDisclosure],
+        constructionPlan,
+      } as CachedResponse;
+      cachedResponse.synthesisMode = 'cache';
+      if (query.showLlmErrors === false) {
+        cachedResponse.llmError = undefined;
+      }
+      cachedResponse.retrievalEntropy = cachedResponse.retrievalEntropy
+        ?? computeRetrievalEntropy(cachedResponse.packs);
+      cachedResponse.retrievalStatus = cachedResponse.retrievalStatus
+        ?? categorizeRetrievalStatus({
+          totalConfidence: cachedResponse.totalConfidence,
+          packCount: cachedResponse.packs.length,
+        });
+      cachedResponse.retrievalInsufficient = cachedResponse.retrievalInsufficient
+        ?? ((query.depth ?? 'L1') === 'L3' && cachedResponse.totalConfidence < 0.3);
+      if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
+        cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
+      }
+      const cacheStore = storage as QueryCacheStore;
+      if (cacheStore.recordQueryCacheAccess) {
+        await cacheStore.recordQueryCacheAccess(semanticCached.matchedKey);
+      }
+      for (const pack of cachedResponse.packs) await storage.recordContextPackAccess(pack.packId);
+      void globalEventBus.emit(createQueryCompleteEvent(queryId, cachedResponse.packs.length, true, cachedResponse.latencyMs, traceSessionId));
+      if (traceOptions.evidenceLedger && traceSessionId) {
+        void appendQueryEvidence(traceOptions.evidenceLedger, traceSessionId, 'query_start', {
+          queryId,
+          cacheKey,
+          intent: query.intent ?? '',
+          depth: query.depth ?? 'L1',
+        });
+        void appendQueryEvidence(traceOptions.evidenceLedger, traceSessionId, 'query_cache_hit', {
+          queryId,
+          cacheKey: semanticCached.matchedKey,
           packCount: cachedResponse.packs.length,
           latencyMs: cachedResponse.latencyMs,
           templateId: constructionPlan.templateId,
@@ -6088,6 +6162,67 @@ function buildQueryCacheKey(
   return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|hyde:${hydeExpansionFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${normalizedIntent}|${files}|wf:${workingFile}|flt:${filterKey}`;
 }
 
+function classifySemanticCacheCategory(intent: string): SemanticCacheCategory {
+  const normalized = intent.toLowerCase();
+  if (
+    /\b(error|exception|bug|failed|failing|timeout|trace|stack)\b/.test(normalized)
+    || normalized.includes('why does')
+  ) {
+    return 'diagnostic';
+  }
+  if (
+    /\bhow does\b/.test(normalized)
+    || /\barchitecture\b/.test(normalized)
+    || /\bdesign\b/.test(normalized)
+    || /\boverview\b/.test(normalized)
+    || /\bconcept\b/.test(normalized)
+  ) {
+    return 'conceptual';
+  }
+  return 'lookup';
+}
+
+function buildSemanticCacheScopeSignature(query: LibrarianQuery): string {
+  const files = query.affectedFiles?.slice().sort().join('|') ?? '';
+  const filterKey = query.filter
+    ? [
+      query.filter.pathPrefix ?? '',
+      query.filter.language ?? '',
+      typeof query.filter.isExported === 'boolean' ? String(query.filter.isExported) : '',
+      query.filter.excludeTests ? '1' : '0',
+      typeof query.filter.maxFileSizeBytes === 'number' ? String(query.filter.maxFileSizeBytes) : '',
+    ].join('|')
+    : '';
+  const hydeFlag = query.hydeExpansion === true ? '1' : '0';
+  return [
+    query.depth ?? 'L1',
+    query.taskType ?? '',
+    query.embeddingRequirement ?? '',
+    hydeFlag,
+    query.workingFile ?? '',
+    files,
+    filterKey,
+  ].join('|');
+}
+
+function computeSemanticIntentSimilarity(currentIntent: string, candidateIntent: string): number {
+  if (currentIntent === candidateIntent) return 1;
+  const currentTokens = new Set(currentIntent.split(' ').filter(Boolean));
+  const candidateTokens = new Set(candidateIntent.split(' ').filter(Boolean));
+  if (currentTokens.size === 0 || candidateTokens.size === 0) return 0;
+
+  let overlap = 0;
+  for (const token of currentTokens) {
+    if (candidateTokens.has(token)) overlap += 1;
+  }
+  const union = new Set([...currentTokens, ...candidateTokens]).size;
+  const jaccard = union > 0 ? overlap / union : 0;
+
+  const total = currentTokens.size + candidateTokens.size;
+  const dice = total > 0 ? (2 * overlap) / total : 0;
+  return Math.max(jaccard, dice);
+}
+
 const QUERY_CACHE_STOP_WORDS = new Set([
   'a',
   'an',
@@ -6113,6 +6248,12 @@ const QUERY_CACHE_SYNONYMS: Record<string, string> = {
   authentication: 'auth',
   authenticate: 'auth',
   authenticated: 'auth',
+  implementation: 'function',
+  implementations: 'function',
+  method: 'function',
+  methods: 'function',
+  routine: 'function',
+  routines: 'function',
   authn: 'auth',
   login: 'auth',
   logins: 'auth',
@@ -6168,6 +6309,61 @@ function resolveQueryCacheTier(query: LibrarianQuery): MemoryTier {
 
 function resolveQueryCacheTtl(depth?: LibrarianQuery['depth']): number {
   return depth === 'L0' ? QUERY_CACHE_TTL_L1_MS : QUERY_CACHE_TTL_L2_MS;
+}
+
+async function trySemanticCacheLookup(options: {
+  query: LibrarianQuery;
+  version: LibrarianVersion;
+  cacheKey: string;
+  storage: LibrarianStorage;
+  cache: HierarchicalMemory<CachedResponse>;
+}): Promise<{
+  matchedKey: string;
+  similarity: number;
+  category: SemanticCacheCategory;
+  response: CachedResponse;
+} | null> {
+  const cacheStore = options.storage as QueryCacheStore;
+  if (!cacheStore.getRecentQueryCacheEntries) return null;
+
+  const intent = options.query.intent?.trim() ?? '';
+  if (!intent) return null;
+
+  const category = classifySemanticCacheCategory(intent);
+  const threshold = SEMANTIC_CACHE_THRESHOLDS[category];
+  const targetIntent = normalizeIntentForCache(intent);
+  const targetScope = buildSemanticCacheScopeSignature(options.query);
+  const versionPrefix = `${options.version.string}:${options.version.indexedAt?.getTime?.() ?? 0}|`;
+  const candidates = await cacheStore.getRecentQueryCacheEntries(SEMANTIC_CACHE_CANDIDATE_LIMIT);
+
+  let best: { key: string; similarity: number } | null = null;
+  for (const entry of candidates) {
+    if (!entry?.queryHash || entry.queryHash === options.cacheKey) continue;
+    if (!entry.queryHash.startsWith(versionPrefix)) continue;
+    const parsed = safeJsonParse<LibrarianQuery>(entry.queryParams);
+    if (!parsed.ok || !parsed.value?.intent) continue;
+
+    const candidateQuery = parsed.value;
+    if (buildSemanticCacheScopeSignature(candidateQuery) !== targetScope) continue;
+    const similarity = computeSemanticIntentSimilarity(
+      targetIntent,
+      normalizeIntentForCache(candidateQuery.intent),
+    );
+    if (similarity < threshold) continue;
+    if (!best || similarity > best.similarity) {
+      best = { key: entry.queryHash, similarity };
+    }
+  }
+
+  if (!best) return null;
+  const response = await options.cache.get(best.key);
+  if (!response) return null;
+  return {
+    matchedKey: best.key,
+    similarity: best.similarity,
+    category,
+    response,
+  };
 }
 
 function extractQueryDepth(entry: QueryCacheEntry): LibrarianQuery['depth'] | undefined {
@@ -8031,6 +8227,9 @@ export const __testing = {
   expandPathCandidates,
   buildQueryCacheKey,
   normalizeIntentForCache,
+  classifySemanticCacheCategory,
+  computeSemanticIntentSimilarity,
+  buildSemanticCacheScopeSignature,
   buildHydePrompt,
   normalizeHydeExpansion,
   fuseSimilarityResultsWithRrf,

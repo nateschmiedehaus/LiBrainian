@@ -3617,6 +3617,22 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     };
   }
 
+  async getRecentQueryCacheEntries(limit: number): Promise<QueryCacheEntry[]> {
+    const db = this.ensureDb();
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 120;
+    const rows = db
+      .prepare('SELECT query_hash, query_params, response, created_at, last_accessed, access_count FROM librarian_query_cache ORDER BY last_accessed DESC LIMIT ?')
+      .all(safeLimit) as QueryCacheRow[];
+    return rows.map((row) => ({
+      queryHash: row.query_hash,
+      queryParams: row.query_params,
+      response: row.response,
+      createdAt: row.created_at,
+      lastAccessed: row.last_accessed,
+      accessCount: row.access_count,
+    }));
+  }
+
   async upsertQueryCacheEntry(entry: QueryCacheEntry): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
