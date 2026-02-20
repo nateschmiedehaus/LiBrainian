@@ -23,6 +23,15 @@ function run(command, args, options = {}) {
   return String(result.stdout ?? '').trim();
 }
 
+function runStatus(command, args, options = {}) {
+  return spawnSync(command, args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    stdio: 'pipe',
+    ...options,
+  });
+}
+
 function sanitizeScope(rawScope) {
   const normalized = String(rawScope ?? '').trim().replace(/^@/, '').toLowerCase();
   if (!normalized) return '';
@@ -99,6 +108,23 @@ function copyIfExists(source, destination) {
   fs.cpSync(source, destination, { recursive: true });
 }
 
+function isAlreadyPublished(scopedName, version, registryOrigin, env) {
+  const result = runStatus('npm', ['view', `${scopedName}@${version}`, 'version', `--registry=${registryOrigin}`], {
+    env,
+  });
+  if (result.status === 0) {
+    const publishedVersion = String(result.stdout ?? '').trim().replace(/^"+|"+$/g, '');
+    return publishedVersion === version;
+  }
+  const stderr = String(result.stderr ?? '');
+  const stdout = String(result.stdout ?? '');
+  const output = `${stdout}\n${stderr}`.toLowerCase();
+  if (output.includes('e404') || output.includes('not found')) {
+    return false;
+  }
+  throw new Error(`Unable to verify GitHub Packages version status for ${scopedName}@${version}.\n${stdout}\n${stderr}`);
+}
+
 function main() {
   const root = process.cwd();
   const nodeAuthToken = String(process.env.NODE_AUTH_TOKEN ?? '').trim();
@@ -149,10 +175,15 @@ function main() {
     const npmrc = [
       `@${scopedName.split('/')[0].replace(/^@/, '')}:registry=${registryUrl.origin}`,
       `//${registryUrl.host}/:_authToken=\${NODE_AUTH_TOKEN}`,
-      'always-auth=true',
       '',
     ].join('\n');
     fs.writeFileSync(path.join(stagingDir, '.npmrc'), npmrc, 'utf8');
+
+    const publishEnv = {
+      ...process.env,
+      NODE_AUTH_TOKEN: nodeAuthToken,
+      NPM_CONFIG_USERCONFIG: path.join(stagingDir, '.npmrc'),
+    };
 
     const publishTag = String(process.env.NPM_TAG ?? '').trim();
     const publishArgs = ['publish', `--registry=${registryUrl.origin}`, '--ignore-scripts'];
@@ -160,13 +191,19 @@ function main() {
       publishArgs.push('--tag', publishTag);
     }
 
+    if (isAlreadyPublished(scopedName, stagedPackageJson.version, registryUrl.origin, publishEnv)) {
+      console.log(
+        `[release:github-packages] ${scopedName}@${stagedPackageJson.version} already published; skipping duplicate publish.`,
+      );
+      console.log(`[release:github-packages] package listing: https://github.com/${githubRepo.slug}/packages`);
+      console.log(`[release:github-packages] owner packages: https://github.com/${githubRepo.owner}?tab=packages`);
+      return;
+    }
+
     run('npm', publishArgs, {
       cwd: stagingDir,
       stdio: 'inherit',
-      env: {
-        ...process.env,
-        NODE_AUTH_TOKEN: nodeAuthToken,
-      },
+      env: publishEnv,
     });
 
     console.log(`[release:github-packages] published ${scopedName}@${stagedPackageJson.version}`);
