@@ -35,6 +35,11 @@ import * as crypto from 'crypto';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
 import { requireProviders } from '../provider_check.js';
 import { resolveLibrarianModelConfigWithDiscovery, resolveLibrarianModelId } from '../llm_env.js';
+import {
+  generateStructuredWithRetries,
+  type StructuredGenerateResult,
+  type StructuredParseResult,
+} from '../structured_generation.js';
 
 // ============================================================================
 // TYPES
@@ -144,6 +149,35 @@ Respond in JSON:
 
 JSON response:`;
 
+const PURPOSE_OUTPUT_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  required: ['purpose', 'responsibilities', 'domain', 'complexity', 'concepts', 'relatedTo'],
+  additionalProperties: false,
+  properties: {
+    purpose: { type: 'string', minLength: 1, maxLength: 240 },
+    responsibilities: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 1,
+      maxItems: 8,
+    },
+    domain: { type: 'string', minLength: 1, maxLength: 80 },
+    complexity: { type: 'string', enum: ['simple', 'moderate', 'complex'] },
+    concepts: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 12,
+    },
+    relatedTo: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 12,
+    },
+  },
+};
+
+const PURPOSE_REPAIR_SYSTEM_PROMPT = 'You are a strict JSON formatter. Return one valid JSON object only. No markdown.';
+
 // ============================================================================
 // MODEL RESOLUTION
 // ============================================================================
@@ -230,6 +264,7 @@ export async function extractPurpose(
   let tokensUsed = { input: 0, output: 0 };
   let llmProvider: 'claude' | 'codex' | undefined;
   let llmModelId: string | undefined;
+  let llmService: ReturnType<typeof resolveLlmServiceAdapter> | null = null;
 
   try {
     await requireProviders({ llm: true, embedding: false }, { workspaceRoot: process.cwd() });
@@ -238,19 +273,7 @@ export async function extractPurpose(
     llmProvider = provider;
     llmModelId = modelId;
     resolvedModel = resolved.resolvedModel;
-    const llmService = resolveLlmServiceAdapter();
-    const response = await llmService.chat({
-      provider,
-      modelId,
-      messages: [{ role: 'user', content: prompt }],
-      maxTokens,
-      temperature,
-    });
-    rawResponse = response.content;
-    tokensUsed = {
-      input: estimateTokenCount(prompt),
-      output: estimateTokenCount(rawResponse),
-    };
+    llmService = resolveLlmServiceAdapter();
   } catch (error) {
     if (!allowHeuristics) {
       const message = error instanceof Error ? error.message : String(error);
@@ -272,18 +295,62 @@ export async function extractPurpose(
     };
   }
 
-  // Parse response
-  const parseResult = parsePurposeResponse(rawResponse, {
-    filePath,
-    contentHash,
-    model: resolvedModel,
-    provider: llmProvider,
-    modelId: llmModelId,
-    promptDigest,
-  });
-  if (!parseResult.ok) {
+  let structured: StructuredGenerateResult<ParsedPurposePayload>;
+  try {
+    structured = await generateStructuredWithRetries<ParsedPurposePayload>({
+      llmService: llmService!,
+      provider: llmProvider!,
+      modelId: llmModelId!,
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens,
+      temperature,
+      outputSchema: PURPOSE_OUTPUT_SCHEMA,
+      maxAttempts: 3,
+      parse: parsePurposeResponse,
+      buildRepairMessages: ({ previousOutput, parseError }) => ([
+        { role: 'system', content: PURPOSE_REPAIR_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: [
+            'Fix this into strict JSON only (no prose).',
+            `Validation error: ${parseError}`,
+            `Required schema: ${JSON.stringify(PURPOSE_OUTPUT_SCHEMA)}`,
+            '',
+            previousOutput,
+          ].join('\n'),
+        },
+      ]),
+    });
+  } catch (error) {
     if (!allowHeuristics) {
-      throw new Error(`unverified_by_trace(provider_invalid_output): ${parseResult.error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`unverified_by_trace(provider_unavailable): ${message}`);
+    }
+    const fallbackUnavailable = buildHeuristicPurpose(
+      filePath,
+      content,
+      { contentHash, model: resolvedModel },
+      { reason: 'provider_unavailable' }
+    );
+    rawResponse = JSON.stringify(fallbackUnavailable);
+    tokensUsed = { input: 0, output: 0 };
+    return {
+      purpose: fallbackUnavailable,
+      rawResponse,
+      tokensUsed,
+      latencyMs: Date.now() - startTime,
+    };
+  }
+
+  rawResponse = structured.rawResponse;
+  tokensUsed = {
+    input: estimateTokenCount(prompt),
+    output: estimateTokenCount(rawResponse),
+  };
+
+  if (!structured.ok) {
+    if (!allowHeuristics) {
+      throw new Error(`unverified_by_trace(provider_invalid_output): ${structured.error}`);
     }
     const fallbackInvalid = buildHeuristicPurpose(
       filePath,
@@ -300,7 +367,17 @@ export async function extractPurpose(
   }
 
   return {
-    purpose: parseResult.value,
+    purpose: {
+      ...structured.value,
+      model: resolvedModel,
+      extractedAt: Date.now(),
+      contentHash,
+      source: 'llm',
+      disclosures: [],
+      provider: llmProvider,
+      modelId: llmModelId,
+      promptDigest,
+    },
     rawResponse,
     tokensUsed,
     latencyMs: Date.now() - startTime,
@@ -334,19 +411,19 @@ function validatePurposePayload(value: unknown): { ok: true } | { ok: false; err
   return { ok: true };
 }
 
+interface ParsedPurposePayload {
+  purpose: string;
+  responsibilities: string[];
+  domain: string;
+  complexity: 'simple' | 'moderate' | 'complex';
+  concepts: string[];
+  relatedTo: string[];
+}
+
 function parsePurposeResponse(
-  response: string,
-  defaults: {
-    filePath: string;
-    contentHash: string;
-    model: PurposeExtractionModel;
-    provider?: 'claude' | 'codex';
-    modelId?: string;
-    promptDigest?: string;
-  }
-): { ok: true; value: ExtractedPurpose } | { ok: false; error: string } {
+  response: string
+): StructuredParseResult<ParsedPurposePayload> {
   try {
-    // Extract JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response');
@@ -367,14 +444,6 @@ function parsePurposeResponse(
         complexity: parsed.complexity,
         concepts: parsed.concepts,
         relatedTo: parsed.relatedTo,
-        model: defaults.model,
-        extractedAt: Date.now(),
-        contentHash: defaults.contentHash,
-        source: 'llm',
-        disclosures: [],
-        provider: defaults.provider,
-        modelId: defaults.modelId,
-        promptDigest: defaults.promptDigest,
       },
     };
   } catch (error) {

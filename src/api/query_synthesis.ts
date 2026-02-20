@@ -4,6 +4,7 @@ import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
 import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
 import { requireProviders } from './provider_check.js';
 import { createHash } from 'crypto';
+import { generateStructuredWithRetries, type StructuredParseResult } from './structured_generation.js';
 
 // Helpers
 
@@ -136,35 +137,33 @@ export async function synthesizeQueryAnswer(
       { role: 'user', content: prompt },
     ];
 
-    const response = await llmService.chat({
+    const structured = await generateStructuredWithRetries<SynthesizedAnswer>({
+      llmService,
       provider: llmConfig.provider,
       modelId: llmConfig.modelId,
       messages,
       maxTokens: 2000,
-    });
-    try {
-      return parseSynthesisResponse(response.content, packs, queryId);
-    } catch (parseError) {
-      const message = parseError instanceof Error ? parseError.message : String(parseError);
-      if (!message.includes('unverified_by_trace(synthesis_')) {
-        throw parseError;
-      }
-      const repairMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      outputSchema: SYNTHESIS_OUTPUT_SCHEMA,
+      maxAttempts: 3,
+      parse: (raw) => parseSynthesisResponseStrict(raw, packs, queryId),
+      buildRepairMessages: ({ previousOutput, parseError }) => ([
         { role: 'system', content: SYNTHESIS_REPAIR_SYSTEM_PROMPT },
-        { role: 'user', content: `Fix this into strict JSON only (no prose):\n\n${response.content}` },
-      ];
-      try {
-        const repaired = await llmService.chat({
-          provider: llmConfig.provider,
-          modelId: llmConfig.modelId,
-          messages: repairMessages,
-          maxTokens: 1200,
-        });
-        return parseSynthesisResponse(repaired.content, packs, queryId);
-      } catch (repairError) {
-        return coerceUnstructuredSynthesis(response.content, repairError, queryId);
-      }
+        {
+          role: 'user',
+          content: [
+            'Fix this into strict JSON only (no prose).',
+            `Validation error: ${parseError}`,
+            `Required schema: ${JSON.stringify(SYNTHESIS_OUTPUT_SCHEMA)}`,
+            '',
+            previousOutput,
+          ].join('\n'),
+        },
+      ]),
+    });
+    if (structured.ok) {
+      return structured.value;
     }
+    return coerceUnstructuredSynthesis(structured.rawResponse, structured.error, queryId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -269,6 +268,40 @@ The confidence should reflect:
 const SYNTHESIS_REPAIR_SYSTEM_PROMPT = `You are a strict JSON formatter.
 Return ONLY a single valid JSON object. Do not include markdown fences. Keys must be double-quoted. No trailing commas.`;
 
+const SYNTHESIS_OUTPUT_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  required: ['answer', 'keyInsights', 'citations', 'uncertainties', 'confidence'],
+  additionalProperties: false,
+  properties: {
+    answer: { type: 'string', minLength: 1 },
+    keyInsights: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 12,
+    },
+    citations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['packId', 'content', 'relevance'],
+        additionalProperties: false,
+        properties: {
+          packId: { type: 'string', minLength: 1 },
+          content: { type: 'string', minLength: 1 },
+          relevance: { type: 'number', minimum: 0, maximum: 1 },
+        },
+      },
+      maxItems: 32,
+    },
+    uncertainties: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 20,
+    },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+  },
+};
+
 function buildSynthesisPrompt(
   query: LibrarianQuery,
   knowledge: ExtractedKnowledge
@@ -337,10 +370,22 @@ function parseSynthesisResponse(
   packs: ContextPack[],
   queryId: string
 ): QuerySynthesisResult {
+  const strict = parseSynthesisResponseStrict(response, packs, queryId);
+  if (strict.ok) {
+    return strict.value;
+  }
+  return coerceUnstructuredSynthesis(response.trim(), strict.error, queryId);
+}
+
+function parseSynthesisResponseStrict(
+  response: string,
+  packs: ContextPack[],
+  queryId: string
+): StructuredParseResult<SynthesizedAnswer> {
   const trimmed = response.trim();
   const jsonMatch = response.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    return coerceUnstructuredSynthesis(trimmed, 'non_json_response', queryId);
+    return { ok: false, error: 'non_json_response' };
   }
 
   let parsed: {
@@ -351,11 +396,16 @@ function parseSynthesisResponse(
     confidence?: number;
   };
 
-  parsed = parsePossiblyLooseJson(jsonMatch[0]);
+  try {
+    parsed = parsePossiblyLooseJson(jsonMatch[0]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: message };
+  }
 
   // Validate required fields
   if (!parsed.answer || typeof parsed.answer !== 'string') {
-    return coerceUnstructuredSynthesis(trimmed, 'missing_answer_field', queryId);
+    return { ok: false, error: 'missing_answer_field' };
   }
 
   // Build pack lookup for validation
@@ -376,20 +426,23 @@ function parseSynthesisResponse(
     : estimateConfidence(citations, packs);
 
   return {
-    queryId,
-    synthesized: true,
-    answer: parsed.answer || trimmed,
-    confidence,
-    citations,
-    keyInsights: Array.isArray(parsed.keyInsights)
-      ? parsed.keyInsights.filter((i): i is string => typeof i === 'string')
-      : [],
-    uncertainties: Array.isArray(parsed.uncertainties)
-      ? parsed.uncertainties
-        .filter((u): u is string => typeof u === 'string')
-        .map((u) => sanitizeSynthesisIssue(u))
-        .filter((u) => u.length > 0)
-      : [],
+    ok: true,
+    value: {
+      queryId,
+      synthesized: true,
+      answer: parsed.answer || trimmed,
+      confidence,
+      citations,
+      keyInsights: Array.isArray(parsed.keyInsights)
+        ? parsed.keyInsights.filter((i): i is string => typeof i === 'string')
+        : [],
+      uncertainties: Array.isArray(parsed.uncertainties)
+        ? parsed.uncertainties
+          .filter((u): u is string => typeof u === 'string')
+          .map((u) => sanitizeSynthesisIssue(u))
+          .filter((u) => u.length > 0)
+        : [],
+    },
   };
 }
 

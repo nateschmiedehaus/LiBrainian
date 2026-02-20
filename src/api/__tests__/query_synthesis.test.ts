@@ -49,15 +49,11 @@ const samplePack: ContextPack = {
 };
 
 describe('synthesizeQueryAnswer', () => {
-  it('coerces plain-text synthesis without unverified markers', async () => {
+  it('coerces plain-text synthesis after retries without unverified markers', async () => {
     chatMock.mockReset();
-    chatMock
-      .mockResolvedValueOnce({
-        content: '**Architecture Overview**\n- Boundary A\n- Boundary B',
-      })
-      .mockResolvedValueOnce({
-        content: 'Still plain-text response',
-      });
+    chatMock.mockResolvedValue({
+      content: '**Architecture Overview**\n- Boundary A\n- Boundary B',
+    });
 
     const result = await synthesizeQueryAnswer({
       query: { intent: 'Map architecture boundaries', depth: 'L1' },
@@ -72,7 +68,7 @@ describe('synthesizeQueryAnswer', () => {
       expect(result.uncertainties.some((entry) => entry.includes('unverified_by_trace'))).toBe(false);
       expect(result.uncertainties[0]).toContain('synthesis_format_non_json');
     }
-    expect(chatMock).toHaveBeenCalledTimes(1);
+    expect(chatMock).toHaveBeenCalledTimes(3);
   });
 
   it('sanitizes uncertainty text from JSON synthesis payload', async () => {
@@ -101,5 +97,35 @@ describe('synthesizeQueryAnswer', () => {
       expect(result.uncertainties.some((entry) => entry.includes('unverified_by_trace'))).toBe(false);
       expect(result.uncertainties[0]).toContain('structure uncertain');
     }
+  });
+
+  it('retries malformed synthesis output and accepts valid JSON on subsequent attempt', async () => {
+    chatMock.mockReset();
+    chatMock
+      .mockResolvedValueOnce({ content: 'not-json' })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          answer: 'Layered architecture with explicit module boundaries.',
+          keyInsights: ['Layered boundaries', 'Module contracts'],
+          citations: [{ packId: 'pack-1', content: 'Example module summary.', relevance: 0.91 }],
+          uncertainties: [],
+          confidence: 0.91,
+        }),
+      });
+
+    const result = await synthesizeQueryAnswer({
+      query: { intent: 'Explain architecture with confidence', depth: 'L1' },
+      packs: [samplePack],
+      storage: {} as never,
+      workspace: process.cwd(),
+    });
+
+    expect(result.synthesized).toBe(true);
+    if (result.synthesized) {
+      expect(result.answer).toContain('Layered architecture');
+      expect(result.citations).toHaveLength(1);
+      expect(result.confidence).toBeGreaterThan(0.8);
+    }
+    expect(chatMock).toHaveBeenCalledTimes(2);
   });
 });
