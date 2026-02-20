@@ -3680,6 +3680,7 @@ async function runRelationshipMapping(
 
   const cochangeStore = storage as LibrarianStorage & {
     getCochangeEdgeCount?: () => Promise<number>;
+    getCochangeEdges?: () => Promise<TemporalGraph['edges']>;
     storeCochangeEdges?: (edges: TemporalGraph['edges'], computedAt?: string) => Promise<void>;
     deleteCochangeEdges?: () => Promise<void>;
   };
@@ -3687,13 +3688,38 @@ async function runRelationshipMapping(
     const existing = cochangeStore.getCochangeEdgeCount
       ? await cochangeStore.getCochangeEdgeCount()
       : 0;
-    if (existing === 0 || config.forceReindex) {
+    const watchState = await getWatchState(storage).catch(() => null);
+    const sinceCommitExclusive = watchState?.cursor?.kind === 'git'
+      ? watchState.cursor.lastIndexedCommitSha
+      : undefined;
+    const shouldUseIncremental = Boolean(sinceCommitExclusive && existing > 0 && !config.forceReindex);
+    if (existing === 0 || config.forceReindex || shouldUseIncremental) {
       if (config.forceReindex && cochangeStore.deleteCochangeEdges) {
         await cochangeStore.deleteCochangeEdges();
       }
-      const temporal = await buildTemporalGraph(config.workspace);
-      if (temporal.edges.length) {
+      const temporal = await buildTemporalGraph(config.workspace, {
+        maxCommits: 2000,
+        sinceCommitExclusive: shouldUseIncremental ? sinceCommitExclusive : undefined,
+      });
+      if (shouldUseIncremental && temporal.commitCount > 0 && cochangeStore.getCochangeEdges) {
+        const existingEdges = await cochangeStore.getCochangeEdges();
+        const mergedEdges = mergeIncrementalCochangeEdges(existingEdges, temporal.edges, temporal.commitCount);
+        if (mergedEdges.length > 0) {
+          await cochangeStore.storeCochangeEdges(mergedEdges);
+        }
+      } else if (temporal.edges.length) {
         await cochangeStore.storeCochangeEdges(temporal.edges);
+      }
+      const latestCommitSha = temporal.latestCommitSha;
+      if (latestCommitSha) {
+        await updateWatchState(storage, (prev) => ({
+          schema_version: 1,
+          workspace_root: prev?.workspace_root || config.workspace,
+          ...(prev ?? {}),
+          cursor: { kind: 'git', lastIndexedCommitSha: latestCommitSha },
+          needs_catchup: false,
+          last_error: undefined,
+        }));
       }
     }
   }
@@ -3707,6 +3733,43 @@ async function runRelationshipMapping(
   }
 
   return edges.length;
+}
+
+function mergeIncrementalCochangeEdges(
+  existingEdges: TemporalGraph['edges'],
+  incrementalEdges: TemporalGraph['edges'],
+  incrementalCommitCount: number
+): TemporalGraph['edges'] {
+  if (!incrementalEdges.length || incrementalCommitCount <= 0) return existingEdges;
+
+  const pairCounts = new Map<string, number>();
+  let previousTotalChanges = 0;
+
+  for (const edge of existingEdges) {
+    const key = edge.fileA < edge.fileB ? `${edge.fileA}||${edge.fileB}` : `${edge.fileB}||${edge.fileA}`;
+    pairCounts.set(key, (pairCounts.get(key) ?? 0) + edge.changeCount);
+    previousTotalChanges = Math.max(previousTotalChanges, edge.totalChanges);
+  }
+  for (const edge of incrementalEdges) {
+    const key = edge.fileA < edge.fileB ? `${edge.fileA}||${edge.fileB}` : `${edge.fileB}||${edge.fileA}`;
+    pairCounts.set(key, (pairCounts.get(key) ?? 0) + edge.changeCount);
+  }
+
+  const totalChanges = previousTotalChanges + incrementalCommitCount;
+  if (totalChanges <= 0) return [];
+
+  const merged: TemporalGraph['edges'] = [];
+  for (const [key, changeCount] of pairCounts) {
+    const [fileA, fileB] = key.split('||');
+    merged.push({
+      fileA,
+      fileB,
+      changeCount,
+      totalChanges,
+      strength: changeCount / totalChanges,
+    });
+  }
+  return merged;
 }
 
 /**

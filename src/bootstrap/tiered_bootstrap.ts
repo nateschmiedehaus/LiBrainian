@@ -577,7 +577,7 @@ export class TieredBootstrap {
 
     // Process source files for symbols and imports
     const sourceFiles = this.discoveredFiles.filter((f) =>
-      ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'].includes(f.extension)
+      ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.py', '.go', '.yaml', '.yml', '.json'].includes(f.extension)
     );
 
     // Prioritize entry points and limit for time budget
@@ -791,7 +791,7 @@ export class TieredBootstrap {
   ): { symbols: ExtractedSymbol[]; imports: ImportEdge[] } {
     const symbols: ExtractedSymbol[] = [];
     const imports: ImportEdge[] = [];
-    const lines = content.split('\n');
+    const extension = path.extname(relativePath).toLowerCase();
 
     // Track exports
     const exportedNames = new Set<string>();
@@ -813,72 +813,91 @@ export class TieredBootstrap {
       names.forEach((n) => exportedNames.add(n));
     }
 
-    // Extract symbols
-    const functionRegex = /(?:export\s+)?(?:async\s+)?function\s+(\w+)/g;
-    const classRegex = /(?:export\s+)?class\s+(\w+)/g;
-    const constRegex = /(?:export\s+)?const\s+(\w+)/g;
-    const typeRegex = /(?:export\s+)?type\s+(\w+)/g;
-    const interfaceRegex = /(?:export\s+)?interface\s+(\w+)/g;
-    const enumRegex = /(?:export\s+)?enum\s+(\w+)/g;
-
-    const extractSymbol = (
-      regex: RegExp,
-      kind: ExtractedSymbol['kind']
-    ): void => {
+    const extractSymbol = (regex: RegExp, kind: ExtractedSymbol['kind'], isExportedDefault = false): void => {
       while ((match = regex.exec(content)) !== null) {
         const name = match[1];
+        if (!name) continue;
         const lineNumber = content.slice(0, match.index).split('\n').length;
         symbols.push({
           name,
           kind,
           filePath: absolutePath,
           line: lineNumber,
-          isExported: exportedNames.has(name) || match[0].includes('export'),
+          isExported: isExportedDefault || exportedNames.has(name) || match[0].includes('export'),
         });
       }
     };
 
-    extractSymbol(functionRegex, 'function');
-    extractSymbol(classRegex, 'class');
-    extractSymbol(constRegex, 'variable');
-    extractSymbol(typeRegex, 'type');
-    extractSymbol(interfaceRegex, 'interface');
-    extractSymbol(enumRegex, 'enum');
+    if (['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'].includes(extension)) {
+      extractSymbol(/(?:export\s+)?(?:async\s+)?function\s+(\w+)/g, 'function');
+      extractSymbol(/(?:export\s+)?class\s+(\w+)/g, 'class');
+      extractSymbol(/(?:export\s+)?const\s+(\w+)/g, 'variable');
+      extractSymbol(/(?:export\s+)?type\s+(\w+)/g, 'type');
+      extractSymbol(/(?:export\s+)?interface\s+(\w+)/g, 'interface');
+      extractSymbol(/(?:export\s+)?enum\s+(\w+)/g, 'enum');
+    } else if (extension === '.py') {
+      extractSymbol(/^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm, 'function', true);
+      extractSymbol(/^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, 'class', true);
+    } else if (extension === '.go') {
+      extractSymbol(/^\s*func\s+(?:\([^)]+\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm, 'function', true);
+      extractSymbol(/^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:struct|interface)\b/gm, 'type', true);
+    } else if (extension === '.yaml' || extension === '.yml') {
+      extractSymbol(/^([A-Za-z0-9_-]+):\s*(?:#.*)?$/gm, 'variable', true);
+    } else if (extension === '.json') {
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          for (const key of Object.keys(parsed)) {
+            symbols.push({
+              name: key,
+              kind: 'variable',
+              filePath: absolutePath,
+              line: 1,
+              isExported: true,
+            });
+          }
+        }
+      } catch {
+        // Keep tier-1 extraction resilient; malformed JSON gets no symbols.
+      }
+    }
 
     // Extract imports
     const importRegex = /import\s+(?:\{([^}]+)\}|(\w+)|\*\s+as\s+(\w+))\s+from\s+['"]([^'"]+)['"]/g;
     const dynamicImportRegex = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-    while ((match = importRegex.exec(content)) !== null) {
-      const namedImports = match[1]
-        ? match[1].split(',').map((n) => n.trim().split(/\s+as\s+/)[0].trim())
-        : [];
-      const defaultImport = match[2] ? [match[2]] : [];
-      const namespaceImport = match[3] ? [`* as ${match[3]}`] : [];
-      const importPath = match[4];
+    if (['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'].includes(extension)) {
+      while ((match = importRegex.exec(content)) !== null) {
+        const namedImports = match[1]
+          ? match[1].split(',').map((n) => n.trim().split(/\s+as\s+/)[0].trim())
+          : [];
+        const defaultImport = match[2] ? [match[2]] : [];
+        const namespaceImport = match[3] ? [`* as ${match[3]}`] : [];
+        const importPath = match[4];
 
-      if (importPath.startsWith('.')) {
-        const targetFile = this.resolveImportPath(relativePath, importPath);
-        if (targetFile) {
-          imports.push({
-            sourceFile: relativePath,
-            targetFile,
-            importedNames: [...namedImports, ...defaultImport, ...namespaceImport],
-          });
+        if (importPath.startsWith('.')) {
+          const targetFile = this.resolveImportPath(relativePath, importPath);
+          if (targetFile) {
+            imports.push({
+              sourceFile: relativePath,
+              targetFile,
+              importedNames: [...namedImports, ...defaultImport, ...namespaceImport],
+            });
+          }
         }
       }
-    }
 
-    while ((match = dynamicImportRegex.exec(content)) !== null) {
-      const importPath = match[1];
-      if (importPath.startsWith('.')) {
-        const targetFile = this.resolveImportPath(relativePath, importPath);
-        if (targetFile) {
-          imports.push({
-            sourceFile: relativePath,
-            targetFile,
-            importedNames: ['*'],
-          });
+      while ((match = dynamicImportRegex.exec(content)) !== null) {
+        const importPath = match[1];
+        if (importPath.startsWith('.')) {
+          const targetFile = this.resolveImportPath(relativePath, importPath);
+          if (targetFile) {
+            imports.push({
+              sourceFile: relativePath,
+              targetFile,
+              importedNames: ['*'],
+            });
+          }
         }
       }
     }

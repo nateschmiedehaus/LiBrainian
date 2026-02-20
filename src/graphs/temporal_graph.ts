@@ -1,18 +1,35 @@
 import { spawn } from 'child_process';
 
 export interface CochangeEdge { fileA: string; fileB: string; changeCount: number; totalChanges: number; strength: number; }
-export interface TemporalGraph { edges: CochangeEdge[]; commitCount: number; fileChangeCounts: Record<string, number>; }
-export interface TemporalGraphOptions { maxCommits?: number; maxFilesPerCommit?: number; signal?: AbortSignal; }
+export interface TemporalGraph {
+  edges: CochangeEdge[];
+  commitCount: number;
+  fileChangeCounts: Record<string, number>;
+  latestCommitSha: string | null;
+}
+export interface TemporalGraphOptions {
+  maxCommits?: number;
+  maxFilesPerCommit?: number;
+  sinceCommitExclusive?: string;
+  signal?: AbortSignal;
+}
 
-const DEFAULT_MAX_COMMITS = 200;
+const DEFAULT_MAX_COMMITS = 2000;
 const DEFAULT_MAX_FILES = 50;
-const EMPTY_TEMPORAL_GRAPH: TemporalGraph = { edges: [], commitCount: 0, fileChangeCounts: {} };
+const EMPTY_TEMPORAL_GRAPH: TemporalGraph = { edges: [], commitCount: 0, fileChangeCounts: {}, latestCommitSha: null };
 
-async function readGitLog(workspace: string, maxCommits: number, signal?: AbortSignal): Promise<string | null> {
+async function readGitLog(
+  workspace: string,
+  maxCommits: number,
+  sinceCommitExclusive?: string,
+  signal?: AbortSignal
+): Promise<string | null> {
   return await new Promise<string | null>((resolve) => {
+    const args = ['log', '--name-only', '--pretty=format:%H', '-n', String(maxCommits)];
+    if (sinceCommitExclusive) args.push(`${sinceCommitExclusive}..HEAD`);
     const child = spawn(
       'git',
-      ['log', '--name-only', '--pretty=format:%H', '-n', String(maxCommits)],
+      args,
       { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] }
     );
 
@@ -59,21 +76,28 @@ async function readGitLog(workspace: string, maxCommits: number, signal?: AbortS
 export async function buildTemporalGraph(workspace: string, options: TemporalGraphOptions = {}): Promise<TemporalGraph> {
   const maxCommits = options.maxCommits ?? DEFAULT_MAX_COMMITS;
   const maxFilesPerCommit = options.maxFilesPerCommit ?? DEFAULT_MAX_FILES;
-  const stdout = await readGitLog(workspace, maxCommits, options.signal);
+  const stdout = await readGitLog(workspace, maxCommits, options.sinceCommitExclusive, options.signal);
   if (!stdout) return { ...EMPTY_TEMPORAL_GRAPH };
   const lines = stdout.split(/\r?\n/);
-  const commits: string[][] = [];
-  let current: string[] = [];
+  const commits: Array<{ sha: string; files: string[] }> = [];
+  let currentSha: string | null = null;
+  let currentFiles: string[] = [];
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (/^[0-9a-f]{7,40}$/i.test(trimmed)) { if (current.length) commits.push(current); current = []; continue; }
-    current.push(trimmed);
+    if (/^[0-9a-f]{7,40}$/i.test(trimmed)) {
+      if (currentSha && currentFiles.length) commits.push({ sha: currentSha, files: currentFiles });
+      currentSha = trimmed;
+      currentFiles = [];
+      continue;
+    }
+    currentFiles.push(trimmed);
   }
-  if (current.length) commits.push(current);
+  if (currentSha && currentFiles.length) commits.push({ sha: currentSha, files: currentFiles });
   const pairCounts = new Map<string, number>();
   const fileChangeCounts: Record<string, number> = {};
-  for (const filesRaw of commits) {
+  for (const commit of commits) {
+    const filesRaw = commit.files;
     const files = Array.from(new Set(filesRaw)).slice(0, maxFilesPerCommit);
     for (const file of files) fileChangeCounts[file] = (fileChangeCounts[file] ?? 0) + 1;
     for (let i = 0; i < files.length; i += 1) {
@@ -92,5 +116,5 @@ export async function buildTemporalGraph(workspace: string, options: TemporalGra
     const [fileA, fileB] = key.split('||');
     edges.push({ fileA, fileB, changeCount: count, totalChanges: commitCount, strength: commitCount > 0 ? count / commitCount : 0 });
   }
-  return { edges, commitCount, fileChangeCounts };
+  return { edges, commitCount, fileChangeCounts, latestCommitSha: commits[0]?.sha ?? null };
 }

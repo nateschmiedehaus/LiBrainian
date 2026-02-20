@@ -397,6 +397,42 @@ describe('main', () => {
 `
   );
 
+  await fs.writeFile(
+    path.join(tempDir, 'src', 'script.py'),
+    `
+import os
+
+def run():
+  return os.getenv('PATH')
+
+def compute(value):
+  return value * 2
+`
+  );
+
+  await fs.writeFile(
+    path.join(tempDir, 'src', 'service.go'),
+    `
+package service
+
+import "fmt"
+
+func Start() {
+  fmt.Println("starting")
+}
+`
+  );
+
+  await fs.writeFile(
+    path.join(tempDir, 'ci.yml'),
+    `
+name: ci
+jobs:
+  test:
+    runs-on: ubuntu-latest
+`
+  );
+
   // Create a README
   await fs.writeFile(
     path.join(tempDir, 'README.md'),
@@ -615,6 +651,10 @@ describe('TieredBootstrap', () => {
       expect(symbolNames).toContain('ConfigManager');
       expect(symbolNames).toContain('helper');
       expect(symbolNames).toContain('format');
+      expect(symbolNames).toContain('run');
+      expect(symbolNames).toContain('compute');
+      expect(symbolNames).toContain('Start');
+      expect(symbolNames).toContain('jobs');
     });
 
     it('should identify exported vs private symbols', async () => {
