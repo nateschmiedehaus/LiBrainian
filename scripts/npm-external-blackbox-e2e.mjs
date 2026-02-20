@@ -62,9 +62,10 @@ function run(command, args, options = {}) {
 function parsePackOutput(raw) {
   const text = String(raw ?? '').trim();
   if (!text) return null;
-  const arrayStart = text.lastIndexOf('[');
-  if (arrayStart < 0) return null;
-  const candidate = text.slice(arrayStart);
+  const arrayStart = text.indexOf('[');
+  const arrayEnd = text.lastIndexOf(']');
+  if (arrayStart < 0 || arrayEnd < arrayStart) return null;
+  const candidate = text.slice(arrayStart, arrayEnd + 1);
   try {
     const parsed = JSON.parse(candidate);
     return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : null;
