@@ -13,7 +13,8 @@ import { inspectWorkspaceLocks } from '../../../storage/storage_recovery.js';
 import { printKeyValue } from '../../progress.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
 import { getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
+import { readQueryCostTelemetry } from '../../../api/query_cost_telemetry.js';
 
 vi.mock('../../db_path.js', () => ({
   resolveDbPath: vi.fn(),
@@ -43,6 +44,20 @@ vi.mock('../../../utils/workspace_resolver.js', () => ({
 vi.mock('../../../utils/git.js', () => ({
   isGitRepo: vi.fn(() => true),
   getGitStatusChanges: vi.fn(async () => null),
+}));
+vi.mock('../../../api/query_cost_telemetry.js', () => ({
+  readQueryCostTelemetry: vi.fn(),
+}));
+vi.mock('../../json_output.js', () => ({
+  emitJsonOutput: vi.fn(async (payload: unknown, outPath?: string) => {
+    const json = JSON.stringify(payload, null, 2);
+    if (!outPath) {
+      console.log(json);
+      return;
+    }
+    await fs.mkdir(path.dirname(outPath), { recursive: true });
+    await fs.writeFile(outPath, `${json}\n`, 'utf8');
+  }),
 }));
 vi.mock('../../progress.js', async () => {
   const actual = await vi.importActual('../../progress.js');
@@ -100,7 +115,7 @@ describe('statusCommand', () => {
       sourceFileCount: 0,
       reason: 'no_candidate',
     });
-    vi.mocked(createSqliteStorage).mockReturnValue(mockStorage as unknown as LibrarianStorage);
+    vi.mocked(createSqliteStorage).mockReturnValue(mockStorage as unknown as LiBrainianStorage);
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: false, reason: 'ok' });
     vi.mocked(getBootstrapStatus).mockReturnValue({
       status: 'not_started',
@@ -128,6 +143,7 @@ describe('statusCommand', () => {
     });
     vi.mocked(isGitRepo).mockReturnValue(true);
     vi.mocked(getGitStatusChanges).mockResolvedValue(null);
+    vi.mocked(readQueryCostTelemetry).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -235,6 +251,56 @@ describe('statusCommand', () => {
     expect(parsed.server?.status).toBeDefined();
     expect(parsed.config?.status).toBeDefined();
     expect(exitCode).toBe(0);
+  });
+
+  it('includes cost telemetry in JSON output when --costs is enabled', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(readQueryCostTelemetry).mockResolvedValue({
+      kind: 'QueryCostTelemetry.v1',
+      generatedAt: '2026-02-21T00:00:00.000Z',
+      workspace,
+      dataSource: 'evidence_ledger',
+      lookbackDays: 7,
+      budgetUsd: 0.5,
+      totals: {
+        sessionId: null,
+        queriesCount: 3,
+        totalTokensIn: 100,
+        totalTokensOut: 200,
+        totalTokens: 300,
+        llmCalls: 1,
+        totalCostUsd: 0.11,
+        avgLatencyMs: 42,
+        budgetUsd: 0.5,
+        budgetExceeded: false,
+      },
+      session: {
+        sessionId: 'sess-1',
+        queriesCount: 3,
+        totalTokensIn: 100,
+        totalTokensOut: 200,
+        totalTokens: 300,
+        llmCalls: 1,
+        totalCostUsd: 0.11,
+        avgLatencyMs: 42,
+        budgetUsd: 0.5,
+        budgetExceeded: false,
+      },
+      perQuery: [],
+      sessionDistribution: [],
+      alerts: [],
+    });
+
+    await statusCommand({ workspace, verbose: false, format: 'json', rawArgs: ['status', '--costs'] });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as { costs?: { totals?: { totalCostUsd?: number } } };
+    expect(parsed.costs?.totals?.totalCostUsd).toBeCloseTo(0.11, 6);
+    expect(readQueryCostTelemetry).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceRoot: workspace,
+      lookbackDays: 7,
+      maxPerQuery: 10,
+    }));
   });
 
   it('reports offline runtime feature availability when LIBRARIAN_OFFLINE is enabled', async () => {
@@ -394,7 +460,7 @@ describe('statusCommand', () => {
     vi.mocked(createSqliteStorage).mockReturnValue({
       ...mockStorage,
       initialize: vi.fn().mockRejectedValue(new Error('db missing')),
-    } as unknown as LibrarianStorage);
+    } as unknown as LiBrainianStorage);
 
     const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
     expect(exitCode).toBe(2);

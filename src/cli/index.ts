@@ -152,7 +152,7 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean, debug:
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
     description: 'Show current librarian status',
-    usage: 'librarian status [--verbose] [--format text|json] [--out <path>] [--workspace-set <path>]',
+    usage: 'librarian status [--verbose] [--format text|json] [--out <path>] [--costs] [--cost-budget-usd <n>] [--cost-window-days <n>] [--cost-limit <n>] [--workspace-set <path>]',
   },
   'stats': {
     description: 'Summarize tool-call cost and performance from evidence ledger',

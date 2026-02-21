@@ -135,6 +135,10 @@ OPTIONS:
     --format text|json  Output format (default: text)
     --json              Alias for --format json
     --out <path>        Write JSON output to file (requires --json/--format json)
+    --costs             Include per-query/session cost telemetry from evidence ledger
+    --cost-budget-usd <n>  Override session budget threshold used for cost alerts
+    --cost-window-days <n> Rolling telemetry window in days (default: 7)
+    --cost-limit <n>    Number of recent query rows to include (default: 10, max: 20)
     --workspace-set <path>  Load monorepo workspace-set config and report per-package status
 
 DESCRIPTION:
@@ -144,10 +148,12 @@ DESCRIPTION:
     - Context pack statistics
     - Provider availability
     - Index health indicators
+    - Optional per-query cost/runtime telemetry when --costs is enabled
 
 EXAMPLES:
     librarian status
     librarian status --verbose
+    librarian status --costs --cost-budget-usd 0.50
     librarian status --json --out /tmp/librarian-status.json
 `,
 

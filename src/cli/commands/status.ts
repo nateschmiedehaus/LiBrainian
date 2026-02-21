@@ -11,7 +11,7 @@ import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
 import { computeEmbeddingCoverage, type EmbeddingCoverageSummary } from '../../api/embedding_coverage.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import { printKeyValue, formatTimestamp, formatBytes, formatDuration } from '../progress.js';
 import { safeJsonParse } from '../../utils/safe_json.js';
@@ -22,6 +22,7 @@ import { getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 import { isOfflineModeEnabled } from '../../utils/runtime_controls.js';
 import { getTreeSitterLanguageConfigs } from '../../agents/parsers/tree_sitter_parser.js';
 import { getMemoryStoreStats } from '../../memory/fact_store.js';
+import { readQueryCostTelemetry, type QueryCostTelemetry } from '../../api/query_cost_telemetry.js';
 import {
   buildWorkspaceSetDependencyGraph,
   loadWorkspaceSetConfig,
@@ -139,6 +140,8 @@ type StatusReport = {
     newFiles: number;
     selector: 'git-status';
   } | null;
+  costs?: QueryCostTelemetry | null;
+  costsError?: string;
   provenance?: VerificationProvenanceReport;
   workspaceSet?: {
     root: string;
@@ -208,6 +211,7 @@ function computeDurationMs(startedAt: unknown, completedAt: unknown): number | n
 
 export async function statusCommand(options: StatusCommandOptions): Promise<number> {
   const { workspace, verbose, format = 'text', out, rawArgs } = options;
+  const costArgs = parseCostTelemetryArgs(rawArgs);
   let workspaceRoot = path.resolve(workspace);
   if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
     const resolution = resolveWorkspaceRoot(workspaceRoot);
@@ -250,7 +254,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   report.provenance = await collectVerificationProvenance(workspaceRoot);
 
   if (format === 'text') {
-    console.log('Librarian Status');
+    console.log('LiBrainian Status');
     console.log('================\n');
 
     console.log('Version Information:');
@@ -564,6 +568,20 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       };
     }
 
+    if (costArgs.includeCosts) {
+      try {
+        report.costs = await readQueryCostTelemetry({
+          workspaceRoot,
+          budgetUsd: costArgs.budgetUsd,
+          lookbackDays: costArgs.lookbackDays,
+          maxPerQuery: costArgs.maxPerQuery,
+        });
+      } catch (error) {
+        report.costs = null;
+        report.costsError = error instanceof Error ? error.message : String(error);
+      }
+    }
+
     if (format === 'json') {
       await emitJsonOutput(report, out);
       return deriveStatusExitCode(report);
@@ -646,6 +664,44 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       printKeyValue([{ key: 'Status', value: 'Unable to check providers' }]);
     }
     console.log();
+
+    if (costArgs.includeCosts) {
+      console.log('Cost Telemetry:');
+      if (report.costsError) {
+        printKeyValue([{ key: 'Status', value: `Unable to read telemetry (${report.costsError})` }]);
+        console.log();
+      } else if (!report.costs) {
+        printKeyValue([{ key: 'Status', value: 'No evidence_ledger.db telemetry found yet' }]);
+        console.log();
+      } else {
+        const sessionSummary = report.costs.session ?? report.costs.totals;
+        printKeyValue([
+          { key: 'Lookback (days)', value: report.costs.lookbackDays },
+          { key: 'Query Samples', value: report.costs.totals.queriesCount },
+          { key: 'Session', value: sessionSummary.sessionId ?? 'none' },
+          { key: 'Session Queries', value: sessionSummary.queriesCount },
+          { key: 'Session Tokens In/Out', value: `${sessionSummary.totalTokensIn}/${sessionSummary.totalTokensOut}` },
+          { key: 'Session Total Tokens', value: sessionSummary.totalTokens },
+          { key: 'Session LLM Calls', value: sessionSummary.llmCalls },
+          { key: 'Session Avg Latency (ms)', value: sessionSummary.avgLatencyMs },
+          { key: 'Session Cost (USD)', value: sessionSummary.totalCostUsd.toFixed(6) },
+          { key: 'Budget (USD)', value: sessionSummary.budgetUsd.toFixed(6) },
+          { key: 'Budget Exceeded', value: sessionSummary.budgetExceeded },
+        ]);
+        if (report.costs.alerts.length > 0) {
+          printKeyValue([{ key: 'Alerts', value: report.costs.alerts.join(' | ') }]);
+        }
+        if (report.costs.perQuery.length > 0) {
+          console.log('\nRecent Query Metrics:');
+          for (const sample of report.costs.perQuery.slice(0, costArgs.maxPerQuery)) {
+            console.log(
+              `  - ${sample.timestamp} session=${sample.sessionId ?? 'none'} tokens=${sample.totalTokens} llmCalls=${sample.llmCalls} latencyMs=${sample.latencyMs} costUsd=${sample.estimatedCostUsd.toFixed(6)} cacheHit=${sample.cacheHit === null ? 'unknown' : sample.cacheHit}`
+            );
+          }
+        }
+        console.log();
+      }
+    }
 
     if (verbose) {
       const packs = await storage.getContextPacks({ limit: 5, orderBy: 'accessCount', orderDirection: 'desc' });
@@ -739,7 +795,7 @@ async function statusWorkspaceSet(options: {
   if (format === 'json') {
     await emitJsonOutput(report, out);
   } else {
-    console.log('Librarian Workspace-Set Status');
+    console.log('LiBrainian Workspace-Set Status');
     console.log('=============================\n');
     printKeyValue([
       { key: 'Workspace Root', value: workspaceSet.root },
@@ -787,6 +843,55 @@ function parseWorkspaceSetArg(rawArgs: string[] | undefined): string | undefined
   return candidate.length > 0 ? candidate : undefined;
 }
 
+function parseCostTelemetryArgs(rawArgs: string[] | undefined): {
+  includeCosts: boolean;
+  budgetUsd?: number;
+  lookbackDays: number;
+  maxPerQuery: number;
+} {
+  if (!rawArgs || rawArgs.length === 0) {
+    return { includeCosts: false, lookbackDays: 7, maxPerQuery: 10 };
+  }
+  const { values } = parseArgs({
+    args: rawArgs.slice(1),
+    options: {
+      costs: { type: 'boolean', default: false },
+      'cost-budget-usd': { type: 'string' },
+      'cost-window-days': { type: 'string' },
+      'cost-limit': { type: 'string' },
+    },
+    strict: false,
+    allowPositionals: true,
+  });
+  const lookbackDays = clampInteger(
+    typeof values['cost-window-days'] === 'string' ? values['cost-window-days'] : undefined,
+    7,
+    1,
+    365
+  );
+  const maxPerQuery = clampInteger(
+    typeof values['cost-limit'] === 'string' ? values['cost-limit'] : undefined,
+    10,
+    1,
+    20
+  );
+  const budgetRaw = typeof values['cost-budget-usd'] === 'string' ? values['cost-budget-usd'] : undefined;
+  const parsedBudget = budgetRaw ? Number(budgetRaw) : undefined;
+  return {
+    includeCosts: Boolean(values.costs),
+    budgetUsd: Number.isFinite(parsedBudget) && parsedBudget !== undefined && parsedBudget >= 0 ? parsedBudget : undefined,
+    lookbackDays,
+    maxPerQuery,
+  };
+}
+
+function clampInteger(value: string | undefined, fallback: number, min: number, max: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 function normalizeExtension(ext: string): string {
   return ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
 }
@@ -809,7 +914,7 @@ function buildExtensionLanguageMap(): Map<string, string> {
   return map;
 }
 
-async function collectLanguageCoverage(storage: LibrarianStorage): Promise<NonNullable<StatusReport['languageCoverage']>> {
+async function collectLanguageCoverage(storage: LiBrainianStorage): Promise<NonNullable<StatusReport['languageCoverage']>> {
   const functions = await storage.getFunctions();
   const byLanguage = new Map<string, number>();
   for (const fn of functions) {
@@ -885,7 +990,7 @@ async function detectConfigPath(workspaceRoot: string): Promise<ConfigStatus> {
 
 async function collectGitFreshnessSummary(params: {
   workspaceRoot: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   totalIndexedFiles: number;
 }): Promise<StatusReport['freshness']> {
   const { workspaceRoot, storage, totalIndexedFiles } = params;

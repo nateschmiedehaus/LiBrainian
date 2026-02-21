@@ -1,8 +1,8 @@
 /**
- * @fileoverview MCP Protocol Types for Librarian Server
+ * @fileoverview MCP Protocol Types for LiBrainian Server
  *
  * Defines typed interfaces for all MCP resources, tools, and roots
- * that Librarian exposes. Aligned with @modelcontextprotocol/sdk v1.20.0.
+ * that LiBrainian exposes. Aligned with @modelcontextprotocol/sdk v1.20.0.
  *
  * Resources exposed:
  * - File tree, symbols, knowledge maps
@@ -43,9 +43,9 @@ export const MCP_SCHEMA_VERSION = '1.0.0';
 // ============================================================================
 
 /**
- * Base interface for all Librarian MCP resources.
+ * Base interface for all LiBrainian MCP resources.
  */
-export interface LibrarianResource<T = unknown> {
+export interface LiBrainianResource<T = unknown> {
   /** Resource URI following MCP conventions */
   uri: string;
 
@@ -463,6 +463,9 @@ export interface StatusToolInput {
 
   /** Optional plan ID to retrieve a specific synthesized plan from status */
   planId?: string;
+
+  /** Optional budget threshold for session cost alerts in USD */
+  costBudgetUsd?: number;
 }
 
 /** get_session_briefing tool input */
@@ -2319,7 +2322,7 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
 // ============================================================================
 
 /** MCP server configuration */
-export interface LibrarianMCPServerConfig {
+export interface LiBrainianMCPServerConfig {
   /** Server name */
   name: string;
 
@@ -2432,7 +2435,7 @@ export interface LibrarianMCPServerConfig {
 }
 
 /** Default server configuration */
-export const DEFAULT_MCP_SERVER_CONFIG: LibrarianMCPServerConfig = {
+export const DEFAULT_MCP_SERVER_CONFIG: LiBrainianMCPServerConfig = {
   name: 'librarian-mcp-server',
   version: MCP_SCHEMA_VERSION,
   workspaces: [],
@@ -3166,8 +3169,8 @@ export function isCompileIntentBundlesToolInput(value: unknown): value is Compil
   return intentOk && workspaceOk && limitOk && includeOk;
 }
 
-/** Type guard for LibrarianResource */
-export function isLibrarianResource(value: unknown): value is LibrarianResource {
+/** Type guard for LiBrainianResource */
+export function isLiBrainianResource(value: unknown): value is LiBrainianResource {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return (

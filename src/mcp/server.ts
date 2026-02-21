@@ -1,7 +1,7 @@
 /**
- * @fileoverview MCP Server Implementation for Librarian
+ * @fileoverview MCP Server Implementation for LiBrainian
  *
- * Implements a Model Context Protocol server that exposes Librarian's
+ * Implements a Model Context Protocol server that exposes LiBrainian's
  * knowledge base and tools to MCP clients (e.g., Claude Code).
  *
  * Features:
@@ -32,7 +32,7 @@ import {
   MCP_SCHEMA_VERSION,
   DEFAULT_MCP_SERVER_CONFIG,
   TOOL_AUTHORIZATION,
-  type LibrarianMCPServerConfig,
+  type LiBrainianMCPServerConfig,
   type AuthorizationScope,
   type BootstrapToolInput,
   type StatusToolInput,
@@ -113,18 +113,18 @@ import {
   validateConstructionOutput,
 } from './construction_results.js';
 
-// Librarian API imports
+// LiBrainian API imports
 import {
-  createLibrarian,
-  Librarian,
+  createLiBrainian,
+  LiBrainian,
   bootstrapProject,
   createBootstrapConfig,
   isBootstrapRequired,
   getBootstrapStatus,
-  queryLibrarian,
+  queryLiBrainian,
   generateRepoMap,
 } from '../api/index.js';
-import type { ContextPack, FunctionKnowledge, GraphEdge, LibrarianQuery, LibrarianResponse } from '../types.js';
+import type { ContextPack, FunctionKnowledge, GraphEdge, LiBrainianQuery, LiBrainianResponse } from '../types.js';
 import { estimateTokens } from '../api/token_budget.js';
 import {
   computeEmbeddingCoverage,
@@ -132,6 +132,7 @@ import {
   SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT,
   type EmbeddingCoverageSummary,
 } from '../api/embedding_coverage.js';
+import { readQueryCostTelemetry, type QueryCostTelemetry } from '../api/query_cost_telemetry.js';
 import { computeChangeImpactReport } from '../api/change_impact_tool.js';
 import { categorizeRetrievalStatus, computeRetrievalEntropy } from '../api/retrieval_escalation.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
@@ -142,7 +143,7 @@ import {
 import { compileTechniqueBundlesFromIntent } from '../api/plan_compiler.js';
 import { listTechniqueCompositions as listStoredTechniqueCompositions } from '../state/technique_compositions.js';
 import { submitQueryFeedback } from '../integration/agent_protocol.js';
-import { createSqliteStorage, type LibrarianStorage } from '../storage/index.js';
+import { createSqliteStorage, type LiBrainianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
 import { CodePropertyGraphBuilder } from '../analysis/code_property_graph.js';
 import {
@@ -198,10 +199,10 @@ export interface WorkspaceState {
   path: string;
 
   /** Storage instance (lazy loaded) */
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
 
-  /** Librarian instance (for autoWatch support) */
-  librarian?: Librarian;
+  /** LiBrainian instance (for autoWatch support) */
+  librarian?: LiBrainian;
 
   /** Evidence ledger for epistemic/audit trace (lazy) */
   evidenceLedger?: SqliteEvidenceLedger;
@@ -777,7 +778,7 @@ interface QueryDecompositionPlan {
 }
 
 type QueryExecutionOutcome =
-  | { kind: 'ok'; query: string; response: LibrarianResponse }
+  | { kind: 'ok'; query: string; response: LiBrainianResponse }
   | { kind: 'timeout'; query: string }
   | { kind: 'error'; query: string; error: string };
 
@@ -1231,19 +1232,19 @@ function normalizeToolErrorResult(toolName: string, args: unknown, result: unkno
 // ============================================================================
 
 /**
- * Librarian MCP Server
+ * LiBrainian MCP Server
  *
- * Exposes Librarian's knowledge base and tools via MCP protocol.
+ * Exposes LiBrainian's knowledge base and tools via MCP protocol.
  */
-export class LibrarianMCPServer {
+export class LiBrainianMCPServer {
   private server: Server;
-  private config: LibrarianMCPServerConfig;
+  private config: LiBrainianMCPServerConfig;
   private state: ServerState;
   private transport: StdioServerTransport | null = null;
   private inFlightToolCalls = 0;
   private readonly inFlightBootstraps = new Map<string, Promise<unknown>>();
 
-  constructor(config: Partial<LibrarianMCPServerConfig> = {}) {
+  constructor(config: Partial<LiBrainianMCPServerConfig> = {}) {
     this.config = {
       ...DEFAULT_MCP_SERVER_CONFIG,
       ...config,
@@ -1371,6 +1372,7 @@ export class LibrarianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             sessionId: { type: 'string', description: 'Optional session identifier for session-scoped status details' },
             planId: { type: 'string', description: 'Optional plan ID to retrieve a specific synthesized plan' },
+            costBudgetUsd: { type: 'number', description: 'Optional budget threshold (USD) for session cost alerts' },
           },
           required: [],
         },
@@ -1401,7 +1403,7 @@ export class LibrarianMCPServer {
       },
       {
         name: 'diagnose_self',
-        description: 'Diagnose Librarian self-knowledge drift for a workspace',
+        description: 'Diagnose LiBrainian self-knowledge drift for a workspace',
         inputSchema: {
           type: 'object',
           properties: {
@@ -3646,10 +3648,10 @@ export class LibrarianMCPServer {
 
   /**
    * Get or create storage for a workspace.
-   * Prefers using existing Librarian instance's storage to avoid duplicates.
+   * Prefers using existing LiBrainian instance's storage to avoid duplicates.
    * Handles migration from legacy .db to .sqlite files.
    */
-  private async getOrCreateStorage(workspacePath: string): Promise<LibrarianStorage> {
+  private async getOrCreateStorage(workspacePath: string): Promise<LiBrainianStorage> {
     // Validate workspace path is absolute and accessible
     const resolvedWorkspace = path.resolve(workspacePath);
     try {
@@ -3660,7 +3662,7 @@ export class LibrarianMCPServer {
 
     const workspace = this.state.workspaces.get(resolvedWorkspace);
 
-    // First, try to get storage from existing Librarian instance
+    // First, try to get storage from existing LiBrainian instance
     if (workspace?.librarian) {
       const librarianStorage = workspace.librarian.getStorage();
       if (librarianStorage) {
@@ -3800,7 +3802,7 @@ export class LibrarianMCPServer {
     return runs;
   }
 
-  private async getBootstrapRunHistory(storage: LibrarianStorage): Promise<BootstrapRunRecord[]> {
+  private async getBootstrapRunHistory(storage: LiBrainianStorage): Promise<BootstrapRunRecord[]> {
     const raw = await storage.getState(BOOTSTRAP_RUN_HISTORY_STATE_KEY);
     if (!raw) return [];
     try {
@@ -3811,7 +3813,7 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async setBootstrapRunHistory(storage: LibrarianStorage, runs: BootstrapRunRecord[]): Promise<void> {
+  private async setBootstrapRunHistory(storage: LiBrainianStorage, runs: BootstrapRunRecord[]): Promise<void> {
     const payload = {
       schemaVersion: BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION,
       runs: runs.slice(0, MAX_PERSISTED_BOOTSTRAP_RUNS),
@@ -3869,8 +3871,8 @@ export class LibrarianMCPServer {
     return normalized;
   }
 
-  private async getSessionEpisodes(storage: LibrarianStorage): Promise<SessionEpisodeRecord[]> {
-    const store = storage as Partial<LibrarianStorage>;
+  private async getSessionEpisodes(storage: LiBrainianStorage): Promise<SessionEpisodeRecord[]> {
+    const store = storage as Partial<LiBrainianStorage>;
     if (typeof store.getState !== 'function') return [];
     const raw = await store.getState(SESSION_EPISODES_STATE_KEY);
     if (!raw) return [];
@@ -3882,8 +3884,8 @@ export class LibrarianMCPServer {
     }
   }
 
-  private async setSessionEpisodes(storage: LibrarianStorage, episodes: SessionEpisodeRecord[]): Promise<void> {
-    const store = storage as Partial<LibrarianStorage>;
+  private async setSessionEpisodes(storage: LiBrainianStorage, episodes: SessionEpisodeRecord[]): Promise<void> {
+    const store = storage as Partial<LiBrainianStorage>;
     if (typeof store.setState !== 'function') return;
     const payload = {
       schemaVersion: SESSION_EPISODES_SCHEMA_VERSION,
@@ -3894,7 +3896,7 @@ export class LibrarianMCPServer {
   }
 
   private async appendSessionEpisode(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     episode: Omit<SessionEpisodeRecord, 'episodeId' | 'createdAtMs' | 'workspace'> & {
       workspace: string;
     },
@@ -3954,10 +3956,10 @@ export class LibrarianMCPServer {
   }
 
   private async resolveConformalCalibrationProfile(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     alpha: number,
   ): Promise<ConformalCalibrationProfile> {
-    const store = storage as Partial<LibrarianStorage>;
+    const store = storage as Partial<LiBrainianStorage>;
     if (typeof store.getState !== 'function') {
       return {
         alpha,
@@ -4013,7 +4015,7 @@ export class LibrarianMCPServer {
   }
 
   private async getRecentEpisodeFileBoosts(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     options: {
       sessionId: string;
       workspace: string;
@@ -4062,7 +4064,7 @@ export class LibrarianMCPServer {
   private async persistBootstrapRunRecord(
     workspacePath: string,
     record: BootstrapRunRecord,
-    storageHint?: LibrarianStorage
+    storageHint?: LiBrainianStorage
   ): Promise<void> {
     let storage = storageHint;
     if (!storage) {
@@ -4113,7 +4115,7 @@ export class LibrarianMCPServer {
         };
       }
 
-      // Check if we already have a Librarian instance for this workspace
+      // Check if we already have a LiBrainian instance for this workspace
       const existingWorkspace = this.state.workspaces.get(workspacePath);
       if (existingWorkspace?.librarian && !input.force) {
         // Check if bootstrap is required via existing librarian
@@ -4140,11 +4142,11 @@ export class LibrarianMCPServer {
       // Update workspace state
       this.updateWorkspaceState(workspacePath, { indexState: 'indexing' });
 
-      // Create Librarian with autoWatch enabled based on server config
+      // Create LiBrainian with autoWatch enabled based on server config
       const autoWatchEnabled = this.config.autoWatch?.enabled ?? true;
       const debounceMs = this.config.autoWatch?.debounceMs ?? 200;
 
-      const librarian = await createLibrarian({
+      const librarian = await createLiBrainian({
         workspace: workspacePath,
         autoBootstrap: true,
         autoWatch: autoWatchEnabled,
@@ -4340,6 +4342,14 @@ export class LibrarianMCPServer {
         ? planSession?.planHistory.find((record) => record.planId === requestedPlanId) ?? null
         : undefined;
       const embeddingCoverage = await this.readWorkspaceEmbeddingCoverage(workspacePath);
+      const costBudgetUsd = typeof input.costBudgetUsd === 'number' && Number.isFinite(input.costBudgetUsd) && input.costBudgetUsd >= 0
+        ? input.costBudgetUsd
+        : undefined;
+      const costMetrics = await this.readWorkspaceQueryCostMetrics({
+        workspacePath,
+        sessionId: explicitSessionId ?? contextSessionId,
+        budgetUsd: costBudgetUsd,
+      });
 
       return {
         success: true,
@@ -4348,7 +4358,7 @@ export class LibrarianMCPServer {
         indexedAt: workspace.indexedAt,
         lastBootstrapRunId: workspace.lastBootstrapRunId,
         hasStorage: !!workspace.storage,
-        hasLibrarian: !!workspace.librarian,
+        hasLiBrainian: !!workspace.librarian,
         autoWatch: {
           configured: workspace.watching ?? false,
           active: watchActive,
@@ -4366,6 +4376,8 @@ export class LibrarianMCPServer {
         },
         embeddingCoverage: embeddingCoverage ?? undefined,
         embedding_coverage: embeddingCoverage ?? undefined,
+        costMetrics: costMetrics ?? undefined,
+        cost_metrics: costMetrics ?? undefined,
         planTracking: {
           sessionId: planSessionId,
           session_id: planSessionId,
@@ -4382,6 +4394,24 @@ export class LibrarianMCPServer {
         success: false,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  private async readWorkspaceQueryCostMetrics(options: {
+    workspacePath: string;
+    sessionId?: string;
+    budgetUsd?: number;
+  }): Promise<QueryCostTelemetry | null> {
+    try {
+      return await readQueryCostTelemetry({
+        workspaceRoot: options.workspacePath,
+        sessionId: options.sessionId,
+        budgetUsd: options.budgetUsd,
+        lookbackDays: 7,
+        maxPerQuery: 10,
+      });
+    } catch {
+      return null;
     }
   }
 
@@ -4459,7 +4489,7 @@ export class LibrarianMCPServer {
           ? {
             indexState: workspace.indexState,
             indexedAt: workspace.indexedAt,
-            hasLibrarian: !!workspace.librarian,
+            hasLiBrainian: !!workspace.librarian,
             hasStorage: !!workspace.storage,
             watching: workspace.watching ?? false,
             lastBootstrapRunId: workspace.lastBootstrapRunId,
@@ -5477,7 +5507,7 @@ export class LibrarianMCPServer {
       const failedQueries = outcomes
         .filter((outcome): outcome is { kind: 'error'; query: string; error: string } => outcome.kind === 'error');
       const successfulResponses = outcomes
-        .filter((outcome): outcome is { kind: 'ok'; query: string; response: LibrarianResponse } => outcome.kind === 'ok')
+        .filter((outcome): outcome is { kind: 'ok'; query: string; response: LiBrainianResponse } => outcome.kind === 'ok')
         .map((outcome) => outcome.response);
       const subQueries = outcomes.map((outcome) => {
         if (outcome.kind === 'ok') {
@@ -6808,11 +6838,11 @@ export class LibrarianMCPServer {
         `Unknown Construction ID: ${input.constructionId}. Use list_constructions to discover IDs.`,
       );
     }
-    const requiresLibrarian = manifest.requiredCapabilities.includes('librarian');
+    const requiresLiBrainian = manifest.requiredCapabilities.includes('librarian');
     let resolvedWorkspace: string | undefined;
     let deps: Record<string, unknown> = {};
 
-    if (requiresLibrarian) {
+    if (requiresLiBrainian) {
       const workspaceRoot = input.workspace
         ? path.resolve(input.workspace)
         : this.findReadyWorkspace()?.path
@@ -6833,7 +6863,7 @@ export class LibrarianMCPServer {
       let workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
 
       if (!workspaceState.librarian) {
-        const librarian = await createLibrarian({
+        const librarian = await createLiBrainian({
           workspace: resolvedWorkspace,
           autoBootstrap: true,
           autoWatch: false,
@@ -6850,7 +6880,7 @@ export class LibrarianMCPServer {
 
       const librarian = workspaceState.librarian;
       if (!librarian) {
-        throw new Error(`Failed to initialize Librarian runtime for workspace: ${resolvedWorkspace}`);
+        throw new Error(`Failed to initialize LiBrainian runtime for workspace: ${resolvedWorkspace}`);
       }
       deps = { librarian };
     }
@@ -7652,7 +7682,7 @@ export class LibrarianMCPServer {
   }
 
   private async resolveFunctionTargetsForLookup(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     query: string,
   ): Promise<Array<{
     id: string;
@@ -10188,11 +10218,11 @@ export class LibrarianMCPServer {
 
       const isInWorkspace = normalizedOutput.startsWith(normalizedWorkspace + path.sep) ||
                             normalizedOutput === normalizedWorkspace;
-      const isInLibrarianDir = normalizedOutput.startsWith(librarianDir + path.sep) ||
+      const isInLiBrainianDir = normalizedOutput.startsWith(librarianDir + path.sep) ||
                                normalizedOutput === librarianDir;
 
       // Allow exports only within workspace or .librarian/exports subdirectory
-      if (!isInWorkspace && !isInLibrarianDir) {
+      if (!isInWorkspace && !isInLiBrainianDir) {
         return {
           success: false,
           error: 'Export path must be within the workspace directory',
@@ -10839,7 +10869,7 @@ export class LibrarianMCPServer {
 
   private async analyzeQueryDecomposition(
     intent: string,
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
   ): Promise<QueryDecompositionPlan> {
     const candidateSymbols = await this.detectAmbiguousSymbols(intent, storage);
     if (candidateSymbols.length > 0) {
@@ -10871,7 +10901,7 @@ export class LibrarianMCPServer {
 
   private async detectAmbiguousSymbols(
     intent: string,
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
   ): Promise<QueryAmbiguityCandidate[]> {
     if (typeof storage.getFunctionsByName !== 'function') {
       return [];
@@ -10951,14 +10981,14 @@ export class LibrarianMCPServer {
   }
 
   private async executeQueryWithTimeout(
-    query: LibrarianQuery,
-    storage: LibrarianStorage,
+    query: LiBrainianQuery,
+    storage: LiBrainianStorage,
     workspace: WorkspaceState,
     queryTimeoutMs: number,
   ): Promise<QueryExecutionOutcome> {
     const timeoutToken = Symbol('query_timeout');
     const raced = await Promise.race([
-      queryLibrarian(
+      queryLiBrainian(
         query,
         storage,
         undefined,
@@ -10985,9 +11015,9 @@ export class LibrarianMCPServer {
   }
 
   private mergeParallelQueryResponses(
-    responses: LibrarianResponse[],
-    fallbackQuery: LibrarianQuery,
-  ): LibrarianResponse {
+    responses: LiBrainianResponse[],
+    fallbackQuery: LiBrainianQuery,
+  ): LiBrainianResponse {
     const first = responses[0];
     if (!first) {
       throw new Error('No query responses to merge');
@@ -11272,7 +11302,7 @@ export class LibrarianMCPServer {
 
   private async buildProactiveInjectionText(options: {
     candidate: ProactiveContextCandidate;
-    storage: LibrarianStorage;
+    storage: LiBrainianStorage;
     maxTokens: number;
     minCoverage: number;
   }): Promise<string | null> {
@@ -11355,7 +11385,7 @@ export class LibrarianMCPServer {
   }
 
   private async buildRefactorSafetySummary(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     filePath: string,
     functions: FunctionKnowledge[],
   ): Promise<string | null> {
@@ -11420,7 +11450,7 @@ export class LibrarianMCPServer {
   async start(): Promise<void> {
     this.transport = new StdioServerTransport();
     await this.server.connect(this.transport);
-    console.error(`[MCP] Librarian server started (${this.config.name} v${this.config.version})`);
+    console.error(`[MCP] LiBrainian server started (${this.config.name} v${this.config.version})`);
   }
 
   /**
@@ -11438,7 +11468,7 @@ export class LibrarianMCPServer {
       await this.server.close();
       this.transport = null;
     }
-    console.error('[MCP] Librarian server stopped');
+    console.error('[MCP] LiBrainian server stopped');
   }
 
   /**
@@ -11638,12 +11668,12 @@ export class LibrarianMCPServer {
 // ============================================================================
 
 /**
- * Create and start a Librarian MCP server.
+ * Create and start a LiBrainian MCP server.
  */
-export async function createLibrarianMCPServer(
-  config?: Partial<LibrarianMCPServerConfig>
-): Promise<LibrarianMCPServer> {
-  const server = new LibrarianMCPServer(config);
+export async function createLiBrainianMCPServer(
+  config?: Partial<LiBrainianMCPServerConfig>
+): Promise<LiBrainianMCPServer> {
+  const server = new LiBrainianMCPServer(config);
   return server;
 }
 
@@ -11651,9 +11681,9 @@ export async function createLibrarianMCPServer(
  * Create and start a server with stdio transport.
  */
 export async function startStdioServer(
-  config?: Partial<LibrarianMCPServerConfig>
-): Promise<LibrarianMCPServer> {
-  const server = await createLibrarianMCPServer(config);
+  config?: Partial<LiBrainianMCPServerConfig>
+): Promise<LiBrainianMCPServer> {
+  const server = await createLiBrainianMCPServer(config);
   await server.start();
   return server;
 }
@@ -11667,7 +11697,7 @@ export async function startStdioServer(
  */
 export async function main(): Promise<void> {
   const writeEnabled = process.argv.includes('--write');
-  const config: Partial<LibrarianMCPServerConfig> = {
+  const config: Partial<LiBrainianMCPServerConfig> = {
     authorization: {
       enabledScopes: writeEnabled ? ['read', 'write'] : ['read'],
       requireConsent: true,

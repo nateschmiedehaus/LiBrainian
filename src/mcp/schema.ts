@@ -696,6 +696,7 @@ export const StatusToolInputSchema = z.object({
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   sessionId: z.string().min(1).optional().describe('Optional session identifier used for session-scoped status details'),
   planId: z.string().min(1).optional().describe('Optional plan ID to retrieve a specific synthesized plan'),
+  costBudgetUsd: z.number().nonnegative().optional().describe('Optional budget threshold (USD) for session cost alerts'),
 }).strict();
 
 /**
