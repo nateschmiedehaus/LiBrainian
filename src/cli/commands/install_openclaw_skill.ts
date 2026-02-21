@@ -10,7 +10,7 @@ import {
   OPENCLAW_REQUIRED_TOOL_NAMES,
   getOpenclawToolRegistryStatus,
 } from '../../mcp/openclaw_tools.js';
-import { createLibrarianMCPServer } from '../../mcp/server.js';
+import { createLiBrainianMCPServer } from '../../mcp/server.js';
 
 export interface InstallOpenclawSkillCommandOptions {
   workspace: string;
@@ -90,7 +90,7 @@ function mergeOpenclawConfig(current: Record<string, unknown>): Record<string, u
     config: {
       ...entryConfig,
       mcpServer: 'librainian',
-      mcpCommand: 'librarian mcp --stdio',
+      mcpCommand: 'librainian mcp --stdio',
       mcpTools: toolNames,
       installSource: 'librainian install-openclaw-skill',
     },
@@ -103,7 +103,7 @@ function mergeOpenclawConfig(current: Record<string, unknown>): Record<string, u
 
 async function verifyMcpReachability(): Promise<boolean> {
   try {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read', 'write'],
         requireConsent: false,

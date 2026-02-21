@@ -545,7 +545,7 @@ export interface EntitySecurity {
   threatModel: ThreatModel;
   controls: SecurityControls;
   compliance: ComplianceRequirement[];
-  riskScore: RiskScore;
+  riskScore: RiskScore | null;
 }
 
 export interface Vulnerability {
@@ -1439,12 +1439,7 @@ export function createEmptyKnowledge(
         cryptography: [],
       },
       compliance: [],
-      riskScore: {
-        overall: 0,
-        confidentiality: 0,
-        integrity: 0,
-        availability: 0,
-      },
+      riskScore: null,
     },
 
     runtime: {

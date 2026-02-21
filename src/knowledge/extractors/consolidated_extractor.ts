@@ -73,6 +73,10 @@ function buildConsolidatedPrompt(input: ConsolidatedInput, staticSecurity: Secur
     ? `\nDocumentation: ${input.docstring}`
     : '';
 
+  const riskSummary = staticSecurity.security.riskScore
+    ? `${staticSecurity.security.riskScore.overall}/10`
+    : 'not analyzed';
+
   return `Analyze this code entity:
 
 File: ${input.filePath}
@@ -80,7 +84,7 @@ Name: ${input.name}${signaturePart}${docPart}${codePart}
 
 Static security analysis found:
 - Vulnerabilities: ${staticSecurity.security.vulnerabilities.map(v => v.id).join(', ') || 'none'}
-- Risk score: ${staticSecurity.security.riskScore.overall}/10
+- Risk score: ${riskSummary}
 
 Return JSON with this structure:
 {
@@ -369,6 +373,14 @@ function mergeSecurityResults(
 
   // Update risk score if LLM found additional issues
   if (llmResult?.additionalVulnerabilities && llmResult.additionalVulnerabilities.length > 0) {
+    if (!security.riskScore) {
+      security.riskScore = {
+        overall: 0.1,
+        confidentiality: 0.1,
+        integrity: 0.1,
+        availability: 0.1,
+      };
+    }
     security.riskScore.overall = Math.min(10, security.riskScore.overall + llmResult.additionalVulnerabilities.length);
   }
 

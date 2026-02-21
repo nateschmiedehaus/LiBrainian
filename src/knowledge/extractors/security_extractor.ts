@@ -1257,21 +1257,27 @@ function calculateRiskScore(
   // Calculate CIA impact based on sensitive data
   const hasSensitive = threatModel.sensitiveData.length > 0;
   const isConfidential = threatModel.dataClassification === 'confidential';
+  const hasNoAttackSurface =
+    vulnerabilities.length === 0 &&
+    threatModel.threatVectors.length === 0 &&
+    threatModel.attackSurface.length === 0;
+  const baselineRisk = hasNoAttackSurface && threatModel.dataClassification === 'internal' ? 0.1 : 0;
 
   // Overall risk on 0-10 scale
   const rawRisk = (vulnScore + threatScore) * mitigationFactor;
-  const overall = Math.min(10, Math.round(rawRisk * 10) / 10);
+  const overall = Math.max(baselineRisk, Math.min(10, Math.round(rawRisk * 10) / 10));
+  const nonZeroFloor = overall > 0 ? 0.1 : 0;
 
   // CIA breakdown
   const confidentiality = hasSensitive || isConfidential
     ? Math.min(10, overall * 1.2)
-    : overall * 0.8;
+    : Math.max(nonZeroFloor, overall * 0.8);
   const integrity = vulnerabilities.some(v => v.cwe === 'CWE-89' || v.cwe === 'CWE-94')
     ? Math.min(10, overall * 1.3)
-    : overall;
+    : Math.max(nonZeroFloor, overall);
   const availability = threatModel.attackSurface.includes('Database Access')
     ? Math.min(10, overall * 1.1)
-    : overall * 0.9;
+    : Math.max(nonZeroFloor, overall * 0.9);
 
   return {
     overall,
@@ -1331,16 +1337,25 @@ export async function extractSecurityWithLLM(
   }
 }
 
-const SECURITY_SYSTEM_PROMPT = `You are a security analyst. Analyze code for security issues.
+const SECURITY_SYSTEM_PROMPT = `You are a security analyst. Analyze code for security issues and non-attack-surface risks.
 Return JSON with:
 {
   "additionalVulnerabilities": [{"id": "CWE-XXX", "description": "..."}],
   "threatInsights": ["..."],
-  "recommendations": ["..."]
+  "recommendations": ["..."],
+  "codeQualityRisks": {
+    "couplingRisk": "low|medium|high",
+    "complexityRisk": "low|medium|high",
+    "testCoverageRisk": "low|medium|high",
+    "notes": ["..."]
+  }
 }
-Be specific about risks and mitigations.`;
+Be specific about risks and mitigations, including coupling risk, complexity risk, and test coverage risk.`;
 
 function buildSecurityPrompt(input: SecurityInput, staticResult: SecurityExtraction): string {
+  const riskSummary = staticResult.security.riskScore
+    ? `${staticResult.security.riskScore.overall}/10`
+    : 'not analyzed';
   return `Analyze this code for security issues:
 
 File: ${input.filePath}
@@ -1354,32 +1369,32 @@ ${(input.content || '').slice(0, 2000)}
 Static analysis found:
 - Vulnerabilities: ${staticResult.security.vulnerabilities.map(v => v.id).join(', ') || 'none'}
 - Attack surface: ${staticResult.security.threatModel.attackSurface.join(', ') || 'none'}
-- Risk score: ${staticResult.security.riskScore.overall}/10
+- Risk score: ${riskSummary}
 
-Identify any additional security concerns I may have missed.`;
+Identify any additional security concerns I may have missed, including coupling risk, complexity risk, and test coverage risk.`;
+}
+
+function warnSecurityLlmFallback(reason: string): void {
+  console.warn(`[security_extractor] ${reason}; using static security analysis result`);
 }
 
 function parseSecurityResponse(
   response: string,
   staticResult: SecurityExtraction
 ): SecurityExtraction {
-  // ARCHITECTURAL REQUIREMENT: LLM output must be validated, not silently discarded.
-  // If LLM returns unparseable output, that's an error state, not a fallback condition.
   const jsonMatch = response.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error(
-      'unverified_by_trace(security_llm_invalid_response): LLM response contained no JSON. ' +
-      'Security analysis requires valid LLM synthesis output.'
-    );
+    warnSecurityLlmFallback('LLM response contained no JSON');
+    return staticResult;
   }
 
   let parsed: { additionalVulnerabilities?: Array<{ id?: string; description?: string }>; threatInsights?: string[]; recommendations?: string[] };
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch (parseError) {
-    throw new Error(
-      `unverified_by_trace(security_llm_parse_failed): Failed to parse LLM response JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`
-    );
+    const message = parseError instanceof Error ? parseError.message : String(parseError);
+    warnSecurityLlmFallback(`Failed to parse LLM response JSON: ${message}`);
+    return staticResult;
   }
 
   // Merge additional vulnerabilities

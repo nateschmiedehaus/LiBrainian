@@ -7,6 +7,9 @@ export {
   Librarian,
   createLibrarian,
   createLibrarianSync,
+  Librarian as LiBrainian,
+  createLibrarian as createLiBrainian,
+  createLibrarianSync as createLiBrainianSync,
 } from './librarian.js';
 export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
 export type {
@@ -593,6 +596,7 @@ export type {
 // Query API
 export {
   queryLibrarian,
+  queryLibrarian as queryLiBrainian,
   queryLibrarianWithObserver,
   getQueryPipelineDefinition,
   getQueryPipelineStages,
