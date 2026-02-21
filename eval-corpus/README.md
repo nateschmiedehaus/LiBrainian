@@ -15,6 +15,8 @@ repositories, annotations, and query/answer pairs.
   ground truth. Generate `.LiBrainian-eval/` data with
   `npm run ground-truth:external` (also creates `external-repos/repos` symlinks
   for eval runner compatibility).
+  Alias mapping for GitHub lookup:
+  `docs/librarian/EXTERNAL_REPO_ALIAS_MAPPING.md`
   Note: AST ground-truth generation is TypeScript-first today; non-TS repos may
   produce zero queries and will be flagged in the script output.
 - `ab-harness/tasks.json`: Deterministic baseline A/B tasks.

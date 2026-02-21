@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-18T16:42:17.000Z",
+  "lastUpdated": "2026-02-21T23:47:07.158Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -595,39 +595,51 @@
     "layer5.evalCorpus": {
       "name": "Ground Truth Evaluation Corpus (Machine-Verifiable)",
       "layer": 5,
-      "status": "invalid",
+      "status": "pass",
       "target": "5+ EXTERNAL repos (not AI-generated), AST-extracted facts, citation verification",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer4.verification"
       ],
-      "note": "CRITICAL: Current synthetic repos are INVALID - circular evaluation. Must use real external repos.",
-      "blocking": true,
-      "currentState": "synthetic repos only (invalid)",
-      "requiredFix": "Clone real GitHub repos post-2024, extract facts via AST, do NOT use AI-generated repos"
+      "note": "Measured on 10 real external repos with AST-only ground truth and 22 unanswerable queries.",
+      "blocking": false,
+      "currentState": "10 real repos, 400 queries, 22 unanswerable",
+      "requiredFix": "Clone real GitHub repos post-2024, extract facts via AST, do NOT use AI-generated repos",
+      "lastRun": "2026-02-21",
+      "measured": {
+        "repos": 10,
+        "totalQueries": 400,
+        "unanswerableQueries": 22,
+        "metricsPath": "eval-results/metrics-report.json"
+      }
     },
     "layer5.externalRepos": {
       "name": "External Real Repos",
       "layer": 5,
-      "status": "queued",
+      "status": "pass",
       "target": "5+ real GitHub repos (not AI-generated, post-2024 or obscure)",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.scientificLoop"
       ],
       "queuedWorkUnit": "WU-801-REAL (after WU-1001-1003)",
-      "note": "eval-corpus/repos/* have no git remotes. WU-801-REAL queued after Phase 10 core work.",
-      "verification": "Each repo must have: git remote -v showing real origin"
+      "note": "10 external repos verified with git metadata and manifest remotes.",
+      "verification": "Each repo must have: git remote -v showing real origin",
+      "lastRun": "2026-02-21",
+      "measured": 10
     },
     "layer5.astFactExtractor": {
       "name": "AST Fact Extractor",
       "layer": 5,
-      "status": "not_started",
+      "status": "pass",
       "target": "Extract function defs, imports, call graphs, types from any codebase",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.externalRepos"
-      ]
+      ],
+      "lastRun": "2026-02-21",
+      "measured": 400,
+      "note": "Ground truth generated directly from AST facts for external repos."
     },
     "layer5.citationVerifier": {
       "name": "Citation Verifier",
@@ -729,41 +741,41 @@
     "layer5.retrievalRecall": {
       "name": "Retrieval Recall@5",
       "layer": 5,
-      "status": "pass",
+      "status": "fail",
       "target": ">= 80%",
       "blocking": true,
       "spec": "specs/track-eval-infrastructure.md#e2",
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-18",
-      "measured": 0.82
+      "lastRun": "2026-02-21",
+      "measured": 0.72625
     },
     "layer5.retrievalPrecision": {
       "name": "Retrieval Precision@5",
       "layer": 5,
-      "status": "pass",
+      "status": "fail",
       "target": ">= 70%",
       "blocking": false,
       "spec": "specs/track-eval-infrastructure.md#e2",
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-18",
-      "measured": 0.74
+      "lastRun": "2026-02-21",
+      "measured": 0.15550000000000075
     },
     "layer5.hallucinationRate": {
       "name": "Hallucination Rate",
       "layer": 5,
-      "status": "pass",
+      "status": "fail",
       "target": "< 5%",
       "blocking": true,
       "spec": "specs/track-eval-infrastructure.md#e2",
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-18",
-      "measured": 0.03
+      "lastRun": "2026-02-21",
+      "measured": 0.4025
     },
     "layer5.synthesisAccuracyStructural": {
       "name": "Synthesis Accuracy (Structural)",

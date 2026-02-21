@@ -65,6 +65,8 @@ export interface StructuralGroundTruthQuery {
   difficulty: StructuralQueryDifficulty;
   /** The expected answer with evidence */
   expectedAnswer: StructuralGroundTruthAnswer;
+  /** Optional query tags (for calibration/negative testing) */
+  tags?: string[];
 }
 
 /**
@@ -142,6 +144,7 @@ export class GroundTruthGenerator {
       ...this.generateImportQueries(facts),
       ...this.generateClassQueries(facts),
       ...this.generateCallGraphQueries(facts),
+      ...this.generateUnanswerableQueries(facts),
     ];
 
     const coverage = this.computeCoverage(facts);
@@ -596,6 +599,47 @@ export class GroundTruthGenerator {
           value: uniqueCallers,
           evidence: calleeFacts,
         },
+      });
+    }
+
+    return queries;
+  }
+
+  /**
+   * Generate deterministic unanswerable queries to test calibration.
+   */
+  generateUnanswerableQueries(facts: ASTFact[]): StructuralGroundTruthQuery[] {
+    const functionFacts = facts
+      .filter((fact) => fact.type === 'function_def' && typeof fact.identifier === 'string' && fact.identifier.length > 0)
+      .slice(0, 20);
+
+    if (functionFacts.length === 0) {
+      return [];
+    }
+
+    const existingNames = new Set(
+      functionFacts.map((fact) => fact.identifier).filter((value): value is string => typeof value === 'string')
+    );
+    const seedNames = Array.from(existingNames).sort().slice(0, 3);
+    const evidence = functionFacts.slice(0, Math.min(3, functionFacts.length));
+    const queries: StructuralGroundTruthQuery[] = [];
+
+    for (const seed of seedNames) {
+      let candidate = `__librainian_absent_${seed}`;
+      while (existingNames.has(candidate)) {
+        candidate = `${candidate}_x`;
+      }
+      queries.push({
+        id: this.generateId('func-absent', candidate),
+        query: `Does function ${candidate} exist in this codebase?`,
+        category: 'structural',
+        difficulty: 'medium',
+        expectedAnswer: {
+          type: 'exists',
+          value: false,
+          evidence,
+        },
+        tags: ['unanswerable', 'negative'],
       });
     }
 

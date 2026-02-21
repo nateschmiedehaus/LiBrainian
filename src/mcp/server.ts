@@ -11677,6 +11677,10 @@ export async function createLiBrainianMCPServer(
   return server;
 }
 
+// Compatibility aliases during naming migration.
+export { LiBrainianMCPServer as LibrarianMCPServer };
+export const createLibrarianMCPServer = createLiBrainianMCPServer;
+
 /**
  * Create and start a server with stdio transport.
  */

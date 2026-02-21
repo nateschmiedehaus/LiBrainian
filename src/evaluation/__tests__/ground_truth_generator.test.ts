@@ -167,6 +167,18 @@ describe('GroundTruthGenerator - Query Structure', () => {
       }
     }
   });
+
+  it('should include unanswerable negative queries for calibration', () => {
+    const unanswerable = corpus.queries.filter((query) => query.tags?.includes('unanswerable'));
+    expect(unanswerable.length).toBeGreaterThan(0);
+
+    for (const query of unanswerable) {
+      expect(query.expectedAnswer.type).toBe('exists');
+      expect(query.expectedAnswer.value).toBe(false);
+      expect(query.tags).toContain('negative');
+      expect(query.expectedAnswer.evidence.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 // ============================================================================

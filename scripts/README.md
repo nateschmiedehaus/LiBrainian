@@ -13,6 +13,8 @@ LiBrainian scripts are grouped by function:
   - `agentic-use-case-review.ts`
   - `external-repo-smoke.ts`
   - `external-ground-truth.ts`
+  - `refresh-external-eval-corpus.ts`
+  - `refresh-external-eval-corpus-batched.ts`
   - `eval-testing-discipline.ts`
   - `eval-testing-tracker.ts`
 - **Operational guards**

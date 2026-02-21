@@ -115,14 +115,14 @@ function mapQuery(
       mustIncludeFiles,
       shouldIncludeFiles: [],
       mustIncludeFacts: buildFacts(query),
-      mustNotClaim: [],
+      mustNotClaim: buildMustNotClaim(query),
       acceptableVariations: [],
       evidenceRefs,
     },
     lastVerified,
     verifiedBy,
     verificationNotes: 'Generated from AST facts.',
-    tags: ['machine_generated', 'structural_ground_truth'],
+    tags: unique([...(query.tags ?? []), 'machine_generated', 'structural_ground_truth']),
   };
 }
 
@@ -141,11 +141,32 @@ function buildSummary(query: StructuralGroundTruthQuery): string {
 }
 
 function buildFacts(query: StructuralGroundTruthQuery): string[] {
+  if (query.expectedAnswer.type === 'exists' && query.expectedAnswer.value === false) {
+    const symbol = extractFunctionSymbol(query.query);
+    if (symbol) {
+      return [`Function ${symbol} does not exist in this codebase`];
+    }
+  }
   const value = query.expectedAnswer.value;
   if (Array.isArray(value)) {
     return value.map((item) => String(item));
   }
   return [String(value)];
+}
+
+function buildMustNotClaim(query: StructuralGroundTruthQuery): string[] {
+  if (query.expectedAnswer.type === 'exists' && query.expectedAnswer.value === false) {
+    const symbol = extractFunctionSymbol(query.query);
+    if (symbol) {
+      return [symbol];
+    }
+  }
+  return [];
+}
+
+function extractFunctionSymbol(question: string): string | null {
+  const match = question.match(/function\s+([a-zA-Z0-9_$]+)/i);
+  return match?.[1] ?? null;
 }
 
 function buildEvidenceRefs(queryId: string, facts: ASTFact[], repoRoot: string): EvidenceRef[] {

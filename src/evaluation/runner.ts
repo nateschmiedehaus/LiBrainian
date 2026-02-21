@@ -2,7 +2,7 @@
  * @fileoverview Eval runner for Librarian ground-truth corpus.
  */
 
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve, isAbsolute, relative, sep } from 'node:path';
 import { computeCitationAccuracy, type CitationInput } from './citation_accuracy.js';
 import { computeRetrievalMetrics } from './metrics.js';
@@ -507,7 +507,17 @@ async function loadEvalCorpus(corpusPath: string, corpusPaths?: string[]): Promi
     const repoEntries = await readdir(reposRoot, { withFileTypes: true });
 
     for (const entry of repoEntries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory()) {
+        if (!entry.isSymbolicLink()) continue;
+        const linkedPath = join(reposRoot, entry.name);
+        let linkedStat;
+        try {
+          linkedStat = await stat(linkedPath);
+        } catch {
+          continue;
+        }
+        if (!linkedStat.isDirectory()) continue;
+      }
       const repoRoot = join(reposRoot, entry.name, '.librarian-eval');
       const manifest = await readJson<RepoManifest>(join(repoRoot, 'manifest.json'));
       const groundTruth = await readJson<{ version?: string; repoId?: string; queries?: GroundTruthQuery[] }>(

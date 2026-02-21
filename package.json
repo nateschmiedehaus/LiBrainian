@@ -172,6 +172,8 @@
     "test:agentic:strict:quick": "npm run eval:ab:agentic-bugfix:quick && npm run eval:use-cases:agentic:quick && npm run eval:live-fire:quick && npm run smoke:external:sample",
     "test:unit-patrol": "node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit -- vitest --run src/constructions/processes/__tests__/unit_patrol.test.ts src/constructions/processes/__tests__/bootstrap_quality_gate.test.ts src/constructions/processes/__tests__/query_relevance_gate.test.ts src/constructions/processes/__tests__/context_pack_depth_gate.test.ts src/constructions/processes/__tests__/cli_output_sanity_gate.test.ts src/constructions/processes/__tests__/self_index_gate.test.ts src/constructions/processes/__tests__/provider_chaos_gate.test.ts src/constructions/processes/__tests__/patrol_regression_closure_gate.test.ts src/constructions/processes/__tests__/patrol_swebench_gate.test.ts src/constructions/processes/__tests__/patrol_regression_oracle_gate.test.ts src/constructions/processes/__tests__/result_quality_judge.test.ts",
     "ground-truth:external": "node scripts/run-with-tmpdir.mjs -- tsx scripts/external-ground-truth.ts",
+    "eval:external-corpus:refresh": "node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus.ts",
+    "eval:external-corpus:refresh:batched": "node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus-batched.ts",
     "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json",
     "hygiene:generated-artifacts": "node scripts/guard-generated-artifacts.mjs",
     "policy:hygiene": "node scripts/git-hygiene-guard.mjs --mode warn",

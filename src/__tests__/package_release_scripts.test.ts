@@ -25,6 +25,8 @@ describe('package release scripts', () => {
     expect(scripts['test:e2e:diagnostic:ab:quick']).toBe('npm run eval:ab:agentic-bugfix:quick');
     expect(scripts['test:e2e:diagnostic:ab:release']).toBe('npm run eval:ab:agentic-bugfix:codex');
     expect(scripts['eval:ab:diagnose']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/ab-diagnosis.ts');
+    expect(scripts['eval:external-corpus:refresh']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus.ts');
+    expect(scripts['eval:external-corpus:refresh:batched']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus-batched.ts');
     expect(scripts['test:e2e:full:quick']).toBe('npm run policy:e2e:mainline && npm run eval:use-cases:agentic:quick && npm run test:e2e:outcome:quick && npm run test:e2e:triage && npm run test:e2e:dev-truth:quick && npm run test:e2e:reality:quick && npm run test:e2e:acceptance');
     expect(scripts['test:e2e:full']).toBe('npm run policy:e2e:mainline && npm run eval:use-cases:agentic && npm run test:e2e:outcome && npm run test:e2e:triage && npm run test:e2e:dev-truth && npm run test:e2e:reality && npm run test:e2e:acceptance');
     expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:full:quick');
@@ -76,6 +78,8 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'ab-diagnosis.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'refresh-external-eval-corpus.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'refresh-external-eval-corpus-batched.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-mainline-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);

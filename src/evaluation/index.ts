@@ -114,6 +114,14 @@ export {
 } from './ground_truth_export.js';
 
 export {
+  type MeasuredMetric as ExternalEvalMeasuredMetric,
+  type ExternalEvalMetricsReport,
+  type ExternalEvalRefreshOptions,
+  type ExternalEvalRefreshResult,
+  runExternalEvalCorpusRefresh,
+} from './external_eval_corpus.js';
+
+export {
   type AbTaskComplexity,
   type AbWorkerType,
   type ContextLevel,

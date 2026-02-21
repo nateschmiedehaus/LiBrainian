@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
+import { tmpdir } from 'os';
+import { mkdtemp, mkdir, symlink, writeFile } from 'node:fs/promises';
 import {
   createEvalRunner,
   type EvalPipeline,
@@ -170,5 +172,82 @@ describe('EvalRunner', () => {
 
     expect(comparison.hasRegression).toBe(true);
     expect(comparison.recommendation).toBe('block');
+  });
+
+  it('loads eval corpus repos through directory symlinks', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'runner-symlink-corpus-'));
+    const corpusRoot = join(root, 'corpus');
+    const reposRoot = join(corpusRoot, 'repos');
+    const sourceRepoRoot = join(root, 'repo-source');
+    const linkedRepoRoot = join(reposRoot, 'linked-repo');
+
+    await mkdir(join(sourceRepoRoot, '.librarian-eval'), { recursive: true });
+    await mkdir(join(sourceRepoRoot, 'src'), { recursive: true });
+    await mkdir(reposRoot, { recursive: true });
+
+    await writeFile(join(sourceRepoRoot, 'src', 'index.ts'), 'export const ok = true;\n', 'utf8');
+    await writeFile(
+      join(sourceRepoRoot, '.librarian-eval', 'manifest.json'),
+      JSON.stringify({
+        repoId: 'linked-repo',
+        name: 'linked-repo',
+        languages: ['typescript'],
+        fileCount: 1,
+        annotationLevel: 'sparse',
+        characteristics: {
+          documentationDensity: 'low',
+          testCoverage: 'low',
+          architecturalClarity: 'moderate',
+          codeQuality: 'average',
+        },
+      }),
+      'utf8'
+    );
+    await writeFile(
+      join(sourceRepoRoot, '.librarian-eval', 'ground-truth.json'),
+      JSON.stringify({
+        version: '1.0.0',
+        repoId: 'linked-repo',
+        queries: [
+          {
+            queryId: 'q1',
+            repoId: 'linked-repo',
+            intent: 'What file defines ok?',
+            category: 'structural',
+            difficulty: 'trivial',
+            correctAnswer: {
+              summary: 'Expected answer: src/index.ts',
+              mustIncludeFiles: ['src/index.ts'],
+              shouldIncludeFiles: [],
+              mustIncludeFacts: ['ok'],
+              mustNotClaim: [],
+              acceptableVariations: [],
+              evidenceRefs: [],
+            },
+            lastVerified: '2026-02-21',
+            verifiedBy: 'test',
+          },
+        ],
+      }),
+      'utf8'
+    );
+
+    await symlink(sourceRepoRoot, linkedRepoRoot, 'dir');
+
+    const runner = createEvalRunner({
+      pipeline: {
+        retrieve: async () => ({ docs: ['src/index.ts'] }),
+      },
+      clock: fixedClock,
+      runIdFactory: () => 'symlink_run',
+    });
+
+    const report = await runner.evaluate({
+      corpusPath: corpusRoot,
+      queryFilter: { repoIds: ['linked-repo'] },
+    });
+
+    expect(report.queryCount).toBe(1);
+    expect(report.queryResults[0]?.repoId).toBe('linked-repo');
   });
 });
