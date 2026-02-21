@@ -569,4 +569,178 @@ describe('runProviderReadinessGate', () => {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
   });
+
+  it('does not hard-disable provider selection for non-sticky recent failures', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-'));
+    try {
+      await recordProviderFailure(workspaceRoot, {
+        provider: 'claude',
+        reason: 'unknown',
+        message: 'Claude CLI transient error',
+        ttlMs: 10 * 60 * 1000,
+        at: new Date().toISOString(),
+      });
+
+      const authChecker = {
+        checkAll: async () => buildAuthStatus({
+          claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+        }),
+        getAuthGuidance: () => [],
+      } as unknown as AuthChecker;
+
+      const llmService = buildAdapter({
+        checkClaudeHealth: async () => ({
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        }),
+        checkCodexHealth: async () => ({
+          provider: 'codex',
+          available: false,
+          authenticated: false,
+          lastCheck: Date.now(),
+        }),
+      });
+
+      const result = await runProviderReadinessGate(workspaceRoot, {
+        authChecker,
+        llmService,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+        }),
+        emitReport: false,
+      });
+
+      const claudeStatus = result.providers.find((provider) => provider.provider === 'claude');
+      expect(claudeStatus?.available).toBe(true);
+      expect(result.llmReady).toBe(true);
+      expect(result.selectedProvider).toBe('claude');
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Provider Resilience Gate', () => {
+  it('tests all registered providers can initialize', async () => {
+    const authChecker = {
+      checkAll: async () =>
+        buildAuthStatus({
+          claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+          codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+        }),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const registeredAdapter = buildAdapter({
+      checkClaudeHealth: vi.fn(async () => ({
+        provider: 'claude',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      })),
+      checkCodexHealth: vi.fn(async () => ({
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      })),
+    });
+    adapters.registerLlmServiceAdapter(registeredAdapter);
+
+    const result = await runProviderReadinessGate('/tmp', {
+      authChecker,
+      embeddingHealthCheck: async () => ({
+        provider: 'xenova',
+        available: true,
+        lastCheck: Date.now(),
+        modelId: 'all-MiniLM-L6-v2',
+        dimension: 384,
+      }),
+      emitReport: false,
+    });
+
+    expect(registeredAdapter.checkClaudeHealth).toHaveBeenCalledTimes(1);
+    expect(registeredAdapter.checkCodexHealth).toHaveBeenCalledTimes(1);
+    expect(result.providers.map((provider) => provider.provider)).toEqual(expect.arrayContaining(['claude', 'codex']));
+    expect(result.ready).toBe(true);
+  });
+
+  it('survives provider failures with single-line errors and recovers on the next run', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-resilience-'));
+    try {
+      const authChecker = {
+        checkAll: async () =>
+          buildAuthStatus({
+            claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+            codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+          }),
+        getAuthGuidance: () => ['Retry after cooldown if provider times out'],
+      } as unknown as AuthChecker;
+
+      const failingAdapter = buildAdapter({
+        checkClaudeHealth: vi.fn(async () => {
+          throw new Error('claude timeout\nstack trace');
+        }),
+        checkCodexHealth: vi.fn(async () => {
+          throw new Error('codex timeout\nstack trace');
+        }),
+      });
+
+      const failedResult = await runProviderReadinessGate(workspaceRoot, {
+        authChecker,
+        llmService: failingAdapter,
+        embeddingHealthCheck: async () => ({
+          provider: 'unknown',
+          available: false,
+          lastCheck: Date.now(),
+          error: 'embedding timeout\ntrace line',
+        }),
+        emitReport: false,
+      });
+
+      expect(failedResult.ready).toBe(false);
+      expect(failedResult.providers.every((provider) => !provider.error?.includes('\n'))).toBe(true);
+      expect(failedResult.embedding.error?.includes('\n')).toBe(false);
+      expect(failedResult.reason?.includes('\n')).toBe(false);
+
+      const recoveryAdapter = buildAdapter({
+        checkClaudeHealth: vi.fn(async () => ({
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        })),
+        checkCodexHealth: vi.fn(async () => ({
+          provider: 'codex',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        })),
+      });
+
+      const recoveredResult = await runProviderReadinessGate(workspaceRoot, {
+        authChecker,
+        llmService: recoveryAdapter,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+          modelId: 'all-MiniLM-L6-v2',
+          dimension: 384,
+        }),
+        emitReport: false,
+      });
+
+      expect(recoveredResult.ready).toBe(true);
+      expect(recoveredResult.llmReady).toBe(true);
+      expect(recoveredResult.embeddingReady).toBe(true);
+      expect(recoveredResult.selectedProvider).not.toBeNull();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });

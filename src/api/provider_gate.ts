@@ -10,7 +10,7 @@ import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSucces
 import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
-import { resolveLibrarianProvider } from './llm_env.js';
+import { resolveLiBrainianProvider } from './llm_env.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
@@ -20,6 +20,22 @@ import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
 
 type AuthStatusSummary = Awaited<ReturnType<AuthChecker['checkAll']>>;
 const PROVIDER_FALLBACK_CHAIN: ProviderName[] = ['claude', 'codex'];
+
+function isStickyFailureReason(reason: string | undefined): boolean {
+  if (!reason) return false;
+  return reason === 'auth_failed' || reason === 'quota_exceeded' || reason === 'rate_limit';
+}
+
+function toSingleLineMessage(error: unknown): string {
+  const raw = toErrorMessage(error).trim();
+  if (!raw) return 'unknown error';
+  const firstLine = raw.split(/\r?\n/u)[0] ?? '';
+  return firstLine.replace(/\s+/gu, ' ').trim() || 'unknown error';
+}
+
+function toSingleLineText(text: string): string {
+  return text.replace(/\s+/gu, ' ').trim();
+}
 
 export interface ProviderGateStatus {
   provider: ProviderName;
@@ -140,7 +156,7 @@ export async function runProviderReadinessGate(
         llmService = created;
       }
     } catch (error) {
-      llmServiceError = toErrorMessage(error);
+      llmServiceError = toSingleLineMessage(error);
       remediationSteps.push(`LLM adapter init failed: ${llmServiceError}`);
     }
   }
@@ -176,7 +192,7 @@ export async function runProviderReadinessGate(
           available: false,
           authenticated: false,
           lastCheck: now,
-          error: toErrorMessage(reason ?? 'unverified_by_trace(llm_health_check_failed)'),
+          error: toSingleLineMessage(reason ?? 'unverified_by_trace(llm_health_check_failed)'),
         });
         return [
           claudeResult.status === 'fulfilled' ? claudeResult.value : fallback('claude', claudeResult.reason),
@@ -229,8 +245,10 @@ export async function runProviderReadinessGate(
       const provider = providers.find((entry) => entry.provider === providerName);
       if (!provider || !failure) continue;
       if (provider.available && provider.authenticated) {
-        provider.available = false;
-        provider.error = `recent ${failure.reason}: ${failure.message}`;
+        if (isStickyFailureReason(failure.reason)) {
+          provider.available = false;
+          provider.error = `recent ${failure.reason}: ${failure.message}`;
+        }
         switch (failure.reason) {
           case 'rate_limit':
             remediationSteps.push('LLM provider rate limited; wait before retrying or reduce request volume.');
@@ -257,7 +275,7 @@ export async function runProviderReadinessGate(
     }
   }
 
-  const preferred = resolveLibrarianProvider();
+  const preferred = resolveLiBrainianProvider();
   const isReady = (name: ProviderName | null | undefined) => Boolean(name && providers.some((p) => p.provider === name && p.available && p.authenticated));
   const pick = (name: ProviderName | null | undefined): ProviderName | null => (isReady(name) ? (name as ProviderName) : null);
   const selectedProvider = networkDisabled
@@ -265,7 +283,11 @@ export async function runProviderReadinessGate(
     : (pick(preferred) ?? pick(lastSuccessfulProvider) ?? pick('claude') ?? pick('codex'));
 
   const llmReady = networkDisabled ? false : selectedProvider !== null;
-  const embedding = await embeddingHealthCheck();
+  const rawEmbedding = await embeddingHealthCheck();
+  const embedding: EmbeddingGateStatus = {
+    ...rawEmbedding,
+    error: rawEmbedding.error ? toSingleLineText(rawEmbedding.error) : undefined,
+  };
   const embeddingReady = embedding.available;
   if (!embeddingReady) {
     remediationSteps.push('Embeddings: install @xenova/transformers (npm) or sentence-transformers (python)');
@@ -403,20 +425,20 @@ function buildReason(
     if (provider.available && provider.authenticated) {
       return `${provider.provider}:ready`;
     }
-    const detail = provider.error ?? (provider.available ? 'unauthenticated' : 'unavailable');
+    const detail = toSingleLineText(provider.error ?? (provider.available ? 'unauthenticated' : 'unavailable'));
     return `${provider.provider}:${detail}`;
   });
 
   const details = failureDetails.slice();
   if (!embedding.available) {
-    details.push(`embedding:${embedding.error ?? 'unavailable'}`);
+    details.push(`embedding:${toSingleLineText(embedding.error ?? 'unavailable')}`);
   }
 
   if (guidance.length === 0) {
     return details.join('; ');
   }
 
-  return `${details.join('; ')}. ${guidance.join(' ')}`;
+  return `${details.join('; ')}. ${guidance.map((entry) => toSingleLineText(entry)).join(' ')}`;
 }
 
 function buildRemediationSteps(authStatus: AuthStatusSummary): string[] {
@@ -459,7 +481,7 @@ async function checkEmbeddingHealth(): Promise<EmbeddingGateStatus> {
       available: false,
       lastCheck: Date.now(),
       modelId,
-      error: toErrorMessage(error),
+      error: toSingleLineMessage(error),
     };
   }
 }
