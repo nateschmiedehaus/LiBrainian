@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-21T22:00:42.000Z",
+  "lastUpdated": "2026-02-21T22:08:38.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -11,14 +11,14 @@
       "command": "npx tsc --noEmit",
       "status": "fail",
       "lastRun": "2026-02-21",
-      "evidence": "npx tsc --noEmit; stdout=state/audits/librarian/gate-runs/2026-02-21T22-00-22-837Z-layer0.typecheck.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-00-22-837Z-layer0.typecheck.stderr.log",
+      "evidence": "npx tsc --noEmit; stdout=state/audits/librarian/gate-runs/2026-02-21T22-08-23-243Z-layer0.typecheck.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-08-23-243Z-layer0.typecheck.stderr.log",
       "dependsOn": [],
-      "note": "automated_gate_run:fail; exit_code:2; duration_ms:18980",
+      "note": "automated_gate_run:fail; exit_code:2; duration_ms:14853",
       "verified": false,
       "measured": {
         "exitCode": 2,
-        "durationMs": 18980,
-        "ranAt": "2026-02-21T22:00:22.837Z"
+        "durationMs": 14853,
+        "ranAt": "2026-02-21T22:08:23.243Z"
       }
     },
     "layer0.build": {
@@ -27,7 +27,7 @@
       "command": "npm run build",
       "status": "fail",
       "lastRun": "2026-02-21",
-      "evidence": "npm run build; stdout=state/audits/librarian/gate-runs/2026-02-21T22-00-41-824Z-layer0.build.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-00-41-824Z-layer0.build.stderr.log",
+      "evidence": "npm run build; stdout=state/audits/librarian/gate-runs/2026-02-21T22-08-38-111Z-layer0.build.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-08-38-111Z-layer0.build.stderr.log",
       "dependsOn": [
         "layer0.typecheck"
       ],
@@ -36,7 +36,7 @@
       "measured": {
         "exitCode": null,
         "durationMs": 0,
-        "ranAt": "2026-02-21T22:00:41.824Z"
+        "ranAt": "2026-02-21T22:08:38.111Z"
       }
     },
     "layer0.tier0": {
@@ -111,16 +111,16 @@
       "command": "rg \"src/(wave0|orchestrator)/\" src || echo PASS",
       "status": "pass",
       "lastRun": "2026-02-21",
-      "evidence": "rg \"src/(wave0|orchestrator)/\" src || echo PASS; stdout=state/audits/librarian/gate-runs/2026-02-21T22-00-41-827Z-layer1.noWave0Imports.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-00-41-827Z-layer1.noWave0Imports.stderr.log",
+      "evidence": "rg \"src/(wave0|orchestrator)/\" src || echo PASS; stdout=state/audits/librarian/gate-runs/2026-02-21T22-08-38-117Z-layer1.noWave0Imports.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-08-38-117Z-layer1.noWave0Imports.stderr.log",
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "automated_gate_run:pass; exit_code:0; duration_ms:120",
+      "note": "automated_gate_run:pass; exit_code:0; duration_ms:334",
       "verified": true,
       "measured": {
         "exitCode": 0,
-        "durationMs": 120,
-        "ranAt": "2026-02-21T22:00:41.827Z"
+        "durationMs": 334,
+        "ranAt": "2026-02-21T22:08:38.117Z"
       }
     },
     "layer1.noDirectImports": {
@@ -129,16 +129,16 @@
       "command": "rg \"from '\\.\\./librarian/\" src || echo PASS",
       "status": "pass",
       "lastRun": "2026-02-21",
-      "evidence": "rg \"from '\\.\\./librarian/\" src || echo PASS; stdout=state/audits/librarian/gate-runs/2026-02-21T22-00-41-948Z-layer1.noDirectImports.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-00-41-948Z-layer1.noDirectImports.stderr.log",
+      "evidence": "rg \"from '\\.\\./librarian/\" src || echo PASS; stdout=state/audits/librarian/gate-runs/2026-02-21T22-08-38-453Z-layer1.noDirectImports.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-08-38-453Z-layer1.noDirectImports.stderr.log",
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "automated_gate_run:pass; exit_code:0; duration_ms:28",
+      "note": "automated_gate_run:pass; exit_code:0; duration_ms:25",
       "verified": true,
       "measured": {
         "exitCode": 0,
-        "durationMs": 28,
-        "ranAt": "2026-02-21T22:00:41.948Z"
+        "durationMs": 25,
+        "ranAt": "2026-02-21T22:08:38.453Z"
       }
     },
     "layer1.standaloneTests": {
@@ -161,16 +161,16 @@
       "command": "node scripts/check_librarian_extraction_prereqs.mjs --root .",
       "status": "fail",
       "lastRun": "2026-02-21",
-      "evidence": "node scripts/check_librarian_extraction_prereqs.mjs --root .; stdout=state/audits/librarian/gate-runs/2026-02-21T22-00-41-977Z-layer1.extractionPrereqs.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-00-41-977Z-layer1.extractionPrereqs.stderr.log",
+      "evidence": "node scripts/check_librarian_extraction_prereqs.mjs --root .; stdout=state/audits/librarian/gate-runs/2026-02-21T22-08-38-480Z-layer1.extractionPrereqs.stdout.log; stderr=state/audits/librarian/gate-runs/2026-02-21T22-08-38-480Z-layer1.extractionPrereqs.stderr.log",
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "automated_gate_run:fail; exit_code:1; duration_ms:419",
+      "note": "automated_gate_run:fail; exit_code:1; duration_ms:326",
       "verified": false,
       "measured": {
         "exitCode": 1,
-        "durationMs": 419,
-        "ranAt": "2026-02-21T22:00:41.977Z"
+        "durationMs": 326,
+        "ranAt": "2026-02-21T22:08:38.480Z"
       }
     },
     "layer2.llmAdapter": {
@@ -1289,7 +1289,7 @@
     "validation": "unverified (evidence_manifest_missing)",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-21T22:00:42.000Z",
+    "lastVerified": "2026-02-21T22:08:38.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",
