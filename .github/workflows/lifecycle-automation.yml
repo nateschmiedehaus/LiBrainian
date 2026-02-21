@@ -1,0 +1,102 @@
+name: Lifecycle Automation
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  freeze-tracking-and-research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure lifecycle labels and freeze tracking/research issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const lifecycleLabels = [
+              {
+                name: 'lifecycle/stale',
+                color: 'FBCA04',
+                description: 'Automatically marked stale after inactivity window',
+              },
+              {
+                name: 'lifecycle/frozen',
+                color: '5319E7',
+                description: 'Exempt from stale lifecycle automation',
+              },
+            ];
+
+            async function ensureLabel(def) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: def.name });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: def.name,
+                  color: def.color,
+                  description: def.description,
+                });
+              }
+            }
+
+            for (const def of lifecycleLabels) {
+              await ensureLabel(def);
+            }
+
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            let addedFrozen = 0;
+            for (const issue of openIssues) {
+              if (issue.pull_request) continue;
+              const labels = (issue.labels ?? []).map((label) =>
+                typeof label === 'string' ? label : label.name
+              );
+              const shouldFreeze = labels.includes('kind/tracking') || labels.includes('kind/research');
+              const hasFrozen = labels.includes('lifecycle/frozen');
+              if (!shouldFreeze || hasFrozen) continue;
+
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issue.number,
+                labels: ['lifecycle/frozen'],
+              });
+              addedFrozen += 1;
+            }
+
+            core.info(`Lifecycle frozen labels added: ${addedFrozen}`);
+
+  stale-issues:
+    runs-on: ubuntu-latest
+    needs: freeze-tracking-and-research
+    steps:
+      - name: Mark stale issues and close after grace period
+        uses: actions/stale@v9
+        with:
+          days-before-issue-stale: 60
+          days-before-issue-close: 30
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-label: lifecycle/stale
+          exempt-issue-labels: lifecycle/frozen
+          remove-issue-stale-when-updated: true
+          stale-issue-message: >
+            This issue has been inactive for 60 days. If it is still relevant,
+            please comment with an update; otherwise it will be auto-closed in 30 days.
+          close-issue-message: >
+            Closing due to 90 days of inactivity (60 days until stale + 30 day grace period).
+            Reopen if needed.
+          operations-per-run: 1000
