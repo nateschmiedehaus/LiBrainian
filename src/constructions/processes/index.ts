@@ -126,6 +126,13 @@ export {
 } from './self_index_gate.js';
 
 export {
+  createPatrolRegressionClosureGateConstruction,
+  type PatrolRegressionClosureGateInput,
+  type PatrolRegressionCheckResult,
+  type PatrolRegressionClosureGateOutput,
+} from './patrol_regression_closure_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,

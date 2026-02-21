@@ -176,6 +176,7 @@ function buildProbePlan(registeredCommands: string[]): CliProbe[] {
     { args: ['help', 'query'], expectedExit: 'zero', snapshotKey: 'queryHelp' },
     { args: ['status', '--json'], expectedExit: 'zero', expectJson: true, snapshotKey: 'statusJson' },
     { args: ['features', '--json'], expectedExit: 'zero', expectJson: true },
+    { args: ['capabilities', '--json'], expectedExit: 'zero', expectJson: true },
     { args: ['definitely-not-a-command'], expectedExit: 'non-zero' },
     { args: ['config', 'definitely-not-a-subcommand'], expectedExit: 'non-zero' },
     { args: ['replay'], expectedExit: 'non-zero' },

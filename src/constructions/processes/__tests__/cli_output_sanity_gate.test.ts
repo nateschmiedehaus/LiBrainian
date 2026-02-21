@@ -5,7 +5,7 @@ describe('CLI Output Sanity Gate', () => {
   it('validates CLI output quality, exit-code behavior, and help consistency', async () => {
     const gate = createCliOutputSanityGateConstruction();
     const result = await gate.execute({
-      registeredCommands: ['help', 'status', 'query', 'features'],
+      registeredCommands: ['help', 'status', 'query', 'features', 'capabilities'],
       commandTimeoutMs: 20_000,
       maxDurationMs: 120_000,
     });
@@ -48,6 +48,11 @@ describe('CLI Output Sanity Gate', () => {
       (probe) => probe.args.join(' ') === 'status --json',
     );
     expect(statusJson?.parseableJson).toBe(true);
+
+    const capabilitiesJson = result.commandResults.find(
+      (probe) => probe.args.join(' ') === 'capabilities --json',
+    );
+    expect(capabilitiesJson?.parseableJson).toBe(true);
 
     expect(result.snapshots.globalHelpHead.length).toBeGreaterThan(0);
     expect(result.snapshots.queryHelpHead.length).toBeGreaterThan(0);
