@@ -1,4 +1,4 @@
-/** MVP Index Librarian Agent: index files, embeddings, context packs. */
+/** MVP Index LiBrainian Agent: index files, embeddings, context packs. */
 
 import { randomUUID, createHash } from 'crypto';
 import * as fs from 'fs/promises';
@@ -7,7 +7,7 @@ import { getErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
 import { withTimeout, getResultError } from '../core/result.js';
 import { removeControlChars } from '../security/sanitization.js';
-import type { LibrarianStorage, MultiVectorRecord } from '../storage/types.js';
+import type { LiBrainianStorage, MultiVectorRecord } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
 import { computeFileChecksum } from '../utils/checksums.js';
 import { getLanguageFromPath } from '../utils/language.js';
@@ -25,10 +25,15 @@ import type {
   GraphEdge,
   ContextPack,
   CodeSnippet,
-  LibrarianVersion,
+  LiBrainianVersion,
 } from '../types.js';
 import { LIBRARIAN_VERSION } from '../index.js';
-import { EmbeddingService, type EmbeddingRequest, type EmbeddingProvider } from '../api/embeddings.js';
+import {
+  EmbeddingService,
+  getEmbeddingConfig,
+  type EmbeddingRequest,
+  type EmbeddingProvider,
+} from '../api/embeddings.js';
 import { GovernorContext, estimateTokenCount } from '../api/governor_context.js';
 import { writeGovernorBudgetReport, type GovernorBudgetOutcome } from '../api/governors.js';
 import { minimizeSnippet } from '../api/redaction.js';
@@ -54,7 +59,7 @@ import {
 
 // CONFIGURATION
 
-export interface IndexLibrarianConfig {
+export interface IndexLiBrainianConfig {
   /** Maximum file size to process (bytes) */
   maxFileSizeBytes: number;
 
@@ -131,7 +136,7 @@ export interface IndexLibrarianConfig {
   forceReindex?: boolean;
 }
 
-export const DEFAULT_CONFIG: IndexLibrarianConfig = {
+export const DEFAULT_CONFIG: IndexLiBrainianConfig = {
   maxFileSizeBytes: 1024 * 1024, // 1MB
   extensions: [],
   excludePatterns: [],
@@ -147,7 +152,7 @@ export const DEFAULT_CONFIG: IndexLibrarianConfig = {
   fileTimeoutPolicy: 'skip',
 };
 
-const EMBEDDING_TEXT_LIMIT = 4000;
+const DEFAULT_EMBEDDING_INPUT_LIMIT = 256;
 const MAX_FILE_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_FILE_TIMEOUT_RETRIES = 10;
 const RESOLVE_EXTENSIONS = resolveCodeExtensions();
@@ -162,16 +167,17 @@ type GraphAccumulator = {
 
 // INDEX LIBRARIAN IMPLEMENTATION
 
-export class IndexLibrarian implements IndexingAgent {
+export class IndexLiBrainian implements IndexingAgent {
   readonly agentType = 'index_librarian';
-  readonly name = 'Index Librarian';
+  readonly name = 'Index LiBrainian';
   readonly capabilities: readonly AgentCapability[] = ['indexing'];
   readonly version = '1.0.0';
   readonly qualityTier = 'full' as const;
 
-  private storage: LibrarianStorage | null = null;
-  private config: IndexLibrarianConfig;
+  private storage: LiBrainianStorage | null = null;
+  private config: IndexLiBrainianConfig;
   private embeddingService: EmbeddingService | null = null;
+  private readonly embeddingTextLimit: number;
   private astIndexer: AstIndexer | null = null;
   private useAstIndexer: boolean;
   private governor: GovernorContext | null = null;
@@ -187,8 +193,8 @@ export class IndexLibrarian implements IndexingAgent {
   };
   private totalProcessingTime = 0;
 
-  constructor(config: Partial<IndexLibrarianConfig> = {}) {
-    const resolvedConfig: IndexLibrarianConfig = { ...DEFAULT_CONFIG, ...config };
+  constructor(config: Partial<IndexLiBrainianConfig> = {}) {
+    const resolvedConfig: IndexLiBrainianConfig = { ...DEFAULT_CONFIG, ...config };
     if (resolvedConfig.embeddingService) {
       const serviceDimension = resolvedConfig.embeddingService.getEmbeddingDimension();
       if (Number.isFinite(serviceDimension) && serviceDimension > 0) {
@@ -196,10 +202,11 @@ export class IndexLibrarian implements IndexingAgent {
       }
     }
     this.config = resolvedConfig;
+    this.embeddingTextLimit = resolveEmbeddingInputLimit(this.config.embeddingModelId);
     if (isTestMode() && config.computeGraphMetrics === undefined) {
       this.config.computeGraphMetrics = false;
     }
-    // AST indexing is required for Librarian. LLM usage is optional.
+    // AST indexing is required for LiBrainian. LLM usage is optional.
     const useAstIndexer = this.config.useAstIndexer ?? true;
     if (!useAstIndexer) {
       throw new Error('unverified_by_trace(indexer_mode_invalid): AST indexing is required for librarian');
@@ -216,7 +223,7 @@ export class IndexLibrarian implements IndexingAgent {
     this.governor = this.config.governorContext ?? null;
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this.storage = storage;
     if (!storage.isInitialized()) {
       await storage.initialize();
@@ -641,7 +648,7 @@ export class IndexLibrarian implements IndexingAgent {
         if (allowEmbeddings) {
           const needsEmbedding = await this.shouldGenerateEmbedding(existing, fn);
           if (needsEmbedding) {
-            const embeddingText = buildEmbeddingInput(fn, content);
+            const embeddingText = buildEmbeddingInput(fn, content, this.embeddingTextLimit);
             this.governor?.recordTokens(estimateTokenCount(embeddingText));
             embeddingTargets.push({
               fn,
@@ -746,7 +753,7 @@ export class IndexLibrarian implements IndexingAgent {
 	        try {
           const needsEmbedding = await this.shouldGenerateModuleEmbedding(existingModule, module);
           if (needsEmbedding) {
-            const embeddingText = buildModuleEmbeddingInput(module, functionsToIndex, content);
+            const embeddingText = buildModuleEmbeddingInput(module, functionsToIndex, content, this.embeddingTextLimit);
             this.governor?.recordTokens(estimateTokenCount(embeddingText));
             const result = await this.embeddingService.generateEmbedding({
               kind: 'code',
@@ -1141,7 +1148,7 @@ export class IndexLibrarian implements IndexingAgent {
 
   private ensureReady(): void {
     if (!this.isReady()) {
-      throw new Error('IndexLibrarian not initialized. Call initialize() first.');
+      throw new Error('IndexLiBrainian not initialized. Call initialize() first.');
     }
   }
 
@@ -1163,7 +1170,7 @@ export class IndexLibrarian implements IndexingAgent {
 
   private async shouldReindexArtifacts(filePath: string): Promise<boolean> {
     if (!this.storage) return true;
-    const statsStore = this.storage as LibrarianStorage & {
+    const statsStore = this.storage as LiBrainianStorage & {
       getFileIndexStats?: (path: string) => Promise<{ functions: number; modules: number; embeddings: number; moduleEmbeddings: number; contextPacks: number }>;
     };
     if (!statsStore.getFileIndexStats) return true;
@@ -1178,7 +1185,7 @@ export class IndexLibrarian implements IndexingAgent {
 
   private async touchFileAccess(filePath: string): Promise<void> {
     if (!this.storage) return;
-    const accessStore = this.storage as LibrarianStorage & { touchFileAccess?: (path: string) => Promise<void> };
+    const accessStore = this.storage as LiBrainianStorage & { touchFileAccess?: (path: string) => Promise<void> };
     if (accessStore.touchFileAccess) {
       await accessStore.touchFileAccess(filePath);
     }
@@ -1525,7 +1532,7 @@ export class IndexLibrarian implements IndexingAgent {
     });
     if (existing && !needsModuleEmbedding) return null;
     // SECURITY: Validate embedding model BEFORE any operations.
-    // Trust boundary: config is populated by internal IndexLibrarian constructor,
+    // Trust boundary: config is populated by internal IndexLiBrainian constructor,
     // not directly from user input. External config files are validated at load time.
     const ALLOWED_EMBEDDING_MODELS = ['all-MiniLM-L6-v2', 'jina-embeddings-v2-base-en', 'bge-small-en-v1.5'] as const;
     type AllowedEmbeddingModel = (typeof ALLOWED_EMBEDDING_MODELS)[number];
@@ -1591,7 +1598,7 @@ export class IndexLibrarian implements IndexingAgent {
     );
   }
 
-  private getCurrentVersion(): LibrarianVersion {
+  private getCurrentVersion(): LiBrainianVersion {
     return {
       major: LIBRARIAN_VERSION.major,
       minor: LIBRARIAN_VERSION.minor,
@@ -1706,7 +1713,11 @@ export class IndexLibrarian implements IndexingAgent {
   }
 }
 
-export function buildEmbeddingInput(fn: FunctionKnowledge, fileContent: string): string {
+export function buildEmbeddingInput(
+  fn: FunctionKnowledge,
+  fileContent: string,
+  maxChars: number = DEFAULT_EMBEDDING_INPUT_LIMIT,
+): string {
   const lines = fileContent.split('\n');
   const startIdx = Math.max(0, fn.startLine - 1);
   const endIdx = Math.min(lines.length, fn.endLine);
@@ -1721,13 +1732,14 @@ export function buildEmbeddingInput(fn: FunctionKnowledge, fileContent: string):
     snippet,
   ].filter(Boolean);
 
-  return truncateEmbeddingInput(parts.join('\n'), EMBEDDING_TEXT_LIMIT);
+  return truncateEmbeddingInput(parts.join('\n'), maxChars);
 }
 
 export function buildModuleEmbeddingInput(
   mod: ModuleKnowledge,
   functions: FunctionKnowledge[],
-  fileContent: string
+  fileContent: string,
+  maxChars: number = DEFAULT_EMBEDDING_INPUT_LIMIT,
 ): string {
   const topFunctions = functions.map((fn) => fn.name).slice(0, 8).join(', ');
   const exports = mod.exports.slice(0, 8).join(', ') || 'none';
@@ -1745,12 +1757,20 @@ export function buildModuleEmbeddingInput(
     snippet,
   ].filter(Boolean);
 
-  return truncateEmbeddingInput(parts.join('\n'), EMBEDDING_TEXT_LIMIT);
+  return truncateEmbeddingInput(parts.join('\n'), maxChars);
 }
 
 function truncateEmbeddingInput(text: string, limit: number): string {
   if (text.length <= limit) return text;
   return `${text.slice(0, limit)}\n[truncated]`;
+}
+
+export function resolveEmbeddingInputLimit(embeddingModelId?: string): number {
+  try {
+    return Math.max(DEFAULT_EMBEDDING_INPUT_LIMIT, getEmbeddingConfig(embeddingModelId).contextWindow);
+  } catch {
+    return DEFAULT_EMBEDDING_INPUT_LIMIT;
+  }
 }
 
 function validateEmbedding(embedding: Float32Array, dimension: number): void {
@@ -1835,7 +1855,7 @@ function normalizeGraphPath(value: string): string {
   return path.normalize(path.resolve(value));
 }
 
-type FileTimeoutPolicy = NonNullable<IndexLibrarianConfig['fileTimeoutPolicy']>;
+type FileTimeoutPolicy = NonNullable<IndexLiBrainianConfig['fileTimeoutPolicy']>;
 
 function normalizeFileTimeoutMs(value?: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 0;
@@ -1847,7 +1867,7 @@ function normalizeFileTimeoutRetries(value?: number): number {
   return Math.min(Math.floor(value), MAX_FILE_TIMEOUT_RETRIES);
 }
 
-function normalizeFileTimeoutPolicy(value?: IndexLibrarianConfig['fileTimeoutPolicy']): FileTimeoutPolicy {
+function normalizeFileTimeoutPolicy(value?: IndexLiBrainianConfig['fileTimeoutPolicy']): FileTimeoutPolicy {
   if (value === 'skip' || value === 'retry' || value === 'fail') return value;
   return 'skip';
 }
@@ -1891,8 +1911,8 @@ function resolveCodeExtensions(): string[] {
 // FACTORY FUNCTION
 // ============================================================================
 
-export function createIndexLibrarian(
-  config?: Partial<IndexLibrarianConfig>
-): IndexLibrarian {
-  return new IndexLibrarian(config);
+export function createIndexLiBrainian(
+  config?: Partial<IndexLiBrainianConfig>
+): IndexLiBrainian {
+  return new IndexLiBrainian(config);
 }

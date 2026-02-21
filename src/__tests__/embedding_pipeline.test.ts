@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEmbeddingInput } from '../agents/index_librarian.js';
+import { buildEmbeddingInput, resolveEmbeddingInputLimit } from '../agents/index_librarian.js';
 import type { FunctionKnowledge } from '../types.js';
 
 const baseFunction: FunctionKnowledge = {
@@ -40,7 +40,18 @@ describe('buildEmbeddingInput', () => {
 
     expect(text.endsWith('[truncated]')).toBe(true);
     expect(text.length).toBeLessThan(content.length);
-    expect(text.length).toBeLessThanOrEqual(4012);
+    expect(text.length).toBeLessThanOrEqual(268);
+  });
+
+  it('supports larger explicit limits for long-context embedding models', () => {
+    const fn: FunctionKnowledge = { ...baseFunction, startLine: 1, endLine: 2 };
+    const longLine = 'x'.repeat(5000);
+    const content = `${longLine}\n${longLine}`;
+    const text = buildEmbeddingInput(fn, content, 1024);
+
+    expect(text.endsWith('[truncated]')).toBe(true);
+    expect(text.length).toBeLessThanOrEqual(1036);
+    expect(text.length).toBeGreaterThan(268);
   });
 
   it('omits purpose when missing', () => {
@@ -65,5 +76,17 @@ describe('buildEmbeddingInput', () => {
     const text = buildEmbeddingInput(fn, content);
     expect(text).toContain('Code:');
     expect(text).not.toContain('line one');
+  });
+});
+
+describe('resolveEmbeddingInputLimit', () => {
+  it('uses model context window for known models', () => {
+    expect(resolveEmbeddingInputLimit('all-MiniLM-L6-v2')).toBe(256);
+    expect(resolveEmbeddingInputLimit('bge-small-en-v1.5')).toBe(512);
+    expect(resolveEmbeddingInputLimit('jina-embeddings-v2-base-en')).toBe(8192);
+  });
+
+  it('falls back safely when model is unknown', () => {
+    expect(resolveEmbeddingInputLimit('unknown-model')).toBe(256);
   });
 });
