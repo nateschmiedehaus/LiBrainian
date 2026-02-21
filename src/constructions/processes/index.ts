@@ -106,6 +106,15 @@ export {
 } from './context_pack_depth_gate.js';
 
 export {
+  createCliOutputSanityGateConstruction,
+  type CliOutputSanityGateInput,
+  type CliOutputProbeResult,
+  type CliHelpValidation,
+  type CliOutputSanityGateSnapshots,
+  type CliOutputSanityGateOutput,
+} from './cli_output_sanity_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,
