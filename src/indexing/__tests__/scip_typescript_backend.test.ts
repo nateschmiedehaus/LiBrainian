@@ -11,7 +11,7 @@ import {
 const tempDirs: string[] = [];
 
 async function makeWorkspace(): Promise<string> {
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-scip-backend-'));
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-scip-backend-'));
   tempDirs.push(workspace);
   await fs.mkdir(path.join(workspace, 'src'), { recursive: true });
   await fs.writeFile(path.join(workspace, 'src', 'example.ts'), 'export function sum(a: number, b: number) { return a + b; }\n', 'utf8');

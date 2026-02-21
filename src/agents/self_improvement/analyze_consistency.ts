@@ -8,7 +8,7 @@
  */
 
 import * as path from 'path';
-import type { LibrarianStorage, ModuleKnowledge, FunctionKnowledge, TestMapping } from '../../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge, FunctionKnowledge, TestMapping } from '../../storage/types.js';
 import { getErrorMessage } from '../../utils/errors.js';
 
 // ============================================================================
@@ -124,7 +124,7 @@ export interface AnalyzeConsistencyOptions {
   /** Root directory of the codebase */
   rootDir: string;
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Whether to check test consistency */
   checkTests?: boolean;
   /** Whether to check documentation consistency */
@@ -153,7 +153,7 @@ const DEFAULT_CHECKS: ConsistencyCheck[] = [
  * Analyze consistency between code and tests.
  */
 async function analyzeTestConsistency(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   functions: FunctionKnowledge[],
   modules: ModuleKnowledge[],
   verbose: boolean
@@ -269,7 +269,7 @@ function generateExpectedTestPattern(sourcePath: string): string {
  * Analyze consistency between code and documentation.
  */
 async function analyzeDocConsistency(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   functions: FunctionKnowledge[],
   modules: ModuleKnowledge[],
   verbose: boolean
@@ -322,7 +322,7 @@ async function analyzeDocConsistency(
  * Find code that is not referenced anywhere.
  */
 async function findUnreferencedCode(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   functions: FunctionKnowledge[],
   modules: ModuleKnowledge[],
   verbose: boolean
@@ -384,7 +384,7 @@ async function findUnreferencedCode(
  * Find claims that don't have supporting code.
  */
 async function findPhantomClaims(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   modules: ModuleKnowledge[],
   verbose: boolean
 ): Promise<PhantomClaim[]> {
@@ -639,7 +639,7 @@ export async function analyzeConsistency(
  */
 export function createAnalyzeConsistency(
   defaultOptions: Partial<AnalyzeConsistencyOptions>
-): (options: Partial<AnalyzeConsistencyOptions> & { rootDir: string; storage: LibrarianStorage }) => Promise<ConsistencyAnalysisResult> {
+): (options: Partial<AnalyzeConsistencyOptions> & { rootDir: string; storage: LiBrainianStorage }) => Promise<ConsistencyAnalysisResult> {
   return async (options) => {
     return analyzeConsistency({
       ...defaultOptions,

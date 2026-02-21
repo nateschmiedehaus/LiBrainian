@@ -5,8 +5,8 @@ import * as path from 'path';
 
 import { withLlmServiceAdapter, type LlmServiceAdapter } from '../../adapters/llm_service.js';
 import { AstIndexer } from '../ast_indexer.js';
-import { IndexLibrarian } from '../index_librarian.js';
-import { SqliteLibrarianStorage } from '../../storage/sqlite_storage.js';
+import { IndexLiBrainian } from '../index_librainian.js';
+import { SqliteLiBrainianStorage } from '../../storage/sqlite_storage.js';
 
 function createFailingLlmAdapter(): LlmServiceAdapter {
   return {
@@ -51,19 +51,19 @@ describe('LLM analysis failure degradation', () => {
     });
   });
 
-  it('IndexLibrarian still indexes files when per-file analysis fails (no 0-files state)', async () => {
+  it('IndexLiBrainian still indexes files when per-file analysis fails (no 0-files state)', async () => {
     await withLlmServiceAdapter(createFailingLlmAdapter(), async () => {
-      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-llm-analysis-fail-'));
+      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-llm-analysis-fail-'));
       const filePath = path.join(workspaceDir, 'src', 'index.ts');
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, 'export function ok() { return 1; }\n', 'utf8');
 
-      const dbPath = path.join(workspaceDir, 'librarian.sqlite');
-      const storage = new SqliteLibrarianStorage(dbPath);
+      const dbPath = path.join(workspaceDir, 'librainian.sqlite');
+      const storage = new SqliteLiBrainianStorage(dbPath);
       await storage.initialize();
 
       try {
-        const indexer = new IndexLibrarian({
+        const indexer = new IndexLiBrainian({
           generateEmbeddings: false,
           createContextPacks: false,
           useAstIndexer: true,
@@ -94,19 +94,19 @@ describe('LLM analysis failure degradation', () => {
     });
   });
 
-  it('IndexLibrarian does not exclude files when workspace path contains eval-corpus/external-repos', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-eval-root-'));
+  it('IndexLiBrainian does not exclude files when workspace path contains eval-corpus/external-repos', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-eval-root-'));
     const workspaceDir = path.join(root, 'eval-corpus', 'external-repos', 'fixture');
     const filePath = path.join(workspaceDir, 'src', 'index.ts');
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export function ok() { return 1; }\n', 'utf8');
 
-    const dbPath = path.join(workspaceDir, 'librarian.sqlite');
-    const storage = new SqliteLibrarianStorage(dbPath);
+    const dbPath = path.join(workspaceDir, 'librainian.sqlite');
+    const storage = new SqliteLiBrainianStorage(dbPath);
     await storage.initialize();
 
     try {
-      const indexer = new IndexLibrarian({
+      const indexer = new IndexLiBrainian({
         generateEmbeddings: false,
         createContextPacks: false,
         useAstIndexer: true,

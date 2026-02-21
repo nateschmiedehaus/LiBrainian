@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createSqliteStorage } from '../sqlite_storage.js';
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   SCCEntry,
   CFGEdge,
   BayesianConfidence,
@@ -28,9 +28,9 @@ import type {
 } from '../types.js';
 
 describe('Advanced Analysis Storage', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
-  const testDir = join(tmpdir(), 'librarian-advanced-test-' + Date.now());
+  const testDir = join(tmpdir(), 'librainian-advanced-test-' + Date.now());
 
   beforeEach(async () => {
     if (!existsSync(testDir)) {

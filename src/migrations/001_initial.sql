@@ -1,11 +1,11 @@
 -- Metadata table
-CREATE TABLE IF NOT EXISTS librarian_metadata (
+CREATE TABLE IF NOT EXISTS librainian_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 
 -- Functions table
-CREATE TABLE IF NOT EXISTS librarian_functions (
+CREATE TABLE IF NOT EXISTS librainian_functions (
   id TEXT PRIMARY KEY,
   file_path TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -30,11 +30,11 @@ CREATE TABLE IF NOT EXISTS librarian_functions (
   UNIQUE(file_path, name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_functions_file ON librarian_functions(file_path);
-CREATE INDEX IF NOT EXISTS idx_functions_confidence ON librarian_functions(confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_functions_file ON librainian_functions(file_path);
+CREATE INDEX IF NOT EXISTS idx_functions_confidence ON librainian_functions(confidence DESC);
 
 -- Modules table
-CREATE TABLE IF NOT EXISTS librarian_modules (
+CREATE TABLE IF NOT EXISTS librainian_modules (
   id TEXT PRIMARY KEY,
   path TEXT NOT NULL UNIQUE,
   purpose TEXT NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS librarian_modules (
 );
 
 -- Context packs table
-CREATE TABLE IF NOT EXISTS librarian_context_packs (
+CREATE TABLE IF NOT EXISTS librainian_context_packs (
   pack_id TEXT PRIMARY KEY,
   pack_type TEXT NOT NULL,
   target_id TEXT NOT NULL,
@@ -68,11 +68,11 @@ CREATE TABLE IF NOT EXISTS librarian_context_packs (
   UNIQUE(target_id, pack_type)
 );
 
-CREATE INDEX IF NOT EXISTS idx_packs_target ON librarian_context_packs(target_id);
-CREATE INDEX IF NOT EXISTS idx_packs_type ON librarian_context_packs(pack_type);
+CREATE INDEX IF NOT EXISTS idx_packs_target ON librainian_context_packs(target_id);
+CREATE INDEX IF NOT EXISTS idx_packs_type ON librainian_context_packs(pack_type);
 
 -- Embeddings table
-CREATE TABLE IF NOT EXISTS librarian_embeddings (
+CREATE TABLE IF NOT EXISTS librainian_embeddings (
   entity_id TEXT PRIMARY KEY,
   entity_type TEXT NOT NULL,
   embedding BLOB NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS librarian_embeddings (
 );
 
 -- Multi-vector embeddings (per entity)
-CREATE TABLE IF NOT EXISTS librarian_multi_vectors (
+CREATE TABLE IF NOT EXISTS librainian_multi_vectors (
   entity_id TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   payload TEXT NOT NULL,
@@ -91,10 +91,10 @@ CREATE TABLE IF NOT EXISTS librarian_multi_vectors (
   token_count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (entity_id, entity_type)
 );
-CREATE INDEX IF NOT EXISTS idx_multi_vectors_type ON librarian_multi_vectors(entity_type);
+CREATE INDEX IF NOT EXISTS idx_multi_vectors_type ON librainian_multi_vectors(entity_type);
 
 -- Indexing history table
-CREATE TABLE IF NOT EXISTS librarian_indexing_history (
+CREATE TABLE IF NOT EXISTS librainian_indexing_history (
   id TEXT PRIMARY KEY,
   task_type TEXT NOT NULL,
   started_at TEXT NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS librarian_indexing_history (
 );
 
 -- Bootstrap history table
-CREATE TABLE IF NOT EXISTS librarian_bootstrap_history (
+CREATE TABLE IF NOT EXISTS librainian_bootstrap_history (
   id TEXT PRIMARY KEY,
   workspace TEXT NOT NULL,
   started_at TEXT NOT NULL,

@@ -32,7 +32,7 @@ import type {
   FileChangeType,
   TestEvidence,
 } from './types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 /**
  * Configuration for the FixGenerator agent.
@@ -218,7 +218,7 @@ export class FixGenerator implements FixGeneratorAgent {
   readonly version = '1.0.0';
   readonly qualityTier = 'full' as const;
 
-  private storage: LibrarianStorage | null = null;
+  private storage: LiBrainianStorage | null = null;
   private config: Required<FixGeneratorConfig>;
   private fixCounter = 0;
 
@@ -226,7 +226,7 @@ export class FixGenerator implements FixGeneratorAgent {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this.storage = storage;
   }
 

@@ -107,9 +107,9 @@ Then follow the full setup guide at `docs/mcp-setup.md`.
 ### Programmatic (recommended for agents)
 
 ```typescript
-import { initializeLibrarian } from 'librainian';
+import { initializeLiBrainian } from 'librainian';
 
-const session = await initializeLibrarian(process.cwd());
+const session = await initializeLiBrainian(process.cwd());
 const context = await session.query('Add request-id tracing to API handlers');
 
 console.log(context.summary);
@@ -117,13 +117,13 @@ console.log(context.relatedFiles);
 console.log(context.confidence);
 ```
 
-Compatibility API:
+Factory API:
 
 ```typescript
-import { createLibrarian } from 'librainian';
+import { createLiBrainian } from 'librainian';
 
-const librarian = await createLibrarian({ workspace: process.cwd() });
-const result = await librarian.query({ intent: 'Explain the deployment pipeline' });
+const librainian = await createLiBrainian({ workspace: process.cwd() });
+const result = await librainian.query({ intent: 'Explain the deployment pipeline' });
 ```
 
 ## Integration Decision Tree

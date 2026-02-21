@@ -1,5 +1,5 @@
 /**
- * @fileoverview Librarian Knowledge System
+ * @fileoverview LiBrainian Knowledge System
  *
  * High-level knowledge queries that leverage existing infrastructure:
  * - graphs/ - PageRank, centrality, communities, embeddings
@@ -8,7 +8,7 @@
  * This module provides semantic queries on top of the raw data.
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { computeGraphMetrics, type GraphMetricsEntry } from '../graphs/metrics.js';
 import { buildModuleGraphs } from './module_graph.js';
 import { ArchitectureKnowledge } from './architecture.js';
@@ -313,7 +313,7 @@ export class Knowledge {
   readonly structure: StructureKnowledge;
   readonly evolution: EvolutionKnowledge;
 
-  constructor(private storage: LibrarianStorage) {
+  constructor(private storage: LiBrainianStorage) {
     this.architecture = new ArchitectureKnowledge(storage);
     this.impact = new ImpactKnowledge(storage);
     this.quality = new QualityKnowledge(storage);

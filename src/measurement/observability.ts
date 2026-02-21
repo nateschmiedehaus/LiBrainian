@@ -2,7 +2,7 @@
  * @fileoverview Observable State Variables for Control Loop
  *
  * PHILOSOPHICAL ALIGNMENT (CONTROL_LOOP.md):
- * The librarian maintains a state estimate with observable variables
+ * The librainian maintains a state estimate with observable variables
  * that enable feedback loops and closed-loop recovery.
  *
  * OBSERVABLE STATE CATEGORIES:
@@ -11,10 +11,10 @@
  * 3. Confidence State - mean confidence, defeaters, calibration error
  * 4. Query Performance - latency percentiles, cache hit rate, recall
  *
- * Schema: LibrarianStateReport.v1 per CONTROL_LOOP.md
+ * Schema: LiBrainianStateReport.v1 per CONTROL_LOOP.md
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { getIndexState } from '../state/index_state.js';
 
 // ============================================================================
@@ -100,10 +100,10 @@ export type RecoveryState =
   | 'degraded_stable';
 
 /**
- * Complete librarian state snapshot.
+ * Complete librainian state snapshot.
  */
-export interface LibrarianStateReport {
-  kind: 'LibrarianStateReport.v1';
+export interface LiBrainianStateReport {
+  kind: 'LiBrainianStateReport.v1';
   schemaVersion: 1;
 
   /** ISO 8601 timestamp */
@@ -120,13 +120,13 @@ export interface LibrarianStateReport {
   lastRecoveryTime: string | null;
 
   /** Overall health assessment */
-  health: LibrarianHealth;
+  health: LiBrainianHealth;
 }
 
 /**
  * Health check result per CONTROL_LOOP.md.
  */
-export interface LibrarianHealth {
+export interface LiBrainianHealth {
   status: 'healthy' | 'degraded' | 'recovering' | 'unhealthy';
   checks: {
     indexFresh: boolean;
@@ -169,7 +169,7 @@ export const SLO_THRESHOLDS = {
  * Collect code graph health metrics.
  */
 export async function collectCodeGraphHealth(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<CodeGraphHealth> {
   // Get entity counts by type
   const entityCountByType: Record<string, number> = {};
@@ -226,7 +226,7 @@ export async function collectCodeGraphHealth(
  * Collect index freshness metrics.
  */
 export async function collectIndexFreshness(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<IndexFreshness> {
   const now = new Date();
   let lastIndexTime: string | null = null;
@@ -289,7 +289,7 @@ export async function collectIndexFreshness(
  * Collect confidence state metrics.
  */
 export async function collectConfidenceState(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   confidenceThreshold: number = 0.5
 ): Promise<ConfidenceState> {
   let meanConfidence = 0;
@@ -431,14 +431,14 @@ export function collectQueryPerformance(): QueryPerformance {
 // ============================================================================
 
 /**
- * Assess librarian health from state variables.
+ * Assess librainian health from state variables.
  */
 export function assessHealth(
   codeGraphHealth: CodeGraphHealth,
   indexFreshness: IndexFreshness,
   confidenceState: ConfidenceState,
   queryPerformance: QueryPerformance
-): LibrarianHealth {
+): LiBrainianHealth {
   const degradationReasons: string[] = [];
 
   // Check individual health conditions
@@ -487,7 +487,7 @@ export function assessHealth(
   // "Unhealthy" should indicate operational failure, not "low epistemic confidence" or freshness SLO misses.
   // Stale index is important to surface, but it is typically recoverable and should not hard-fail the system.
   const criticalFailures = !latencyAcceptable && queryPerformance.queryCount > 0;
-  const status: LibrarianHealth['status'] = allChecksPass
+  const status: LiBrainianHealth['status'] = allChecksPass
     ? 'healthy'
     : criticalFailures
       ? 'unhealthy'
@@ -527,7 +527,7 @@ let recoveryStateMachine: RecoveryStateMachine = {
 /**
  * Transition recovery state based on health assessment.
  */
-export function transitionRecoveryState(health: LibrarianHealth): RecoveryState {
+export function transitionRecoveryState(health: LiBrainianHealth): RecoveryState {
   const previous = recoveryStateMachine.currentState;
   const now = new Date().toISOString();
 
@@ -611,11 +611,11 @@ export function resetRecoveryState(): void {
 // ============================================================================
 
 /**
- * Generate complete librarian state report.
+ * Generate complete librainian state report.
  */
 export async function generateStateReport(
-  storage: LibrarianStorage
-): Promise<LibrarianStateReport> {
+  storage: LiBrainianStorage
+): Promise<LiBrainianStateReport> {
   const now = new Date();
 
   // Collect all state variables
@@ -636,7 +636,7 @@ export async function generateStateReport(
   const recoveryState = transitionRecoveryState(health);
 
   return {
-    kind: 'LibrarianStateReport.v1',
+    kind: 'LiBrainianStateReport.v1',
     schemaVersion: 1,
     generatedAt: now.toISOString(),
     codeGraphHealth,
@@ -656,55 +656,55 @@ export async function generateStateReport(
 /**
  * Export metrics in Prometheus format per CONTROL_LOOP.md.
  */
-export function exportPrometheusMetrics(report: LibrarianStateReport): string {
+export function exportPrometheusMetrics(report: LiBrainianStateReport): string {
   const lines: string[] = [];
 
   // Code graph health
   for (const [type, count] of Object.entries(report.codeGraphHealth.entityCountByType)) {
-    lines.push(`librarian_entity_count{type="${type}"} ${count}`);
+    lines.push(`librainian_entity_count{type="${type}"} ${count}`);
   }
-  lines.push(`librarian_relation_count ${report.codeGraphHealth.relationCount}`);
-  lines.push(`librarian_coverage_ratio ${report.codeGraphHealth.coverageRatio.toFixed(4)}`);
-  lines.push(`librarian_orphan_entities ${report.codeGraphHealth.orphanEntities}`);
+  lines.push(`librainian_relation_count ${report.codeGraphHealth.relationCount}`);
+  lines.push(`librainian_coverage_ratio ${report.codeGraphHealth.coverageRatio.toFixed(4)}`);
+  lines.push(`librainian_orphan_entities ${report.codeGraphHealth.orphanEntities}`);
 
   // Index freshness
   lines.push(
-    `librarian_staleness_seconds ${Math.max(0, report.indexFreshness.stalenessMs / 1000).toFixed(0)}`
+    `librainian_staleness_seconds ${Math.max(0, report.indexFreshness.stalenessMs / 1000).toFixed(0)}`
   );
-  lines.push(`librarian_pending_changes ${report.indexFreshness.pendingChanges}`);
+  lines.push(`librainian_pending_changes ${report.indexFreshness.pendingChanges}`);
 
   // Confidence state
-  lines.push(`librarian_confidence_mean ${report.confidenceState.meanConfidence.toFixed(4)}`);
+  lines.push(`librainian_confidence_mean ${report.confidenceState.meanConfidence.toFixed(4)}`);
   lines.push(
-    `librarian_confidence_geometric_mean ${report.confidenceState.geometricMeanConfidence.toFixed(4)}`
+    `librainian_confidence_geometric_mean ${report.confidenceState.geometricMeanConfidence.toFixed(4)}`
   );
-  lines.push(`librarian_low_confidence_count ${report.confidenceState.lowConfidenceCount}`);
+  lines.push(`librainian_low_confidence_count ${report.confidenceState.lowConfidenceCount}`);
   for (const [type, count] of Object.entries(report.confidenceState.defeatersByType)) {
-    lines.push(`librarian_defeater_count{type="${type}"} ${count}`);
+    lines.push(`librainian_defeater_count{type="${type}"} ${count}`);
   }
-  lines.push(`librarian_defeater_total ${report.confidenceState.defeaterCount}`);
+  lines.push(`librainian_defeater_total ${report.confidenceState.defeaterCount}`);
 
   // Query performance
   lines.push(
-    `librarian_query_latency_seconds{quantile="0.5"} ${(report.queryPerformance.queryLatencyP50 / 1000).toFixed(4)}`
+    `librainian_query_latency_seconds{quantile="0.5"} ${(report.queryPerformance.queryLatencyP50 / 1000).toFixed(4)}`
   );
   lines.push(
-    `librarian_query_latency_seconds{quantile="0.99"} ${(report.queryPerformance.queryLatencyP99 / 1000).toFixed(4)}`
+    `librainian_query_latency_seconds{quantile="0.99"} ${(report.queryPerformance.queryLatencyP99 / 1000).toFixed(4)}`
   );
-  lines.push(`librarian_cache_hit_rate ${report.queryPerformance.cacheHitRate.toFixed(4)}`);
-  lines.push(`librarian_query_count ${report.queryPerformance.queryCount}`);
+  lines.push(`librainian_cache_hit_rate ${report.queryPerformance.cacheHitRate.toFixed(4)}`);
+  lines.push(`librainian_query_count ${report.queryPerformance.queryCount}`);
 
   // Recovery state
   const states: RecoveryState[] = ['healthy', 'degraded', 'diagnosing', 'recovering', 'degraded_stable'];
   for (const state of states) {
-    lines.push(`librarian_recovery_state{state="${state}"} ${report.recoveryState === state ? 1 : 0}`);
+    lines.push(`librainian_recovery_state{state="${state}"} ${report.recoveryState === state ? 1 : 0}`);
   }
 
   // Health checks
-  lines.push(`librarian_health_index_fresh ${report.health.checks.indexFresh ? 1 : 0}`);
-  lines.push(`librarian_health_confidence_ok ${report.health.checks.confidenceAcceptable ? 1 : 0}`);
-  lines.push(`librarian_health_defeaters_low ${report.health.checks.defeatersLow ? 1 : 0}`);
-  lines.push(`librarian_health_latency_ok ${report.health.checks.latencyAcceptable ? 1 : 0}`);
+  lines.push(`librainian_health_index_fresh ${report.health.checks.indexFresh ? 1 : 0}`);
+  lines.push(`librainian_health_confidence_ok ${report.health.checks.confidenceAcceptable ? 1 : 0}`);
+  lines.push(`librainian_health_defeaters_low ${report.health.checks.defeatersLow ? 1 : 0}`);
+  lines.push(`librainian_health_latency_ok ${report.health.checks.latencyAcceptable ? 1 : 0}`);
 
   return lines.join('\n');
 }
@@ -713,10 +713,10 @@ export function exportPrometheusMetrics(report: LibrarianStateReport): string {
 // TYPE GUARD
 // ============================================================================
 
-export function isLibrarianStateReport(value: unknown): value is LibrarianStateReport {
+export function isLiBrainianStateReport(value: unknown): value is LiBrainianStateReport {
   if (!value || typeof value !== 'object') return false;
   const r = value as Record<string, unknown>;
-  return r.kind === 'LibrarianStateReport.v1' && r.schemaVersion === 1;
+  return r.kind === 'LiBrainianStateReport.v1' && r.schemaVersion === 1;
 }
 
 // ============================================================================

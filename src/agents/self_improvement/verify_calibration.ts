@@ -7,7 +7,7 @@
  * Based on self-improvement-primitives.md specification.
  */
 
-import type { LibrarianStorage, ConfidenceEvent, EvolutionOutcome, BayesianConfidence } from '../../storage/types.js';
+import type { LiBrainianStorage, ConfidenceEvent, EvolutionOutcome, BayesianConfidence } from '../../storage/types.js';
 import type { CalibrationStatus, ConfidenceValue } from './types.js';
 import { getErrorMessage } from '../../utils/errors.js';
 
@@ -95,7 +95,7 @@ export interface CalibrationVerificationResult {
  */
 export interface VerifyCalibrationOptions {
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Minimum samples required for analysis */
   minSamples?: number;
   /** Target ECE for well-calibrated status */
@@ -138,7 +138,7 @@ const DEFAULT_BIN_COUNT = 10;
  * Gather prediction-outcome pairs from storage.
  */
 async function gatherPredictionOutcomes(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityTypes: Array<'function' | 'module' | 'context_pack'>,
   verbose: boolean
 ): Promise<PredictionOutcome[]> {

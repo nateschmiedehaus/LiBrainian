@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { LibrarianStorage, FunctionKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -191,7 +191,7 @@ export function extractPerformanceTarget(intent: string): string | undefined {
 /**
  * Storage interface with optional file content retrieval.
  */
-interface PerformanceAnalysisStorage extends LibrarianStorage {
+interface PerformanceAnalysisStorage extends LiBrainianStorage {
   getFileContent?(filePath: string): Promise<string | null>;
 }
 
@@ -663,7 +663,7 @@ export function findLargeBundleImports(content: string, file: string): Performan
  * Find performance hotspots by analyzing function complexity.
  */
 async function findHotspots(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   file: string,
   content: string
 ): Promise<PerformanceHotspot[]> {

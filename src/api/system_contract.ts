@@ -1,11 +1,11 @@
-import type { LibrarianMetadata, LibrarianVersion, QualityTier } from '../types.js';
+import type { LiBrainianMetadata, LiBrainianVersion, QualityTier } from '../types.js';
 import type { WatchHealth } from '../state/watch_health.js';
 import type { WatchState } from '../state/watch_state.js';
 
 export interface SystemContract {
   generatedAt: string;
   workspace: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   invariants: {
     providerGatingRequired: boolean;
     semanticRequiresProviders: boolean;
@@ -13,7 +13,7 @@ export interface SystemContract {
     fakeEmbeddingsForbidden: boolean;
   };
   indexProvenance: {
-    version: LibrarianVersion | null;
+    version: LiBrainianVersion | null;
     qualityTier: QualityTier | null;
     lastBootstrap: string | null;
     lastIndexing: string | null;
@@ -30,8 +30,8 @@ export interface SystemContract {
 
 export function buildSystemContract(options: {
   workspace: string;
-  version: LibrarianVersion;
-  metadata: LibrarianMetadata | null;
+  version: LiBrainianVersion;
+  metadata: LiBrainianMetadata | null;
   headSha: string | null;
   watchState: WatchState | null;
   watchHealth: WatchHealth | null;

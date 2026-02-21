@@ -27,7 +27,7 @@ import type {
 } from '../universal_types.js';
 import type { AdrRecord } from '../../ingest/adr_indexer.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 import {
   type ArgumentEdge,
@@ -1127,7 +1127,7 @@ Respond in JSON:
     ];
 
     const modelId = config.modelId
-      ?? resolveLibrarianModelId(config.provider)
+      ?? resolveLiBrainianModelId(config.provider)
       ?? 'claude-haiku-4-5-20241022';
     const llmEvidence = await buildLlmEvidence({
       provider: config.provider,

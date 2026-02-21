@@ -16,7 +16,7 @@
  */
 
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   KnowledgeGraphEdge,
   KnowledgeEdgeType,
 } from '../storage/types.js';
@@ -216,7 +216,7 @@ interface ActivationState {
  * @returns Activation state after propagation completes
  */
 async function spreadingActivation(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   sourceId: string,
   mode: 'benefit' | 'risk',
   config: CascadeConfig
@@ -387,7 +387,7 @@ function generateSummary(
  * ```
  */
 export async function analyzeCascadingImpact(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   options: Partial<CascadeConfig> & { mode: 'benefit' | 'risk' }
 ): Promise<CascadeResult> {
@@ -457,7 +457,7 @@ export async function analyzeCascadingImpact(
  * ```
  */
 export async function estimateBenefitOfOptimizing(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   improvementFactor: number
 ): Promise<BenefitEstimate> {
@@ -512,7 +512,7 @@ export async function estimateBenefitOfOptimizing(
  * ```
  */
 export async function estimateBlastRadius(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   breakingSeverity: 'minor' | 'major' | 'critical' = 'major'
 ): Promise<BlastRadiusEstimate> {
@@ -603,7 +603,7 @@ export async function estimateBlastRadius(
  * @returns Sorted list of entities with their cascade results
  */
 export async function compareCascadeImpact(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityIds: string[],
   mode: 'benefit' | 'risk'
 ): Promise<Array<{ entityId: string; result: CascadeResult }>> {
@@ -643,7 +643,7 @@ export function getPropagationFactor(
  * @returns True if the entity has high potential impact
  */
 export async function isHighImpactEntity(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<boolean> {
   const result = await analyzeCascadingImpact(storage, entityId, { mode: 'risk' });

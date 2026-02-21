@@ -13,7 +13,7 @@
  * - Confidence System for uncertainty quantification
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
 
@@ -122,10 +122,10 @@ export interface VerificationReport {
 // ============================================================================
 
 export class ArchitectureVerifier {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -182,7 +182,7 @@ export class ArchitectureVerifier {
 
     for (const layer of layers) {
       // Query for files in this layer
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find all imports and dependencies in files matching: ${layer.patterns.join(', ')}`,
         depth: 'L2',
         taskType: 'understand',
@@ -301,7 +301,7 @@ export class ArchitectureVerifier {
 
     for (const boundary of boundaries) {
       // Query for cross-boundary references
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find dependencies between files: [${boundary.inside.join(', ')}] and [${boundary.outside.join(', ')}]`,
         depth: 'L2',
         taskType: 'understand',
@@ -412,7 +412,7 @@ export class ArchitectureVerifier {
   ): Promise<ArchitectureViolation[]> {
     const violations: ArchitectureViolation[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Find circular import dependencies in the codebase',
       depth: 'L3',
       taskType: 'understand',
@@ -494,7 +494,7 @@ export class ArchitectureVerifier {
   ): Promise<ArchitectureViolation[]> {
     const violations: ArchitectureViolation[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Find all exported functions and classes with their names',
       depth: 'L2',
       taskType: 'understand',
@@ -617,8 +617,8 @@ export class ArchitectureVerifier {
 // FACTORY
 // ============================================================================
 
-export function createArchitectureVerifier(librarian: Librarian): ArchitectureVerifier {
-  return new ArchitectureVerifier(librarian);
+export function createArchitectureVerifier(librainian: LiBrainian): ArchitectureVerifier {
+  return new ArchitectureVerifier(librainian);
 }
 
 // ============================================================================

@@ -1,20 +1,20 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import type { LibrarianStorage, StorageCapabilities, StorageSlices, UniversalKnowledgeQueryOptions } from '../storage/types.js';
+import type { LiBrainianStorage, StorageCapabilities, StorageSlices, UniversalKnowledgeQueryOptions } from '../storage/types.js';
 import type {
-  LibrarianVersion,
-  LibrarianQuery,
-  LibrarianResponse,
+  LiBrainianVersion,
+  LiBrainianQuery,
+  LiBrainianResponse,
   ContextPack,
   BootstrapConfig,
   BootstrapReport,
-  LibrarianEngineResults,
+  LiBrainianEngineResults,
   EngineConstraintSummary,
   LlmOptional,
   LlmRequired,
   LlmResult,
 } from '../types.js';
-import { sanitizeLibrarianResponse } from '../types.js';
+import { sanitizeLiBrainianResponse } from '../types.js';
 import type { AgentKnowledgeContext, ContextAssemblyOptions } from './context_assembly.js';
 import { createStorageSlices } from '../storage/slices.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
@@ -27,11 +27,11 @@ import {
   loadGovernorConfig,
 } from './bootstrap.js';
 import { planBootstrapRecovery } from '../bootstrap/bootstrap_recovery.js';
-import { detectLibrarianVersion, getCurrentVersion } from './versioning.js';
-import { queryLibrarian as executeQuery, assembleContext as assembleContextQuery } from './query.js';
+import { detectLiBrainianVersion, getCurrentVersion } from './versioning.js';
+import { queryLiBrainian as executeQuery, assembleContext as assembleContextQuery } from './query.js';
 import { generateContextPacks } from './packs.js';
 import { EmbeddingService } from './embeddings.js';
-import { IndexLibrarian } from '../agents/index_librarian.js';
+import { IndexLiBrainian } from '../agents/index_librainian.js';
 import { GovernorContext } from './governor_context.js';
 import { DEFAULT_GOVERNOR_CONFIG, type GovernorConfig } from './governors.js';
 import { Knowledge } from '../knowledge/index.js';
@@ -46,7 +46,7 @@ import {
   type DirectoryExtractionConfig,
 } from '../knowledge/extractors/index.js';
 import { KnowledgeSynthesizer } from '../knowledge/synthesizer.js';
-import { LibrarianEngineToolkit, type LibrarianAgent } from '../engines/index.js';
+import { LiBrainianEngineToolkit, type LiBrainianAgent } from '../engines/index.js';
 import { createIndexStateWriter, getIndexState } from '../state/index_state.js';
 import { getWatchState } from '../state/watch_state.js';
 import { deriveWatchHealth, type WatchHealth } from '../state/watch_health.js';
@@ -125,15 +125,15 @@ import {
   createFeedbackReceivedEvent,
 } from '../events.js';
 import { bayesianDelta } from '../knowledge/confidence_updater.js';
-import { LibrarianViewsDelegate, type PersonaType } from './librarian_views.js';
+import { LiBrainianViewsDelegate, type PersonaType } from './librainian_views.js';
 import type { PersonaView, GlanceCard } from '../views/persona_views.js';
-import type { DiagramRequest, DiagramResult, ASCIIResult } from './librarian_views.js';
+import type { DiagramRequest, DiagramResult, ASCIIResult } from './librainian_views.js';
 import type { ActivationSummary } from '../knowledge/defeater_activation.js';
 import type { RefactoringRecommendation } from '../recommendations/refactoring_advisor.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { safeJsonParse } from '../utils/safe_json.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery } from './llm_env.js';
 import {
   diagnoseConfiguration,
   autoHealConfiguration,
@@ -141,31 +141,31 @@ import {
   type HealingResult,
 } from '../config/self_healing.js';
 
-export interface LibrarianDependencyOverrides {
-  createEmbeddingService?: (ctx: { governorConfig: GovernorConfig | null; config: LibrarianConfig }) => EmbeddingService;
-  createStorage?: (ctx: { dbPath: string; workspace: string; config: LibrarianConfig }) => LibrarianStorage;
-  createKnowledge?: (ctx: { storage: LibrarianStorage; config: LibrarianConfig }) => Knowledge;
-  createKnowledgeSynthesizer?: (ctx: { storage: LibrarianStorage; config: LibrarianConfig }) => KnowledgeSynthesizer;
+export interface LiBrainianDependencyOverrides {
+  createEmbeddingService?: (ctx: { governorConfig: GovernorConfig | null; config: LiBrainianConfig }) => EmbeddingService;
+  createStorage?: (ctx: { dbPath: string; workspace: string; config: LiBrainianConfig }) => LiBrainianStorage;
+  createKnowledge?: (ctx: { storage: LiBrainianStorage; config: LiBrainianConfig }) => Knowledge;
+  createKnowledgeSynthesizer?: (ctx: { storage: LiBrainianStorage; config: LiBrainianConfig }) => KnowledgeSynthesizer;
   createEngines?: (ctx: {
-    storage: LibrarianStorage;
+    storage: LiBrainianStorage;
     workspaceRoot: string;
     embeddingService?: EmbeddingService;
     reindex: (scope: string[]) => Promise<void>;
-    config: LibrarianConfig;
-  }) => LibrarianEngineToolkit;
-  createViewsDelegate?: (ctx: { storage: LibrarianStorage; workspaceRoot: string; config: LibrarianConfig }) => LibrarianViewsDelegate;
+    config: LiBrainianConfig;
+  }) => LiBrainianEngineToolkit;
+  createViewsDelegate?: (ctx: { storage: LiBrainianStorage; workspaceRoot: string; config: LiBrainianConfig }) => LiBrainianViewsDelegate;
   createIndexer?: (ctx: {
     embeddingService?: EmbeddingService;
     governorConfig: GovernorConfig | null;
-    config: LibrarianConfig;
-  }) => IndexLibrarian;
+    config: LiBrainianConfig;
+  }) => IndexLiBrainian;
   createContextSessionManager?: (ctx: {
-    query: (query: LibrarianQuery) => Promise<LibrarianResponse>;
-    config: LibrarianConfig;
+    query: (query: LiBrainianQuery) => Promise<LiBrainianResponse>;
+    config: LiBrainianConfig;
   }) => ContextAssemblySessionManager;
 }
 
-export interface LibrarianConfig {
+export interface LiBrainianConfig {
   workspace: string;
   dbPath?: string;
   autoBootstrap: boolean;
@@ -199,7 +199,7 @@ export interface LibrarianConfig {
   skipEmbeddings?: boolean;
   /**
    * Disable LLM provider/model discovery.
-   * When true, Librarian will only use explicitly provided LLM config.
+   * When true, LiBrainian will only use explicitly provided LLM config.
    */
   disableLlmDiscovery?: boolean;
   onProgress?: (phase: string, progress: number, message: string) => void;
@@ -211,13 +211,13 @@ export interface LibrarianConfig {
   llmModelId?: string;
   embeddingService?: EmbeddingService;
   /** Optional dependency seams for testing and controlled composition. */
-  dependencyOverrides?: LibrarianDependencyOverrides;
+  dependencyOverrides?: LiBrainianDependencyOverrides;
 }
 
-export interface LibrarianStatus {
+export interface LiBrainianStatus {
   initialized: boolean;
   bootstrapped: boolean;
-  version: LibrarianVersion | null;
+  version: LiBrainianVersion | null;
   workspace: string;
   stats: {
     totalFunctions: number;
@@ -236,22 +236,22 @@ export interface WatchStatus {
   health?: WatchHealth | null;
 }
 
-const DEFAULT_CONFIG: Omit<LibrarianConfig, 'workspace'> = {
+const DEFAULT_CONFIG: Omit<LiBrainianConfig, 'workspace'> = {
   autoBootstrap: true,
   bootstrapTimeoutMs: 0,
   skipEmbeddings: false,
   disableLlmDiscovery: false,
 };
 
-export class Librarian {
-  private config: LibrarianConfig;
-  private storage: LibrarianStorage | null = null;
-  private indexer: IndexLibrarian | null = null;
+export class LiBrainian {
+  private config: LiBrainianConfig;
+  private storage: LiBrainianStorage | null = null;
+  private indexer: IndexLiBrainian | null = null;
   private embeddingService: EmbeddingService | null = null;
   private knowledge: Knowledge | null = null;
   private knowledgeSynthesizer: KnowledgeSynthesizer | null = null;
-  private engines: LibrarianEngineToolkit | null = null;
-  private viewsDelegate: LibrarianViewsDelegate | null = null;
+  private engines: LiBrainianEngineToolkit | null = null;
+  private viewsDelegate: LiBrainianViewsDelegate | null = null;
   private evidenceLedger: SqliteEvidenceLedger | null = null;
   private storageCapabilities: StorageCapabilities | null = null;
   private fileWatcher: FileWatcherHandle | null = null;
@@ -261,20 +261,20 @@ export class Librarian {
   private bootstrapped = false;
   private governorConfig: GovernorConfig | null = null;
 
-  constructor(config: LibrarianConfig) {
+  constructor(config: LiBrainianConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    const librarianRoot = path.resolve(this.config.workspace, '.librarian');
+    const librainianRoot = path.resolve(this.config.workspace, '.librainian');
     const dbPath = this.config.dbPath
       ? path.resolve(this.config.workspace, this.config.dbPath)
-      : path.join(librarianRoot, 'librarian.sqlite');
-    const dbPathRel = path.relative(librarianRoot, dbPath);
+      : path.join(librainianRoot, 'librainian.sqlite');
+    const dbPathRel = path.relative(librainianRoot, dbPath);
     if (dbPathRel.startsWith('..') || path.isAbsolute(dbPathRel)) {
-      throw new Error('unverified_by_trace(storage_path_escape): dbPath must be within <workspace>/.librarian');
+      throw new Error('unverified_by_trace(storage_path_escape): dbPath must be within <workspace>/.librainian');
     }
 
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
@@ -315,7 +315,7 @@ export class Librarian {
     // Resolve LLM configuration from stored defaults or provider discovery when not explicitly set.
     if (!this.config.disableLlmDiscovery && (!this.config.llmProvider || !this.config.llmModelId)) {
       try {
-        const rawDefaults = await this.storage.getState('librarian.llm_defaults.v1');
+        const rawDefaults = await this.storage.getState('librainian.llm_defaults.v1');
         const parsed = rawDefaults ? safeJsonParse<Record<string, unknown>>(rawDefaults) : null;
         const provider = parsed?.ok ? parsed.value.provider : null;
         const modelId = parsed?.ok ? parsed.value.modelId : null;
@@ -324,7 +324,7 @@ export class Librarian {
           this.config.llmModelId = modelId.trim();
         }
       } catch (error) {
-        logWarning('[librarian] Failed to read stored LLM defaults', {
+        logWarning('[librainian] Failed to read stored LLM defaults', {
           workspace: this.config.workspace,
           error: getErrorMessage(error),
         });
@@ -333,7 +333,7 @@ export class Librarian {
     if (!this.config.disableLlmDiscovery && (!this.config.llmProvider || !this.config.llmModelId)) {
       if (process.env.LIBRARIAN_SKIP_PROVIDER_CHECK !== '1') {
         try {
-          const discovered = await resolveLibrarianModelConfigWithDiscovery();
+          const discovered = await resolveLiBrainianModelConfigWithDiscovery();
           if (discovered.provider && discovered.modelId) {
             this.config.llmProvider = discovered.provider;
             this.config.llmModelId = discovered.modelId;
@@ -348,7 +348,7 @@ export class Librarian {
       process.env.LIBRARIAN_LLM_MODEL = this.config.llmModelId;
     }
     try {
-      const ledgerPath = path.join(librarianRoot, 'evidence_ledger.db');
+      const ledgerPath = path.join(librainianRoot, 'evidence_ledger.db');
       this.evidenceLedger = new SqliteEvidenceLedger(ledgerPath);
       await this.evidenceLedger.initialize();
       enableEventLedgerBridge({ ledger: this.evidenceLedger });
@@ -410,7 +410,7 @@ export class Librarian {
       embeddingService: this.embeddingService ?? undefined,
       reindex: async (scope) => this.reindexFiles(scope),
       config: this.config,
-    }) ?? new LibrarianEngineToolkit({
+    }) ?? new LiBrainianEngineToolkit({
       storage: this.storage,
       workspaceRoot: this.config.workspace,
       embeddingService: this.embeddingService ?? undefined,
@@ -420,7 +420,7 @@ export class Librarian {
       storage: this.storage,
       workspaceRoot: this.config.workspace,
       config: this.config,
-    }) ?? new LibrarianViewsDelegate({
+    }) ?? new LiBrainianViewsDelegate({
       storage: this.storage,
       workspaceRoot: this.config.workspace,
     });
@@ -429,7 +429,7 @@ export class Librarian {
       embeddingService: this.embeddingService ?? undefined,
       governorConfig: this.governorConfig,
       config: this.config,
-    }) ?? new IndexLibrarian({
+    }) ?? new IndexLiBrainian({
       embeddingBatchSize: this.governorConfig?.maxEmbeddingsPerBatch,
       llmProvider: this.config.llmProvider,
       llmModelId: this.config.llmModelId,
@@ -450,7 +450,7 @@ export class Librarian {
         const healthReport = await diagnoseConfiguration(this.config.workspace);
 
         if (!healthReport.isOptimal && healthReport.autoFixable.length > 0) {
-          logInfo('[librarian] Configuration issues detected, attempting auto-heal', {
+          logInfo('[librainian] Configuration issues detected, attempting auto-heal', {
             workspace: this.config.workspace,
             healthScore: healthReport.healthScore,
             issueCount: healthReport.issues.length,
@@ -462,7 +462,7 @@ export class Librarian {
           });
 
           if (healResult.appliedFixes.length > 0) {
-            logInfo('[librarian] Configuration auto-healed', {
+            logInfo('[librainian] Configuration auto-healed', {
               workspace: this.config.workspace,
               appliedFixes: healResult.appliedFixes.length,
               newHealthScore: healResult.newHealthScore,
@@ -473,7 +473,7 @@ export class Librarian {
         }
       } catch (error) {
         // Config healing failure is non-fatal - log and continue
-        logWarning('[librarian] Config auto-heal failed, continuing with existing config', {
+        logWarning('[librainian] Config auto-heal failed, continuing with existing config', {
           workspace: this.config.workspace,
           error: getErrorMessage(error),
         });
@@ -483,7 +483,7 @@ export class Librarian {
     // Check bootstrap status regardless of autoBootstrap setting
     // Detect current tier from stored data and use that as target to allow operation
     // on existing data. Only request upgrade if explicitly configured.
-    const currentVersion = await detectLibrarianVersion(this.storage);
+    const currentVersion = await detectLiBrainianVersion(this.storage);
     const effectiveTier = this.config.bootstrapConfig?.bootstrapMode === 'full' ? 'full' : (currentVersion?.qualityTier ?? 'full');
     const { required, reason } = await isBootstrapRequired(this.config.workspace, this.storage, { targetQualityTier: effectiveTier });
 
@@ -568,7 +568,7 @@ export class Librarian {
 
     this.fileWatcher = startFileWatcher({
       workspaceRoot: this.config.workspace,
-      librarian: this,
+      librainian: this,
       storage: this.storage,
     });
   }
@@ -622,7 +622,7 @@ export class Librarian {
 
   getStorageSlices(options?: { strict?: boolean }): StorageSlices {
     if (!this.storage) {
-      throw new Error('Librarian storage not initialized');
+      throw new Error('LiBrainian storage not initialized');
     }
     return createStorageSlices(this.storage, { strict: options?.strict });
   }
@@ -662,42 +662,42 @@ export class Librarian {
   }
 
   async saveVerificationPlan(plan: VerificationPlan): Promise<void> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     await saveVerificationPlan(this.storage, plan);
   }
 
   async listVerificationPlans(): Promise<VerificationPlan[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return listVerificationPlans(this.storage);
   }
 
   async getVerificationPlan(id: string): Promise<VerificationPlan | null> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return getVerificationPlan(this.storage, id);
   }
 
   async deleteVerificationPlan(id: string): Promise<boolean> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return deleteVerificationPlan(this.storage, id);
   }
 
   async recordEpisode(episode: Episode, options?: { maxEpisodes?: number }): Promise<void> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     await recordEpisode(this.storage, episode, options);
   }
 
   async listEpisodes(): Promise<Episode[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return listEpisodes(this.storage);
   }
 
   async getEpisode(id: string): Promise<Episode | null> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return getEpisode(this.storage, id);
   }
 
   async recordLearningOutcome(episode: Episode, outcome: LearningOutcome): Promise<LearningUpdate> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     if (!this.learner) {
       this.learner = new ClosedLoopLearner(this.storage);
     }
@@ -708,7 +708,7 @@ export class Librarian {
     intent: string,
     context: LearningQueryContext = {}
   ): Promise<LearnedRecommendations> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     if (!this.learner) {
       this.learner = new ClosedLoopLearner(this.storage);
     }
@@ -716,62 +716,62 @@ export class Librarian {
   }
 
   async listTechniquePrimitives(options?: { allowInvalid?: boolean }): Promise<TechniquePrimitive[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return listTechniquePrimitives(this.storage, options);
   }
 
   async listInvalidTechniquePrimitives(): Promise<InvalidTechniquePrimitiveRecord[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return listInvalidTechniquePrimitives(this.storage);
   }
 
   async clearInvalidTechniquePrimitives(): Promise<void> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     await clearInvalidTechniquePrimitives(this.storage);
   }
 
   async getTechniquePrimitive(id: string, options?: { allowInvalid?: boolean }): Promise<TechniquePrimitive | null> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return getTechniquePrimitive(this.storage, id, options);
   }
 
   async saveTechniquePrimitive(primitive: TechniquePrimitive): Promise<void> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     await saveTechniquePrimitive(this.storage, primitive);
   }
 
   async deleteTechniquePrimitive(id: string): Promise<boolean> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return deleteTechniquePrimitive(this.storage, id);
   }
 
   async ensureTechniquePrimitives(options?: { overwrite?: boolean }): Promise<TechniquePrimitive[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return ensureTechniquePrimitives(this.storage, options);
   }
 
   async listTechniqueCompositions(): Promise<TechniqueComposition[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return listTechniqueCompositions(this.storage);
   }
 
   async getTechniqueComposition(id: string): Promise<TechniqueComposition | null> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return getTechniqueComposition(this.storage, id);
   }
 
   async saveTechniqueComposition(composition: TechniqueComposition): Promise<void> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     await saveTechniqueComposition(this.storage, composition);
   }
 
   async deleteTechniqueComposition(id: string): Promise<boolean> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return deleteTechniqueComposition(this.storage, id);
   }
 
   async ensureTechniqueCompositions(options?: { overwrite?: boolean }): Promise<TechniqueComposition[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return ensureTechniqueCompositions(this.storage, options);
   }
 
@@ -798,7 +798,7 @@ export class Librarian {
     intent: string,
     options?: { limit?: number; useLearning?: boolean } & CompositionSelectionOptions
   ): Promise<TechniqueComposition[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     const selections = await selectTechniqueCompositionsFromStorage(this.storage, intent, {
       useLearning: options?.useLearning,
       selectionMode: options?.selectionMode,
@@ -819,7 +819,7 @@ export class Librarian {
   async compileTechniqueCompositionTemplate(
     compositionId: string
   ): Promise<{ template: import('../strategic/work_primitives.js').WorkTemplate | null; missingPrimitiveIds: string[] }> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return compileTechniqueCompositionTemplateWithGapsFromStorage(this.storage, compositionId);
   }
 
@@ -830,7 +830,7 @@ export class Librarian {
     primitives: TechniquePrimitive[];
     missingPrimitiveIds: string[];
   }> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return compileTechniqueCompositionBundleFromStorage(this.storage, compositionId);
   }
 
@@ -842,7 +842,7 @@ export class Librarian {
     primitives?: TechniquePrimitive[];
     missingPrimitiveIds: string[];
   }>> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     const bundles = await compileTechniqueBundlesFromIntent(this.storage, intent, {
       limit: options?.limit,
       useLearning: options?.useLearning,
@@ -868,7 +868,7 @@ export class Librarian {
     intent: string,
     options?: PlanWorkOptions
   ): Promise<PlanWorkResult[]> {
-    if (!this.storage) throw new Error('Librarian storage not initialized');
+    if (!this.storage) throw new Error('LiBrainian storage not initialized');
     return planWorkFromIntent(this.storage, intent, options);
   }
 
@@ -876,7 +876,7 @@ export class Librarian {
     return this.initialized && this.bootstrapped;
   }
 
-  async getStatus(): Promise<LibrarianStatus> {
+  async getStatus(): Promise<LiBrainianStatus> {
     if (!this.storage) {
       return {
         initialized: false,
@@ -917,22 +917,22 @@ export class Librarian {
     };
   }
 
-  async query(query: LibrarianQuery): Promise<LlmRequired<LibrarianResponse>> {
+  async query(query: LiBrainianQuery): Promise<LlmRequired<LiBrainianResponse>> {
     return this.queryRequired(query);
   }
 
-  async queryRequired(query: LibrarianQuery): Promise<LlmRequired<LibrarianResponse>> {
+  async queryRequired(query: LiBrainianQuery): Promise<LlmRequired<LiBrainianResponse>> {
     const response = await this.runQueryWithEngines({ ...query, llmRequirement: 'required' });
-    return response as LlmRequired<LibrarianResponse>;
+    return response as LlmRequired<LiBrainianResponse>;
   }
 
-  async queryOptional(query: LibrarianQuery): Promise<LlmOptional<LibrarianResponse>> {
+  async queryOptional(query: LiBrainianQuery): Promise<LlmOptional<LiBrainianResponse>> {
     const llmRequirement = query.llmRequirement === 'disabled' ? 'disabled' : 'optional';
     const response = await this.runQueryWithEngines({ ...query, llmRequirement });
-    return response as LlmOptional<LibrarianResponse>;
+    return response as LlmOptional<LiBrainianResponse>;
   }
 
-  async queryWithFallback(query: LibrarianQuery): Promise<LlmResult<LibrarianResponse>> {
+  async queryWithFallback(query: LiBrainianQuery): Promise<LlmResult<LiBrainianResponse>> {
     try {
       const response = await this.queryOptional(query);
       if (response.llmAvailable === false && response.llmRequirement !== 'disabled') {
@@ -951,7 +951,7 @@ export class Librarian {
     }
   }
 
-  private async runQueryWithEngines(query: LibrarianQuery): Promise<LibrarianResponse> {
+  private async runQueryWithEngines(query: LiBrainianQuery): Promise<LiBrainianResponse> {
     this.ensureReady();
     const governor = this.createGovernorContext('query');
     const response = await executeQuery(
@@ -963,7 +963,7 @@ export class Librarian {
       { evidenceLedger: this.evidenceLedger ?? undefined }
     );
     const engines = await this.buildEngineResults(query, response);
-    return sanitizeLibrarianResponse(engines ? { ...response, engines } : response);
+    return sanitizeLiBrainianResponse(engines ? { ...response, engines } : response);
   }
 
   async embedIntent(intent: string): Promise<Float32Array> {
@@ -983,7 +983,7 @@ export class Librarian {
   }
 
   async assembleContext(
-    query: LibrarianQuery,
+    query: LiBrainianQuery,
     options: ContextAssemblyOptions = {}
   ): Promise<AgentKnowledgeContext> {
     this.ensureReady();
@@ -1009,7 +1009,7 @@ export class Librarian {
     });
   }
 
-  async startContextSession(query: LibrarianQuery): Promise<ContextSession> {
+  async startContextSession(query: LiBrainianQuery): Promise<ContextSession> {
     this.ensureReady();
     return this.getContextSessionManager().start(query);
   }
@@ -1050,7 +1050,7 @@ export class Librarian {
     return this.knowledge;
   }
 
-  getEngines(): LibrarianEngineToolkit {
+  getEngines(): LiBrainianEngineToolkit {
     this.ensureReady();
     if (!this.engines) {
       throw new Error('Engine toolkit not initialized');
@@ -1069,7 +1069,7 @@ export class Librarian {
     return this.storageCapabilities;
   }
 
-  getAgent(): LibrarianAgent {
+  getAgent(): LiBrainianAgent {
     return this.getEngines().agent;
   }
 
@@ -1268,7 +1268,7 @@ export class Librarian {
 
       if (directoryPaths.size) {
         const knownFiles = await this.storage!.getFiles().catch((err) => {
-          logWarning('[librarian] Failed to retrieve known files for directory processing', { error: getErrorMessage(err) });
+          logWarning('[librainian] Failed to retrieve known files for directory processing', { error: getErrorMessage(err) });
           return [];
         });
         const knownPaths = knownFiles.map((file) => file.path);
@@ -1380,15 +1380,15 @@ export class Librarian {
 
   /**
    * Get the storage backend for advanced queries (e.g., graph edges).
-   * Returns null if librarian is not initialized.
+   * Returns null if librainian is not initialized.
    */
-  getStorage(): LibrarianStorage | null {
+  getStorage(): LiBrainianStorage | null {
     return this.storage;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PERSONA VIEWS - Stakeholder-specific knowledge projections
-  // Delegated to LibrarianViewsDelegate per MF4 (file size limits)
+  // Delegated to LiBrainianViewsDelegate per MF4 (file size limits)
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
@@ -1457,7 +1457,7 @@ export class Librarian {
 
   private ensureReady(): void {
     if (!this.isReady()) {
-      throw new Error(`Librarian not ready. ${this.initialized ? 'Bootstrap not complete.' : 'Call initialize() first.'}`);
+      throw new Error(`LiBrainian not ready. ${this.initialized ? 'Bootstrap not complete.' : 'Call initialize() first.'}`);
     }
   }
 
@@ -1491,14 +1491,14 @@ export class Librarian {
   }
 
   private async buildEngineResults(
-    query: LibrarianQuery,
-    response: LibrarianResponse
-  ): Promise<LibrarianEngineResults | null> {
+    query: LiBrainianQuery,
+    response: LiBrainianResponse
+  ): Promise<LiBrainianEngineResults | null> {
     if (query.includeEngines === false) return null;
     if (!this.engines) return null;
     const scope = this.buildEngineScope(query, response);
     const scopePaths = Array.from(scope.keys());
-    const engines: LibrarianEngineResults = {};
+    const engines: LiBrainianEngineResults = {};
 
     const intent = query.intent?.trim();
     if (intent) {
@@ -1519,7 +1519,7 @@ export class Librarian {
     return Object.keys(engines).length ? engines : null;
   }
 
-  private buildEngineScope(query: LibrarianQuery, response: LibrarianResponse): Map<string, string> {
+  private buildEngineScope(query: LiBrainianQuery, response: LiBrainianResponse): Map<string, string> {
     const scope = new Map<string, string>();
     const addEntry = (value: string): void => {
       if (!value) return;
@@ -1569,12 +1569,12 @@ export class Librarian {
 
 const QUALITY_TIERS_ORDER: ('mvp' | 'enhanced' | 'full')[] = ['mvp', 'enhanced', 'full'];
 
-export async function createLibrarian(config: LibrarianConfig): Promise<Librarian> {
-  const librarian = new Librarian(config);
-  await librarian.initialize();
-  return librarian;
+export async function createLiBrainian(config: LiBrainianConfig): Promise<LiBrainian> {
+  const librainian = new LiBrainian(config);
+  await librainian.initialize();
+  return librainian;
 }
 
-export function createLibrarianSync(config: LibrarianConfig): Librarian {
-  return new Librarian({ ...config, autoBootstrap: false });
+export function createLiBrainianSync(config: LiBrainianConfig): LiBrainian {
+  return new LiBrainian({ ...config, autoBootstrap: false });
 }

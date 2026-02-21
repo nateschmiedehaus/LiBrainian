@@ -16,7 +16,7 @@ import {
   type AssessmentScope,
   type ExcellenceTier,
 } from '../comprehensive_quality_construction.js';
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ContextPack } from '../../types.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 
@@ -24,12 +24,12 @@ import type { ConfidenceValue } from '../../epistemics/confidence.js';
 // MOCK LIBRARIAN
 // ============================================================================
 
-function createMockLibrarian(options: {
+function createMockLiBrainian(options: {
   hasCodeIssues?: boolean;
   hasArchViolations?: boolean;
   hasSecurityFindings?: boolean;
   evalCode?: boolean;
-} = {}): Librarian {
+} = {}): LiBrainian {
   const codeSnippetContent = options.evalCode
     ? 'const x = eval(userInput); function process() { if (a) { if (b) { if (c) { if (d) { if (e) { return deep; } } } } } }'
     : 'function simple(x: string): number { return x.length; }';
@@ -65,7 +65,7 @@ function createMockLibrarian(options: {
     queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
     queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
     query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 function createDefaultScope(): AssessmentScope {
@@ -103,11 +103,11 @@ function createDefaultScope(): AssessmentScope {
 
 describe('ComprehensiveQualityConstruction', () => {
   let construction: ComprehensiveQualityConstruction;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    construction = new ComprehensiveQualityConstruction(mockLiBrainian);
   });
 
   describe('assess()', () => {
@@ -198,8 +198,8 @@ describe('ComprehensiveQualityConstruction', () => {
 
 describe('Confidence Propagation (D3 - parallel-all)', () => {
   it('should propagate confidence using D3 rule', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -217,8 +217,8 @@ describe('Confidence Propagation (D3 - parallel-all)', () => {
   });
 
   it('should have confidence value less than or equal to minimum input', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -249,8 +249,8 @@ describe('Confidence Propagation (D3 - parallel-all)', () => {
   });
 
   it('should include confidence propagation in evidence refs', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -260,13 +260,13 @@ describe('Confidence Propagation (D3 - parallel-all)', () => {
 
   it('should return absent confidence when all components are absent', async () => {
     // Create mock that returns absent confidence
-    const mockLibrarian = {
+    const mockLiBrainian = {
       queryOptional: vi.fn().mockResolvedValue({ packs: [] }),
       queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
       query: vi.fn().mockResolvedValue({ packs: [] }),
-    } as unknown as Librarian;
+    } as unknown as LiBrainian;
 
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope: AssessmentScope = {
       files: [],
       architectureSpec: { layers: [], boundaries: [], rules: [] },
@@ -289,8 +289,8 @@ describe('Excellence Tier Determination', () => {
   it('should return legendary tier for score >= 99', async () => {
     // We can't easily mock a 99+ score, but we can test the tier logic
     // by checking that the tier is valid
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -300,8 +300,8 @@ describe('Excellence Tier Determination', () => {
   });
 
   it('should include excellence tier in evidence refs', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -310,8 +310,8 @@ describe('Excellence Tier Determination', () => {
   });
 
   it('should have tier consistent with overall score', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -335,8 +335,8 @@ describe('Excellence Tier Determination', () => {
 
 describe('Issue Aggregation', () => {
   it('should aggregate issues from all dimensions', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -354,8 +354,8 @@ describe('Issue Aggregation', () => {
   });
 
   it('should have issues with valid dimension values', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -367,8 +367,8 @@ describe('Issue Aggregation', () => {
   });
 
   it('should have issues with valid severity values', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -380,8 +380,8 @@ describe('Issue Aggregation', () => {
   });
 
   it('should sort issues by severity', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -398,8 +398,8 @@ describe('Issue Aggregation', () => {
   });
 
   it('should limit to top 20 issues', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -414,8 +414,8 @@ describe('Issue Aggregation', () => {
 
 describe('Recommendation Generation', () => {
   it('should generate recommendations', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -426,8 +426,8 @@ describe('Recommendation Generation', () => {
   });
 
   it('should have recommendations with valid structure', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -445,8 +445,8 @@ describe('Recommendation Generation', () => {
   });
 
   it('should have recommendations with valid priority values', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -458,8 +458,8 @@ describe('Recommendation Generation', () => {
   });
 
   it('should have recommendations with valid effort values', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -471,8 +471,8 @@ describe('Recommendation Generation', () => {
   });
 
   it('should sort recommendations by priority', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -494,8 +494,8 @@ describe('Recommendation Generation', () => {
 
 describe('Improvement Priorities', () => {
   it('should generate improvement priorities', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -505,8 +505,8 @@ describe('Improvement Priorities', () => {
   });
 
   it('should have priorities with valid structure', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -524,8 +524,8 @@ describe('Improvement Priorities', () => {
   });
 
   it('should have priorities ordered by rank', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -538,8 +538,8 @@ describe('Improvement Priorities', () => {
   });
 
   it('should limit to top 10 priorities', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -548,8 +548,8 @@ describe('Improvement Priorities', () => {
   });
 
   it('should have positive score impact values', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -567,7 +567,7 @@ describe('Improvement Priorities', () => {
 describe('Parallel Execution', () => {
   it('should run all assessments in parallel', async () => {
     const queryTimes: number[] = [];
-    const mockLibrarian = {
+    const mockLiBrainian = {
       queryOptional: vi.fn().mockImplementation(async () => {
         const start = Date.now();
         await new Promise(resolve => setTimeout(resolve, 50)); // Simulate some async work
@@ -576,9 +576,9 @@ describe('Parallel Execution', () => {
       }),
       queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
       query: vi.fn().mockResolvedValue({ packs: [] }),
-    } as unknown as Librarian;
+    } as unknown as LiBrainian;
 
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const startTime = Date.now();
@@ -599,8 +599,8 @@ describe('Parallel Execution', () => {
 
 describe('Evidence Trail', () => {
   it('should aggregate evidence from all components', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -612,8 +612,8 @@ describe('Evidence Trail', () => {
   });
 
   it('should include score and tier evidence', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -623,8 +623,8 @@ describe('Evidence Trail', () => {
   });
 
   it('should include issue and recommendation counts', async () => {
-    const mockLibrarian = createMockLibrarian({ evalCode: true });
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian({ evalCode: true });
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -640,15 +640,15 @@ describe('Evidence Trail', () => {
 
 describe('createComprehensiveQualityConstruction', () => {
   it('should create a valid construction instance', () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = createComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = createComprehensiveQualityConstruction(mockLiBrainian);
 
     expect(construction).toBeInstanceOf(ComprehensiveQualityConstruction);
   });
 
   it('should create functional construction', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = createComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = createComprehensiveQualityConstruction(mockLiBrainian);
     const scope = createDefaultScope();
 
     const result = await construction.assess(scope);
@@ -665,8 +665,8 @@ describe('createComprehensiveQualityConstruction', () => {
 
 describe('Edge Cases', () => {
   it('should handle empty file list', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope: AssessmentScope = {
       files: [],
       architectureSpec: { layers: [], boundaries: [], rules: [] },
@@ -680,8 +680,8 @@ describe('Edge Cases', () => {
   });
 
   it('should handle empty architecture spec', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope: AssessmentScope = {
       files: ['src/test.ts'],
       architectureSpec: { layers: [], boundaries: [], rules: [] },
@@ -695,8 +695,8 @@ describe('Edge Cases', () => {
   });
 
   it('should handle empty security check types', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope: AssessmentScope = {
       files: ['src/test.ts'],
       architectureSpec: { layers: [], boundaries: [], rules: [] },
@@ -710,8 +710,8 @@ describe('Edge Cases', () => {
   });
 
   it('should handle single file assessment', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new ComprehensiveQualityConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new ComprehensiveQualityConstruction(mockLiBrainian);
     const scope: AssessmentScope = {
       files: ['src/single.ts'],
       architectureSpec: {

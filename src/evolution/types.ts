@@ -16,7 +16,7 @@
 // ============================================================================
 
 /**
- * FitnessReport.v1 - Multi-objective fitness vector for Librarian evaluation.
+ * FitnessReport.v1 - Multi-objective fitness vector for LiBrainian evaluation.
  */
 export interface FitnessReport {
   kind: 'FitnessReport.v1';

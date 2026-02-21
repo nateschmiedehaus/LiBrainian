@@ -1,7 +1,7 @@
 /**
  * @fileoverview LLM Service Stub
  *
- * Provides a minimal LLM service interface for standalone librarian.
+ * Provides a minimal LLM service interface for standalone librainian.
  * In Wave0 context, the real LLMService is injected.
  *
  * @packageDocumentation
@@ -33,7 +33,7 @@ export interface LLMServiceOptions {
 // ============================================================================
 
 /**
- * Minimal LLM service for standalone librarian
+ * Minimal LLM service for standalone librainian
  */
 export class LLMService {
   private provider?: LLMProvider;

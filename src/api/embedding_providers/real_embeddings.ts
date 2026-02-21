@@ -140,7 +140,7 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
       // Dynamic import to avoid bundling issues
       const { pipeline: createPipeline } = await import('@xenova/transformers');
 
-      logInfo(`[librarian] Loading embedding model (${modelId})...`);
+      logInfo(`[librainian] Loading embedding model (${modelId})...`);
 
       // Use feature-extraction pipeline for embeddings
       const pipe = await createPipeline('feature-extraction', model.xenovaId, {
@@ -148,12 +148,12 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
         quantized: modelId === 'all-MiniLM-L6-v2', // Only MiniLM has quantized version
       });
 
-      logInfo(`[librarian] Embedding model ${modelId} loaded successfully`);
+      logInfo(`[librainian] Embedding model ${modelId} loaded successfully`);
       pipelines.set(cacheKey, pipe);
       return pipe;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logWarning(`[librarian] Failed to load @xenova/transformers model ${modelId}`, { error: message });
+      logWarning(`[librainian] Failed to load @xenova/transformers model ${modelId}`, { error: message });
       pipelineLoadings.delete(cacheKey);
       throw error;
     }
@@ -389,7 +389,7 @@ export async function generateRealEmbedding(
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logWarning(`[librarian] Xenova embedding failed for ${modelId}; trying sentence-transformers`, { error: message });
+      logWarning(`[librainian] Xenova embedding failed for ${modelId}; trying sentence-transformers`, { error: message });
     }
   }
 
@@ -442,7 +442,7 @@ export async function generateRealEmbeddings(
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logWarning(`[librarian] Xenova batch embedding failed for ${modelId}; trying sentence-transformers`, { error: message });
+      logWarning(`[librainian] Xenova batch embedding failed for ${modelId}; trying sentence-transformers`, { error: message });
     }
   }
 

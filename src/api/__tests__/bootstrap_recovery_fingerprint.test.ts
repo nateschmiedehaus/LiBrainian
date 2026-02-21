@@ -8,7 +8,7 @@ describe('bootstrap recovery fingerprint', () => {
   let workspace: string;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-fp-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-fp-'));
   });
 
   afterEach(async () => {

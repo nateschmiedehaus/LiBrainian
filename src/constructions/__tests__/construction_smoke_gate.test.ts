@@ -8,7 +8,7 @@ const PER_CONSTRUCTION_TIMEOUT_MS = 120_000;
 const TOTAL_BUDGET_MS = 10 * 60 * 1000;
 const MAX_PARALLEL = 4;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURE_REPO = path.resolve(__dirname, '../../../test/fixtures/librarian_usecase');
+const FIXTURE_REPO = path.resolve(__dirname, '../../../test/fixtures/librainian_usecase');
 
 type SmokeResult = {
   id: string;
@@ -134,7 +134,7 @@ function buildGenericInput(manifest: ConstructionManifest): Record<string, unkno
   return input;
 }
 
-function createLibrarianStub(): Record<string, unknown> {
+function createLiBrainianStub(): Record<string, unknown> {
   const base: Record<string, unknown> = {
     workspaceRoot: FIXTURE_REPO,
     rootDir: FIXTURE_REPO,
@@ -198,7 +198,7 @@ async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult
       invokeConstruction(
         manifest.id,
         buildGenericInput(manifest),
-        { deps: { librarian: createLibrarianStub() } } as never,
+        { deps: { librainian: createLiBrainianStub() } } as never,
       ),
       PER_CONSTRUCTION_TIMEOUT_MS,
       manifest.id,

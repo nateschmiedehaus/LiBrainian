@@ -1,10 +1,10 @@
-// Query API for Librarian.
+// Query API for LiBrainian.
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { glob } from 'glob';
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   SimilarityResult,
   QueryCacheEntry,
   MultiVectorRecord,
@@ -14,10 +14,10 @@ import type {
   QueryAccessLogEntry,
 } from '../storage/types.js';
 import type {
-  LibrarianQuery,
-  LibrarianResponse,
+  LiBrainianQuery,
+  LiBrainianResponse,
   ContextPack,
-  LibrarianVersion,
+  LiBrainianVersion,
   LlmRequirement,
   EmbeddingRequirement,
   StageName,
@@ -63,7 +63,7 @@ import { checkProviderSnapshot, ProviderUnavailableError } from './provider_chec
 import { checkExtractionSnapshot } from './extraction_gate.js';
 import { ensureDailyModelSelection } from '../adapters/model_policy.js';
 import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery } from './llm_env.js';
 import type { IngestionItem } from '../ingest/types.js';
 import { getIndexState, isReadyPhase, waitForIndexReady } from '../state/index_state.js';
 import type { IndexState } from '../state/index_state.js';
@@ -224,12 +224,12 @@ import {
   type FeatureLocationReport,
   type FeatureQuery,
 } from '../constructions/feature_location_advisor.js';
-export type { LibrarianQuery, LibrarianResponse, ContextPack };
+export type { LiBrainianQuery, LiBrainianResponse, ContextPack };
 
 type Candidate = { entityId: string; entityType: GraphEntityType; path?: string; semanticSimilarity: number; confidence: number; recency: number; pagerank: number; centrality: number; communityId: number | null; graphSimilarity?: number; cochange?: number; score?: number; };
-type GraphMetricsStore = LibrarianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]>; };
-type CachedResponse = LibrarianResponse & { explanation?: string; coverageGaps?: string[]; evidenceByPack?: Record<string, EvidenceRef[]> };
-type QueryCacheStore = LibrarianStorage & {
+type GraphMetricsStore = LiBrainianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]>; };
+type CachedResponse = LiBrainianResponse & { explanation?: string; coverageGaps?: string[]; evidenceByPack?: Record<string, EvidenceRef[]> };
+type QueryCacheStore = LiBrainianStorage & {
   getQueryCacheEntry?: (queryHash: string) => Promise<QueryCacheEntry | null>;
   upsertQueryCacheEntry?: (entry: QueryCacheEntry) => Promise<void>;
   recordQueryCacheAccess?: (queryHash: string) => Promise<void>;
@@ -417,7 +417,7 @@ const META_QUERY_PATTERNS = [
   /\bbest\s+practice/i,
   /\bagent\b.*\buse\b/i,
   /\buse\b.*\bagent\b/i,
-  /\blibrarian\b/i,
+  /\blibrainian\b/i,
 ];
 
 /**
@@ -653,11 +653,11 @@ const FEATURE_LOCATION_PATTERNS = [
 function extractRefactoringTarget(intent: string): string | undefined {
   // Patterns to extract the target entity
   const targetPatterns = [
-    // "what would break if I changed SqliteLibrarianStorage"
+    // "what would break if I changed SqliteLiBrainianStorage"
     /(?:changed?|modif(?:y|ied)|renamed?|deleted?|removed?)\s+([A-Za-z_][A-Za-z0-9_]*)/i,
-    // "can I safely rename createLibrarian"
+    // "can I safely rename createLiBrainian"
     /(?:rename|change|delete|modify|remove|refactor)\s+([A-Za-z_][A-Za-z0-9_]*)/i,
-    // "impact of changing queryLibrarian"
+    // "impact of changing queryLiBrainian"
     /(?:changing|modifying|renaming|deleting|removing)\s+([A-Za-z_][A-Za-z0-9_]*)/i,
     // "safe to refactor EmbeddingService"
     /refactor(?:ing)?\s+([A-Za-z_][A-Za-z0-9_]*)/i,
@@ -1316,7 +1316,7 @@ export function isDefinitionEntity(entityId: string, entityName?: string): boole
 
 /**
  * Re-ranks similarity results to boost interface/type definitions for definition queries.
- * This ensures that queries about "storage interface" return the LibrarianStorage interface
+ * This ensures that queries about "storage interface" return the LiBrainianStorage interface
  * rather than implementation functions like getStorage().
  *
  * @param results - The similarity results to re-rank
@@ -1391,7 +1391,7 @@ export function applyDefinitionBias(
  * Names that indicate an entry point (factory functions, main exports, etc.)
  */
 const ENTRY_POINT_NAME_PATTERNS = [
-  /^create[A-Z]/,      // createLibrarian, createStorage
+  /^create[A-Z]/,      // createLiBrainian, createStorage
   /^make[A-Z]/,        // makeStore, makeConfig
   /^build[A-Z]/,       // buildContext, buildQuery
   /^init[A-Z]/,        // initializeApp
@@ -1443,7 +1443,7 @@ export function isEntryPointEntity(entityId: string, entityName?: string): boole
 /**
  * Re-ranks similarity results to boost entry points for entry point queries.
  * This ensures that queries about "entry points", "main", "factory" return
- * actual entry points (src/index.ts, createLibrarian) rather than internal utilities.
+ * actual entry points (src/index.ts, createLiBrainian) rather than internal utilities.
  *
  * @param results - The similarity results to re-rank
  * @param entryPointBias - 0-1 value, higher = prefer entry points over internal utilities
@@ -1589,7 +1589,7 @@ export function getQueryPipelineStages(): QueryPipelineStageDefinition[] {
   return clonePipelineStages();
 }
 /**
- * Queries the librarian knowledge base to retrieve relevant context packs.
+ * Queries the librainian knowledge base to retrieve relevant context packs.
  *
  * This is the primary API for retrieving knowledge from the indexed codebase.
  * It combines multiple retrieval strategies:
@@ -1607,7 +1607,7 @@ export function getQueryPipelineStages(): QueryPipelineStageDefinition[] {
  *
  * @example
  * ```typescript
- * const response = await queryLibrarian({
+ * const response = await queryLiBrainian({
  *   intent: 'authentication flow',
  *   depth: 'L2',
  *   affectedFiles: ['src/auth/login.ts'],
@@ -1619,15 +1619,15 @@ export function getQueryPipelineStages(): QueryPipelineStageDefinition[] {
  * }
  * ```
  */
-export async function queryLibrarian(
-  query: LibrarianQuery,
-  storage: LibrarianStorage,
+export async function queryLiBrainian(
+  query: LiBrainianQuery,
+  storage: LiBrainianStorage,
   embeddingService: EmbeddingService = defaultEmbeddingService,
   governorContext?: GovernorContext,
   onStage?: QueryStageObserver,
   traceOptions: QueryTraceOptions = {},
   executionOptions: QueryExecutionOptions = {}
-): Promise<LibrarianResponse> {
+): Promise<LiBrainianResponse> {
   query = normalizeQueryIntentType(query);
   // Initialize deterministic context if deterministic mode is enabled
   const deterministicCtx: DeterministicContext | null = query.deterministic
@@ -1884,7 +1884,7 @@ export async function queryLibrarian(
     const stats = await storage.getStats();
     if (stats.totalFunctions === 0 && stats.totalModules === 0) {
       throw new Error(
-        'unverified_by_trace(empty_storage): Cannot query librarian - no functions or modules indexed. ' +
+        'unverified_by_trace(empty_storage): Cannot query librainian - no functions or modules indexed. ' +
         'Bootstrap may have failed silently or was not run. Run bootstrapProject() first with valid LLM/embedding providers configured.'
       );
     }
@@ -2871,7 +2871,7 @@ export async function queryLibrarian(
     const expandedIntent = escalationDecision.expandQuery
       ? expandEscalationIntent(query.intent ?? '', finalPacks)
       : (query.intent ?? '');
-    const nextQuery: LibrarianQuery = {
+    const nextQuery: LiBrainianQuery = {
       ...query,
       depth: escalationDecision.nextDepth,
       intent: expandedIntent,
@@ -2893,7 +2893,7 @@ export async function queryLibrarian(
         returnedPackIds: finalPacks.map((pack) => pack.packId),
       });
 
-      const escalatedResponse = await queryLibrarian(
+      const escalatedResponse = await queryLiBrainian(
         nextQuery,
         storage,
         embeddingService,
@@ -3035,7 +3035,7 @@ export async function queryLibrarian(
   if (coherenceAnalysis.overallCoherence < 0.4) {
     drillDownHints.push(`Result coherence: ${coherenceAnalysis.explanation}`);
   }
-  const evidenceByPack: Record<string, EvidenceRef[]> = {}; const evidenceStore = storage as LibrarianStorage & { getEvidenceForTarget?: (entityId: string, entityType: 'function' | 'module') => Promise<EvidenceRef[]> };
+  const evidenceByPack: Record<string, EvidenceRef[]> = {}; const evidenceStore = storage as LiBrainianStorage & { getEvidenceForTarget?: (entityId: string, entityType: 'function' | 'module') => Promise<EvidenceRef[]> };
   if (evidenceStore.getEvidenceForTarget) {
     for (const pack of finalPacks) {
       const entityType = resolveEvidenceEntityType(pack); if (!entityType) continue;
@@ -3187,7 +3187,7 @@ export async function queryLibrarian(
         const degradedMessage = createStorageWriteDegradedMessage(message);
         disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
         drillDownHints.unshift(degradedMessage);
-        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librainian doctor --heal` to recover storage locks.');
       } else {
         recordCoverageGap('post_processing', `Verification plan save failed: ${message}`, 'minor');
       }
@@ -3332,7 +3332,7 @@ export async function queryLibrarian(
         const degradedMessage = createStorageWriteDegradedMessage(message);
         disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
         drillDownHints.unshift(degradedMessage);
-        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librainian doctor --heal` to recover storage locks.');
       }
     } else {
       recordCoverageGap('post_processing', `Episode record failed: ${message}`, 'minor');
@@ -3429,17 +3429,17 @@ export async function queryLibrarian(
   }
 }
 
-export async function queryLibrarianWithObserver(
-  query: LibrarianQuery,
-  storage: LibrarianStorage,
+export async function queryLiBrainianWithObserver(
+  query: LiBrainianQuery,
+  storage: LiBrainianStorage,
   options: {
     embeddingService?: EmbeddingService;
     governorContext?: GovernorContext;
     onStage?: QueryStageObserver;
     traceOptions?: QueryTraceOptions;
   } = {}
-): Promise<LibrarianResponse> {
-  return queryLibrarian(
+): Promise<LiBrainianResponse> {
+  return queryLiBrainian(
     query,
     storage,
     options.embeddingService ?? defaultEmbeddingService,
@@ -3450,12 +3450,12 @@ export async function queryLibrarianWithObserver(
 }
 
 /**
- * Assemble an AgentKnowledgeContext (L0-L3) from a Librarian query response.
+ * Assemble an AgentKnowledgeContext (L0-L3) from a LiBrainian query response.
  * Uses the same query pipeline and emits context packs ordered by confidence.
  */
-export async function assembleContext(query: LibrarianQuery, storage: LibrarianStorage, embeddingService: EmbeddingService = defaultEmbeddingService, governorContext?: GovernorContext, options: ContextAssemblyOptions = {}): Promise<AgentKnowledgeContext> {
-  const governor = governorContext ?? new GovernorContext({ phase: 'context_assembly', config: DEFAULT_GOVERNOR_CONFIG }); const response = await queryLibrarian(query, storage, embeddingService, governor);
-  const runner: QueryRunner = { query: (nextQuery) => queryLibrarian(nextQuery, storage, embeddingService, governor), searchSimilar: (snippet, limit) => searchSimilarWithEmbedding(snippet, limit ?? 8, storage, embeddingService, governor) };
+export async function assembleContext(query: LiBrainianQuery, storage: LiBrainianStorage, embeddingService: EmbeddingService = defaultEmbeddingService, governorContext?: GovernorContext, options: ContextAssemblyOptions = {}): Promise<AgentKnowledgeContext> {
+  const governor = governorContext ?? new GovernorContext({ phase: 'context_assembly', config: DEFAULT_GOVERNOR_CONFIG }); const response = await queryLiBrainian(query, storage, embeddingService, governor);
+  const runner: QueryRunner = { query: (nextQuery) => queryLiBrainian(nextQuery, storage, embeddingService, governor), searchSimilar: (snippet, limit) => searchSimilarWithEmbedding(snippet, limit ?? 8, storage, embeddingService, governor) };
   const graph = await collectGraphContext(storage, response);
   const ingestionContext = await collectIngestionContext(storage, response, options.workspace, query);
   const supplementary = mergeSupplementaryContext(options.supplementary, {
@@ -3487,7 +3487,7 @@ const QUERY_CACHE_TTL_L1_MS = 5 * 60 * 1000;
 const QUERY_CACHE_TTL_L2_MS = 30 * 60 * 1000;
 const QUERY_CACHE_L1_LIMIT = 100;
 const QUERY_CACHE_L2_LIMIT = 1000;
-const queryCacheByStorage = new WeakMap<LibrarianStorage, HierarchicalMemory<CachedResponse>>();
+const queryCacheByStorage = new WeakMap<LiBrainianStorage, HierarchicalMemory<CachedResponse>>();
 
 // ============================================================================
 // FEEDBACK CONTEXT STORAGE (CONTROL_LOOP.md feedback loop)
@@ -3555,7 +3555,7 @@ function pruneFeedbackContexts(contexts: FeedbackContext[]): FeedbackContext[] {
  * Store feedback context for a query result.
  * Called internally when generating feedbackToken.
  */
-async function storeFeedbackContext(context: FeedbackContext, storage?: LibrarianStorage): Promise<void> {
+async function storeFeedbackContext(context: FeedbackContext, storage?: LiBrainianStorage): Promise<void> {
   feedbackContextCache.set(context.feedbackToken, context);
 
   // Prune old entries if over limit
@@ -3598,7 +3598,7 @@ type RecordCoverageGap = (stage: StageName, message: string, severity?: StageIss
 type StageTracker = ReturnType<typeof createStageTracker>;
 
 function runAdequacyScanStage(options: {
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   workspaceRoot: string;
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
@@ -3842,7 +3842,7 @@ async function appendQueryEvidence(
     await ledger.append({
       kind: 'tool_call',
       payload: {
-        toolName: `librarian_query_${event}`,
+        toolName: `librainian_query_${event}`,
         arguments: payload,
         result: event === 'query_error' ? null : payload,
         success: event !== 'query_error',
@@ -3851,8 +3851,8 @@ async function appendQueryEvidence(
       },
       provenance: {
         source: 'system_observation',
-        method: 'librarian_query',
-        agent: { type: 'tool', identifier: 'librarian' },
+        method: 'librainian_query',
+        agent: { type: 'tool', identifier: 'librainian' },
       },
       relatedEntries: [],
       sessionId,
@@ -3871,7 +3871,7 @@ async function appendStageEvidence(
     await ledger.append({
       kind: 'tool_call',
       payload: {
-        toolName: 'librarian_query_stage',
+        toolName: 'librainian_query_stage',
         arguments: { stage: report.stage, status: report.status },
         result: report,
         success: report.status === 'success',
@@ -3881,7 +3881,7 @@ async function appendStageEvidence(
       provenance: {
         source: 'system_observation',
         method: 'query_stage',
-        agent: { type: 'tool', identifier: 'librarian' },
+        agent: { type: 'tool', identifier: 'librainian' },
       },
       relatedEntries: [],
       sessionId,
@@ -3924,7 +3924,7 @@ async function appendConstructionPlanEvidence(
       provenance: {
         source: 'system_observation',
         method: 'construction_plan',
-        agent: { type: 'tool', identifier: 'librarian' },
+        agent: { type: 'tool', identifier: 'librainian' },
       },
       relatedEntries: [],
       sessionId,
@@ -3936,8 +3936,8 @@ async function appendConstructionPlanEvidence(
 
 // Query pipeline stage helpers
 async function runDirectPacksStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
+  storage: LiBrainianStorage;
+  query: LiBrainianQuery;
   workspaceRoot: string;
   stageTracker: StageTracker;
   explanationParts: string[];
@@ -3987,14 +3987,14 @@ function applySimilaritySearchDegradation(
 }
 
 async function runSemanticRetrievalStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
+  storage: LiBrainianStorage;
+  query: LiBrainianQuery;
   embeddingService: EmbeddingService;
   governor: GovernorContext;
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
   capabilities: StorageCapabilities;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   embeddingAvailable: boolean;
 }): Promise<{
   candidates: Candidate[];
@@ -4111,7 +4111,7 @@ async function runSemanticRetrievalStage(options: {
       }
 
       // Apply definition bias for interface/type definition queries
-      // This ensures "storage interface" returns LibrarianStorage interface, not getStorage() implementations
+      // This ensures "storage interface" returns LiBrainianStorage interface, not getStorage() implementations
       if (queryClassification.isDefinitionQuery && queryClassification.definitionBias > 0.1) {
         similarResults = applyDefinitionBias(similarResults, queryClassification.definitionBias);
       }
@@ -4135,8 +4135,8 @@ async function runSemanticRetrievalStage(options: {
 }
 
 async function runGraphExpansionStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
+  storage: LiBrainianStorage;
+  query: LiBrainianQuery;
   candidates: Candidate[];
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
@@ -4197,8 +4197,8 @@ async function runGraphExpansionStage(options: {
 }
 
 async function runScoringStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
+  storage: LiBrainianStorage;
+  query: LiBrainianQuery;
   candidates: Candidate[];
   queryEmbedding: Float32Array | null;
   stageTracker: StageTracker;
@@ -4300,15 +4300,15 @@ async function runScoringStage(options: {
 }
 
 async function runCandidatePackStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
+  storage: LiBrainianStorage;
+  query: LiBrainianQuery;
   candidates: Candidate[];
   directPacks: ContextPack[];
   candidateScoreMap: Map<string, number>;
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
   explanationParts: string[];
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
 }): Promise<{ allPacks: ContextPack[] }> {
   const {
     storage,
@@ -4455,7 +4455,7 @@ interface RationaleStageResult {
  * 3. Creates context packs from ADR content
  */
 async function runRationaleStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
   topic?: string;
   comparisonTopic?: string;
@@ -4758,10 +4758,10 @@ interface RefactoringSafetyStageResult {
  * 3. Converts the safety report to context packs
  */
 async function runRefactoringSafetyStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   target: string;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
 }): Promise<RefactoringSafetyStageResult> {
   const { storage, target, intent, version } = options;
 
@@ -4976,10 +4976,10 @@ interface BugInvestigationStageResult {
  * This stage analyzes errors, traces stack traces, and generates hypotheses.
  */
 async function runBugInvestigationStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
   bugContext?: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
 }): Promise<BugInvestigationStageResult> {
   const { storage, intent, bugContext, version } = options;
 
@@ -5084,10 +5084,10 @@ interface SecurityAuditStageResult {
  * This stage scans for vulnerabilities, injection risks, and security issues.
  */
 async function runSecurityAuditStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
   checkTypes?: string[];
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   workspaceRoot: string;
 }): Promise<SecurityAuditStageResult> {
   const { storage, intent, checkTypes = ['injection', 'auth', 'crypto', 'exposure'], version } = options;
@@ -5230,9 +5230,9 @@ interface ArchitectureVerificationStageResult {
  * This stage checks for layer violations, circular dependencies, and boundary compliance.
  */
 async function runArchitectureVerificationStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   workspaceRoot: string;
 }): Promise<ArchitectureVerificationStageResult> {
   const { storage, intent, version } = options;
@@ -5399,9 +5399,9 @@ interface CodeQualityStageResult {
  * This stage analyzes complexity, duplication, and code smells.
  */
 async function runCodeQualityStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   workspaceRoot: string;
 }): Promise<CodeQualityStageResult> {
   const { storage, intent, version } = options;
@@ -5537,10 +5537,10 @@ interface FeatureLocationStageResult {
  * This stage finds where features are implemented in the codebase.
  */
 async function runFeatureLocationStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
   featureTarget: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
 }): Promise<FeatureLocationStageResult> {
   const { storage, intent, featureTarget, version } = options;
 
@@ -5680,9 +5680,9 @@ interface RefactoringOpportunitiesStageResult {
  * Analyzes the codebase for code that could benefit from refactoring.
  */
 async function runRefactoringOpportunitiesStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   workspaceRoot?: string;
 }): Promise<RefactoringOpportunitiesStageResult> {
   const { storage, version } = options;
@@ -5738,9 +5738,9 @@ interface DependencyManagementStageResult {
  * detect outdated versions, and identify dependency issues.
  */
 async function runDependencyManagementStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   workspaceRoot: string;
   action?: 'analyze' | 'unused' | 'outdated' | 'duplicates' | 'issues' | 'all';
 }): Promise<DependencyManagementStageResult> {
@@ -5892,7 +5892,7 @@ async function runDependencyManagementStage(options: {
 }
 
 async function runRerankStage(options: {
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   finalPacks: ContextPack[];
   candidateScoreMap: Map<string, number>;
   stageTracker: StageTracker;
@@ -6032,7 +6032,7 @@ function clampMmrLambda(value: number | undefined): number {
 
 function applyMmrDiversification(options: {
   packs: ContextPack[];
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   candidateScoreMap: Map<string, number>;
   explanationParts: string[];
   recordCoverageGap: RecordCoverageGap;
@@ -6097,7 +6097,7 @@ function resolveDefeaterFilePath(pack: ContextPack, workspaceRoot?: string): str
 }
 
 async function runDefeaterStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   finalPacks: ContextPack[];
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
@@ -6128,7 +6128,7 @@ async function runDefeaterStage(options: {
           confidence: number;
         }>,
         generatedAt: pack.createdAt.toISOString(),
-        generatedBy: 'librarian',
+        generatedBy: 'librainian',
         defeaters: [STANDARD_DEFEATERS.codeChange, STANDARD_DEFEATERS.testFailure],
       };
       const filePath = resolveDefeaterFilePath(pack, workspaceRoot);
@@ -6214,14 +6214,14 @@ async function runDefeaterStage(options: {
 }
 
 async function runMethodGuidanceStage(options: {
-  query: LibrarianQuery;
-  storage: LibrarianStorage;
+  query: LiBrainianQuery;
+  storage: LiBrainianStorage;
   governor: GovernorContext;
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
   synthesisEnabled: boolean;
   resolveMethodGuidanceFn?: typeof resolveMethodGuidance;
-  resolveLlmConfig?: typeof resolveLibrarianModelConfigWithDiscovery;
+  resolveLlmConfig?: typeof resolveLiBrainianModelConfigWithDiscovery;
 }): Promise<Awaited<ReturnType<typeof resolveMethodGuidance>> | null> {
   const {
     query,
@@ -6234,7 +6234,7 @@ async function runMethodGuidanceStage(options: {
     resolveLlmConfig,
   } = options;
   const resolveGuidance = resolveMethodGuidanceFn ?? resolveMethodGuidance;
-  const readLlmConfig = resolveLlmConfig ?? resolveLibrarianModelConfigWithDiscovery;
+  const readLlmConfig = resolveLlmConfig ?? resolveLiBrainianModelConfigWithDiscovery;
   let methodGuidance: Awaited<ReturnType<typeof resolveMethodGuidance>> | null = null;
   const methodGuidanceEnabled = synthesisEnabled && query.disableMethodGuidance !== true;
   const methodGuidanceStage = stageTracker.start('method_guidance', methodGuidanceEnabled ? 1 : 0);
@@ -6285,8 +6285,8 @@ interface SynthesisStageResult {
 }
 
 async function runSynthesisStage(options: {
-  query: LibrarianQuery;
-  storage: LibrarianStorage;
+  query: LiBrainianQuery;
+  storage: LiBrainianStorage;
   finalPacks: ContextPack[];
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
@@ -6441,7 +6441,7 @@ function applyAdequacyToSynthesis(
  */
 export async function getFeedbackContext(
   feedbackToken: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<FeedbackContext | null> {
   const context = feedbackContextCache.get(feedbackToken);
   if (context) {
@@ -6467,12 +6467,12 @@ export async function getFeedbackContext(
   }
 }
 
-function resolveStorageCapabilities(storage: LibrarianStorage): StorageCapabilities {
+function resolveStorageCapabilities(storage: LiBrainianStorage): StorageCapabilities {
   if (typeof storage.getCapabilities === 'function') {
     return storage.getCapabilities();
   }
   const graphMetrics = typeof (storage as GraphMetricsStore).getGraphMetrics === 'function';
-  const multiVectors = typeof (storage as LibrarianStorage & { getMultiVectors?: unknown }).getMultiVectors === 'function';
+  const multiVectors = typeof (storage as LiBrainianStorage & { getMultiVectors?: unknown }).getMultiVectors === 'function';
   const embeddings = typeof storage.getEmbedding === 'function' && typeof storage.findSimilarByEmbedding === 'function';
   return {
     core: {
@@ -6517,8 +6517,8 @@ function cacheEmbedding(cache: Map<string, Float32Array>, key: string, embedding
 }
 
 function buildQueryCacheKey(
-  query: LibrarianQuery,
-  version: LibrarianVersion,
+  query: LiBrainianQuery,
+  version: LiBrainianVersion,
   llmRequirement: LlmRequirement,
   synthesisEnabled: boolean
 ): string {
@@ -6563,7 +6563,7 @@ function classifySemanticCacheCategory(intent: string): SemanticCacheCategory {
   return 'lookup';
 }
 
-function buildSemanticCacheScopeSignature(query: LibrarianQuery): string {
+function buildSemanticCacheScopeSignature(query: LiBrainianQuery): string {
   const files = query.affectedFiles?.slice().sort().join('|') ?? '';
   const filterKey = query.filter
     ? [
@@ -6668,7 +6668,7 @@ function stripSimpleSuffix(token: string): string {
   if (token.length > 3 && token.endsWith('s')) return token.slice(0, -1);
   return token;
 }
-function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResponse> {
+function getQueryCache(storage: LiBrainianStorage): HierarchicalMemory<CachedResponse> {
   const existing = queryCacheByStorage.get(storage);
   if (existing) return existing;
   const memory = new HierarchicalMemory<CachedResponse>({
@@ -6685,19 +6685,19 @@ function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResp
   return memory;
 }
 
-function resolveQueryCacheTier(query: LibrarianQuery): MemoryTier {
+function resolveQueryCacheTier(query: LiBrainianQuery): MemoryTier {
   return query.depth === 'L0' ? 'l1' : 'l2';
 }
 
-function resolveQueryCacheTtl(depth?: LibrarianQuery['depth']): number {
+function resolveQueryCacheTtl(depth?: LiBrainianQuery['depth']): number {
   return depth === 'L0' ? QUERY_CACHE_TTL_L1_MS : QUERY_CACHE_TTL_L2_MS;
 }
 
 async function trySemanticCacheLookup(options: {
-  query: LibrarianQuery;
-  version: LibrarianVersion;
+  query: LiBrainianQuery;
+  version: LiBrainianVersion;
   cacheKey: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   cache: HierarchicalMemory<CachedResponse>;
 }): Promise<{
   matchedKey: string;
@@ -6722,7 +6722,7 @@ async function trySemanticCacheLookup(options: {
   for (const entry of candidates) {
     if (!entry?.queryHash || entry.queryHash === options.cacheKey) continue;
     if (!entry.queryHash.startsWith(versionPrefix)) continue;
-    const parsed = safeJsonParse<LibrarianQuery>(entry.queryParams);
+    const parsed = safeJsonParse<LiBrainianQuery>(entry.queryParams);
     if (!parsed.ok || !parsed.value?.intent) continue;
 
     const candidateQuery = parsed.value;
@@ -6748,8 +6748,8 @@ async function trySemanticCacheLookup(options: {
   };
 }
 
-function extractQueryDepth(entry: QueryCacheEntry): LibrarianQuery['depth'] | undefined {
-  const parsed = safeJsonParse<LibrarianQuery>(entry.queryParams);
+function extractQueryDepth(entry: QueryCacheEntry): LiBrainianQuery['depth'] | undefined {
+  const parsed = safeJsonParse<LiBrainianQuery>(entry.queryParams);
   if (!parsed.ok || !parsed.value) return undefined;
   return parsed.value.depth;
 }
@@ -6757,14 +6757,14 @@ function extractQueryDepth(entry: QueryCacheEntry): LibrarianQuery['depth'] | un
 async function setCachedQuery(
   key: string,
   response: CachedResponse,
-  storage: LibrarianStorage,
-  query: LibrarianQuery
+  storage: LiBrainianStorage,
+  query: LiBrainianQuery
 ): Promise<void> {
   const cache = getQueryCache(storage);
   await cache.set(key, response, resolveQueryCacheTier(query));
 }
 
-async function readPersistentCache(storage: LibrarianStorage, key: string): Promise<CachedResponse | null> {
+async function readPersistentCache(storage: LiBrainianStorage, key: string): Promise<CachedResponse | null> {
   const cacheStore = storage as QueryCacheStore;
   if (!cacheStore.getQueryCacheEntry) return noResult();
   const entry = await cacheStore.getQueryCacheEntry(key);
@@ -6782,7 +6782,7 @@ async function readPersistentCache(storage: LibrarianStorage, key: string): Prom
   return parsed;
 }
 
-async function writePersistentCache(storage: LibrarianStorage, key: string, response: CachedResponse): Promise<void> {
+async function writePersistentCache(storage: LiBrainianStorage, key: string, response: CachedResponse): Promise<void> {
   const cacheStore = storage as QueryCacheStore;
   if (!cacheStore?.upsertQueryCacheEntry) return;
   const nowIso = new Date().toISOString();
@@ -6799,7 +6799,7 @@ async function writePersistentCache(storage: LibrarianStorage, key: string, resp
   }
 }
 
-type SerializedVersion = Omit<LibrarianVersion, 'indexedAt'> & { indexedAt: string };
+type SerializedVersion = Omit<LiBrainianVersion, 'indexedAt'> & { indexedAt: string };
 type SerializedContextPack = Omit<ContextPack, 'createdAt' | 'version'> & { createdAt: string; version: SerializedVersion };
 type SerializedResponse = Omit<CachedResponse, 'version' | 'packs'> & { version: SerializedVersion; packs: SerializedContextPack[] };
 
@@ -6828,8 +6828,8 @@ function deserializeCachedResponse(raw: string): CachedResponse | null {
 }
 
 async function collectDirectPacks(
-  storage: LibrarianStorage,
-  query: LibrarianQuery,
+  storage: LiBrainianStorage,
+  query: LiBrainianQuery,
   workspaceRoot: string,
 ): Promise<ContextPack[]> {
   const hasAnchors = Boolean(query.affectedFiles?.length);
@@ -6866,7 +6866,7 @@ type ResolvedQueryEmbeddings = {
 };
 
 async function resolveQueryEmbeddings(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   embeddingService: EmbeddingService,
   governor: GovernorContext,
 ): Promise<ResolvedQueryEmbeddings> {
@@ -6983,7 +6983,7 @@ async function resolveHydeExpansion(intent: string, governor: GovernorContext): 
   if (cached) return cached;
 
   try {
-    const modelConfig = await resolveLibrarianModelConfigWithDiscovery();
+    const modelConfig = await resolveLiBrainianModelConfigWithDiscovery();
     const llmService = resolveLlmServiceAdapter();
     const prompt = buildHydePrompt(intent);
     governor.recordTokens(estimateTokenCount(prompt));
@@ -7094,7 +7094,7 @@ function fuseSimilarityResultsWithRrf(
   return fuseSimilarityResultListsWithRrf([direct, hyde], limit);
 }
 
-async function searchSimilarWithEmbedding(snippet: string, limit: number, storage: LibrarianStorage, embeddingService: EmbeddingService, governor: GovernorContext): Promise<SimilarMatch[]> {
+async function searchSimilarWithEmbedding(snippet: string, limit: number, storage: LiBrainianStorage, embeddingService: EmbeddingService, governor: GovernorContext): Promise<SimilarMatch[]> {
   governor.recordTokens(estimateTokenCount(snippet)); const embeddingResult = await embeddingService.generateEmbedding({ text: snippet, kind: 'code' }, { governorContext: governor });
   if (!(embeddingResult.embedding instanceof Float32Array)) throw new Error('unverified_by_trace(provider_invalid_output): similarity embedding is not a Float32Array');
   const searchResponse = await storage.findSimilarByEmbedding(embeddingResult.embedding, {
@@ -7107,7 +7107,7 @@ async function searchSimilarWithEmbedding(snippet: string, limit: number, storag
   return searchResponse.results.map((result) => ({ entityId: result.entityId, entityType: result.entityType, similarity: result.similarity }));
 }
 
-function collectFilesForGraph(response: LibrarianResponse): string[] {
+function collectFilesForGraph(response: LiBrainianResponse): string[] {
   const depth = response.query.depth ?? 'L1';
   const maxFiles = depth === 'L3' ? 50 : depth === 'L2' ? 35 : depth === 'L1' ? 20 : 10;
   const files: string[] = [];
@@ -7124,8 +7124,8 @@ function collectFilesForGraph(response: LibrarianResponse): string[] {
 }
 
 async function collectGraphContext(
-  storage: LibrarianStorage,
-  response: LibrarianResponse
+  storage: LiBrainianStorage,
+  response: LiBrainianResponse
 ): Promise<{ callGraph: CallEdge[]; importGraph: ImportEdge[] }> {
   const sourceFiles = collectFilesForGraph(response);
   if (!sourceFiles.length) {
@@ -7204,9 +7204,9 @@ function normalizeLanguageFilter(value: string | undefined): string | undefined 
 }
 
 async function normalizeQueryScope(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   workspaceRoot: string,
-): Promise<{ query: LibrarianQuery; disclosures: string[] }> {
+): Promise<{ query: LiBrainianQuery; disclosures: string[] }> {
   const disclosures: string[] = [];
   const affectedFiles = normalizeAffectedFilesForWorkspace(query.affectedFiles);
   const workingFile = normalizeSingleFileHint(query.workingFile, workspaceRoot);
@@ -7239,7 +7239,7 @@ async function normalizeQueryScope(
   };
 }
 
-function hasSearchFilter(filter: LibrarianQuery['filter'] | undefined): boolean {
+function hasSearchFilter(filter: LiBrainianQuery['filter'] | undefined): boolean {
   if (!filter) return false;
   return Boolean(
     filter.pathPrefix
@@ -7252,9 +7252,9 @@ function hasSearchFilter(filter: LibrarianQuery['filter'] | undefined): boolean 
 }
 
 function normalizeSearchFilter(
-  filter: LibrarianQuery['filter'] | undefined,
+  filter: LiBrainianQuery['filter'] | undefined,
   workspaceRoot: string,
-): NonNullable<LibrarianQuery['filter']> {
+): NonNullable<LiBrainianQuery['filter']> {
   const pathPrefix = normalizePathPrefix(filter?.pathPrefix, workspaceRoot);
   const language = normalizeLanguageFilter(filter?.language);
   const maxFileSizeBytes = typeof filter?.maxFileSizeBytes === 'number' && Number.isFinite(filter.maxFileSizeBytes) && filter.maxFileSizeBytes > 0
@@ -7346,7 +7346,7 @@ async function resolveWorkspacePackageRoots(workspaceRoot: string): Promise<stri
       absolute: false,
       nodir: true,
       follow: false,
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.librarian/**'],
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.librainian/**'],
     });
     for (const match of matches) {
       const relative = normalizePath(path.posix.dirname(match));
@@ -7492,7 +7492,7 @@ const KNOWLEDGE_SOURCE_KEYWORDS: Record<string, string[]> = {
 
 const MAX_KNOWLEDGE_SOURCES = 8;
 
-async function loadKnowledgeItems(storage: LibrarianStorage): Promise<IngestionItem[]> {
+async function loadKnowledgeItems(storage: LiBrainianStorage): Promise<IngestionItem[]> {
   const limits: Record<string, number> = {
     docs: 20,
     config: 12,
@@ -7520,7 +7520,7 @@ async function loadKnowledgeItems(storage: LibrarianStorage): Promise<IngestionI
 
 function buildKnowledgeSources(
   items: IngestionItem[],
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   fileMap: Map<string, string>,
   workspace: string | undefined
 ): KnowledgeSourceRef[] {
@@ -7784,7 +7784,7 @@ function countFindings(value: unknown): number {
 }
 
 function collectRelevantFiles(
-  response: LibrarianResponse,
+  response: LiBrainianResponse,
   workspace: string | undefined
 ): Map<string, string> {
   const files = collectFilesForGraph(response);
@@ -7836,10 +7836,10 @@ function compileCodeownerPattern(pattern: string): RegExp | null {
 }
 
 async function collectIngestionContext(
-  storage: LibrarianStorage,
-  response: LibrarianResponse,
+  storage: LiBrainianStorage,
+  response: LiBrainianResponse,
   workspace: string | undefined,
-  query: LibrarianQuery
+  query: LiBrainianQuery
 ): Promise<{
   testMapping: TestMapping[];
   ownerMapping: OwnerMapping[];
@@ -7947,7 +7947,7 @@ async function collectIngestionContext(
 
   return { testMapping, ownerMapping, recentChanges, patterns, knowledgeSources };
 }
-async function hydrateCandidates(results: SimilarityResult[], storage: LibrarianStorage): Promise<Candidate[]> {
+async function hydrateCandidates(results: SimilarityResult[], storage: LiBrainianStorage): Promise<Candidate[]> {
   return Promise.all(results.map(async (result) => {
     // Map embeddable entity type to graph entity type
     const graphEntityType = result.entityType === 'document' ? 'file' : result.entityType;
@@ -7966,7 +7966,7 @@ async function hydrateCandidates(results: SimilarityResult[], storage: Librarian
     } as Candidate & { isDocument?: boolean };
   }));
 }
-async function getEntityStats(entityId: string, entityType: GraphEntityType | 'document', storage: LibrarianStorage): Promise<{ confidence: number; recency: number; path?: string }> {
+async function getEntityStats(entityId: string, entityType: GraphEntityType | 'document', storage: LiBrainianStorage): Promise<{ confidence: number; recency: number; path?: string }> {
   try {
     if (entityType === 'function') {
       const fn = await storage.getFunction(entityId);
@@ -8029,7 +8029,7 @@ function applyGraphMetrics(candidates: Candidate[], metricsByType: Map<GraphEnti
   for (const [type, metrics] of metricsByType) { const map = new Map<string, GraphMetricsEntry>(); for (const entry of metrics) map.set(entry.entityId, entry); cache.set(type, map); }
   for (const candidate of candidates) { const metrics = cache.get(candidate.entityType)?.get(candidate.entityId); if (!metrics) continue; candidate.pagerank = metrics.pagerank; candidate.centrality = computeCentrality(metrics); candidate.communityId = metrics.communityId; }
 }
-async function expandCandidates(candidates: Candidate[], metricsByType: Map<GraphEntityType, GraphMetricsEntry[]>, storage: LibrarianStorage, depth: LibrarianQuery['depth']): Promise<{ candidates: Candidate[]; communityAdded: number; graphAdded: number }> {
+async function expandCandidates(candidates: Candidate[], metricsByType: Map<GraphEntityType, GraphMetricsEntry[]>, storage: LiBrainianStorage, depth: LiBrainianQuery['depth']): Promise<{ candidates: Candidate[]; communityAdded: number; graphAdded: number }> {
   if (!candidates.length || !metricsByType.size) return { candidates: [], communityAdded: 0, graphAdded: 0 };
   const bySignal = [...candidates].sort((a, b) => b.semanticSimilarity - a.semanticSimilarity); const topCandidates = bySignal.slice(0, 3);
   const existing = new Set(candidates.map((candidate) => candidateKey(candidate))); const expansions: Candidate[] = [];
@@ -8096,15 +8096,15 @@ function scoreCandidates(candidates: Candidate[]): void {
   }
 }
 async function applyMultiVectorScores(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   candidates: Candidate[];
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   queryEmbedding: Float32Array;
 }): Promise<{ applied: number; missing: number }> {
   const { storage, candidates, query, queryEmbedding } = options;
   const moduleCandidates = candidates.filter((candidate) => candidate.entityType === 'module');
   if (!moduleCandidates.length) return { applied: 0, missing: 0 };
-  const multiVectorStore = storage as LibrarianStorage & {
+  const multiVectorStore = storage as LiBrainianStorage & {
     getMultiVectors?: (options?: MultiVectorQueryOptions) => Promise<MultiVectorRecord[]>;
   };
   if (!multiVectorStore.getMultiVectors) {
@@ -8142,7 +8142,7 @@ async function applyMultiVectorScores(options: {
   const missing = Math.max(0, moduleCandidates.length - records.length);
   return { applied, missing };
 }
-function resolveMultiVectorQueryType(query: LibrarianQuery): keyof typeof QUERY_TYPE_WEIGHTS {
+function resolveMultiVectorQueryType(query: LiBrainianQuery): keyof typeof QUERY_TYPE_WEIGHTS {
   const taskType = query.taskType?.toLowerCase() ?? '';
   const intent = query.intent?.toLowerCase() ?? '';
   const combined = `${taskType} ${intent}`.trim();
@@ -8174,7 +8174,7 @@ function blendScores(base: number | undefined, extra: number, weight: number): n
   const clampedWeight = Math.min(BLEND_WEIGHT_MAX, Math.max(BLEND_WEIGHT_MIN, weight));
   return base * (1 - clampedWeight) + extra * clampedWeight;
 }
-function resolveCochangeAnchors(query: LibrarianQuery, directPacks: ContextPack[]): string[] {
+function resolveCochangeAnchors(query: LiBrainianQuery, directPacks: ContextPack[]): string[] {
   const anchors = new Set<string>();
   for (const file of query.affectedFiles ?? []) {
     if (file) anchors.add(file);
@@ -8188,7 +8188,7 @@ function resolveCochangeAnchors(query: LibrarianQuery, directPacks: ContextPack[
   }
   return Array.from(anchors.values()).slice(0, 8);
 }
-async function applyCochangeScores(storage: LibrarianStorage, candidates: Candidate[], anchorFiles: string[]): Promise<number> {
+async function applyCochangeScores(storage: LiBrainianStorage, candidates: Candidate[], anchorFiles: string[]): Promise<number> {
   if (!candidates.length || anchorFiles.length === 0) return 0;
   const workspaceRoot = await resolveWorkspaceRoot(storage);
   const normalizedAnchors = anchorFiles
@@ -8220,7 +8220,7 @@ async function applyCochangeScores(storage: LibrarianStorage, candidates: Candid
   }
   return boosted;
 }
-async function resolveWorkspaceRoot(storage: LibrarianStorage): Promise<string> {
+async function resolveWorkspaceRoot(storage: LiBrainianStorage): Promise<string> {
   try {
     const metadata = await storage.getMetadata();
     if (metadata?.workspace) return metadata.workspace;
@@ -8236,7 +8236,7 @@ async function resolveMaxEscalationDepth(workspaceRoot: string, override?: numbe
 
   const configPaths = [
     path.join(workspaceRoot, 'librainian.config.json'),
-    path.join(workspaceRoot, '.librarian', 'config.json'),
+    path.join(workspaceRoot, '.librainian', 'config.json'),
   ];
 
   for (const configPath of configPaths) {
@@ -8264,11 +8264,11 @@ function normalizeEscalationDepth(value: number): number {
   return Math.max(0, Math.min(MAX_ALLOWED_ESCALATION_DEPTH, Math.floor(value)));
 }
 
-async function logRetrievalEscalationEvent(storage: LibrarianStorage, workspaceRoot: string, event: {
+async function logRetrievalEscalationEvent(storage: LiBrainianStorage, workspaceRoot: string, event: {
   queryHash: string;
   intent: string;
-  fromDepth: LibrarianQuery['depth'];
-  toDepth: LibrarianQuery['depth'];
+  fromDepth: LiBrainianQuery['depth'];
+  toDepth: LiBrainianQuery['depth'];
   totalConfidence: number;
   retrievalEntropy: number;
   reasons: string[];
@@ -8293,7 +8293,7 @@ async function logRetrievalEscalationEvent(storage: LibrarianStorage, workspaceR
 }
 
 async function logRetrievalConfidenceObservation(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
   event: {
     queryHash: string;
@@ -8302,8 +8302,8 @@ async function logRetrievalConfidenceObservation(
     retrievalEntropy: number;
     returnedPackIds: string[];
     timestamp: string;
-    fromDepth?: LibrarianQuery['depth'];
-    toDepth?: LibrarianQuery['depth'];
+    fromDepth?: LiBrainianQuery['depth'];
+    toDepth?: LiBrainianQuery['depth'];
     escalationReason?: string;
     attempt?: number;
     maxEscalationDepth?: number;
@@ -8330,7 +8330,7 @@ async function logRetrievalConfidenceObservation(
   }
 
   try {
-    const logPath = path.join(workspaceRoot, '.librarian', 'retrieval_confidence_log.jsonl');
+    const logPath = path.join(workspaceRoot, '.librainian', 'retrieval_confidence_log.jsonl');
     await fs.mkdir(path.dirname(logPath), { recursive: true });
     const record = {
       timestamp: event.timestamp,
@@ -8382,7 +8382,7 @@ function buildQueryAccessLogEntries(packs: ContextPack[], timestamp: string): Qu
 }
 
 async function recordQueryAccessLogsForPacks(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   packs: ContextPack[],
   timestamp: string,
 ): Promise<void> {
@@ -8404,7 +8404,7 @@ function normalizeCochangePath(value: string, workspaceRoot: string): string | n
   if (!relative || relative.startsWith('..')) return null;
   return relative;
 }
-async function collectCandidatePacks(storage: LibrarianStorage, candidates: Candidate[], depth: LibrarianQuery['depth']): Promise<ContextPack[]> {
+async function collectCandidatePacks(storage: LiBrainianStorage, candidates: Candidate[], depth: LiBrainianQuery['depth']): Promise<ContextPack[]> {
   const packs: ContextPack[] = [];
   for (const candidate of candidates) {
     // Handle document entities - create synthetic doc_context packs from ingestion items
@@ -8440,7 +8440,7 @@ async function collectCandidatePacks(storage: LibrarianStorage, candidates: Cand
  * Builds a synthetic context pack for a document entity.
  * Documents are stored as ingestion items, not regular context packs.
  */
-async function buildDocumentContextPack(storage: LibrarianStorage, candidate: Candidate): Promise<ContextPack | null> {
+async function buildDocumentContextPack(storage: LiBrainianStorage, candidate: Candidate): Promise<ContextPack | null> {
   // Document entityIds are formatted as "doc:relativePath"
   const docId = candidate.entityId;
 
@@ -8498,7 +8498,7 @@ async function buildDocumentContextPack(storage: LibrarianStorage, candidate: Ca
   return pack;
 }
 async function maybeRerankWithCrossEncoder(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   packs: ContextPack[],
   scoreByTarget: Map<string, number>,
   explanationParts: string[],
@@ -8573,7 +8573,7 @@ function resolveEvidenceEntityType(pack: ContextPack): 'function' | 'module' | n
   return noResult();
 }
 async function buildWatchDisclosures(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspaceRoot: string;
   now?: Date;
 }): Promise<{ disclosures: string[]; state: WatchState | null; health: WatchHealth | null }> {
@@ -8646,9 +8646,9 @@ interface DrillDownResult {
  * follow-up queries (for agent automation).
  *
  * Follow-up queries are actionable intents that can be passed directly to
- * librarian.query(), making them far more useful for agents than generic hints.
+ * librainian.query(), making them far more useful for agents than generic hints.
  */
-function generateDrillDownHints(packs: ContextPack[], query: LibrarianQuery): DrillDownResult {
+function generateDrillDownHints(packs: ContextPack[], query: LiBrainianQuery): DrillDownResult {
   const hints: string[] = [];
   const followUpQueries: FollowUpQuery[] = [];
   const relatedFiles = new Set<string>();
@@ -8733,45 +8733,45 @@ function createStorageWriteDegradedMessage(rawMessage: string): string {
     .replace(/\bunverified_by_trace\([^)]+\):\s*/gi, '')
     .trim();
   const detail = cleaned.length > 0 ? cleaned : 'storage unavailable';
-  return `Session degraded: results were returned but could not be persisted (${detail}). Run \`librarian doctor --heal\` to recover.`;
+  return `Session degraded: results were returned but could not be persisted (${detail}). Run \`librainian doctor --heal\` to recover.`;
 }
 
-function getCurrentVersion(): LibrarianVersion { return { major: LIBRARIAN_VERSION.major, minor: LIBRARIAN_VERSION.minor, patch: LIBRARIAN_VERSION.patch, string: LIBRARIAN_VERSION.string, qualityTier: 'full', indexedAt: new Date(), indexerVersion: LIBRARIAN_VERSION.string, features: [...LIBRARIAN_VERSION.features] }; }
+function getCurrentVersion(): LiBrainianVersion { return { major: LIBRARIAN_VERSION.major, minor: LIBRARIAN_VERSION.minor, patch: LIBRARIAN_VERSION.patch, string: LIBRARIAN_VERSION.string, qualityTier: 'full', indexedAt: new Date(), indexerVersion: LIBRARIAN_VERSION.string, features: [...LIBRARIAN_VERSION.features] }; }
 
 /**
  * Creates a query to understand how a specific function works.
  *
  * @param functionName - The name of the function to query about
  * @param filePath - Optional file path hint to narrow search scope
- * @returns A LibrarianQuery configured for L1 depth function exploration
+ * @returns A LiBrainianQuery configured for L1 depth function exploration
  *
  * @example
  * const query = createFunctionQuery('parseConfig', 'src/config/parser.ts');
  */
-export function createFunctionQuery(functionName: string, filePath?: string): LibrarianQuery { return { intent: `How does ${functionName} work?`, affectedFiles: filePath ? [filePath] : undefined, depth: 'L1' }; }
+export function createFunctionQuery(functionName: string, filePath?: string): LiBrainianQuery { return { intent: `How does ${functionName} work?`, affectedFiles: filePath ? [filePath] : undefined, depth: 'L1' }; }
 
 /**
  * Creates a query to understand what a specific file does.
  *
  * @param filePath - The path to the file to query about
- * @returns A LibrarianQuery configured for L1 depth file exploration
+ * @returns A LiBrainianQuery configured for L1 depth file exploration
  *
  * @example
  * const query = createFileQuery('src/auth/middleware.ts');
  */
-export function createFileQuery(filePath: string): LibrarianQuery { return { intent: 'What does this file do?', affectedFiles: [filePath], depth: 'L1' }; }
+export function createFileQuery(filePath: string): LiBrainianQuery { return { intent: 'What does this file do?', affectedFiles: [filePath], depth: 'L1' }; }
 
 /**
  * Creates a query to find code related to a concept or domain.
  *
  * @param concept - The concept or topic to search for (e.g., 'authentication', 'error handling')
  * @param context - Optional array of file paths to provide context hints
- * @returns A LibrarianQuery configured for L1 depth concept exploration
+ * @returns A LiBrainianQuery configured for L1 depth concept exploration
  *
  * @example
  * const query = createRelatedQuery('authentication', ['src/auth/']);
  */
-export function createRelatedQuery(concept: string, context?: string[]): LibrarianQuery { return { intent: `Find code related to: ${concept}`, affectedFiles: context, depth: 'L1' }; }
+export function createRelatedQuery(concept: string, context?: string[]): LiBrainianQuery { return { intent: `Find code related to: ${concept}`, affectedFiles: context, depth: 'L1' }; }
 
 export const __testing = {
   createStageTracker,

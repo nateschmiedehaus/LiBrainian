@@ -21,7 +21,7 @@ function loadRepoQueries(repoId: string): GroundTruthQuery[] {
     corpusPath,
     'repos',
     repoId,
-    '.librarian-eval',
+    '.librainian-eval',
     'ground-truth.json'
   );
   const payload = JSON.parse(readFileSync(groundTruthPath, 'utf8')) as {

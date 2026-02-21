@@ -82,7 +82,7 @@ async function buildFallbackPrompt() {
     : [];
 
   let baseContextFiles = [];
-  let librarianContextFiles = [];
+  let librainianContextFiles = [];
   let excerptEntries = [];
   if (contextFile) {
     const contextRaw = await readFile(contextFile, 'utf8');
@@ -90,11 +90,11 @@ async function buildFallbackPrompt() {
     baseContextFiles = Array.isArray(parsedContext?.baseContextFiles)
       ? parsedContext.baseContextFiles.map((value) => String(value)).filter(Boolean)
       : [];
-    librarianContextFiles = Array.isArray(parsedContext?.extraContextFiles)
+    librainianContextFiles = Array.isArray(parsedContext?.extraContextFiles)
       ? parsedContext.extraContextFiles.map((value) => String(value)).filter(Boolean)
       : [];
     excerptEntries = Array.isArray(parsedContext?.files)
-      ? parsedContext.files.filter((entry) => entry?.source === 'librarian')
+      ? parsedContext.files.filter((entry) => entry?.source === 'librainian')
       : [];
   }
 
@@ -105,13 +105,13 @@ async function buildFallbackPrompt() {
     compactList('Acceptance target files (must modify at least one):', targetFiles, 6),
     '',
     workerType === 'treatment'
-      ? compactList('Librarian-prioritized target hints:', targetFiles, 4)
-      : 'No Librarian target hints are available in this run.',
+      ? compactList('LiBrainian-prioritized target hints:', targetFiles, 4)
+      : 'No LiBrainian target hints are available in this run.',
     workerType === 'treatment'
-      ? compactList('Librarian-retrieved file hints:', librarianContextFiles, 10)
+      ? compactList('LiBrainian-retrieved file hints:', librainianContextFiles, 10)
       : compactList('Starting context files:', baseContextFiles, 4),
     workerType === 'treatment' && includeTreatmentExcerpts
-      ? `Librarian context excerpts:\n${excerptBlock(excerptEntries)}`
+      ? `LiBrainian context excerpts:\n${excerptBlock(excerptEntries)}`
       : null,
   ].filter(Boolean).join('\n\n').trim();
 }
@@ -147,17 +147,17 @@ const harnessInstructions = [
   '2) Keep edits focused and minimal.',
   '3) Do not ask questions; act autonomously.',
   '4) Use only information from the prompt context and repository state.',
-  '5) For treatment runs, prioritize files and excerpts under Librarian context before broad searching.',
+  '5) For treatment runs, prioritize files and excerpts under LiBrainian context before broad searching.',
   '6) Finish after applying the fix.',
   '7) Leave a concrete repository diff before exiting; do not report completion without an actual file change.',
   '8) Before finishing, run `git diff --name-only` and confirm at least one changed source file.',
   '9) Do not run additional validation commands (typecheck/build/lint/full-suite tests); harness verification is authoritative.',
   '10) Do not invoke `apply_patch` as a shell command; edit files directly via normal file operations/tools.',
   workerType === 'treatment'
-    ? '11) Use Librarian hints as the primary localization path before broad searching; edit hinted files first.'
-    : '11) No Librarian localization hints are available; localize via repo evidence and failing checks.',
+    ? '11) Use LiBrainian hints as the primary localization path before broad searching; edit hinted files first.'
+    : '11) No LiBrainian localization hints are available; localize via repo evidence and failing checks.',
   '12) Include a structured critique report in stdout between markers AB_AGENT_CRITIQUE_JSON_START and AB_AGENT_CRITIQUE_JSON_END.',
-  '13) The critique JSON must include: summary, workOutcome, librarianEffectiveness, confidence, issues[], suggestions[].',
+  '13) The critique JSON must include: summary, workOutcome, librainianEffectiveness, confidence, issues[], suggestions[].',
   '14) Critique must include both strengths and weaknesses from natural usage, including any LiBrainian package/API/CLI friction you observe.',
   '15) When possible, mention concrete evidence paths/commands behind each critique item.',
   ACCEPTANCE_COMMANDS.length > 0
@@ -169,7 +169,7 @@ const harnessInstructions = [
   '',
   'Critique JSON template (emit exactly once at the end):',
   'AB_AGENT_CRITIQUE_JSON_START',
-  '{"summary":"...", "workOutcome":"failed|partial|successful", "librarianEffectiveness":"poor|mixed|good|excellent", "confidence":0.0, "issues":[{"perspective":"correctness|relevance|context|tooling|reliability|productivity|other","severity":"low|medium|high|critical","title":"...","diagnosis":"...","recommendation":"..."}], "suggestions":["..."]}',
+  '{"summary":"...", "workOutcome":"failed|partial|successful", "librainianEffectiveness":"poor|mixed|good|excellent", "confidence":0.0, "issues":[{"perspective":"correctness|relevance|context|tooling|reliability|productivity|other","severity":"low|medium|high|critical","title":"...","diagnosis":"...","recommendation":"..."}], "suggestions":["..."]}',
   'AB_AGENT_CRITIQUE_JSON_END',
   '',
   'Task prompt follows:',

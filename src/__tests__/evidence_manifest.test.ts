@@ -63,11 +63,11 @@ describe('evidence manifest generation', () => {
       summary: { total: 30, passing: 30, failing: 0 },
     }),
     'eval-results/extra-metrics.json': JSON.stringify({ note: 'extra' }),
-    'state/audits/librarian/coverage/uc_method_scenario_matrix.json': JSON.stringify({
+    'state/audits/librainian/coverage/uc_method_scenario_matrix.json': JSON.stringify({
       version: 'UCMethodScenarioMatrix.v1',
       rows: 120,
     }),
-    'state/audits/librarian/scenarios/scenario-report.v1.json': JSON.stringify({
+    'state/audits/librainian/scenarios/scenario-report.v1.json': JSON.stringify({
       version: 'ScenarioReport.v1',
       families: 30,
     }),
@@ -77,7 +77,7 @@ describe('evidence manifest generation', () => {
   beforeEach(async () => {
     workspaceRoot = await mkdtemp(join(tmpdir(), 'evidence-manifest-'));
     for (const [relativePath, content] of Object.entries(fixtureContents)) {
-      const timestamp = relativePath.includes('state/audits/librarian/scenarios/')
+      const timestamp = relativePath.includes('state/audits/librainian/scenarios/')
         ? auditTimestamp
         : FIXED_TIME;
       await writeFixtureFile(workspaceRoot, relativePath, content, timestamp);
@@ -97,8 +97,8 @@ describe('evidence manifest generation', () => {
       'eval-results/final-verification.json',
       'eval-results/metrics-report.json',
       'scenario-report.json',
-      'state/audits/librarian/coverage/uc_method_scenario_matrix.json',
-      'state/audits/librarian/scenarios/scenario-report.v1.json',
+      'state/audits/librainian/coverage/uc_method_scenario_matrix.json',
+      'state/audits/librainian/scenarios/scenario-report.v1.json',
     ]);
 
     const metricsEntry = manifest.artifacts.find(
@@ -118,12 +118,12 @@ describe('evidence manifest generation', () => {
 
     const auditEntry = manifest.artifacts.find(
       (artifact) =>
-        artifact.path === 'state/audits/librarian/scenarios/scenario-report.v1.json'
+        artifact.path === 'state/audits/librainian/scenarios/scenario-report.v1.json'
     );
     expect(auditEntry).toBeDefined();
-    const auditContent = fixtureContents['state/audits/librarian/scenarios/scenario-report.v1.json'];
+    const auditContent = fixtureContents['state/audits/librainian/scenarios/scenario-report.v1.json'];
     const auditStats = await stat(
-      join(workspaceRoot, 'state/audits/librarian/scenarios/scenario-report.v1.json')
+      join(workspaceRoot, 'state/audits/librainian/scenarios/scenario-report.v1.json')
     );
     expect(auditEntry?.size).toBe(auditStats.size);
     expect(auditEntry?.sha256).toBe(sha256Hex(auditContent));
@@ -136,7 +136,7 @@ describe('evidence manifest generation', () => {
     const parsed = JSON.parse(raw) as typeof manifest;
 
     expect(parsed).toEqual(manifest);
-    expect(outputPath).toBe(join(workspaceRoot, 'state', 'audits', 'librarian', 'manifest.json'));
+    expect(outputPath).toBe(join(workspaceRoot, 'state', 'audits', 'librainian', 'manifest.json'));
   });
 
   it('is deterministic across repeated runs', async () => {

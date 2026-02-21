@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { createLiBrainianMCPServer } from '../server.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // Mock provider checks to fail fast instead of timing out
 vi.mock('../../api/provider_check.js', () => ({
@@ -25,14 +25,14 @@ vi.mock('../../api/provider_check.js', () => ({
 
 // Mock LLM env to avoid provider discovery
 vi.mock('../../api/llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
+  resolveLiBrainianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
     provider: 'claude',
     modelId: 'claude-sonnet-4-20250514',
   }),
-  resolveLibrarianModelId: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
+  resolveLiBrainianModelId: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
 }));
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -48,7 +48,7 @@ class MockStorage implements StorageStub {
 
 describe('MCP compile intent bundles tool', () => {
   it('compiles bundles from intent', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -56,12 +56,12 @@ describe('MCP compile intent bundles tool', () => {
     });
 
     const workspace = '/tmp/workspace';
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       getStorage: () => new MockStorage(),
     };
 
     server.registerWorkspace(workspace);
-    server.updateWorkspaceState(workspace, { librarian: mockLibrarian, indexState: 'ready' });
+    server.updateWorkspaceState(workspace, { librainian: mockLiBrainian, indexState: 'ready' });
 
     const result = await (server as unknown as {
       executeCompileIntentBundles: (input: { workspace?: string; intent: string; limit?: number }) => Promise<any>;
@@ -78,7 +78,7 @@ describe('MCP compile intent bundles tool', () => {
   });
 
   it('limits bundles from intent', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -86,12 +86,12 @@ describe('MCP compile intent bundles tool', () => {
     });
 
     const workspace = '/tmp/workspace';
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       getStorage: () => new MockStorage(),
     };
 
     server.registerWorkspace(workspace);
-    server.updateWorkspaceState(workspace, { librarian: mockLibrarian, indexState: 'ready' });
+    server.updateWorkspaceState(workspace, { librainian: mockLiBrainian, indexState: 'ready' });
 
     const result = await (server as unknown as {
       executeCompileIntentBundles: (input: { workspace?: string; intent: string; limit?: number }) => Promise<any>;
@@ -104,7 +104,7 @@ describe('MCP compile intent bundles tool', () => {
   });
 
   it('omits primitives when includePrimitives=false', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -112,12 +112,12 @@ describe('MCP compile intent bundles tool', () => {
     });
 
     const workspace = '/tmp/workspace';
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       getStorage: () => new MockStorage(),
     };
 
     server.registerWorkspace(workspace);
-    server.updateWorkspaceState(workspace, { librarian: mockLibrarian, indexState: 'ready' });
+    server.updateWorkspaceState(workspace, { librainian: mockLiBrainian, indexState: 'ready' });
 
     const result = await (server as unknown as {
       executeCompileIntentBundles: (input: { workspace?: string; intent: string; includePrimitives?: boolean }) => Promise<any>;

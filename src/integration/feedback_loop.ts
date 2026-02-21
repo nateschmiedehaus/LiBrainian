@@ -22,7 +22,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { IEvidenceLedger, OutcomeEvidence } from '../epistemics/evidence_ledger.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import { deterministic, bounded, getNumericValue } from '../epistemics/confidence.js';
@@ -90,7 +90,7 @@ export interface FeedbackLoopConfig {
   /** Workspace root path */
   workspace: string;
   /** Storage for recording outcomes */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Evidence ledger for calibration tracking */
   ledger?: IEvidenceLedger;
   /** Whether to auto-infer outcomes from signals (default: true) */
@@ -108,7 +108,7 @@ export interface FeedbackLoopConfig {
  */
 interface ResolvedFeedbackLoopConfig {
   workspace: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   ledger?: IEvidenceLedger;
   autoInfer: boolean;
   minConfidenceDelta: number;

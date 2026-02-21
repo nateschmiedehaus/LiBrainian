@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 const repoRoot = process.cwd();
 const requiredMarkers = [
-  'REAL_AGENT_REAL_LIBRARIAN_ONLY',
+  'REAL_AGENT_REAL_LIBRAINIAN_ONLY',
   'NO_SYNTHETIC_OR_REFERENCE_FOR_RELEASE',
   'NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE',
   'PERFECT_RELEASE_EVIDENCE_ONLY',
@@ -12,10 +12,10 @@ const requiredMarkers = [
 
 const policyDocs = [
   'docs/TEST.md',
-  'docs/librarian/README.md',
-  'docs/librarian/validation.md',
-  'docs/librarian/LIVE_FIRE_E2E.md',
-  'docs/librarian/AGENT_INTEGRATION.md',
+  'docs/librainian/README.md',
+  'docs/librainian/validation.md',
+  'docs/librainian/LIVE_FIRE_E2E.md',
+  'docs/librainian/AGENT_INTEGRATION.md',
 ];
 
 describe('real-agent release policy docs', () => {

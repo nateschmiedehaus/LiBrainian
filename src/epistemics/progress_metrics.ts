@@ -1,7 +1,7 @@
 /**
  * @fileoverview Epistemic Progress Metrics
  *
- * Information-theoretic metrics to measure whether Librarian's knowledge is improving
+ * Information-theoretic metrics to measure whether LiBrainian's knowledge is improving
  * over time. Implements entropy, information gain, KL divergence, and progress tracking.
  *
  * Based on Section 6 (Information Theory) of the mathematical foundations research.

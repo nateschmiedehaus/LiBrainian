@@ -1,8 +1,8 @@
 /**
  * @fileoverview Self-Index Pipeline (WU-BOOT-001)
  *
- * Orchestrates complete indexing of Librarian's own codebase.
- * This enables Librarian to understand and analyze itself.
+ * Orchestrates complete indexing of LiBrainian's own codebase.
+ * This enables LiBrainian to understand and analyze itself.
  *
  * Key features:
  * - Uses existing selfBootstrap primitive for indexing
@@ -16,7 +16,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { selfBootstrap } from './self_bootstrap.js';
 import { isExcluded, getAllIncludePatterns, UNIVERSAL_EXCLUDES } from '../../universal_patterns.js';
 import { getErrorMessage } from '../../utils/errors.js';
@@ -154,7 +154,7 @@ export interface SelfIndexResult {
  */
 export interface SelfIndexPipelineOptions {
   /** Storage instance for persisting indexed data */
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
   /** Progress callback for monitoring indexing progress */
   onProgress?: (progress: IndexProgress) => void;
   /** Enable verbose logging */
@@ -168,7 +168,7 @@ export interface SelfIndexPipelineOptions {
 // ============================================================================
 
 /**
- * Default configuration for indexing Librarian's own codebase.
+ * Default configuration for indexing LiBrainian's own codebase.
  */
 export const LIBRARIAN_INDEX_CONFIG: SelfIndexConfig = {
   rootDir: process.cwd(),
@@ -191,7 +191,7 @@ export const LIBRARIAN_INDEX_CONFIG: SelfIndexConfig = {
 // ============================================================================
 
 /**
- * Orchestrates complete indexing of Librarian's own codebase.
+ * Orchestrates complete indexing of LiBrainian's own codebase.
  *
  * This class provides the main entry point for self-indexing. It:
  * 1. Scans the codebase to find all relevant files
@@ -207,7 +207,7 @@ export const LIBRARIAN_INDEX_CONFIG: SelfIndexConfig = {
  * ```
  */
 export class SelfIndexPipeline {
-  private storage: LibrarianStorage;
+  private storage: LiBrainianStorage;
   private onProgress?: (progress: IndexProgress) => void;
   private verbose: boolean;
   private skipBootstrap: boolean;

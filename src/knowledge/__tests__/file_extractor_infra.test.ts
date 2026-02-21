@@ -6,7 +6,7 @@ import { extractFileKnowledge } from '../extractors/file_extractor.js';
 
 describe('extractFileKnowledge infra heuristics', () => {
   it('extracts meaningful concepts from a Dockerfile without LLM', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-file-extractor-infra-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-file-extractor-infra-'));
     try {
       const dockerfilePath = path.join(workspace, 'Dockerfile');
       await fs.writeFile(
@@ -44,7 +44,7 @@ describe('extractFileKnowledge infra heuristics', () => {
   });
 
   it('extracts meaningful concepts from Terraform/HCL without LLM', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-file-extractor-infra-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-file-extractor-infra-'));
     try {
       const tfPath = path.join(workspace, 'main.tf');
       await fs.writeFile(

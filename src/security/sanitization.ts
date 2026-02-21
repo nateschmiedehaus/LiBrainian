@@ -1,7 +1,7 @@
 /**
  * @fileoverview Input Sanitization and Validation
  *
- * Provides comprehensive input sanitization for the Librarian system:
+ * Provides comprehensive input sanitization for the LiBrainian system:
  * - Path traversal prevention
  * - Injection protection (SQL, command, regex)
  * - Content sanitization

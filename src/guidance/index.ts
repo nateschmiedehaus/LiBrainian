@@ -42,7 +42,7 @@ export {
   type CoverageRequirement,
   type IntegrationsSection,
   type MCPIntegration,
-  type LibrarianIntegration,
+  type LiBrainianIntegration,
   type ToolIntegration,
   type RawSection,
 

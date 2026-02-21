@@ -25,7 +25,7 @@ import {
   createDefaultRateLimiter,
 
   // Error handling
-  LibrarianErrorBase,
+  LiBrainianErrorBase,
   ValidationError,
   AuthenticationError,
   AuthorizationError,
@@ -559,9 +559,9 @@ describe('Composite Rate Limiter', () => {
 // ============================================================================
 
 describe('Error Classes', () => {
-  describe('LibrarianErrorBase', () => {
+  describe('LiBrainianErrorBase', () => {
     it('should create error with all properties', () => {
-      const error = new LibrarianErrorBase(
+      const error = new LiBrainianErrorBase(
         'Test error',
         'TEST_ERROR',
         'validation',
@@ -581,7 +581,7 @@ describe('Error Classes', () => {
     });
 
     it('should convert to JSON', () => {
-      const error = new LibrarianErrorBase('Test', 'TEST', 'internal');
+      const error = new LiBrainianErrorBase('Test', 'TEST', 'internal');
       const json = error.toJSON();
 
       expect(json.code).toBe('TEST');
@@ -642,7 +642,7 @@ describe('Error Classes', () => {
 
 describe('Error Normalization', () => {
   describe('normalizeError', () => {
-    it('should pass through LibrarianErrorBase', () => {
+    it('should pass through LiBrainianErrorBase', () => {
       const error = new ValidationError('Test');
       const normalized = normalizeError(error);
 

@@ -16,7 +16,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
 import { createHash } from 'crypto';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { FileKnowledge, DirectoryKnowledge } from '../types.js';
 import { UNIVERSAL_EXCLUDES, getFileCategory, type FileCategory } from '../universal_patterns.js';
 
@@ -130,7 +130,7 @@ export interface TieredBootstrapOptions {
   /** Root path of the workspace */
   rootPath: string;
   /** Storage backend */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Callback when a tier completes */
   onTierComplete?: (tier: BootstrapTier, stats: TierStats) => void;
   /** Progress callback */
@@ -208,7 +208,7 @@ export interface ImportEdge {
  */
 export class TieredBootstrap {
   private readonly rootPath: string;
-  private readonly storage: LibrarianStorage;
+  private readonly storage: LiBrainianStorage;
   private readonly options: Required<
     Pick<
       TieredBootstrapOptions,

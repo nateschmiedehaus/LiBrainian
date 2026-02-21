@@ -16,11 +16,11 @@ type MCPFactory = (config: {
 function resolveFactory(): MCPFactory {
   const moduleExports = mcpServerModule as unknown as {
     createLiBrainianMCPServer?: MCPFactory;
-    createLibrarianMCPServer?: MCPFactory;
+    createLiBrainianMCPServer?: MCPFactory;
   };
-  const factory = moduleExports.createLiBrainianMCPServer ?? moduleExports.createLibrarianMCPServer;
+  const factory = moduleExports.createLiBrainianMCPServer ?? moduleExports.createLiBrainianMCPServer;
   if (!factory) {
-    throw new Error('MCP server factory unavailable; expected createLiBrainianMCPServer or createLibrarianMCPServer.');
+    throw new Error('MCP server factory unavailable; expected createLiBrainianMCPServer or createLiBrainianMCPServer.');
   }
   return factory;
 }
@@ -36,7 +36,7 @@ describe('MCP list capabilities tool', () => {
       audit: {
         enabled: false,
         retentionDays: 1,
-        logPath: '.librarian/audit/mcp',
+        logPath: '.librainian/audit/mcp',
       },
     });
 

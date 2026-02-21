@@ -19,7 +19,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -111,7 +111,7 @@ export interface ChangeSetReviewResult {
 /**
  * Review a single file for code quality issues.
  *
- * @param storage - Librarian storage instance (used for context, optional)
+ * @param storage - LiBrainian storage instance (used for context, optional)
  * @param filePath - Path to the file to review
  * @param options - Review options
  * @returns Code review result with issues and suggestions
@@ -126,7 +126,7 @@ export interface ChangeSetReviewResult {
  * ```
  */
 export async function reviewCode(
-  storage: LibrarianStorage | null,
+  storage: LiBrainianStorage | null,
   filePath: string,
   options: ReviewOptions = {}
 ): Promise<CodeReviewResult> {
@@ -202,7 +202,7 @@ export async function reviewCode(
 /**
  * Review multiple files as a change set.
  *
- * @param storage - Librarian storage instance (used for context, optional)
+ * @param storage - LiBrainian storage instance (used for context, optional)
  * @param filePaths - Paths to the files to review
  * @param options - Review options
  * @returns Combined review result for all files
@@ -216,7 +216,7 @@ export async function reviewCode(
  * ```
  */
 export async function reviewChangeSet(
-  storage: LibrarianStorage | null,
+  storage: LiBrainianStorage | null,
   filePaths: string[],
   options: ReviewOptions = {}
 ): Promise<ChangeSetReviewResult> {

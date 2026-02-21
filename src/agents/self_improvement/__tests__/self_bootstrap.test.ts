@@ -4,10 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { selfBootstrap, createSelfBootstrap, type SelfBootstrapResult, type SelfBootstrapOptions } from '../self_bootstrap.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 describe('selfBootstrap', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(() => {
     mockStorage = {
@@ -28,7 +28,7 @@ describe('selfBootstrap', () => {
       deleteGraphEdgesForSource: vi.fn().mockResolvedValue(undefined),
       upsertGraphEdges: vi.fn().mockResolvedValue(undefined),
       recordIndexingResult: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires rootDir parameter', async () => {
@@ -44,7 +44,7 @@ describe('selfBootstrap', () => {
     await expect(
       selfBootstrap({
         rootDir: '/test',
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });

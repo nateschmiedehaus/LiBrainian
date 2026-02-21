@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { LibrarianResponse } from '../../types.js';
-import { Librarian } from '../librarian.js';
+import type { LiBrainianResponse } from '../../types.js';
+import { LiBrainian } from '../librainian.js';
 import { ProviderUnavailableError } from '../provider_check.js';
 import { getCurrentVersion } from '../versioning.js';
-import { queryLibrarian } from '../query.js';
+import { queryLiBrainian } from '../query.js';
 
 vi.mock('../query.js', () => ({
-  queryLibrarian: vi.fn(),
+  queryLiBrainian: vi.fn(),
 }));
 
-const queryMock = vi.mocked(queryLibrarian);
+const queryMock = vi.mocked(queryLiBrainian);
 
-function buildResponse(overrides: Partial<LibrarianResponse> = {}): LibrarianResponse {
+function buildResponse(overrides: Partial<LiBrainianResponse> = {}): LiBrainianResponse {
   return {
     query: { intent: 'test', depth: 'L0', llmRequirement: 'optional', ...(overrides.query ?? {}) },
     packs: [],
@@ -36,9 +36,9 @@ function buildResponse(overrides: Partial<LibrarianResponse> = {}): LibrarianRes
   };
 }
 
-function createReadyLibrarian(): Librarian {
-  const librarian = new Librarian({ workspace: '/tmp', autoBootstrap: false });
-  const instance = librarian as unknown as {
+function createReadyLiBrainian(): LiBrainian {
+  const librainian = new LiBrainian({ workspace: '/tmp', autoBootstrap: false });
+  const instance = librainian as unknown as {
     initialized: boolean;
     bootstrapped: boolean;
     storage: unknown;
@@ -48,20 +48,20 @@ function createReadyLibrarian(): Librarian {
   instance.bootstrapped = true;
   instance.storage = {};
   instance.engines = null;
-  return librarian;
+  return librainian;
 }
 
-describe('Librarian.queryWithFallback', () => {
+describe('LiBrainian.queryWithFallback', () => {
   beforeEach(() => {
     queryMock.mockReset();
   });
 
   it('returns success when LLM is available', async () => {
-    const librarian = createReadyLibrarian();
+    const librainian = createReadyLiBrainian();
     const response = buildResponse({ llmRequirement: 'optional', llmAvailable: true });
     queryMock.mockResolvedValueOnce(response);
 
-    const result = await librarian.queryWithFallback({ intent: 'test', depth: 'L0' });
+    const result = await librainian.queryWithFallback({ intent: 'test', depth: 'L0' });
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -70,11 +70,11 @@ describe('Librarian.queryWithFallback', () => {
   });
 
   it('returns llm_unavailable with partial result when LLM is unavailable', async () => {
-    const librarian = createReadyLibrarian();
+    const librainian = createReadyLiBrainian();
     const response = buildResponse({ llmRequirement: 'optional', llmAvailable: false });
     queryMock.mockResolvedValueOnce(response);
 
-    const result = await librarian.queryWithFallback({ intent: 'test', depth: 'L0' });
+    const result = await librainian.queryWithFallback({ intent: 'test', depth: 'L0' });
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -84,7 +84,7 @@ describe('Librarian.queryWithFallback', () => {
   });
 
   it('sanitizes trace markers on direct API query responses', async () => {
-    const librarian = createReadyLibrarian();
+    const librainian = createReadyLiBrainian();
     queryMock.mockResolvedValueOnce(buildResponse({
       disclosures: ['unverified_by_trace(storage_write_degraded): Session degraded due to lock contention.'],
       llmError: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
@@ -93,7 +93,7 @@ describe('Librarian.queryWithFallback', () => {
       drillDownHints: ['unverified_by_trace(provider_unavailable): Retry query after provider setup.'],
     }));
 
-    const response = await librarian.queryOptional({ intent: 'test', depth: 'L0' });
+    const response = await librainian.queryOptional({ intent: 'test', depth: 'L0' });
 
     expect(response.disclosures).toEqual(['Session degraded due to lock contention.']);
     expect(response.traceId).toBe('replay_unavailable');
@@ -107,11 +107,11 @@ describe('Librarian.queryWithFallback', () => {
   });
 
   it('returns success when LLM is disabled by request', async () => {
-    const librarian = createReadyLibrarian();
+    const librainian = createReadyLiBrainian();
     const response = buildResponse({ llmRequirement: 'disabled', llmAvailable: false });
     queryMock.mockResolvedValueOnce(response);
 
-    const result = await librarian.queryWithFallback({ intent: 'test', depth: 'L0', llmRequirement: 'disabled' });
+    const result = await librainian.queryWithFallback({ intent: 'test', depth: 'L0', llmRequirement: 'disabled' });
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -120,14 +120,14 @@ describe('Librarian.queryWithFallback', () => {
   });
 
   it('returns llm_unavailable when ProviderUnavailableError includes LLM', async () => {
-    const librarian = createReadyLibrarian();
+    const librainian = createReadyLiBrainian();
     queryMock.mockRejectedValueOnce(new ProviderUnavailableError({
       message: 'unverified_by_trace(provider_unavailable): test',
       missing: ['LLM: unavailable'],
       suggestion: 'authenticate',
     }));
 
-    const result = await librarian.queryWithFallback({ intent: 'test', depth: 'L0' });
+    const result = await librainian.queryWithFallback({ intent: 'test', depth: 'L0' });
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -136,14 +136,14 @@ describe('Librarian.queryWithFallback', () => {
   });
 
   it('rethrows ProviderUnavailableError when LLM is not missing', async () => {
-    const librarian = createReadyLibrarian();
+    const librainian = createReadyLiBrainian();
     queryMock.mockRejectedValueOnce(new ProviderUnavailableError({
       message: 'unverified_by_trace(provider_unavailable): test',
       missing: ['Embedding: unavailable'],
       suggestion: 'authenticate',
     }));
 
-    await expect(librarian.queryWithFallback({ intent: 'test', depth: 'L0' }))
+    await expect(librainian.queryWithFallback({ intent: 'test', depth: 'L0' }))
       .rejects
       .toThrow(ProviderUnavailableError);
   });

@@ -9,7 +9,7 @@
  * TIER-2 (system): These tests require live providers.
  * Run with: LIBRARIAN_TEST_MODE=system npm test -- --run src/__tests__/efficiency_validation.system.test.ts
  *
- * @see docs/librarian/IMPLEMENTATION_PLAN.md
+ * @see docs/librainian/IMPLEMENTATION_PLAN.md
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -17,7 +17,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { checkAllProviders, requireProviders, type AllProviderStatus } from '../api/provider_check.js';
-import { resolveLibrarianModelId } from '../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../api/llm_env.js';
 import { cleanupWorkspace } from './helpers/index.js';
 
 const DEFAULT_CODEX_MODEL_ID = 'gpt-5.1-codex-mini';
@@ -35,10 +35,10 @@ describe('Efficiency Validation (TIER-2)', () => {
     await requireProviders({ llm: true, embedding: false }, { workspaceRoot: process.cwd() });
     providerStatus = await checkAllProviders({ workspaceRoot: process.cwd(), forceProbe: false });
     llmProvider = providerStatus.llm.provider === 'claude' ? 'claude' : 'codex';
-    llmModelId = resolveLibrarianModelId(llmProvider) ?? (llmProvider === 'claude' ? DEFAULT_CLAUDE_MODEL_ID : DEFAULT_CODEX_MODEL_ID);
+    llmModelId = resolveLiBrainianModelId(llmProvider) ?? (llmProvider === 'claude' ? DEFAULT_CLAUDE_MODEL_ID : DEFAULT_CODEX_MODEL_ID);
 
     // Create minimal test workspace
-    testWorkspace = path.join(os.tmpdir(), `librarian-eff-test-${Date.now()}`);
+    testWorkspace = path.join(os.tmpdir(), `librainian-eff-test-${Date.now()}`);
     testFixture = path.join(testWorkspace, 'src');
     await fs.mkdir(testFixture, { recursive: true });
 

@@ -43,7 +43,7 @@ function readEnvNumber(name: string, fallback: number): number {
 }
 
 function resolveFailurePath(workspaceRoot: string): string {
-  return path.join(workspaceRoot, 'state', 'audits', 'librarian', 'provider', 'provider_failures.json');
+  return path.join(workspaceRoot, 'state', 'audits', 'librainian', 'provider', 'provider_failures.json');
 }
 
 export function resolveProviderWorkspaceRoot(cwd: string = process.cwd()): string {

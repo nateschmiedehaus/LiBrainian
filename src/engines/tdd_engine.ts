@@ -5,11 +5,11 @@
  * Provides capabilities for test discovery, generation, coverage analysis,
  * mock identification, property-based testing suggestions, and TDD workflow guidance.
  *
- * @see docs/librarian/TDD_ENGINE.md for detailed documentation
+ * @see docs/librainian/TDD_ENGINE.md for detailed documentation
  */
 
 import * as path from 'node:path';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type {
   TestFile,
   TestFramework,
@@ -119,7 +119,7 @@ const KNOWN_TEST_PATTERNS: KnownTestPattern[] = [
 
 export class TddEngine {
   constructor(
-    private readonly storage: LibrarianStorage,
+    private readonly storage: LiBrainianStorage,
     private readonly workspaceRoot: string
   ) {}
 

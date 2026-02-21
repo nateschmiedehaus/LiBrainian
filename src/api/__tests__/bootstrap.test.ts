@@ -16,7 +16,7 @@ describe('loadGovernorConfig Path Validation', () => {
 
   beforeEach(async () => {
     // Create a temporary directory for each test
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-test-'));
   });
 
   afterEach(async () => {
@@ -65,12 +65,12 @@ describe('loadGovernorConfig Path Validation', () => {
     });
 
     it('should validate final configPath after path.join operations', async () => {
-      // This test ensures that even after path.join(workspace, '.librarian', GOVERNOR_CONFIG_FILENAME),
+      // This test ensures that even after path.join(workspace, '.librainian', GOVERNOR_CONFIG_FILENAME),
       // the resulting path is still validated. While GOVERNOR_CONFIG_FILENAME is a safe constant in
       // the current implementation, this test verifies that the final configPath validation catches
       // any path traversal that could result from the join operation.
       
-      // Test case 1: Workspace path that when joined with '.librarian' could escape bounds
+      // Test case 1: Workspace path that when joined with '.librainian' could escape bounds
       // This simulates what would happen if path.join creates a path with traversal sequences
       const attemptedEscape = path.join(tempDir, '..', '..', 'etc', 'passwd');
       await expect(loadGovernorConfig(attemptedEscape)).rejects.toThrow(
@@ -170,11 +170,11 @@ describe('loadGovernorConfig Path Validation', () => {
     });
 
     it('should load config from existing workspace', async () => {
-      // Create .librarian directory and governor.json
-      const librarianDir = path.join(tempDir, '.librarian');
-      await fs.mkdir(librarianDir, { recursive: true });
+      // Create .librainian directory and governor.json
+      const librainianDir = path.join(tempDir, '.librainian');
+      await fs.mkdir(librainianDir, { recursive: true });
       await fs.writeFile(
-        path.join(librarianDir, 'governor.json'),
+        path.join(librainianDir, 'governor.json'),
         JSON.stringify({ maxConcurrentWorkers: 8 })
       );
 

@@ -32,7 +32,7 @@
  * ```
  */
 
-import type { LibrarianStorage, FunctionKnowledge, ModuleKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge, ModuleKnowledge } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -223,7 +223,7 @@ export class PatternLibrary {
   /**
    * Build the pattern library by analyzing the codebase.
    */
-  async buildFromCodebase(storage: LibrarianStorage): Promise<void> {
+  async buildFromCodebase(storage: LiBrainianStorage): Promise<void> {
     const functions = await storage.getFunctions();
     const modules = await storage.getModules();
 
@@ -271,7 +271,7 @@ export class PatternLibrary {
    */
   private async extractErrorPatterns(
     functions: FunctionKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -315,7 +315,7 @@ export class PatternLibrary {
    */
   private async extractAsyncPatterns(
     functions: FunctionKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -362,7 +362,7 @@ export class PatternLibrary {
    */
   private async extractValidationPatterns(
     functions: FunctionKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -408,7 +408,7 @@ export class PatternLibrary {
    */
   private async extractTestingPatterns(
     functions: FunctionKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -453,7 +453,7 @@ export class PatternLibrary {
   private async extractAPIPatterns(
     functions: FunctionKnowledge[],
     modules: ModuleKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -495,7 +495,7 @@ export class PatternLibrary {
   private async extractConfigurationPatterns(
     functions: FunctionKnowledge[],
     modules: ModuleKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -529,7 +529,7 @@ export class PatternLibrary {
    */
   private async extractLoggingPatterns(
     functions: FunctionKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -563,7 +563,7 @@ export class PatternLibrary {
   private async extractTypePatterns(
     functions: FunctionKnowledge[],
     modules: ModuleKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -610,7 +610,7 @@ export class PatternLibrary {
   private async extractEventPatterns(
     functions: FunctionKnowledge[],
     modules: ModuleKnowledge[],
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const patterns = new Map<string, PatternAccumulator>();
 
@@ -663,7 +663,7 @@ export class PatternLibrary {
   private async addPatternsToLibrary(
     category: PatternCategory,
     patterns: Map<string, PatternAccumulator>,
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<void> {
     const sortedPatterns = [...patterns.entries()]
       .filter(([, data]) => data.count >= this.buildOptions.minOccurrences)
@@ -692,7 +692,7 @@ export class PatternLibrary {
    */
   private async getExampleCode(
     functionName: string | undefined,
-    storage: LibrarianStorage
+    storage: LiBrainianStorage
   ): Promise<string> {
     if (!functionName) return '';
 
@@ -1053,7 +1053,7 @@ export function extractPatternCategory(intent: string): PatternCategory | undefi
  */
 export async function handleCodePatternQuery(
   intent: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<PatternQueryResult> {
   const library = new PatternLibrary();
   await library.buildFromCodebase(storage);

@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { startWatchSession } from '../watch.js';
-import { Librarian } from '../../../api/librarian.js';
+import { LiBrainian } from '../../../api/librainian.js';
 import { startFileWatcher, stopFileWatcher } from '../../../integration/file_watcher.js';
 import { globalEventBus } from '../../../events.js';
 import { CliError } from '../../errors.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
 
-vi.mock('../../../api/librarian.js');
+vi.mock('../../../api/librainian.js');
 vi.mock('../../../integration/file_watcher.js', () => ({
   startFileWatcher: vi.fn(() => ({ stop: vi.fn() })),
   stopFileWatcher: vi.fn().mockResolvedValue(undefined),
@@ -32,7 +32,7 @@ describe('startWatchSession', () => {
   const mockStorage = { storageId: 'mock' };
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let mockLibrarian: {
+  let mockLiBrainian: {
     initialize: Mock;
     getStatus: Mock;
     getStorage: Mock;
@@ -50,7 +50,7 @@ describe('startWatchSession', () => {
     vi.mocked(startFileWatcher).mockImplementation(() => ({ stop: vi.fn() }));
     vi.mocked(stopFileWatcher).mockResolvedValue(undefined);
 
-    mockLibrarian = {
+    mockLiBrainian = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getStatus: vi.fn().mockResolvedValue({
         bootstrapped: true,
@@ -63,7 +63,7 @@ describe('startWatchSession', () => {
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
 
-    (Librarian as unknown as Mock).mockImplementation(() => mockLibrarian);
+    (LiBrainian as unknown as Mock).mockImplementation(() => mockLiBrainian);
     vi.mocked(resolveWorkspaceRoot).mockReturnValue({
       original: mockWorkspace,
       workspace: mockWorkspace,
@@ -79,7 +79,7 @@ describe('startWatchSession', () => {
     process.env = originalEnv;
   });
 
-  it('passes librarian and storage to startFileWatcher when available', async () => {
+  it('passes librainian and storage to startFileWatcher when available', async () => {
     const session = await startWatchSession({
       workspace: mockWorkspace,
       quiet: true,
@@ -87,7 +87,7 @@ describe('startWatchSession', () => {
 
     expect(startFileWatcher).toHaveBeenCalledWith(expect.objectContaining({
       workspaceRoot: mockWorkspace,
-      librarian: mockLibrarian,
+      librainian: mockLiBrainian,
       storage: mockStorage,
     }));
 
@@ -120,8 +120,8 @@ describe('startWatchSession', () => {
     expect(stopFileWatcher).toHaveBeenCalledWith('/resolved/workspace');
   });
 
-  it('passes librarian without storage when storage is not available', async () => {
-    mockLibrarian.getStorage.mockReturnValue(null);
+  it('passes librainian without storage when storage is not available', async () => {
+    mockLiBrainian.getStorage.mockReturnValue(null);
 
     const session = await startWatchSession({
       workspace: mockWorkspace,
@@ -130,7 +130,7 @@ describe('startWatchSession', () => {
 
     expect(startFileWatcher).toHaveBeenCalledWith(expect.objectContaining({
       workspaceRoot: mockWorkspace,
-      librarian: mockLibrarian,
+      librainian: mockLiBrainian,
       storage: undefined,
     }));
 
@@ -146,7 +146,7 @@ describe('startWatchSession', () => {
 
     expect(startFileWatcher).toHaveBeenCalledWith(expect.objectContaining({
       workspaceRoot: mockWorkspace,
-      librarian: mockLibrarian,
+      librainian: mockLiBrainian,
       storage: mockStorage,
       debounceMs: 500,
       batchWindowMs: 500,
@@ -163,7 +163,7 @@ describe('startWatchSession', () => {
 
       const session = await startWatchSession({ workspace: mockWorkspace, quiet: true });
 
-      expect(Librarian).toHaveBeenCalledWith(expect.objectContaining({
+      expect(LiBrainian).toHaveBeenCalledWith(expect.objectContaining({
         llmProvider: 'codex',
         llmModelId: 'gpt-5.1-codex-mini',
       }));
@@ -177,7 +177,7 @@ describe('startWatchSession', () => {
 
       const session = await startWatchSession({ workspace: mockWorkspace, quiet: true });
 
-      expect(Librarian).toHaveBeenCalledWith(expect.objectContaining({
+      expect(LiBrainian).toHaveBeenCalledWith(expect.objectContaining({
         llmProvider: undefined,
         llmModelId: undefined,
       }));
@@ -187,7 +187,7 @@ describe('startWatchSession', () => {
   });
 
   it('throws CliError when not bootstrapped', async () => {
-    mockLibrarian.getStatus.mockResolvedValue({
+    mockLiBrainian.getStatus.mockResolvedValue({
       bootstrapped: false,
       stats: {
         totalFunctions: 0,
@@ -221,44 +221,44 @@ describe('startWatchSession', () => {
     expect(mockUnsubscribe).toHaveBeenCalled();
     expect(mockHandleStop).toHaveBeenCalled();
     expect(stopFileWatcher).toHaveBeenCalledWith(mockWorkspace);
-    expect(mockLibrarian.shutdown).toHaveBeenCalled();
+    expect(mockLiBrainian.shutdown).toHaveBeenCalled();
   });
 
   describe('error handling', () => {
-    it('throws when librarian.initialize() fails', async () => {
+    it('throws when librainian.initialize() fails', async () => {
       const initError = new Error('Storage unavailable');
-      mockLibrarian.initialize.mockRejectedValue(initError);
+      mockLiBrainian.initialize.mockRejectedValue(initError);
 
       await expect(startWatchSession({ workspace: mockWorkspace, quiet: true }))
         .rejects
         .toThrow('Storage unavailable');
 
-      expect(mockLibrarian.initialize).toHaveBeenCalled();
+      expect(mockLiBrainian.initialize).toHaveBeenCalled();
       expect(startFileWatcher).not.toHaveBeenCalled();
     });
 
-    it('throws when librarian.initialize() times out', async () => {
+    it('throws when librainian.initialize() times out', async () => {
       const timeoutError = new Error('Initialization timeout');
-      mockLibrarian.initialize.mockRejectedValue(timeoutError);
+      mockLiBrainian.initialize.mockRejectedValue(timeoutError);
 
       await expect(startWatchSession({ workspace: mockWorkspace, quiet: true }))
         .rejects
         .toThrow('Initialization timeout');
 
-      expect(mockLibrarian.initialize).toHaveBeenCalled();
+      expect(mockLiBrainian.initialize).toHaveBeenCalled();
       expect(startFileWatcher).not.toHaveBeenCalled();
     });
 
-    it('throws when librarian.getStatus() fails', async () => {
+    it('throws when librainian.getStatus() fails', async () => {
       const statusError = new Error('Failed to retrieve status');
-      mockLibrarian.getStatus.mockRejectedValue(statusError);
+      mockLiBrainian.getStatus.mockRejectedValue(statusError);
 
       await expect(startWatchSession({ workspace: mockWorkspace, quiet: true }))
         .rejects
         .toThrow('Failed to retrieve status');
 
-      expect(mockLibrarian.initialize).toHaveBeenCalled();
-      expect(mockLibrarian.getStatus).toHaveBeenCalled();
+      expect(mockLiBrainian.initialize).toHaveBeenCalled();
+      expect(mockLiBrainian.getStatus).toHaveBeenCalled();
       expect(startFileWatcher).not.toHaveBeenCalled();
     });
 
@@ -272,13 +272,13 @@ describe('startWatchSession', () => {
         .rejects
         .toThrow('Failed to start file watcher');
 
-      expect(mockLibrarian.initialize).toHaveBeenCalled();
-      expect(mockLibrarian.getStatus).toHaveBeenCalled();
+      expect(mockLiBrainian.initialize).toHaveBeenCalled();
+      expect(mockLiBrainian.getStatus).toHaveBeenCalled();
       expect(startFileWatcher).toHaveBeenCalled();
     });
 
     it('handles errors when storage.getStorage() throws', async () => {
-      mockLibrarian.getStorage.mockImplementation(() => {
+      mockLiBrainian.getStorage.mockImplementation(() => {
         throw new Error('Storage access error');
       });
 
@@ -290,7 +290,7 @@ describe('startWatchSession', () => {
       // Should continue without storage
       expect(startFileWatcher).toHaveBeenCalledWith(expect.objectContaining({
         workspaceRoot: mockWorkspace,
-        librarian: mockLibrarian,
+        librainian: mockLiBrainian,
         storage: undefined,
       }));
 

@@ -107,7 +107,7 @@ function extractTsMorphCallEdges(
     }
     return edges;
   } catch (error: unknown) {
-    warnOnce('ts-morph-call-edges', 'Librarian call edge extraction failed', {
+    warnOnce('ts-morph-call-edges', 'LiBrainian call edge extraction failed', {
       parser: 'ts-morph',
       filePath,
       error: getErrorMessage(error),
@@ -246,5 +246,5 @@ function loadTreeSitterLanguage(parserName: string): TreeSitterLanguage | null {
 function warnOnce(key: string, message: string, meta: Record<string, unknown> = {}): void {
   if (warned.has(key)) return;
   warned.add(key);
-  logWarning(`[librarian] ${message}`, meta);
+  logWarning(`[librainian] ${message}`, meta);
 }

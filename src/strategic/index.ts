@@ -2435,7 +2435,7 @@ export {
  *   WorkPrimitive,
  *   ComputedPriority,
  *   ConceptualError,
- * } from './librarian/strategic';
+ * } from './librainian/strategic';
  *
  * // Define project vision
  * const vision: ProjectVision = {

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP list technique compositions tool', () => {
   it('returns paginated technique compositions', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -11,7 +11,7 @@ describe('MCP list technique compositions tool', () => {
     });
 
     const workspace = '/tmp/workspace';
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       listTechniqueCompositions: vi.fn().mockResolvedValue([
         { id: 'tc-1' },
         { id: 'tc-2' },
@@ -20,7 +20,7 @@ describe('MCP list technique compositions tool', () => {
     };
 
     server.registerWorkspace(workspace);
-    server.updateWorkspaceState(workspace, { librarian: mockLibrarian, indexState: 'ready' });
+    server.updateWorkspaceState(workspace, { librainian: mockLiBrainian, indexState: 'ready' });
 
     const result = await (server as unknown as {
       executeListTechniqueCompositions: (

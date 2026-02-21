@@ -12,7 +12,7 @@
  */
 
 import {
-  createLibrarian,
+  createLiBrainian,
   createFeedbackLoop,
   initFeedbackLoop,
   recordOutcome,
@@ -26,7 +26,7 @@ import {
 
 async function main() {
   // For this example, we'll use a mock storage
-  // In real usage, you'd get storage from the Librarian instance
+  // In real usage, you'd get storage from the LiBrainian instance
   const mockStorage = {
     getContextPack: async (id: string) => ({
       packId: id,

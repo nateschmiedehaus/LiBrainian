@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { VerificationPlan } from '../strategic/verification_plan.js';
 import type { AdequacyReport } from '../api/difficulty_detectors.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
@@ -16,7 +16,7 @@ type VerificationPlanState = {
 const VERIFICATION_PLANS_KEY = 'librarian.verification_plans.v1';
 
 export async function listVerificationPlans(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { limit?: number } = {}
 ): Promise<VerificationPlan[]> {
   const records = await loadVerificationPlans(storage);
@@ -27,7 +27,7 @@ export async function listVerificationPlans(
 }
 
 export async function getVerificationPlan(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string
 ): Promise<VerificationPlan | null> {
   const records = await loadVerificationPlans(storage);
@@ -35,7 +35,7 @@ export async function getVerificationPlan(
 }
 
 export async function saveVerificationPlan(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   plan: VerificationPlan,
   options: { adequacyReport?: AdequacyReport | null } = {}
 ): Promise<void> {
@@ -46,7 +46,7 @@ export async function saveVerificationPlan(
 }
 
 export async function deleteVerificationPlan(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string
 ): Promise<boolean> {
   const records = await loadVerificationPlans(storage);
@@ -65,7 +65,7 @@ function normalizePlan(
   return { ...plan, createdAt, updatedAt, adequacyReport };
 }
 
-async function loadVerificationPlans(storage: LibrarianStorage): Promise<VerificationPlanRecord[]> {
+async function loadVerificationPlans(storage: LiBrainianStorage): Promise<VerificationPlanRecord[]> {
   const raw = await storage.getState(VERIFICATION_PLANS_KEY);
   if (!raw) return [];
   const parsed = safeJsonParseSimple<VerificationPlanState>(raw);
@@ -74,7 +74,7 @@ async function loadVerificationPlans(storage: LibrarianStorage): Promise<Verific
 }
 
 async function writeVerificationPlans(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   items: VerificationPlanRecord[]
 ): Promise<void> {
   const payload: VerificationPlanState = {

@@ -6,7 +6,7 @@ import { scanWorkspaceLanguages, assessGrammarCoverage } from '../../grammar_sup
 
 describe('grammar support helpers', () => {
   it('detects languages and missing grammars', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-grammar-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-grammar-'));
     await fs.writeFile(path.join(workspace, 'main.ts'), 'export const value = 1;');
     await fs.writeFile(path.join(workspace, 'main.py'), 'def hello():\n  return 1\n');
     await fs.writeFile(path.join(workspace, 'main.zig'), 'const std = @import("std");');

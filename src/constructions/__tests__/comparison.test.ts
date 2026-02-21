@@ -20,14 +20,14 @@ import {
   type ComparisonResult,
   type AnalyzedEntity,
 } from '../comparison.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { FunctionKnowledge, ModuleKnowledge } from '../../types.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-function createMockStorage(functions: FunctionKnowledge[] = [], modules: ModuleKnowledge[] = []): LibrarianStorage {
+function createMockStorage(functions: FunctionKnowledge[] = [], modules: ModuleKnowledge[] = []): LiBrainianStorage {
   return {
     getFunctions: vi.fn().mockResolvedValue(functions),
     getModules: vi.fn().mockResolvedValue(modules),
@@ -41,7 +41,7 @@ function createMockStorage(functions: FunctionKnowledge[] = [], modules: ModuleK
       optional: {},
       versions: { schema: 1, api: 1 },
     }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -229,7 +229,7 @@ describe('findAndAnalyzeEntity', () => {
       filePath: 'src/storage/sqlite_storage.ts',
       startLine: 6045,
       endLine: 6047,
-      signature: 'function createSqliteStorage(dbPath: string, workspaceRoot?: string): LibrarianStorage',
+      signature: 'function createSqliteStorage(dbPath: string, workspaceRoot?: string): LiBrainianStorage',
       purpose: 'Creates a SQLite storage instance.',
       confidence: 0.9,
       accessCount: 0,
@@ -247,7 +247,7 @@ describe('findAndAnalyzeEntity', () => {
     expect(entity!.filePath).toBe('src/storage/sqlite_storage.ts');
     expect(entity!.startLine).toBe(6045);
     expect(entity!.parameters).toContain('dbPath');
-    expect(entity!.returnType).toBe('LibrarianStorage');
+    expect(entity!.returnType).toBe('LiBrainianStorage');
   });
 
   it('should return null for non-existent entity', async () => {
@@ -292,7 +292,7 @@ describe('compareEntities', () => {
       filePath: 'src/storage/sqlite_storage.ts',
       startLine: 6045,
       endLine: 6047,
-      signature: 'function createSqliteStorage(dbPath: string, workspaceRoot?: string): LibrarianStorage',
+      signature: 'function createSqliteStorage(dbPath: string, workspaceRoot?: string): LiBrainianStorage',
       purpose: 'Creates a SQLite storage instance directly.',
       confidence: 0.9,
       accessCount: 0,
@@ -307,7 +307,7 @@ describe('compareEntities', () => {
       filePath: 'src/storage/sqlite_storage.ts',
       startLine: 6064,
       endLine: 6085,
-      signature: 'async function createStorageFromBackend(backend: StorageBackend): Promise<LibrarianStorage>',
+      signature: 'async function createStorageFromBackend(backend: StorageBackend): Promise<LiBrainianStorage>',
       purpose: 'Creates storage from backend configuration.',
       confidence: 0.9,
       accessCount: 0,
@@ -371,7 +371,7 @@ describe('createComparisonPack', () => {
         endLine: 6047,
         isAsync: false,
         parameters: ['dbPath', 'workspaceRoot'],
-        returnType: 'LibrarianStorage',
+        returnType: 'LiBrainianStorage',
       },
       entityB: {
         name: 'createStorageFromBackend',
@@ -381,7 +381,7 @@ describe('createComparisonPack', () => {
         endLine: 6085,
         isAsync: true,
         parameters: ['backend'],
-        returnType: 'Promise<LibrarianStorage>',
+        returnType: 'Promise<LiBrainianStorage>',
       },
       similarities: [
         { aspect: 'Location', description: 'Both in same file' },
@@ -467,7 +467,7 @@ describe('formatComparisonResult', () => {
         filePath: 'src/storage/sqlite_storage.ts',
         startLine: 6045,
         endLine: 6047,
-        signature: 'function createSqliteStorage(dbPath: string): LibrarianStorage',
+        signature: 'function createSqliteStorage(dbPath: string): LiBrainianStorage',
         purpose: 'Creates SQLite storage directly.',
       },
       entityB: {
@@ -476,7 +476,7 @@ describe('formatComparisonResult', () => {
         filePath: 'src/storage/sqlite_storage.ts',
         startLine: 6064,
         endLine: 6085,
-        signature: 'async function createStorageFromBackend(backend: StorageBackend): Promise<LibrarianStorage>',
+        signature: 'async function createStorageFromBackend(backend: StorageBackend): Promise<LiBrainianStorage>',
         purpose: 'Creates storage from configuration.',
       },
       similarities: [
@@ -560,10 +560,10 @@ describe('edge cases', () => {
   });
 
   it('should detect comparison with complex names', () => {
-    const intent = detectComparisonIntent('difference between SqliteLibrarianStorage and PostgresLibrarianStorage');
+    const intent = detectComparisonIntent('difference between SqliteLiBrainianStorage and PostgresLiBrainianStorage');
     expect(intent.isComparison).toBe(true);
-    expect(intent.entityA).toBe('SqliteLibrarianStorage');
-    expect(intent.entityB).toBe('PostgresLibrarianStorage');
+    expect(intent.entityA).toBe('SqliteLiBrainianStorage');
+    expect(intent.entityB).toBe('PostgresLiBrainianStorage');
   });
 
   it('should handle underscore names', () => {
@@ -1012,7 +1012,7 @@ describe('formatUnifiedDiff', () => {
 
 function createMockStorageWithFunctions(
   functions: FunctionKnowledge[]
-): LibrarianStorage {
+): LiBrainianStorage {
   return {
     getFunctions: vi.fn().mockResolvedValue(functions),
     getFunctionsByPath: vi.fn().mockImplementation(async (path: string) => {
@@ -1028,7 +1028,7 @@ function createMockStorageWithFunctions(
       optional: {},
       versions: { schema: 1, api: 1 },
     }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 describe('compareModules', () => {

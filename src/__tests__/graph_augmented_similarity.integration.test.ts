@@ -25,7 +25,7 @@ import {
 import { extractMetadata } from '../api/embedding_providers/enhanced_retrieval.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const librarianRoot = path.resolve(__dirname, '..');
+const librainianRoot = path.resolve(__dirname, '..');
 
 // ============================================================================
 // ADVERSARIAL TEST CASES
@@ -104,7 +104,7 @@ const ADVERSARIAL_CASES: AdversarialCase[] = [
 // ============================================================================
 
 async function loadFile(relativePath: string): Promise<string> {
-  const fullPath = path.resolve(librarianRoot, relativePath);
+  const fullPath = path.resolve(librainianRoot, relativePath);
   try {
     return await fs.readFile(fullPath, 'utf-8');
   } catch {
@@ -150,7 +150,7 @@ async function buildDependencyGraph(): Promise<DependencyGraph> {
     }
   };
 
-  await walkDir(librarianRoot);
+  await walkDir(librainianRoot);
   return graph;
 }
 

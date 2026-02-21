@@ -1,7 +1,7 @@
 /**
  * @fileoverview Retrieval Quality Benchmark Tests (TDD)
  *
- * Comprehensive validation of librarian retrieval quality against documented SLOs.
+ * Comprehensive validation of librainian retrieval quality against documented SLOs.
  * Uses ground-truth queries with known correct answers from the wave0-autopilot codebase.
  *
  * SLO TARGETS (from VISION.md):
@@ -22,10 +22,10 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import { queryLibrarian } from '../api/query.js';
+import { queryLiBrainian } from '../api/query.js';
 import { checkAllProviders } from '../api/provider_check.js';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianResponse, ContextPack } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianResponse, ContextPack } from '../types.js';
 
 // ============================================================================
 // METRIC COMPUTATION UTILITIES
@@ -145,75 +145,75 @@ interface BenchmarkQuery {
  * These have been manually verified against the actual code structure.
  *
  * NOTE: Ground-truth paths support both:
- * - Full codebase bootstrap (paths like 'src/librarian/api/query.ts')
- * - Librarian-only bootstrap (paths like 'api/query.ts')
+ * - Full codebase bootstrap (paths like 'src/librainian/api/query.ts')
+ * - LiBrainian-only bootstrap (paths like 'api/query.ts')
  */
 const BENCHMARK_QUERIES: BenchmarkQuery[] = [
   // === FIX-LOCALIZATION QUERIES ===
   {
     name: 'find-query-function',
     category: 'fix-localization',
-    query: 'Where is the queryLibrarian function defined?',
-    groundTruth: ['src/librarian/api/query.ts', 'api/query.ts', 'query.ts'],
+    query: 'Where is the queryLiBrainian function defined?',
+    groundTruth: ['src/librainian/api/query.ts', 'api/query.ts', 'query.ts'],
   },
   {
     name: 'find-bootstrap-function',
     category: 'fix-localization',
     query: 'Where is bootstrapProject defined?',
-    groundTruth: ['src/librarian/api/bootstrap.ts', 'api/bootstrap.ts', 'bootstrap.ts'],
+    groundTruth: ['src/librainian/api/bootstrap.ts', 'api/bootstrap.ts', 'bootstrap.ts'],
   },
   {
     name: 'find-storage-implementation',
     category: 'fix-localization',
     query: 'Where is SQLite storage implemented?',
-    groundTruth: ['src/librarian/storage/sqlite_storage.ts', 'storage/sqlite_storage.ts', 'sqlite_storage.ts'],
+    groundTruth: ['src/librainian/storage/sqlite_storage.ts', 'storage/sqlite_storage.ts', 'sqlite_storage.ts'],
   },
   {
     name: 'find-embedding-service',
     category: 'fix-localization',
     query: 'Where is the embedding service defined?',
-    groundTruth: ['src/librarian/api/embeddings.ts', 'api/embeddings.ts', 'embeddings.ts'],
+    groundTruth: ['src/librainian/api/embeddings.ts', 'api/embeddings.ts', 'embeddings.ts'],
   },
   {
     name: 'find-ast-indexer',
     category: 'fix-localization',
     query: 'Where is AST indexing implemented?',
-    groundTruth: ['src/librarian/agents/ast_indexer.ts', 'agents/ast_indexer.ts', 'ast_indexer.ts'],
+    groundTruth: ['src/librainian/agents/ast_indexer.ts', 'agents/ast_indexer.ts', 'ast_indexer.ts'],
   },
   {
     name: 'find-context-pack-creation',
     category: 'fix-localization',
     query: 'Where are context packs created?',
-    groundTruth: ['src/librarian/api/packs.ts', 'api/packs.ts', 'packs.ts'],
+    groundTruth: ['src/librainian/api/packs.ts', 'api/packs.ts', 'packs.ts'],
   },
   {
     name: 'find-confidence-calibration',
     category: 'fix-localization',
     query: 'Where is confidence calibration implemented?',
     // Note: This file may not exist yet - accept any confidence-related file
-    groundTruth: ['src/librarian/api/confidence_calibration.ts', 'api/confidence_calibration.ts', 'evidence_collector.ts', 'calibration'],
+    groundTruth: ['src/librainian/api/confidence_calibration.ts', 'api/confidence_calibration.ts', 'evidence_collector.ts', 'calibration'],
   },
 
   // === CHANGE-IMPACT QUERIES ===
   {
     name: 'impact-of-types-change',
     category: 'change-impact',
-    query: 'What would be affected if I modify librarian types?',
-    affectedFiles: ['src/librarian/types.ts', 'types.ts'],
+    query: 'What would be affected if I modify librainian types?',
+    affectedFiles: ['src/librainian/types.ts', 'types.ts'],
     groundTruth: [
-      'src/librarian/api/query.ts', 'api/query.ts', 'query.ts',
-      'src/librarian/api/bootstrap.ts', 'api/bootstrap.ts', 'bootstrap.ts',
-      'src/librarian/storage/sqlite_storage.ts', 'storage/sqlite_storage.ts', 'sqlite_storage.ts',
+      'src/librainian/api/query.ts', 'api/query.ts', 'query.ts',
+      'src/librainian/api/bootstrap.ts', 'api/bootstrap.ts', 'bootstrap.ts',
+      'src/librainian/storage/sqlite_storage.ts', 'storage/sqlite_storage.ts', 'sqlite_storage.ts',
     ],
   },
   {
     name: 'impact-of-storage-change',
     category: 'change-impact',
     query: 'What depends on sqlite_storage?',
-    affectedFiles: ['src/librarian/storage/sqlite_storage.ts', 'storage/sqlite_storage.ts'],
+    affectedFiles: ['src/librainian/storage/sqlite_storage.ts', 'storage/sqlite_storage.ts'],
     groundTruth: [
-      'src/librarian/api/bootstrap.ts', 'api/bootstrap.ts', 'bootstrap.ts',
-      'src/librarian/api/query.ts', 'api/query.ts', 'query.ts',
+      'src/librainian/api/bootstrap.ts', 'api/bootstrap.ts', 'bootstrap.ts',
+      'src/librainian/api/query.ts', 'api/query.ts', 'query.ts',
     ],
   },
 
@@ -221,16 +221,16 @@ const BENCHMARK_QUERIES: BenchmarkQuery[] = [
   {
     name: 'error-handling-pattern',
     category: 'convention',
-    query: 'How do we handle errors in librarian?',
+    query: 'How do we handle errors in librainian?',
     groundTruth: [
-      'src/librarian/cli/errors.ts', 'cli/errors.ts', 'errors.ts',
-      'src/librarian/integration/emergency_mode.ts', 'integration/emergency_mode.ts', 'emergency_mode.ts',
+      'src/librainian/cli/errors.ts', 'cli/errors.ts', 'errors.ts',
+      'src/librainian/integration/emergency_mode.ts', 'integration/emergency_mode.ts', 'emergency_mode.ts',
     ],
   },
   {
     name: 'testing-pattern',
     category: 'convention',
-    query: 'How are librarian tests structured?',
+    query: 'How are librainian tests structured?',
     groundTruth: [
       'src/__tests__/', '__tests__/', 'test', '.test.ts',
     ],
@@ -238,22 +238,22 @@ const BENCHMARK_QUERIES: BenchmarkQuery[] = [
 
   // === SYMBOL-RESOLUTION QUERIES ===
   {
-    name: 'find-LibrarianResponse-type',
+    name: 'find-LiBrainianResponse-type',
     category: 'symbol-resolution',
-    query: 'Where is LibrarianResponse interface defined?',
-    groundTruth: ['src/librarian/types.ts', 'types.ts'],
+    query: 'Where is LiBrainianResponse interface defined?',
+    groundTruth: ['src/librainian/types.ts', 'types.ts'],
   },
   {
     name: 'find-ContextPack-type',
     category: 'symbol-resolution',
     query: 'Where is ContextPack defined?',
-    groundTruth: ['src/librarian/types.ts', 'types.ts'],
+    groundTruth: ['src/librainian/types.ts', 'types.ts'],
   },
   {
     name: 'find-processAgentFeedback',
     category: 'symbol-resolution',
     query: 'Where is processAgentFeedback defined?',
-    groundTruth: ['src/librarian/integration/agent_feedback.ts', 'integration/agent_feedback.ts', 'agent_feedback.ts'],
+    groundTruth: ['src/librainian/integration/agent_feedback.ts', 'integration/agent_feedback.ts', 'agent_feedback.ts'],
   },
 ];
 
@@ -263,7 +263,7 @@ const BENCHMARK_QUERIES: BenchmarkQuery[] = [
 
 interface QueryResult {
   query: BenchmarkQuery;
-  response: LibrarianResponse | null;
+  response: LiBrainianResponse | null;
   retrievedPaths: string[];
   recallAt5: number;
   precisionAt5: number;
@@ -291,7 +291,7 @@ const IS_TIER0 = process.env.LIBRARIAN_TIER0 === '1';
 const describeLive = IS_TIER0 ? describe.skip : describe;
 
 describeLive('Retrieval Quality Benchmarks', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let benchmarkResults: QueryResult[] = [];
   let storageInitialized = false;
   let skipReason: string | null = null;
@@ -299,7 +299,7 @@ describeLive('Retrieval Quality Benchmarks', () => {
   beforeAll(async () => {
     // Use the main workspace - requires bootstrap to have been run
     const workspaceRoot = process.cwd();
-    const dbPath = path.join(workspaceRoot, 'state', 'librarian.db');
+    const dbPath = path.join(workspaceRoot, 'state', 'librainian.db');
 
     try {
       storage = createSqliteStorage(dbPath, workspaceRoot);
@@ -309,9 +309,9 @@ describeLive('Retrieval Quality Benchmarks', () => {
       // Check if database has content
       const version = await storage.getVersion();
       if (!version) {
-        console.warn('Librarian not bootstrapped - benchmarks will skip');
+        console.warn('LiBrainian not bootstrapped - benchmarks will skip');
         storageInitialized = false;
-        skipReason = 'unverified_by_trace(test_fixture_missing): Librarian not bootstrapped (missing db version)';
+        skipReason = 'unverified_by_trace(test_fixture_missing): LiBrainian not bootstrapped (missing db version)';
       }
 
       if (storageInitialized) {
@@ -364,12 +364,12 @@ describeLive('Retrieval Quality Benchmarks', () => {
     for (const benchmark of BENCHMARK_QUERIES) {
       it(`[${benchmark.category}] ${benchmark.name}`, async (ctx) => {
         if (!storageInitialized) {
-          ctx.skip(true, skipReason ?? 'unverified_by_trace(test_fixture_missing): Benchmarks require a bootstrapped librarian DB');
+          ctx.skip(true, skipReason ?? 'unverified_by_trace(test_fixture_missing): Benchmarks require a bootstrapped librainian DB');
           return;
         }
 
         const startTime = Date.now();
-        const response = await queryLibrarian(
+        const response = await queryLiBrainian(
           {
             intent: benchmark.query,
             affectedFiles: benchmark.affectedFiles,

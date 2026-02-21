@@ -36,7 +36,7 @@ vi.mock('../../bootstrap/bootstrap_recovery.js', () => ({
 
 describe('onboarding recovery', () => {
   const workspace = '/workspace';
-  const dbPath = '/workspace/.librarian/librarian.sqlite';
+  const dbPath = '/workspace/.librainian/librainian.sqlite';
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -129,12 +129,12 @@ describe('onboarding recovery', () => {
 
     vi.mocked(createSqliteStorage).mockReturnValue(storage as never);
     vi.mocked(cleanupWorkspaceLocks).mockResolvedValue({
-      lockDirs: [`${workspace}/.librarian/locks`],
+      lockDirs: [`${workspace}/.librainian/locks`],
       scannedFiles: 3,
       staleFiles: 2,
       activePidFiles: 0,
       unknownFreshFiles: 1,
-      stalePaths: [`${workspace}/.librarian/locks/a.lock`, `${workspace}/.librarian/locks/b.lock`],
+      stalePaths: [`${workspace}/.librainian/locks/a.lock`, `${workspace}/.librainian/locks/b.lock`],
       removedFiles: 2,
       errors: [],
     });
@@ -284,7 +284,7 @@ describe('onboarding recovery', () => {
     expect(createSqliteStorage).toHaveBeenNthCalledWith(1, dbPath, workspace);
     expect(createSqliteStorage).toHaveBeenNthCalledWith(
       2,
-      '/new-root/.librarian/librarian.sqlite',
+      '/new-root/.librainian/librainian.sqlite',
       '/new-root'
     );
     expect(createBootstrapConfig).toHaveBeenCalledWith(workspace, expect.any(Object));

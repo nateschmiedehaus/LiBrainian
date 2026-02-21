@@ -1,7 +1,7 @@
 /**
  * @fileoverview Confidence Calibration Tests
  *
- * These tests measure whether the librarian's confidence scores
+ * These tests measure whether the librainian's confidence scores
  * are actually meaningful - i.e., does confidence=0.8 mean
  * ~80% of those answers are correct?
  *
@@ -139,13 +139,13 @@ describe('Confidence Calibration Tests', () => {
     }
 
     // Create test workspace
-    testWorkspace = path.join(os.tmpdir(), `librarian-calibration-${Date.now()}`);
+    testWorkspace = path.join(os.tmpdir(), `librainian-calibration-${Date.now()}`);
     await fs.mkdir(path.join(testWorkspace, 'src', 'api'), { recursive: true });
     await fs.writeFile(path.join(testWorkspace, 'src', 'calculator.ts'), CALCULATOR_TS);
     await fs.writeFile(path.join(testWorkspace, 'src', 'math_utils.ts'), MATH_UTILS_TS);
     await fs.writeFile(path.join(testWorkspace, 'src', 'api', 'calculate.ts'), API_CALCULATE_TS);
 
-    dbPath = path.join(testWorkspace, 'librarian.db');
+    dbPath = path.join(testWorkspace, 'librainian.db');
 
     // Bootstrap
     const { bootstrapProject, createBootstrapConfig } = await import('../api/bootstrap.js');
@@ -181,7 +181,7 @@ describe('Confidence Calibration Tests', () => {
       return;
     }
 
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
 
     const results: CalibrationResult[] = [];
 
@@ -190,7 +190,7 @@ describe('Confidence Calibration Tests', () => {
     for (const fixture of CALCULATOR_CALIBRATION_FIXTURES) {
       console.log(`[${fixture.id}] Query: "${fixture.query}"`);
 
-      const queryResult = await queryLibrarian(
+      const queryResult = await queryLiBrainian(
         { intent: fixture.query, depth: 'L2' },
         storage,
         embeddingService
@@ -285,12 +285,12 @@ describe('Confidence Calibration Tests', () => {
       return;
     }
 
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
 
     // Test the most important query in detail
     const fixture = CALCULATOR_CALIBRATION_FIXTURES.find(f => f.id === 'calc-divide-purpose')!;
 
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: fixture.query, depth: 'L2' },
       storage,
       embeddingService

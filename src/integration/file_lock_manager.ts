@@ -47,7 +47,7 @@ export class FileLockManager {
   private readonly timeoutMs: number;
 
   constructor(workspaceRoot: string, options?: { staleMs?: number; timeoutMs?: number }) {
-    this.lockRoot = path.join(workspaceRoot, '.librarian', 'locks');
+    this.lockRoot = path.join(workspaceRoot, '.librainian', 'locks');
     this.staleMs = options?.staleMs ?? 5 * 60_000;
     this.timeoutMs = options?.timeoutMs ?? 0;
   }

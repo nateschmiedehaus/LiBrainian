@@ -4,7 +4,7 @@
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
  * The Citation Validation Pipeline integrates the Citation Verifier into
- * Librarian's response generation, ensuring all citations in responses are
+ * LiBrainian's response generation, ensuring all citations in responses are
  * validated before delivery.
  *
  * @packageDocumentation

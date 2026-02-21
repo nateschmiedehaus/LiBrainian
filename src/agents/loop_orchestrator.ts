@@ -47,7 +47,7 @@ import type {
   BenchmarkEvolution,
   AgentCapability,
 } from './types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 /**
  * Default configuration for the Scientific Loop Orchestrator.
@@ -90,7 +90,7 @@ export class ScientificLoopOrchestratorImpl implements ScientificLoopOrchestrato
   readonly version = '1.0.0';
   readonly qualityTier = 'full' as const;
 
-  private storage: LibrarianStorage | null = null;
+  private storage: LiBrainianStorage | null = null;
   private config: Required<ScientificLoopOrchestratorConfig>;
   private state: ScientificLoopState;
 
@@ -107,7 +107,7 @@ export class ScientificLoopOrchestratorImpl implements ScientificLoopOrchestrato
     this.state = createInitialState();
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this.storage = storage;
   }
 

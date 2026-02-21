@@ -3,59 +3,59 @@
  * @fileoverview LiBrainian CLI - Developer Experience Interface
  *
  * Commands:
- *   librarian status              - Show current librarian status
- *   librarian stats               - Summarize cost/performance from evidence ledger
- *   librarian calibration         - Build confidence calibration dashboard from patrol runs
- *   librarian query <intent>      - Run a query against the knowledge base
- *   librarian repo-map            - Generate a compact repo map ranked by symbol centrality
- *   librarian feedback <token>    - Submit outcome feedback for a prior query
- *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
- *   librarian embed --fix          - Backfill semantic embeddings and repair coverage
- *   librarian uninstall           - Remove LiBrainian bootstrap artifacts
- *   librarian mcp                 - Start MCP stdio server / print client config
- *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
- *   librarian generate-docs       - Generate TOOLS/CONTEXT/RULES prompt docs
- *   librarian index --force <...> - Incrementally index specific files or git-selected changes
- *   librarian inspect <module>    - Inspect a module's knowledge
- *   librarian confidence <entity> - Show confidence scores for an entity
- *   librarian validate <file>     - Validate constraints for a file
- *   librarian check-providers     - Check provider availability
- *   librarian audit-skill          - Audit SKILL.md files for malicious patterns
- *   librarian visualize           - Generate codebase visualizations
- *   librarian quickstart          - Smooth onboarding and recovery flow
- *   librarian setup               - Quickstart alias (setup-oriented naming)
- *   librarian init                - Scaffold templates or run quickstart/editor MCP onboarding
- *   librarian smoke               - Run external repo smoke harness
- *   librarian journey             - Run agentic journey simulations
- *   librarian live-fire           - Run continuous objective trial matrix
- *   librarian watch               - Watch for file changes and auto-reindex
- *   librarian scan --secrets      - Show secret redaction scan totals
- *   librarian contract            - Show system contract and provenance
- *   librarian diagnose            - Diagnose LiBrainian self-knowledge drift
- *   librarian health              - Show health status (EvolutionOps)
- *   librarian check               - Run diff-aware CI integrity checks
- *   librarian heal                - Run homeostatic healing loop
- *   librarian evolve              - Run evolutionary improvement loop
- *   librarian eval                - Produce FitnessReport.v1
- *   librarian replay              - Replay evolution cycle or variant
- *   librarian constructions       - Browse and validate registry constructions
- *   librarian analyze             - Run static analysis (dead code, complexity)
- *   librarian update              - Hook-friendly alias for incremental indexing
- *   librarian config heal         - Auto-detect and fix suboptimal config
- *   librarian doctor              - Run health diagnostics to identify issues
- *   librarian publish-gate        - Run strict publish-readiness gate checks
- *   librarian repair              - Run DETECT->FIX->VERIFY loop and write an audit report
- *   librarian ralph               - Deprecated alias for `repair`
- *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
- *   librarian openclaw-daemon     - Manage OpenClaw daemon registration + state
- *   librarian memory-bridge       - Show memory bridge annotation state
- *   librarian test-integration     - Run quantitative integration benchmark suites
- *   librarian benchmark           - Run local performance SLA diagnostics
- *   librarian privacy-report      - Summarize privacy-mode audit evidence
- *   librarian export              - Export portable .librarian index bundle
- *   librarian import              - Import portable .librarian index bundle
- *   librarian features            - Show dynamic feature registry and status
- *   librarian capabilities        - Emit machine-readable capability inventory
+ *   librainian status              - Show current librainian status
+ *   librainian stats               - Summarize cost/performance from evidence ledger
+ *   librainian calibration         - Build confidence calibration dashboard from patrol runs
+ *   librainian query <intent>      - Run a query against the knowledge base
+ *   librainian repo-map            - Generate a compact repo map ranked by symbol centrality
+ *   librainian feedback <token>    - Submit outcome feedback for a prior query
+ *   librainian bootstrap [--force] - Run bootstrap to initialize/refresh index
+ *   librainian embed --fix          - Backfill semantic embeddings and repair coverage
+ *   librainian uninstall           - Remove LiBrainian bootstrap artifacts
+ *   librainian mcp                 - Start MCP stdio server / print client config
+ *   librainian eject-docs          - Remove injected librainian docs from CLAUDE.md
+ *   librainian generate-docs       - Generate TOOLS/CONTEXT/RULES prompt docs
+ *   librainian index --force <...> - Incrementally index specific files or git-selected changes
+ *   librainian inspect <module>    - Inspect a module's knowledge
+ *   librainian confidence <entity> - Show confidence scores for an entity
+ *   librainian validate <file>     - Validate constraints for a file
+ *   librainian check-providers     - Check provider availability
+ *   librainian audit-skill          - Audit SKILL.md files for malicious patterns
+ *   librainian visualize           - Generate codebase visualizations
+ *   librainian quickstart          - Smooth onboarding and recovery flow
+ *   librainian setup               - Quickstart alias (setup-oriented naming)
+ *   librainian init                - Scaffold templates or run quickstart/editor MCP onboarding
+ *   librainian smoke               - Run external repo smoke harness
+ *   librainian journey             - Run agentic journey simulations
+ *   librainian live-fire           - Run continuous objective trial matrix
+ *   librainian watch               - Watch for file changes and auto-reindex
+ *   librainian scan --secrets      - Show secret redaction scan totals
+ *   librainian contract            - Show system contract and provenance
+ *   librainian diagnose            - Diagnose LiBrainian self-knowledge drift
+ *   librainian health              - Show health status (EvolutionOps)
+ *   librainian check               - Run diff-aware CI integrity checks
+ *   librainian heal                - Run homeostatic healing loop
+ *   librainian evolve              - Run evolutionary improvement loop
+ *   librainian eval                - Produce FitnessReport.v1
+ *   librainian replay              - Replay evolution cycle or variant
+ *   librainian constructions       - Browse and validate registry constructions
+ *   librainian analyze             - Run static analysis (dead code, complexity)
+ *   librainian update              - Hook-friendly alias for incremental indexing
+ *   librainian config heal         - Auto-detect and fix suboptimal config
+ *   librainian doctor              - Run health diagnostics to identify issues
+ *   librainian publish-gate        - Run strict publish-readiness gate checks
+ *   librainian repair              - Run DETECT->FIX->VERIFY loop and write an audit report
+ *   librainian ralph               - Deprecated alias for `repair`
+ *   librainian install-openclaw-skill - Install official OpenClaw skill + config wiring
+ *   librainian openclaw-daemon     - Manage OpenClaw daemon registration + state
+ *   librainian memory-bridge       - Show memory bridge annotation state
+ *   librainian test-integration     - Run quantitative integration benchmark suites
+ *   librainian benchmark           - Run local performance SLA diagnostics
+ *   librainian privacy-report      - Summarize privacy-mode audit evidence
+ *   librainian export              - Export portable .librainian index bundle
+ *   librainian import              - Import portable .librainian index bundle
+ *   librainian features            - Show dynamic feature registry and status
+ *   librainian capabilities        - Emit machine-readable capability inventory
  *
  * @packageDocumentation
  */
@@ -151,232 +151,232 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean, debug:
 
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
-    description: 'Show current librarian status',
-    usage: 'librarian status [--verbose] [--format text|json] [--out <path>] [--costs] [--cost-budget-usd <n>] [--cost-window-days <n>] [--cost-limit <n>] [--workspace-set <path>]',
+    description: 'Show current librainian status',
+    usage: 'librainian status [--verbose] [--format text|json] [--out <path>] [--costs] [--cost-budget-usd <n>] [--cost-window-days <n>] [--cost-limit <n>] [--workspace-set <path>]',
   },
   'stats': {
     description: 'Summarize tool-call cost and performance from evidence ledger',
-    usage: 'librarian stats [--days N] [--limit N] [--json]',
+    usage: 'librainian stats [--days N] [--limit N] [--json]',
   },
   'calibration': {
     description: 'Build confidence calibration dashboard from patrol run artifacts',
-    usage: 'librarian calibration [--patrol-dir <path>] [--bucket-count N] [--min-samples N] [--json]',
+    usage: 'librainian calibration [--patrol-dir <path>] [--bucket-count N] [--min-samples N] [--json]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--diversify] [--diversity-lambda <0-1>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+    usage: 'librainian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--diversify] [--diversity-lambda <0-1>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
   },
   'repo-map': {
     description: 'Generate a compact codebase map ranked by function centrality',
-    usage: 'librarian repo-map [--style compact|detailed|json] [--max-tokens N] [--focus pathA,pathB] [--json]',
+    usage: 'librainian repo-map [--style compact|detailed|json] [--max-tokens N] [--focus pathA,pathB] [--json]',
   },
   'feedback': {
     description: 'Submit task outcome feedback for a prior query',
-    usage: 'librarian feedback <feedbackToken> --outcome success|failure|partial [--missing-context "..."] [--json]',
+    usage: 'librainian feedback <feedbackToken> --outcome success|failure|partial [--missing-context "..."] [--json]',
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
-    usage: 'librarian bootstrap [--force] [--force-resume] [--workspace-set <path>] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+    usage: 'librainian bootstrap [--force] [--force-resume] [--workspace-set <path>] [--emit-baseline] [--install-grammars] [--no-claude-md]',
   },
   'embed': {
     description: 'Repair and backfill semantic embeddings',
-    usage: 'librarian embed --fix [--json]',
+    usage: 'librainian embed --fix [--json]',
   },
   'uninstall': {
     description: 'Remove LiBrainian-managed bootstrap artifacts',
-    usage: 'librarian uninstall [--dry-run] [--keep-index] [--force] [--json] [--no-install]',
+    usage: 'librainian uninstall [--dry-run] [--keep-index] [--force] [--json] [--no-install]',
   },
   'mcp': {
     description: 'Start MCP stdio server or print client config snippets',
-    usage: 'librarian mcp [--print-config] [--client claude|cursor|vscode|windsurf|gemini] [--launcher installed|npx] [--json]',
+    usage: 'librainian mcp [--print-config] [--client claude|cursor|vscode|windsurf|gemini] [--launcher installed|npx] [--json]',
   },
   'eject-docs': {
-    description: 'Remove injected librarian docs from CLAUDE.md files',
-    usage: 'librarian eject-docs [--dry-run] [--json]',
+    description: 'Remove injected librainian docs from CLAUDE.md files',
+    usage: 'librainian eject-docs [--dry-run] [--json]',
   },
   'generate-docs': {
     description: 'Generate TOOLS/CONTEXT/RULES prompt docs for agent injection',
-    usage: 'librarian generate-docs [--output-dir <path>] [--include tools,context,rules] [--no-tools] [--no-context] [--no-rules] [--max-tokens <n>] [--combined] [--json]',
+    usage: 'librainian generate-docs [--output-dir <path>] [--include tools,context,rules] [--no-tools] [--no-context] [--no-rules] [--max-tokens <n>] [--combined] [--json]',
   },
   'inspect': {
     description: 'Inspect a module or function\'s knowledge',
-    usage: 'librarian inspect <path-or-name>',
+    usage: 'librainian inspect <path-or-name>',
   },
   'confidence': {
     description: 'Show confidence scores for an entity',
-    usage: 'librarian confidence <entity-id>',
+    usage: 'librainian confidence <entity-id>',
   },
   'validate': {
     description: 'Validate constraints for a file',
-    usage: 'librarian validate <file-path>',
+    usage: 'librainian validate <file-path>',
   },
   'check-providers': {
     description: 'Check provider availability and authentication',
-    usage: 'librarian check-providers [--format text|json] [--out <path>]',
+    usage: 'librainian check-providers [--format text|json] [--out <path>]',
   },
   'audit-skill': {
     description: 'Audit a SKILL.md for malicious or suspicious patterns',
-    usage: 'librarian audit-skill <path-to-SKILL.md> [--json]',
+    usage: 'librainian audit-skill <path-to-SKILL.md> [--json]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
-    usage: 'librarian visualize [--type dependency|call|tree|health] [--format ascii|mermaid] [--focus <path>]',
+    usage: 'librainian visualize [--type dependency|call|tree|health] [--format ascii|mermaid] [--focus <path>]',
   },
   'coverage': {
     description: 'Generate UC x method x scenario coverage audit',
-    usage: 'librarian coverage [--output <path>] [--strict]',
+    usage: 'librainian coverage [--output <path>] [--strict]',
   },
   'quickstart': {
     description: 'Smooth onboarding and recovery flow',
-    usage: 'librarian quickstart [--mode fast|full|--depth quick|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline] [--ci] [--no-mcp]',
+    usage: 'librainian quickstart [--mode fast|full|--depth quick|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline] [--ci] [--no-mcp]',
   },
   'setup': {
     description: 'Setup-oriented alias for quickstart onboarding',
-    usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
+    usage: 'librainian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'init': {
     description: 'Scaffold constructions/MCP/CLAUDE.md or run quickstart onboarding fallback',
-    usage: 'librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json] | [quickstart options]',
+    usage: 'librainian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json] | [quickstart options]',
   },
   'smoke': {
     description: 'Run external repo smoke harness',
-    usage: 'librarian smoke [--repos-root <path>] [--max-repos N] [--repo a,b] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
+    usage: 'librainian smoke [--repos-root <path>] [--max-repos N] [--repo a,b] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
   },
   'journey': {
     description: 'Run agentic journey simulations',
-    usage: 'librarian journey [--repos-root <path>] [--max-repos N] [--llm disabled|optional] [--deterministic] [--strict-objective] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
+    usage: 'librainian journey [--repos-root <path>] [--max-repos N] [--llm disabled|optional] [--deterministic] [--strict-objective] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
   },
   'live-fire': {
     description: 'Run continuous objective trial matrix',
-    usage: 'librarian live-fire [--profile <name>|--profiles <a,b>] [--matrix] [--profiles-file <path>] [--repos-root <path>] [--rounds N] [--llm-modes disabled,optional] [--strict-objective] [--include-smoke] [--json]',
+    usage: 'librainian live-fire [--profile <name>|--profiles <a,b>] [--matrix] [--profiles-file <path>] [--repos-root <path>] [--rounds N] [--llm-modes disabled,optional] [--strict-objective] [--include-smoke] [--json]',
   },
   'health': {
     description: 'Show current LiBrainian health status',
-    usage: 'librarian health [--verbose] [--completeness] [--format text|json|prometheus]',
+    usage: 'librainian health [--verbose] [--completeness] [--format text|json|prometheus]',
   },
   'check': {
     description: 'Run diff-aware CI integrity checks',
-    usage: 'librarian check [--diff HEAD~1..HEAD|<base-ref>|working-tree] [--format text|json|junit] [--out <path>]',
+    usage: 'librainian check [--diff HEAD~1..HEAD|<base-ref>|working-tree] [--format text|json|junit] [--out <path>]',
   },
   'heal': {
     description: 'Run homeostatic healing loop until healthy',
-    usage: 'librarian heal [--max-cycles N] [--budget-tokens N] [--dry-run]',
+    usage: 'librainian heal [--max-cycles N] [--budget-tokens N] [--dry-run]',
   },
   'evolve': {
     description: 'Run evolutionary improvement loop',
-    usage: 'librarian evolve [--cycles N] [--candidates N] [--dry-run]',
+    usage: 'librainian evolve [--cycles N] [--candidates N] [--dry-run]',
   },
   'eval': {
     description: 'Produce FitnessReport.v1 for current state',
-    usage: 'librarian eval [--output <path>] [--save-baseline] [--stages 0-4]',
+    usage: 'librainian eval [--output <path>] [--save-baseline] [--stages 0-4]',
   },
   'replay': {
     description: 'Replay an evolution cycle or variant for analysis',
-    usage: 'librarian replay <cycle-id|variant-id> [--verbose]',
+    usage: 'librainian replay <cycle-id|variant-id> [--verbose]',
   },
   'watch': {
     description: 'Watch for file changes and auto-reindex',
-    usage: 'librarian watch [--debounce <ms>] [--quiet]',
+    usage: 'librainian watch [--debounce <ms>] [--quiet]',
   },
   'contract': {
     description: 'Show system contract and provenance',
-    usage: 'librarian contract [--pretty]',
+    usage: 'librainian contract [--pretty]',
   },
   'diagnose': {
     description: 'Diagnose LiBrainian self-knowledge drift',
-    usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
+    usage: 'librainian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
   },
   'compose': {
     description: 'Compose construction pipelines or technique bundles from intent',
-    usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty] [--timeout <ms>] [--verbose]',
+    usage: 'librainian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty] [--timeout <ms>] [--verbose]',
   },
   'constructions': {
     description: 'List/search/describe/install/run/validate constructions',
-    usage: 'librarian constructions list|search|describe|install|run|validate [options]',
+    usage: 'librainian constructions list|search|describe|install|run|validate [options]',
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
-    usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
+    usage: 'librainian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'scan': {
     description: 'Scan/redaction audit reporting for sensitive content',
-    usage: 'librarian scan --secrets [--json|--format text|json]',
+    usage: 'librainian scan --secrets [--json|--format text|json]',
   },
   'update': {
     description: 'Hook-friendly alias for incremental indexing (implies --force)',
-    usage: 'librarian update <file...>|--incremental|--staged|--since <ref> [--verbose]',
+    usage: 'librainian update <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'analyze': {
     description: 'Run static analysis (dead code, complexity)',
-    usage: 'librarian analyze --dead-code | --complexity [--format text|json]',
+    usage: 'librainian analyze --dead-code | --complexity [--format text|json]',
   },
   'config': {
     description: 'Configuration management (heal, diagnose)',
-    usage: 'librarian config heal [--dry-run] [--diagnose-only] [--rollback] [--history]',
+    usage: 'librainian config heal [--dry-run] [--diagnose-only] [--rollback] [--history]',
   },
   'doctor': {
     description: 'Run health diagnostics to identify issues',
-    usage: 'librarian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency] [--install-grammars] [--risk-tolerance safe|low|medium]',
+    usage: 'librainian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency] [--install-grammars] [--risk-tolerance safe|low|medium]',
   },
   'publish-gate': {
     description: 'Run strict publish-readiness gate checks',
-    usage: 'librarian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
+    usage: 'librainian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
   },
   'repair': {
     description: 'Run DETECT->FIX->VERIFY loop and write an audit report',
-    usage: 'librarian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
+    usage: 'librainian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
   },
   'ralph': {
     description: '[deprecated] alias for repair',
-    usage: 'librarian ralph [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
+    usage: 'librainian ralph [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
   },
   'external-repos': {
     description: 'Sync external repo corpus from manifest.json',
-    usage: 'librarian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
+    usage: 'librainian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
   },
   'install-openclaw-skill': {
     description: 'Install official OpenClaw skill and register LiBrainian tool wiring',
-    usage: 'librarian install-openclaw-skill [--openclaw-root <path>] [--dry-run] [--json]',
+    usage: 'librainian install-openclaw-skill [--openclaw-root <path>] [--dry-run] [--json]',
   },
   'openclaw-daemon': {
     description: 'Start/stop/status for OpenClaw daemon registration and local state',
-    usage: 'librarian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]',
+    usage: 'librainian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]',
   },
   'memory-bridge': {
     description: 'Show memory bridge entry and state-file health',
-    usage: 'librarian memory-bridge status|remember|add|search|update|delete [options]',
+    usage: 'librainian memory-bridge status|remember|add|search|update|delete [options]',
   },
   'test-integration': {
     description: 'Run quantitative integration test suites (currently OpenClaw)',
-    usage: 'librarian test-integration --suite openclaw [--scenario all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration] [--fixtures-root <path>] [--strict] [--json]',
+    usage: 'librainian test-integration --suite openclaw [--scenario all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration] [--fixtures-root <path>] [--strict] [--json]',
   },
   'benchmark': {
     description: 'Run local performance SLA diagnostics',
-    usage: 'librarian benchmark [--queries N] [--incremental-files N] [--json] [--out <path>] [--fail-on never|alert|block]',
+    usage: 'librainian benchmark [--queries N] [--incremental-files N] [--json] [--out <path>] [--fail-on never|alert|block]',
   },
   'privacy-report': {
     description: 'Summarize privacy-audit events and external content transmission',
-    usage: 'librarian privacy-report [--since <ISO-8601>] [--format text|json] [--out <path>]',
+    usage: 'librainian privacy-report [--since <ISO-8601>] [--format text|json] [--out <path>]',
   },
   'export': {
-    description: 'Export portable .librarian index state bundle',
-    usage: 'librarian export [--output <bundle.tar.gz>] [--json] [--out <path>]',
+    description: 'Export portable .librainian index state bundle',
+    usage: 'librainian export [--output <bundle.tar.gz>] [--json] [--out <path>]',
   },
   'import': {
-    description: 'Import portable .librarian index state bundle',
-    usage: 'librarian import --input <bundle.tar.gz> [--json] [--out <path>]',
+    description: 'Import portable .librainian index state bundle',
+    usage: 'librainian import --input <bundle.tar.gz> [--json] [--out <path>]',
   },
   'features': {
     description: 'List dynamic LiBrainian feature registry and current status',
-    usage: 'librarian features [--json] [--verbose] [--out <path>]',
+    usage: 'librainian features [--json] [--verbose] [--out <path>]',
   },
   'capabilities': {
     description: 'Emit machine-readable capability inventory (MCP tools, constructions, compositions)',
-    usage: 'librarian capabilities [--json] [--out <path>]',
+    usage: 'librainian capabilities [--json] [--out <path>]',
   },
   'help': {
     description: 'Show help information',
-    usage: 'librarian help [command]',
+    usage: 'librainian help [command]',
   },
 };
 
@@ -407,7 +407,7 @@ async function main(): Promise<void> {
 
   if (values.version) {
     const { LIBRARIAN_VERSION } = await import('../index.js');
-    console.log(`librarian ${LIBRARIAN_VERSION.string}`);
+    console.log(`librainian ${LIBRARIAN_VERSION.string}`);
     return;
   }
 
@@ -458,7 +458,7 @@ async function main(): Promise<void> {
       `Unknown command: ${command}`,
       {
         recoveryHints: [
-          `Run 'librarian help' for usage information`,
+          `Run 'librainian help' for usage information`,
           `Available commands: ${Object.keys(COMMANDS).join(', ')}`,
         ],
         context: { command },
@@ -711,7 +711,7 @@ async function main(): Promise<void> {
             showHistory: args.includes('--history'),
           });
         } else {
-          throw new CliError('Unknown config subcommand. Use: librarian config heal.', 'INVALID_ARGUMENT');
+          throw new CliError('Unknown config subcommand. Use: librainian config heal.', 'INVALID_ARGUMENT');
         }
         break;
 		      case 'doctor':

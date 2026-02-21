@@ -1,29 +1,29 @@
 /**
- * @fileoverview Bridge between LibrarianEventBus and the evidence ledger.
+ * @fileoverview Bridge between LiBrainianEventBus and the evidence ledger.
  *
- * Records librarian events into the evidence ledger with stable session IDs and
+ * Records librainian events into the evidence ledger with stable session IDs and
  * emits correlation-conflict entries when multiple sessions touch the same task/query.
  */
 
-import type { LibrarianEvent, LibrarianEventHandler, LibrarianEventBus } from '../events.js';
+import type { LiBrainianEvent, LiBrainianEventHandler, LiBrainianEventBus } from '../events.js';
 import { globalEventBus } from '../events.js';
 import type { IEvidenceLedger, SessionId, ToolCallEvidence } from './evidence_ledger.js';
 import { logWarning } from '../telemetry/logger.js';
 
 export interface EventLedgerBridgeOptions {
   ledger: IEvidenceLedger;
-  eventBus?: LibrarianEventBus;
+  eventBus?: LiBrainianEventBus;
   enabled?: boolean;
 }
 
-const EVENT_TOOL_PREFIX = 'librarian_event';
-const CONFLICT_TOOL_NAME = 'librarian_event_conflict';
+const EVENT_TOOL_PREFIX = 'librainian_event';
+const CONFLICT_TOOL_NAME = 'librainian_event_conflict';
 const MAX_APPEND_ATTEMPTS = 3;
 const BASE_RETRY_DELAY_MS = 25;
 
 let unsubscribe: (() => void) | null = null;
 let activeLedger: IEvidenceLedger | null = null;
-let activeEventBus: LibrarianEventBus | null = null;
+let activeEventBus: LiBrainianEventBus | null = null;
 
 const correlationIndex = new Map<string, Set<string>>();
 const recordedConflicts = new Set<string>();
@@ -35,7 +35,7 @@ function coerceSessionId(value: unknown): SessionId | undefined {
   return value as SessionId;
 }
 
-function extractSessionId(event: LibrarianEvent): SessionId | undefined {
+function extractSessionId(event: LiBrainianEvent): SessionId | undefined {
   const data = (event.data ?? {}) as Record<string, unknown>;
   return coerceSessionId(
     event.sessionId ??
@@ -45,7 +45,7 @@ function extractSessionId(event: LibrarianEvent): SessionId | undefined {
   );
 }
 
-function extractCorrelationKey(event: LibrarianEvent): string | null {
+function extractCorrelationKey(event: LiBrainianEvent): string | null {
   const data = (event.data ?? {}) as Record<string, unknown>;
   const taskId = typeof data.taskId === 'string' ? data.taskId : undefined;
   if (taskId) return `task:${taskId}`;
@@ -93,7 +93,7 @@ async function appendWithRetry(
   }
 }
 
-async function recordEventEntry(ledger: IEvidenceLedger, event: LibrarianEvent, sessionId?: SessionId): Promise<void> {
+async function recordEventEntry(ledger: IEvidenceLedger, event: LiBrainianEvent, sessionId?: SessionId): Promise<void> {
   const correlationKey = extractCorrelationKey(event);
   const payload: ToolCallEvidence = {
     toolName: `${EVENT_TOOL_PREFIX}:${event.type}`,
@@ -116,7 +116,7 @@ async function recordEventEntry(ledger: IEvidenceLedger, event: LibrarianEvent, 
     provenance: {
       source: 'system_observation',
       method: 'event_bus',
-      agent: { type: 'tool', identifier: 'LibrarianEventBus' },
+      agent: { type: 'tool', identifier: 'LiBrainianEventBus' },
     },
     relatedEntries: [],
     sessionId,
@@ -152,7 +152,7 @@ async function recordConflictEntries(
       provenance: {
         source: 'system_observation',
         method: 'event_correlation',
-        agent: { type: 'tool', identifier: 'LibrarianEventBus' },
+        agent: { type: 'tool', identifier: 'LiBrainianEventBus' },
       },
       relatedEntries: [],
       sessionId: sessionId as SessionId,
@@ -160,7 +160,7 @@ async function recordConflictEntries(
   }
 }
 
-const bridgeHandler: LibrarianEventHandler = async (event: LibrarianEvent): Promise<void> => {
+const bridgeHandler: LiBrainianEventHandler = async (event: LiBrainianEvent): Promise<void> => {
   if (!activeLedger) return;
   const sessionId = extractSessionId(event);
   try {
@@ -244,7 +244,7 @@ export async function collectCorrelationConflictDisclosures(
   }
 }
 
-export function getEventLedgerBridgeEventBus(): LibrarianEventBus | null {
+export function getEventLedgerBridgeEventBus(): LiBrainianEventBus | null {
   return activeEventBus;
 }
 

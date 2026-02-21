@@ -30,7 +30,7 @@ import { deterministic } from '../confidence.js';
 describe('Transitive Defeat Propagation (WU-THIMPL-103)', () => {
   let storage: EvidenceGraphStorage;
   let dbPath: string;
-  const testDir = join(tmpdir(), 'librarian-transitive-defeat-test-' + Date.now());
+  const testDir = join(tmpdir(), 'librainian-transitive-defeat-test-' + Date.now());
   const workspace = '/test/workspace';
 
   beforeEach(async () => {

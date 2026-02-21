@@ -1,12 +1,12 @@
 import { safeJsonParse, getResultErrorMessage } from '../utils/safe_json.js';
 import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { GovernorContext } from '../api/governor_context.js';
 import { emptyArray } from '../api/empty_values.js';
 import type { MethodFamilyId } from './method_guidance.js';
 import { createHash } from 'crypto';
 
-const CACHE_STATE_KEY = 'librarian.method_pack_cache.v1';
+const CACHE_STATE_KEY = 'librainian.method_pack_cache.v1';
 const SCHEMA_VERSION = 1;
 const DEFAULT_MAX_AGE_DAYS = 7;
 const PROMPT_MAX_INTENT_CHARS = 400;
@@ -32,7 +32,7 @@ export interface MethodPackEvidence {
 
 export interface MethodPack {
   schema_version: number;
-  kind: 'LibrarianMethodPack.v1';
+  kind: 'LiBrainianMethodPack.v1';
   families: MethodFamilyId[];
   uc_ids: string[];
   intent: string | null;
@@ -84,7 +84,7 @@ const MAP_CODES = [
 ];
 
 export async function getMethodPack(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   families: MethodFamilyId[];
   ucIds?: string[];
   intent?: string | null;
@@ -134,7 +134,7 @@ export async function getMethodPack(options: {
 }
 
 export async function preloadMethodPacks(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   families: MethodFamilyId[];
   llmProvider: 'claude' | 'codex';
   llmModelId: string;
@@ -167,10 +167,10 @@ async function generateMethodPack(options: {
     .map((family) => `${family}: ${METHOD_FAMILY_FOCUS[family]}`)
     .join('\n');
   const prompt = [
-    'You are Librarian. Build a method pack for an agent.',
+    'You are LiBrainian. Build a method pack for an agent.',
     'Return JSON only, no commentary.',
     'Schema:',
-    '{"schema_version":1,"kind":"LibrarianMethodPack.v1","families":["MF-01"],"uc_ids":["UC-001"],"intent":null,"hints":[""],"steps":[""],"required_inputs":[""],"map_codes":["MAP.ARCH"],"confidence":0.0,"generated_at":""}',
+    '{"schema_version":1,"kind":"LiBrainianMethodPack.v1","families":["MF-01"],"uc_ids":["UC-001"],"intent":null,"hints":[""],"steps":[""],"required_inputs":[""],"map_codes":["MAP.ARCH"],"confidence":0.0,"generated_at":""}',
     'Rules:',
     '- Provide 3-8 hints, 3-10 steps, 3-12 required inputs.',
     '- Map codes must be chosen from the list below.',
@@ -231,7 +231,7 @@ function parseMethodPackResponse(text: string, expectedFamilies: MethodFamilyId[
     throw new Error(`unverified_by_trace(provider_invalid_output): ${message}`);
   }
   const value = parsed.value as Partial<MethodPack>;
-  if (value.kind !== 'LibrarianMethodPack.v1' || value.schema_version !== 1) {
+  if (value.kind !== 'LiBrainianMethodPack.v1' || value.schema_version !== 1) {
     throw new Error('unverified_by_trace(provider_invalid_output): invalid method pack schema');
   }
   const families = Array.isArray(value.families)
@@ -242,7 +242,7 @@ function parseMethodPackResponse(text: string, expectedFamilies: MethodFamilyId[
   }
   return {
     schema_version: SCHEMA_VERSION,
-    kind: 'LibrarianMethodPack.v1',
+    kind: 'LiBrainianMethodPack.v1',
     families: expectedFamilies.length ? expectedFamilies : families,
     uc_ids: Array.isArray(value.uc_ids) ? value.uc_ids.filter((uc) => typeof uc === 'string') : emptyArray<string>(),
     intent: typeof value.intent === 'string' ? value.intent : null,
@@ -313,7 +313,7 @@ function normalizeIntent(intent: string | null): string | null {
     : trimmed;
 }
 
-async function loadCache(storage: LibrarianStorage): Promise<MethodPackCache> {
+async function loadCache(storage: LiBrainianStorage): Promise<MethodPackCache> {
   const raw = await storage.getState(CACHE_STATE_KEY);
   if (!raw) {
     return { schema_version: SCHEMA_VERSION, updated_at: new Date().toISOString(), packs: {} };
@@ -333,7 +333,7 @@ async function loadCache(storage: LibrarianStorage): Promise<MethodPackCache> {
   };
 }
 
-async function saveCache(storage: LibrarianStorage, cache: MethodPackCache): Promise<void> {
+async function saveCache(storage: LiBrainianStorage, cache: MethodPackCache): Promise<void> {
   await storage.setState(CACHE_STATE_KEY, JSON.stringify(cache));
 }
 

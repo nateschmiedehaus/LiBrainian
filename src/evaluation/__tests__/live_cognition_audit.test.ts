@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../api/llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: mocks.resolveModel,
+  resolveLiBrainianModelConfigWithDiscovery: mocks.resolveModel,
 }));
 
 vi.mock('../../adapters/llm_service.js', () => ({
@@ -25,7 +25,7 @@ describe('live cognition audit', () => {
   let outputDir: string;
 
   beforeEach(async () => {
-    workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-cognition-workspace-'));
+    workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librainian-cognition-workspace-'));
     outputDir = path.join(workspaceRoot, 'state', 'audits');
     mocks.resolveModel.mockResolvedValue({ provider: 'openai', modelId: 'gpt-test' });
     mocks.chat.mockResolvedValue({

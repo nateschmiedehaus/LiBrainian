@@ -82,7 +82,7 @@ export class ScipTypescriptBackend implements ScipBackend {
     this.cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.outputPath = path.resolve(
-      options.outputPath ?? path.join(this.workspaceRoot, '.librarian', 'scip', 'index.scip')
+      options.outputPath ?? path.join(this.workspaceRoot, '.librainian', 'scip', 'index.scip')
     );
     this.commandRunner = options.commandRunner ?? runScipTypescriptIndex;
     this.decoder = options.decoder ?? decodeScipIndex;
@@ -142,7 +142,7 @@ export class ScipTypescriptBackend implements ScipBackend {
         this.byFile = nextByFile;
         this.cachedAt = this.now();
       } catch (error: unknown) {
-        logWarning('[librarian] SCIP backend refresh failed; falling back to parser registry', {
+        logWarning('[librainian] SCIP backend refresh failed; falling back to parser registry', {
           workspaceRoot: this.workspaceRoot,
           outputPath: this.outputPath,
           error: getErrorMessage(error),

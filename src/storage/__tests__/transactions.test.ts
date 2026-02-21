@@ -3,7 +3,7 @@ import {
   withinTransaction,
   TransactionConflictError,
 } from '../transactions.js';
-import type { LibrarianStorage, TransactionContext } from '../types.js';
+import type { LiBrainianStorage, TransactionContext } from '../types.js';
 
 describe('withinTransaction', () => {
   it('runs the callback inside storage.transaction', async () => {
@@ -13,7 +13,7 @@ describe('withinTransaction', () => {
         calls.push('transaction');
         return fn({} as TransactionContext);
       },
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await withinTransaction(storage, async () => 'ok');
 
@@ -31,7 +31,7 @@ describe('withinTransaction', () => {
         }
         return fn({} as TransactionContext);
       },
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await withinTransaction(storage, async () => 'ok');
 
@@ -44,7 +44,7 @@ describe('withinTransaction', () => {
       transaction: async (): Promise<string> => {
         throw new TransactionConflictError('collision');
       },
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     await expect(
       withinTransaction(storage, async () => 'ok', {
@@ -58,7 +58,7 @@ describe('withinTransaction', () => {
       transaction: async (): Promise<string> => {
         throw new TransactionConflictError('collision');
       },
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     await expect(
       withinTransaction(storage, async () => 'ok', {
@@ -78,7 +78,7 @@ describe('withinTransaction', () => {
         }
         return fn({} as TransactionContext);
       },
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await withinTransaction(storage, async () => 'ok', {
       contract: { onConflict: 'retry', maxRetries: 3 },

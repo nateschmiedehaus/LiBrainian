@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { composeCommand } from '../compose.js';
-import { LiBrainian } from '../../../api/librarian.js';
+import { LiBrainian } from '../../../api/librainian.js';
 import { composeConstructions } from '../../../constructions/lego_pipeline.js';
 
-vi.mock('../../../api/librarian.js');
+vi.mock('../../../api/librainian.js');
 vi.mock('../../../constructions/lego_pipeline.js', () => ({
   composeConstructions: vi.fn().mockResolvedValue({
     mode: 'constructions',

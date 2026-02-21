@@ -2,7 +2,7 @@
  * @fileoverview TDD (Test-Driven Development) Types
  *
  * Comprehensive type definitions for TDD techniques, skills, and methods
- * exposed through the librarian API for agent-driven development workflows.
+ * exposed through the librainian API for agent-driven development workflows.
  */
 
 // ---------------------------------------------------------------------------

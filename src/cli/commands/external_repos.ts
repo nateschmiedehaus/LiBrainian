@@ -6,7 +6,7 @@
  * corpus input for smoke tests and evaluation harnesses.
  *
  * Usage:
- *   librarian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]
+ *   librainian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]
  */
 
 import { parseArgs } from 'node:util';
@@ -21,7 +21,7 @@ type ExternalRepoSmokeModule = typeof import('../../evaluation/external_repo_smo
 async function loadExternalRepoSmokeModule(): Promise<ExternalRepoSmokeModule> {
   const externalModuleId = 'librainian-eval/external_repo_smoke.js';
   return loadEvaluationModule<ExternalRepoSmokeModule>(
-    'librarian external-repos --verify',
+    'librainian external-repos --verify',
     () => import('../../evaluation/external_repo_smoke.js'),
     () => import(externalModuleId) as Promise<ExternalRepoSmokeModule>,
   );
@@ -206,7 +206,7 @@ export async function externalReposCommand(options: ExternalReposCommandOptions)
   const maxRepos = parseMaxRepos(values['max-repos']);
 
   if (subcommand !== 'sync') {
-    const message = `Unknown external-repos subcommand: ${subcommand}. Use: librarian external-repos sync`;
+    const message = `Unknown external-repos subcommand: ${subcommand}. Use: librainian external-repos sync`;
     if (json) {
       console.log(JSON.stringify({ error: { code: 'EINVALID_ARGUMENT', message } }, null, 2));
     } else {

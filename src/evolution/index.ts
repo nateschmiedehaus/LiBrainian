@@ -1,5 +1,5 @@
 /**
- * @fileoverview EvolutionOps Module for Librarian
+ * @fileoverview EvolutionOps Module for LiBrainian
  *
  * Provides self-evolution capabilities:
  * - Multi-objective fitness evaluation (FitnessReport.v1)

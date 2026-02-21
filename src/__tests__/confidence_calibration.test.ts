@@ -13,7 +13,7 @@ let workspaceRoot = '';
 let storage: ReturnType<typeof createSqliteStorage>;
 
 const createWorkspace = async (): Promise<string> => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-calibration-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-calibration-'));
   const canonPath = path.join(root, 'config', 'canon.json');
   await fs.mkdir(path.dirname(canonPath), { recursive: true });
   await fs.writeFile(canonPath, JSON.stringify({ schema_version: 1 }, null, 2));

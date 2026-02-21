@@ -2250,7 +2250,7 @@ export function suggestPreset(domainHint: string): PresetKey {
 // ============================================================================
 
 /**
- * Convert a GradedStrength to a Librarian ConfidenceValue.
+ * Convert a GradedStrength to a LiBrainian ConfidenceValue.
  *
  * @param strength - The graded strength to convert
  * @returns A ConfidenceValue with appropriate provenance
@@ -2293,7 +2293,7 @@ export function toConfidenceValue(strength: GradedStrength): ConfidenceValue {
 }
 
 /**
- * Convert a Librarian ConfidenceValue to a GradedStrength.
+ * Convert a LiBrainian ConfidenceValue to a GradedStrength.
  *
  * @param confidence - The confidence value to convert
  * @returns A GradedStrength with appropriate basis
@@ -2334,10 +2334,10 @@ export function fromConfidenceValue(confidence: ConfidenceValue): GradedStrength
 }
 
 /**
- * Convert an EpistemicObject to a Librarian Claim.
+ * Convert an EpistemicObject to a LiBrainian Claim.
  *
  * @param obj - The epistemic object to convert
- * @returns A Claim compatible with Librarian's evidence graph
+ * @returns A Claim compatible with LiBrainian's evidence graph
  */
 export function toClaim(obj: EpistemicObject): Claim {
   const confidence = obj.attitude.strength
@@ -2384,7 +2384,7 @@ export function toClaim(obj: EpistemicObject): Claim {
 }
 
 /**
- * Convert a Librarian Claim to an EpistemicObject.
+ * Convert a LiBrainian Claim to an EpistemicObject.
  *
  * @param claim - The claim to convert
  * @returns An EpistemicObject

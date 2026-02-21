@@ -1,18 +1,18 @@
 /**
- * @fileoverview Debug CLI commands for the Librarian system (G10)
+ * @fileoverview Debug CLI commands for the LiBrainian system (G10)
  *
- * Provides command-line interface for debugging librarian operations:
- * - `librarian debug inspect <id>` - Inspect a module, function, or pack
- * - `librarian debug trace <operation>` - Trace an operation
- * - `librarian debug confidence <id>` - Show confidence breakdown
- * - `librarian debug low-confidence [threshold]` - Find low confidence entities
+ * Provides command-line interface for debugging librainian operations:
+ * - `librainian debug inspect <id>` - Inspect a module, function, or pack
+ * - `librainian debug trace <operation>` - Trace an operation
+ * - `librainian debug confidence <id>` - Show confidence breakdown
+ * - `librainian debug low-confidence [threshold]` - Find low confidence entities
  *
  * Usage:
  * ```bash
- * npx ts-node src/librarian/cli/commands/debug.ts inspect src/api/index.ts
- * npx ts-node src/librarian/cli/commands/debug.ts trace query --intent "How does auth work?"
- * npx ts-node src/librarian/cli/commands/debug.ts confidence my-function-id
- * npx ts-node src/librarian/cli/commands/debug.ts low-confidence 0.4
+ * npx ts-node src/librainian/cli/commands/debug.ts inspect src/api/index.ts
+ * npx ts-node src/librainian/cli/commands/debug.ts trace query --intent "How does auth work?"
+ * npx ts-node src/librainian/cli/commands/debug.ts confidence my-function-id
+ * npx ts-node src/librainian/cli/commands/debug.ts low-confidence 0.4
  * ```
  */
 
@@ -20,16 +20,16 @@ import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { resolveDbPath } from '../db_path.js';
 import { createInspector } from '../../debug/inspector.js';
 import { globalTracer, formatTraceTree } from '../../debug/tracer.js';
-import { queryLibrarian } from '../../api/query.js';
-import type { LibrarianStorage } from '../../storage/types.js';
-import type { LibrarianQuery } from '../../types.js';
+import { queryLiBrainian } from '../../api/query.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import type { LiBrainianQuery } from '../../types.js';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface DebugCommandContext {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspace: string;
 }
 
@@ -87,7 +87,7 @@ export async function inspectCommand(
 }
 
 /**
- * Trace a librarian operation.
+ * Trace a librainian operation.
  */
 export async function traceCommand(
   operation: string,
@@ -108,14 +108,14 @@ export async function traceCommand(
 
       const spanId = globalTracer.startSpan('debug_query');
       try {
-        const query: LibrarianQuery = {
+        const query: LiBrainianQuery = {
           intent: options.intent,
           affectedFiles: options.files,
           depth: (options.depth as 'L0' | 'L1' | 'L2' | 'L3') ?? 'L1',
         };
 
         globalTracer.addEvent(spanId, 'query_start', { query });
-        const response = await queryLibrarian(query, context.storage);
+        const response = await queryLiBrainian(query, context.storage);
         globalTracer.addEvent(spanId, 'query_complete', {
           packsReturned: response.packs.length,
           latencyMs: response.latencyMs,
@@ -352,7 +352,7 @@ export async function runDebugCommand(args: string[]): Promise<void> {
 
   if (!command || command === 'help' || command === '--help') {
     console.log(`
-Librarian Debug Commands:
+LiBrainian Debug Commands:
 
   inspect <id>              Inspect a module, function, or context pack
   trace <operation>         Trace an operation (query, list-modules, list-functions)
@@ -377,7 +377,7 @@ Examples:
   const workspace = process.env.LIBRARIAN_WORKSPACE ?? process.cwd();
   const dbPath = process.env.LIBRARIAN_DB ?? await resolveDbPath(workspace);
 
-  let storage: LibrarianStorage | null = null;
+  let storage: LiBrainianStorage | null = null;
 
   try {
     storage = await createSqliteStorage(dbPath);

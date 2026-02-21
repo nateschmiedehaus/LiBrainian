@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
 import { createSqliteStorage } from '../sqlite_storage.js';
-import type { LibrarianStorage } from '../types.js';
+import type { LiBrainianStorage } from '../types.js';
 import type { FunctionKnowledge } from '../../types.js';
 
 /**
@@ -42,12 +42,12 @@ function createTestFunction(id: string, name: string, filePath: string, startLin
 }
 
 describe('SQLite WAL Mode Concurrent Reads', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), 'librarian-wal-test-'));
+    testDir = await mkdtemp(join(tmpdir(), 'librainian-wal-test-'));
     dbPath = join(testDir, 'test.db');
     storage = createSqliteStorage(dbPath, testDir);
     await storage.initialize();

@@ -5,7 +5,7 @@
  * real-world fixture (vendored from GitHub) with deterministic assertions.
  *
  * This is NOT a "doesn't crash" test - it validates real knowledge extraction.
- * Requires live providers; run with vitest.librarian-agentic.config.ts.
+ * Requires live providers; run with vitest.librainian-agentic.config.ts.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -20,13 +20,13 @@ import { bootstrapProject } from '../../api/bootstrap.js';
 import type { BootstrapConfig, BootstrapPhase, BootstrapReport } from '../../types.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import {
   clearDefaultLlmServiceFactory,
   createDefaultLlmServiceAdapter,
   setDefaultLlmServiceFactory,
 } from '../../adapters/llm_service.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 
 // ============================================================================
 // TEST SCOPE - Small GitHub fixture (ky / p-map / p-queue)
@@ -176,15 +176,15 @@ const EXPECTED_MODULES = fixture.expectedModules;
 const QUERY_EXPECTATIONS = fixture.queries;
 
 // Unique test database (kept under repo root for isolation)
-const TEST_DB_PATH = path.join(REPO_ROOT, '.librarian', 'test_bootstrap_verification.sqlite');
-const BOOTSTRAP_STATE_PATH = path.join(TEST_WORKSPACE, '.librarian', 'bootstrap_state.json');
-const BOOTSTRAP_EXCLUDE_GLOBS: string[] = ['**/.librarian/**', '**/node_modules/**'];
+const TEST_DB_PATH = path.join(REPO_ROOT, '.librainian', 'test_bootstrap_verification.sqlite');
+const BOOTSTRAP_STATE_PATH = path.join(TEST_WORKSPACE, '.librainian', 'bootstrap_state.json');
+const BOOTSTRAP_EXCLUDE_GLOBS: string[] = ['**/.librainian/**', '**/node_modules/**'];
 
 // ============================================================================
 // TEST STATE
 // ============================================================================
 
-let storage: LibrarianStorage | null = null;
+let storage: LiBrainianStorage | null = null;
 let embeddingService: EmbeddingService | null = null;
 let providerStatus: AllProviderStatus | null = null;
 let resolvedLlmProvider: 'claude' | 'codex' = 'codex';
@@ -195,7 +195,7 @@ let embeddingDimension = 384;
 let fixtureExpectations: FixtureAstExpectations | null = null;
 let previousStrictProvider: string | undefined;
 
-const requireStorage = (): LibrarianStorage => {
+const requireStorage = (): LiBrainianStorage => {
   if (!storage) throw new Error('Storage not initialized');
   return storage;
 };
@@ -335,7 +335,7 @@ function sortFunctionsForSampling(functions: Array<{ filePath: string; name: str
   });
 }
 
-const ENV_LLM_MODEL_ID = resolveLibrarianModelId() ?? '';
+const ENV_LLM_MODEL_ID = resolveLiBrainianModelId() ?? '';
 const DEFAULT_CLAUDE_HAIKU_MODEL_ID = 'claude-haiku-4-5-20241022';
 const CODEX_MINI_MODEL_ID = 'gpt-5.1-codex-mini';
 const BOOTSTRAP_TIMEOUT_MS = Number.parseInt(process.env.WAVE0_BOOTSTRAP_TIMEOUT_MS ?? '', 10)

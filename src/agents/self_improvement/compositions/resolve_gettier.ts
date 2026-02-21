@@ -11,7 +11,7 @@
  * verifyClaim -> gather additional evidence -> reassess -> update or retract
  */
 
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 import type { Evidence, GettierAnalysis, EpistemicStatus, ConfidenceValue, Claim as BaseClaim } from '../types.js';
 import { verifyClaim, type ClaimVerificationResult, type Claim, type VerificationBudget } from '../verify_claim.js';
 
@@ -84,7 +84,7 @@ export interface GettierResolutionOptions {
   /** Root directory of the codebase */
   rootDir?: string;
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Maximum iterations for resolution loop */
   maxIterations?: number;
   /** Target Gettier risk threshold (below this is "resolved") */
@@ -120,7 +120,7 @@ const DEFAULT_VERIFICATION_BUDGET: VerificationBudget = {
 async function gatherAdditionalEvidence(
   claim: Claim,
   existingEvidence: Evidence[],
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   verbose: boolean
 ): Promise<Evidence[]> {
   const additionalEvidence: Evidence[] = [];
@@ -371,7 +371,7 @@ function reanalyzeGettierRisk(
  */
 async function findCounterevidence(
   claim: Claim,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   verbose: boolean
 ): Promise<Evidence[]> {
   const counterevidence: Evidence[] = [];

@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type {
   TechniqueComposition,
   TechniqueCompositionGraphVersion,
@@ -27,7 +27,7 @@ import type {
   SuggestedStep,
 } from '../strategic/work_primitives.js';
 import type { VerificationPlan } from '../strategic/verification_plan.js';
-import type { ContextPack, ContextPackType, LibrarianResponse } from '../types.js';
+import type { ContextPack, ContextPackType, LiBrainianResponse } from '../types.js';
 import { createVerificationPlan } from '../strategic/verification_plan.js';
 import {
   DEFAULT_TECHNIQUE_COMPOSITIONS,
@@ -99,7 +99,7 @@ export function selectMethods(
 
 function logSelectionFallback(intent: string, reason: string): void {
   const safeIntent = intent.replace(/\s+/g, ' ').trim().slice(0, 200);
-  console.warn(`[librarian] Composition selection fallback: ${reason}. intent="${safeIntent}"`);
+  console.warn(`[librainian] Composition selection fallback: ${reason}. intent="${safeIntent}"`);
 }
 
 function shouldFallbackToKeyword(error: unknown): boolean {
@@ -114,7 +114,7 @@ function shouldFallbackToKeyword(error: unknown): boolean {
 }
 
 export async function selectTechniqueCompositionsFromStorage(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: string,
   options: CompositionSelectionOptions & { useLearning?: boolean } = {}
 ): Promise<TechniqueComposition[]> {
@@ -261,7 +261,7 @@ export function compileTechniqueCompositionTemplate(
     defaultPriority: 'medium',
     defaultEffort: 'moderate',
     createdAt: now,
-    createdBy: 'librarian',
+    createdBy: 'librainian',
     usageCount: 0,
   };
 }
@@ -307,7 +307,7 @@ export function compileTechniqueCompositionBundle(
 }
 
 export async function compileTechniqueCompositionTemplateFromStorage(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   compositionId: string
 ): Promise<WorkTemplate | null> {
   const compositions = await ensureTechniqueCompositions(storage);
@@ -320,7 +320,7 @@ export async function compileTechniqueCompositionTemplateFromStorage(
 }
 
 export async function compileTechniqueCompositionTemplateWithGapsFromStorage(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   compositionId: string
 ): Promise<{ template: WorkTemplate | null; missingPrimitiveIds: string[] }> {
   const compositions = await ensureTechniqueCompositions(storage);
@@ -333,7 +333,7 @@ export async function compileTechniqueCompositionTemplateWithGapsFromStorage(
 }
 
 export async function compileTechniqueCompositionBundleFromStorage(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   compositionId: string
 ): Promise<{ template: WorkTemplate | null; primitives: TechniquePrimitive[]; missingPrimitiveIds: string[] }> {
   const compositions = await ensureTechniqueCompositions(storage);
@@ -346,7 +346,7 @@ export async function compileTechniqueCompositionBundleFromStorage(
 }
 
 export async function compileTechniqueBundlesFromIntent(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: string,
   options?: { limit?: number; useLearning?: boolean } & CompositionSelectionOptions
 ): Promise<Array<{ template: WorkTemplate; primitives: TechniquePrimitive[]; missingPrimitiveIds: string[] }>> {
@@ -491,7 +491,7 @@ export function planWorkFromComposition(
 export function planWorkFromCompositionWithContext(
   composition: TechniqueComposition,
   primitives: TechniquePrimitive[],
-  context: LibrarianResponse,
+  context: LiBrainianResponse,
   options: PlanWorkOptions = {}
 ): PlanWorkResult {
   const base = planWorkFromComposition(composition, primitives, {
@@ -504,7 +504,7 @@ export function planWorkFromCompositionWithContext(
 }
 
 export async function planWorkFromIntent(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: string,
   options: PlanWorkOptions = {}
 ): Promise<PlanWorkResult[]> {
@@ -518,9 +518,9 @@ export async function planWorkFromIntent(
 }
 
 export async function planWorkFromIntentWithContext(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: string,
-  context: LibrarianResponse,
+  context: LiBrainianResponse,
   options: PlanWorkOptions = {}
 ): Promise<PlanWorkResult[]> {
   const compositions = await resolveCompositionsForPlan(storage, intent, options);
@@ -535,7 +535,7 @@ export async function planWorkFromIntentWithContext(
 }
 
 async function resolveCompositionsForPlan(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: string,
   options: PlanWorkOptions
 ): Promise<TechniqueComposition[]> {
@@ -1143,7 +1143,7 @@ function createWorkDependency(input: {
     status: 'pending',
     description: input.description,
     addedAt: input.now,
-    addedBy: 'librarian',
+    addedBy: 'librainian',
   };
 }
 
@@ -1249,7 +1249,7 @@ function createWorkPrimitive(input: {
       confidence: 0.3,
       assessmentMethod: 'automated',
       assessedAt: now,
-      assessedBy: 'librarian',
+      assessedBy: 'librainian',
     },
     effort: {
       complexity: 'moderate',
@@ -1257,7 +1257,7 @@ function createWorkPrimitive(input: {
       confidenceLevel: 0.4,
       uncertaintyFactors: ['unspecified'],
       estimatedAt: now,
-      estimatedBy: 'librarian',
+      estimatedBy: 'librainian',
     },
     status: 'draft',
     statusHistory: [],
@@ -1277,9 +1277,9 @@ function createWorkPrimitive(input: {
       assessedBy: 'system',
     },
     createdAt: now,
-    createdBy: 'librarian',
+    createdBy: 'librainian',
     updatedAt: now,
-    updatedBy: 'librarian',
+    updatedBy: 'librainian',
     changeHistory: [],
   };
 }
@@ -1371,7 +1371,7 @@ function collectPriorExamples(packs: ContextPack[]): WorkEpisodeReference[] {
     }));
 }
 
-function buildBaseExecutionContext(context: LibrarianResponse): Omit<WorkExecutionContext, 'suggestedTools'> {
+function buildBaseExecutionContext(context: LiBrainianResponse): Omit<WorkExecutionContext, 'suggestedTools'> {
   return {
     relevantFiles: collectRelevantFiles(context.packs),
     relevantEntities: collectRelevantEntities(context.packs),
@@ -1401,7 +1401,7 @@ function deriveToolSuggestions(primitive: TechniquePrimitive | undefined, node: 
 }
 
 function estimateWorkResources(
-  context: LibrarianResponse,
+  context: LiBrainianResponse,
   node: WorkPrimitive,
   totalNodes: number,
   depth: number
@@ -1459,7 +1459,7 @@ function resolvePrimitiveForNode(node: WorkPrimitive, primitiveById: Map<string,
 
 function enrichWorkHierarchy(
   hierarchy: WorkHierarchy,
-  context: LibrarianResponse,
+  context: LiBrainianResponse,
   primitiveById: Map<string, TechniquePrimitive>
 ): WorkHierarchy {
   const baseContext = buildBaseExecutionContext(context);

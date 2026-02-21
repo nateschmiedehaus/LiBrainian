@@ -1111,7 +1111,7 @@ async function loadWorkspaceConfig(
  * Get configuration file path.
  */
 function getConfigPath(workspace: string): string {
-  return path.join(workspace, '.librarian', 'config.json');
+  return path.join(workspace, '.librainian', 'config.json');
 }
 
 /**
@@ -1150,7 +1150,7 @@ async function saveConfigSnapshot(
   };
 
   // Also persist to disk
-  const snapshotPath = path.join(workspace, '.librarian', 'config-snapshot.json');
+  const snapshotPath = path.join(workspace, '.librainian', 'config-snapshot.json');
 
   try {
     const dir = path.dirname(snapshotPath);
@@ -1270,7 +1270,7 @@ async function trackEffectiveness(
   }
 
   // Persist to disk
-  const historyPath = path.join(workspace, '.librarian', 'config-effectiveness.json');
+  const historyPath = path.join(workspace, '.librainian', 'config-effectiveness.json');
 
   try {
     const dir = path.dirname(historyPath);
@@ -1293,7 +1293,7 @@ export async function getEffectivenessHistory(
   workspace: string
 ): Promise<ConfigEffectivenessHistory> {
   // Load from disk if available
-  const historyPath = path.join(workspace, '.librarian', 'config-effectiveness.json');
+  const historyPath = path.join(workspace, '.librainian', 'config-effectiveness.json');
 
   try {
     const content = await fs.promises.readFile(historyPath, 'utf-8');

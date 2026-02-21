@@ -15,7 +15,7 @@
  * - Calibration Tracking for confidence accuracy measurement
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
 import { loadEvaluationModule } from '../utils/evaluation_loader.js';
@@ -174,7 +174,7 @@ export interface SimilarBug {
  * Each signal contributes a weighted score to the final similarity.
  */
 export interface SimilaritySignalBreakdown {
-  /** Semantic similarity from librarian queries (0-1) */
+  /** Semantic similarity from librainian queries (0-1) */
   semantic: number;
   /** Structural AST-based similarity (0-1) */
   structural: number;
@@ -820,7 +820,7 @@ export function generateHypothesesWithLogs(
 // ============================================================================
 
 export class BugInvestigationAssistant implements CalibratedConstruction {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private astExtractor?: AstExtractorLike;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
@@ -828,14 +828,14 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
   /** Default weights for combining similarity signals */
   private static readonly DEFAULT_WEIGHTS: SimilarityWeights = {
-    semantic: 0.35,       // Semantic understanding via librarian
+    semantic: 0.35,       // Semantic understanding via librainian
     structural: 0.30,     // AST-based structural similarity
     errorSignature: 0.25, // Error type/pattern matching
     historical: 0.10,     // Co-change/historical correlation
   };
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -973,8 +973,8 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       return null;
     }
 
-    // Query librarian for context around the frame
-    const queryResult = await this.librarian.queryOptional({
+    // Query librainian for context around the frame
+    const queryResult = await this.librainian.queryOptional({
       intent: `Get context around ${userFrame.file}:${userFrame.line}`,
       affectedFiles: [userFrame.file],
       depth: 'L1',
@@ -1083,7 +1083,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       });
     }
 
-    // Hypothesis 4: Based on librarian semantic analysis
+    // Hypothesis 4: Based on librainian semantic analysis
     if (primarySuspect) {
       const semanticHypothesis = await this.generateSemanticHypothesis(primarySuspect, bugReport);
       if (semanticHypothesis) {
@@ -1153,14 +1153,14 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
   }
 
   /**
-   * Generate hypothesis using librarian semantic analysis.
+   * Generate hypothesis using librainian semantic analysis.
    */
   private async generateSemanticHypothesis(
     suspect: { file: string; line: number; context: string },
     bugReport: BugReport
   ): Promise<Hypothesis | null> {
-    // Query librarian for semantic understanding
-    const queryResult = await this.librarian.queryOptional({
+    // Query librainian for semantic understanding
+    const queryResult = await this.librainian.queryOptional({
       intent: `What could cause an error at ${suspect.file}:${suspect.line}? The error is: ${bugReport.errorMessage || bugReport.description}`,
       affectedFiles: [suspect.file],
       depth: 'L2',
@@ -1176,14 +1176,14 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
     return {
       id: 'semantic_analysis',
-      description: 'Librarian semantic analysis',
+      description: 'LiBrainian semantic analysis',
       rootCause: pack.summary || 'See context for details',
       affectedCode: [suspect.file],
       confidence: {
         type: 'measured' as const,
         value: pack.confidence || 0.6,
         measurement: {
-          datasetId: 'librarian_semantic_query',
+          datasetId: 'librainian_semantic_query',
           sampleSize: 100,
           accuracy: pack.confidence || 0.6,
           confidenceInterval: [Math.max(0, (pack.confidence || 0.6) - 0.1), Math.min(1, (pack.confidence || 0.6) + 0.1)] as const,
@@ -1199,7 +1199,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
    * Step 5: Find similar bugs in the codebase using multi-signal detection.
    *
    * Combines multiple signals for improved accuracy:
-   * 1. Semantic similarity (librarian queries) - understands intent/meaning
+   * 1. Semantic similarity (librainian queries) - understands intent/meaning
    * 2. Structural similarity (AST-based) - code patterns, signatures
    * 3. Error signature matching - error types, stack patterns
    * 4. Historical correlation - co-change patterns, related fixes
@@ -1342,17 +1342,17 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
   }
 
   // ===========================================================================
-  // SIGNAL 1: SEMANTIC SIMILARITY (via Librarian queries)
+  // SIGNAL 1: SEMANTIC SIMILARITY (via LiBrainian queries)
   // ===========================================================================
 
   /**
-   * Find semantically similar bugs using librarian's understanding.
+   * Find semantically similar bugs using librainian's understanding.
    */
   private async findSemanticSimilarBugs(bugReport: BugReport): Promise<SimilarBug[]> {
     const similarBugs: SimilarBug[] = [];
 
     // Query for similar patterns based on description
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: `Find code similar to this bug pattern: ${bugReport.description}`,
       depth: 'L1',
       taskType: 'understand',
@@ -1373,7 +1373,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
     // If we have error message, query specifically for error patterns
     if (bugReport.errorMessage) {
-      const errorQueryResult = await this.librarian.queryOptional({
+      const errorQueryResult = await this.librainian.queryOptional({
         intent: `Find code that handles or produces errors like: ${bugReport.errorMessage}`,
         depth: 'L1',
         taskType: 'debug',
@@ -1482,7 +1482,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
     const results: Array<{ file: string; similarity: number; description?: string }> = [];
 
-    // Query librarian for files with similar patterns
+    // Query librainian for files with similar patterns
     const patterns = [
       ...fingerprint.functionSignatures.slice(0, 3),
       ...fingerprint.errorHandlingPatterns.slice(0, 2),
@@ -1493,7 +1493,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     }
 
     // Query for code with similar patterns
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: `Find files with similar code patterns: ${patterns.join(', ')}`,
       depth: 'L1',
       taskType: 'understand',
@@ -1727,7 +1727,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
     // Query for code handling same error type
     if (signature.errorType) {
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find code that handles or throws ${signature.errorType} errors`,
         depth: 'L1',
         taskType: 'debug',
@@ -1751,7 +1751,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     // Query for code in same modules
     if (signature.affectedModules.length > 0) {
       const moduleQuery = signature.affectedModules.slice(0, 3).join(', ');
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find error handling code related to modules: ${moduleQuery}`,
         affectedFiles: signature.affectedModules,
         depth: 'L1',
@@ -1821,10 +1821,10 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
       }
     }
 
-    // Query librarian for relationship
+    // Query librainian for relationship
     if (primarySuspectFile && candidateFile !== primarySuspectFile) {
       try {
-        const queryResult = await this.librarian.queryOptional({
+        const queryResult = await this.librainian.queryOptional({
           intent: `What is the relationship between ${candidateFile} and ${primarySuspectFile}?`,
           affectedFiles: [candidateFile, primarySuspectFile],
           depth: 'L1',
@@ -1833,7 +1833,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
         });
 
         if (queryResult.packs && queryResult.packs.length > 0) {
-          // If librarian found a relationship, add score based on confidence
+          // If librainian found a relationship, add score based on confidence
           const relationshipConf = queryResult.packs[0].confidence || 0;
           score += relationshipConf * 0.5;
         }
@@ -1949,6 +1949,6 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 // FACTORY
 // ============================================================================
 
-export function createBugInvestigationAssistant(librarian: Librarian): BugInvestigationAssistant {
-  return new BugInvestigationAssistant(librarian);
+export function createBugInvestigationAssistant(librainian: LiBrainian): BugInvestigationAssistant {
+  return new BugInvestigationAssistant(librainian);
 }

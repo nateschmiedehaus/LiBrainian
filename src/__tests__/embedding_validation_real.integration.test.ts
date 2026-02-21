@@ -26,7 +26,7 @@ import {
 } from '../api/embedding_providers/real_embeddings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const librarianRoot = path.resolve(__dirname, '..');
+const librainianRoot = path.resolve(__dirname, '..');
 const srcRoot = path.resolve(__dirname, '..', '..');
 const IS_TIER0 = process.env.LIBRARIAN_TIER0 === '1';
 const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && process.env.LIBRARIAN_TIER0 !== '1');
@@ -110,15 +110,15 @@ const GROUND_TRUTH_PAIRS: FilePair[] = [
     file2: 'storage/types.ts',
     expectedRelated: true,
     difficulty: 'medium',
-    reason: 'ast_indexer imports LibrarianStorage types',
+    reason: 'ast_indexer imports LiBrainianStorage types',
   },
   {
-    name: 'librarian imports sqlite_storage',
-    file1: 'api/librarian.ts',
+    name: 'librainian imports sqlite_storage',
+    file1: 'api/librainian.ts',
     file2: 'storage/sqlite_storage.ts',
     expectedRelated: true,
     difficulty: 'medium',
-    reason: 'librarian.ts creates storage via sqlite_storage',
+    reason: 'librainian.ts creates storage via sqlite_storage',
   },
   {
     name: 'relevance_engine imports embeddings',
@@ -129,12 +129,12 @@ const GROUND_TRUTH_PAIRS: FilePair[] = [
     reason: 'relevance engine uses embedding service',
   },
   {
-    name: 'index_librarian imports graph metrics',
-    file1: 'agents/index_librarian.ts',
+    name: 'index_librainian imports graph metrics',
+    file1: 'agents/index_librainian.ts',
     file2: 'graphs/metrics.ts',
     expectedRelated: true,
     difficulty: 'medium',
-    reason: 'index_librarian computes graph metrics',
+    reason: 'index_librainian computes graph metrics',
   },
   {
     name: 'knowledge/impact imports graph metrics',
@@ -241,7 +241,7 @@ const GROUND_TRUTH_PAIRS: FilePair[] = [
     reason: 'Both have "indexer" in name, different purposes',
   },
   {
-    name: 'graph metrics vs librarian events',
+    name: 'graph metrics vs librainian events',
     file1: 'graphs/metrics.ts',
     file2: 'events.ts',
     expectedRelated: false,
@@ -286,18 +286,18 @@ const GROUND_TRUTH_PAIRS: FilePair[] = [
   },
 
   // ============================================================================
-  // EXTERNAL MODULE PAIRS: Orchestrator vs Librarian
+  // EXTERNAL MODULE PAIRS: Orchestrator vs LiBrainian
   // ============================================================================
   {
-    name: 'orchestrator context_assembler vs librarian query',
+    name: 'orchestrator context_assembler vs librainian query',
     file1: path.join('..', 'orchestrator', 'context_assembler.ts'),
     file2: 'api/query.ts',
     expectedRelated: true,
     difficulty: 'hard',
-    reason: 'context_assembler queries librarian',
+    reason: 'context_assembler queries librainian',
   },
   {
-    name: 'orchestrator model_router vs librarian (unrelated)',
+    name: 'orchestrator model_router vs librainian (unrelated)',
     file1: path.join('..', 'orchestrator', 'model_router.ts'),
     file2: 'ingest/docs_indexer.ts',
     expectedRelated: false,
@@ -312,8 +312,8 @@ const GROUND_TRUTH_PAIRS: FilePair[] = [
 
 async function readFileContent(relativePath: string): Promise<string> {
   const fullPath = relativePath.startsWith('..')
-    ? path.resolve(librarianRoot, relativePath)
-    : path.resolve(librarianRoot, relativePath);
+    ? path.resolve(librainianRoot, relativePath)
+    : path.resolve(librainianRoot, relativePath);
 
   try {
     const content = await fs.readFile(fullPath, 'utf-8');

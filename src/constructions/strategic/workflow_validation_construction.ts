@@ -14,7 +14,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import type { ContextPack } from '../../types.js';
 import type {
@@ -124,7 +124,7 @@ export interface WorkflowValidationResult {
  *
  * Usage:
  * ```typescript
- * const construction = new WorkflowValidationConstruction(librarian);
+ * const construction = new WorkflowValidationConstruction(librainian);
  * const result = await construction.validatePhase({
  *   phase: 'testing',
  *   files: ['src/module.ts'],
@@ -134,13 +134,13 @@ export interface WorkflowValidationResult {
  * ```
  */
 export class WorkflowValidationConstruction implements CalibratedConstruction {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
   static readonly CONSTRUCTION_ID = 'WorkflowValidationConstruction';
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -194,15 +194,15 @@ export class WorkflowValidationConstruction implements CalibratedConstruction {
     const preset = this.getPreset(presetId);
     evidenceRefs.push(`preset:${presetId}`);
 
-    // Step 2: Query librarian for additional context
-    const queryResult = await this.librarian.queryOptional({
+    // Step 2: Query librainian for additional context
+    const queryResult = await this.librainian.queryOptional({
       intent: `Analyze workflow status for ${context.phase} phase`,
       affectedFiles: context.files,
       depth: 'L1',
     });
-    evidenceRefs.push('librarian_query:workflow_context');
+    evidenceRefs.push('librainian_query:workflow_context');
 
-    // Step 3: Enhance context with librarian data
+    // Step 3: Enhance context with librainian data
     const enhancedContext = this.enhanceContext(context, queryResult.packs);
     evidenceRefs.push('context_enhancement');
 
@@ -285,7 +285,7 @@ export class WorkflowValidationConstruction implements CalibratedConstruction {
   }
 
   /**
-   * Enhance context with data from librarian packs.
+   * Enhance context with data from librainian packs.
    */
   private enhanceContext(
     context: WorkflowPhaseContext,
@@ -514,11 +514,11 @@ export class WorkflowValidationConstruction implements CalibratedConstruction {
 /**
  * Create a Workflow Validation Construction.
  *
- * @param librarian - The librarian instance to use for queries
+ * @param librainian - The librainian instance to use for queries
  * @returns New construction instance
  */
 export function createWorkflowValidationConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): WorkflowValidationConstruction {
-  return new WorkflowValidationConstruction(librarian);
+  return new WorkflowValidationConstruction(librainian);
 }

@@ -33,7 +33,7 @@ const cliInvocation = fs.existsSync(cliPath)
 let output = '';
 const tempJsonPath = path.join(
   os.tmpdir(),
-  `librarian-complexity-${process.pid}-${Date.now()}.json`
+  `librainian-complexity-${process.pid}-${Date.now()}.json`
 );
 try {
   execSync(

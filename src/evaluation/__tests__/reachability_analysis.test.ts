@@ -925,7 +925,7 @@ describe('ReachabilityAnalyzer - Real Repos', () => {
     analyzer = createReachabilityAnalyzer();
   });
 
-  it('should analyze Librarian src directory without crashing', async () => {
+  it('should analyze LiBrainian src directory without crashing', async () => {
     const srcPath = path.join(LIBRARIAN_ROOT, 'src');
 
     const graph = await analyzer.buildCallGraph(srcPath);
@@ -935,7 +935,7 @@ describe('ReachabilityAnalyzer - Real Repos', () => {
     expect(graph.entryPoints.length).toBeGreaterThan(0);
   });
 
-  it('should produce reachability results for Librarian', async () => {
+  it('should produce reachability results for LiBrainian', async () => {
     const srcPath = path.join(LIBRARIAN_ROOT, 'src');
 
     const graph = await analyzer.buildCallGraph(srcPath);

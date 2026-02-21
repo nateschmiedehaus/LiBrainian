@@ -199,7 +199,7 @@ export interface AuditLoggerConfig {
 export const DEFAULT_AUDIT_CONFIG: AuditLoggerConfig = {
   maxMemoryEvents: 10000,
   persistToFile: false,
-  logDir: '.librarian/audit',
+  logDir: '.librainian/audit',
   logFilePrefix: 'audit',
   maxFileSizeBytes: 10 * 1024 * 1024, // 10MB
   maxFiles: 10,

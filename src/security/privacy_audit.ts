@@ -24,7 +24,7 @@ export interface PrivacyReportSummary {
   until: string | null;
 }
 
-const PRIVACY_AUDIT_RELATIVE_PATH = path.join('.librarian', 'audit', 'privacy.log');
+const PRIVACY_AUDIT_RELATIVE_PATH = path.join('.librainian', 'audit', 'privacy.log');
 
 export function resolvePrivacyAuditLogPath(workspaceRoot: string): string {
   return path.join(workspaceRoot, PRIVACY_AUDIT_RELATIVE_PATH);

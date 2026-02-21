@@ -13,19 +13,19 @@ import * as fsSync from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import { bootstrapProject } from '../api/bootstrap.js';
-import { queryLibrarianWithObserver } from '../api/query.js';
+import { queryLiBrainianWithObserver } from '../api/query.js';
 import { requireProviders } from '../api/provider_check.js';
 import { createEvidenceLedger, createSessionId, type EvidenceEntry } from '../epistemics/evidence_ledger.js';
-import type { LibrarianQuery, LibrarianResponse } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianQuery, LiBrainianResponse } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 type ScenarioFamily = {
   id: string;
   label: string;
   intent: string;
-  depth: LibrarianQuery['depth'];
-  taskType?: LibrarianQuery['taskType'];
-  llmRequirement?: LibrarianQuery['llmRequirement'];
+  depth: LiBrainianQuery['depth'];
+  taskType?: LiBrainianQuery['taskType'];
+  llmRequirement?: LiBrainianQuery['llmRequirement'];
   affectedFiles?: string[];
   ucIds?: string[];
   disclosures?: string[];
@@ -45,7 +45,7 @@ type AdequacyReportArtifactV1 = {
   declared_templates: string[];
   targeted_profiles: string[];
   uc_ids?: string[];
-  report: LibrarianResponse['adequacy'] | null;
+  report: LiBrainianResponse['adequacy'] | null;
   disclosures: string[];
 };
 
@@ -96,8 +96,8 @@ type PerformanceReportV1 = {
   disclosures: string[];
 };
 
-const FIXTURE_ROOT = path.resolve(__dirname, '../../../../test/fixtures/librarian_usecase');
-const AUDIT_ROOT = path.join(FIXTURE_ROOT, 'state', 'audits', 'librarian', 'scenarios');
+const FIXTURE_ROOT = path.resolve(__dirname, '../../../../test/fixtures/librainian_usecase');
+const AUDIT_ROOT = path.join(FIXTURE_ROOT, 'state', 'audits', 'librainian', 'scenarios');
 
 const SCENARIOS: ScenarioFamily[] = [
   {
@@ -434,7 +434,7 @@ const SCENARIOS: ScenarioFamily[] = [
   },
 ];
 
-let storage: LibrarianStorage;
+let storage: LiBrainianStorage;
 let runDir: string;
 
 beforeAll(async () => {
@@ -443,7 +443,7 @@ beforeAll(async () => {
   }
   await requireProviders({ llm: true, embedding: true }, { workspaceRoot: FIXTURE_ROOT });
 
-  const dbPath = path.join(os.tmpdir(), `librarian-sf-${randomUUID()}.db`);
+  const dbPath = path.join(os.tmpdir(), `librainian-sf-${randomUUID()}.db`);
   storage = createSqliteStorage(dbPath, FIXTURE_ROOT);
   await storage.initialize();
 
@@ -474,7 +474,7 @@ afterAll(async () => {
 });
 
 async function runScenarioFamily(scenario: ScenarioFamily): Promise<{
-  response: LibrarianResponse;
+  response: LiBrainianResponse;
   adequacyPath: string;
   tracePath: string;
   traceEntries: EvidenceEntry[];
@@ -489,7 +489,7 @@ async function runScenarioFamily(scenario: ScenarioFamily): Promise<{
   await ledger.initialize();
   const sessionId = createSessionId();
 
-  const query: LibrarianQuery = {
+  const query: LiBrainianQuery = {
     intent: scenario.intent,
     depth: scenario.depth,
     taskType: scenario.taskType,
@@ -498,7 +498,7 @@ async function runScenarioFamily(scenario: ScenarioFamily): Promise<{
     ucRequirements: scenario.ucIds ? { ucIds: scenario.ucIds } : undefined,
   };
 
-  const response = await queryLibrarianWithObserver(query, storage, {
+  const response = await queryLiBrainianWithObserver(query, storage, {
     traceOptions: { evidenceLedger: ledger, sessionId },
   });
 

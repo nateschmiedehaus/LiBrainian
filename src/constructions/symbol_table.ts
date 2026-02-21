@@ -2,7 +2,7 @@
  * @fileoverview Symbol Table Construction for Direct Symbol Lookup
  *
  * This construction provides direct symbol -> location lookup capability,
- * enabling queries like "SqliteLibrarianStorage class" to return the exact
+ * enabling queries like "SqliteLiBrainianStorage class" to return the exact
  * class definition at the correct line number with 0.99 confidence.
  *
  * PROBLEM SOLVED:
@@ -52,7 +52,7 @@ export type MemberVisibility = 'public' | 'protected' | 'private';
  * An entry in the symbol table representing a single code symbol.
  */
 export interface SymbolEntry {
-  /** The symbol name (e.g., "SqliteLibrarianStorage") */
+  /** The symbol name (e.g., "SqliteLiBrainianStorage") */
   name: string;
 
   /** The kind of symbol */
@@ -76,7 +76,7 @@ export interface SymbolEntry {
   /** Optional JSDoc summary or description */
   description?: string;
 
-  /** Qualified name including module path (e.g., "storage/sqlite_storage:SqliteLibrarianStorage") */
+  /** Qualified name including module path (e.g., "storage/sqlite_storage:SqliteLiBrainianStorage") */
   qualifiedName?: string;
 
   /** Parent class or interface name for members (methods, properties) */
@@ -157,9 +157,9 @@ export interface SymbolQueryPattern {
 /**
  * Patterns for detecting symbol lookup queries.
  * These match queries like:
- * - "SqliteLibrarianStorage class"
+ * - "SqliteLiBrainianStorage class"
  * - "bootstrapProject function"
- * - "LibrarianStorage interface"
+ * - "LiBrainianStorage interface"
  * - "Where is the SymbolEntry type defined?"
  */
 const SYMBOL_QUERY_PATTERNS: Array<{
@@ -214,7 +214,7 @@ const SYMBOL_QUERY_PATTERNS: Array<{
     pattern: /^(\w+)\s+(?:type|interface)\s+definition$/i,
     nameGroup: 1,
   },
-  // "ContextPack interface" / "LibrarianStorage type"
+  // "ContextPack interface" / "LiBrainianStorage type"
   {
     pattern: /^(\w+)\s+(interface|type)$/i,
     kindExtractor: (m) => normalizeKind(m[2]),
@@ -231,7 +231,7 @@ const SYMBOL_QUERY_PATTERNS: Array<{
     nameGroup: 1,
 	  },
 	  // Bare symbol name (for fuzzy matching as fallback)
-	  // This is intentionally permissive for quick lookups like "SqliteLibrarianStorage"
+	  // This is intentionally permissive for quick lookups like "SqliteLiBrainianStorage"
 	  // but we apply extra heuristics in parseSymbolQuery() to avoid routing generic
 	  // single-word intents (e.g., "bootstrap") into symbol lookup.
 	  {
@@ -498,15 +498,15 @@ export function calculateMatchCountPenalty(matchCount: number): number {
  * ```typescript
  * const table = new SymbolTable();
  * table.addSymbol({
- *   name: 'SqliteLibrarianStorage',
+ *   name: 'SqliteLiBrainianStorage',
  *   kind: 'class',
  *   file: 'src/storage/sqlite_storage.ts',
  *   line: 225,
  *   exported: true,
  * });
  *
- * const result = table.findByExactName('SqliteLibrarianStorage');
- * // [{ name: 'SqliteLibrarianStorage', kind: 'class', line: 225, ... }]
+ * const result = table.findByExactName('SqliteLiBrainianStorage');
+ * // [{ name: 'SqliteLiBrainianStorage', kind: 'class', line: 225, ... }]
  * ```
  */
 export class SymbolTable {
@@ -575,7 +575,7 @@ export class SymbolTable {
 
   /**
    * Find symbols by exact name and kind.
-   * Most precise lookup for queries like "SqliteLibrarianStorage class".
+   * Most precise lookup for queries like "SqliteLiBrainianStorage class".
    */
   findByExactNameAndKind(name: string, kind: SymbolKind): SymbolEntry[] {
     const byName = this.byName.get(name) ?? [];

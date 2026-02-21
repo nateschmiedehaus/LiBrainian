@@ -7,7 +7,7 @@
  * - LSPRetriever: Uses language server protocol for precise symbol resolution
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // INTERFACES
@@ -52,7 +52,7 @@ export interface RetrieverAgent {
   /** Get capabilities of this retriever */
   getCapabilities(): string[];
   /** Initialize the agent */
-  initialize(storage: LibrarianStorage): Promise<void>;
+  initialize(storage: LiBrainianStorage): Promise<void>;
   /** Check if agent is ready */
   isReady(): boolean;
   /** Shutdown the agent */
@@ -129,7 +129,7 @@ class GraphRetrieverImpl implements GraphRetriever {
   readonly type = 'graph' as const;
 
   private _ready = false;
-  private _storage: LibrarianStorage | null = null;
+  private _storage: LiBrainianStorage | null = null;
   private _config: GraphRetrieverConfig;
 
   // Simulated graph data for testing/demo purposes
@@ -143,7 +143,7 @@ class GraphRetrieverImpl implements GraphRetriever {
     };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this._storage = storage;
     this._ready = true;
 
@@ -350,7 +350,7 @@ class VectorRetrieverImpl implements VectorRetriever {
   readonly type = 'vector' as const;
 
   private _ready = false;
-  private _storage: LibrarianStorage | null = null;
+  private _storage: LiBrainianStorage | null = null;
   private _config: VectorRetrieverConfig;
 
   // Simulated vector store for testing/demo purposes
@@ -367,7 +367,7 @@ class VectorRetrieverImpl implements VectorRetriever {
     };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this._storage = storage;
     this._ready = true;
 
@@ -598,7 +598,7 @@ class LSPRetrieverImpl implements LSPRetriever {
   readonly type = 'lsp' as const;
 
   private _ready = false;
-  private _storage: LibrarianStorage | null = null;
+  private _storage: LiBrainianStorage | null = null;
   private _config: LSPRetrieverConfig;
 
   // Simulated symbol table for testing/demo purposes
@@ -618,7 +618,7 @@ class LSPRetrieverImpl implements LSPRetriever {
     };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this._storage = storage;
     this._ready = true;
 

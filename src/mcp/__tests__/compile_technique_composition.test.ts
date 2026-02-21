@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { createLiBrainianMCPServer } from '../server.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -18,7 +18,7 @@ class MockStorage implements StorageStub {
 
 describe('MCP compile technique composition tool', () => {
   it('compiles a composition to a work template', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -26,12 +26,12 @@ describe('MCP compile technique composition tool', () => {
     });
 
     const workspace = '/tmp/workspace';
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       getStorage: () => new MockStorage(),
     };
 
     server.registerWorkspace(workspace);
-    server.updateWorkspaceState(workspace, { librarian: mockLibrarian, indexState: 'ready' });
+    server.updateWorkspaceState(workspace, { librainian: mockLiBrainian, indexState: 'ready' });
 
     const result = await (server as unknown as {
       executeCompileTechniqueComposition: (input: { workspace?: string; compositionId: string; includePrimitives?: boolean }) => Promise<any>;

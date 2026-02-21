@@ -22,7 +22,7 @@ import {
   type ConfidenceSignals,
   type ComputedConfidenceResult,
 } from '../computed_confidence.js';
-import type { FunctionKnowledge, FileKnowledge, ContextPack, LibrarianVersion } from '../../types.js';
+import type { FunctionKnowledge, FileKnowledge, ContextPack, LiBrainianVersion } from '../../types.js';
 
 // ============================================================================
 // TEST FIXTURES
@@ -112,7 +112,7 @@ function createTestFile(overrides: Partial<FileKnowledge> = {}): FileKnowledge {
   };
 }
 
-const testVersion: LibrarianVersion = {
+const testVersion: LiBrainianVersion = {
   major: 0,
   minor: 1,
   patch: 0,

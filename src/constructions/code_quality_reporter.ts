@@ -13,7 +13,7 @@
  * - Confidence System for uncertainty quantification
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
 
@@ -100,10 +100,10 @@ export interface QualityReport {
 // ============================================================================
 
 export class CodeQualityReporter {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -169,7 +169,7 @@ export class CodeQualityReporter {
   private async analyzeComplexity(files: string[]): Promise<QualityIssue[]> {
     const issues: QualityIssue[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Find complex functions with high cyclomatic complexity, deep nesting, or many parameters',
       affectedFiles: files,
       depth: 'L2',
@@ -263,7 +263,7 @@ export class CodeQualityReporter {
   private async analyzeDuplication(files: string[]): Promise<QualityIssue[]> {
     const issues: QualityIssue[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Find duplicated code patterns, copy-pasted code, or similar functions',
       affectedFiles: files,
       depth: 'L2',
@@ -308,7 +308,7 @@ export class CodeQualityReporter {
   private async analyzeTestability(files: string[]): Promise<QualityIssue[]> {
     const issues: QualityIssue[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Find code that is hard to test: global state, tight coupling, no dependency injection',
       affectedFiles: files,
       depth: 'L2',
@@ -545,6 +545,6 @@ export class CodeQualityReporter {
 // FACTORY
 // ============================================================================
 
-export function createCodeQualityReporter(librarian: Librarian): CodeQualityReporter {
-  return new CodeQualityReporter(librarian);
+export function createCodeQualityReporter(librainian: LiBrainian): CodeQualityReporter {
+  return new CodeQualityReporter(librainian);
 }

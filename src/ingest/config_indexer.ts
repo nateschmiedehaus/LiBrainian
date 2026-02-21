@@ -161,7 +161,7 @@ function parseConfigFile(ext: string, content: string): { data: Record<string, u
 
 export function createConfigIngestionSource(options: ConfigIngestionOptions = {}): IngestionSource {
   const include = options.include ?? DEFAULT_CONFIG_GLOBS;
-  const exclude = [...(options.exclude ?? []), 'state/**', '**/state/**', '.librarian/**', '**/.librarian/**'];
+  const exclude = [...(options.exclude ?? []), 'state/**', '**/state/**', '.librainian/**', '**/.librainian/**'];
   const referenceGlobs = options.referenceGlobs ?? DEFAULT_REFERENCE_GLOBS;
   const maxReferenceFiles = options.maxReferenceFiles ?? DEFAULT_MAX_REFERENCE_FILES;
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_BYTES;

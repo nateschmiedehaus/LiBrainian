@@ -10,7 +10,7 @@
  * selfRefresh -> analyzeConsistency (changed only) -> compare with baseline
  */
 
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 import type { ConfidenceValue } from '../types.js';
 import { selfRefresh, type SelfRefreshResult } from '../self_refresh.js';
 import { analyzeConsistency, type ConsistencyAnalysisResult, type Mismatch, type UntestedClaim, type PhantomClaim } from '../analyze_consistency.js';
@@ -89,7 +89,7 @@ export interface IncrementalCheckOptions {
   /** Root directory of the codebase */
   rootDir: string;
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Git commit to compare against (e.g., "HEAD~1", "abc123") */
   sinceCommit?: string;
   /** Number of days to look back for changes */

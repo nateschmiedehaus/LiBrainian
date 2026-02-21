@@ -130,7 +130,7 @@ async function main() {
 
     const bin = installedPackageJson.bin;
     const binMap = typeof bin === 'string'
-      ? { librainian: bin, librarian: bin }
+      ? { librainian: bin, librainian: bin }
       : (bin ?? {});
     const librainianBin = typeof binMap.librainian === 'string' ? binMap.librainian : null;
     if (!librainianBin) {
@@ -142,10 +142,10 @@ async function main() {
     });
 
     const runtimeScript = `
-      import { initializeLibrarian } from '${packageName}';
+      import { initializeLiBrainian } from '${packageName}';
       import path from 'node:path';
       const workspace = process.argv[1];
-      const session = await initializeLibrarian(workspace, {
+      const session = await initializeLiBrainian(workspace, {
         silent: true,
         skipLlm: true,
         skipWatcher: true,
@@ -153,7 +153,7 @@ async function main() {
       });
       const context = await session.query('Where is answer defined?');
       if (!context || typeof context !== 'object' || !('packIds' in context)) {
-        throw new Error('Unexpected context shape from initializeLibrarian().query()');
+        throw new Error('Unexpected context shape from initializeLiBrainian().query()');
       }
       if (typeof session.shutdown === 'function') {
         await session.shutdown();

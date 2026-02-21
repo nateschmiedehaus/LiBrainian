@@ -2,7 +2,7 @@
 /**
  * Test script for evaluating findRefactoringOpportunities
  *
- * This script runs the refactoring suggestions analysis on the librarian codebase
+ * This script runs the refactoring suggestions analysis on the librainian codebase
  * and reports the findings for evaluation.
  */
 

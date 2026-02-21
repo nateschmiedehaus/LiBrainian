@@ -24,7 +24,7 @@ import {
 } from '../file_watcher_integration.js';
 
 const createTempWorkspace = async (): Promise<string> => {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-fw-integration-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'librainian-fw-integration-'));
 };
 
 const sleep = (ms: number): Promise<void> =>

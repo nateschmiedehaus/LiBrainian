@@ -1,5 +1,5 @@
 /**
- * @fileoverview Staleness Tracking for Librarian Index
+ * @fileoverview Staleness Tracking for LiBrainian Index
  *
  * Tracks and reports on index freshness:
  * - Detect stale files (checksum mismatch)
@@ -11,7 +11,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { LibrarianStorage, FileQueryOptions } from './types.js';
+import type { LiBrainianStorage, FileQueryOptions } from './types.js';
 import { computeFileChecksum } from '../utils/checksums.js';
 
 // ============================================================================
@@ -92,7 +92,7 @@ const DEFAULT_EXCLUDE_DIRS = [
  * INVARIANT: Checksum computation is deterministic
  */
 export class StalenessTracker {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   /**
    * Check staleness of a single file.
@@ -348,6 +348,6 @@ export class StalenessTracker {
 /**
  * Create a staleness tracker for the given storage.
  */
-export function createStalenessTracker(storage: LibrarianStorage): StalenessTracker {
+export function createStalenessTracker(storage: LiBrainianStorage): StalenessTracker {
   return new StalenessTracker(storage);
 }

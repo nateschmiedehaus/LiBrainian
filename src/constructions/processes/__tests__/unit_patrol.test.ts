@@ -8,7 +8,7 @@ import {
 } from '../index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURE_REPO = path.resolve(__dirname, '../../../../test/fixtures/librarian_usecase');
+const FIXTURE_REPO = path.resolve(__dirname, '../../../../test/fixtures/librainian_usecase');
 
 describe('UnitPatrol', () => {
   it('executes fixture smoke scenario and returns structured UnitPatrolResult', async () => {

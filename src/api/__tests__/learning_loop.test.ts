@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { LibrarianStorage, MetadataStorage } from '../../storage/types.js';
+import type { LiBrainianStorage, MetadataStorage } from '../../storage/types.js';
 import { createEpisode } from '../../strategic/episodes.js';
 import { ClosedLoopLearner, __testing } from '../learning_loop.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -24,12 +24,12 @@ async function getLearningState(storage: MockStorage) {
 describe('learning loop', () => {
   it('records outcomes and returns recommendations', async () => {
     const storage = new MockStorage();
-    const learner = new ClosedLoopLearner(storage as unknown as LibrarianStorage);
+    const learner = new ClosedLoopLearner(storage as unknown as LiBrainianStorage);
     const episode = createEpisode({
       id: 'ep_learning_1',
       type: 'learning',
       context: {
-        environment: 'librarian.test',
+        environment: 'librainian.test',
         state: { intent: 'release readiness' },
       },
       outcome: {
@@ -55,12 +55,12 @@ describe('learning loop', () => {
 
   it('includes warnings from failed outcomes', async () => {
     const storage = new MockStorage();
-    const learner = new ClosedLoopLearner(storage as unknown as LibrarianStorage);
+    const learner = new ClosedLoopLearner(storage as unknown as LiBrainianStorage);
     const episode = createEpisode({
       id: 'ep_learning_2',
       type: 'learning',
       context: {
-        environment: 'librarian.test',
+        environment: 'librainian.test',
         state: { intent: 'audit compliance' },
       },
       outcome: {
@@ -83,12 +83,12 @@ describe('learning loop', () => {
 
   it('suppresses anti-pattern recommendations and emits warnings', async () => {
     const storage = new MockStorage();
-    const learner = new ClosedLoopLearner(storage as unknown as LibrarianStorage);
+    const learner = new ClosedLoopLearner(storage as unknown as LiBrainianStorage);
     const episode = createEpisode({
       id: 'ep_learning_3',
       type: 'learning',
       context: {
-        environment: 'librarian.test',
+        environment: 'librainian.test',
         state: { intent: 'reliability audit' },
       },
       outcome: {
@@ -121,12 +121,12 @@ describe('learning loop', () => {
 
   it('consolidates patterns and promotes tiers', async () => {
     const storage = new MockStorage();
-    const learner = new ClosedLoopLearner(storage as unknown as LibrarianStorage);
+    const learner = new ClosedLoopLearner(storage as unknown as LiBrainianStorage);
     const episode = createEpisode({
       id: 'ep_learning_4',
       type: 'learning',
       context: {
-        environment: 'librarian.test',
+        environment: 'librainian.test',
         state: { intent: 'release readiness' },
       },
       outcome: {
@@ -190,12 +190,12 @@ describe('learning loop', () => {
 
   it('warns when distribution shift is detected', async () => {
     const storage = new MockStorage();
-    const learner = new ClosedLoopLearner(storage as unknown as LibrarianStorage);
+    const learner = new ClosedLoopLearner(storage as unknown as LiBrainianStorage);
     const episode = createEpisode({
       id: 'ep_learning_5',
       type: 'learning',
       context: {
-        environment: 'librarian.test',
+        environment: 'librainian.test',
         state: { intent: 'deploy safety' },
       },
       outcome: {

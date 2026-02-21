@@ -55,7 +55,7 @@ interface McpServerEntry {
 }
 
 const SUPPORTED_EDITORS: InitEditorClient[] = ['vscode', 'cursor', 'continue', 'claude', 'jetbrains', 'windsurf'];
-const SERVER_NAMES = ['librainian', 'librarian'];
+const SERVER_NAMES = ['librainian', 'librainian'];
 const PRIMARY_SERVER_NAME = 'librainian';
 
 function asRecord(value: unknown): Record<string, unknown> | null {

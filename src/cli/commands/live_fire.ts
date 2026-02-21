@@ -19,7 +19,7 @@ type LiveFireTrialsModule = typeof import('../../evaluation/live_fire_trials.js'
 async function loadLiveFireTrialsModule(): Promise<LiveFireTrialsModule> {
   const externalModuleId = 'librainian-eval/live_fire_trials.js';
   return loadEvaluationModule<LiveFireTrialsModule>(
-    'librarian live-fire',
+    'librainian live-fire',
     () => import('../../evaluation/live_fire_trials.js'),
     () => import(externalModuleId) as Promise<LiveFireTrialsModule>,
   );

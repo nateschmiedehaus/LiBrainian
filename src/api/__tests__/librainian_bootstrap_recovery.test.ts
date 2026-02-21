@@ -19,7 +19,7 @@ vi.mock('../bootstrap.js', async () => {
   };
 });
 
-describe('Librarian bootstrap auto-recovery', () => {
+describe('LiBrainian bootstrap auto-recovery', () => {
   let workspace: string;
   let previousSkipProvider: string | undefined;
 
@@ -27,7 +27,7 @@ describe('Librarian bootstrap auto-recovery', () => {
     mockBootstrapProject.mockReset();
     previousSkipProvider = process.env.LIBRARIAN_SKIP_PROVIDER_CHECK;
     process.env.LIBRARIAN_SKIP_PROVIDER_CHECK = '1';
-    workspace = await fs.mkdtemp(path.join(tmpdir(), 'librarian-auto-retry-'));
+    workspace = await fs.mkdtemp(path.join(tmpdir(), 'librainian-auto-retry-'));
   });
 
   afterEach(async () => {
@@ -58,9 +58,9 @@ describe('Librarian bootstrap auto-recovery', () => {
       .mockImplementationOnce(async () => makeReport(false, 'Include patterns matched no files in workspace.'))
       .mockImplementationOnce(async () => makeReport(true));
 
-    const { createLibrarian } = await import('../librarian.js');
+    const { createLiBrainian } = await import('../librainian.js');
 
-    const librarian = await createLibrarian({
+    const librainian = await createLiBrainian({
       workspace,
       autoBootstrap: true,
       autoWatch: false,
@@ -77,6 +77,6 @@ describe('Librarian bootstrap auto-recovery', () => {
     expect(secondConfig?.include).toEqual([...INCLUDE_PATTERNS]);
     expect(secondConfig?.exclude).toEqual([...EXCLUDE_PATTERNS]);
 
-    await librarian.shutdown();
+    await librainian.shutdown();
   });
 });

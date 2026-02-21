@@ -2,7 +2,7 @@
  * @fileoverview Scenario Family Tests (SF-01 to SF-30)
  *
  * Comprehensive tests for all 30 Scenario Families representing different types
- * of code comprehension challenges that Librarian must handle.
+ * of code comprehension challenges that LiBrainian must handle.
  *
  * Test Tiers:
  * - Easy (SF-01 to SF-10): Basic code navigation and lookup

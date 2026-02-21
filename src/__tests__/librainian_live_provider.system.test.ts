@@ -1,5 +1,5 @@
 /**
- * @fileoverview Live-provider Librarian system tests (Tier‑2)
+ * @fileoverview Live-provider LiBrainian system tests (Tier‑2)
  *
  * These tests require real LLM + embedding providers.
  * They MUST fail honestly if providers are unavailable.
@@ -10,17 +10,17 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import {
-  createLibrarian,
-  Librarian,
+  createLiBrainian,
+  LiBrainian,
   createSqliteStorage,
-  createIndexLibrarian,
-  ensureLibrarianReady,
-  isLibrarianReady,
+  createIndexLiBrainian,
+  ensureLiBrainianReady,
+  isLiBrainianReady,
   resetGate,
 } from '../index.js';
 import { checkAllProviders, type AllProviderStatus } from '../api/provider_check.js';
 import { EmbeddingService, REAL_EMBEDDING_DIMENSION } from '../api/embeddings.js';
-import { resolveLibrarianModelId } from '../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../api/llm_env.js';
 import { cleanupWorkspace } from './helpers/index.js';
 
 const DEFAULT_CODEX_MODEL_ID = 'gpt-5.1-codex-mini';
@@ -40,7 +40,7 @@ export function multiply(a: number, b: number): number {
 `;
 
 const createTempWorkspace = async (): Promise<string> => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-test-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-test-'));
   const canonPath = path.join(root, 'config', 'canon.json');
   await fs.mkdir(path.dirname(canonPath), { recursive: true });
   await fs.writeFile(canonPath, JSON.stringify({ schema_version: 1 }, null, 2));
@@ -67,7 +67,7 @@ async function requireLiveProviders(): Promise<AllProviderStatus> {
 }
 
 function resolveLlmModelId(provider: 'claude' | 'codex'): string {
-  const envModel = resolveLibrarianModelId(provider);
+  const envModel = resolveLiBrainianModelId(provider);
   if (envModel) return envModel;
   return provider === 'claude' ? DEFAULT_CLAUDE_MODEL_ID : DEFAULT_CODEX_MODEL_ID;
 }
@@ -95,7 +95,7 @@ beforeAll(async () => {
   liveLlmModelId = resolveLlmModelId(liveLlmProvider);
 }, 0);
 
-describe('IndexLibrarian (Live)', () => {
+describe('IndexLiBrainian (Live)', () => {
   let workspace: string;
   let embeddingService: EmbeddingService;
   let llmConfig: { llmProvider: 'claude' | 'codex'; llmModelId: string };
@@ -113,13 +113,13 @@ describe('IndexLibrarian (Live)', () => {
   it('should extract functions from TypeScript files', async () => {
     const filePath = await createTestFile(workspace, 'src/math.ts', SAMPLE_TS_FILE);
 
-    const dbPath = path.join(workspace, '.librarian', 'test.db');
+    const dbPath = path.join(workspace, '.librainian', 'test.db');
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = createSqliteStorage(dbPath);
     await storage.initialize();
 
-    const indexer = createIndexLibrarian({
+    const indexer = createIndexLiBrainian({
       createContextPacks: true,
       generateEmbeddings: true,
       embeddingService,
@@ -148,13 +148,13 @@ describe('IndexLibrarian (Live)', () => {
   it('should create context packs for functions', async () => {
     const filePath = await createTestFile(workspace, 'src/sample.ts', SAMPLE_TS_FILE);
 
-    const dbPath = path.join(workspace, '.librarian', 'test.db');
+    const dbPath = path.join(workspace, '.librainian', 'test.db');
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = createSqliteStorage(dbPath);
     await storage.initialize();
 
-    const indexer = createIndexLibrarian({
+    const indexer = createIndexLiBrainian({
       createContextPacks: true,
       generateEmbeddings: true,
       embeddingService,
@@ -183,13 +183,13 @@ describe('IndexLibrarian (Live)', () => {
   it('should generate embeddings when enabled', async () => {
     const filePath = await createTestFile(workspace, 'src/test.ts', SAMPLE_TS_FILE);
 
-    const dbPath = path.join(workspace, '.librarian', 'test.db');
+    const dbPath = path.join(workspace, '.librainian', 'test.db');
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
 
     const storage = createSqliteStorage(dbPath);
     await storage.initialize();
 
-    const indexer = createIndexLibrarian({
+    const indexer = createIndexLiBrainian({
       generateEmbeddings: true,
       embeddingService,
       llmProvider: llmConfig.llmProvider,
@@ -247,17 +247,17 @@ describe('First-Run Gate (Live)', () => {
     try {
       await createTestFile(workspace, 'src/index.ts', SAMPLE_TS_FILE);
 
-      const result = await ensureLibrarianReady(workspace, {
+      const result = await ensureLiBrainianReady(workspace, {
         throwOnFailure: true,
         includePatterns: ['**/*.ts'],
         embeddingService,
       });
 
       expect(result).toMatchObject({ success: true, wasBootstrapped: true });
-      expect(result.librarian).not.toBeNull();
-      expect(isLibrarianReady(workspace)).toBe(true);
+      expect(result.librainian).not.toBeNull();
+      expect(isLiBrainianReady(workspace)).toBe(true);
 
-      const result2 = await ensureLibrarianReady(workspace);
+      const result2 = await ensureLiBrainianReady(workspace);
       expect(result2).toMatchObject({ wasBootstrapped: false });
       expect(result2.durationMs).toBeLessThan(100);
     } finally {
@@ -275,9 +275,9 @@ describe('First-Run Gate (Live)', () => {
   }, 0);
 });
 
-describe('Librarian API (Live)', () => {
+describe('LiBrainian API (Live)', () => {
   let workspace: string;
-  let librarian: Librarian;
+  let librainian: LiBrainian;
   let embeddingService: EmbeddingService | null = null;
   let llmConfig: { llmProvider: 'claude' | 'codex'; llmModelId: string };
 
@@ -289,16 +289,16 @@ describe('Librarian API (Live)', () => {
   }, 0);
 
   afterEach(async () => {
-    if (librarian) {
-      await librarian.shutdown();
+    if (librainian) {
+      await librainian.shutdown();
     }
     embeddingService = null;
     await cleanupWorkspace(workspace);
   }, 0);
 
-  it('should create and initialize librarian (requires live provider)', async () => {
+  it('should create and initialize librainian (requires live provider)', async () => {
     if (!embeddingService) throw new Error('Embedding service not initialized');
-    librarian = await createLibrarian({
+    librainian = await createLiBrainian({
       workspace,
       autoBootstrap: true,
       bootstrapTimeoutMs: 0,
@@ -308,9 +308,9 @@ describe('Librarian API (Live)', () => {
       llmModelId: llmConfig.llmModelId,
     });
 
-    expect(librarian.isReady()).toBe(true);
+    expect(librainian.isReady()).toBe(true);
 
-    const status = await librarian.getStatus();
+    const status = await librainian.getStatus();
     expect(status.initialized).toBe(true);
     expect(status.bootstrapped).toBe(true);
     expect(status.version).not.toBeNull();
@@ -318,7 +318,7 @@ describe('Librarian API (Live)', () => {
 
   it('should query for context (requires live provider)', async () => {
     if (!embeddingService) throw new Error('Embedding service not initialized');
-    librarian = await createLibrarian({
+    librainian = await createLiBrainian({
       workspace,
       autoBootstrap: true,
       bootstrapTimeoutMs: 0,
@@ -328,7 +328,7 @@ describe('Librarian API (Live)', () => {
       llmModelId: llmConfig.llmModelId,
     });
 
-    const response = await librarian.query({
+    const response = await librainian.query({
       intent: '',
       depth: 'L1',
     });
@@ -339,7 +339,7 @@ describe('Librarian API (Live)', () => {
 
   it('should track confidence based on outcomes (requires live provider)', async () => {
     if (!embeddingService) throw new Error('Embedding service not initialized');
-    librarian = await createLibrarian({
+    librainian = await createLiBrainian({
       workspace,
       autoBootstrap: true,
       bootstrapTimeoutMs: 0,
@@ -349,7 +349,7 @@ describe('Librarian API (Live)', () => {
       llmModelId: llmConfig.llmModelId,
     });
 
-    const response = await librarian.query({
+    const response = await librainian.query({
       intent: '',
       depth: 'L1',
     });
@@ -357,9 +357,9 @@ describe('Librarian API (Live)', () => {
     if (response.packs.length > 0) {
       const pack = response.packs[0];
 
-      await librarian.recordOutcome(pack.packId, 'success');
+      await librainian.recordOutcome(pack.packId, 'success');
 
-      const updated = await librarian.getContextPack(pack.targetId, pack.packType);
+      const updated = await librainian.getContextPack(pack.targetId, pack.packType);
       if (updated) {
         expect(updated.accessCount).toBeGreaterThan(pack.accessCount);
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { requireProviders } from '../provider_check.js';
-import { resolveLibrarianModelConfigWithDiscovery } from '../llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery } from '../llm_env.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
 
 vi.mock('../provider_check.js', () => ({
@@ -8,8 +8,8 @@ vi.mock('../provider_check.js', () => ({
 }));
 
 vi.mock('../llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn(),
-  resolveLibrarianModelId: vi.fn(),
+  resolveLiBrainianModelConfigWithDiscovery: vi.fn(),
+  resolveLiBrainianModelId: vi.fn(),
 }));
 
 vi.mock('../../adapters/llm_service.js', () => ({
@@ -33,7 +33,7 @@ describe('llm purpose extractor', () => {
 
   it('marks invalid LLM output and falls back when heuristics are allowed', async () => {
     vi.mocked(requireProviders).mockResolvedValue(undefined);
-    vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({ provider: 'claude', modelId: 'test-model' });
+    vi.mocked(resolveLiBrainianModelConfigWithDiscovery).mockResolvedValue({ provider: 'claude', modelId: 'test-model' });
     const chat = vi.fn().mockResolvedValue({ content: 'not json', provider: 'claude' });
     vi.mocked(resolveLlmServiceAdapter).mockReturnValue({
       chat,
@@ -51,7 +51,7 @@ describe('llm purpose extractor', () => {
 
   it('throws on invalid LLM output when heuristics are not allowed', async () => {
     vi.mocked(requireProviders).mockResolvedValue(undefined);
-    vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({ provider: 'claude', modelId: 'test-model' });
+    vi.mocked(resolveLiBrainianModelConfigWithDiscovery).mockResolvedValue({ provider: 'claude', modelId: 'test-model' });
     const chat = vi.fn().mockResolvedValue({ content: 'not json', provider: 'claude' });
     vi.mocked(resolveLlmServiceAdapter).mockReturnValue({
       chat,
@@ -69,7 +69,7 @@ describe('llm purpose extractor', () => {
 
   it('retries malformed output and succeeds when provider returns valid structured JSON', async () => {
     vi.mocked(requireProviders).mockResolvedValue(undefined);
-    vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockResolvedValue({ provider: 'claude', modelId: 'test-model' });
+    vi.mocked(resolveLiBrainianModelConfigWithDiscovery).mockResolvedValue({ provider: 'claude', modelId: 'test-model' });
     const chat = vi
       .fn()
       .mockResolvedValueOnce({ content: 'definitely not json', provider: 'claude' })

@@ -14,7 +14,7 @@ import {
 const tmpDirs: string[] = [];
 
 async function mkWorkspace(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-memory-store-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-memory-store-'));
   tmpDirs.push(dir);
   return dir;
 }

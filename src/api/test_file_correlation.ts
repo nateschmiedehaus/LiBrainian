@@ -1,5 +1,5 @@
 /**
- * @fileoverview Test File Correlation for Librarian Query System
+ * @fileoverview Test File Correlation for LiBrainian Query System
  *
  * This module implements deterministic test file discovery based on path correlation.
  * When a user queries "tests for X", this module finds test files through:
@@ -14,7 +14,7 @@
 
 import * as path from 'node:path';
 import { getLanguageFromPath } from '../utils/language.js';
-import type { LibrarianStorage, TestMapping } from '../storage/types.js';
+import type { LiBrainianStorage, TestMapping } from '../storage/types.js';
 import type { ContextPack, FunctionKnowledge, ModuleKnowledge } from '../types.js';
 import { detectTestQuery, findTestsForClass, type TestDiscoveryResult } from './test_discovery.js';
 
@@ -248,7 +248,7 @@ export interface TestCorrelationOptions {
  */
 export async function correlateTestFiles(
   sourcePath: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: TestCorrelationOptions = {}
 ): Promise<TestCorrelationResult> {
   const maxResults = options.maxResults ?? 20;
@@ -382,7 +382,7 @@ export async function correlateTestFiles(
  */
 export async function findTestFilesByPattern(
   pattern: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { maxResults?: number } = {}
 ): Promise<CorrelatedTestFile[]> {
   const maxResults = options.maxResults ?? 20;
@@ -428,7 +428,7 @@ export async function findTestFilesByPattern(
  */
 export async function createTestContextPacks(
   correlation: TestCorrelationResult,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<ContextPack[]> {
   const packs: ContextPack[] = [];
 
@@ -516,7 +516,7 @@ export interface TestCorrelationStageResult {
 export async function runTestCorrelationStage(options: {
   intent: string;
   affectedFiles?: string[];
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspaceRoot?: string;
 }): Promise<TestCorrelationStageResult> {
   const { intent, affectedFiles, storage, workspaceRoot } = options;
@@ -639,7 +639,7 @@ export async function runTestCorrelationStage(options: {
 async function createTestPacksFromDiscovery(
   discovery: TestDiscoveryResult,
   className: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<ContextPack[]> {
   const packs: ContextPack[] = [];
 

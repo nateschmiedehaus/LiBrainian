@@ -1,12 +1,12 @@
 /**
- * Automatic Docs Update - Updates repo agent docs with librarian usage info
+ * Automatic Docs Update - Updates repo agent docs with librainian usage info
  *
  * During bootstrap/indexing, this module:
  * 1. Detects AGENTS.md, CLAUDE.md, or similar files in the repo
- * 2. Generates a librarian usage section with current capabilities
+ * 2. Generates a librainian usage section with current capabilities
  * 3. Inserts or updates the section (idempotent)
  *
- * Philosophy: Keep the team informed about librarian capabilities
+ * Philosophy: Keep the team informed about librainian capabilities
  * without requiring manual documentation updates.
  */
 
@@ -60,7 +60,7 @@ export interface EjectInjectedDocsResult {
 const LIBRARIAN_SECTION_START = '<!-- LIBRARIAN_DOCS_START -->';
 const LIBRARIAN_SECTION_END = '<!-- LIBRARIAN_DOCS_END -->';
 const LIBRARIAN_SECTION_NAME = 'LIBRARIAN_DOCS';
-const LIBRARIAN_STATE_PATH = ['.librarian', 'state.json'];
+const LIBRARIAN_STATE_PATH = ['.librainian', 'state.json'];
 
 const AGENT_DOC_PATTERNS = [
   'AGENTS.md',
@@ -72,7 +72,7 @@ const AGENT_DOC_PATTERNS = [
   '.github/AGENTS.md',
 ];
 
-interface LibrarianState {
+interface LiBrainianState {
   schema_version?: number;
   docs?: {
     claudeFileHashes?: Record<string, string>;
@@ -82,7 +82,7 @@ interface LibrarianState {
 }
 
 /**
- * Update repo documentation with librarian usage information.
+ * Update repo documentation with librainian usage information.
  * Called automatically after successful bootstrap.
  */
 export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpdateResult> {
@@ -104,11 +104,11 @@ export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpda
     return result;
   }
 
-  // Generate the librarian section content
+  // Generate the librainian section content
   const featureRegistry = await collectFeatureRegistry(workspace);
-  const sectionContent = generateLibrarianSection(report, capabilities, featureRegistry);
+  const sectionContent = generateLiBrainianSection(report, capabilities, featureRegistry);
   const sectionLineCount = sectionContent.split('\n').length;
-  const state = await readLibrarianState(workspace);
+  const state = await readLiBrainianState(workspace);
   const claudeFileHashes = state.docs?.claudeFileHashes ?? {};
   let stateChanged = false;
 
@@ -125,7 +125,7 @@ export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpda
         const storedHash = claudeFileHashes[relativePath];
         const currentHash = sha256(existingContent);
         if (storedHash && storedHash !== currentHash) {
-          const warning = `Skipped ${relativePath}: hash mismatch since last librarian inject.`;
+          const warning = `Skipped ${relativePath}: hash mismatch since last librainian inject.`;
           result.warnings.push(warning);
           console.warn(`[librainian] ${warning}`);
           result.filesSkipped.push(relativePath);
@@ -165,7 +165,7 @@ export async function updateRepoDocs(config: DocsUpdateConfig): Promise<DocsUpda
     state.docs = state.docs ?? {};
     state.docs.claudeFileHashes = claudeFileHashes;
     state.docs.updatedAt = new Date().toISOString();
-    await writeLibrarianState(workspace, state);
+    await writeLiBrainianState(workspace, state);
   }
 
   return result;
@@ -182,7 +182,7 @@ export async function ejectInjectedDocs(config: EjectInjectedDocsConfig): Promis
 
   const { workspace, dryRun } = config;
   const claudeDocs = (await findAgentDocs(workspace)).filter((docPath) => isClaudeDoc(docPath));
-  const state = await readLibrarianState(workspace);
+  const state = await readLiBrainianState(workspace);
   const claudeFileHashes = state.docs?.claudeFileHashes ?? {};
   let stateChanged = false;
 
@@ -221,7 +221,7 @@ export async function ejectInjectedDocs(config: EjectInjectedDocsConfig): Promis
     state.docs = state.docs ?? {};
     state.docs.claudeFileHashes = claudeFileHashes;
     state.docs.updatedAt = new Date().toISOString();
-    await writeLibrarianState(workspace, state);
+    await writeLiBrainianState(workspace, state);
   }
 
   return result;
@@ -247,9 +247,9 @@ async function findAgentDocs(workspace: string): Promise<string[]> {
 }
 
 /**
- * Generate the librarian documentation section content.
+ * Generate the librainian documentation section content.
  */
-function generateLibrarianSection(
+function generateLiBrainianSection(
   report: BootstrapReport,
   capabilities: BootstrapCapabilities,
   featureRegistry: FeatureEntry[],
@@ -294,8 +294,8 @@ function generateLibrarianSection(
     '',
     '```typescript',
     '// 1. Get the LiBrainian instance',
-    "import { initializeLibrarian } from 'librainian';",
-    'const librainian = await initializeLibrarian(workspaceRoot);',
+    "import { initializeLiBrainian } from 'librainian';",
+    'const librainian = await initializeLiBrainian(workspaceRoot);',
     '',
     '// 2. Query for context',
     "const context = await librainian.query('How does authentication work?');",
@@ -364,9 +364,9 @@ function generateLibrarianSection(
     '',
     '### Key Documentation',
     '',
-    '- **Entry point**: `docs/librarian/README.md`',
-    '- **API reference**: `src/librarian/api/README.md`',
-    '- **Query guide**: `docs/librarian/query-guide.md`',
+    '- **Entry point**: `docs/librainian/README.md`',
+    '- **API reference**: `src/librainian/api/README.md`',
+    '- **Query guide**: `docs/librainian/query-guide.md`',
     '',
     '### When to Re-index',
     '',
@@ -398,7 +398,7 @@ function formatCapabilityName(name: string): string {
 }
 
 /**
- * Update a documentation file with the librarian section.
+ * Update a documentation file with the librainian section.
  */
 async function updateDocFile(
   filePath: string,
@@ -455,7 +455,7 @@ async function updateDocFile(
 }
 
 /**
- * Check if librarian docs update is needed.
+ * Check if librainian docs update is needed.
  */
 export async function isDocsUpdateNeeded(workspace: string): Promise<boolean> {
   const agentDocs = await findAgentDocs(workspace);
@@ -486,11 +486,11 @@ function sha256(input: string): string {
   return createHash('sha256').update(input, 'utf8').digest('hex');
 }
 
-async function readLibrarianState(workspace: string): Promise<LibrarianState> {
+async function readLiBrainianState(workspace: string): Promise<LiBrainianState> {
   const statePath = path.join(workspace, ...LIBRARIAN_STATE_PATH);
   try {
     const raw = await fs.readFile(statePath, 'utf-8');
-    const parsed = JSON.parse(raw) as LibrarianState;
+    const parsed = JSON.parse(raw) as LiBrainianState;
     if (!parsed || typeof parsed !== 'object') {
       return { schema_version: 1 };
     }
@@ -500,8 +500,8 @@ async function readLibrarianState(workspace: string): Promise<LibrarianState> {
   }
 }
 
-async function writeLibrarianState(workspace: string, state: LibrarianState): Promise<void> {
-  const stateDir = path.join(workspace, '.librarian');
+async function writeLiBrainianState(workspace: string, state: LiBrainianState): Promise<void> {
+  const stateDir = path.join(workspace, '.librainian');
   const statePath = path.join(stateDir, 'state.json');
   const tmpPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
   await fs.mkdir(stateDir, { recursive: true });

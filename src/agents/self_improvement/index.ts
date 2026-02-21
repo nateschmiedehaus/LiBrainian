@@ -1,7 +1,7 @@
 /**
  * @fileoverview Self-Improvement Primitives Module
  *
- * This module provides primitives for Librarian to analyze, verify, and
+ * This module provides primitives for LiBrainian to analyze, verify, and
  * improve itself. These form the foundation of the meta-epistemic loop.
  *
  * Based on self-improvement-primitives.md specification.

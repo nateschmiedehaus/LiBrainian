@@ -18,7 +18,7 @@ import {
   type ValidationGateContext,
   type ValidationGateResult,
 } from '../validation_gates.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { BootstrapConfig, BootstrapPhaseResult, BootstrapPhase } from '../../types.js';
 
 // ============================================================================
@@ -33,7 +33,7 @@ function createMockStorage(overrides: {
   totalModules?: number;
   totalContextPacks?: number;
   fileCount?: number;
-} = {}): LibrarianStorage {
+} = {}): LiBrainianStorage {
   const {
     totalFunctions = 0,
     totalModules = 0,
@@ -169,7 +169,7 @@ function createMockStorage(overrides: {
     storeCochangeEdges: vi.fn().mockResolvedValue(undefined),
     getCochangeEdges: vi.fn().mockResolvedValue([]),
     getCochangeEdgeCount: vi.fn().mockResolvedValue(0),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 /**

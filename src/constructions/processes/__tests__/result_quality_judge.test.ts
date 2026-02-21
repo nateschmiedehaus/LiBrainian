@@ -29,7 +29,7 @@ describe('ResultQualityJudge', () => {
     const result = await judge.execute({
       query: 'loan policy and borrowing limits',
       expectedFiles: ['src/policy/loanPolicy.ts'],
-      topFiles: ['.librarian/cache/context.json'],
+      topFiles: ['.librainian/cache/context.json'],
       confidenceValues: [1.5],
       evidenceSnippets: [],
     });

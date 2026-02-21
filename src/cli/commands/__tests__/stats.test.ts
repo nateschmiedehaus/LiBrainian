@@ -9,13 +9,13 @@ const tempDirs: string[] = [];
 async function createWorkspace(): Promise<string> {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-stats-'));
   tempDirs.push(workspace);
-  await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
+  await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
   return workspace;
 }
 
 async function seedLedger(workspace: string): Promise<void> {
   const BetterSqlite3 = (await import('better-sqlite3')).default;
-  const dbPath = path.join(workspace, '.librarian', 'evidence_ledger.db');
+  const dbPath = path.join(workspace, '.librainian', 'evidence_ledger.db');
   const db = new BetterSqlite3(dbPath);
   try {
     db.exec(`
@@ -107,7 +107,7 @@ describe('statsCommand', () => {
 
     const payload = logSpy.mock.calls
       .map((call) => String(call[0]))
-      .find((line) => line.includes('"LibrarianStats.v1"'));
+      .find((line) => line.includes('"LiBrainianStats.v1"'));
 
     expect(payload).toBeTruthy();
     const parsed = JSON.parse(payload!);

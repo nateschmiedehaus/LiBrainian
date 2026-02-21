@@ -17,7 +17,7 @@ import type { SemanticsExtraction } from './semantics.js';
 import type { SecurityExtraction } from './security_extractor.js';
 import type { RationaleExtraction } from './rationale_extractor.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 import { extractSecurity as extractSecurityStatic } from './security_extractor.js';
 
@@ -158,7 +158,7 @@ export async function extractConsolidated(
   ];
 
   const modelId = config.llmModelId
-    || resolveLibrarianModelId(config.llmProvider)
+    || resolveLiBrainianModelId(config.llmProvider)
     || 'claude-haiku-4-5-20241022';
 
   const llmEvidence = await buildLlmEvidence({

@@ -54,7 +54,7 @@ function toAction(value: string | undefined): OpenclawDaemonAction {
     return value;
   }
   throw new CliError(
-    `Unknown or missing action: ${value ?? '<none>'}. Usage: librarian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]`,
+    `Unknown or missing action: ${value ?? '<none>'}. Usage: librainian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]`,
     'INVALID_ARGUMENT',
   );
 }

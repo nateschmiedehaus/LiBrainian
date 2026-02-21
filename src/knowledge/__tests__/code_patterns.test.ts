@@ -18,7 +18,7 @@ import {
   type CodePattern,
   type PatternCategory,
 } from '../code_patterns.js';
-import type { FunctionKnowledge, ModuleKnowledge, LibrarianStorage } from '../../storage/types.js';
+import type { FunctionKnowledge, ModuleKnowledge, LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // TEST HELPERS
@@ -58,7 +58,7 @@ function createMockModule(overrides: Partial<ModuleKnowledge>): ModuleKnowledge 
 function createMockStorage(
   functions: FunctionKnowledge[],
   modules: ModuleKnowledge[] = []
-): LibrarianStorage {
+): LiBrainianStorage {
   return {
     getFunctions: async () => functions,
     getModules: async () => modules,
@@ -78,7 +78,7 @@ function createMockStorage(
       },
       versions: { schema: 1, api: 1 },
     }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================

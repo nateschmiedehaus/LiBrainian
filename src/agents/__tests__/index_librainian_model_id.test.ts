@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { requireEmbeddingModelId } from '../index_librarian.js';
+import { requireEmbeddingModelId } from '../index_librainian.js';
 
 describe('requireEmbeddingModelId', () => {
   it('throws when modelId is undefined', () => {

@@ -22,10 +22,10 @@ import {
 } from '../hybrid_analysis.js';
 import type { ModuleGraph } from '../../knowledge/module_graph.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 describe('Hybrid Analysis', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
   const testDir = join(tmpdir(), 'hybrid-analysis-test-' + Date.now());
 

@@ -13,7 +13,7 @@
 import { execSync, exec } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';
-import type { LibrarianStorage, DiffRecord, DiffHunk } from '../storage/types.js';
+import type { LiBrainianStorage, DiffRecord, DiffHunk } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -21,7 +21,7 @@ import type { LibrarianStorage, DiffRecord, DiffHunk } from '../storage/types.js
 
 export interface DiffIndexerOptions {
   workspace: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   commits?: string[];         // Specific commits to analyze (if empty, uses recent commits)
   maxCommits?: number;        // Limit number of commits to process (default: 100)
   sinceDate?: string;         // Only commits after this date (ISO format)
@@ -432,7 +432,7 @@ export async function indexDiffs(options: DiffIndexerOptions): Promise<DiffIndex
  * Get high-impact changes in recent commits.
  */
 export async function getHighImpactChanges(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   minImpact: number = 0.7,
   limit: number = 20
 ): Promise<DiffRecord[]> {
@@ -448,7 +448,7 @@ export async function getHighImpactChanges(
  * Get structural changes (API/interface changes).
  */
 export async function getStructuralChanges(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 20
 ): Promise<DiffRecord[]> {
   return storage.getDiffRecords({
@@ -463,7 +463,7 @@ export async function getStructuralChanges(
  * Get change statistics for a file.
  */
 export async function getFileChangeStats(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePath: string
 ): Promise<{
   totalCommits: number;

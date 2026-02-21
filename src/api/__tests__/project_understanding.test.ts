@@ -73,7 +73,7 @@ describe('PROJECT_UNDERSTANDING_PATTERNS', () => {
 });
 
 describe('extractProjectSummary', () => {
-  // Use the actual librarian project as test workspace
+  // Use the actual librainian project as test workspace
   const workspaceRoot = path.resolve(process.cwd());
 
   it('extracts name from package.json', async () => {

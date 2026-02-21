@@ -35,7 +35,7 @@ import { deterministic } from '../confidence.js';
 describe('Defeater Calculus Engine', () => {
   let storage: EvidenceGraphStorage;
   let dbPath: string;
-  const testDir = join(tmpdir(), 'librarian-defeater-test-' + Date.now());
+  const testDir = join(tmpdir(), 'librainian-defeater-test-' + Date.now());
   const workspace = '/test/workspace';
 
   beforeEach(async () => {

@@ -1,13 +1,13 @@
-// Wave0 integration points for Librarian.
+// Wave0 integration points for LiBrainian.
 
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianQuery, LibrarianResponse, ContextPack } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianQuery, LiBrainianResponse, ContextPack } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { emptyArray, noResult } from '../api/empty_values.js';
-import { ensureLibrarianReady, getLibrarian, isLibrarianReady } from './first_run_gate.js';
+import { ensureLiBrainianReady, getLiBrainian, isLiBrainianReady } from './first_run_gate.js';
 import { attributeFailure, recordPackOutcome, type AgentKnowledgeContext, type TaskOutcomeSummary } from './causal_attribution.js';
 import { getEmergencyModeState, recordConfidenceUpdateSkipped } from './emergency_mode.js';
 import { buildTemporalGraph, type TemporalGraph } from '../graphs/temporal_graph.js';
@@ -27,7 +27,7 @@ import {
   createFeedbackReceivedEvent,
 } from '../events.js';
 
-export interface LibrarianContext {
+export interface LiBrainianContext {
   intent?: string;
   taskType?: string;
   summary: string;
@@ -58,17 +58,17 @@ export async function enrichTaskContext(
     enabledConstructables?: string[];
     embeddingRequirement?: 'required' | 'optional' | 'disabled';
   }
-): Promise<LibrarianContext> {
+): Promise<LiBrainianContext> {
   if (isDeterministicMode()) {
-    return createEmptyContext('Librarian disabled in deterministic mode');
+    return createEmptyContext('LiBrainian disabled in deterministic mode');
   }
   const taskId = query.taskId ?? randomUUID();
   void globalEventBus.emit(createTaskReceivedEvent(taskId, query.intent, query.affectedFiles));
-  // Get librarian (should already be ready from first-run gate)
-  const librarian = getLibrarian(workspace);
+  // Get librainian (should already be ready from first-run gate)
+  const librainian = getLiBrainian(workspace);
 
-  if (!librarian) {
-    throw new Error('Librarian not initialized');
+  if (!librainian) {
+    throw new Error('LiBrainian not initialized');
   }
 
   try {
@@ -78,7 +78,7 @@ export async function enrichTaskContext(
       ?.map((value) => value.trim())
       .filter(Boolean)
       .map((value) => path.isAbsolute(value) ? value : path.resolve(workspace, value));
-    const response = await librarian.queryOptional({
+    const response = await librainian.queryOptional({
       intent: query.intent,
       affectedFiles,
       taskType: query.taskType,
@@ -100,18 +100,18 @@ export async function enrichTaskContext(
     return convertResponseToContext(response);
   } catch (error: unknown) {
     const message = getErrorMessage(error);
-    throw new Error(`Librarian query failed: ${message}`);
+    throw new Error(`LiBrainian query failed: ${message}`);
   }
 }
 
-export function formatLibrarianContext(context: LibrarianContext): string {
+export function formatLiBrainianContext(context: LiBrainianContext): string {
   if (context.summary === 'No context available') {
     return '';
   }
 
   const sections: string[] = [];
 
-  sections.push(`## Librarian Context (confidence: ${(context.confidence * 100).toFixed(0)}%)`);
+  sections.push(`## LiBrainian Context (confidence: ${(context.confidence * 100).toFixed(0)}%)`);
   sections.push('');
   sections.push(context.summary);
   sections.push('');
@@ -217,14 +217,14 @@ export async function recordTaskOutcome(
   }
 ): Promise<void> {
   if (isDeterministicMode()) return;
-  const librarian = getLibrarian(workspace);
-  if (!librarian) {
-    throw new Error('Librarian not initialized');
+  const librainian = getLiBrainian(workspace);
+  if (!librainian) {
+    throw new Error('LiBrainian not initialized');
   }
 
-  const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
+  const storage = (librainian as unknown as { storage?: LiBrainianStorage }).storage;
   if (!storage) {
-    throw new Error('Librarian storage not available');
+    throw new Error('LiBrainian storage not available');
   }
   const outcomeSummary: TaskOutcomeSummary = {
     success: outcome.success,
@@ -272,7 +272,7 @@ export async function recordTaskOutcome(
       if (delta < 0) {
         const drops = await countConfidenceDrops(storage, target.id, target.type, sinceIso);
         if (drops >= 3) {
-          logWarning('Librarian confidence cascade detected', {
+          logWarning('LiBrainian confidence cascade detected', {
             target: `${target.type}:${target.id}`,
             dropsPerHour: drops,
           });
@@ -295,7 +295,7 @@ export async function recordTaskOutcome(
 
   // Trigger re-indexing for modified files
   if (outcome.filesModified && outcome.filesModified.length > 0) {
-    await librarian.reindexFiles(outcome.filesModified);
+    await librainian.reindexFiles(outcome.filesModified);
     for (const filePath of outcome.filesModified) {
       void globalEventBus.emit(createFileModifiedEvent(filePath, 'task_outcome'));
     }
@@ -328,14 +328,14 @@ export async function notifyFileChange(
   filePath: string
 ): Promise<void> {
   if (isDeterministicMode()) return;
-  const librarian = getLibrarian(workspace);
-  if (!librarian) {
-    throw new Error('Librarian not initialized');
+  const librainian = getLiBrainian(workspace);
+  if (!librainian) {
+    throw new Error('LiBrainian not initialized');
   }
 
   void globalEventBus.emit(createFileModifiedEvent(filePath, 'notify'));
-  await invalidateContextPacks(librarian, [filePath]);
-  await librarian.reindexFiles([filePath]);
+  await invalidateContextPacks(librainian, [filePath]);
+  await librainian.reindexFiles([filePath]);
 }
 
 export async function notifyFileChanges(
@@ -343,16 +343,16 @@ export async function notifyFileChanges(
   filePaths: string[]
 ): Promise<void> {
   if (isDeterministicMode()) return;
-  const librarian = getLibrarian(workspace);
-  if (!librarian) {
-    throw new Error('Librarian not initialized');
+  const librainian = getLiBrainian(workspace);
+  if (!librainian) {
+    throw new Error('LiBrainian not initialized');
   }
 
   for (const filePath of filePaths) {
     void globalEventBus.emit(createFileModifiedEvent(filePath, 'notify'));
   }
-  await invalidateContextPacks(librarian, filePaths);
-  await librarian.reindexFiles(filePaths);
+  await invalidateContextPacks(librainian, filePaths);
+  await librainian.reindexFiles(filePaths);
 }
 
 export async function preOrchestrationHook(
@@ -363,39 +363,39 @@ export async function preOrchestrationHook(
   }
 ): Promise<void> {
   if (isDeterministicMode()) {
-    logInfo('Librarian deterministic mode enabled; skipping bootstrap.');
+    logInfo('LiBrainian deterministic mode enabled; skipping bootstrap.');
     return;
   }
-  const result = await ensureLibrarianReady(workspace, {
+  const result = await ensureLiBrainianReady(workspace, {
     onProgress: options?.onProgress,
     timeoutMs: options?.timeoutMs,
     throwOnFailure: true,
   });
 
   if (!result.success) {
-    throw new Error(`Librarian initialization failed: ${result.error}`);
+    throw new Error(`LiBrainian initialization failed: ${result.error}`);
   }
 
   // Log what happened
   if (result.wasBootstrapped) {
-    logInfo('Librarian bootstrap complete', {
+    logInfo('LiBrainian bootstrap complete', {
       workspace,
       durationMs: result.durationMs,
     });
   } else {
-    logInfo('Librarian ready (cached)', { workspace });
+    logInfo('LiBrainian ready (cached)', { workspace });
   }
 
-  const librarian = getLibrarian(workspace);
-  if (librarian) {
-    await ensureTemporalGraph(librarian, workspace);
-    const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
+  const librainian = getLiBrainian(workspace);
+  if (librainian) {
+    await ensureTemporalGraph(librainian, workspace);
+    const storage = (librainian as unknown as { storage?: LiBrainianStorage }).storage;
     const debounceRaw = process.env.LIBRARIAN_LIBRARIAN_WATCH_DEBOUNCE_MS;
     const debounceMs = debounceRaw ? Number.parseInt(debounceRaw, 10) : undefined;
     const resolvedDebounce = typeof debounceMs === 'number' && Number.isFinite(debounceMs) ? debounceMs : undefined;
     startFileWatcher({
       workspaceRoot: workspace,
-      librarian,
+      librainian,
       storage,
       debounceMs: resolvedDebounce,
     });
@@ -408,17 +408,17 @@ export async function postOrchestrationHook(
   stopFileWatcher(workspace);
 }
 
-function createEmptyContext(reason: string): LibrarianContext {
+function createEmptyContext(reason: string): LiBrainianContext {
   return { summary: 'No context available', keyFacts: [reason], snippets: [], relatedFiles: [], patterns: [], gotchas: [], confidence: 0, drillDownHints: [], methodHints: [], packIds: [] };
 }
 
-function convertResponseToContext(response: LibrarianResponse): LibrarianContext {
+function convertResponseToContext(response: LiBrainianResponse): LiBrainianContext {
   const summary = response.packs.length > 0
     ? response.packs[0].summary
     : 'No relevant context found';
 
   const keyFacts: string[] = [];
-  const snippets: LibrarianContext['snippets'] = [];
+  const snippets: LiBrainianContext['snippets'] = [];
   const relatedFiles = new Set<string>();
   const packIds: string[] = [];
   const gotchas: string[] = [];
@@ -479,8 +479,8 @@ function convertResponseToContext(response: LibrarianResponse): LibrarianContext
   };
 }
 
-async function invalidateContextPacks(librarian: Librarian, filePaths: string[]): Promise<void> {
-  const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
+async function invalidateContextPacks(librainian: LiBrainian, filePaths: string[]): Promise<void> {
+  const storage = (librainian as unknown as { storage?: LiBrainianStorage }).storage;
   if (!storage) return;
   for (const filePath of filePaths) {
     const invalidated = await storage.invalidateContextPacks(filePath);
@@ -491,7 +491,7 @@ async function invalidateContextPacks(librarian: Librarian, filePaths: string[])
 }
 
 async function resolveContextPacks(
-  storage: LibrarianStorage | undefined,
+  storage: LiBrainianStorage | undefined,
   packIds: string[]
 ): Promise<ContextPack[]> {
   if (!storage || typeof storage.getContextPack !== 'function') return emptyArray<ContextPack>();
@@ -519,12 +519,12 @@ function inferEntityType(packType: string): ConfidenceTarget['type'] | null {
 }
 
 async function canUpdateConfidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   entityType: ConfidenceTarget['type'],
   sinceIso: string
 ): Promise<boolean> {
-  const counter = storage as LibrarianStorage & {
+  const counter = storage as LiBrainianStorage & {
     countConfidenceUpdates?: (entityId: string, entityType: ConfidenceTarget['type'], sinceIso: string, deltaFilter?: 'any' | 'negative' | 'positive') => Promise<number>;
   };
   if (!counter.countConfidenceUpdates) return true;
@@ -532,12 +532,12 @@ async function canUpdateConfidence(
 }
 
 async function countConfidenceDrops(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   entityType: ConfidenceTarget['type'],
   sinceIso: string
 ): Promise<number> {
-  const counter = storage as LibrarianStorage & {
+  const counter = storage as LiBrainianStorage & {
     countConfidenceUpdates?: (entityId: string, entityType: ConfidenceTarget['type'], sinceIso: string, deltaFilter?: 'any' | 'negative' | 'positive') => Promise<number>;
   };
   if (!counter.countConfidenceUpdates) return 0;
@@ -545,7 +545,7 @@ async function countConfidenceDrops(
 }
 
 async function getEntityConfidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   entityType: ConfidenceTarget['type']
 ): Promise<number> {
@@ -570,9 +570,9 @@ async function getEntityConfidence(
   return DEFAULT_CONFIDENCE;
 }
 
-async function ensureTemporalGraph(librarian: Librarian, workspace: string): Promise<void> {
-  const storage = (librarian as unknown as {
-    storage?: LibrarianStorage & {
+async function ensureTemporalGraph(librainian: LiBrainian, workspace: string): Promise<void> {
+  const storage = (librainian as unknown as {
+    storage?: LiBrainianStorage & {
       getCochangeEdgeCount?: () => Promise<number>;
       storeCochangeEdges?: (edges: TemporalGraph['edges'], computedAt?: string) => Promise<void>;
     };
@@ -586,7 +586,7 @@ async function ensureTemporalGraph(librarian: Librarian, workspace: string): Pro
 }
 
 export {
-  ensureLibrarianReady,
-  isLibrarianReady,
-  getLibrarian,
+  ensureLiBrainianReady,
+  isLiBrainianReady,
+  getLiBrainian,
 } from './first_run_gate.js';

@@ -1,8 +1,8 @@
 /**
- * @fileoverview Unified Librarian Orchestrator
+ * @fileoverview Unified LiBrainian Orchestrator
  *
- * This is THE single entry point for AI agents to use Librarian.
- * One function call provides optimal Librarian experience with:
+ * This is THE single entry point for AI agents to use LiBrainian.
+ * One function call provides optimal LiBrainian experience with:
  * - Automatic bootstrap if needed
  * - Optimal tier selection (always 'full' for quality)
  * - Auto-enabled constructables based on workspace analysis
@@ -12,29 +12,29 @@
  * @example
  * ```typescript
  * // This is ALL an agent needs to do
- * const librarian = await initializeLibrarian(workspace);
+ * const librainian = await initializeLiBrainian(workspace);
  *
  * // Everything else is automatic:
- * const context = await librarian.query('How does auth work?');
- * const fileContext = await librarian.getContext(['src/auth.ts']);
- * await librarian.recordOutcome({ success: true, packIds: context.packIds });
- * const health = librarian.health();
+ * const context = await librainian.query('How does auth work?');
+ * const fileContext = await librainian.getContext(['src/auth.ts']);
+ * await librainian.recordOutcome({ success: true, packIds: context.packIds });
+ * const health = librainian.health();
  * ```
  *
  * @packageDocumentation
  */
 
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianContext } from '../integration/wave0_integration.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianContext } from '../integration/wave0_integration.js';
 import type {
-  LibrarianHealth,
+  LiBrainianHealth,
   RecoveryState,
 } from '../measurement/observability.js';
 import type { FileWatcherHandle } from '../integration/file_watcher.js';
 import {
-  ensureLibrarianReady,
-  getLibrarian,
-  isLibrarianReady,
+  ensureLiBrainianReady,
+  getLiBrainian,
+  isLiBrainianReady,
   resetGate,
 } from '../integration/first_run_gate.js';
 import { createWatchRecoveryGate } from '../integration/watch_recovery.js';
@@ -56,7 +56,7 @@ import {
   diagnoseDegradation,
   type RecoveryStatus,
 } from '../integration/recovery.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { processAgentFeedback, type AgentFeedback } from '../integration/agent_feedback.js';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
 import { QUALITY_TIERS } from '../index.js';
@@ -96,7 +96,7 @@ export interface TaskResult {
 }
 
 /**
- * Health report for the Librarian session.
+ * Health report for the LiBrainian session.
  */
 export interface HealthReport {
   /** Overall health status */
@@ -141,13 +141,13 @@ export interface HealthReport {
 /**
  * Context returned from queries.
  */
-export interface Context extends LibrarianContext {
+export interface Context extends LiBrainianContext {
   /** Pack IDs for outcome tracking */
   packIds: string[];
 }
 
 /**
- * Options for initializing a Librarian session.
+ * Options for initializing a LiBrainian session.
  */
 export interface InitializeOptions {
   /** Suppress progress output */
@@ -173,9 +173,9 @@ export interface InitializeOptions {
 }
 
 /**
- * The unified session interface for all Librarian operations.
+ * The unified session interface for all LiBrainian operations.
  */
-export interface LibrarianSession {
+export interface LiBrainianSession {
   /**
    * Query the codebase with natural language intent.
    *
@@ -219,17 +219,17 @@ export interface LibrarianSession {
    * ```typescript
    * const health = session.health();
    * if (health.status !== 'healthy') {
-   *   console.warn('Librarian degraded:', health.degradationReasons);
+   *   console.warn('LiBrainian degraded:', health.degradationReasons);
    * }
    * ```
    */
   health(): HealthReport;
 
   /**
-   * Access the underlying Librarian instance for advanced operations.
+   * Access the underlying LiBrainian instance for advanced operations.
    * Use with caution - prefer the session methods.
    */
-  readonly librarian: Librarian;
+  readonly librainian: LiBrainian;
 
   /**
    * The workspace path this session is for.
@@ -259,7 +259,7 @@ export interface QueryOptions {
 // ============================================================================
 
 interface SessionState {
-  librarian: Librarian;
+  librainian: LiBrainian;
   workspace: string;
   fileWatcher: FileWatcherHandle | null;
   healingInterval: NodeJS.Timeout | null;
@@ -283,9 +283,9 @@ const activeSessions = new Map<string, SessionState>();
 // ============================================================================
 
 /**
- * Initialize Librarian for a workspace.
+ * Initialize LiBrainian for a workspace.
  *
- * This is THE primary way to use Librarian. One call sets up everything:
+ * This is THE primary way to use LiBrainian. One call sets up everything:
  * - Checks if bootstrapped, bootstraps if needed
  * - Selects optimal tier (always 'full' for quality)
  * - Starts background file watching
@@ -295,32 +295,32 @@ const activeSessions = new Map<string, SessionState>();
  * @example
  * ```typescript
  * // This is ALL an agent needs to do
- * const librarian = await initializeLibrarian('/path/to/project');
+ * const librainian = await initializeLiBrainian('/path/to/project');
  *
  * // Query for context
- * const ctx = await librarian.query('How does the payment system work?');
+ * const ctx = await librainian.query('How does the payment system work?');
  *
  * // Use context in your work...
  *
  * // Record outcome for calibration
- * await librarian.recordOutcome({
+ * await librainian.recordOutcome({
  *   success: true,
  *   packIds: ctx.packIds,
  *   filesModified: ['src/payments/processor.ts'],
  * });
  *
  * // Check health anytime
- * const health = librarian.health();
+ * const health = librainian.health();
  * ```
  *
  * @param workspace - Path to the workspace root
  * @param options - Optional configuration
- * @returns A LibrarianSession for all operations
+ * @returns A LiBrainianSession for all operations
  */
-export async function initializeLibrarian(
+export async function initializeLiBrainian(
   workspace: string,
   options: InitializeOptions = {}
-): Promise<LibrarianSession> {
+): Promise<LiBrainianSession> {
   const normalizedWorkspace = normalizeWorkspacePath(workspace);
   const resolution = process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT === '1'
     ? resolveWorkspaceRoot(normalizedWorkspace, { maxDepthUp: 0 })
@@ -354,7 +354,7 @@ export async function initializeLibrarian(
   } = options;
 
   if (!silent) {
-    logInfo('[unified-init] Initializing Librarian', {
+    logInfo('[unified-init] Initializing LiBrainian', {
       workspace: resolvedWorkspace,
       tier: 'full',
     });
@@ -368,8 +368,8 @@ export async function initializeLibrarian(
     });
   }
 
-  // Step 1: Ensure Librarian is ready (bootstrap if needed)
-  const result = await ensureLibrarianReady(resolvedWorkspace, {
+  // Step 1: Ensure LiBrainian is ready (bootstrap if needed)
+  const result = await ensureLiBrainianReady(resolvedWorkspace, {
     throwOnFailure: true,
     timeoutMs: bootstrapTimeoutMs,
     includePatterns,
@@ -395,11 +395,11 @@ export async function initializeLibrarian(
     },
   });
 
-  if (!result.success || !result.librarian) {
-    throw new Error(`Failed to initialize Librarian: ${result.error ?? 'unknown error'}`);
+  if (!result.success || !result.librainian) {
+    throw new Error(`Failed to initialize LiBrainian: ${result.error ?? 'unknown error'}`);
   }
 
-  const librarian = result.librarian;
+  const librainian = result.librainian;
 
   // Step 2: Auto-select tier using tier_selector (always 'full' for best quality)
   const tierRecommendation = await selectTier({ workspace: resolvedWorkspace });
@@ -465,7 +465,7 @@ export async function initializeLibrarian(
   }
 
   const sessionState: SessionState = {
-    librarian,
+    librainian,
     workspace: resolvedWorkspace,
     fileWatcher: null,
     healingInterval: null,
@@ -479,10 +479,10 @@ export async function initializeLibrarian(
   // Step 4: Start background file watcher
   if (!skipWatcher) {
     try {
-      const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
+      const storage = (librainian as unknown as { storage?: LiBrainianStorage }).storage;
       sessionState.fileWatcher = await startFileWatcher({
         workspaceRoot: resolvedWorkspace,
-        librarian,
+        librainian,
         storage,
         cascadeReindex: true, // Enable cascade re-indexing
       });
@@ -506,7 +506,7 @@ export async function initializeLibrarian(
         sessionState.fileWatcher = watcher;
       },
     };
-    sessionState.healingInterval = startSelfHealingLoop(resolvedWorkspace, librarian, silent, watchRecovery);
+    sessionState.healingInterval = startSelfHealingLoop(resolvedWorkspace, librainian, silent, watchRecovery);
     if (!silent) {
       logInfo('[unified-init] Self-healing loop started', { workspace: resolvedWorkspace });
     }
@@ -533,7 +533,7 @@ export async function initializeLibrarian(
 // SESSION INTERFACE IMPLEMENTATION
 // ============================================================================
 
-function createSessionInterface(state: SessionState): LibrarianSession {
+function createSessionInterface(state: SessionState): LiBrainianSession {
   return {
     async query(intent: string, options: QueryOptions = {}): Promise<Context> {
       const context = await enrichTaskContext(state.workspace, {
@@ -579,7 +579,7 @@ function createSessionInterface(state: SessionState): LibrarianSession {
       // Also process as agent feedback for the feedback loop
       if (result.packIds.length > 0) {
         try {
-          const storage = (state.librarian as unknown as { storage?: LibrarianStorage }).storage;
+          const storage = (state.librainian as unknown as { storage?: LiBrainianStorage }).storage;
           if (storage) {
             const feedback: AgentFeedback = {
               queryId: result.taskId ?? `task-${Date.now()}`,
@@ -674,8 +674,8 @@ function createSessionInterface(state: SessionState): LibrarianSession {
       return report;
     },
 
-    get librarian(): Librarian {
-      return state.librarian;
+    get librainian(): LiBrainian {
+      return state.librainian;
     },
 
     get workspace(): string {
@@ -706,7 +706,7 @@ function createSessionInterface(state: SessionState): LibrarianSession {
       // Remove from active sessions
       activeSessions.delete(state.workspace);
 
-      // Reset gate to clean up librarian
+      // Reset gate to clean up librainian
       await resetGate(state.workspace);
 
       logInfo('[unified-init] Session shutdown complete', { workspace: state.workspace });
@@ -722,14 +722,14 @@ const HEALING_INTERVAL_MS = 60_000; // Check every minute
 
 function startSelfHealingLoop(
   workspace: string,
-  librarian: Librarian,
+  librainian: LiBrainian,
   silent: boolean,
   watchRecovery?: WatchRecoveryContext
 ): NodeJS.Timeout {
   const watchRecoveryGate = createWatchRecoveryGate();
   return setInterval(async () => {
     try {
-      const storage = (librarian as unknown as { storage?: LibrarianStorage }).storage;
+      const storage = (librainian as unknown as { storage?: LiBrainianStorage }).storage;
       if (!storage) return;
 
       if (watchRecovery && watchRecovery.enabled) {
@@ -755,7 +755,7 @@ function startSelfHealingLoop(
           try {
             const recoveredWatcher = await startFileWatcher({
               workspaceRoot: workspace,
-              librarian,
+              librainian,
               storage,
               cascadeReindex: true,
             });
@@ -837,7 +837,7 @@ function resolveWorkspacePath(workspace: string): string {
 
 function defaultProgressHandler(phase: string, progress: number, message: string): void {
   const pct = Math.round(progress * 100);
-  process.stderr.write(`\r[librarian] ${phase}: ${pct}% - ${message}`);
+  process.stderr.write(`\r[librainian] ${phase}: ${pct}% - ${message}`);
   if (progress >= 1) {
     process.stderr.write('\n');
   }
@@ -857,7 +857,7 @@ export function hasSession(workspace: string): boolean {
 /**
  * Get an existing session if available.
  */
-export function getSession(workspace: string): LibrarianSession | null {
+export function getSession(workspace: string): LiBrainianSession | null {
   const state = activeSessions.get(resolveWorkspacePath(workspace));
   return state ? createSessionInterface(state) : null;
 }

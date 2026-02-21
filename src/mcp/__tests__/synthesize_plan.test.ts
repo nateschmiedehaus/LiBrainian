@@ -2,16 +2,16 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP synthesize_plan tool', () => {
   it('creates a plan entry and appends audit log event', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-synthesize-plan-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-synthesize-plan-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
       server.updateWorkspaceState(workspace, { indexState: 'ready' });
@@ -41,12 +41,12 @@ describe('MCP synthesize_plan tool', () => {
   });
 
   it('retrieves a stored plan by plan_id via status', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-synthesize-status-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-synthesize-status-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
       server.updateWorkspaceState(workspace, { indexState: 'ready' });

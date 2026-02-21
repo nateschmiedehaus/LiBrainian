@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import { resolveWorkspaceRoot } from '../workspace_resolver.js';
 
 async function createTempDir(): Promise<string> {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-workspace-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'librainian-workspace-'));
 }
 
 async function writeFile(root: string, relativePath: string): Promise<void> {

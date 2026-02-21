@@ -3,7 +3,7 @@
  */
 
 export type {
-  LibrarianAgent,
+  LiBrainianAgent,
   AgentCapability,
   IndexingAgent,
   FileIndexResult,
@@ -82,11 +82,11 @@ export type {
 export { SimpleAgentRegistry } from './types.js';
 
 export {
-  IndexLibrarian,
-  createIndexLibrarian,
+  IndexLiBrainian,
+  createIndexLiBrainian,
   DEFAULT_CONFIG as DEFAULT_INDEX_LIBRARIAN_CONFIG,
-} from './index_librarian.js';
-export type { IndexLibrarianConfig } from './index_librarian.js';
+} from './index_librainian.js';
+export type { IndexLiBrainianConfig } from './index_librainian.js';
 
 export {
   ProblemDetector,

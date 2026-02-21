@@ -8,11 +8,11 @@
  * - Proposing fixes with confidence levels
  * - Linking to documentation
  *
- * This module integrates with the Librarian storage to provide
+ * This module integrates with the LiBrainian storage to provide
  * code-aware error analysis for agents encountering errors.
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -306,7 +306,7 @@ export const ERROR_PATTERNS: Record<string, ErrorPatternConfig> = {
  * Explain an error by classifying it and providing context-aware help.
  *
  * @param error - The error message or string to explain
- * @param storage - LibrarianStorage instance for code context lookup
+ * @param storage - LiBrainianStorage instance for code context lookup
  * @param context - Optional context about where the error occurred
  * @returns Promise<ErrorExplanation> with comprehensive error analysis
  *
@@ -323,7 +323,7 @@ export const ERROR_PATTERNS: Record<string, ErrorPatternConfig> = {
  */
 export async function explainError(
   error: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   context?: ErrorContext
 ): Promise<ErrorExplanation> {
   // Classify the error
@@ -428,13 +428,13 @@ export function findMatchingPattern(error: string): ErrorPatternConfig | null {
 /**
  * Find relevant code from the storage based on error content.
  *
- * @param storage - LibrarianStorage for code lookup
+ * @param storage - LiBrainianStorage for code lookup
  * @param error - The error message
  * @param context - Optional error context
  * @returns Array of relevant code snippets
  */
 export async function findRelevantCode(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   error: string,
   context?: ErrorContext
 ): Promise<ErrorExplanation['relevantCode']> {
@@ -856,7 +856,7 @@ export function extractErrorFromQuery(intent: string): string {
 // CONTEXT PACK INTEGRATION
 // ============================================================================
 
-import type { ContextPack, LibrarianVersion, CodeSnippet } from '../types.js';
+import type { ContextPack, LiBrainianVersion, CodeSnippet } from '../types.js';
 
 /**
  * Stage result for error explanation queries.
@@ -876,9 +876,9 @@ export interface ErrorExplanationStageResult {
  * Options for running the error explanation stage.
  */
 export interface ErrorExplanationStageOptions {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   context?: ErrorContext;
 }
 
@@ -934,12 +934,12 @@ export async function runErrorExplanationStage(
  * Create a context pack from an error explanation.
  *
  * @param explanation - The error explanation
- * @param version - Librarian version
+ * @param version - LiBrainian version
  * @returns Context pack containing the explanation
  */
 export function createErrorExplanationPack(
   explanation: ErrorExplanation,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack {
   const keyFacts: string[] = [
     `Error Type: ${explanation.type}`,
@@ -989,12 +989,12 @@ export function createErrorExplanationPack(
  * Create context packs for relevant code from error explanation.
  *
  * @param explanation - The error explanation
- * @param version - Librarian version
+ * @param version - LiBrainian version
  * @returns Array of context packs for relevant code
  */
 export function createRelevantCodePacks(
   explanation: ErrorExplanation,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack[] {
   return explanation.relevantCode.slice(0, 3).map((code, index) => ({
     packId: `err_code_${Date.now()}_${index}`,

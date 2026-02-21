@@ -28,7 +28,7 @@ import {
   expandGraphWithEdgeFilter,
   extractEdgeInfoForResponse,
 } from '../argument_edges.js';
-import type { LibrarianStorage, KnowledgeGraphEdge, ArgumentEdge } from '../../storage/types.js';
+import type { LiBrainianStorage, KnowledgeGraphEdge, ArgumentEdge } from '../../storage/types.js';
 import { createArgumentEdge } from '../../storage/types.js';
 
 // ============================================================================
@@ -38,12 +38,12 @@ import { createArgumentEdge } from '../../storage/types.js';
 function createMockStorage(
   fromEdges: KnowledgeGraphEdge[] = [],
   toEdges: KnowledgeGraphEdge[] = []
-): LibrarianStorage {
+): LiBrainianStorage {
   return {
     getKnowledgeEdgesFrom: vi.fn().mockResolvedValue(fromEdges),
     getKnowledgeEdgesTo: vi.fn().mockResolvedValue(toEdges),
     getKnowledgeEdges: vi.fn().mockResolvedValue([...fromEdges, ...toEdges]),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 function createKnowledgeEdge(
@@ -303,7 +303,7 @@ describe('getDecisionChain', () => {
         .mockResolvedValueOnce([createKnowledgeEdge('e2', 'decision-2', 'decision-3', 'supersedes')])
         .mockResolvedValueOnce([]), // No more edges from decision-3
       getKnowledgeEdgesTo: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await getDecisionChain(storage, 'decision-1');
 
@@ -465,7 +465,7 @@ describe('expandGraphWithEdgeFilter', () => {
         ])
         .mockResolvedValue([]),
       getKnowledgeEdgesTo: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await expandGraphWithEdgeFilter(
       storage,
@@ -486,7 +486,7 @@ describe('expandGraphWithEdgeFilter', () => {
         .mockResolvedValueOnce([createKnowledgeEdge('e1', 'root', 'node-1', 'supports')])
         .mockResolvedValue([]), // Only one level of expansion
       getKnowledgeEdgesTo: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await expandGraphWithEdgeFilter(
       storage,
@@ -505,7 +505,7 @@ describe('expandGraphWithEdgeFilter', () => {
         createKnowledgeEdge('e2', 'root', 'node-2', 'calls'),
       ]),
       getKnowledgeEdgesTo: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await expandGraphWithEdgeFilter(
       storage,
@@ -605,7 +605,7 @@ describe('Real-world Scenario: ADR Evidence Query', () => {
           createKnowledgeEdge('e3', 'decision-v3', 'decision-v2', 'supersedes'),
         ])
         .mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await getDecisionChain(storage, 'decision-v2');
 

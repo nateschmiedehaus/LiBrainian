@@ -1,7 +1,7 @@
-import type { IndexChangeEvent, LibrarianStorage } from '../storage/types.js';
+import type { IndexChangeEvent, LiBrainianStorage } from '../storage/types.js';
 
 export interface WatchPathsOptions {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   paths: string[];
   sinceVersion?: number;
   pollIntervalMs?: number;

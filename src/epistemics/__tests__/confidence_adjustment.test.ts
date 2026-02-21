@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { bounded } from '../confidence.js';
 import { adjustConfidenceValue } from '../confidence.js';
 import { computeCalibrationCurve, buildCalibrationReport } from '../calibration.js';
 import { createClaimOutcomeTracker } from '../outcomes.js';
 
-class MockStorage implements Pick<LibrarianStorage, 'getState' | 'setState'> {
+class MockStorage implements Pick<LiBrainianStorage, 'getState' | 'setState'> {
   private state = new Map<string, string>();
 
   async getState(key: string): Promise<string | null> {
@@ -45,7 +45,7 @@ describe('confidence adjustment', () => {
 
   it('integrates adjustment with outcome tracking', async () => {
     const storage = new MockStorage();
-    const tracker = createClaimOutcomeTracker(storage as unknown as LibrarianStorage);
+    const tracker = createClaimOutcomeTracker(storage as unknown as LiBrainianStorage);
 
     const { record: claimHigh } = await tracker.recordClaim({
       claim: 'high confidence claim',

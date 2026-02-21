@@ -1,5 +1,5 @@
 /**
- * @fileoverview Health Score Computation for Librarian
+ * @fileoverview Health Score Computation for LiBrainian
  *
  * Computes aggregate health scores from multiple components including:
  * - Calibration metrics (ECE, Brier score)
@@ -195,7 +195,7 @@ const RECOMMENDATIONS: Record<string, Record<HealthStatus, string>> = {
 // ============================================================================
 
 /**
- * Computes and tracks health scores for the Librarian system
+ * Computes and tracks health scores for the LiBrainian system
  */
 export class HealthScoreComputer {
   private config: HealthScoreConfig;

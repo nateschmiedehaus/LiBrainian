@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { LibrarianQuery, LibrarianResponse, ContextPack } from '../types.js';
+import type { LiBrainianQuery, LiBrainianResponse, ContextPack } from '../types.js';
 
 const DEFAULT_MAX_SESSIONS = 50;
 const DEFAULT_SESSION_TTL_MS = 30 * 60 * 1000;
@@ -8,7 +8,7 @@ const MAX_QUESTION_LENGTH = 500;
 
 export interface ContextSession {
   sessionId: string;
-  initialQuery: LibrarianQuery;
+  initialQuery: LiBrainianQuery;
   context: AccumulatedContext;
   history: ConversationTurn[];
   createdAt: string;
@@ -70,7 +70,7 @@ export interface ContextSummary {
 }
 
 export interface ContextAssemblySession {
-  start(query: LibrarianQuery): Promise<ContextSession>;
+  start(query: LiBrainianQuery): Promise<ContextSession>;
   followUp(sessionId: string, question: string): Promise<FollowUpResponse>;
   drillDown(sessionId: string, entityId: string): Promise<DrillDownResponse>;
   summarize(sessionId: string): Promise<ContextSummary>;
@@ -80,7 +80,7 @@ export interface ContextAssemblySession {
 }
 
 export interface ContextAssemblySessionOptions {
-  query: (query: LibrarianQuery) => Promise<LibrarianResponse>;
+  query: (query: LiBrainianQuery) => Promise<LiBrainianResponse>;
   now?: () => string;
   maxSessions?: number;
   sessionTtlMs?: number;
@@ -93,7 +93,7 @@ interface SessionState {
 }
 
 export class ContextAssemblySessionManager implements ContextAssemblySession {
-  private queryRunner: (query: LibrarianQuery) => Promise<LibrarianResponse>;
+  private queryRunner: (query: LiBrainianQuery) => Promise<LiBrainianResponse>;
   private now: () => string;
   private maxSessions: number;
   private sessionTtlMs: number;
@@ -111,7 +111,7 @@ export class ContextAssemblySessionManager implements ContextAssemblySession {
     this.maxPacksPerSession = options.maxPacksPerSession ?? DEFAULT_MAX_PACKS_PER_SESSION;
   }
 
-  async start(query: LibrarianQuery): Promise<ContextSession> {
+  async start(query: LiBrainianQuery): Promise<ContextSession> {
     await this.withStartLock(() => {
       this.pruneExpired();
       this.pruneOverflow();
@@ -434,7 +434,7 @@ function mergePackIndex(
   return { packIndex: nextIndex, packs: Array.from(nextIndex.values()), newPacks };
 }
 
-function buildFollowUpQuery(session: ContextSession, question: string): LibrarianQuery {
+function buildFollowUpQuery(session: ContextSession, question: string): LiBrainianQuery {
   return {
     ...session.initialQuery,
     intent: question,
@@ -444,7 +444,7 @@ function buildFollowUpQuery(session: ContextSession, question: string): Libraria
   };
 }
 
-function buildDrillDownQuery(session: ContextSession, entityId: string): LibrarianQuery {
+function buildDrillDownQuery(session: ContextSession, entityId: string): LiBrainianQuery {
   const depth = session.initialQuery.depth === 'L0' ? 'L1' : session.initialQuery.depth;
   return {
     ...session.initialQuery,
@@ -454,7 +454,7 @@ function buildDrillDownQuery(session: ContextSession, entityId: string): Librari
   };
 }
 
-function extractAnswer(response: LibrarianResponse): string {
+function extractAnswer(response: LiBrainianResponse): string {
   if (response.synthesis?.answer) return response.synthesis.answer;
   if (response.explanation) return response.explanation;
   const packs = Array.isArray(response.packs) ? response.packs : [];

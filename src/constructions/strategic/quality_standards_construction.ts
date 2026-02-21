@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -78,9 +78,9 @@ export interface QualityAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new QualityStandardsConstruction(librarian);
+ * const construction = new QualityStandardsConstruction(librainian);
  * const result = await construction.assess({
- *   files: ['src/api/librarian.ts'],
+ *   files: ['src/api/librainian.ts'],
  *   standard: qualityStandards.PRODUCTION_STANDARDS,
  * });
  * console.log(`Quality Grade: ${result.grade}`);
@@ -90,16 +90,16 @@ export class QualityStandardsConstruction implements CalibratedConstruction {
   static readonly CONSTRUCTION_ID = 'QualityStandardsConstruction';
   readonly CONSTRUCTION_ID = QualityStandardsConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
   /**
    * Creates a new quality standards construction.
    *
-   * @param librarian - The librarian instance for context queries
+   * @param librainian - The librainian instance for context queries
    */
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -150,13 +150,13 @@ export class QualityStandardsConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian for intelligent analysis
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian for intelligent analysis
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze code quality including complexity, test coverage, documentation, and maintainability',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : options?.depth === 'shallow' ? 'L1' : 'L2',
     });
-    evidenceRefs.push(`librarian:quality_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:quality_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Select standard
     const standard = input.standard || this.getStandard();
@@ -256,7 +256,7 @@ export class QualityStandardsConstruction implements CalibratedConstruction {
    * Extract metrics from query result.
    */
   private extractMetrics(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     files: string[]
   ): qualityStandards.ArtifactMetrics {
     const packs = queryResult.packs || [];
@@ -361,7 +361,7 @@ export class QualityStandardsConstruction implements CalibratedConstruction {
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number; violations: qualityStandards.ValidationViolation[] }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -387,11 +387,11 @@ export class QualityStandardsConstruction implements CalibratedConstruction {
 /**
  * Create a new quality standards construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new QualityStandardsConstruction
  */
 export function createQualityStandardsConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): QualityStandardsConstruction {
-  return new QualityStandardsConstruction(librarian);
+  return new QualityStandardsConstruction(librainian);
 }

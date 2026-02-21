@@ -1,7 +1,7 @@
 /**
  * @fileoverview Confidence Calibration Validation Tests (TDD)
  *
- * Validates that librarian's confidence scores are well-calibrated:
+ * Validates that librainian's confidence scores are well-calibrated:
  * - 90% confidence → 90% ± 5% accuracy
  * - 70% confidence → 70% ± 10% accuracy
  * - ECE (Expected Calibration Error) < 15%

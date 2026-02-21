@@ -1,5 +1,5 @@
 /**
- * @fileoverview Staleness Metrics and SLA Tracking for Librarian
+ * @fileoverview Staleness Metrics and SLA Tracking for LiBrainian
  *
  * Provides time-based staleness tracking and SLA monitoring for indexed files.
  * This complements the checksum-based staleness tracker in storage/staleness.ts
@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -130,12 +130,12 @@ interface IndexRecord {
  * INVARIANT: File type classification is deterministic
  */
 export class StalenessTracker {
-  private readonly storage: LibrarianStorage;
+  private readonly storage: LiBrainianStorage;
   private readonly config: StalenessConfig;
   private readonly indexRecords: Map<string, IndexRecord>;
   private readonly openFiles: Set<string>;
 
-  constructor(storage: LibrarianStorage, config?: Partial<StalenessConfig>) {
+  constructor(storage: LiBrainianStorage, config?: Partial<StalenessConfig>) {
     this.storage = storage;
     this.config = { ...DEFAULT_STALENESS_CONFIG, ...config };
     this.indexRecords = new Map();
@@ -708,12 +708,12 @@ export async function formatStatusReport(
 /**
  * Create a new StalenessTracker instance.
  *
- * @param storage - LibrarianStorage instance
+ * @param storage - LiBrainianStorage instance
  * @param config - Optional configuration overrides
  * @returns Configured StalenessTracker
  */
 export function createStalenessMetricsTracker(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   config?: Partial<StalenessConfig>
 ): StalenessTracker {
   return new StalenessTracker(storage, config);

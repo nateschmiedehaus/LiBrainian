@@ -1,7 +1,7 @@
 /**
  * @fileoverview MiniCheck Entailment Checker
  *
- * Verifies whether claims made in Librarian's responses are actually entailed
+ * Verifies whether claims made in LiBrainian's responses are actually entailed
  * by the source code. This is a hallucination detection mechanism.
  *
  * Entailment logic:

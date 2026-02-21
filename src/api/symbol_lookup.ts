@@ -6,7 +6,7 @@
  * this module performs an exact symbol lookup and returns results
  * with 0.99 confidence, bypassing semantic search.
  *
- * This addresses the critical issue where queries like "SqliteLibrarianStorage class"
+ * This addresses the critical issue where queries like "SqliteLiBrainianStorage class"
  * return factory functions instead of the actual class definition.
  *
  * @packageDocumentation
@@ -24,7 +24,7 @@ import {
 } from '../constructions/symbol_table.js';
 import { SymbolStorage, createSymbolStorage } from '../storage/symbol_storage.js';
 import type { ContextPack, CodeSnippet } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { getCurrentVersion } from './versioning.js';
 import * as fs from 'fs/promises';
 

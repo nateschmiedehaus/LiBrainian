@@ -4,7 +4,7 @@
  * Produces a FitnessReport.v1 by running staged evaluators against current state.
  * Used to establish baselines and measure variant fitness.
  *
- * Usage: librarian eval [--output <path>] [--save-baseline] [--stages 0-4]
+ * Usage: librainian eval [--output <path>] [--save-baseline] [--stages 0-4]
  *
  * @packageDocumentation
  */
@@ -45,7 +45,7 @@ export async function evalCommand(options: EvalOptions): Promise<void> {
   } = options;
 
   if (format === 'text') {
-    console.log('\n=== Librarian Evaluation ===\n');
+    console.log('\n=== LiBrainian Evaluation ===\n');
   }
 
   // Check provider availability

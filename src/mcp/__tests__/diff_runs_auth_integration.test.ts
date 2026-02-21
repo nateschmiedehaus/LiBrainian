@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 import { validateToolInput } from '../schema.js';
 
-const BOOTSTRAP_RUN_HISTORY_KEY = 'librarian.mcp.bootstrap_runs.v1';
+const BOOTSTRAP_RUN_HISTORY_KEY = 'librainian.mcp.bootstrap_runs.v1';
 
 function parseToolPayload(result: unknown): Record<string, unknown> {
   const text = (result as { content?: Array<{ text?: string }> })?.content?.[0]?.text;
@@ -22,12 +22,12 @@ describe('MCP diff_runs persistence and auth integration', () => {
   });
 
   it('diff_runs can resolve historical run IDs from persisted workspace history', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-diff-runs-'));
-    let serverA: Awaited<ReturnType<typeof createLibrarianMCPServer>> | null = null;
-    let serverB: Awaited<ReturnType<typeof createLibrarianMCPServer>> | null = null;
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-diff-runs-'));
+    let serverA: Awaited<ReturnType<typeof createLiBrainianMCPServer>> | null = null;
+    let serverB: Awaited<ReturnType<typeof createLiBrainianMCPServer>> | null = null;
 
     try {
-      serverA = await createLibrarianMCPServer({
+      serverA = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
       });
       const storageA = await (serverA as any).getOrCreateStorage(workspace);
@@ -63,7 +63,7 @@ describe('MCP diff_runs persistence and auth integration', () => {
       ]));
       await storageA.close();
 
-      serverB = await createLibrarianMCPServer({
+      serverB = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
       });
       const diff = await (serverB as any).executeDiffRuns({
@@ -92,7 +92,7 @@ describe('MCP diff_runs persistence and auth integration', () => {
   });
 
   it('enforces session-token scopes in callTool when __authToken is provided', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
     });
 

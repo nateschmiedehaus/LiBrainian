@@ -1,12 +1,12 @@
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const getLibrarianMock = vi.fn();
+const getLiBrainianMock = vi.fn();
 
 vi.mock('../first_run_gate.js', () => ({
-  getLibrarian: getLibrarianMock,
-  ensureLibrarianReady: vi.fn(),
-  isLibrarianReady: vi.fn(),
+  getLiBrainian: getLiBrainianMock,
+  ensureLiBrainianReady: vi.fn(),
+  isLiBrainianReady: vi.fn(),
 }));
 
 vi.mock('../../events.js', () => ({
@@ -35,7 +35,7 @@ describe('enrichTaskContext', () => {
       drillDownHints: [],
       methodHints: [],
     });
-    getLibrarianMock.mockReturnValue({ queryOptional });
+    getLiBrainianMock.mockReturnValue({ queryOptional });
 
     const { enrichTaskContext } = await import('../wave0_integration.js');
     const workspace = '/tmp/workspace';

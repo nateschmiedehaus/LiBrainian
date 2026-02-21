@@ -1,6 +1,6 @@
 import type { ContextPack } from '../types.js';
 
-export interface LibrarianEvalCase {
+export interface LiBrainianEvalCase {
   query: string;
   groundTruthFacts: string[];
   retrievalContext: ContextPack[];
@@ -88,7 +88,7 @@ export class DeepEvalSplitMetrics {
     this.outputCostPer1M = config.outputCostPer1M ?? DEFAULT_OUTPUT_COST_PER_1M;
   }
 
-  evaluateFaithfulnessSplit(evalCase: LibrarianEvalCase): FaithfulnessSplitResult {
+  evaluateFaithfulnessSplit(evalCase: LiBrainianEvalCase): FaithfulnessSplitResult {
     const retrievalClaims = extractRetrievalClaims(evalCase.retrievalContext);
     if (retrievalClaims.length === 0) {
       return {
@@ -143,7 +143,7 @@ export class DeepEvalSplitMetrics {
     return { score, generatedQueries, similarities };
   }
 
-  evaluateCase(evalCase: LibrarianEvalCase): DeepEvalSplitResult {
+  evaluateCase(evalCase: LiBrainianEvalCase): DeepEvalSplitResult {
     const faithfulness = this.evaluateFaithfulnessSplit(evalCase);
     const answerRelevancy = this.evaluateAnswerRelevancy(evalCase.query, evalCase.retrievalContext);
     const diagnosis = diagnoseSplitFailure({

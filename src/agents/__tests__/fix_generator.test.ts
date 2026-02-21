@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createFixGenerator } from '../fix_generator.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type {
   Problem,
   Hypothesis,
@@ -55,13 +55,13 @@ describe('FixGenerator', () => {
 
     it('isReady returns true after initialization', async () => {
       const generator = createFixGenerator();
-      await generator.initialize({} as LibrarianStorage);
+      await generator.initialize({} as LiBrainianStorage);
       expect(generator.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const generator = createFixGenerator();
-      await generator.initialize({} as LibrarianStorage);
+      await generator.initialize({} as LiBrainianStorage);
       await generator.shutdown();
       expect(generator.isReady()).toBe(false);
     });
@@ -86,7 +86,7 @@ describe('FixGenerator', () => {
 
     beforeEach(async () => {
       generator = createFixGenerator();
-      await generator.initialize({} as LibrarianStorage);
+      await generator.initialize({} as LiBrainianStorage);
     });
 
     describe('FixGeneratorReport structure', () => {

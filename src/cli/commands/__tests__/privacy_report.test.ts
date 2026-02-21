@@ -7,13 +7,16 @@ import { resolvePrivacyAuditLogPath } from '../../../security/privacy_audit.js';
 
 describe('privacyReportCommand', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+    stdoutWriteSpy.mockRestore();
   });
 
   it('returns zero when no external content was sent', async () => {
@@ -37,7 +40,13 @@ describe('privacyReportCommand', () => {
     try {
       const exitCode = await privacyReportCommand({ workspace, format: 'json' });
       expect(exitCode).toBe(0);
-      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const outputChunk = stdoutWriteSpy.mock.calls[0]?.[0];
+      const output =
+        outputChunk == null
+          ? undefined
+          : typeof outputChunk === 'string'
+            ? outputChunk
+            : Buffer.from(outputChunk as Uint8Array).toString('utf8');
       const parsed = JSON.parse(output ?? '{}') as { externalContentSentEvents?: number; totalEvents?: number };
       expect(parsed.totalEvents).toBe(1);
       expect(parsed.externalContentSentEvents).toBe(0);

@@ -11,8 +11,8 @@
  * - Security auditing (D09-K03): Trace data from inputs to sensitive operations
  *
  * Based on specifications in:
- * - docs/librarian/specs/use-case-capability-matrix.md
- * - docs/librarian/specs/track-e-domain.md (D1)
+ * - docs/librainian/specs/use-case-capability-matrix.md
+ * - docs/librainian/specs/track-e-domain.md (D1)
  */
 
 // ============================================================================

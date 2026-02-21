@@ -23,7 +23,7 @@ import {
   cosineSimilarity,
 } from '../code_clone_analysis.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, CloneEntry } from '../../storage/types.js';
+import type { LiBrainianStorage, CloneEntry } from '../../storage/types.js';
 
 describe('Code Clone Analysis', () => {
   describe('tokenize', () => {
@@ -310,7 +310,7 @@ describe('Code Clone Analysis', () => {
   });
 
   describe('Integration with Storage', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
     let dbPath: string;
     const testDir = join(tmpdir(), 'clone-analysis-test-' + Date.now());
 

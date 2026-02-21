@@ -14,7 +14,7 @@
 
 import type { DetectedIssue } from './issue_detector.js';
 import type { IssueCategory, IssueSeverity } from './issue_registry.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // WORLD-CLASS QUALITY DIMENSIONS
@@ -65,7 +65,7 @@ export interface WorldClassRule {
 }
 
 export interface RuleContext {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspace: string;
   functions: any[];
   files: any[];

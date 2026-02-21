@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createSqliteStorage } from '../sqlite_storage.js';
 import type { ContextPack } from '../../types.js';
-import type { LibrarianStorage } from '../types.js';
+import type { LiBrainianStorage } from '../types.js';
 
 function buildPack(targetId: string, filePath: string): ContextPack {
   return {
@@ -46,11 +46,11 @@ function buildPack(targetId: string, filePath: string): ContextPack {
 describe('context pack versioning and path normalization', () => {
   let tempDir = '';
   let dbPath = '';
-  let storage: LibrarianStorage | null = null;
+  let storage: LiBrainianStorage | null = null;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-pack-versioning-'));
-    dbPath = path.join(tempDir, 'librarian.sqlite');
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-pack-versioning-'));
+    dbPath = path.join(tempDir, 'librainian.sqlite');
     storage = createSqliteStorage(dbPath, tempDir);
     await storage.initialize();
   });

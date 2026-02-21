@@ -2,7 +2,7 @@
  * @fileoverview LiBrainian Constructions Module
  *
  * Composed primitives for common agent tasks. Each construction combines
- * multiple librarian primitives (query, confidence, evidence) to solve
+ * multiple librainian primitives (query, confidence, evidence) to solve
  * higher-level problems while maintaining epistemic properties.
  *
  * @packageDocumentation

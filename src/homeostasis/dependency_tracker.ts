@@ -12,7 +12,7 @@
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 
 // ============================================================================
@@ -273,7 +273,7 @@ export class DependencyTracker {
    *
    * @param storage - The storage instance
    */
-  async hydrateFromStorage(storage: LibrarianStorage): Promise<void> {
+  async hydrateFromStorage(storage: LiBrainianStorage): Promise<void> {
     const edges = await storage.getGraphEdges({ edgeTypes: ['imports'] });
 
     for (const edge of edges) {
@@ -361,7 +361,7 @@ export class DependencyTracker {
  * @returns Result of the invalidation operation
  */
 export async function onFileChanged(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   tracker: DependencyTracker,
   changedFile: string,
   options: InvalidationOptions = {}
@@ -455,7 +455,7 @@ export function createDependencyTracker(): DependencyTracker {
  * @returns A hydrated dependency tracker
  */
 export async function createHydratedDependencyTracker(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<DependencyTracker> {
   const tracker = new DependencyTracker();
   await tracker.hydrateFromStorage(storage);

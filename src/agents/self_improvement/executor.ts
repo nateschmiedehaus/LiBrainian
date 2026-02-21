@@ -13,7 +13,7 @@
  * Based on self-improvement-primitives.md specification.
  */
 
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -208,7 +208,7 @@ export interface SelfImprovementExecutorConfig {
   /** Root directory for operations */
   rootDir: string;
   /** Storage instance */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Execution options */
   options?: Partial<ExecutionOptions>;
   /** Maximum history entries to keep */
@@ -279,7 +279,7 @@ function sleep(ms: number): Promise<void> {
  */
 export class SelfImprovementExecutor {
   private readonly rootDir: string;
-  private readonly storage: LibrarianStorage;
+  private readonly storage: LiBrainianStorage;
   private readonly options: ExecutionOptions;
   private readonly maxHistoryEntries: number;
   private readonly retryDelayMs: number;

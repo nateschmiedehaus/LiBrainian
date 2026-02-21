@@ -1,4 +1,4 @@
-import type { LibrarianStorage, StorageSlices } from './types.js';
+import type { LiBrainianStorage, StorageSlices } from './types.js';
 
 type SliceMethodMap = {
   [K in keyof StorageSlices]?: readonly string[];
@@ -184,7 +184,7 @@ function buildMissingMethodError(sliceName: string, method: string): Error {
 }
 
 function bindSliceMethods(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   sliceName: string,
   methods: readonly string[],
   strict: boolean
@@ -207,7 +207,7 @@ function bindSliceMethods(
 }
 
 export function createStorageSlices(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { strict?: boolean } = {}
 ): StorageSlices {
   const strict = options.strict ?? true;

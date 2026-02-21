@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEmbeddingInput, resolveEmbeddingInputLimit } from '../agents/index_librarian.js';
+import { buildEmbeddingInput, resolveEmbeddingInputLimit } from '../agents/index_librainian.js';
 import type { FunctionKnowledge } from '../types.js';
 
 const baseFunction: FunctionKnowledge = {

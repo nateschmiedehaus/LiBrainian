@@ -9,7 +9,7 @@ import {
   type RefactoringSuggestion,
   type RefactoringType,
 } from '../refactoring_suggestions.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // INTERNAL FUNCTION TESTS
@@ -374,10 +374,10 @@ describe('findRefactoringOpportunities', () => {
       await fs.writeFile(filePath, file.content);
       filePaths.push(filePath);
     }
-    const mockStorage: Partial<LibrarianStorage> = {
+    const mockStorage: Partial<LiBrainianStorage> = {
       getFiles: vi.fn().mockResolvedValue(filePaths.map(p => ({ path: p }))),
     };
-    return { storage: mockStorage as LibrarianStorage, filePaths };
+    return { storage: mockStorage as LiBrainianStorage, filePaths };
   };
 
   it('analyzes multiple files', async () => {
@@ -417,9 +417,9 @@ describe('findRefactoringOpportunities', () => {
     const { filePaths } = await createTestFiles([
       { name: 'target.ts', content: `if (a && b && c && d) {}` },
     ]);
-    const mockStorage: Partial<LibrarianStorage> = { getFiles: vi.fn() };
+    const mockStorage: Partial<LiBrainianStorage> = { getFiles: vi.fn() };
 
-    const suggestions = await findRefactoringOpportunities(mockStorage as LibrarianStorage, filePaths[0]);
+    const suggestions = await findRefactoringOpportunities(mockStorage as LiBrainianStorage, filePaths[0]);
 
     expect(suggestions.length).toBeGreaterThan(0);
     expect(suggestions.every((s) => s.target.file === filePaths[0])).toBe(true);
@@ -600,12 +600,12 @@ describe('edge cases', () => {
     const cleanFile = path.join(tempDir, 'clean.ts');
     await fs.writeFile(cleanFile, `function simpleFunc(a: number): number {\n  return a * 2;\n}`);
 
-    const storage: Partial<LibrarianStorage> = {
+    const storage: Partial<LiBrainianStorage> = {
       getFiles: vi.fn().mockResolvedValue([{ path: cleanFile }]),
     };
 
     const suggestions = await findRefactoringOpportunities(
-      storage as LibrarianStorage,
+      storage as LiBrainianStorage,
       undefined,
       { includeLowPriority: true }
     );
@@ -614,12 +614,12 @@ describe('edge cases', () => {
   });
 
   it('handles empty storage', async () => {
-    const storage: Partial<LibrarianStorage> = {
+    const storage: Partial<LiBrainianStorage> = {
       getFiles: vi.fn().mockResolvedValue([]),
     };
 
     const suggestions = await findRefactoringOpportunities(
-      storage as LibrarianStorage
+      storage as LiBrainianStorage
     );
 
     expect(suggestions).toEqual([]);
@@ -629,24 +629,24 @@ describe('edge cases', () => {
     const issueFile = path.join(tempDir, 'issue.ts');
     await fs.writeFile(issueFile, `if (a && b && c && d) { x; }`);
 
-    const storage: Partial<LibrarianStorage> = {
+    const storage: Partial<LiBrainianStorage> = {
       getFiles: vi.fn().mockResolvedValue([{ path: issueFile }]),
     };
 
     const suggestions = await findRefactoringOpportunities(
-      storage as LibrarianStorage
+      storage as LiBrainianStorage
     );
 
     expect(suggestions.length).toBeGreaterThan(0);
   });
 
   it('handles non-existent files gracefully', async () => {
-    const storage: Partial<LibrarianStorage> = {
+    const storage: Partial<LiBrainianStorage> = {
       getFiles: vi.fn().mockResolvedValue([{ path: '/nonexistent/file.ts' }]),
     };
 
     const suggestions = await findRefactoringOpportunities(
-      storage as LibrarianStorage
+      storage as LiBrainianStorage
     );
 
     // Should not throw, should just return empty

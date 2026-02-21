@@ -23,7 +23,7 @@ import {
  * Create a temporary directory structure for testing.
  */
 function createTempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-test-'));
 }
 
 /**

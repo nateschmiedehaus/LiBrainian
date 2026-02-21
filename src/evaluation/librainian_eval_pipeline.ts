@@ -1,5 +1,5 @@
 /**
- * @fileoverview EvalRunner pipeline backed by Librarian itself.
+ * @fileoverview EvalRunner pipeline backed by LiBrainian itself.
  *
  * Used for machine-verifiable retrieval evaluation on real repos without relying
  * on LLM synthesis (fail-closed: LLM disabled by default).
@@ -7,16 +7,16 @@
 
 import path from 'node:path';
 import type { EvalPipeline, EvalQueryInput, RetrievalResult } from './runner.js';
-import { ensureLibrarianReady, resetGate } from '../integration/first_run_gate.js';
-import type { LibrarianResponse, LlmRequirement, EmbeddingRequirement } from '../types.js';
+import { ensureLiBrainianReady, resetGate } from '../integration/first_run_gate.js';
+import type { LiBrainianResponse, LlmRequirement, EmbeddingRequirement } from '../types.js';
 
-export interface LibrarianEvalPipelineOptions {
+export interface LiBrainianEvalPipelineOptions {
   /**
    * Maximum number of docs returned per query (EvalRunner k-values top out at 10).
    */
   maxDocs?: number;
   /**
-   * Query depth used when calling Librarian.
+   * Query depth used when calling LiBrainian.
    */
   depth?: 'L0' | 'L1' | 'L2' | 'L3';
   /**
@@ -36,7 +36,7 @@ export interface LibrarianEvalPipelineOptions {
    */
   allowDegradedEmbeddings?: boolean;
   /**
-   * Maximum number of open Librarian sessions kept in memory.
+   * Maximum number of open LiBrainian sessions kept in memory.
    */
   maxOpenWorkspaces?: number;
 }
@@ -61,7 +61,7 @@ function normalizeRepoRelativePath(repoRoot: string, candidate: string): string 
   return toPosix(relative);
 }
 
-function collectCandidateFiles(repoRoot: string, response: LibrarianResponse): Map<string, number> {
+function collectCandidateFiles(repoRoot: string, response: LiBrainianResponse): Map<string, number> {
   const scored = new Map<string, number>();
   const bump = (filePath: string, score: number): void => {
     const normalized = normalizeRepoRelativePath(repoRoot, filePath);
@@ -95,8 +95,8 @@ async function evictLeastRecentlyUsed(
   }
 }
 
-export function createLibrarianEvalPipeline(
-  options: LibrarianEvalPipelineOptions = {}
+export function createLiBrainianEvalPipeline(
+  options: LiBrainianEvalPipelineOptions = {}
 ): { pipeline: EvalPipeline; shutdown: () => Promise<void> } {
   const maxDocs = options.maxDocs ?? 12;
   const depth = options.depth ?? 'L1';
@@ -118,22 +118,22 @@ export function createLibrarianEvalPipeline(
       process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT = '1';
 
       try {
-        const gate = await ensureLibrarianReady(input.repoRoot, {
+        const gate = await ensureLiBrainianReady(input.repoRoot, {
           allowDegradedEmbeddings,
           skipLlm,
           throwOnFailure: true,
           timeoutMs: 0,
         });
 
-        const librarian = gate.librarian;
-        if (!librarian) {
-          throw new Error('unverified_by_trace(initialization_failed): librarian unavailable');
+        const librainian = gate.librainian;
+        if (!librainian) {
+          throw new Error('unverified_by_trace(initialization_failed): librainian unavailable');
         }
 
         handles.set(workspaceKey, { workspaceRoot: workspaceKey, lastUsedAt: Date.now() });
         await evictLeastRecentlyUsed(handles, maxOpenWorkspaces);
 
-        const response = await librarian.queryOptional({
+        const response = await librainian.queryOptional({
           intent: input.query.intent,
           depth,
           llmRequirement,

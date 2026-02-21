@@ -26,7 +26,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as context
+// LiBrainian repo as context
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 /**

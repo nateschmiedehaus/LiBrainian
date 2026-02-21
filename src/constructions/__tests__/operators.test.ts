@@ -211,7 +211,7 @@ describe('construction operators', () => {
 
   it('provide reduces dependency requirements at the execution boundary', async () => {
     type NeedsLlm = {
-      librarian: { name: string };
+      librainian: { name: string };
       llm: { model: string };
     };
 
@@ -222,7 +222,7 @@ describe('construction operators', () => {
         if (!context) {
           throw new ConstructionError('missing context', 'needs-llm');
         }
-        return `${context.deps.librarian.name}:${context.deps.llm.model}`;
+        return `${context.deps.librainian.name}:${context.deps.llm.model}`;
       },
     };
 
@@ -231,8 +231,8 @@ describe('construction operators', () => {
     });
 
     if (false) {
-      const baseContext: Context<{ librarian: { name: string } }> = {
-        deps: { librarian: { name: 'base' } },
+      const baseContext: Context<{ librainian: { name: string } }> = {
+        deps: { librainian: { name: 'base' } },
         signal: new AbortController().signal,
         sessionId: 'base-session',
       };
@@ -243,11 +243,11 @@ describe('construction operators', () => {
     }
 
     const result = await provided.execute(1, {
-      deps: { librarian: { name: 'librarian-core' } },
+      deps: { librainian: { name: 'librainian-core' } },
       signal: new AbortController().signal,
       sessionId: 'provide-session',
     });
 
-    expect(result).toBe('librarian-core:claude-haiku-3-5');
+    expect(result).toBe('librainian-core:claude-haiku-3-5');
   });
 });

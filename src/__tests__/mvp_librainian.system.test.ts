@@ -1,7 +1,7 @@
 /**
- * @fileoverview MVP Librarian Tests (SYSTEM)
+ * @fileoverview MVP LiBrainian Tests (SYSTEM)
  *
- * These tests validate the minimum viable librarian functionality as defined in
+ * These tests validate the minimum viable librainian functionality as defined in
  * docs/WORLD_CLASS_ASSESSMENT.md Part 12.
  *
  * MVP Requirements:
@@ -15,19 +15,19 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import {
-  createLibrarian,
-  Librarian,
+  createLiBrainian,
+  LiBrainian,
   createSqliteStorage,
-  createIndexLibrarian,
-  queryLibrarian,
+  createIndexLiBrainian,
+  queryLiBrainian,
   bootstrapProject,
   isBootstrapRequired,
   createBootstrapConfig,
 } from '../index.js';
 import { checkAllProviders, type AllProviderStatus } from '../api/provider_check.js';
 import { EmbeddingService, REAL_EMBEDDING_DIMENSION } from '../api/embeddings.js';
-import type { LibrarianStorage } from '../storage/types.js';
-import { resolveLibrarianModelId } from '../api/llm_env.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import { resolveLiBrainianModelId } from '../api/llm_env.js';
 import { cleanupWorkspace } from './helpers/index.js';
 
 const IS_TIER0 = process.env.LIBRARIAN_TIER0 === '1';
@@ -58,7 +58,7 @@ afterAll(() => {
  * Create a minimal test workspace with Wave0-like structure
  */
 async function createMVPWorkspace(): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mvp-librarian-test-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mvp-librainian-test-'));
 
   // Create config
   await fs.mkdir(path.join(root, 'config'), { recursive: true });
@@ -69,7 +69,7 @@ async function createMVPWorkspace(): Promise<string> {
 
   // Create src structure matching Wave0 patterns
   await fs.mkdir(path.join(root, 'src', 'orchestrator'), { recursive: true });
-  await fs.mkdir(path.join(root, 'src', 'librarian', 'api'), { recursive: true });
+  await fs.mkdir(path.join(root, 'src', 'librainian', 'api'), { recursive: true });
   await fs.mkdir(path.join(root, 'src', 'workgraph'), { recursive: true });
   await fs.mkdir(path.join(root, 'src', 'spine'), { recursive: true });
 
@@ -95,20 +95,20 @@ export function createOrchestratorConfig(workspace: string): OrchestratorConfig 
   );
 
   await fs.writeFile(
-    path.join(root, 'src', 'librarian', 'api', 'query.ts'),
+    path.join(root, 'src', 'librainian', 'api', 'query.ts'),
     `/**
- * Librarian query interface
+ * LiBrainian query interface
  */
-export interface LibrarianQuery {
+export interface LiBrainianQuery {
   intent: string;
   depth: 'L0' | 'L1' | 'L2' | 'L3';
 }
 
-export async function queryLibrarian(query: LibrarianQuery): Promise<unknown> {
+export async function queryLiBrainian(query: LiBrainianQuery): Promise<unknown> {
   return { packs: [], latencyMs: 0 };
 }
 
-export function createFunctionQuery(functionName: string): LibrarianQuery {
+export function createFunctionQuery(functionName: string): LiBrainianQuery {
   return { intent: \`Find function \${functionName}\`, depth: 'L1' };
 }
 `
@@ -203,7 +203,7 @@ async function requireLiveProviders(): Promise<AllProviderStatus> {
 }
 
 function resolveLlmModelId(provider: 'claude' | 'codex'): string {
-  const envModel = resolveLibrarianModelId(provider);
+  const envModel = resolveLiBrainianModelId(provider);
   if (envModel) return envModel;
   return provider === 'claude' ? DEFAULT_CLAUDE_MODEL_ID : DEFAULT_CODEX_MODEL_ID;
 }
@@ -229,14 +229,14 @@ function resolveTestEmbeddingDimension(): number {
   return REAL_EMBEDDING_DIMENSION;
 }
 
-describeLive('MVP Librarian Tests (LIB-U*)', () => {
+describeLive('MVP LiBrainian Tests (LIB-U*)', () => {
   let workspace: string;
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
 
   beforeAll(async () => {
     workspace = await createMVPWorkspace();
-    dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    dbPath = path.join(workspace, '.librainian', 'librainian.sqlite');
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
     storage = createSqliteStorage(dbPath, workspace);
     await storage.initialize();
@@ -244,7 +244,7 @@ describeLive('MVP Librarian Tests (LIB-U*)', () => {
     // Index the test workspace
     const embeddingService = await getLiveEmbeddingService();
     const llmConfig = getLiveLlmConfig();
-    const indexer = createIndexLibrarian({
+    const indexer = createIndexLiBrainian({
       createContextPacks: true,
       generateEmbeddings: true,
       embeddingService,
@@ -255,7 +255,7 @@ describeLive('MVP Librarian Tests (LIB-U*)', () => {
 
     const files = [
       path.join(workspace, 'src', 'orchestrator', 'runner.ts'),
-      path.join(workspace, 'src', 'librarian', 'api', 'query.ts'),
+      path.join(workspace, 'src', 'librainian', 'api', 'query.ts'),
       path.join(workspace, 'src', 'workgraph', 'runner.ts'),
       path.join(workspace, 'src', 'spine', 'exec_tool.ts'),
     ];
@@ -289,7 +289,7 @@ describeLive('MVP Librarian Tests (LIB-U*)', () => {
       // Check for known functions
       expect(functionNames).toContain('runOrchestrator');
       expect(functionNames).toContain('createOrchestratorConfig');
-      expect(functionNames).toContain('queryLibrarian');
+      expect(functionNames).toContain('queryLiBrainian');
       expect(functionNames).toContain('createFunctionQuery');
       expect(functionNames).toContain('executeWorkGraph');
       expect(functionNames).toContain('createWorkGraph');
@@ -312,8 +312,8 @@ describeLive('MVP Librarian Tests (LIB-U*)', () => {
     const testQueries = [
       { name: 'runOrchestrator', expectedPath: 'orchestrator/runner.ts' },
       { name: 'createOrchestratorConfig', expectedPath: 'orchestrator/runner.ts' },
-      { name: 'queryLibrarian', expectedPath: 'librarian/api/query.ts' },
-      { name: 'createFunctionQuery', expectedPath: 'librarian/api/query.ts' },
+      { name: 'queryLiBrainian', expectedPath: 'librainian/api/query.ts' },
+      { name: 'createFunctionQuery', expectedPath: 'librainian/api/query.ts' },
       { name: 'executeWorkGraph', expectedPath: 'workgraph/runner.ts' },
       { name: 'createWorkGraph', expectedPath: 'workgraph/runner.ts' },
       { name: 'processNode', expectedPath: 'workgraph/runner.ts' },
@@ -362,19 +362,19 @@ describeLive('MVP Librarian Tests (LIB-U*)', () => {
 });
 
 /**
- * MVP Librarian Integration Tests
+ * MVP LiBrainian Integration Tests
  *
  * NOTE: These tests require LIVE embedding providers per docs/LIVE_PROVIDERS_PLAYBOOK.md.
  * Tests that cannot get live providers will fail with unverified_by_trace(provider_unavailable).
  */
-describeLive('MVP Librarian Integration Tests (LIB-I*)', () => {
+describeLive('MVP LiBrainian Integration Tests (LIB-I*)', () => {
   let workspace: string;
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
 
   beforeAll(async () => {
     workspace = await createMVPWorkspace();
-    dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    dbPath = path.join(workspace, '.librainian', 'librainian.sqlite');
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
     storage = createSqliteStorage(dbPath, workspace);
     await storage.initialize();
@@ -418,7 +418,7 @@ describeLive('MVP Librarian Integration Tests (LIB-I*)', () => {
 
       expect(report.success).toBe(true);
       expect(report.totalFilesProcessed).toBeGreaterThan(0);
-    }, 0); // Unlimited per VISION (no timeouts for librarian)
+    }, 0); // Unlimited per VISION (no timeouts for librainian)
 
     it('should not require bootstrap after initial run', async () => {
       const result = await isBootstrapRequired(workspace, storage);
@@ -428,15 +428,15 @@ describeLive('MVP Librarian Integration Tests (LIB-I*)', () => {
 });
 
 /**
- * MVP Librarian System Tests
+ * MVP LiBrainian System Tests
  *
  * NOTE: These tests require LIVE embedding providers per docs/LIVE_PROVIDERS_PLAYBOOK.md.
  * Tests that cannot get live providers will fail with unverified_by_trace(provider_unavailable).
  */
-describeLive('MVP Librarian System Tests (LIB-S*)', () => {
-  const LIVE_TEST_TIMEOUT_MS = 0; // Unlimited per VISION (no timeouts for librarian)
+describeLive('MVP LiBrainian System Tests (LIB-S*)', () => {
+  const LIVE_TEST_TIMEOUT_MS = 0; // Unlimited per VISION (no timeouts for librainian)
   let workspace: string;
-  let librarian: Librarian;
+  let librainian: LiBrainian;
   let embeddingService: EmbeddingService;
   let llmConfig: { llmProvider: 'claude' | 'codex'; llmModelId: string };
 
@@ -445,7 +445,7 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
       workspace = await createMVPWorkspace();
       embeddingService = await getLiveEmbeddingService();
       llmConfig = getLiveLlmConfig();
-      librarian = await createLibrarian({
+      librainian = await createLiBrainian({
         workspace,
         autoBootstrap: true,
         bootstrapTimeoutMs: 0, // 0 = unlimited per VISION (no timeouts)
@@ -458,30 +458,30 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
         llmModelId: llmConfig.llmModelId,
       });
     },
-    0 // Unlimited timeout per VISION (no timeouts for librarian)
+    0 // Unlimited timeout per VISION (no timeouts for librainian)
   );
 
   afterAll(async () => {
-    if (librarian) {
-      await librarian.shutdown();
+    if (librainian) {
+      await librainian.shutdown();
     }
     await cleanupWorkspace(workspace);
   });
 
-  describe('LIB-S1: High-level librarian API', () => {
+  describe('LIB-S1: High-level librainian API', () => {
     it('should be ready after bootstrap', () => {
-      expect(librarian.isReady()).toBe(true);
+      expect(librainian.isReady()).toBe(true);
     }, LIVE_TEST_TIMEOUT_MS);
 
     it('should return status with correct version', async () => {
-      const status = await librarian.getStatus();
+      const status = await librainian.getStatus();
       expect(status.initialized).toBe(true);
       expect(status.bootstrapped).toBe(true);
       expect(status.version).toBeDefined();
     }, LIVE_TEST_TIMEOUT_MS);
 
     it('should respond to queries within timeout', async () => {
-      const response = await librarian.query({
+      const response = await librainian.query({
         intent: 'Find orchestrator functions',
         depth: 'L1',
       });
@@ -493,7 +493,7 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
 
   describe('LIB-S2: Outcome tracking', () => {
     it('should track access counts on query', async () => {
-      const response = await librarian.query({
+      const response = await librainian.query({
         intent: '',
         depth: 'L1',
       });
@@ -503,12 +503,12 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
         const initialAccess = pack.accessCount;
 
         // Query again
-        await librarian.query({
+        await librainian.query({
           intent: '',
           depth: 'L1',
         });
 
-        const updated = await librarian.getContextPack(pack.targetId, pack.packType);
+        const updated = await librainian.getContextPack(pack.targetId, pack.packType);
         if (updated) {
           expect(updated.accessCount).toBeGreaterThanOrEqual(initialAccess);
         }
@@ -518,7 +518,7 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
 
   describe('LIB-S3: Engine toolkit', () => {
     it('should answer agent context queries with engine toolkit', async () => {
-      const agent = librarian.getAgent();
+      const agent = librainian.getAgent();
       const answer = await agent.ask({
         type: 'context',
         intent: 'authentication flow',
@@ -531,11 +531,11 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
     }, LIVE_TEST_TIMEOUT_MS);
 
     it('should validate constraints through agent interface', async () => {
-      const agent = librarian.getAgent();
+      const agent = librainian.getAgent();
       const validation = await agent.ask({
         type: 'allowed',
         action: {
-          file: 'src/librarian/api/index.ts',
+          file: 'src/librainian/api/index.ts',
           before: 'export const example = 1;',
           after: 'export const example = 2;',
         },
@@ -546,10 +546,10 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
     }, LIVE_TEST_TIMEOUT_MS);
 
     it('should report confidence via meta engine', async () => {
-      const agent = librarian.getAgent();
+      const agent = librainian.getAgent();
       const confidence = await agent.ask({
         type: 'confidence',
-        in: ['src/librarian/api/index.ts'],
+        in: ['src/librainian/api/index.ts'],
       });
 
       const payload = confidence.answer as { overall?: number };
@@ -557,10 +557,10 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
     }, LIVE_TEST_TIMEOUT_MS);
 
     it('should surface test mappings via agent interface', async () => {
-      const agent = librarian.getAgent();
+      const agent = librainian.getAgent();
       const coverage = await agent.ask({
         type: 'tests',
-        for: ['src/librarian/api/index.ts'],
+        for: ['src/librainian/api/index.ts'],
       });
 
       const payload = coverage.answer as Array<{ source?: string; tests?: string[] }>;
@@ -568,7 +568,7 @@ describeLive('MVP Librarian System Tests (LIB-S*)', () => {
     }, LIVE_TEST_TIMEOUT_MS);
 
     it('should include engine results in query responses', async () => {
-      const response = await librarian.query({
+      const response = await librainian.query({
         intent: 'authentication flow',
         depth: 'L1',
         includeEngines: true,

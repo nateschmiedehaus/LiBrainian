@@ -18,8 +18,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { ContextPack, LibrarianVersion, FunctionKnowledge, ModuleKnowledge } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { ContextPack, LiBrainianVersion, FunctionKnowledge, ModuleKnowledge } from '../types.js';
 
 // ============================================================================
 // TYPES
@@ -199,7 +199,7 @@ export function classifyDecision(question: string): DecisionCategory {
  * Generates relevant options based on decision category.
  */
 export async function generateOptions(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   question: string,
   category: DecisionCategory,
   workspace: string
@@ -455,7 +455,7 @@ export async function generateOptions(
  * Enriches options with examples found in the codebase.
  */
 async function enrichOptionsWithExamples(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: DecisionOption[],
   category: DecisionCategory
 ): Promise<void> {
@@ -522,7 +522,7 @@ function getSearchTermsForOption(optionName: string, category: DecisionCategory)
  * Finds precedents for similar decisions in the codebase.
  */
 export async function findPrecedents(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   question: string,
   category: DecisionCategory
 ): Promise<Precedent[]> {
@@ -588,7 +588,7 @@ export async function findPrecedents(
  * Identifies constraints from the codebase configuration.
  */
 export async function identifyConstraints(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   category: DecisionCategory,
   workspace: string
 ): Promise<string[]> {
@@ -668,7 +668,7 @@ export async function scoreOptions(
   options: DecisionOption[],
   precedents: Precedent[],
   constraints: string[],
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<DecisionOption[]> {
   // Score based on precedents and constraints
   for (const option of options) {
@@ -764,7 +764,7 @@ export function generateRationale(
  * Gets comprehensive decision support for a technical question.
  */
 export async function getDecisionSupport(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   question: string,
   workspace: string
 ): Promise<DecisionContext> {
@@ -814,7 +814,7 @@ export async function getDecisionSupport(
  */
 export function createDecisionSupportPack(
   context: DecisionContext,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack {
   const keyFacts: string[] = [
     `Decision category: ${context.category}`,
@@ -923,9 +923,9 @@ export interface DecisionSupportStageResult {
  * Runs the decision support stage for queries.
  */
 export async function runDecisionSupportStage(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   intent: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   workspaceRoot: string;
 }): Promise<DecisionSupportStageResult> {
   const { storage, intent, version, workspaceRoot } = options;

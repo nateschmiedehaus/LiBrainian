@@ -25,7 +25,7 @@
 import { glob } from 'glob';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { createSymbolStorage } from '../storage/symbol_storage.js';
 
 const DEFAULT_ENDPOINT_SCAN_MAX_FILES = 1000;
@@ -567,7 +567,7 @@ const MAX_ENUMERATION_LIMIT = 10000;
  */
 async function enumerateCliCommands(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const commandsDir = path.join(workspace, 'src', 'cli', 'commands');
   const pattern = '*.ts';
@@ -627,7 +627,7 @@ async function enumerateCliCommands(
  */
 async function enumerateTestFiles(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const patterns = ['**/*.test.ts', '**/*.spec.ts', '**/*.test.tsx', '**/*.spec.tsx'];
 
@@ -673,7 +673,7 @@ async function enumerateTestFiles(
  */
 async function enumerateInterfaces(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   try {
     const symbolStorage = createSymbolStorage(workspace);
@@ -705,7 +705,7 @@ async function enumerateInterfaces(
  */
 async function enumerateClasses(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   try {
     const symbolStorage = createSymbolStorage(workspace);
@@ -736,7 +736,7 @@ async function enumerateClasses(
  */
 async function enumerateTypeAliases(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   try {
     const symbolStorage = createSymbolStorage(workspace);
@@ -767,7 +767,7 @@ async function enumerateTypeAliases(
  */
 async function enumerateFunctions(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   try {
     const symbolStorage = createSymbolStorage(workspace);
@@ -799,7 +799,7 @@ async function enumerateFunctions(
  */
 async function enumerateConfigs(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const patterns = [
     '*.config.ts',
@@ -852,7 +852,7 @@ async function enumerateConfigs(
  */
 async function enumerateModules(
   workspace: string,
-  storage?: LibrarianStorage
+  storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   if (!storage) return [];
 
@@ -880,7 +880,7 @@ async function enumerateModules(
  */
 async function enumerateDocumentation(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const patterns = ['**/*.md', '**/README*', '**/CHANGELOG*', '**/CONTRIBUTING*'];
 
@@ -919,7 +919,7 @@ async function enumerateDocumentation(
  */
 async function enumerateEnums(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   try {
     const symbolStorage = createSymbolStorage(workspace);
@@ -950,7 +950,7 @@ async function enumerateEnums(
  */
 async function enumerateConstants(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   try {
     const symbolStorage = createSymbolStorage(workspace);
@@ -981,7 +981,7 @@ async function enumerateConstants(
  */
 async function enumerateHooks(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const patterns = ['**/use*.ts', '**/use*.tsx', '**/hooks/**/*.ts', '**/hooks/**/*.tsx'];
 
@@ -1020,7 +1020,7 @@ async function enumerateHooks(
  */
 async function enumerateComponents(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const patterns = [
     '**/components/**/*.tsx',
@@ -1163,7 +1163,7 @@ const HAPI_PATTERNS = [
  */
 async function enumerateEndpoints(
   workspace: string,
-  _storage?: LibrarianStorage
+  _storage?: LiBrainianStorage
 ): Promise<EnumeratedEntity[]> {
   const settings = getEndpointScanSettings();
   if (settings.cacheEnabled) {
@@ -1605,7 +1605,7 @@ async function enumerateByFilePattern(
  */
 const ENUMERATORS: Record<
   EnumerationCategory,
-  (workspace: string, storage?: LibrarianStorage) => Promise<EnumeratedEntity[]>
+  (workspace: string, storage?: LiBrainianStorage) => Promise<EnumeratedEntity[]>
 > = {
   cli_command: enumerateCliCommands,
   test_file: enumerateTestFiles,
@@ -1643,7 +1643,7 @@ const ENUMERATORS: Record<
  * ```
  */
 export async function enumerateByCategory(
-  storage: LibrarianStorage | undefined,
+  storage: LiBrainianStorage | undefined,
   category: EnumerationCategory,
   workspace: string
 ): Promise<EnumerationResult> {
@@ -1828,7 +1828,7 @@ export function getCategoryAliases(): Map<string, EnumerationCategory> {
  * ```
  */
 export async function enumerateByCategoryPaginated(
-  storage: LibrarianStorage | undefined,
+  storage: LiBrainianStorage | undefined,
   category: EnumerationCategory,
   workspace: string,
   options: EnumerationOptions = {}
@@ -2067,7 +2067,7 @@ interface FilterableEntity extends EnumeratedEntity {
  * ```
  */
 export async function enumerateWithFilters(
-  storage: LibrarianStorage | undefined,
+  storage: LiBrainianStorage | undefined,
   category: EnumerationCategory,
   workspace: string,
   filters: FilterOptions
@@ -2146,7 +2146,7 @@ export async function enumerateWithFilters(
  * @returns Array of exported entities
  */
 export async function enumerateExported(
-  storage: LibrarianStorage | undefined,
+  storage: LiBrainianStorage | undefined,
   category: EnumerationCategory,
   workspace: string
 ): Promise<EnumeratedEntity[]> {
@@ -2163,7 +2163,7 @@ export async function enumerateExported(
  * @returns Array of entities in the directory
  */
 export async function enumerateInDirectory(
-  storage: LibrarianStorage | undefined,
+  storage: LiBrainianStorage | undefined,
   category: EnumerationCategory,
   workspace: string,
   directory: string

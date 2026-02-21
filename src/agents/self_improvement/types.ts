@@ -4,7 +4,7 @@
  * Common types used across all self-improvement primitives.
  */
 
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // PRIMITIVE METADATA
@@ -63,7 +63,7 @@ export interface BasePrimitiveOptions {
   /** Root directory for the operation */
   rootDir: string;
   /** Storage instance */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Enable verbose logging */
   verbose?: boolean;
 }

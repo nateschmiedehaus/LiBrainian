@@ -3,7 +3,7 @@
  *
  * This module provides a unified interface for the embedding system.
  * It wraps the real embedding providers (@xenova/transformers, sentence-transformers)
- * with a provider-style interface for consistency with the rest of the librarian.
+ * with a provider-style interface for consistency with the rest of the librainian.
  *
  * POLICY (VISION.md 8.5):
  * - Embeddings MUST be real semantic vectors from dedicated embedding models

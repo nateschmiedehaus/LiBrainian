@@ -12,7 +12,7 @@ export interface FileReadRequest {
 
 export type FileReadDecision =
   | { allowed: true; source: 'in_context' | 'justified_read' | 'trivial_file' | 'unindexed' | 'policy_override' | 'config_file'; note?: string }
-  | { allowed: false; reason: 'must_query_librarian' | 'outside_scope'; suggestion: string };
+  | { allowed: false; reason: 'must_query_librainian' | 'outside_scope'; suggestion: string };
 
 export interface FileReadPolicy {
   evaluate(request: FileReadRequest): Promise<FileReadDecision> | FileReadDecision;
@@ -94,7 +94,7 @@ export class DefaultFileReadPolicy implements FileReadPolicy {
 
     if (isJustified(request.reason)) return { allowed: true, source: 'justified_read' };
     if (this.mode !== 'block') return { allowed: true, source: 'policy_override', note: `mode:${this.mode}` };
-    return { allowed: false, reason: 'must_query_librarian', suggestion: 'Query librarian before reading this file.' };
+    return { allowed: false, reason: 'must_query_librainian', suggestion: 'Query librainian before reading this file.' };
   }
 
   private async resolveWorkspaceRoot(): Promise<string | null> {

@@ -3,11 +3,11 @@ import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runAgenticJourney } from '../evaluation/agentic_journey.js';
-import { ensureLibrarianReady } from '../integration/first_run_gate.js';
+import { ensureLiBrainianReady } from '../integration/first_run_gate.js';
 import { runProviderReadinessGate } from '../api/provider_gate.js';
 
 vi.mock('../integration/first_run_gate.js', () => ({
-  ensureLibrarianReady: vi.fn(),
+  ensureLiBrainianReady: vi.fn(),
 }));
 
 vi.mock('../api/provider_gate.js', () => ({
@@ -17,7 +17,7 @@ vi.mock('../api/provider_gate.js', () => ({
 describe('runAgenticJourney', () => {
   let rootDir: string;
   let reposRoot: string;
-  let mockedLibrarian: {
+  let mockedLiBrainian: {
     queryOptional: ReturnType<typeof vi.fn>;
     getGlanceCard: ReturnType<typeof vi.fn>;
     getRecommendations: ReturnType<typeof vi.fn>;
@@ -26,7 +26,7 @@ describe('runAgenticJourney', () => {
   };
 
   beforeEach(async () => {
-    rootDir = await mkdtemp(path.join(tmpdir(), 'librarian-journey-'));
+    rootDir = await mkdtemp(path.join(tmpdir(), 'librainian-journey-'));
     reposRoot = path.join(rootDir, 'external-repos');
     await mkdir(reposRoot, { recursive: true });
 
@@ -41,7 +41,7 @@ describe('runAgenticJourney', () => {
       'utf8'
     );
 
-    mockedLibrarian = {
+    mockedLiBrainian = {
       queryOptional: vi.fn().mockResolvedValue({
         packs: [{
           packId: 'pack-1',
@@ -86,9 +86,9 @@ describe('runAgenticJourney', () => {
       bypassed: false,
     } as any);
 
-    vi.mocked(ensureLibrarianReady).mockResolvedValue({
+    vi.mocked(ensureLiBrainianReady).mockResolvedValue({
       success: true,
-      librarian: mockedLibrarian,
+      librainian: mockedLiBrainian,
       wasBootstrapped: true,
       wasUpgraded: false,
       durationMs: 10,
@@ -107,15 +107,15 @@ describe('runAgenticJourney', () => {
     expect(report.results[0]?.repo).toBe('repo-one');
     expect(report.results[0]?.overviewOk).toBe(true);
     expect(report.results[0]?.glanceOk).toBe(true);
-    expect(vi.mocked(ensureLibrarianReady)).toHaveBeenCalled();
-    expect(vi.mocked(ensureLibrarianReady)).toHaveBeenCalledWith(
+    expect(vi.mocked(ensureLiBrainianReady)).toHaveBeenCalled();
+    expect(vi.mocked(ensureLiBrainianReady)).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ allowDegradedEmbeddings: false })
     );
   });
 
   it('selects shell files as representative context candidates', async () => {
-    const shellRoot = await mkdtemp(path.join(tmpdir(), 'librarian-journey-shell-'));
+    const shellRoot = await mkdtemp(path.join(tmpdir(), 'librainian-journey-shell-'));
     try {
       const shellReposRoot = path.join(shellRoot, 'external-repos');
       await mkdir(shellReposRoot, { recursive: true });
@@ -172,7 +172,7 @@ describe('runAgenticJourney', () => {
 
     expect(report.results).toHaveLength(1);
     expect(report.results[0]?.errors.some((error) => error.includes('provider_unavailable'))).toBe(true);
-    expect(vi.mocked(ensureLibrarianReady)).not.toHaveBeenCalled();
+    expect(vi.mocked(ensureLiBrainianReady)).not.toHaveBeenCalled();
   });
 
   it('treats missing validation prerequisites as blocking', async () => {
@@ -204,13 +204,13 @@ describe('runAgenticJourney', () => {
     expect(runReport.summary.total).toBe(1);
   });
 
-  it('always shuts down librarian when query flow fails', async () => {
-    mockedLibrarian.queryOptional.mockRejectedValueOnce(new Error('query_failed'));
+  it('always shuts down librainian when query flow fails', async () => {
+    mockedLiBrainian.queryOptional.mockRejectedValueOnce(new Error('query_failed'));
 
     const report = await runAgenticJourney({ reposRoot, maxRepos: 1 });
 
     expect(report.results).toHaveLength(1);
     expect(report.results[0]?.errors.some((error) => error.includes('query_failed'))).toBe(true);
-    expect(mockedLibrarian.shutdown).toHaveBeenCalledTimes(1);
+    expect(mockedLiBrainian.shutdown).toHaveBeenCalledTimes(1);
   });
 });

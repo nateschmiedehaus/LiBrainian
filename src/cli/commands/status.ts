@@ -307,7 +307,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       { key: 'Reason', value: error instanceof Error ? error.message : 'Unknown error' },
     ]);
     console.log();
-    console.log('Run `librarian bootstrap` to initialize the knowledge index.');
+    console.log('Run `librainian bootstrap` to initialize the knowledge index.');
     return 2;
   }
 
@@ -463,11 +463,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
           ]);
         }
         if (watchHealth?.suspectedDead || watchState.needs_catchup) {
-          console.log('\nTip: Run `librarian watch` to restart indexing and catch up on changes.');
+          console.log('\nTip: Run `librainian watch` to restart indexing and catch up on changes.');
         }
       } else {
         printKeyValue([{ key: 'Watch Status', value: 'No watch state recorded' }]);
-        console.log('\nTip: Run `librarian watch` to keep the index up-to-date.');
+        console.log('\nTip: Run `librainian watch` to keep the index up-to-date.');
       }
       console.log();
     }
@@ -495,7 +495,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'Fresh Unknown Locks', value: workspaceLocks.unknownFreshFiles },
       ]);
       if (workspaceLocks.staleFiles > 0) {
-        console.log('\nTip: Run `librarian doctor --heal` to remove stale lock files.');
+        console.log('\nTip: Run `librainian doctor --heal` to remove stale lock files.');
       }
       console.log();
 
@@ -544,7 +544,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     });
 
     try {
-      const rawDefaults = await storage.getState('librarian.llm_defaults.v1');
+      const rawDefaults = await storage.getState('librainian.llm_defaults.v1');
       const parsedDefaults = rawDefaults ? safeJsonParse<Record<string, unknown>>(rawDefaults) : null;
       const storedProvider = parsedDefaults?.ok ? parsedDefaults.value.provider : null;
       const storedModel = parsedDefaults?.ok ? parsedDefaults.value.modelId : null;
@@ -634,7 +634,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'New (Unindexed)', value: report.freshness.newFiles },
       ]);
       if (report.freshness.staleFiles + report.freshness.missingFiles + report.freshness.newFiles > 0) {
-        printKeyValue([{ key: 'Suggested Command', value: 'librarian index --force --incremental' }]);
+        printKeyValue([{ key: 'Suggested Command', value: 'librainian index --force --incremental' }]);
       }
       console.log();
     }
@@ -658,7 +658,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'Embedding Provider', value: providers.embedding.provider },
       ]);
       if (!providers.llm.available || !providers.embedding.available) {
-        console.log('\nRun `librarian check-providers` for detailed diagnostics.');
+        console.log('\nRun `librainian check-providers` for detailed diagnostics.');
       }
     } else {
       printKeyValue([{ key: 'Status', value: 'Unable to check providers' }]);
@@ -938,7 +938,7 @@ async function collectLanguageCoverage(storage: LiBrainianStorage): Promise<NonN
 }
 
 async function inspectServerPid(workspaceRoot: string): Promise<ServerStatus> {
-  const pidFile = path.join(workspaceRoot, '.librarian', 'server.pid');
+  const pidFile = path.join(workspaceRoot, '.librainian', 'server.pid');
   let pidRaw: string;
   try {
     pidRaw = await fs.readFile(pidFile, 'utf8');
@@ -971,11 +971,11 @@ function isPidAlive(pid: number): boolean {
 
 async function detectConfigPath(workspaceRoot: string): Promise<ConfigStatus> {
   const candidates = [
-    'librarian.config.ts',
-    'librarian.config.js',
-    'librarian.config.mjs',
-    'librarian.config.cjs',
-    'librarian.config.json',
+    'librainian.config.ts',
+    'librainian.config.js',
+    'librainian.config.mjs',
+    'librainian.config.cjs',
+    'librainian.config.json',
   ].map((candidate) => path.join(workspaceRoot, candidate));
   for (const candidate of candidates) {
     try {

@@ -14,14 +14,14 @@ import { QualityAssessmentConstruction } from '../strategic/quality_assessment_c
 import { ArchitectureValidationConstruction } from '../strategic/architecture_validation_construction.js';
 import { WorkflowValidationConstruction } from '../strategic/workflow_validation_construction.js';
 import { ConstructionCalibrationTracker } from '../calibration_tracker.js';
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ContextPack } from '../../types.js';
 
 // ============================================================================
 // MOCK LIBRARIAN
 // ============================================================================
 
-function createMockLibrarian(): Librarian {
+function createMockLiBrainian(): LiBrainian {
   const mockPacks: ContextPack[] = [
     {
       packId: 'test-pack-1',
@@ -58,10 +58,10 @@ function createMockLibrarian(): Librarian {
     queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
     queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
     query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
-function createMockLibrarianWithImports(): Librarian {
+function createMockLiBrainianWithImports(): LiBrainian {
   const mockPacks: ContextPack[] = [
     {
       packId: 'test-pack-1',
@@ -98,7 +98,7 @@ export class Service {
     queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
     queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
     query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 // ============================================================================
@@ -107,11 +107,11 @@ export class Service {
 
 describe('QualityAssessmentConstruction', () => {
   let construction: QualityAssessmentConstruction;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    construction = new QualityAssessmentConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    construction = new QualityAssessmentConstruction(mockLiBrainian);
   });
 
   describe('assess()', () => {
@@ -150,7 +150,7 @@ describe('QualityAssessmentConstruction', () => {
       const result = await construction.assess(['src/test.ts']);
 
       expect(result.evidenceRefs.length).toBeGreaterThan(0);
-      expect(result.evidenceRefs).toContain('librarian_query:quality_metrics');
+      expect(result.evidenceRefs).toContain('librainian_query:quality_metrics');
     });
 
     it('should use default world-class standards', async () => {
@@ -217,11 +217,11 @@ describe('QualityAssessmentConstruction', () => {
 
 describe('ArchitectureValidationConstruction', () => {
   let construction: ArchitectureValidationConstruction;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarianWithImports();
-    construction = new ArchitectureValidationConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainianWithImports();
+    construction = new ArchitectureValidationConstruction(mockLiBrainian);
   });
 
   describe('validate()', () => {
@@ -261,7 +261,7 @@ describe('ArchitectureValidationConstruction', () => {
       const result = await construction.validate(['src/test.ts']);
 
       expect(result.evidenceRefs.length).toBeGreaterThan(0);
-      expect(result.evidenceRefs).toContain('librarian_query:dependencies');
+      expect(result.evidenceRefs).toContain('librainian_query:dependencies');
     });
 
     it('should apply clean architecture constraints when enabled', async () => {
@@ -339,11 +339,11 @@ describe('ArchitectureValidationConstruction', () => {
 
 describe('WorkflowValidationConstruction', () => {
   let construction: WorkflowValidationConstruction;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    construction = new WorkflowValidationConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    construction = new WorkflowValidationConstruction(mockLiBrainian);
   });
 
   describe('validatePhase()', () => {
@@ -400,7 +400,7 @@ describe('WorkflowValidationConstruction', () => {
       });
 
       expect(result.evidenceRefs.length).toBeGreaterThan(0);
-      expect(result.evidenceRefs).toContain('librarian_query:workflow_context');
+      expect(result.evidenceRefs).toContain('librainian_query:workflow_context');
     });
 
     it('should use standard preset by default', async () => {
@@ -585,8 +585,8 @@ describe('WorkflowValidationConstruction', () => {
 
 describe('Strategic Constructions Confidence Propagation', () => {
   it('should propagate confidence through QualityAssessmentConstruction', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new QualityAssessmentConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new QualityAssessmentConstruction(mockLiBrainian);
 
     const result = await construction.assess(['src/test.ts']);
 
@@ -602,8 +602,8 @@ describe('Strategic Constructions Confidence Propagation', () => {
   });
 
   it('should propagate confidence through ArchitectureValidationConstruction', async () => {
-    const mockLibrarian = createMockLibrarianWithImports();
-    const construction = new ArchitectureValidationConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainianWithImports();
+    const construction = new ArchitectureValidationConstruction(mockLiBrainian);
 
     const result = await construction.validate(['src/application/service.ts']);
 
@@ -619,8 +619,8 @@ describe('Strategic Constructions Confidence Propagation', () => {
   });
 
   it('should propagate confidence through WorkflowValidationConstruction', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const construction = new WorkflowValidationConstruction(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const construction = new WorkflowValidationConstruction(mockLiBrainian);
 
     const result = await construction.validatePhase({
       phase: 'testing',
@@ -646,11 +646,11 @@ describe('Strategic Constructions Confidence Propagation', () => {
 
 describe('Strategic Constructions Calibration Integration', () => {
   it('should work with shared calibration tracker', async () => {
-    const mockLibrarian = createMockLibrarian();
+    const mockLiBrainian = createMockLiBrainian();
     const tracker = new ConstructionCalibrationTracker();
 
-    const qualityConstruction = new QualityAssessmentConstruction(mockLibrarian);
-    const workflowConstruction = new WorkflowValidationConstruction(mockLibrarian);
+    const qualityConstruction = new QualityAssessmentConstruction(mockLiBrainian);
+    const workflowConstruction = new WorkflowValidationConstruction(mockLiBrainian);
 
     qualityConstruction.setCalibrationTracker(tracker);
     workflowConstruction.setCalibrationTracker(tracker);

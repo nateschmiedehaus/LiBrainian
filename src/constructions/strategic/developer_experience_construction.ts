@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -80,7 +80,7 @@ export interface DeveloperExperienceAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new DeveloperExperienceConstruction(librarian);
+ * const construction = new DeveloperExperienceConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['package.json', '.eslintrc', 'README.md', 'CONTRIBUTING.md'],
  *   focus: ['onboarding', 'tooling'],
@@ -92,11 +92,11 @@ export class DeveloperExperienceConstruction implements CalibratedConstruction {
   static readonly CONSTRUCTION_ID = 'DeveloperExperienceConstruction';
   readonly CONSTRUCTION_ID = DeveloperExperienceConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -147,13 +147,13 @@ export class DeveloperExperienceConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand DX context
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand DX context
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze developer experience including onboarding docs, workflow configuration, tooling setup, and documentation standards',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:dx_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:dx_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Select configuration
     const config = input.config || this.getStandard();
@@ -339,7 +339,7 @@ export class DeveloperExperienceConstruction implements CalibratedConstruction {
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -362,11 +362,11 @@ export class DeveloperExperienceConstruction implements CalibratedConstruction {
 /**
  * Create a new developer experience construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new DeveloperExperienceConstruction
  */
 export function createDeveloperExperienceConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): DeveloperExperienceConstruction {
-  return new DeveloperExperienceConstruction(librarian);
+  return new DeveloperExperienceConstruction(librainian);
 }

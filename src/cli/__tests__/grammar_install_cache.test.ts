@@ -10,7 +10,7 @@ vi.mock('execa', () => ({
 
 describe('installMissingGrammars', () => {
   it('installs into the grammar cache (not the workspace)', async () => {
-    const cacheRoot = path.join(os.tmpdir(), `librarian-grammars-${Date.now()}`);
+    const cacheRoot = path.join(os.tmpdir(), `librainian-grammars-${Date.now()}`);
     process.env.LIBRARIAN_GRAMMAR_CACHE_DIR = cacheRoot;
 
     const result = await installMissingGrammars('/tmp/not-a-project', {

@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { createLiBrainian } from '../../api/librarian.js';
+import { createLiBrainian } from '../../api/librainian.js';
 import type { ContextPack } from '../../types.js';
 import type { Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
@@ -147,7 +147,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
       const qualityJudge = createResultQualityJudgeConstruction();
 
       for (const fixture of fixtures) {
-        const librarian = await createLiBrainian({
+        const librainian = await createLiBrainian({
           workspace: fixture.repoPath,
           autoBootstrap: true,
           autoWatch: false,
@@ -158,7 +158,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
           const pairResults: QueryRelevancePairResult[] = [];
 
           for (const pair of fixture.pairs) {
-            const response = await librarian.queryOptional({
+            const response = await librainian.queryOptional({
               intent: pair.query,
               depth: 'L1',
               llmRequirement: 'disabled',
@@ -169,7 +169,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
             const topFiles = collectTopFiles(topPacks, fixture.repoPath);
             const expectedSet = new Set(pair.expectedFiles.map((file) => file.replace(/\\/gu, '/')));
             const relevantHits = topFiles.filter((file) => expectedSet.has(file)).length;
-            const pollutedByInternalFiles = topFiles.some((file) => file.includes('.librarian/'));
+            const pollutedByInternalFiles = topFiles.some((file) => file.includes('.librainian/'));
             const confidenceValues = topPacks.map((pack) => Number(pack.confidence ?? 0));
             const quality = await qualityJudge.execute({
               query: pair.query,
@@ -239,7 +239,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
             pass,
           });
         } finally {
-          await librarian.shutdown();
+          await librainian.shutdown();
         }
       }
 

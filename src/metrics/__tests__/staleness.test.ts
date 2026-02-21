@@ -23,13 +23,13 @@ import {
   formatStatusReport,
   createStalenessMetricsTracker,
 } from '../staleness.js';
-import type { LibrarianStorage, FileKnowledge } from '../../storage/types.js';
+import type { LiBrainianStorage, FileKnowledge } from '../../storage/types.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-class MockStorage implements Partial<LibrarianStorage> {
+class MockStorage implements Partial<LiBrainianStorage> {
   private files = new Map<string, FileKnowledge>();
 
   async getFileByPath(path: string): Promise<FileKnowledge | null> {
@@ -91,7 +91,7 @@ describe('StalenessTracker', () => {
   beforeEach(() => {
     mockStorage = new MockStorage();
     tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
   });
 
@@ -103,7 +103,7 @@ describe('StalenessTracker', () => {
 
     it('merges custom config with defaults', () => {
       const customTracker = new StalenessTracker(
-        mockStorage as unknown as LibrarianStorage,
+        mockStorage as unknown as LiBrainianStorage,
         { openFileSlaMs: 500 }
       );
       const config = customTracker.getConfig();
@@ -236,7 +236,7 @@ describe('StalenessTracker', () => {
 
     it('correctly compares against thresholds', async () => {
       const customTracker = new StalenessTracker(
-        mockStorage as unknown as LibrarianStorage,
+        mockStorage as unknown as LiBrainianStorage,
         { projectFileSlaMs: 5000 } // 5 second SLA
       );
 
@@ -377,7 +377,7 @@ describe('StalenessTracker', () => {
         projectFileSlaMs: 10000, // 10 seconds
       };
       const customTracker = new StalenessTracker(
-        mockStorage as unknown as LibrarianStorage,
+        mockStorage as unknown as LiBrainianStorage,
         config
       );
 
@@ -428,7 +428,7 @@ describe('StalenessTracker', () => {
         projectFileSlaMs: 10000, // 10 seconds
       };
       const customTracker = new StalenessTracker(
-        mockStorage as unknown as LibrarianStorage,
+        mockStorage as unknown as LiBrainianStorage,
         config
       );
 
@@ -445,7 +445,7 @@ describe('StalenessTracker', () => {
         projectFileSlaMs: 10000, // 10 seconds
       };
       const customTracker = new StalenessTracker(
-        mockStorage as unknown as LibrarianStorage,
+        mockStorage as unknown as LiBrainianStorage,
         config
       );
 
@@ -664,7 +664,7 @@ describe('formatStatusReport', () => {
 
   it('produces formatted output', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     await tracker.recordIndexed('/src/a.ts', new Date());
@@ -687,7 +687,7 @@ describe('formatStatusReport', () => {
 
   it('shows stalest files section when files are stale', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     await tracker.recordIndexed('/src/old/legacy.ts', new Date(Date.now() - 60 * 60 * 1000));
@@ -700,7 +700,7 @@ describe('formatStatusReport', () => {
 
   it('handles empty tracker gracefully', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     const output = await formatStatusReport(tracker);
@@ -711,7 +711,7 @@ describe('formatStatusReport', () => {
 
   it('truncates long file paths', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     const longPath = '/very/long/path/that/goes/on/and/on/and/on/for/many/directories/file.ts';
@@ -733,7 +733,7 @@ describe('createStalenessMetricsTracker', () => {
   it('creates tracker with default config', () => {
     const mockStorage = new MockStorage();
     const tracker = createStalenessMetricsTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     expect(tracker).toBeInstanceOf(StalenessTracker);
@@ -743,7 +743,7 @@ describe('createStalenessMetricsTracker', () => {
   it('creates tracker with custom config', () => {
     const mockStorage = new MockStorage();
     const tracker = createStalenessMetricsTracker(
-      mockStorage as unknown as LibrarianStorage,
+      mockStorage as unknown as LiBrainianStorage,
       { openFileSlaMs: 500 }
     );
 
@@ -764,7 +764,7 @@ describe('edge cases', () => {
 
   it('handles files with no index record', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     const age = await tracker.getFileAge('/nonexistent.ts');
@@ -776,7 +776,7 @@ describe('edge cases', () => {
 
   it('handles empty storage gracefully', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     const report = await tracker.generateReport();
@@ -791,7 +791,7 @@ describe('edge cases', () => {
 
   it('handles concurrent operations', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     // Simulate concurrent indexing
@@ -806,7 +806,7 @@ describe('edge cases', () => {
 
   it('handles large file counts for performance', async () => {
     const tracker = new StalenessTracker(
-      mockStorage as unknown as LibrarianStorage
+      mockStorage as unknown as LiBrainianStorage
     );
 
     // Record many files

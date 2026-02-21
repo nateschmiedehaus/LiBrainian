@@ -1,6 +1,6 @@
 /**
- * @fileoverview Librarian Traces Stub
- * Provides tracing utilities for standalone librarian.
+ * @fileoverview LiBrainian Traces Stub
+ * Provides tracing utilities for standalone librainian.
  */
 
 export interface TraceContext {
@@ -38,7 +38,7 @@ export function createTraceContext(): TraceContext {
   };
 }
 
-export function createLibrarianTraceContext(workspace?: string): TraceContext {
+export function createLiBrainianTraceContext(workspace?: string): TraceContext {
   const ctx = createTraceContext();
   if (workspace) {
     ctx.parentSpanId = workspace;  // Store workspace as context
@@ -46,7 +46,7 @@ export function createLibrarianTraceContext(workspace?: string): TraceContext {
   return ctx;
 }
 
-export function getLibrarianTraceRefs(context?: TraceContext): string[] {
+export function getLiBrainianTraceRefs(context?: TraceContext): string[] {
   if (context) {
     return [`trace:${context.traceId}`, `span:${context.spanId}`];
   }
@@ -56,7 +56,7 @@ export function getLibrarianTraceRefs(context?: TraceContext): string[] {
 /**
  * Get trace refs as an object (for internal use)
  */
-export function getLibrarianTraceRefsObject(context?: TraceContext): TraceRefs {
+export function getLiBrainianTraceRefsObject(context?: TraceContext): TraceRefs {
   if (context) {
     return {
       traceId: context.traceId,
@@ -70,9 +70,9 @@ export function getLibrarianTraceRefsObject(context?: TraceContext): TraceRefs {
   };
 }
 
-export function recordLibrarianTrace(contextOrRecord: TraceContext | Partial<TraceRecord>, name?: string): void {
+export function recordLiBrainianTrace(contextOrRecord: TraceContext | Partial<TraceRecord>, name?: string): void {
   if (name !== undefined) {
-    // Called as recordLibrarianTrace(context, name)
+    // Called as recordLiBrainianTrace(context, name)
     const ctx = contextOrRecord as TraceContext;
     traces.push({
       traceId: ctx.traceId,
@@ -82,7 +82,7 @@ export function recordLibrarianTrace(contextOrRecord: TraceContext | Partial<Tra
       status: 'ok',
     });
   } else {
-    // Called as recordLibrarianTrace(record)
+    // Called as recordLiBrainianTrace(record)
     const record = contextOrRecord as Partial<TraceRecord>;
     traces.push({
       traceId: record.traceId ?? Math.random().toString(36).substring(2),
@@ -101,10 +101,10 @@ export function withTrace<T>(name: string, fn: () => T): T {
   const ctx = createTraceContext();
   try {
     const result = fn();
-    recordLibrarianTrace({ ...ctx, name, endTime: Date.now(), status: 'ok' });
+    recordLiBrainianTrace({ ...ctx, name, endTime: Date.now(), status: 'ok' });
     return result;
   } catch (error) {
-    recordLibrarianTrace({ ...ctx, name, endTime: Date.now(), status: 'error', error: String(error) });
+    recordLiBrainianTrace({ ...ctx, name, endTime: Date.now(), status: 'error', error: String(error) });
     throw error;
   }
 }
@@ -113,10 +113,10 @@ export async function withTraceAsync<T>(name: string, fn: () => Promise<T>): Pro
   const ctx = createTraceContext();
   try {
     const result = await fn();
-    recordLibrarianTrace({ ...ctx, name, endTime: Date.now(), status: 'ok' });
+    recordLiBrainianTrace({ ...ctx, name, endTime: Date.now(), status: 'ok' });
     return result;
   } catch (error) {
-    recordLibrarianTrace({ ...ctx, name, endTime: Date.now(), status: 'error', error: String(error) });
+    recordLiBrainianTrace({ ...ctx, name, endTime: Date.now(), status: 'error', error: String(error) });
     throw error;
   }
 }

@@ -1,14 +1,14 @@
 /**
- * @fileoverview Integration Tests for Librarian Constructions
+ * @fileoverview Integration Tests for LiBrainian Constructions
  *
- * Tests all 6 constructions against realistic scenarios using librarian's
+ * Tests all 6 constructions against realistic scenarios using librainian's
  * own codebase as the test repository. Each construction is tested for:
  * - Output structure correctness
  * - Confidence value reasonableness
  * - Non-empty results
  * - Latency within acceptable bounds
  *
- * These are integration tests that exercise real librarian queries (via mocks
+ * These are integration tests that exercise real librainian queries (via mocks
  * that simulate realistic responses), not just unit tests.
  */
 
@@ -21,14 +21,14 @@ import {
   ArchitectureVerifier,
   SecurityAuditHelper,
 } from '../index.js';
-import type { Librarian } from '../../api/librarian.js';
-import type { ContextPack, LibrarianVersion, CodeSnippet } from '../../types.js';
+import type { LiBrainian } from '../../api/librainian.js';
+import type { ContextPack, LiBrainianVersion, CodeSnippet } from '../../types.js';
 
 // ============================================================================
 // TEST FIXTURES - Realistic Mock Data for Integration Testing
 // ============================================================================
 
-const MOCK_VERSION: LibrarianVersion = {
+const MOCK_VERSION: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -70,11 +70,11 @@ function createContextPack(partial: Partial<ContextPack> = {}): ContextPack {
 }
 
 // ============================================================================
-// REALISTIC MOCK DATA - Simulating Librarian's Own Codebase
+// REALISTIC MOCK DATA - Simulating LiBrainian's Own Codebase
 // ============================================================================
 
 /**
- * Creates mock packs that simulate real librarian codebase structure.
+ * Creates mock packs that simulate real librainian codebase structure.
  * These are based on actual files in src/epistemics/ directory.
  */
 function createEpistemicsMockPacks(): ContextPack[] {
@@ -199,18 +199,18 @@ function createArchitectureMockPacks(): ContextPack[] {
     createContextPack({
       packId: 'pack-api-layer',
       packType: 'module_context',
-      targetId: 'api/librarian',
-      summary: 'Main Librarian API entry point',
+      targetId: 'api/librainian',
+      summary: 'Main LiBrainian API entry point',
       keyFacts: ['Provides query(), assembleContext() methods', 'Orchestrates storage and engines'],
       codeSnippets: [
         createCodeSnippet({
-          filePath: 'src/api/librarian.ts',
+          filePath: 'src/api/librainian.ts',
           content: `import { createStorageSlices } from '../storage/slices.js';
 import { Knowledge } from '../knowledge/index.js';
 import type { EmbeddingService } from './embeddings.js';`,
         }),
       ],
-      relatedFiles: ['src/api/librarian.ts', 'src/api/index.ts'],
+      relatedFiles: ['src/api/librainian.ts', 'src/api/index.ts'],
       confidence: 0.92,
     }),
     createContextPack({
@@ -222,8 +222,8 @@ import type { EmbeddingService } from './embeddings.js';`,
       codeSnippets: [
         createCodeSnippet({
           filePath: 'src/engines/index.ts',
-          content: `import type { LibrarianStorage } from '../storage/types.js';
-export class LibrarianEngineToolkit {
+          content: `import type { LiBrainianStorage } from '../storage/types.js';
+export class LiBrainianEngineToolkit {
   public readonly relevance: RelevanceEngine;
   public readonly constraint: ConstraintEngine;
 }`,
@@ -242,7 +242,7 @@ export class LibrarianEngineToolkit {
         createCodeSnippet({
           filePath: 'src/knowledge/index.ts',
           content: `export class Knowledge {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
   async query(query: KnowledgeQuery): Promise<KnowledgeResult> { }
 }`,
         }),
@@ -338,13 +338,13 @@ function createBugInvestigationMockPacks(): ContextPack[] {
 // MOCK LIBRARIAN FACTORY
 // ============================================================================
 
-interface MockLibrarianOptions {
+interface MockLiBrainianOptions {
   packs?: ContextPack[];
   queryDelay?: number;
   failRate?: number;
 }
 
-function createMockLibrarian(options: MockLibrarianOptions = {}): Librarian {
+function createMockLiBrainian(options: MockLiBrainianOptions = {}): LiBrainian {
   const { packs = [], queryDelay = 0, failRate = 0 } = options;
 
   const queryFn = vi.fn().mockImplementation(async () => {
@@ -361,7 +361,7 @@ function createMockLibrarian(options: MockLibrarianOptions = {}): Librarian {
     queryOptional: queryFn,
     queryRequired: queryFn,
     query: queryFn,
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 // ============================================================================
@@ -370,14 +370,14 @@ function createMockLibrarian(options: MockLibrarianOptions = {}): Librarian {
 
 describe('FeatureLocationAdvisor Integration', () => {
   let advisor: FeatureLocationAdvisor;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
-  describe('Scenario: Locate "confidence calculation" in librarian codebase', () => {
+  describe('Scenario: Locate "confidence calculation" in librainian codebase', () => {
     beforeEach(() => {
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: createEpistemicsMockPacks(),
       });
-      advisor = new FeatureLocationAdvisor(mockLibrarian);
+      advisor = new FeatureLocationAdvisor(mockLiBrainian);
     });
 
     it('should find locations related to confidence calculation', async () => {
@@ -444,8 +444,8 @@ describe('FeatureLocationAdvisor Integration', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty search results gracefully', async () => {
-      mockLibrarian = createMockLibrarian({ packs: [] });
-      advisor = new FeatureLocationAdvisor(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: [] });
+      advisor = new FeatureLocationAdvisor(mockLiBrainian);
 
       const result = await advisor.locate({
         description: 'nonexistent feature xyz123',
@@ -457,8 +457,8 @@ describe('FeatureLocationAdvisor Integration', () => {
     });
 
     it('should handle missing keywords gracefully', async () => {
-      mockLibrarian = createMockLibrarian({ packs: createEpistemicsMockPacks() });
-      advisor = new FeatureLocationAdvisor(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: createEpistemicsMockPacks() });
+      advisor = new FeatureLocationAdvisor(mockLiBrainian);
 
       const result = await advisor.locate({
         description: 'Find something',
@@ -478,14 +478,14 @@ describe('FeatureLocationAdvisor Integration', () => {
 
 describe('CodeQualityReporter Integration', () => {
   let reporter: CodeQualityReporter;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   describe('Scenario: Analyze src/epistemics/ for quality', () => {
     beforeEach(() => {
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: createEpistemicsMockPacks(),
       });
-      reporter = new CodeQualityReporter(mockLibrarian);
+      reporter = new CodeQualityReporter(mockLiBrainian);
     });
 
     it('should analyze complexity, duplication, and testability', async () => {
@@ -539,10 +539,10 @@ function veryComplex() {
         ],
       });
 
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: [...createEpistemicsMockPacks(), complexPack],
       });
-      reporter = new CodeQualityReporter(mockLibrarian);
+      reporter = new CodeQualityReporter(mockLiBrainian);
 
       const result = await reporter.analyze({
         files: ['src/epistemics/complex.ts'],
@@ -590,14 +590,14 @@ function veryComplex() {
 
 describe('ArchitectureVerifier Integration', () => {
   let verifier: ArchitectureVerifier;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
-  describe('Scenario: Verify librarian layer architecture', () => {
+  describe('Scenario: Verify librainian layer architecture', () => {
     beforeEach(() => {
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: createArchitectureMockPacks(),
       });
-      verifier = new ArchitectureVerifier(mockLibrarian);
+      verifier = new ArchitectureVerifier(mockLiBrainian);
     });
 
     it('should verify defined layer dependencies', async () => {
@@ -698,8 +698,8 @@ describe('ArchitectureVerifier Integration', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty architecture spec', async () => {
-      mockLibrarian = createMockLibrarian({ packs: [] });
-      verifier = new ArchitectureVerifier(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: [] });
+      verifier = new ArchitectureVerifier(mockLiBrainian);
 
       const result = await verifier.verify({
         layers: [],
@@ -719,14 +719,14 @@ describe('ArchitectureVerifier Integration', () => {
 
 describe('SecurityAuditHelper Integration', () => {
   let auditor: SecurityAuditHelper;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   describe('Scenario: Scan src/ for security patterns', () => {
     beforeEach(() => {
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: createSecurityMockPacks(),
       });
-      auditor = new SecurityAuditHelper(mockLibrarian);
+      auditor = new SecurityAuditHelper(mockLiBrainian);
     });
 
     it('should perform comprehensive security audit', async () => {
@@ -764,8 +764,8 @@ exec(userInput, (err, stdout) => console.log(stdout));`,
         ],
       });
 
-      mockLibrarian = createMockLibrarian({ packs: [commandExecPack] });
-      auditor = new SecurityAuditHelper(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: [commandExecPack] });
+      auditor = new SecurityAuditHelper(mockLiBrainian);
 
       const result = await auditor.audit({
         files: ['src/'],
@@ -791,8 +791,8 @@ exec(userInput, (err, stdout) => console.log(stdout));`,
         ],
       });
 
-      mockLibrarian = createMockLibrarian({ packs: [evalPack] });
-      auditor = new SecurityAuditHelper(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: [evalPack] });
+      auditor = new SecurityAuditHelper(mockLiBrainian);
 
       const result = await auditor.audit({
         files: ['src/'],
@@ -818,8 +818,8 @@ exec(userInput, (err, stdout) => console.log(stdout));`,
         ],
       });
 
-      mockLibrarian = createMockLibrarian({ packs: [secretPack] });
-      auditor = new SecurityAuditHelper(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: [secretPack] });
+      auditor = new SecurityAuditHelper(mockLiBrainian);
 
       const result = await auditor.audit({
         files: ['src/'],
@@ -860,14 +860,14 @@ exec(userInput, (err, stdout) => console.log(stdout));`,
 
 describe('RefactoringSafetyChecker Integration', () => {
   let checker: RefactoringSafetyChecker;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   describe('Scenario: Check safety of renaming getNumericValue function', () => {
     beforeEach(() => {
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: createEpistemicsMockPacks(),
       });
-      checker = new RefactoringSafetyChecker(mockLibrarian);
+      checker = new RefactoringSafetyChecker(mockLiBrainian);
     });
 
     it('should analyze rename safety', async () => {
@@ -946,8 +946,8 @@ describe('RefactoringSafetyChecker Integration', () => {
 
   describe('Move Refactoring', () => {
     it('should analyze move safety', async () => {
-      mockLibrarian = createMockLibrarian({ packs: createEpistemicsMockPacks() });
-      checker = new RefactoringSafetyChecker(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: createEpistemicsMockPacks() });
+      checker = new RefactoringSafetyChecker(mockLiBrainian);
 
       const result = await checker.check({
         entityId: 'getNumericValue',
@@ -967,14 +967,14 @@ describe('RefactoringSafetyChecker Integration', () => {
 
 describe('BugInvestigationAssistant Integration', () => {
   let assistant: BugInvestigationAssistant;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   describe('Scenario: Investigate TypeError in query module', () => {
     beforeEach(() => {
-      mockLibrarian = createMockLibrarian({
+      mockLiBrainian = createMockLiBrainian({
         packs: createBugInvestigationMockPacks(),
       });
-      assistant = new BugInvestigationAssistant(mockLibrarian);
+      assistant = new BugInvestigationAssistant(mockLiBrainian);
     });
 
     it('should investigate bug with stack trace', async () => {
@@ -1064,8 +1064,8 @@ describe('BugInvestigationAssistant Integration', () => {
 
   describe('Edge Cases', () => {
     it('should handle missing stack trace', async () => {
-      mockLibrarian = createMockLibrarian({ packs: createBugInvestigationMockPacks() });
-      assistant = new BugInvestigationAssistant(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: createBugInvestigationMockPacks() });
+      assistant = new BugInvestigationAssistant(mockLiBrainian);
 
       const result = await assistant.investigate({
         description: 'Bug without stack trace',
@@ -1080,8 +1080,8 @@ describe('BugInvestigationAssistant Integration', () => {
     });
 
     it('should handle empty bug report gracefully', async () => {
-      mockLibrarian = createMockLibrarian({ packs: [] });
-      assistant = new BugInvestigationAssistant(mockLibrarian);
+      mockLiBrainian = createMockLiBrainian({ packs: [] });
+      assistant = new BugInvestigationAssistant(mockLiBrainian);
 
       const result = await assistant.investigate({
         description: 'Minimal bug report',
@@ -1099,13 +1099,13 @@ describe('BugInvestigationAssistant Integration', () => {
 
 describe('Cross-Construction Integration', () => {
   it('should handle concurrent construction usage', async () => {
-    const mockLibrarian = createMockLibrarian({
+    const mockLiBrainian = createMockLiBrainian({
       packs: [...createEpistemicsMockPacks(), ...createSecurityMockPacks()],
     });
 
-    const advisor = new FeatureLocationAdvisor(mockLibrarian);
-    const auditor = new SecurityAuditHelper(mockLibrarian);
-    const checker = new RefactoringSafetyChecker(mockLibrarian);
+    const advisor = new FeatureLocationAdvisor(mockLiBrainian);
+    const auditor = new SecurityAuditHelper(mockLiBrainian);
+    const checker = new RefactoringSafetyChecker(mockLiBrainian);
 
     // Run constructions concurrently
     const [locationResult, auditResult, safetyResult] = await Promise.all([
@@ -1121,15 +1121,15 @@ describe('Cross-Construction Integration', () => {
   });
 
   it('should maintain consistent confidence semantics across constructions', async () => {
-    const mockLibrarian = createMockLibrarian({ packs: createEpistemicsMockPacks() });
+    const mockLiBrainian = createMockLiBrainian({ packs: createEpistemicsMockPacks() });
 
     const constructions = [
-      new FeatureLocationAdvisor(mockLibrarian),
-      new CodeQualityReporter(mockLibrarian),
-      new ArchitectureVerifier(mockLibrarian),
-      new SecurityAuditHelper(mockLibrarian),
-      new RefactoringSafetyChecker(mockLibrarian),
-      new BugInvestigationAssistant(mockLibrarian),
+      new FeatureLocationAdvisor(mockLiBrainian),
+      new CodeQualityReporter(mockLiBrainian),
+      new ArchitectureVerifier(mockLiBrainian),
+      new SecurityAuditHelper(mockLiBrainian),
+      new RefactoringSafetyChecker(mockLiBrainian),
+      new BugInvestigationAssistant(mockLiBrainian),
     ];
 
     const results = await Promise.all([
@@ -1158,7 +1158,7 @@ describe('Cross-Construction Integration', () => {
 
 describe('Performance Benchmarks', () => {
   it('should complete all constructions within acceptable latency', async () => {
-    const mockLibrarian = createMockLibrarian({
+    const mockLiBrainian = createMockLiBrainian({
       packs: createEpistemicsMockPacks(),
       queryDelay: 10, // Simulate realistic 10ms query latency
     });
@@ -1166,18 +1166,18 @@ describe('Performance Benchmarks', () => {
     const startTime = Date.now();
 
     await Promise.all([
-      new FeatureLocationAdvisor(mockLibrarian).locate({ description: 'test' }),
-      new CodeQualityReporter(mockLibrarian).analyze({
+      new FeatureLocationAdvisor(mockLiBrainian).locate({ description: 'test' }),
+      new CodeQualityReporter(mockLiBrainian).analyze({
         files: ['src/test.ts'],
         aspects: ['complexity'],
       }),
-      new ArchitectureVerifier(mockLibrarian).verify({ layers: [], boundaries: [], rules: [] }),
-      new SecurityAuditHelper(mockLibrarian).audit({ files: ['src/'], checkTypes: ['injection'] }),
-      new RefactoringSafetyChecker(mockLibrarian).check({
+      new ArchitectureVerifier(mockLiBrainian).verify({ layers: [], boundaries: [], rules: [] }),
+      new SecurityAuditHelper(mockLiBrainian).audit({ files: ['src/'], checkTypes: ['injection'] }),
+      new RefactoringSafetyChecker(mockLiBrainian).check({
         entityId: 'test',
         refactoringType: 'rename',
       }),
-      new BugInvestigationAssistant(mockLibrarian).investigate({ description: 'test' }),
+      new BugInvestigationAssistant(mockLiBrainian).investigate({ description: 'test' }),
     ]);
 
     const totalTime = Date.now() - startTime;

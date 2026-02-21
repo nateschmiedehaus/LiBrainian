@@ -124,17 +124,17 @@ describeRepo('Co-Change Signals', () => {
       expect(score.score).toBe(0);
     });
 
-    it('should find co-change relationships in librarian', () => {
+    it('should find co-change relationships in librainian', () => {
       console.log('\n' + '-'.repeat(70));
       console.log('CO-CHANGE RELATIONSHIPS:');
       console.log('-'.repeat(70));
 
-      // Test some expected relationships in librarian
+      // Test some expected relationships in librainian
       const testPairs = [
-        ['src/librarian/api/librarian.ts', 'src/librarian/types.ts'],
-        ['src/librarian/engines/relevance_engine.ts', 'src/librarian/engines/constraint_engine.ts'],
-        ['src/librarian/api/embeddings.ts', 'src/librarian/api/embedding_providers/real_embeddings.ts'],
-        ['src/librarian/storage/sqlite_storage.ts', 'src/librarian/storage/types.ts'],
+        ['src/librainian/api/librainian.ts', 'src/librainian/types.ts'],
+        ['src/librainian/engines/relevance_engine.ts', 'src/librainian/engines/constraint_engine.ts'],
+        ['src/librainian/api/embeddings.ts', 'src/librainian/api/embedding_providers/real_embeddings.ts'],
+        ['src/librainian/storage/sqlite_storage.ts', 'src/librainian/storage/types.ts'],
       ];
 
       for (const [fileA, fileB] of testPairs) {

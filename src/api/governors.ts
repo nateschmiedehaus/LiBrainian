@@ -268,7 +268,7 @@ export async function writeGovernorBudgetReport(
   report: GovernorBudgetReportV1
 ): Promise<string> {
   const timestamp = report.created_at.replace(/[:.]/g, '-');
-  const dir = path.join(workspaceRoot, 'state', 'audits', 'librarian', 'governor', timestamp);
+  const dir = path.join(workspaceRoot, 'state', 'audits', 'librainian', 'governor', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'GovernorBudgetReport.v1.json');
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');

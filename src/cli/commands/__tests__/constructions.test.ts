@@ -14,8 +14,8 @@ vi.mock('node:child_process', async (importOriginal) => {
   };
 });
 
-vi.mock('../../../api/librarian.js', () => ({
-  Librarian: vi.fn().mockImplementation(() => ({
+vi.mock('../../../api/librainian.js', () => ({
+  LiBrainian: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     shutdown: vi.fn().mockResolvedValue(undefined),
   })),
@@ -83,7 +83,7 @@ describe('constructionsCommand', () => {
     const security = payload.results.find((result) => result.id === 'librainian:security-audit-helper') as
       | (typeof payload.results[number] & { installCommand?: string })
       | undefined;
-    expect(security?.installCommand).toBe('librarian constructions install librainian:security-audit-helper');
+    expect(security?.installCommand).toBe('librainian constructions install librainian:security-audit-helper');
     for (let index = 1; index < payload.results.length; index += 1) {
       expect(payload.results[index - 1]!.score).toBeGreaterThanOrEqual(payload.results[index]!.score);
     }
@@ -100,7 +100,7 @@ describe('constructionsCommand', () => {
     expect(payload.id).toBe('librainian:security-audit-helper');
     expect(typeof payload.agentDescription).toBe('string');
     expect(payload.installMode).toBe('builtin');
-    expect(payload.installCommand).toBe('librarian constructions install librainian:security-audit-helper');
+    expect(payload.installCommand).toBe('librainian constructions install librainian:security-audit-helper');
     expect(typeof payload.runCommand).toBe('string');
     expect((payload.requiredCapabilities as string[]).includes('security-analysis')).toBe(true);
   });

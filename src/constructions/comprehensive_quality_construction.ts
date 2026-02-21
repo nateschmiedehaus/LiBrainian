@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import { parallelAllConfidence, getNumericValue, absent } from '../epistemics/confidence.js';
 import { CodeQualityReporter, type QualityReport, type QualityQuery, type QualityRecommendation } from './code_quality_reporter.js';
@@ -199,10 +199,10 @@ export class ComprehensiveQualityConstruction {
   private architecture: ArchitectureVerifier;
   private security: SecurityAuditHelper;
 
-  constructor(librarian: Librarian) {
-    this.codeQuality = new CodeQualityReporter(librarian);
-    this.architecture = new ArchitectureVerifier(librarian);
-    this.security = new SecurityAuditHelper(librarian);
+  constructor(librainian: LiBrainian) {
+    this.codeQuality = new CodeQualityReporter(librainian);
+    this.architecture = new ArchitectureVerifier(librainian);
+    this.security = new SecurityAuditHelper(librainian);
   }
 
   /**
@@ -770,11 +770,11 @@ export class ComprehensiveQualityConstruction {
 /**
  * Create a new ComprehensiveQualityConstruction instance.
  *
- * @param librarian - Librarian instance for querying codebase knowledge
+ * @param librainian - LiBrainian instance for querying codebase knowledge
  * @returns Configured ComprehensiveQualityConstruction
  */
 export function createComprehensiveQualityConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): ComprehensiveQualityConstruction {
-  return new ComprehensiveQualityConstruction(librarian);
+  return new ComprehensiveQualityConstruction(librainian);
 }

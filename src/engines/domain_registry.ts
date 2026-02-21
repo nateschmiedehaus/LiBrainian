@@ -5,7 +5,7 @@
  * business, and operational specialties. Each domain includes world-class
  * inspirations, advanced techniques, sophisticated methods, and nuanced practices.
  *
- * Also includes META capabilities for librarian self-improvement and recursive enhancement.
+ * Also includes META capabilities for librainian self-improvement and recursive enhancement.
  */
 
 import type { DomainExpertise, DomainCategory } from './domain_expertise.js';
@@ -560,7 +560,7 @@ export const COMPLETE_DOMAIN_TAXONOMY = {
   },
 
   // =========================================================================
-  // META / KNOWLEDGE ENGINEERING (for librarian self-improvement)
+  // META / KNOWLEDGE ENGINEERING (for librainian self-improvement)
   // =========================================================================
   meta: {
     knowledge_engineering: [
@@ -1105,12 +1105,12 @@ export function getDomainsByCategory(category: string): string[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Meta-capabilities for the librarian to improve itself.
- * These are recursive techniques the librarian can use on its own knowledge.
+ * Meta-capabilities for the librainian to improve itself.
+ * These are recursive techniques the librainian can use on its own knowledge.
  */
 export const LIBRARIAN_META_CAPABILITIES = {
   /**
-   * Knowledge quality assessment - evaluate librarian's own knowledge
+   * Knowledge quality assessment - evaluate librainian's own knowledge
    */
   selfAssessment: {
     coverage: {
@@ -1186,19 +1186,19 @@ export const LIBRARIAN_META_CAPABILITIES = {
   },
 
   /**
-   * Recursive enhancement - use librarian to improve librarian
+   * Recursive enhancement - use librainian to improve librainian
    */
   recursiveEnhancement: {
     selfDocumentation: {
-      description: 'Librarian documents its own capabilities',
+      description: 'LiBrainian documents its own capabilities',
       output: 'Auto-generated capability documentation',
     },
     selfTesting: {
-      description: 'Generate tests for librarian functionality',
+      description: 'Generate tests for librainian functionality',
       output: 'Automated test suite for knowledge quality',
     },
     selfOptimization: {
-      description: 'Use librarian queries to optimize librarian',
+      description: 'Use librainian queries to optimize librainian',
       examples: [
         'Query: "How can knowledge retrieval be improved?" -> Apply to self',
         'Query: "What are best practices for knowledge graphs?" -> Apply to self',

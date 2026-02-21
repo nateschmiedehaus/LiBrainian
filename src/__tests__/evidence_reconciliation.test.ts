@@ -104,7 +104,7 @@ describe('evidence reconciliation summaries', () => {
       '<!-- IMPLEMENTATION_STATUS_AUTOGEN_END -->',
       '**Infrastructure (Phases 0-11)**: ✅ COMPLETE',
       '- claim one',
-      '## How This Document Relates to the Librarian Story',
+      '## How This Document Relates to the LiBrainian Story',
     ].join('\n');
     const updated = reconcileImplementationStatusContents(content, summary);
     expect(updated).toContain('Implementation Evidence Snapshot');

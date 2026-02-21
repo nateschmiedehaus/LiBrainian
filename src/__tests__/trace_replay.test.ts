@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { getCurrentVersion } from '../api/versioning.js';
 import {
   SqliteEvidenceLedger,
@@ -39,10 +39,10 @@ vi.mock('../api/provider_check.js', () => ({
 const workspaceRoot = process.cwd();
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-replay-test-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-replay-test-${randomUUID()}.db`);
 }
 
-async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: string): Promise<void> {
+async function seedStorageForQuery(storage: LiBrainianStorage, relatedFile: string): Promise<void> {
   await storage.upsertFunction({
     id: 'fn-replay-1',
     filePath: path.join(workspaceRoot, relatedFile),
@@ -77,14 +77,14 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
 }
 
 describe('Trace replay anchors', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
 
   afterEach(async () => {
     await storage?.close?.();
   });
 
   it('anchors traceId to evidence ledger sessions for replay queries', async () => {
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
     await seedStorageForQuery(storage, 'src/auth.ts');
@@ -93,7 +93,7 @@ describe('Trace replay anchors', () => {
     await ledger.initialize();
     const sessionId = createSessionId('sess_replay_anchor');
 
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       { intent: 'trace replay anchor', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
       storage,
       undefined,
@@ -112,12 +112,12 @@ describe('Trace replay anchors', () => {
   });
 
   it('discloses replay unavailability when no ledger exists', async () => {
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
     await seedStorageForQuery(storage, 'src/auth.ts');
 
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       { intent: 'trace replay unavailable', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
       storage
     );

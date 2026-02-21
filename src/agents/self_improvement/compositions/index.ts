@@ -7,7 +7,7 @@
  * Based on self-improvement-primitives.md specification.
  *
  * Compositions:
- * - tc_self_audit_full: Complete audit of Librarian health (WU-SELF-201)
+ * - tc_self_audit_full: Complete audit of LiBrainian health (WU-SELF-201)
  * - tc_self_check_incremental: Quick check after changes (WU-SELF-202)
  * - tc_resolve_gettier_case: Resolve accidentally true beliefs (WU-SELF-203)
  * - tc_adversarial_self_test: Generate and run adversarial tests (WU-SELF-204)

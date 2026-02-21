@@ -2,7 +2,7 @@
  * @fileoverview UC-001…UC-030 (L0 Foundation) end-to-end suite (Tier‑2)
  *
  * This suite exists to make the “world-class knowledge tool” claim non-theatrical:
- * - It runs the first 30 canonical use cases from docs/librarian/USE_CASE_MATRIX.md.
+ * - It runs the first 30 canonical use cases from docs/librainian/USE_CASE_MATRIX.md.
  * - It requires live providers (LLM + embeddings). If unavailable, it must fail honestly.
  * - It asserts stable, observable invariants against a controlled fixture repo,
  *   without overfitting to any particular phrasing.
@@ -15,12 +15,12 @@ import { randomUUID } from 'node:crypto';
 import * as fsSync from 'node:fs';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import { bootstrapProject } from '../api/bootstrap.js';
-import { queryLibrarian } from '../api/query.js';
+import { queryLiBrainian } from '../api/query.js';
 import { requireProviders } from '../api/provider_check.js';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianResponse } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianResponse } from '../types.js';
 
-const TEST_FIXTURE_PATH = path.resolve(__dirname, '../../test/fixtures/librarian_usecase');
+const TEST_FIXTURE_PATH = path.resolve(__dirname, '../../test/fixtures/librainian_usecase');
 const HAS_FIXTURE = fsSync.existsSync(TEST_FIXTURE_PATH);
 const describeFixture = HAS_FIXTURE ? describe : describe.skip;
 
@@ -30,7 +30,7 @@ type UcCase = {
   expectMentions: string[];
 };
 
-function resultContainsAnyFile(result: LibrarianResponse, expectedPaths: string[]): boolean {
+function resultContainsAnyFile(result: LiBrainianResponse, expectedPaths: string[]): boolean {
   const expected = expectedPaths.map((p) => p.replace(/\\/g, '/').toLowerCase());
 
   for (const pack of result.packs || []) {
@@ -103,14 +103,14 @@ const UC_L0_FOUNDATION: UcCase[] = [
 ];
 
 describeFixture('UC-001…UC-030 (L0 Foundation) end-to-end', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let bootstrapSucceeded = false;
   let bootstrapError: Error | null = null;
 
   beforeAll(async () => {
     await requireProviders({ llm: true, embedding: true }, { workspaceRoot: TEST_FIXTURE_PATH });
 
-    const dbPath = path.join(os.tmpdir(), `librarian-usecase-system-${randomUUID()}.db`);
+    const dbPath = path.join(os.tmpdir(), `librainian-usecase-system-${randomUUID()}.db`);
     storage = createSqliteStorage(dbPath, TEST_FIXTURE_PATH);
     await storage.initialize();
 
@@ -147,7 +147,7 @@ describeFixture('UC-001…UC-030 (L0 Foundation) end-to-end', () => {
     it(`${uc.id}: ${uc.intent}`, async () => {
       if (!bootstrapSucceeded) throw new Error('unverified_by_trace(bootstrap_required)');
 
-      const result = await queryLibrarian(
+      const result = await queryLiBrainian(
         {
           intent: `${uc.id}: ${uc.intent}`,
           depth: 'L0',

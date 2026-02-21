@@ -37,7 +37,7 @@ describe('preset storage', () => {
   });
 
   it('throws when presets JSON is invalid', async () => {
-    const filePath = path.join(tempDir, '.librarian', 'presets.json');
+    const filePath = path.join(tempDir, '.librainian', 'presets.json');
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, '{not json', 'utf8');
     await expect(loadPresets(tempDir)).rejects.toThrow('unverified_by_trace(preset_parse_failed)');

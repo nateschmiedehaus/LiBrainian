@@ -12,7 +12,7 @@
  * - History of issue detection and resolution
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -137,7 +137,7 @@ export class QualityIssueRegistry {
   private version: string;
 
   constructor(
-    private storage: LibrarianStorage,
+    private storage: LiBrainianStorage,
     private workspace: string,
   ) {
     this.version = '1.0.0';
@@ -599,7 +599,7 @@ export class QualityIssueRegistry {
 let registryInstance: QualityIssueRegistry | null = null;
 
 export async function getQualityRegistry(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspace: string,
 ): Promise<QualityIssueRegistry> {
   if (!registryInstance) {

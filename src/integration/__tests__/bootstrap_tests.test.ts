@@ -1,12 +1,12 @@
 /**
  * @fileoverview Bootstrap Test Suite (WU-BOOT-002)
  *
- * Validates that Librarian can correctly index and query its own codebase.
- * These tests use self-indexed Librarian data to verify the system works.
+ * Validates that LiBrainian can correctly index and query its own codebase.
+ * These tests use self-indexed LiBrainian data to verify the system works.
  *
  * Test Categories:
- * 1. Self-Indexing Tests - Verify Librarian indexes all its own source files
- * 2. Query Tests - Query for known Librarian components
+ * 1. Self-Indexing Tests - Verify LiBrainian indexes all its own source files
+ * 2. Query Tests - Query for known LiBrainian components
  * 3. Cross-Reference Tests - Verify import/export relationships are captured
  * 4. Symbol Resolution Tests - Verify function/class definitions are found
  * 5. Documentation Tests - Verify JSDoc comments are indexed
@@ -53,12 +53,12 @@ interface TestCase {
 }
 
 /**
- * Creates a bootstrap test runner that validates Librarian against its own codebase.
+ * Creates a bootstrap test runner that validates LiBrainian against its own codebase.
  *
- * @param librarianInstance - A Librarian instance initialized with the librarian workspace
+ * @param librainianInstance - A LiBrainian instance initialized with the librainian workspace
  * @returns A BootstrapTestRunner
  */
-export function createBootstrapTestRunner(librarianInstance: any): BootstrapTestRunner {
+export function createBootstrapTestRunner(librainianInstance: any): BootstrapTestRunner {
   const testCases: TestCase[] = [];
   const results: BootstrapTestResult[] = [];
 
@@ -72,13 +72,13 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // ============================================================================
 
   addTest('self-indexing', 'indexes src/index.ts', async () => {
-    const storage = librarianInstance.getStorage();
-    const file = await storage.getFileByPath(path.resolve(librarianInstance.config?.workspace || process.cwd(), 'src/index.ts'));
+    const storage = librainianInstance.getStorage();
+    const file = await storage.getFileByPath(path.resolve(librainianInstance.config?.workspace || process.cwd(), 'src/index.ts'));
     if (!file) throw new Error('src/index.ts not indexed');
   });
 
   addTest('self-indexing', 'indexes api module files', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ directory: 'api' });
     if (!files || files.length === 0) {
       const allFiles = await storage.getFiles();
@@ -88,42 +88,42 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('self-indexing', 'indexes storage module files', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const storageFiles = allFiles.filter((f: any) => f.path.includes('/storage/'));
     if (storageFiles.length === 0) throw new Error('No storage module files found');
   });
 
   addTest('self-indexing', 'indexes integration module files', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const integrationFiles = allFiles.filter((f: any) => f.path.includes('/integration/'));
     if (integrationFiles.length === 0) throw new Error('No integration module files found');
   });
 
   addTest('self-indexing', 'indexes test files', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const testFiles = allFiles.filter((f: any) => f.path.includes('.test.ts'));
     if (testFiles.length === 0) throw new Error('No test files found');
   });
 
   addTest('self-indexing', 'indexes types.ts', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const typesFile = allFiles.find((f: any) => f.path.endsWith('/types.ts') && !f.path.includes('__tests__'));
     if (!typesFile) throw new Error('types.ts not indexed');
   });
 
   addTest('self-indexing', 'captures file checksums', async () => {
-    const storage = librarianInstance.getStorage();
-    const workspace = librarianInstance.config?.workspace || process.cwd();
+    const storage = librainianInstance.getStorage();
+    const workspace = librainianInstance.config?.workspace || process.cwd();
     const checksum = await storage.getFileChecksum(path.resolve(workspace, 'src/index.ts'));
     if (!checksum) throw new Error('File checksum not captured');
   });
 
   addTest('self-indexing', 'indexes configuration files', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const configFiles = allFiles.filter((f: any) =>
       f.path.endsWith('tsconfig.json') ||
@@ -134,14 +134,14 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('self-indexing', 'indexes epistemics module', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const epistemicsFiles = allFiles.filter((f: any) => f.path.includes('/epistemics/'));
     if (epistemicsFiles.length === 0) throw new Error('No epistemics module files found');
   });
 
   addTest('self-indexing', 'indexes knowledge module', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const knowledgeFiles = allFiles.filter((f: any) => f.path.includes('/knowledge/'));
     if (knowledgeFiles.length === 0) throw new Error('No knowledge module files found');
@@ -151,17 +151,17 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // QUERY TESTS
   // ============================================================================
 
-  addTest('query', 'queries for Librarian class', async () => {
-    const storage = librarianInstance.getStorage();
+  addTest('query', 'queries for LiBrainian class', async () => {
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions();
-    const librarianClass = functions.find((f: any) =>
-      f.name === 'Librarian' || f.name.includes('createLibrarian')
+    const librainianClass = functions.find((f: any) =>
+      f.name === 'LiBrainian' || f.name.includes('createLiBrainian')
     );
-    if (!librarianClass) throw new Error('Librarian class not found');
+    if (!librainianClass) throw new Error('LiBrainian class not found');
   });
 
   addTest('query', 'queries for storage interfaces', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules();
     const storageModule = modules.find((m: any) =>
       m.path.includes('storage/types') || m.path.includes('storage/index')
@@ -170,7 +170,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('query', 'queries for bootstrap functions', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions();
     const bootstrapFns = functions.filter((f: any) =>
       f.name.toLowerCase().includes('bootstrap')
@@ -179,35 +179,35 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('query', 'queries by file path', async () => {
-    const storage = librarianInstance.getStorage();
-    const workspace = librarianInstance.config?.workspace || process.cwd();
-    const functions = await storage.getFunctionsByPath(path.resolve(workspace, 'src/api/librarian.ts'));
+    const storage = librainianInstance.getStorage();
+    const workspace = librainianInstance.config?.workspace || process.cwd();
+    const functions = await storage.getFunctionsByPath(path.resolve(workspace, 'src/api/librainian.ts'));
     // Functions may be empty if file has no exported functions, but call should succeed
     expect(functions).toBeDefined();
   });
 
   addTest('query', 'queries modules by path', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules();
     const indexModule = modules.find((m: any) => m.path.includes('index'));
     if (!indexModule) throw new Error('No index module found');
   });
 
   addTest('query', 'queries context packs', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const packs = await storage.getContextPacks({ limit: 5 });
     // Context packs may not exist if bootstrap didn't run with LLM
     expect(packs).toBeDefined();
   });
 
   addTest('query', 'queries with confidence filter', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ minConfidence: 0.5 });
     expect(functions).toBeDefined();
   });
 
   addTest('query', 'queries with ordering', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({
       orderBy: 'confidence',
       orderDirection: 'desc',
@@ -225,14 +225,14 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('query', 'queries embeddings existence', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const caps = storage.getCapabilities();
     expect(caps).toBeDefined();
     expect(caps.optional).toBeDefined();
   });
 
   addTest('query', 'queries storage stats', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const stats = await storage.getStats();
     expect(stats).toBeDefined();
     expect(typeof stats.totalFunctions).toBe('number');
@@ -244,7 +244,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // ============================================================================
 
   addTest('cross-reference', 'captures import relationships', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ edgeTypes: ['imports'], limit: 10 });
     expect(edges).toBeDefined();
     // Import edges should exist if files were indexed
@@ -254,13 +254,13 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('cross-reference', 'captures call relationships', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ edgeTypes: ['calls'], limit: 10 });
     expect(edges).toBeDefined();
   });
 
   addTest('cross-reference', 'tracks file dependencies', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules({ limit: 10 });
     const modulesWithDeps = modules.filter((m: any) => m.dependencies && m.dependencies.length > 0);
     if (modules.length > 0 && modulesWithDeps.length === 0) {
@@ -270,7 +270,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('cross-reference', 'tracks module exports', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules({ limit: 10 });
     const modulesWithExports = modules.filter((m: any) => m.exports && m.exports.length > 0);
     if (modules.length > 0 && modulesWithExports.length === 0) {
@@ -280,7 +280,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('cross-reference', 'validates bidirectional imports', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ edgeTypes: ['imports'], limit: 5 });
     if (edges.length > 0) {
       // Each edge should have valid from/to IDs
@@ -294,7 +294,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('cross-reference', 'links files to directories', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ limit: 10 });
     for (const file of files) {
       expect(file.path).toBeDefined();
@@ -305,14 +305,14 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('cross-reference', 'captures extends relationships', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ edgeTypes: ['extends'], limit: 10 });
     // May be empty if no class inheritance in codebase
     expect(edges).toBeDefined();
   });
 
   addTest('cross-reference', 'captures implements relationships', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ edgeTypes: ['implements'], limit: 10 });
     // May be empty if no interface implementations tracked
     expect(edges).toBeDefined();
@@ -323,7 +323,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // ============================================================================
 
   addTest('symbol-resolution', 'resolves function by name', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions();
     const queryFn = functions.find((f: any) => f.name.includes('query'));
     if (functions.length > 0 && !queryFn) {
@@ -333,7 +333,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'resolves function by file path', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFunctions = await storage.getFunctions();
     if (allFunctions.length > 0) {
       const sampleFn = allFunctions[0];
@@ -343,7 +343,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'resolves module by path', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules();
     if (modules.length > 0) {
       const sampleMod = modules[0];
@@ -353,7 +353,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'captures function signatures', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ limit: 10 });
     for (const fn of functions) {
       expect(fn.signature).toBeDefined();
@@ -362,7 +362,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'captures function line numbers', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ limit: 10 });
     for (const fn of functions) {
       expect(typeof fn.startLine).toBe('number');
@@ -372,7 +372,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'captures function names', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ limit: 10 });
     for (const fn of functions) {
       expect(fn.name).toBeDefined();
@@ -382,7 +382,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'captures function file paths', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ limit: 10 });
     for (const fn of functions) {
       expect(fn.filePath).toBeDefined();
@@ -391,7 +391,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'captures function IDs', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ limit: 10 });
     for (const fn of functions) {
       expect(fn.id).toBeDefined();
@@ -401,7 +401,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'resolves module exports list', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules({ limit: 10 });
     for (const mod of modules) {
       expect(mod.exports).toBeDefined();
@@ -410,7 +410,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('symbol-resolution', 'resolves module dependencies list', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules({ limit: 10 });
     for (const mod of modules) {
       expect(mod.dependencies).toBeDefined();
@@ -423,7 +423,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // ============================================================================
 
   addTest('documentation', 'captures function purpose', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const functions = await storage.getFunctions({ limit: 10 });
     for (const fn of functions) {
       expect(fn.purpose).toBeDefined();
@@ -432,7 +432,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures module purpose', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules({ limit: 10 });
     for (const mod of modules) {
       expect(mod.purpose).toBeDefined();
@@ -441,7 +441,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures file category', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ limit: 10 });
     for (const file of files) {
       expect(file.category).toBeDefined();
@@ -450,7 +450,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures file role', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ limit: 10 });
     for (const file of files) {
       expect(file.role).toBeDefined();
@@ -459,7 +459,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures file summary', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ limit: 10 });
     for (const file of files) {
       expect(file.summary).toBeDefined();
@@ -468,7 +468,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures directory purpose', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const directories = await storage.getDirectories({ limit: 10 });
     for (const dir of directories) {
       expect(dir.purpose).toBeDefined();
@@ -477,7 +477,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures directory role', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const directories = await storage.getDirectories({ limit: 10 });
     for (const dir of directories) {
       expect(dir.role).toBeDefined();
@@ -486,7 +486,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures context pack summaries', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const packs = await storage.getContextPacks({ limit: 10 });
     for (const pack of packs) {
       expect(pack.summary).toBeDefined();
@@ -495,7 +495,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('documentation', 'captures context pack key facts', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const packs = await storage.getContextPacks({ limit: 10 });
     for (const pack of packs) {
       expect(pack.keyFacts).toBeDefined();
@@ -508,21 +508,21 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // ============================================================================
 
   addTest('dependency', 'tracks package.json existence', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const allFiles = await storage.getFiles();
     const packageJson = allFiles.find((f: any) => f.path.endsWith('package.json'));
     expect(packageJson).toBeDefined();
   });
 
   addTest('dependency', 'tracks module dependencies', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules();
     // At least some modules should have dependencies
     expect(modules.some((m: any) => m.dependencies && m.dependencies.length >= 0)).toBe(true);
   });
 
   addTest('dependency', 'validates module dependency format', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const modules = await storage.getModules({ limit: 20 });
     for (const mod of modules) {
       if (mod.dependencies && mod.dependencies.length > 0) {
@@ -534,7 +534,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('dependency', 'tracks import graph edges', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ edgeTypes: ['imports'] });
     // Import edges should exist
     expect(edges).toBeDefined();
@@ -542,7 +542,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('dependency', 'validates graph edge structure', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const edges = await storage.getGraphEdges({ limit: 10 });
     for (const edge of edges) {
       expect(edge.fromId).toBeDefined();
@@ -554,7 +554,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('dependency', 'tracks file relationships', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ limit: 10 });
     for (const file of files) {
       // Each file should have imports array
@@ -564,7 +564,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('dependency', 'tracks file importedBy', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const files = await storage.getFiles({ limit: 10 });
     for (const file of files) {
       // Each file should have importedBy array
@@ -574,7 +574,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('dependency', 'cochange edges accessible', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const cochangeEdges = await storage.getCochangeEdges({ limit: 5 });
     // May be empty if no git history analyzed
     expect(cochangeEdges).toBeDefined();
@@ -586,13 +586,13 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   // ============================================================================
 
   addTest('validation', 'storage is initialized', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     expect(storage).toBeDefined();
     expect(storage.isInitialized()).toBe(true);
   });
 
   addTest('validation', 'storage capabilities reported', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const caps = storage.getCapabilities();
     expect(caps).toBeDefined();
     expect(caps.core).toBeDefined();
@@ -601,27 +601,27 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
   });
 
   addTest('validation', 'metadata accessible', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const metadata = await storage.getMetadata();
     // Metadata may be null if not set
     expect(metadata === null || typeof metadata === 'object').toBe(true);
   });
 
   addTest('validation', 'version accessible', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     const version = await storage.getVersion();
     // Version may be null if not bootstrapped
     expect(version === null || typeof version === 'object').toBe(true);
   });
 
   addTest('validation', 'transaction support', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     // Verify transaction method exists
     expect(typeof storage.transaction).toBe('function');
   });
 
   addTest('validation', 'vacuum support', async () => {
-    const storage = librarianInstance.getStorage();
+    const storage = librainianInstance.getStorage();
     // Verify vacuum method exists
     expect(typeof storage.vacuum).toBe('function');
   });
@@ -690,7 +690,7 @@ export function createBootstrapTestRunner(librarianInstance: any): BootstrapTest
 describe('Bootstrap Tests (WU-BOOT-002)', () => {
   let tempDir: string;
   let mockStorage: MockStorage;
-  let mockLibrarian: MockLibrarian;
+  let mockLiBrainian: MockLiBrainian;
   let runner: BootstrapTestRunner;
 
   // Mock storage implementation for testing
@@ -706,7 +706,7 @@ describe('Bootstrap Tests (WU-BOOT-002)', () => {
     private _initialized = false;
 
     constructor(workspace: string) {
-      // Generate mock data based on actual Librarian structure
+      // Generate mock data based on actual LiBrainian structure
       this.generateMockData(workspace);
       this._initialized = true;
     }
@@ -716,7 +716,7 @@ describe('Bootstrap Tests (WU-BOOT-002)', () => {
       const filePaths = [
         'src/index.ts',
         'src/types.ts',
-        'src/api/librarian.ts',
+        'src/api/librainian.ts',
         'src/api/index.ts',
         'src/api/bootstrap.ts',
         'src/api/query.ts',
@@ -762,7 +762,7 @@ describe('Bootstrap Tests (WU-BOOT-002)', () => {
 
       // Mock functions
       const functionNames = [
-        'createLibrarian', 'queryLibrarian', 'bootstrapProject',
+        'createLiBrainian', 'queryLiBrainian', 'bootstrapProject',
         'createSqliteStorage', 'startFileWatcher', 'createBootstrapTestRunner',
         'executeQuery', 'generateContextPacks', 'initialize', 'shutdown',
       ];
@@ -1029,7 +1029,7 @@ describe('Bootstrap Tests (WU-BOOT-002)', () => {
     }
   }
 
-  class MockLibrarian {
+  class MockLiBrainian {
     config: { workspace: string };
     private storage: MockStorage;
 
@@ -1046,8 +1046,8 @@ describe('Bootstrap Tests (WU-BOOT-002)', () => {
   beforeAll(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bootstrap-tests-'));
     mockStorage = new MockStorage(tempDir);
-    mockLibrarian = new MockLibrarian(tempDir);
-    runner = createBootstrapTestRunner(mockLibrarian);
+    mockLiBrainian = new MockLiBrainian(tempDir);
+    runner = createBootstrapTestRunner(mockLiBrainian);
   });
 
   afterAll(async () => {

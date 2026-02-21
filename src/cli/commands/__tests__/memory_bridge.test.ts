@@ -65,7 +65,7 @@ describe('memoryBridgeCommand', () => {
 
   it('stores core memory entries in session state via remember action', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-memory-bridge-remember-'));
-    const sessionPath = path.join(workspace, '.librarian', 'session.json');
+    const sessionPath = path.join(workspace, '.librainian', 'session.json');
 
     try {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -84,7 +84,7 @@ describe('memoryBridgeCommand', () => {
         kind: string;
         workingContext: { coreMemory?: Record<string, string> };
       };
-      expect(parsed.kind).toBe('LibrarianSession.v1');
+      expect(parsed.kind).toBe('LiBrainianSession.v1');
       expect(parsed.workingContext.coreMemory?.auth_model).toBe('JWT expires in 1 hour');
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });

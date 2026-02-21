@@ -1,7 +1,7 @@
 /**
  * @fileoverview Improvement Tracker for Scientific Loop
  *
- * Monitors Librarian's improvement over time across scientific loop iterations
+ * Monitors LiBrainian's improvement over time across scientific loop iterations
  * and A/B experiments.
  *
  * Metrics tracked:

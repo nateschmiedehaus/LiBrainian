@@ -21,12 +21,12 @@ describe('Self-Healing Configuration', () => {
 
   beforeEach(async () => {
     // Create a temporary workspace
-    testWorkspace = path.join(os.tmpdir(), `librarian-test-${Date.now()}`);
+    testWorkspace = path.join(os.tmpdir(), `librainian-test-${Date.now()}`);
     await fs.promises.mkdir(testWorkspace, { recursive: true });
 
     // Create basic structure
     await fs.promises.mkdir(path.join(testWorkspace, 'src'), { recursive: true });
-    await fs.promises.mkdir(path.join(testWorkspace, '.librarian'), { recursive: true });
+    await fs.promises.mkdir(path.join(testWorkspace, '.librainian'), { recursive: true });
     await fs.promises.mkdir(path.join(testWorkspace, 'state'), { recursive: true });
 
     // Create a sample config
@@ -37,7 +37,7 @@ describe('Self-Healing Configuration', () => {
     };
 
     await fs.promises.writeFile(
-      path.join(testWorkspace, '.librarian', 'config.json'),
+      path.join(testWorkspace, '.librainian', 'config.json'),
       JSON.stringify(config, null, 2)
     );
 
@@ -74,7 +74,7 @@ describe('Self-Healing Configuration', () => {
 
     it('should detect missing config as an issue', async () => {
       // Remove the config file
-      await fs.promises.unlink(path.join(testWorkspace, '.librarian', 'config.json'));
+      await fs.promises.unlink(path.join(testWorkspace, '.librainian', 'config.json'));
 
       const report = await diagnoseConfiguration(testWorkspace);
 
@@ -103,7 +103,7 @@ describe('Self-Healing Configuration', () => {
       };
 
       await fs.promises.writeFile(
-        path.join(testWorkspace, '.librarian', 'config.json'),
+        path.join(testWorkspace, '.librainian', 'config.json'),
         JSON.stringify(badConfig, null, 2)
       );
 
@@ -136,7 +136,7 @@ describe('Self-Healing Configuration', () => {
       };
 
       await fs.promises.writeFile(
-        path.join(testWorkspace, '.librarian', 'config.json'),
+        path.join(testWorkspace, '.librainian', 'config.json'),
         JSON.stringify(config, null, 2)
       );
 
@@ -157,7 +157,7 @@ describe('Self-Healing Configuration', () => {
       };
 
       await fs.promises.writeFile(
-        path.join(testWorkspace, '.librarian', 'config.json'),
+        path.join(testWorkspace, '.librainian', 'config.json'),
         JSON.stringify(config, null, 2)
       );
 
@@ -330,7 +330,7 @@ describe('Self-Healing Configuration', () => {
       };
 
       await fs.promises.writeFile(
-        path.join(testWorkspace, '.librarian', 'config.json'),
+        path.join(testWorkspace, '.librainian', 'config.json'),
         JSON.stringify(config, null, 2)
       );
 

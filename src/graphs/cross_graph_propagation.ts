@@ -1,7 +1,7 @@
 /**
  * @fileoverview Cross-Graph Importance Propagation
  *
- * Implements bidirectional importance propagation across Librarian's four
+ * Implements bidirectional importance propagation across LiBrainian's four
  * interconnected graphs: Code, Rationale, Epistemic, and Organizational.
  *
  * Key insights from RESEARCH-003:
@@ -33,7 +33,7 @@ import type { KnowledgeGraphEdge, KnowledgeEdgeType } from '../storage/types.js'
 // TYPE DEFINITIONS
 // ============================================================================
 
-/** Graph types in the Librarian knowledge system */
+/** Graph types in the LiBrainian knowledge system */
 export type GraphType = 'code' | 'rationale' | 'epistemic' | 'org';
 
 /**

@@ -13,7 +13,7 @@
 import { execSync, exec } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';
-import type { LibrarianStorage, BlameEntry, BlameStats } from '../storage/types.js';
+import type { LiBrainianStorage, BlameEntry, BlameStats } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -48,7 +48,7 @@ export interface BlameChunk {
 
 export interface BlameIndexerOptions {
   workspace: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   files?: string[];           // Specific files to blame (if empty, uses git ls-files)
   maxFilesPerBatch?: number;  // Limit concurrent git blame processes
   skipBinaryFiles?: boolean;  // Skip binary files (default: true)
@@ -349,7 +349,7 @@ export async function indexBlame(options: BlameIndexerOptions): Promise<BlameInd
  * Get the primary author (most lines owned) for a file.
  */
 export async function getPrimaryAuthor(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePath: string
 ): Promise<{ author: string; ownership: number } | null> {
   const stats = await storage.getBlameStats(filePath);
@@ -365,7 +365,7 @@ export async function getPrimaryAuthor(
  * Get all authors who have contributed to a file.
  */
 export async function getFileContributors(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePath: string
 ): Promise<Array<{ author: string; lines: number; percentage: number }>> {
   const stats = await storage.getBlameStats(filePath);
@@ -384,7 +384,7 @@ export async function getFileContributors(
  * Get all files an author has contributed to.
  */
 export async function getAuthorFiles(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   author: string
 ): Promise<Array<{ filePath: string; linesOwned: number }>> {
   const entries = await storage.getBlameEntries({ author, limit: 10000 });
@@ -405,7 +405,7 @@ export async function getAuthorFiles(
  * Find the expert for specific lines in a file.
  */
 export async function getLineExpert(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePath: string,
   lineStart: number,
   lineEnd: number

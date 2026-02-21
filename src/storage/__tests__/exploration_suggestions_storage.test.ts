@@ -3,14 +3,14 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { createSqliteStorage } from '../sqlite_storage.js';
-import type { LibrarianStorage } from '../types.js';
+import type { LiBrainianStorage } from '../types.js';
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-exploration-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-exploration-${randomUUID()}.db`);
 }
 
 describe('Exploration suggestions storage', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
 
   beforeEach(async () => {

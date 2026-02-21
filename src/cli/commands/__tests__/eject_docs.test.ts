@@ -7,7 +7,7 @@ vi.mock('../../../ingest/docs_update.js', () => ({
 }));
 
 describe('ejectDocsCommand', () => {
-  const workspace = '/tmp/librarian-eject-docs';
+  const workspace = '/tmp/librainian-eject-docs';
   let logSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {

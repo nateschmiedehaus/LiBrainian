@@ -1,9 +1,9 @@
 /**
  * @fileoverview Health Command
  *
- * Shows current Librarian health status using the observability module.
+ * Shows current LiBrainian health status using the observability module.
  *
- * Usage: librarian health [--verbose] [--completeness]
+ * Usage: librainian health [--verbose] [--completeness]
  *
  * @packageDocumentation
  */
@@ -14,7 +14,7 @@ import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import {
   generateStateReport,
   exportPrometheusMetrics,
-  type LibrarianStateReport,
+  type LiBrainianStateReport,
 } from '../../measurement/observability.js';
 import { isBootstrapRequired } from '../../api/bootstrap.js';
 import {
@@ -53,7 +53,7 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
           status: 'unhealthy',
           reason: 'bootstrap_required',
           message: bootstrapCheck.reason || 'Bootstrap required',
-          suggestion: 'Run `librarian bootstrap` to initialize the index',
+          suggestion: 'Run `librainian bootstrap` to initialize the index',
         },
         verbose,
         provenance
@@ -105,7 +105,7 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
         status: 'unhealthy',
         reason: 'storage_unavailable',
         message,
-        suggestion: 'Run `librarian doctor --heal` or `librarian bootstrap --force` to recover',
+        suggestion: 'Run `librainian doctor --heal` or `librainian bootstrap --force` to recover',
       },
       verbose,
       provenance
@@ -132,11 +132,11 @@ function outputHealthFailure(
       console.log(JSON.stringify(enriched, null, 2));
       break;
     case 'prometheus':
-      console.log(`librarian_health_ok 0\nlibrarian_health_failure_reason{reason="${payload.reason}"} 1`);
+      console.log(`librainian_health_ok 0\nlibrainian_health_failure_reason{reason="${payload.reason}"} 1`);
       break;
     case 'text':
     default:
-      console.log('\n=== Librarian Health Report ===\n');
+      console.log('\n=== LiBrainian Health Report ===\n');
       console.log(`Status: \u274C UNHEALTHY`);
       console.log(`Reason: ${payload.reason}`);
       console.log(`Message: ${payload.message}`);
@@ -187,7 +187,7 @@ function outputCompletenessReport(
   }
 }
 
-function printTextReport(report: LibrarianStateReport, verbose: boolean, provenance?: VerificationProvenanceReport): void {
+function printTextReport(report: LiBrainianStateReport, verbose: boolean, provenance?: VerificationProvenanceReport): void {
   const statusEmoji: Record<string, string> = {
     healthy: '\u2705',
     degraded: '\u26A0\uFE0F',
@@ -195,7 +195,7 @@ function printTextReport(report: LibrarianStateReport, verbose: boolean, provena
     unhealthy: '\u274C',
   };
 
-  console.log('\n=== Librarian Health Report ===\n');
+  console.log('\n=== LiBrainian Health Report ===\n');
   console.log(`Status: ${statusEmoji[report.health.status] ?? '\u2753'} ${report.health.status.toUpperCase()}`);
   console.log(`Recovery State: ${report.recoveryState}`);
   console.log(`Generated: ${report.generatedAt}\n`);
@@ -221,8 +221,8 @@ function printTextReport(report: LibrarianStateReport, verbose: boolean, provena
 
   if (!report.health.checks.indexFresh) {
     console.log('\nSuggested Fixes:');
-    console.log('  - Run `librarian watch` to keep the index fresh.');
-    console.log('  - Or run `librarian bootstrap --mode fast` to refresh immediately.');
+    console.log('  - Run `librainian watch` to keep the index fresh.');
+    console.log('  - Or run `librainian bootstrap --mode fast` to refresh immediately.');
   }
 
   if (verbose) {

@@ -27,7 +27,7 @@ import type {
   CommandRunner,
   CommandResult,
 } from './types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 /**
  * Configuration for the FixVerifier agent.
@@ -58,7 +58,7 @@ export class FixVerifier implements FixVerifierAgent {
   readonly version = '1.0.0';
   readonly qualityTier = 'full' as const;
 
-  private storage: LibrarianStorage | null = null;
+  private storage: LiBrainianStorage | null = null;
   private config: Required<FixVerifierConfig>;
   private commandRunner: CommandRunner | null = null;
 
@@ -66,7 +66,7 @@ export class FixVerifier implements FixVerifierAgent {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this.storage = storage;
   }
 

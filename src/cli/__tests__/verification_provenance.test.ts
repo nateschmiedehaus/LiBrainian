@@ -6,7 +6,7 @@ import { collectVerificationProvenance } from '../verification_provenance.js';
 
 describe('collectVerificationProvenance', () => {
   it('reports unavailable when status/gates files are missing', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-prov-missing-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-prov-missing-'));
     try {
       const report = await collectVerificationProvenance(workspace);
       expect(report.status).toBe('unavailable');
@@ -18,7 +18,7 @@ describe('collectVerificationProvenance', () => {
   });
 
   it('reports unverified when strict markers exist', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-prov-unverified-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-prov-unverified-'));
     const docsDir = path.join(workspace, 'docs', 'LiBrainian');
     await fs.mkdir(docsDir, { recursive: true });
     await fs.writeFile(
@@ -46,7 +46,7 @@ describe('collectVerificationProvenance', () => {
   });
 
   it('reports verified when no unverified markers remain', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-prov-verified-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-prov-verified-'));
     const docsDir = path.join(workspace, 'docs', 'LiBrainian');
     await fs.mkdir(docsDir, { recursive: true });
     await fs.writeFile(

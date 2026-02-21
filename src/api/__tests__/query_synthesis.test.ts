@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextPack, LibrarianVersion } from '../../types.js';
+import type { ContextPack, LiBrainianVersion } from '../../types.js';
 import { synthesizeQueryAnswer } from '../query_synthesis.js';
 
 const chatMock = vi.hoisted(() => vi.fn());
@@ -9,7 +9,7 @@ vi.mock('../../adapters/llm_service.js', () => ({
 }));
 
 vi.mock('../llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn(async () => ({
+  resolveLiBrainianModelConfigWithDiscovery: vi.fn(async () => ({
     provider: 'codex',
     modelId: 'gpt-5-codex',
   })),
@@ -19,7 +19,7 @@ vi.mock('../provider_check.js', () => ({
   requireProviders: vi.fn(async () => undefined),
 }));
 
-const baseVersion: LibrarianVersion = {
+const baseVersion: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,

@@ -30,7 +30,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 // External repos for diverse testing

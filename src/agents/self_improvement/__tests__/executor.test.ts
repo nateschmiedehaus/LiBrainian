@@ -27,10 +27,10 @@ import {
   type ExecutorEvent,
   type ExecutorEventHandler,
 } from '../executor.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 describe('SelfImprovementExecutor', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let executor: SelfImprovementExecutor;
   const defaultRootDir = '/test/repo';
 
@@ -40,7 +40,7 @@ describe('SelfImprovementExecutor', () => {
       initialize: vi.fn().mockResolvedValue(undefined),
       getGraphEdges: vi.fn().mockResolvedValue([]),
       getModules: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     executor = new SelfImprovementExecutor({
       rootDir: defaultRootDir,
@@ -97,7 +97,7 @@ describe('SelfImprovementExecutor', () => {
       expect(() => {
         new SelfImprovementExecutor({
           rootDir: defaultRootDir,
-          storage: undefined as unknown as LibrarianStorage,
+          storage: undefined as unknown as LiBrainianStorage,
         });
       }).toThrow('storage is required');
     });

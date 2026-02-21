@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import type { FileKnowledge, FunctionKnowledge } from '../types.js';
 import type { GraphMetricsEntry } from '../graphs/metrics.js';
@@ -38,11 +38,11 @@ export interface RepoMapResult {
   text?: string;
 }
 
-type GraphMetricsReader = LibrarianStorage & {
+type GraphMetricsReader = LiBrainianStorage & {
   getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: 'function' | 'module' }) => Promise<GraphMetricsEntry[]>;
 };
 
-type FileKnowledgeReader = LibrarianStorage & {
+type FileKnowledgeReader = LiBrainianStorage & {
   getFiles?: (options?: { limit?: number }) => Promise<FileKnowledge[]>;
 };
 
@@ -54,7 +54,7 @@ export async function getRepoMap(
   options: RepoMapOptions = {},
 ): Promise<RepoMapResult> {
   const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
-  const dbPath = path.join(resolvedWorkspaceRoot, '.librarian', 'librarian.sqlite');
+  const dbPath = path.join(resolvedWorkspaceRoot, '.librainian', 'librainian.sqlite');
   const storage = createSqliteStorage(dbPath, resolvedWorkspaceRoot);
   await storage.initialize();
   try {
@@ -65,7 +65,7 @@ export async function getRepoMap(
 }
 
 export async function generateRepoMap(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
   options: RepoMapOptions = {},
 ): Promise<RepoMapResult> {
@@ -85,7 +85,7 @@ export async function generateRepoMap(
   const selected = selectEntriesByTokenBudget(entries, maxTokens, style);
 
   const notice = selected.entries.length === 0
-    ? 'No files indexed. Run `librarian bootstrap` first.'
+    ? 'No files indexed. Run `librainian bootstrap` first.'
     : undefined;
   const rendered = style === 'json'
     ? undefined
@@ -103,7 +103,7 @@ export async function generateRepoMap(
 }
 
 async function buildEntriesWithFallback(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   functions: FunctionKnowledge[],
   workspaceRoot: string,
   focusPatterns: string[],
@@ -151,7 +151,7 @@ async function buildEntriesWithFallback(
 }
 
 async function loadFunctionPageRank(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   functions: FunctionKnowledge[],
 ): Promise<Map<string, number>> {
   const metricStore = storage as GraphMetricsReader;

@@ -43,7 +43,7 @@ const SCAN_FILE_LIMIT = 12_000;
 const IGNORE_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
+  '.librainian',
   '.librainian',
   'dist',
   'build',
@@ -159,7 +159,7 @@ function dedupeKinds(kinds: PromptDocKind[]): PromptDocKind[] {
 async function readPromptDocsSelectionConfig(workspace: string): Promise<PromptDocsSelectionConfig> {
   const configPaths = [
     path.join(workspace, 'librainian.config.json'),
-    path.join(workspace, '.librarian', 'config.json'),
+    path.join(workspace, '.librainian', 'config.json'),
   ];
 
   for (const configPath of configPaths) {

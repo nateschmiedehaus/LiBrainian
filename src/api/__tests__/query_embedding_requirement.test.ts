@@ -3,14 +3,14 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { getCurrentVersion } from '../versioning.js';
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-query-embed-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-query-embed-${randomUUID()}.db`);
 }
 
-async function seedStorage(storage: LibrarianStorage): Promise<string> {
+async function seedStorage(storage: LiBrainianStorage): Promise<string> {
   const modulePath = path.join(process.cwd(), 'src', 'example.ts');
   await storage.upsertModule({
     id: 'module-1',
@@ -44,8 +44,8 @@ async function seedStorage(storage: LibrarianStorage): Promise<string> {
   return modulePath;
 }
 
-describe('queryLibrarian embedding requirement', () => {
-  let storage: LibrarianStorage | null = null;
+describe('queryLiBrainian embedding requirement', () => {
+  let storage: LiBrainianStorage | null = null;
 
   afterEach(async () => {
     await storage?.close?.();
@@ -55,14 +55,14 @@ describe('queryLibrarian embedding requirement', () => {
   });
 
   it('throws when embeddings are required but unavailable', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     const { ProviderUnavailableError } = await import('../provider_check.js');
     storage = createSqliteStorage(getTempDbPath(), process.cwd());
     await storage.initialize();
     await seedStorage(storage);
 
     await expect(
-      queryLibrarian(
+      queryLiBrainian(
         { intent: 'how does auth work', depth: 'L1', llmRequirement: 'disabled', embeddingRequirement: 'required' },
         storage
       )
@@ -70,12 +70,12 @@ describe('queryLibrarian embedding requirement', () => {
   });
 
   it('auto-degrades when embeddings are unavailable and no requirement is specified', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), process.cwd());
     await storage.initialize();
     await seedStorage(storage);
 
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       {
         intent: 'how does auth work',
         depth: 'L1',
@@ -88,12 +88,12 @@ describe('queryLibrarian embedding requirement', () => {
   });
 
   it('degrades gracefully when embeddings are optional and unavailable', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), process.cwd());
     await storage.initialize();
     await seedStorage(storage);
 
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       {
         intent: 'how does auth work',
         depth: 'L1',
@@ -107,7 +107,7 @@ describe('queryLibrarian embedding requirement', () => {
   });
 
   it('bypasses query cache when disableCache is true', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), process.cwd());
     await storage.initialize();
     await seedStorage(storage);
@@ -120,21 +120,21 @@ describe('queryLibrarian embedding requirement', () => {
       disableCache: true,
     };
 
-    const first = await queryLibrarian(query, storage);
-    const second = await queryLibrarian(query, storage);
+    const first = await queryLiBrainian(query, storage);
+    const second = await queryLiBrainian(query, storage);
 
     expect(first.cacheHit).toBe(false);
     expect(second.cacheHit).toBe(false);
   });
 
   it('forces llmRequirement=disabled when offline mode is enabled', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), process.cwd());
     await storage.initialize();
     await seedStorage(storage);
     process.env.LIBRARIAN_OFFLINE = '1';
 
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       {
         intent: 'where is auth handled',
         depth: 'L0',

@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { CLI_BINARY_HASHES } from './cli_hash_manifest.js';
 
 export type LlmAuthMethod = 'cli_login' | 'local' | 'oauth' | 'none' | 'api_key';
-export type LibrarianLlmProvider = 'claude' | 'codex';
+export type LiBrainianLlmProvider = 'claude' | 'codex';
 
 export interface LlmProviderDescriptor {
   id: string;
@@ -483,7 +483,7 @@ function isPathWithinDirectory(filePath: string, dir: string): boolean {
 }
 
 function resolveCliBinary(
-  cmd: LibrarianLlmProvider,
+  cmd: LiBrainianLlmProvider,
   env: NodeJS.ProcessEnv
 ): { path: string | null; error?: string; diagnostics?: string[] } {
   const pathValue = env.PATH ?? process.env.PATH ?? '';
@@ -571,7 +571,7 @@ async function hashFileSha256(
 }
 
 async function verifyBinaryHash(
-  cmd: LibrarianLlmProvider,
+  cmd: LiBrainianLlmProvider,
   binaryPath: string
 ): Promise<{ ok: boolean; error?: string }> {
   const expectedHashes = Array.isArray(CLI_BINARY_HASHES.hashes[cmd])
@@ -620,7 +620,7 @@ function verifyRootOwnedPathChain(filePath: string): boolean {
 }
 
 async function verifyCliBinary(
-  cmd: LibrarianLlmProvider,
+  cmd: LiBrainianLlmProvider,
   binaryPath: string
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isSafeAbsolutePath(binaryPath)) return { ok: false, error: 'cli_binary_untrusted' };
@@ -703,7 +703,7 @@ async function runCliCheck(
     return { ok: false, output: 'command_not_allowed' };
   }
   const env = buildCliEnv();
-  const provider = cmd as LibrarianLlmProvider;
+  const provider = cmd as LiBrainianLlmProvider;
   const resolved = resolveCliBinary(provider, env);
   if (!resolved.path) {
     return { ok: false, output: resolved.error ?? 'cli_binary_not_found' };

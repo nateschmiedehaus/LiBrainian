@@ -25,7 +25,7 @@ import {
   type ComparisonResult,
 } from '../constructions/comparison.js';
 import type { ContextPack, CodeSnippet } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { getCurrentVersion } from './versioning.js';
 import * as fs from 'fs/promises';
 
@@ -64,7 +64,7 @@ export interface ComparisonLookupOptions {
   intent: string;
 
   /** Storage for entity lookup */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
 
   /** Minimum confidence to short-circuit */
   minShortCircuitConfidence?: number;

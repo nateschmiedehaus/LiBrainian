@@ -8,7 +8,7 @@
  * - Coupling metrics
  * - Core module identification
  */
-import type { LibrarianStorage, ModuleKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge } from '../storage/types.js';
 import { computePageRank } from '../graphs/pagerank.js';
 import { computeBetweennessCentrality } from '../graphs/centrality.js';
 import { buildModuleGraphs, resolveTargetModule } from './module_graph.js';
@@ -92,7 +92,7 @@ export interface ArchitectureViolation {
 // ============================================================================
 
 export class ArchitectureKnowledge {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   async query(q: ArchitectureQuery): Promise<ArchitectureResult> {
     switch (q.type) {

@@ -8,7 +8,7 @@ import {
   createContinuousImprovement,
   type ContinuousImprovementOptions,
 } from '../continuous_improvement.js';
-import type { LibrarianStorage } from '../../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../../storage/types.js';
 import type { FixPlan } from '../../plan_fix.js';
 
 // Mock the primitive modules
@@ -44,11 +44,11 @@ import { learnFromOutcome } from '../../learn_from_outcome.js';
 import { extractPattern } from '../../extract_pattern.js';
 
 describe('runContinuousImprovement', () => {
-  const mockStorage: LibrarianStorage = {
+  const mockStorage: LiBrainianStorage = {
     getModules: vi.fn().mockResolvedValue([]),
     getGraphEdges: vi.fn().mockResolvedValue([]),
     invalidateContextPacks: vi.fn().mockResolvedValue(0),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 
   const defaultOptions: ContinuousImprovementOptions = {
     rootDir: '/test/repo',
@@ -204,7 +204,7 @@ describe('runContinuousImprovement', () => {
 
     it('throws error when storage is missing', async () => {
       await expect(
-        runContinuousImprovement({ ...defaultOptions, storage: undefined as unknown as LibrarianStorage })
+        runContinuousImprovement({ ...defaultOptions, storage: undefined as unknown as LiBrainianStorage })
       ).rejects.toThrow('storage is required');
     });
   });

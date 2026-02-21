@@ -4,11 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { verifyClaim, createVerifyClaim, type Claim } from '../verify_claim.js';
-import type { LibrarianStorage, FunctionKnowledge, TestMapping, ModuleKnowledge } from '../../../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge, TestMapping, ModuleKnowledge } from '../../../storage/types.js';
 import type { GraphEdge } from '../../../types.js';
 
 describe('verifyClaim', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let mockFunctions: FunctionKnowledge[];
   let mockTestMappings: TestMapping[];
   let mockEdges: GraphEdge[];
@@ -102,13 +102,13 @@ describe('verifyClaim', () => {
       getTestMappings: vi.fn().mockResolvedValue(mockTestMappings),
       getGraphEdges: vi.fn().mockResolvedValue(mockEdges),
       getModules: vi.fn().mockResolvedValue(mockModules),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires storage parameter', async () => {
     await expect(
       verifyClaim('test claim', {
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });

@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { watchPaths } from '../index_change_watch.js';
 
 async function nextWithTimeout<T>(
@@ -26,12 +26,12 @@ async function nextWithTimeout<T>(
 }
 
 describe('watchPaths', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let testDir: string;
   let dbPath: string;
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), 'librarian-watch-paths-'));
+    testDir = await mkdtemp(join(tmpdir(), 'librainian-watch-paths-'));
     dbPath = join(testDir, 'test.db');
     storage = createSqliteStorage(dbPath, testDir);
     await storage.initialize();

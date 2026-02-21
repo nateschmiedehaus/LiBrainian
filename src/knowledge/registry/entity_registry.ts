@@ -320,7 +320,7 @@ export class EntityRegistry {
    * Load custom entity types from codebase config
    */
   async loadCodebaseEntityTypes(repoRoot: string): Promise<Result<number, ConfigurationError>> {
-    const configPath = path.join(repoRoot, '.librarian', 'entities.yaml');
+    const configPath = path.join(repoRoot, '.librainian', 'entities.yaml');
 
     const configResult = await safeAsync(() => fs.readFile(configPath, 'utf-8'));
     if (!configResult.ok) {

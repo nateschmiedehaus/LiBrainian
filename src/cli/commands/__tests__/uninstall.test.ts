@@ -43,7 +43,7 @@ describe('uninstallCommand', () => {
         librainian: '^0.2.1',
       },
     });
-    await mkdir(path.join(workspace, '.librarian'), { recursive: true });
+    await mkdir(path.join(workspace, '.librainian'), { recursive: true });
     await mkdir(path.join(workspace, 'state'), { recursive: true });
     await writeJson(manifestPath, {
       kind: 'LibrainianInstallManifest.v1',
@@ -54,7 +54,7 @@ describe('uninstallCommand', () => {
       bootstrap_mode: 'full',
       files_modified: ['AGENTS.md'],
       files_created: [],
-      directories_created: ['.librarian', 'state'],
+      directories_created: ['.librainian', 'state'],
       package_json: 'package.json',
       injected_docs_files: ['AGENTS.md'],
     });
@@ -95,7 +95,7 @@ describe('uninstallCommand', () => {
         librainian: '^0.2.1',
       },
     });
-    await mkdir(path.join(workspace, '.librarian', 'locks'), { recursive: true });
+    await mkdir(path.join(workspace, '.librainian', 'locks'), { recursive: true });
     await mkdir(path.join(workspace, 'state', 'audits'), { recursive: true });
     await writeJson(manifestPath, {
       kind: 'LibrainianInstallManifest.v1',
@@ -106,7 +106,7 @@ describe('uninstallCommand', () => {
       bootstrap_mode: 'full',
       files_modified: ['CLAUDE.md'],
       files_created: [],
-      directories_created: ['.librarian', 'state'],
+      directories_created: ['.librainian', 'state'],
       package_json: 'package.json',
       injected_docs_files: ['CLAUDE.md'],
     });
@@ -122,7 +122,7 @@ describe('uninstallCommand', () => {
     const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8')) as { dependencies?: Record<string, string> };
     expect(packageJson.dependencies?.librainian).toBeUndefined();
     await expect(readFile(manifestPath, 'utf8')).rejects.toThrow();
-    await expect(readFile(path.join(workspace, '.librarian', 'locks'), 'utf8')).rejects.toThrow();
+    await expect(readFile(path.join(workspace, '.librainian', 'locks'), 'utf8')).rejects.toThrow();
     await expect(readFile(path.join(workspace, 'state', 'audits'), 'utf8')).rejects.toThrow();
   });
 });

@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createSqliteStorage } from '../sqlite_storage.js';
-import type { LibrarianStorage } from '../types.js';
+import type { LiBrainianStorage } from '../types.js';
 import type { FunctionKnowledge } from '../../types.js';
 
 function createTestFunction(id: string, name: string, filePath: string): FunctionKnowledge {
@@ -25,12 +25,12 @@ function createTestFunction(id: string, name: string, filePath: string): Functio
 }
 
 describe('index coordination metadata', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let testDir: string;
   let dbPath: string;
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), 'librarian-index-coordination-'));
+    testDir = await mkdtemp(join(tmpdir(), 'librainian-index-coordination-'));
     dbPath = join(testDir, 'test.db');
     storage = createSqliteStorage(dbPath, testDir);
     await storage.initialize();

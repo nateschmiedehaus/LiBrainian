@@ -9,7 +9,7 @@
  */
 
 import * as path from 'path';
-import type { LibrarianStorage, ModuleKnowledge, FunctionKnowledge, GraphEdge } from '../../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge, FunctionKnowledge, GraphEdge } from '../../storage/types.js';
 import { buildModuleGraphs, type ModuleGraph, type ModuleGraphBundle } from '../../knowledge/module_graph.js';
 import { getErrorMessage } from '../../utils/errors.js';
 
@@ -152,7 +152,7 @@ export interface AnalyzeArchitectureOptions {
   /** Expected layer hierarchy (e.g., ['api', 'core', 'storage', 'utils']) */
   expectedLayers?: string[];
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Architecture checks to perform */
   checks?: ArchitectureCheck[];
   /** Thresholds for violations */
@@ -720,7 +720,7 @@ export async function analyzeArchitecture(
  */
 export function createAnalyzeArchitecture(
   defaultOptions: Partial<AnalyzeArchitectureOptions>
-): (options: Partial<AnalyzeArchitectureOptions> & { rootDir: string; storage: LibrarianStorage }) => Promise<ArchitectureAnalysisResult> {
+): (options: Partial<AnalyzeArchitectureOptions> & { rootDir: string; storage: LiBrainianStorage }) => Promise<ArchitectureAnalysisResult> {
   return async (options) => {
     return analyzeArchitecture({
       ...defaultOptions,

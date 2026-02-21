@@ -8,8 +8,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { logInfo } from '../telemetry/logger.js';
 
-const SQLITE_FILENAME = 'librarian.sqlite';
-const LEGACY_DB_FILENAME = 'librarian.db';
+const SQLITE_FILENAME = 'librainian.sqlite';
+const LEGACY_DB_FILENAME = 'librainian.db';
 
 /**
  * Resolve the database path for a workspace, handling migration from .db to .sqlite.
@@ -18,12 +18,12 @@ const LEGACY_DB_FILENAME = 'librarian.db';
  * @returns The resolved database path (always .sqlite)
  */
 export async function resolveDbPath(workspace: string): Promise<string> {
-  const librarianDir = path.join(workspace, '.librarian');
-  const sqlitePath = path.join(librarianDir, SQLITE_FILENAME);
-  const legacyPath = path.join(librarianDir, LEGACY_DB_FILENAME);
+  const librainianDir = path.join(workspace, '.librainian');
+  const sqlitePath = path.join(librainianDir, SQLITE_FILENAME);
+  const legacyPath = path.join(librainianDir, LEGACY_DB_FILENAME);
 
-  // Ensure .librarian directory exists
-  await fs.mkdir(librarianDir, { recursive: true });
+  // Ensure .librainian directory exists
+  await fs.mkdir(librainianDir, { recursive: true });
 
   // Check if .sqlite exists
   try {
@@ -38,7 +38,7 @@ export async function resolveDbPath(workspace: string): Promise<string> {
     await fs.access(legacyPath);
     // Migrate by renaming
     await fs.rename(legacyPath, sqlitePath);
-    logInfo(`[librarian] Migrated database from ${LEGACY_DB_FILENAME} to ${SQLITE_FILENAME}`);
+    logInfo(`[librainian] Migrated database from ${LEGACY_DB_FILENAME} to ${SQLITE_FILENAME}`);
     return sqlitePath;
   } catch {
     // Neither exists, return path for new .sqlite

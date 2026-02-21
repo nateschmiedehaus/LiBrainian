@@ -4,11 +4,11 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import type { Librarian } from '../../api/librarian.js';
-import type { LibrarianResponse, ContextPack } from '../../types.js';
-import type { LibrarianStorage } from '../../storage/types.js';
-import { ensureLibrarianReady } from '../../integration/first_run_gate.js';
-import { enrichTaskContext, formatLibrarianContext, recordTaskOutcome } from '../../integration/wave0_integration.js';
+import type { LiBrainian } from '../../api/librainian.js';
+import type { LiBrainianResponse, ContextPack } from '../../types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import { ensureLiBrainianReady } from '../../integration/first_run_gate.js';
+import { enrichTaskContext, formatLiBrainianContext, recordTaskOutcome } from '../../integration/wave0_integration.js';
 import { attributeFailure } from '../../integration/causal_attribution.js';
 import { runProviderReadinessGate } from '../../api/provider_gate.js';
 import { createKnowledgeCoverageReport } from '../../api/reporting.js';
@@ -26,7 +26,7 @@ import { GovernorContext, createGovernorRunState } from '../../api/governor_cont
 import { DEFAULT_GOVERNOR_CONFIG } from '../../api/governors.js';
 import { extractMarkedJson } from '../../spine/marked_json.js';
 import { emptyArray } from '../../api/empty_values.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 
 const WORKSPACE_ROOT = process.cwd();
 const AGENTIC_TIMEOUT_MS = 0;
@@ -44,11 +44,11 @@ const SCAS_PATH_CANDIDATES = [
 ];
 const SCAS_PATH = SCAS_PATH_CANDIDATES.find((candidate) => fsSync.existsSync(candidate));
 
-let gateResult: Awaited<ReturnType<typeof ensureLibrarianReady>>;
-let librarian: Librarian;
-let storage: LibrarianStorage;
-let authResponse: LibrarianResponse;
-let databaseResponse: LibrarianResponse;
+let gateResult: Awaited<ReturnType<typeof ensureLiBrainianReady>>;
+let librainian: LiBrainian;
+let storage: LiBrainianStorage;
+let authResponse: LiBrainianResponse;
+let databaseResponse: LiBrainianResponse;
 let provider: 'claude' | 'codex';
 let modelId: string;
 let llmService: LlmServiceAdapter;
@@ -78,7 +78,7 @@ const outageHealth = (provider: 'claude' | 'codex'): LlmProviderHealth => ({
 });
 
 function resolveModelId(selected: 'claude' | 'codex'): string {
-  return resolveLibrarianModelId(selected) ?? 'default';
+  return resolveLiBrainianModelId(selected) ?? 'default';
 }
 
 function collectRelatedFiles(packs: ContextPack[]): string[] {
@@ -117,11 +117,11 @@ async function runAgentWithContext(question: string, context: Awaited<ReturnType
     `END: ${endMarker}`,
     'Schema: {"answer":"","citations":[""]}',
     'Rules:',
-    '- Use citations that appear in the Librarian Context (file paths).',
+    '- Use citations that appear in the LiBrainian Context (file paths).',
     '- Cite at least one file path.',
     '',
-    'Librarian Context:',
-    formatLibrarianContext(context),
+    'LiBrainian Context:',
+    formatLiBrainianContext(context),
     '',
     `Question: ${question}`,
   ].join('\n');
@@ -152,7 +152,7 @@ async function runAgentWithContext(question: string, context: Awaited<ReturnType
 
 const qualificationSuite = IS_TIER0 || !HAS_WAVE0_LLM_SERVICE ? describe.skip : describe.sequential;
 
-qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
+qualificationSuite('Agentic LiBrainian Qualification Suite (Tier-2)', () => {
   beforeAll(async () => {
     if (WAVE0_LLM_SERVICE_PATH) {
       const module = await import(pathToFileURL(WAVE0_LLM_SERVICE_PATH).href);
@@ -166,26 +166,26 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
     modelId = resolveModelId(provider);
     llmService = createDefaultLlmServiceAdapter();
 
-    gateResult = await ensureLibrarianReady(WORKSPACE_ROOT, {
+    gateResult = await ensureLiBrainianReady(WORKSPACE_ROOT, {
       throwOnFailure: true,
     });
 
-    if (!gateResult.librarian) {
-      throw new Error('unverified_by_trace(provider_invalid_output): librarian instance missing');
+    if (!gateResult.librainian) {
+      throw new Error('unverified_by_trace(provider_invalid_output): librainian instance missing');
     }
 
-    librarian = gateResult.librarian;
-    storage = (librarian as unknown as { storage?: LibrarianStorage }).storage as LibrarianStorage;
+    librainian = gateResult.librainian;
+    storage = (librainian as unknown as { storage?: LiBrainianStorage }).storage as LiBrainianStorage;
     if (!storage) {
-      throw new Error('unverified_by_trace(provider_invalid_output): librarian storage missing');
+      throw new Error('unverified_by_trace(provider_invalid_output): librainian storage missing');
     }
 
-    authResponse = await librarian.query({
+    authResponse = await librainian.query({
       intent: 'authentication',
       depth: 'L2',
     });
 
-    databaseResponse = await librarian.query({
+    databaseResponse = await librainian.query({
       intent: 'database',
       depth: 'L2',
     });
@@ -197,7 +197,7 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
 
   it('bootstraps and indexes the wave0-autopilot codebase', async () => {
     expect(gateResult.success).toBe(true);
-    expect(librarian.isReady()).toBe(true);
+    expect(librainian.isReady()).toBe(true);
     const stats = await storage.getStats();
     expect(stats.totalFunctions + stats.totalModules).toBeGreaterThan(0);
   }, AGENTIC_TIMEOUT_MS);
@@ -243,7 +243,7 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
   }, AGENTIC_TIMEOUT_MS);
 
   it('produces non-trivial graph metrics', async () => {
-    const graphStore = storage as LibrarianStorage & { getGraphMetrics?: (options?: { entityType?: 'function' | 'module' }) => Promise<Array<{ pagerank: number }>> };
+    const graphStore = storage as LiBrainianStorage & { getGraphMetrics?: (options?: { entityType?: 'function' | 'module' }) => Promise<Array<{ pagerank: number }>> };
     if (!graphStore.getGraphMetrics) {
       throw new Error('unverified_by_trace(provider_invalid_output): graph metrics not available');
     }
@@ -264,7 +264,7 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
     expect(report.coverage_percentage).toBeGreaterThan(50);
   });
 
-  it('assembles librarian context for agents with pack references', async () => {
+  it('assembles librainian context for agents with pack references', async () => {
     const context = await enrichTaskContext(WORKSPACE_ROOT, {
       intent: 'authentication',
       taskType: 'review',
@@ -273,7 +273,7 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
     expect(context.relatedFiles.length).toBeGreaterThan(0);
   }, AGENTIC_TIMEOUT_MS);
 
-  it('blocks file reads for librarian-known files via context policy', async () => {
+  it('blocks file reads for librainian-known files via context policy', async () => {
     const context = await enrichTaskContext(WORKSPACE_ROOT, {
       intent: 'authentication',
       taskType: 'feature',
@@ -299,11 +299,11 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
     expect(() => validateJSON('{"completed_tasks":[]}')).toThrow(OutputValidationError);
   });
 
-  it('fails closed when librarian context is unavailable', async () => {
-    const tempWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-escape-'));
+  it('fails closed when librainian context is unavailable', async () => {
+    const tempWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-escape-'));
     await expect(
       enrichTaskContext(tempWorkspace, { intent: 'fix typo', taskType: 'bug_fix' })
-    ).rejects.toThrow('Librarian not initialized');
+    ).rejects.toThrow('LiBrainian not initialized');
   });
 
   it('fails closed on provider outage (emergency mode)', async () => {
@@ -327,12 +327,12 @@ qualificationSuite('Agentic Librarian Qualification Suite (Tier-2)', () => {
     expect(result.reason ?? '').toContain('claude');
   });
 
-  it('spawns an agent with librarian context to complete a simple task', async () => {
+  it('spawns an agent with librainian context to complete a simple task', async () => {
     agentContext = await enrichTaskContext(WORKSPACE_ROOT, {
-      intent: 'Explain how the librarian query engine scores results',
+      intent: 'Explain how the librainian query engine scores results',
       taskType: 'feature',
     });
-    agentResponse = await runAgentWithContext('Summarize the librarian query scoring logic.', agentContext);
+    agentResponse = await runAgentWithContext('Summarize the librainian query scoring logic.', agentContext);
     expect(agentResponse.citations.length).toBeGreaterThan(0);
   }, AGENTIC_TIMEOUT_MS);
 

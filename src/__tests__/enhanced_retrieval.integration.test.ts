@@ -27,7 +27,7 @@ import {
 } from '../api/embedding_providers/real_embeddings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const librarianRoot = path.resolve(__dirname, '..');
+const librainianRoot = path.resolve(__dirname, '..');
 
 // ============================================================================
 // TEST CASES (same as before, to measure improvement)
@@ -93,7 +93,7 @@ const TEST_CASES: TestCase[] = [
     id: 'adv-1',
     category: 'Adversarial',
     description: 'Find storage types specifically',
-    query: 'storage types LibrarianStorage SQLite database interface',
+    query: 'storage types LiBrainianStorage SQLite database interface',
     expectedTopFiles: ['storage/types.ts'],
   },
   {
@@ -136,7 +136,7 @@ async function loadFileCorpus(): Promise<Map<string, string>> {
     }
   };
 
-  await walkDir(librarianRoot);
+  await walkDir(librainianRoot);
   return corpus;
 }
 

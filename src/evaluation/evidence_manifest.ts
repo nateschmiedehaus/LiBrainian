@@ -16,7 +16,7 @@ export const DEFAULT_EVIDENCE_ARTIFACTS = [
 
 const DISCOVERED_EVIDENCE_DIRS = ['eval-results', join('state', 'audits')];
 const EXCLUDED_EVIDENCE_ARTIFACTS = new Set([
-  'state/audits/librarian/manifest.json',
+  'state/audits/librainian/manifest.json',
 ]);
 
 export interface EvidenceArtifactMetadata {
@@ -259,7 +259,7 @@ export async function writeEvidenceManifest(options: {
   });
 
   const outputPath =
-    options.outputPath ?? join(options.workspaceRoot, 'state', 'audits', 'librarian', 'manifest.json');
+    options.outputPath ?? join(options.workspaceRoot, 'state', 'audits', 'librainian', 'manifest.json');
 
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');

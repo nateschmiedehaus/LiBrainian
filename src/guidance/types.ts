@@ -492,8 +492,8 @@ export interface IntegrationsSection {
   /** MCP integration */
   mcp?: MCPIntegration;
 
-  /** Librarian integration */
-  librarian?: LibrarianIntegration;
+  /** LiBrainian integration */
+  librainian?: LiBrainianIntegration;
 
   /** External tools */
   tools?: ToolIntegration[];
@@ -511,8 +511,8 @@ export interface MCPIntegration {
   allowedTools?: string[];
 }
 
-/** Librarian integration config */
-export interface LibrarianIntegration {
+/** LiBrainian integration config */
+export interface LiBrainianIntegration {
   /** Enabled */
   enabled: boolean;
 

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { initializeLibrarian } from '../src/index.js';
+import { initializeLiBrainian } from '../src/index.js';
 
 async function main() {
   const workspace = path.resolve(process.argv[2] ?? process.cwd());
@@ -10,7 +10,7 @@ async function main() {
   console.log(`[example] workspace: ${workspace}`);
   console.log(`[example] intent: ${intent}`);
 
-  const session = await initializeLibrarian(workspace, {
+  const session = await initializeLiBrainian(workspace, {
     reuseExistingSession: true,
   });
 

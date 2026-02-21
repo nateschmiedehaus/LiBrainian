@@ -1,7 +1,7 @@
 /**
  * Tests for automatic repo docs update functionality.
  * TDD: These tests verify the docs_update module correctly updates
- * agent documentation files with librarian usage information.
+ * agent documentation files with librainian usage information.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -70,7 +70,7 @@ describe('Docs Update Module', () => {
   }
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-docs-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-docs-test-'));
   });
 
   afterEach(async () => {
@@ -94,8 +94,8 @@ describe('Docs Update Module', () => {
       expect(result.filesSkipped).toContain('(no agent docs found)');
     });
 
-    it('should append librarian section to AGENTS.md', async () => {
-      // Create AGENTS.md without librarian section
+    it('should append librainian section to AGENTS.md', async () => {
+      // Create AGENTS.md without librainian section
       const agentsPath = path.join(tempDir, 'AGENTS.md');
       await fs.writeFile(agentsPath, '# Agents\n\nExisting content here.\n');
 
@@ -115,15 +115,15 @@ describe('Docs Update Module', () => {
       expect(content).toContain('Existing content here.');
     });
 
-    it('should update existing librarian section (idempotent)', async () => {
-      // Create AGENTS.md with existing librarian section
+    it('should update existing librainian section (idempotent)', async () => {
+      // Create AGENTS.md with existing librainian section
       const agentsPath = path.join(tempDir, 'AGENTS.md');
       await fs.writeFile(agentsPath, `# Agents
 
 Some content.
 
 <!-- LIBRARIAN_DOCS_START -->
-Old librarian docs here.
+Old librainian docs here.
 <!-- LIBRARIAN_DOCS_END -->
 
 More content after.
@@ -140,7 +140,7 @@ More content after.
 
       const content = await fs.readFile(agentsPath, 'utf-8');
       // Should have replaced old content
-      expect(content).not.toContain('Old librarian docs here.');
+      expect(content).not.toContain('Old librainian docs here.');
       expect(content).toContain('**Files processed**: 999');
       // Should preserve content around the section
       expect(content).toContain('Some content.');
@@ -238,7 +238,7 @@ Existing section.
       expect(agents).toContain('LIBRARIAN_DOCS_START');
     });
 
-    it('should store CLAUDE.md hash in .librarian/state.json after successful write', async () => {
+    it('should store CLAUDE.md hash in .librainian/state.json after successful write', async () => {
       const claudePath = path.join(tempDir, 'CLAUDE.md');
       await fs.writeFile(claudePath, '# Claude\n');
 
@@ -249,7 +249,7 @@ Existing section.
       });
 
       expect(result.success).toBe(true);
-      const statePath = path.join(tempDir, '.librarian', 'state.json');
+      const statePath = path.join(tempDir, '.librainian', 'state.json');
       const rawState = await fs.readFile(statePath, 'utf-8');
       const state = JSON.parse(rawState) as {
         docs?: { claudeFileHashes?: Record<string, string> };
@@ -375,14 +375,14 @@ Some more content.
   });
 
   describe('isDocsUpdateNeeded', () => {
-    it('should return true when no librarian section exists', async () => {
+    it('should return true when no librainian section exists', async () => {
       await fs.writeFile(path.join(tempDir, 'AGENTS.md'), '# Agents\n');
 
       const needed = await isDocsUpdateNeeded(tempDir);
       expect(needed).toBe(true);
     });
 
-    it('should return false when librarian section already exists', async () => {
+    it('should return false when librainian section already exists', async () => {
       await fs.writeFile(path.join(tempDir, 'AGENTS.md'), `# Agents
 <!-- LIBRARIAN_DOCS_START -->
 Section content.
@@ -447,8 +447,8 @@ Section content.
       });
 
       const content = await fs.readFile(agentsPath, 'utf-8');
-      expect(content).toContain("import { initializeLibrarian } from 'librainian'");
-      expect(content).toContain('const librainian = await initializeLibrarian(workspaceRoot)');
+      expect(content).toContain("import { initializeLiBrainian } from 'librainian'");
+      expect(content).toContain('const librainian = await initializeLiBrainian(workspaceRoot)');
       expect(content).toContain('librainian.query');
     });
 
@@ -478,9 +478,9 @@ Section content.
       });
 
       const content = await fs.readFile(agentsPath, 'utf-8');
-      expect(content).toContain('docs/librarian/README.md');
-      expect(content).toContain('src/librarian/api/README.md');
-      expect(content).toContain('docs/librarian/query-guide.md');
+      expect(content).toContain('docs/librainian/README.md');
+      expect(content).toContain('src/librainian/api/README.md');
+      expect(content).toContain('docs/librainian/query-guide.md');
     });
 
     it('should include behavioral scaffolding and MCP tool guidance', async () => {

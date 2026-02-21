@@ -8,7 +8,7 @@ import { DEFAULT_GOVERNOR_CONFIG, createGovernorBudgetReport } from './governors
 /**
  * Strategies for budget management while MAINTAINING FULL QUALITY.
  *
- * CRITICAL PRINCIPLE: The librarian must ALWAYS deliver full-quality output.
+ * CRITICAL PRINCIPLE: The librainian must ALWAYS deliver full-quality output.
  * These strategies are about HOW to maintain quality under budget constraints,
  * NOT about reducing quality. If we cannot deliver full quality, we return
  * existing cached full-quality knowledge or defer - never degraded output.
@@ -152,7 +152,7 @@ export class GovernorContext {
   /**
    * Recommend a budget management strategy while GUARANTEEING FULL QUALITY.
    *
-   * CRITICAL: The librarian MUST always deliver full-quality output.
+   * CRITICAL: The librainian MUST always deliver full-quality output.
    * This method tells callers HOW to maintain quality under budget constraints:
    * - proceed: Generate new knowledge at full quality
    * - use_cache: Return existing cached knowledge (already full quality)

@@ -1,5 +1,5 @@
 /**
- * Tests for storeMultiVectorEmbedding validation logic in IndexLibrarian
+ * Tests for storeMultiVectorEmbedding validation logic in IndexLiBrainian
  *
  * NOTE: These tests use mocks for embedding generation and AST indexing.
  * They focus on validating the embedding model ID validation logic.
@@ -7,8 +7,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { IndexLibrarian } from '../index_librarian.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { IndexLiBrainian } from '../index_librainian.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { ModuleKnowledge } from '../../types.js';
 import { randomUUID } from 'crypto';
 
@@ -41,9 +41,9 @@ vi.mock('../../api/embedding_providers/multi_vector_representations.js', () => (
   }),
 }));
 
-describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
-  let librarian: IndexLibrarian;
-  let mockStorage: LibrarianStorage;
+describe('IndexLiBrainian - storeMultiVectorEmbedding validation', () => {
+  let librainian: IndexLiBrainian;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(() => {
     // Reset all mocks to ensure clean state between tests
@@ -77,19 +77,19 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       getUniversalKnowledgeByFile: vi.fn().mockResolvedValue([]),
       getFileByPath: vi.fn().mockResolvedValue(null),
       getModules: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   describe('valid embedding models pass validation', () => {
     it('should accept all-MiniLM-L6-v2 (default model)', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'all-MiniLM-L6-v2',
         llmProvider: 'claude', // Required for AST indexer
         llmModelId: 'claude-sonnet-4-20250514', // Required for AST indexer
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -101,7 +101,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'const foo = 1;', true)
+        librainian['storeMultiVectorEmbedding'](module, 'const foo = 1;', true)
       ).resolves.not.toThrow();
 
       expect(mockStorage.upsertMultiVector).toHaveBeenCalledWith(
@@ -114,14 +114,14 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
     });
 
     it('should accept jina-embeddings-v2-base-en model', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'jina-embeddings-v2-base-en',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -133,21 +133,21 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'const bar = 2;', true)
+        librainian['storeMultiVectorEmbedding'](module, 'const bar = 2;', true)
       ).resolves.not.toThrow();
 
       expect(mockStorage.upsertMultiVector).toHaveBeenCalled();
     });
 
     it('should accept bge-small-en-v1.5 model', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'bge-small-en-v1.5',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -159,7 +159,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'const baz = 3;', true)
+        librainian['storeMultiVectorEmbedding'](module, 'const baz = 3;', true)
       ).resolves.not.toThrow();
 
       expect(mockStorage.upsertMultiVector).toHaveBeenCalled();
@@ -168,14 +168,14 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
 
   describe('undefined/default value works', () => {
     it('should use default all-MiniLM-L6-v2 when embeddingModelId is undefined', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: undefined,
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -187,7 +187,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).resolves.not.toThrow();
 
       expect(mockStorage.upsertMultiVector).toHaveBeenCalledWith(
@@ -198,13 +198,13 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
     });
 
     it('should use default all-MiniLM-L6-v2 when embeddingModelId is not provided', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -216,7 +216,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).resolves.not.toThrow();
 
       expect(mockStorage.upsertMultiVector).toHaveBeenCalled();
@@ -225,14 +225,14 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
 
   describe('invalid model IDs are rejected with clear error message', () => {
     it('should reject text-embedding-ada-002 with clear error message', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'text-embedding-ada-002',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -244,21 +244,21 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow('Invalid embedding model: text-embedding-ada-002');
 
       expect(mockStorage.upsertMultiVector).not.toHaveBeenCalled();
     });
 
     it('should reject voyage-2 with clear error message', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'voyage-2',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -270,19 +270,19 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow('Invalid embedding model: voyage-2');
     });
 
     it('should reject completely invalid model with clear error message', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'invalid-model-xyz',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -294,19 +294,19 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow('Invalid embedding model: invalid-model-xyz');
     });
 
     it('should reject empty string model with clear error message', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: '',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -318,21 +318,21 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow('Invalid embedding model: ');
     });
   });
 
   describe('error message includes all allowed values', () => {
     it('should list all three allowed models in error message', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'wrong-model',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -344,21 +344,21 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow(
         'Allowed: all-MiniLM-L6-v2, jina-embeddings-v2-base-en, bge-small-en-v1.5'
       );
     });
 
     it('should provide complete error message with both invalid model and allowed list', async () => {
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'gpt-embedding',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -370,7 +370,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       try {
-        await librarian['storeMultiVectorEmbedding'](module, 'export {}', true);
+        await librainian['storeMultiVectorEmbedding'](module, 'export {}', true);
         expect.fail('Should have thrown an error');
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -392,14 +392,14 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
         modelId: 'all-MiniLM-L6-v2',
       });
 
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'invalid-model',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -412,7 +412,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
 
       // Even with existing multi-vector, if needsModuleEmbedding is true, validation should fire
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow('Invalid embedding model: invalid-model');
     });
 
@@ -424,14 +424,14 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
         modelId: 'all-MiniLM-L6-v2',
       });
 
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'invalid-model',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -444,7 +444,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
 
       // When needsModuleEmbedding is false and multi-vector exists, should skip everything
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', false)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', false)
       ).resolves.not.toThrow();
 
       expect(mockStorage.upsertMultiVector).not.toHaveBeenCalled();
@@ -455,14 +455,14 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
         '../../api/embedding_providers/multi_vector_representations.js'
       );
 
-      librarian = new IndexLibrarian({
+      librainian = new IndexLiBrainian({
         generateEmbeddings: true,
         embeddingModelId: 'bad-model',
         llmProvider: 'claude',
         llmModelId: 'claude-sonnet-4-20250514',
       });
 
-      await librarian.initialize(mockStorage);
+      await librainian.initialize(mockStorage);
 
       const module: ModuleKnowledge = {
         id: randomUUID(),
@@ -474,7 +474,7 @@ describe('IndexLibrarian - storeMultiVectorEmbedding validation', () => {
       };
 
       await expect(
-        librarian['storeMultiVectorEmbedding'](module, 'export {}', true)
+        librainian['storeMultiVectorEmbedding'](module, 'export {}', true)
       ).rejects.toThrow();
 
       // generateMultiVector should never be called if validation fails

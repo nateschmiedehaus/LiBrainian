@@ -319,7 +319,7 @@ export function evaluateTestingDiscipline(input: TestingDisciplineInput): Testin
   const controlContextContamination = controlRuns.filter((result) => Array.isArray(result.extraContextFiles) && result.extraContextFiles.length > 0).length;
   checks.push(buildCheck({
     id: 'td_03_ab_treatment_context_localization',
-    weakness: 'Treatment could “pass” without actually using Librarian-provided context.',
+    weakness: 'Treatment could “pass” without actually using LiBrainian-provided context.',
     fix: 'Require non-empty treatment `extraContextFiles` and zero control contamination.',
     severity: 'blocking',
     passed:
@@ -329,7 +329,7 @@ export function evaluateTestingDiscipline(input: TestingDisciplineInput): Testin
       && controlContextContamination === 0,
     observed: `treatmentRuns=${treatmentRuns.length}, controlRuns=${controlRuns.length}, missingTreatmentContext=${treatmentMissingContext}, controlContextContamination=${controlContextContamination}`,
     expected: 'treatmentRuns>0, controlRuns>0, missingTreatmentContext=0, controlContextContamination=0',
-    hint: 'Ensure Librarian retrieval succeeds before agent execution.',
+    hint: 'Ensure LiBrainian retrieval succeeds before agent execution.',
   }));
 
   const integrityFailures = agentCommandRuns.filter((result) => {

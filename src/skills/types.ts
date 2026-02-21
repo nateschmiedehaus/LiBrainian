@@ -2,7 +2,7 @@
  * @fileoverview Agent Skills Type Definitions
  *
  * Defines typed structures for Agent Skills - portable procedural knowledge
- * that can be loaded, validated, and exposed as Librarian Method Packs.
+ * that can be loaded, validated, and exposed as LiBrainian Method Packs.
  *
  * Skill structure:
  * - SKILL.md: Skill definition and documentation
@@ -414,7 +414,7 @@ export interface SkillCacheMetadata {
 // ============================================================================
 
 /**
- * Skill exposed as a Method Pack (for Librarian integration)
+ * Skill exposed as a Method Pack (for LiBrainian integration)
  */
 export interface SkillMethodPack {
   /** Method pack ID */

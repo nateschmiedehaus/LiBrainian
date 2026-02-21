@@ -35,7 +35,7 @@ export interface InstallManifestWriteResult {
 }
 
 const DEFAULT_INSTALL_DIRS = [
-  '.librarian',
+  '.librainian',
   'state',
   path.join('apps', 'web', 'state'),
 ] as const;

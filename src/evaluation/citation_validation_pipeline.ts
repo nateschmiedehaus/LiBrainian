@@ -1,7 +1,7 @@
 /**
  * @fileoverview Citation Validation Pipeline (WU-1107)
  *
- * Integrates the Citation Verifier into Librarian's response generation.
+ * Integrates the Citation Verifier into LiBrainian's response generation.
  * Ensures all citations in responses are validated before delivery.
  *
  * Pipeline Steps:
@@ -104,7 +104,7 @@ export const DEFAULT_VALIDATION_CONFIG: ValidationPipelineConfig = {
 // ============================================================================
 
 /**
- * Pipeline for validating citations in Librarian responses
+ * Pipeline for validating citations in LiBrainian responses
  */
 export class CitationValidationPipeline {
   private citationVerifier: CitationVerifier;

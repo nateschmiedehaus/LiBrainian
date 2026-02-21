@@ -1,14 +1,14 @@
 /**
  * @fileoverview Self-Improvement Report Generator (WU-META-003)
  *
- * Generates comprehensive self-improvement reports for Librarian by:
+ * Generates comprehensive self-improvement reports for LiBrainian by:
  * - Using self-analysis primitives to identify issues
  * - Generating actionable improvement recommendations
  * - Prioritizing issues by impact and effort
  * - Producing structured reports in multiple formats
  */
 
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { analyzeArchitecture, type ArchitectureAnalysisResult } from './analyze_architecture.js';
 import { analyzeConsistency, type ConsistencyAnalysisResult } from './analyze_consistency.js';
 import { verifyCalibration, type CalibrationVerificationResult } from './verify_calibration.js';
@@ -108,8 +108,8 @@ export interface HealthSummary {
 export interface SelfImprovementReport {
   /** When the report was generated */
   generatedAt: Date;
-  /** Version of Librarian used */
-  librarianVersion: string;
+  /** Version of LiBrainian used */
+  librainianVersion: string;
   /** Scope of the analysis */
   analysisScope: AnalysisScope;
   /** Health summary */
@@ -158,7 +158,7 @@ const IMPACT_SCORES: Record<ImpactLevel, number> = {
 /**
  * Generator for self-improvement reports.
  *
- * Uses self-analysis primitives to identify Librarian's own issues,
+ * Uses self-analysis primitives to identify LiBrainian's own issues,
  * generates actionable recommendations, and produces structured reports.
  *
  * @example
@@ -169,7 +169,7 @@ const IMPACT_SCORES: Record<ImpactLevel, number> = {
  * ```
  */
 export class SelfImprovementReportGenerator {
-  private storage: LibrarianStorage;
+  private storage: LiBrainianStorage;
   private errors: string[] = [];
 
   /**
@@ -177,7 +177,7 @@ export class SelfImprovementReportGenerator {
    *
    * @param storage - Storage instance to use for analysis
    */
-  constructor(storage: LibrarianStorage) {
+  constructor(storage: LiBrainianStorage) {
     if (!storage) {
       throw new Error('storage is required for SelfImprovementReportGenerator');
     }
@@ -828,11 +828,11 @@ export class SelfImprovementReportGenerator {
     const generatedAt = new Date();
 
     // Get version info
-    let librarianVersion = '0.1.0';
+    let librainianVersion = '0.1.0';
     try {
       const version = await this.storage.getVersion();
       if (version) {
-        librarianVersion = version.string;
+        librainianVersion = version.string;
       }
     } catch {
       // Use default version
@@ -856,7 +856,7 @@ export class SelfImprovementReportGenerator {
 
     return {
       generatedAt,
-      librarianVersion,
+      librainianVersion,
       analysisScope,
       healthSummary,
       issues,
@@ -1029,7 +1029,7 @@ export class SelfImprovementReportGenerator {
     lines.push('# Self-Improvement Report');
     lines.push('');
     lines.push(`**Generated:** ${report.generatedAt.toISOString()}`);
-    lines.push(`**Librarian Version:** ${report.librarianVersion}`);
+    lines.push(`**LiBrainian Version:** ${report.librainianVersion}`);
     lines.push('');
 
     // Health Summary
@@ -1151,7 +1151,7 @@ export class SelfImprovementReportGenerator {
  * @returns New generator instance
  */
 export function createSelfImprovementReportGenerator(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): SelfImprovementReportGenerator {
   return new SelfImprovementReportGenerator(storage);
 }

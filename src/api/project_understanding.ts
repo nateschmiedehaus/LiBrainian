@@ -16,8 +16,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { ContextPack, LibrarianVersion, ContextPackType, FunctionKnowledge, ModuleKnowledge, FileKnowledge } from '../types.js';
-import type { LibrarianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
+import type { ContextPack, LiBrainianVersion, ContextPackType, FunctionKnowledge, ModuleKnowledge, FileKnowledge } from '../types.js';
+import type { LiBrainianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
 import { detectEntryPoints, type DetectedEntryPoint } from '../knowledge/entry_point_detector.js';
 import { computeHotspotScores, type HotspotInput, type HotspotScore } from '../strategic/hotspot.js';
 
@@ -312,7 +312,7 @@ function extractListItems(content: string): string[] {
  */
 export async function createProjectUnderstandingPack(
   workspaceRoot: string,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): Promise<ContextPack> {
   const summary = await extractProjectSummary(workspaceRoot);
 
@@ -363,7 +363,7 @@ export async function createProjectUnderstandingPack(
  * Gets or creates a project understanding pack for the workspace.
  */
 export async function getProjectUnderstandingPack(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string
 ): Promise<ContextPack | null> {
   // Try to get existing pack
@@ -400,7 +400,7 @@ export interface HandleProjectUnderstandingQueryOptions {
  * Optionally includes deep project understanding for comprehensive context.
  */
 export async function handleProjectUnderstandingQuery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
   existingPacks: ContextPack[],
   options?: HandleProjectUnderstandingQueryOptions
@@ -621,7 +621,7 @@ export interface GenerateProjectUnderstandingOptions {
   /** Workspace root directory */
   workspace: string;
   /** Storage instance for accessing indexed data */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Include hotspot analysis (requires git history) */
   includeHotspots?: boolean;
   /** Maximum files to analyze for conventions */
@@ -776,7 +776,7 @@ interface DirectoryStructureAnalysis {
 
 async function analyzeDirectoryStructure(
   workspace: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<DirectoryStructureAnalysis> {
   const defaultResult: DirectoryStructureAnalysis = {
     analyzed: false,
@@ -1047,7 +1047,7 @@ interface ConventionsAnalysis {
 }
 
 async function analyzeCodeConventions(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   maxFiles: number
 ): Promise<ConventionsAnalysis> {
   const defaultResult: ConventionsAnalysis = {
@@ -1117,7 +1117,7 @@ function detectNamingStyle(functions: FunctionKnowledge[]): 'camelCase' | 'snake
   return sorted[0][0] as 'camelCase' | 'snake_case' | 'PascalCase' | 'kebab-case';
 }
 
-async function detectTestPattern(storage: LibrarianStorage): Promise<string> {
+async function detectTestPattern(storage: LiBrainianStorage): Promise<string> {
   try {
     const files = await storage.getFiles({ category: 'test', limit: 50 });
     if (files.length === 0) {
@@ -1181,7 +1181,7 @@ function detectImportStyle(modules: ModuleKnowledge[]): 'relative' | 'absolute' 
   return 'relative';
 }
 
-async function detectConfigFormat(storage: LibrarianStorage): Promise<'json' | 'yaml' | 'toml' | 'env'> {
+async function detectConfigFormat(storage: LiBrainianStorage): Promise<'json' | 'yaml' | 'toml' | 'env'> {
   try {
     const files = await storage.getFiles({ category: 'config', limit: 50 });
 
@@ -1205,7 +1205,7 @@ async function detectConfigFormat(storage: LibrarianStorage): Promise<'json' | '
 // HOTSPOT IDENTIFICATION
 // ============================================================================
 
-async function identifyHotspots(storage: LibrarianStorage): Promise<ProjectUnderstanding['hotspots']> {
+async function identifyHotspots(storage: LiBrainianStorage): Promise<ProjectUnderstanding['hotspots']> {
   const result: ProjectUnderstanding['hotspots'] = {
     mostChanged: [],
     mostComplex: [],
@@ -1286,7 +1286,7 @@ function extractRelativePathFromId(fullPath: string): string {
 
 async function findEntryPoints(
   workspace: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<DetectedEntryPoint[]> {
   try {
     const functions = await storage.getFunctions({ limit: 1000 });
@@ -1311,7 +1311,7 @@ async function findEntryPoints(
 // CORE MODULE IDENTIFICATION
 // ============================================================================
 
-async function identifyCoreModules(storage: LibrarianStorage): Promise<string[]> {
+async function identifyCoreModules(storage: LiBrainianStorage): Promise<string[]> {
   try {
     // Core modules are those that many other modules depend on
     const edges = await storage.getGraphEdges({ edgeTypes: ['imports'], limit: 5000 });
@@ -1478,7 +1478,7 @@ function detectTestFrameworks(pkg: PackageJsonAnalysis): string[] {
 // ============================================================================
 
 async function generateAgentGuidance(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   conventions: ConventionsAnalysis
 ): Promise<ProjectUnderstanding['agentGuidance']> {
   const functions = await storage.getFunctions({ limit: 200 });
@@ -1626,12 +1626,12 @@ ${understanding.agentGuidance.antiPatterns.slice(0, 3).map(p => `- ${p}`).join('
  * This pack can be cached and served for project-level queries.
  *
  * @param understanding - The full project understanding
- * @param version - Librarian version for the pack
+ * @param version - LiBrainian version for the pack
  * @returns Context pack containing project understanding
  */
 export function createDeepProjectUnderstandingPack(
   understanding: ProjectUnderstanding,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack {
   const keyFacts: string[] = [
     `Name: ${understanding.name}`,

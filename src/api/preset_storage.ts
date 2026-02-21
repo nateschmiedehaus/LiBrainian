@@ -6,7 +6,7 @@ import { safeJsonParse } from '../utils/safe_json.js';
 import type { LCLExpression } from './lcl.js';
 import type { PrimitiveId, NonEmptyArray } from './pattern_catalog.js';
 
-const PRESET_DIR = '.librarian';
+const PRESET_DIR = '.librainian';
 const PRESET_FILENAME = 'presets.json';
 const MAX_PRESET_BYTES = 1_000_000;
 const MAX_PRESET_KEYS = 200;

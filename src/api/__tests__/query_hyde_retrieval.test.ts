@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { getCurrentVersion } from '../versioning.js';
-import type { LibrarianQuery } from '../../types.js';
+import type { LiBrainianQuery } from '../../types.js';
 
-function baseQuery(intent: string, hydeExpansion = false): LibrarianQuery {
+function baseQuery(intent: string, hydeExpansion = false): LiBrainianQuery {
   return {
     intent,
     depth: 'L1',

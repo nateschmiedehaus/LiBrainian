@@ -1,8 +1,8 @@
 /**
  * @fileoverview A/B Worker Experiments (WU-1701 through WU-1705)
  *
- * Comprehensive A/B experiment tests comparing Control workers (no Librarian)
- * vs Treatment workers (with Librarian assistance).
+ * Comprehensive A/B experiment tests comparing Control workers (no LiBrainian)
+ * vs Treatment workers (with LiBrainian assistance).
  *
  * Target Metrics:
  * - Lift: >= 20% improvement in task success rate
@@ -504,7 +504,7 @@ function getRequiredSkills(complexity: TaskComplexity, category: ABTask['categor
 // ============================================================================
 
 /**
- * Simulate control worker (no Librarian)
+ * Simulate control worker (no LiBrainian)
  */
 function simulateControlWorker(
   task: ABTask,
@@ -532,10 +532,10 @@ function simulateControlWorker(
 }
 
 /**
- * Simulate treatment worker (with Librarian)
+ * Simulate treatment worker (with LiBrainian)
  *
  * The boost is calibrated based on RAGAS metrics:
- * - Recall@5: 82.6% - Librarian finds relevant code
+ * - Recall@5: 82.6% - LiBrainian finds relevant code
  * - Precision: 71.6% - Results are accurate
  * - Faithfulness: 86.7% - Explanations are grounded
  *
@@ -551,8 +551,8 @@ function simulateTreatmentWorker(
   const baseSuccessRate = BASELINE_SUCCESS_RATES[task.complexity];
   const baseTime = BASELINE_TIMES[task.complexity];
 
-  // Librarian boost calculation
-  // The boost is higher for harder tasks where Librarian's assistance matters more
+  // LiBrainian boost calculation
+  // The boost is higher for harder tasks where LiBrainian's assistance matters more
   const complexityBoost: Record<TaskComplexity, number> = {
     T1: 0.02, // Minimal boost - already easy
     T2: 0.08, // Small boost
@@ -1010,7 +1010,7 @@ describe('A/B Worker Experiments', () => {
   // ==========================================================================
 
   describe('WU-1704: Treatment Worker Simulation', () => {
-    it('simulates treatment worker with Librarian', () => {
+    it('simulates treatment worker with LiBrainian', () => {
       const complexities: TaskComplexity[] = ['T1', 'T2', 'T3', 'T4', 'T5'];
 
       for (const complexity of complexities) {

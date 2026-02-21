@@ -22,10 +22,10 @@ import {
 } from '../deterministic_analysis.js';
 import type { ModuleGraph } from '../../knowledge/module_graph.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 describe('Deterministic Analysis', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
   const testDir = join(tmpdir(), 'deterministic-analysis-test-' + Date.now());
 

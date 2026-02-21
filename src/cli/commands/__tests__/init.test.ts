@@ -14,7 +14,7 @@ describe('initCommand', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-init-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-init-'));
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.clearAllMocks();
   });
@@ -37,8 +37,8 @@ describe('initCommand', () => {
   it('creates construction scaffolding files', async () => {
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
 
-    const constructionPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.ts');
-    const testPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.test.ts');
+    const constructionPath = path.join(workspace, '.librainian', 'constructions', 'safe-refactor-advisor.ts');
+    const testPath = path.join(workspace, '.librainian', 'constructions', 'safe-refactor-advisor.test.ts');
     const docPath = path.join(workspace, 'docs', 'constructions', 'safe-refactor-advisor.md');
 
     const [construction, testFile, doc] = await Promise.all([
@@ -57,7 +57,7 @@ describe('initCommand', () => {
   it('does not overwrite construction files without --force', async () => {
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
 
-    const constructionPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.ts');
+    const constructionPath = path.join(workspace, '.librainian', 'constructions', 'safe-refactor-advisor.ts');
     await fs.writeFile(constructionPath, '// custom\n', 'utf8');
 
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
@@ -69,7 +69,7 @@ describe('initCommand', () => {
   it('overwrites construction files with --force', async () => {
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
 
-    const constructionPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.ts');
+    const constructionPath = path.join(workspace, '.librainian', 'constructions', 'safe-refactor-advisor.ts');
     await fs.writeFile(constructionPath, '// custom\n', 'utf8');
 
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor', '--force'] });
@@ -100,18 +100,18 @@ describe('initCommand', () => {
     };
 
     expect(parsed.mcpServers.existing).toBeTruthy();
-    expect(parsed.mcpServers.librarian.command).toBe('npx');
-    expect(parsed.mcpServers.librarian.args).toEqual(['-y', 'librainian', 'mcp']);
-    expect(parsed.mcpServers.librarian.env?.LIBRARIAN_WORKSPACE).toBe(workspace);
+    expect(parsed.mcpServers.librainian.command).toBe('npx');
+    expect(parsed.mcpServers.librainian.args).toEqual(['-y', 'librainian', 'mcp']);
+    expect(parsed.mcpServers.librainian.env?.LIBRARIAN_WORKSPACE).toBe(workspace);
   });
 
-  it('does not overwrite existing librarian MCP entry without --force', async () => {
+  it('does not overwrite existing librainian MCP entry without --force', async () => {
     const mcpPath = path.join(workspace, '.mcp.json');
     await fs.writeFile(
       mcpPath,
       JSON.stringify({
         mcpServers: {
-          librarian: {
+          librainian: {
             command: 'custom',
             args: ['mcp'],
           },
@@ -126,7 +126,7 @@ describe('initCommand', () => {
       mcpServers: Record<string, { command: string; args: string[] }>;
     };
 
-    expect(parsed.mcpServers.librarian.command).toBe('custom');
+    expect(parsed.mcpServers.librainian.command).toBe('custom');
   });
 
   it('creates and idempotently updates CLAUDE.md section', async () => {

@@ -3,7 +3,7 @@
  *
  * This module provides typed structures for Agent Skills -
  * portable procedural knowledge that can be loaded, validated,
- * and exposed as Librarian Method Packs.
+ * and exposed as LiBrainian Method Packs.
  *
  * @packageDocumentation
  */

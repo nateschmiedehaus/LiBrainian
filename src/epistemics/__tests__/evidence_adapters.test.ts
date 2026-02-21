@@ -34,7 +34,7 @@ describe('createToolCallEvidence', () => {
       timestamp: new Date().toISOString(),
       type: 'tool_call',
       severity: 'info',
-      operation: 'librarian_query',
+      operation: 'librainian_query',
       status: 'success',
       sessionId: 'sess_abc',
       clientId: 'client_1',
@@ -49,7 +49,7 @@ describe('createToolCallEvidence', () => {
 
     expect(entry.kind).toBe('tool_call');
     expect(entry.payload).toEqual({
-      toolName: 'librarian_query',
+      toolName: 'librainian_query',
       toolVersion: undefined,
       arguments: { intent: 'find async functions' },
       result: { packCount: 5 },
@@ -71,7 +71,7 @@ describe('createToolCallEvidence', () => {
       timestamp: new Date().toISOString(),
       type: 'tool_call',
       severity: 'error',
-      operation: 'librarian_bootstrap',
+      operation: 'librainian_bootstrap',
       status: 'failure',
       error: 'Index not ready',
       durationMs: 50,
@@ -81,7 +81,7 @@ describe('createToolCallEvidence', () => {
 
     expect(entry.kind).toBe('tool_call');
     expect(entry.payload).toMatchObject({
-      toolName: 'librarian_bootstrap',
+      toolName: 'librainian_bootstrap',
       success: false,
       durationMs: 50,
       errorMessage: 'Index not ready',

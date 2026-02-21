@@ -122,7 +122,7 @@ function buildAbReport(createdAt: string): JsonRecord {
 
 describe('e2e outcome harness script', () => {
   it('generates pass report and markdown when thresholds are satisfied', async () => {
-    const workspace = await mkdtemp(path.join(tmpdir(), 'librarian-e2e-outcome-'));
+    const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-e2e-outcome-'));
     const now = new Date().toISOString();
     const taskbankPath = path.join(workspace, 'taskbank.json');
     const agenticPath = path.join(workspace, 'agentic.json');
@@ -178,7 +178,7 @@ describe('e2e outcome harness script', () => {
   });
 
   it('fails strict mode when freshness gate is violated', async () => {
-    const workspace = await mkdtemp(path.join(tmpdir(), 'librarian-e2e-outcome-stale-'));
+    const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-e2e-outcome-stale-'));
     const staleDate = '2025-01-01T00:00:00.000Z';
     const taskbankPath = path.join(workspace, 'taskbank.json');
     const agenticPath = path.join(workspace, 'agentic.json');

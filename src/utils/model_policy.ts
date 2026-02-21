@@ -1,7 +1,7 @@
 /**
  * @fileoverview Model Policy Stub
  *
- * Provides model selection policy for standalone librarian.
+ * Provides model selection policy for standalone librainian.
  * In Wave0 context, the real model policy is injected.
  *
  * @packageDocumentation

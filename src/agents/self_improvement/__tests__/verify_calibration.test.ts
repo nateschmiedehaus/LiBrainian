@@ -4,10 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { verifyCalibration, createVerifyCalibration } from '../verify_calibration.js';
-import type { LibrarianStorage, EvolutionOutcome, BayesianConfidence, ConfidenceEvent } from '../../../storage/types.js';
+import type { LiBrainianStorage, EvolutionOutcome, BayesianConfidence, ConfidenceEvent } from '../../../storage/types.js';
 
 describe('verifyCalibration', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let mockEvolutionOutcomes: EvolutionOutcome[];
   let mockBayesianConfidences: BayesianConfidence[];
   let mockConfidenceEvents: ConfidenceEvent[];
@@ -30,7 +30,7 @@ describe('verifyCalibration', () => {
         testsAdded: 0,
         testsPass: true,
         context: {
-          librarianContextUsed: true,
+          librainianContextUsed: true,
           contextPackCount: 3,
           decomposed: false,
         },
@@ -88,13 +88,13 @@ describe('verifyCalibration', () => {
       getEvolutionOutcomes: vi.fn().mockResolvedValue(mockEvolutionOutcomes),
       getBayesianConfidences: vi.fn().mockResolvedValue(mockBayesianConfidences),
       getConfidenceEvents: vi.fn().mockResolvedValue(mockConfidenceEvents),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires storage parameter', async () => {
     await expect(
       verifyCalibration({
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });
@@ -293,7 +293,7 @@ describe('verifyCalibration', () => {
         testsAdded: 0,
         testsPass: true,
         context: {
-          librarianContextUsed: true,
+          librainianContextUsed: true,
           contextPackCount: 1,
           decomposed: false,
         },

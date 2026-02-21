@@ -5,10 +5,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { bootstrapProject } from '../api/bootstrap.js';
-import { queryLibrarian } from '../api/query.js';
+import { queryLiBrainian } from '../api/query.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import { createLibrarianMCPServer } from '../mcp/server.js';
-import type { LibrarianStorage, GraphEdge } from '../storage/types.js';
+import { createLiBrainianMCPServer } from '../mcp/server.js';
+import type { LiBrainianStorage, GraphEdge } from '../storage/types.js';
 import type { EmbeddingRequest, EmbeddingResult } from '../api/embeddings.js';
 
 const E2E_FIXTURE_PATH = path.resolve(__dirname, '../../tests/fixtures/e2e-fixture');
@@ -31,7 +31,7 @@ function resultContainsPath(result: { packs?: Array<{ targetId?: string; related
 }
 
 describe('E2E acceptance gate (issue #466)', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let fixtureWorkspace = '';
   let dbPath = '';
   let deterministicEmbeddingService: {
@@ -45,11 +45,11 @@ describe('E2E acceptance gate (issue #466)', () => {
       throw new Error(`Fixture missing: ${E2E_FIXTURE_PATH}`);
     }
 
-    fixtureWorkspace = path.join(os.tmpdir(), `librarian-e2e-fixture-${randomUUID()}`);
+    fixtureWorkspace = path.join(os.tmpdir(), `librainian-e2e-fixture-${randomUUID()}`);
     await fs.cp(E2E_FIXTURE_PATH, fixtureWorkspace, { recursive: true });
-    await fs.rm(path.join(fixtureWorkspace, '.librarian'), { recursive: true, force: true });
+    await fs.rm(path.join(fixtureWorkspace, '.librainian'), { recursive: true, force: true });
 
-    dbPath = path.join(os.tmpdir(), `librarian-e2e-gate-${randomUUID()}.db`);
+    dbPath = path.join(os.tmpdir(), `librainian-e2e-gate-${randomUUID()}.db`);
     storage = createSqliteStorage(dbPath, fixtureWorkspace);
     await storage.initialize();
     deterministicEmbeddingService = {
@@ -126,7 +126,7 @@ describe('E2E acceptance gate (issue #466)', () => {
   });
 
   it('returns auth module context with confidence and latency bounds for an orientation query', async () => {
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       {
         intent: 'where is authentication handled?',
         depth: 'L0',
@@ -143,7 +143,7 @@ describe('E2E acceptance gate (issue #466)', () => {
   });
 
   it('serves semantic_search via MCP and returns validation module hits in MCP tool format', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -152,7 +152,7 @@ describe('E2E acceptance gate (issue #466)', () => {
 
     server.registerWorkspace(fixtureWorkspace);
     server.updateWorkspaceState(fixtureWorkspace, { indexState: 'ready' });
-    (server as unknown as { getOrCreateStorage: () => Promise<LibrarianStorage> }).getOrCreateStorage = vi
+    (server as unknown as { getOrCreateStorage: () => Promise<LiBrainianStorage> }).getOrCreateStorage = vi
       .fn()
       .mockResolvedValue(storage);
 
@@ -174,7 +174,7 @@ describe('E2E acceptance gate (issue #466)', () => {
   });
 
   it('round-trips get_context_pack under 10k tokens and includes auth-related function context', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -183,7 +183,7 @@ describe('E2E acceptance gate (issue #466)', () => {
 
     server.registerWorkspace(fixtureWorkspace);
     server.updateWorkspaceState(fixtureWorkspace, { indexState: 'ready' });
-    (server as unknown as { getOrCreateStorage: () => Promise<LibrarianStorage> }).getOrCreateStorage = vi
+    (server as unknown as { getOrCreateStorage: () => Promise<LiBrainianStorage> }).getOrCreateStorage = vi
       .fn()
       .mockResolvedValue(storage);
 

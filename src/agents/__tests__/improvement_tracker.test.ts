@@ -4,7 +4,7 @@
  * Following TDD: this test file is created BEFORE implementation.
  * Tests should FAIL initially, then PASS after implementation.
  *
- * The Improvement Tracker monitors Librarian's improvement over time across
+ * The Improvement Tracker monitors LiBrainian's improvement over time across
  * scientific loop iterations and A/B experiments.
  *
  * Metrics tracked:

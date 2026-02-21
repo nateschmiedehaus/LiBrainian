@@ -1,5 +1,5 @@
 /**
- * @fileoverview Evaluation Harness for Librarian
+ * @fileoverview Evaluation Harness for LiBrainian
  *
  * Provides systematic evaluation of:
  * - Retrieval quality (precision, recall, nDCG)

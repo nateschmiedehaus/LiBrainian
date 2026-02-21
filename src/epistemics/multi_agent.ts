@@ -1,5 +1,5 @@
 /**
- * @fileoverview Multi-Agent Epistemology for Librarian
+ * @fileoverview Multi-Agent Epistemology for LiBrainian
  *
  * Implements principled handling of beliefs from multiple agents, including:
  * - Agent expertise and reliability modeling

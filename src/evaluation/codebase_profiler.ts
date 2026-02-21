@@ -2,7 +2,7 @@
  * @fileoverview Codebase Profiler
  *
  * Analyzes a repository and produces a quality profile used by other
- * components to adapt Librarian's behavior based on codebase characteristics.
+ * components to adapt LiBrainian's behavior based on codebase characteristics.
  *
  * Features:
  * - Size metrics: file count, line count, language breakdown

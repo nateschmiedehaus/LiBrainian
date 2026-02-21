@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { createTechniquePrimitive, type TechniquePrimitive } from '../strategic/techniques.js';
 import {
   listTechniquePrimitives,
@@ -969,12 +969,12 @@ export const DEFAULT_TECHNIQUE_PRIMITIVES: TechniquePrimitive[] = [
   createTechniquePrimitive({
     id: 'tp_self_bootstrap',
     name: 'Self-bootstrap',
-    intent: 'Bootstrap Librarian index on its own source code.',
+    intent: 'Bootstrap LiBrainian index on its own source code.',
     category: 'meta',
     semanticProfileId: 'meta',
     domains: ['meta', 'analysis'],
     triggers: ['self audit', 'self improvement cycle', 'new release'],
-    inputsRequired: ['allowlisted librarian source root', 'storage system', 'embedding provider'],
+    inputsRequired: ['allowlisted librainian source root', 'storage system', 'embedding provider'],
     actions: [
       'Validate source root containment',
       'Index source tree into staging',
@@ -1503,7 +1503,7 @@ export const DEFAULT_TECHNIQUE_PRIMITIVES_BY_ID = new Map(
 );
 
 export async function ensureTechniquePrimitives(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: { overwrite?: boolean }
 ): Promise<TechniquePrimitive[]> {
   const existing = await listTechniquePrimitives(storage);

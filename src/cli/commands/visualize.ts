@@ -41,7 +41,7 @@ export async function visualizeCommand(options: VisualizeCommandOptions): Promis
   const focus = values.focus as string | undefined;
   const maxNodes = parseInt(values['max-nodes'] as string, 10);
 
-  console.log('Librarian Visualize');
+  console.log('LiBrainian Visualize');
   console.log('===================\n');
 
   const dbPath = await resolveDbPath(workspace);
@@ -56,7 +56,7 @@ export async function visualizeCommand(options: VisualizeCommandOptions): Promis
     const edges = await storage.getGraphEdges({ limit: 1000 });
 
     if (modules.length === 0 && functions.length === 0) {
-      console.log('No data available. Run `librarian bootstrap` first.');
+      console.log('No data available. Run `librainian bootstrap` first.');
       return;
     }
 

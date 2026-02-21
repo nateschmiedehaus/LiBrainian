@@ -1,6 +1,6 @@
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianQuery } from '../types.js';
-import { queryLibrarian } from '../api/query.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianQuery } from '../types.js';
+import { queryLiBrainian } from '../api/query.js';
 import { EmbeddingService } from '../api/embeddings.js';
 import { estimateTokenCount } from '../api/governor_context.js';
 import { ImpactKnowledge } from '../knowledge/impact.js';
@@ -27,7 +27,7 @@ export class RelevanceEngine {
   private outcomes = new Map<string, Outcome>();
 
   constructor(
-    private readonly storage: LibrarianStorage,
+    private readonly storage: LiBrainianStorage,
     private readonly embeddingService: EmbeddingService | null,
     private readonly workspaceRoot?: string,
   ) {
@@ -41,14 +41,14 @@ export class RelevanceEngine {
       maxTokens: request.budget?.maxTokens ?? DEFAULT_BUDGET.maxTokens,
       maxDepth: request.budget?.maxDepth ?? DEFAULT_BUDGET.maxDepth,
     };
-    const depth: LibrarianQuery['depth'] = budget.maxDepth <= 0
+    const depth: LiBrainianQuery['depth'] = budget.maxDepth <= 0
       ? 'L0'
       : budget.maxDepth === 1
         ? 'L1'
         : budget.maxDepth === 2
           ? 'L2'
           : 'L3';
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       {
         intent: request.intent,
         affectedFiles: request.hints,

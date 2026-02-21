@@ -1,16 +1,16 @@
 /**
- * @fileoverview Version detection and upgrade system for Librarian
+ * @fileoverview Version detection and upgrade system for LiBrainian
  *
  * Key principles:
- * 1. Older/MVP librarian work should be DETECTED and OVERWRITTEN
+ * 1. Older/MVP librainian work should be DETECTED and OVERWRITTEN
  *    when important updates come out
  * 2. Quality tiers supersede each other (full > enhanced > mvp)
  * 3. Major version changes require full re-index
  * 4. Minor version changes can be incremental
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianVersion, QualityTier, VersionComparison } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianVersion, QualityTier, VersionComparison } from '../types.js';
 import { LIBRARIAN_VERSION, QUALITY_TIERS, VERSION_HISTORY } from '../index.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { noResult } from './empty_values.js';
@@ -20,12 +20,12 @@ import { noResult } from './empty_values.js';
 // ============================================================================
 
 /**
- * Detect the version of librarian data in storage.
- * Returns null if no librarian data exists.
+ * Detect the version of librainian data in storage.
+ * Returns null if no librainian data exists.
  */
-export async function detectLibrarianVersion(
-  storage: LibrarianStorage
-): Promise<LibrarianVersion | null> {
+export async function detectLiBrainianVersion(
+  storage: LiBrainianStorage
+): Promise<LiBrainianVersion | null> {
   if (!storage.isInitialized()) {
     try {
       await storage.initialize();
@@ -41,8 +41,8 @@ export async function detectLibrarianVersion(
  * Compare two versions and determine upgrade requirements.
  */
 export function compareVersions(
-  current: LibrarianVersion,
-  target: LibrarianVersion
+  current: LiBrainianVersion,
+  target: LiBrainianVersion
 ): VersionComparison {
   // Check quality tier first - higher tiers always supersede
   const currentTierLevel = QUALITY_TIERS[current.qualityTier]?.level ?? 0;
@@ -100,7 +100,7 @@ export function compareVersions(
     target,
     upgradeRequired: false,
     upgradeType: 'none',
-    reason: 'Librarian data is current.',
+    reason: 'LiBrainian data is current.',
   };
 }
 
@@ -108,8 +108,8 @@ export function compareVersions(
  * Check if upgrade is required from current to target version.
  */
 export async function upgradeRequired(
-  current: LibrarianVersion,
-  target: LibrarianVersion
+  current: LiBrainianVersion,
+  target: LiBrainianVersion
 ): Promise<{ required: boolean; reason: string; upgradeType: VersionComparison['upgradeType'] }> {
   const comparison = compareVersions(current, target);
   return {
@@ -124,8 +124,8 @@ export async function upgradeRequired(
 // ============================================================================
 
 export interface UpgradeReport {
-  fromVersion: LibrarianVersion;
-  toVersion: LibrarianVersion;
+  fromVersion: LiBrainianVersion;
+  toVersion: LiBrainianVersion;
   upgradeType: VersionComparison['upgradeType'];
   startedAt: Date;
   completedAt: Date;
@@ -148,9 +148,9 @@ export interface UpgradeReport {
  * - patch: Metadata update only
  */
 export async function runUpgrade(
-  storage: LibrarianStorage,
-  current: LibrarianVersion,
-  target: LibrarianVersion
+  storage: LiBrainianStorage,
+  current: LiBrainianVersion,
+  target: LiBrainianVersion
 ): Promise<UpgradeReport> {
   const comparison = compareVersions(current, target);
   const startedAt = new Date();
@@ -212,7 +212,7 @@ export async function runUpgrade(
 // UPGRADE HELPERS
 // ============================================================================
 
-async function purgeOldData(storage: LibrarianStorage): Promise<void> {
+async function purgeOldData(storage: LiBrainianStorage): Promise<void> {
   // Get all functions and delete them
   const functions = await storage.getFunctions({ limit: 10000 });
   for (const fn of functions) {
@@ -235,7 +235,7 @@ async function purgeOldData(storage: LibrarianStorage): Promise<void> {
   await storage.vacuum();
 }
 
-async function invalidateAllContextPacks(storage: LibrarianStorage): Promise<void> {
+async function invalidateAllContextPacks(storage: LiBrainianStorage): Promise<void> {
   const packs = await storage.getContextPacks({ limit: 10000 });
   for (const pack of packs) {
     // Invalidate by marking with a trigger that won't exist
@@ -243,7 +243,7 @@ async function invalidateAllContextPacks(storage: LibrarianStorage): Promise<voi
   }
 }
 
-async function markFunctionsForRevalidation(storage: LibrarianStorage): Promise<void> {
+async function markFunctionsForRevalidation(storage: LiBrainianStorage): Promise<void> {
   // Lower confidence on all functions to trigger re-validation
   await storage.applyTimeDecay(0.2); // 20% confidence reduction
 }
@@ -253,9 +253,9 @@ async function markFunctionsForRevalidation(storage: LibrarianStorage): Promise<
 // ============================================================================
 
 /**
- * Get the current librarian version.
+ * Get the current librainian version.
  */
-export function getCurrentVersion(): LibrarianVersion {
+export function getCurrentVersion(): LiBrainianVersion {
   return {
     major: LIBRARIAN_VERSION.major,
     minor: LIBRARIAN_VERSION.minor,
@@ -284,7 +284,7 @@ export function parseVersionString(versionString: string): {
  * Check if a version is compatible with minimum required version.
  */
 export function isVersionCompatible(
-  version: LibrarianVersion,
+  version: LiBrainianVersion,
   minRequired: string
 ): boolean {
   const min = parseVersionString(minRequired);
@@ -337,8 +337,8 @@ export function getUpgradePath(
  * 2. Major version upgrades
  */
 export function shouldReplaceExistingData(
-  current: LibrarianVersion,
-  target: LibrarianVersion
+  current: LiBrainianVersion,
+  target: LiBrainianVersion
 ): boolean {
   const comparison = compareVersions(current, target);
   return comparison.upgradeType === 'quality_tier' || comparison.upgradeType === 'major';

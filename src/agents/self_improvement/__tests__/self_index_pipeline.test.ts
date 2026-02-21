@@ -2,7 +2,7 @@
  * @fileoverview Tests for Self-Index Pipeline (WU-BOOT-001)
  *
  * Tests for the SelfIndexPipeline class that orchestrates complete indexing
- * of Librarian's own codebase.
+ * of LiBrainian's own codebase.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -20,10 +20,10 @@ import {
   type CodeIndex,
   type QualityReport,
 } from '../self_index_pipeline.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 describe('SelfIndexPipeline', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let tempDir: string;
 
   beforeEach(async () => {
@@ -82,7 +82,7 @@ describe('SelfIndexPipeline', () => {
         averageConfidence: 0.8,
         cacheHitRate: 0.5,
       }),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   afterEach(async () => {

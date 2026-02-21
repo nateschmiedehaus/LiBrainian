@@ -8,9 +8,9 @@
  * 2) Ownership storage (`getOwnerships`) fallback
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import { getOwnershipMap, type OwnershipMapResult } from '../graphs/knowledge_graph.js';
-import type { FileOwnership, LibrarianStorage } from '../storage/types.js';
+import type { FileOwnership, LiBrainianStorage } from '../storage/types.js';
 
 const DEFAULT_MIN_OWNERSHIP = 0.1;
 
@@ -42,7 +42,7 @@ export interface KnowledgeOwnershipMapResult extends OwnershipMapResult {
 export class KnowledgeOwnershipMapConstruction {
   static readonly CONSTRUCTION_ID = 'KnowledgeOwnershipMapConstruction';
 
-  constructor(private readonly librarian: Librarian) {}
+  constructor(private readonly librainian: LiBrainian) {}
 
   async construct(
     options: KnowledgeOwnershipMapOptions = {}
@@ -90,10 +90,10 @@ export class KnowledgeOwnershipMapConstruction {
     );
   }
 
-  private getStorage(): LibrarianStorage | null {
-    const maybeGetStorage = (this.librarian as { getStorage?: () => LibrarianStorage | null }).getStorage;
+  private getStorage(): LiBrainianStorage | null {
+    const maybeGetStorage = (this.librainian as { getStorage?: () => LiBrainianStorage | null }).getStorage;
     return typeof maybeGetStorage === 'function'
-      ? maybeGetStorage.call(this.librarian)
+      ? maybeGetStorage.call(this.librainian)
       : null;
   }
 }

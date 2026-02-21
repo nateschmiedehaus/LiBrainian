@@ -22,7 +22,7 @@ describe('workspace_lock signal handler registration', () => {
 
   it('does not add unbounded SIGINT/SIGTERM listeners for many workspaces', async () => {
     const roots = await Promise.all(
-      Array.from({ length: 12 }, async () => fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ws-lock-')))
+      Array.from({ length: 12 }, async () => fs.mkdtemp(path.join(os.tmpdir(), 'librainian-ws-lock-')))
     );
 
     for (const root of roots) {

@@ -67,7 +67,7 @@ function runCli(workspace, cliArgs, options = {}) {
 }
 
 function createTempJsonPath(prefix) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-dogfood-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-dogfood-'));
   return path.join(dir, `${prefix}.json`);
 }
 

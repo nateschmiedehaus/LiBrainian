@@ -1,17 +1,17 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ContextPack } from '../types.js';
 import type { EmbeddingService } from '../api/embeddings.js';
 import { RelevanceEngine } from './relevance_engine.js';
 import { ConstraintEngine } from './constraint_engine.js';
 import { MetaKnowledgeEngine } from './meta_engine.js';
 import { TddEngine } from './tdd_engine.js';
-import { LibrarianAgentImpl, type LibrarianAgent } from './agent_interface.js';
-import { createThresholdAlertEvent, globalEventBus, type LibrarianEvent, type LibrarianEventHandler, type LibrarianEventBus } from '../events.js';
+import { LiBrainianAgentImpl, type LiBrainianAgent } from './agent_interface.js';
+import { createThresholdAlertEvent, globalEventBus, type LiBrainianEvent, type LiBrainianEventHandler, type LiBrainianEventBus } from '../events.js';
 import { recordMultiSignalFeedback } from '../query/scoring.js';
 import { logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 
-export type { LibrarianAgent } from './agent_interface.js';
+export type { LiBrainianAgent } from './agent_interface.js';
 export { TddEngine } from './tdd_engine.js';
 export * from './tdd_types.js';
 export * from './tdd_presets.js';
@@ -61,19 +61,19 @@ export { ConstraintEngine } from './constraint_engine.js';
 export { MetaKnowledgeEngine } from './meta_engine.js';
 
 /**
- * Configuration options for creating a LibrarianEngineToolkit.
+ * Configuration options for creating a LiBrainianEngineToolkit.
  */
-export interface LibrarianEngineToolkitOptions {
+export interface LiBrainianEngineToolkitOptions {
   /** The storage backend containing indexed knowledge */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Absolute path to the workspace root directory */
   workspaceRoot: string;
   /** Optional embedding service for semantic search capabilities */
   embeddingService?: EmbeddingService | null;
   /** Optional callback to trigger reindexing of specific file paths */
   reindex?: (scope: string[]) => Promise<void>;
-  /** Optional event bus for publishing/subscribing to librarian events */
-  eventBus?: LibrarianEventBus;
+  /** Optional event bus for publishing/subscribing to librainian events */
+  eventBus?: LiBrainianEventBus;
   /** Whether to subscribe to events automatically (default: true) */
   subscribeEvents?: boolean;
   /** Whether to enable TDD engine capabilities (default: true) */
@@ -81,7 +81,7 @@ export interface LibrarianEngineToolkitOptions {
 }
 
 /**
- * Unified toolkit providing access to all librarian engine capabilities.
+ * Unified toolkit providing access to all librainian engine capabilities.
  *
  * The toolkit aggregates four specialized engines:
  * - **RelevanceEngine**: Finds relevant context packs using semantic and structural signals
@@ -94,7 +94,7 @@ export interface LibrarianEngineToolkitOptions {
  *
  * @example
  * ```typescript
- * const toolkit = createLibrarianEngineToolkit({
+ * const toolkit = createLiBrainianEngineToolkit({
  *   storage,
  *   workspaceRoot: '/path/to/project',
  *   embeddingService,
@@ -116,7 +116,7 @@ export interface LibrarianEngineToolkitOptions {
  * toolkit.dispose();
  * ```
  */
-export class LibrarianEngineToolkit {
+export class LiBrainianEngineToolkit {
   /** Engine for finding relevant context packs */
   readonly relevance: RelevanceEngine;
   /** Engine for validating changes against constraints */
@@ -126,23 +126,23 @@ export class LibrarianEngineToolkit {
   /** Engine for TDD guidance (null if disabled) */
   readonly tdd: TddEngine | null;
   /** Unified agent interface for high-level operations */
-  readonly agent: LibrarianAgent;
-  private readonly storage: LibrarianStorage;
+  readonly agent: LiBrainianAgent;
+  private readonly storage: LiBrainianStorage;
   private readonly embeddingService: EmbeddingService | null;
   private unsubscribeEvents: (() => void) | null = null;
 
   /**
-   * Creates a new LibrarianEngineToolkit instance.
+   * Creates a new LiBrainianEngineToolkit instance.
    * @param options - Configuration options for the toolkit
    */
-  constructor(options: LibrarianEngineToolkitOptions) {
+  constructor(options: LiBrainianEngineToolkitOptions) {
     this.storage = options.storage;
     this.embeddingService = options.embeddingService ?? null;
     this.relevance = new RelevanceEngine(options.storage, options.embeddingService ?? null, options.workspaceRoot);
     this.constraint = new ConstraintEngine(options.storage, options.workspaceRoot);
     this.meta = new MetaKnowledgeEngine(options.storage, options.workspaceRoot, options.reindex);
     this.tdd = options.enableTdd !== false ? new TddEngine(options.storage, options.workspaceRoot) : null;
-    this.agent = new LibrarianAgentImpl(this.relevance, this.constraint, this.meta, this.tdd ?? undefined);
+    this.agent = new LiBrainianAgentImpl(this.relevance, this.constraint, this.meta, this.tdd ?? undefined);
     if (options.subscribeEvents !== false) {
       this.unsubscribeEvents = attachEngineEventBridge(this, options.eventBus ?? globalEventBus);
     }
@@ -198,26 +198,26 @@ export class LibrarianEngineToolkit {
 }
 
 /**
- * Factory function to create a LibrarianEngineToolkit instance.
+ * Factory function to create a LiBrainianEngineToolkit instance.
  *
  * @param options - Configuration options for the toolkit
- * @returns A fully configured LibrarianEngineToolkit instance
+ * @returns A fully configured LiBrainianEngineToolkit instance
  *
  * @example
  * ```typescript
- * const toolkit = createLibrarianEngineToolkit({
- *   storage: await createSqliteStorage({ dbPath: './librarian.db' }),
+ * const toolkit = createLiBrainianEngineToolkit({
+ *   storage: await createSqliteStorage({ dbPath: './librainian.db' }),
  *   workspaceRoot: process.cwd(),
  *   embeddingService: new EmbeddingService(),
  * });
  * ```
  */
-export function createLibrarianEngineToolkit(options: LibrarianEngineToolkitOptions): LibrarianEngineToolkit {
-  return new LibrarianEngineToolkit(options);
+export function createLiBrainianEngineToolkit(options: LiBrainianEngineToolkitOptions): LiBrainianEngineToolkit {
+  return new LiBrainianEngineToolkit(options);
 }
 
-function attachEngineEventBridge(toolkit: LibrarianEngineToolkit, bus: LibrarianEventBus): () => void {
-  const handler: LibrarianEventHandler = async (event: LibrarianEvent) => {
+function attachEngineEventBridge(toolkit: LiBrainianEngineToolkit, bus: LiBrainianEventBus): () => void {
+  const handler: LiBrainianEventHandler = async (event: LiBrainianEvent) => {
     switch (event.type) {
       case 'task_completed':
       case 'task_failed': {

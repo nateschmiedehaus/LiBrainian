@@ -3,7 +3,7 @@
  *
  * Diagnoses and heals configuration issues automatically.
  *
- * Usage: librarian config heal [--dry-run] [--verbose] [--risk-tolerance safe|low|medium]
+ * Usage: librainian config heal [--dry-run] [--verbose] [--risk-tolerance safe|low|medium]
  *
  * @packageDocumentation
  */
@@ -232,7 +232,7 @@ function printHealingResult(result: HealingResult, verbose: boolean): void {
   console.log(`Duration: ${result.durationMs}ms`);
 
   if (result.rollbackAvailable) {
-    console.log('\nRollback available: Run "librarian config heal --rollback" to undo');
+    console.log('\nRollback available: Run "librainian config heal --rollback" to undo');
   }
 
   if (verbose && result.appliedFixes.length > 0) {

@@ -10,16 +10,16 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { createSqliteStorage } from '../sqlite_storage.js';
-import type { LibrarianStorage, EmbeddingMetadata } from '../types.js';
+import type { LiBrainianStorage, EmbeddingMetadata } from '../types.js';
 
 describe('Embedding Dimension Mismatch Recovery', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let tempDir: string;
   let dbPath: string;
 
   beforeEach(async () => {
     // Create temporary directory for test database
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-test-'));
     dbPath = path.join(tempDir, 'test.db');
     storage = createSqliteStorage(dbPath, tempDir);
     await storage.initialize();

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { createLiBrainian, type LiBrainian } from '../../api/librarian.js';
+import { createLiBrainian, type LiBrainian } from '../../api/librainian.js';
 import type { LlmRequirement } from '../../types.js';
 import { AgenticProcess, type ConstructionPipeline } from './process_base.js';
 import { createSandboxLifecycleConstruction, type SandboxLifecycleOutput } from './sandbox_construction.js';
@@ -257,27 +257,27 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
                 const workspace = state.workspace || stageInput.fixtureRepoPath;
                 const operations: UnitPatrolOperationResult[] = [];
                 const findings: UnitPatrolFinding[] = [];
-                let librarian: LiBrainian | null = null;
+                let librainian: LiBrainian | null = null;
 
-                const ensureLibrarian = async (): Promise<LiBrainian> => {
-                  if (librarian) return librarian;
-                  librarian = await createLiBrainian({
+                const ensureLiBrainian = async (): Promise<LiBrainian> => {
+                  if (librainian) return librainian;
+                  librainian = await createLiBrainian({
                     workspace,
                     autoBootstrap: true,
                     autoWatch: false,
                     skipEmbeddings: false,
                   });
                   this.registerCleanup(async () => {
-                    if (librarian) {
-                      await librarian.shutdown();
-                      librarian = null;
+                    if (librainian) {
+                      await librainian.shutdown();
+                      librainian = null;
                     }
                   });
-                  return librarian;
+                  return librainian;
                 };
 
                 for (const operation of scenario.operations) {
-                  operations.push(await this.runOperation(operation, workspace, ensureLibrarian, findings));
+                  operations.push(await this.runOperation(operation, workspace, ensureLiBrainian, findings));
                 }
 
                 return { operations, findings, workspace };
@@ -387,14 +387,14 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
   private async runOperation(
     operation: UnitPatrolOperation,
     workspace: string,
-    ensureLibrarian: () => Promise<LiBrainian>,
+    ensureLiBrainian: () => Promise<LiBrainian>,
     findings: UnitPatrolFinding[],
   ): Promise<UnitPatrolOperationResult> {
     const startedAt = Date.now();
     try {
       if (operation.kind === 'bootstrap') {
-        const librarian = await ensureLibrarian();
-        const status = await librarian.getStatus();
+        const librainian = await ensureLiBrainian();
+        const status = await librainian.getStatus();
         const pass = Boolean(status.bootstrapped && status.initialized);
         if (!pass) {
           findings.push({
@@ -417,8 +417,8 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
       }
 
       if (operation.kind === 'status') {
-        const librarian = await ensureLibrarian();
-        const status = await librarian.getStatus();
+        const librainian = await ensureLiBrainian();
+        const status = await librainian.getStatus();
         return {
           operation: 'status',
           pass: status.initialized,
@@ -434,12 +434,12 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
       }
 
       if (operation.kind === 'metamorphic') {
-        const librarian = await ensureLibrarian();
+        const librainian = await ensureLiBrainian();
         const queryConfig = operation.query ?? DEFAULT_QUERY;
         const queryIntents = [queryConfig.intent];
         const baseline = await Promise.all(
           queryIntents.map(async (intent) => {
-            const response = await librarian.queryOptional({
+            const response = await librainian.queryOptional({
               intent,
               depth: queryConfig.depth ?? 'L1',
               llmRequirement: queryConfig.llmRequirement ?? 'disabled',
@@ -467,13 +467,20 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
             if (!transformed || transformed === original) continue;
 
             await fs.writeFile(absolutePath, transformed, 'utf8');
-            let compareResult: MetamorphicTransformResult;
+            let compareResult: MetamorphicTransformResult = {
+              transform: transform.kind,
+              file,
+              applied: true,
+              pass: false,
+              failureReason: 'transform_not_executed',
+              queryComparisons: [],
+            };
             try {
-              await librarian.reindexFiles([absolutePath]);
+              await librainian.reindexFiles([absolutePath]);
 
               const queryComparisons = await Promise.all(
                 baseline.map(async (baselineQuery) => {
-                  const response = await librarian.queryOptional({
+                  const response = await librainian.queryOptional({
                     intent: baselineQuery.intent,
                     depth: queryConfig.depth ?? 'L1',
                     llmRequirement: queryConfig.llmRequirement ?? 'disabled',
@@ -510,7 +517,15 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
               };
             } finally {
               await fs.writeFile(absolutePath, original, 'utf8');
-              await librarian.reindexFiles([absolutePath]);
+              try {
+                await librainian.reindexFiles([absolutePath]);
+              } catch (reindexError) {
+                const reindexFailure = `restore_reindex_failed:${toSingleLine(reindexError)}`;
+                compareResult.pass = false;
+                compareResult.failureReason = compareResult.failureReason
+                  ? `${compareResult.failureReason}; ${reindexFailure}`
+                  : reindexFailure;
+              }
             }
 
             appliedResult = compareResult;
@@ -559,9 +574,9 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
         };
       }
 
-      const librarian = await ensureLibrarian();
+      const librainian = await ensureLiBrainian();
       const queryConfig = operation.query ?? DEFAULT_QUERY;
-      const response = await librarian.queryOptional({
+      const response = await librainian.queryOptional({
         intent: queryConfig.intent,
         depth: queryConfig.depth ?? 'L1',
         llmRequirement: queryConfig.llmRequirement ?? 'disabled',
@@ -660,7 +675,7 @@ function collectTopLevelFunctionBlocks(source: string): Array<{ start: number; e
 async function collectCandidateSourceFiles(workspace: string): Promise<string[]> {
   const results: string[] = [];
   const queue = [workspace];
-  const skipped = new Set(['.git', '.librarian', 'node_modules', 'dist', 'coverage']);
+  const skipped = new Set(['.git', '.librainian', 'node_modules', 'dist', 'coverage']);
 
   while (queue.length > 0) {
     const current = queue.shift();

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Librarian } from '../../../api/librarian.js';
+import type { LiBrainian } from '../../../api/librainian.js';
 import type { ConfidenceValue } from '../../../epistemics/confidence.js';
 import { deterministic, bounded, absent } from '../../../epistemics/confidence.js';
 import {
@@ -39,12 +39,12 @@ import type { ConstructionCalibrationTracker } from '../../calibration_tracker.j
 // MOCK LIBRARIAN
 // ============================================================================
 
-function createMockLibrarian(): Librarian {
+function createMockLiBrainian(): LiBrainian {
   return {
     queryOptional: vi.fn().mockResolvedValue({ packs: [] }),
     queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
     query: vi.fn().mockResolvedValue({ packs: [] }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 function createMockCalibrationTracker(): ConstructionCalibrationTracker {
@@ -224,10 +224,10 @@ class TestCompositeConstruction extends CompositeConstruction<CompositeInput, Te
   private validator: TestValidationConstruction;
   private assessor: TestAssessmentConstruction;
 
-  constructor(librarian: Librarian) {
-    super(librarian);
-    this.validator = new TestValidationConstruction(librarian);
-    this.assessor = new TestAssessmentConstruction(librarian);
+  constructor(librainian: LiBrainian) {
+    super(librainian);
+    this.validator = new TestValidationConstruction(librainian);
+    this.assessor = new TestAssessmentConstruction(librainian);
     this.addChild(this.validator as unknown as BaseConstruction<unknown, ConstructionResult>);
     this.addChild(this.assessor as unknown as BaseConstruction<unknown, ConstructionResult>);
   }
@@ -279,14 +279,14 @@ class TestCompositeConstruction extends CompositeConstruction<CompositeInput, Te
 // ============================================================================
 
 describe('BaseConstruction', () => {
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
   let mockTracker: ConstructionCalibrationTracker;
   let construction: SimpleConstruction;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
+    mockLiBrainian = createMockLiBrainian();
     mockTracker = createMockCalibrationTracker();
-    construction = new SimpleConstruction(mockLibrarian);
+    construction = new SimpleConstruction(mockLiBrainian);
   });
 
   describe('construction identity', () => {
@@ -358,12 +358,12 @@ describe('BaseConstruction', () => {
 // ============================================================================
 
 describe('ValidationConstruction', () => {
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
   let validation: TestValidationConstruction;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    validation = new TestValidationConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    validation = new TestValidationConstruction(mockLiBrainian);
   });
 
   describe('getRules()', () => {
@@ -423,12 +423,12 @@ describe('ValidationConstruction', () => {
 // ============================================================================
 
 describe('AssessmentConstruction', () => {
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
   let assessment: TestAssessmentConstruction;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    assessment = new TestAssessmentConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    assessment = new TestAssessmentConstruction(mockLiBrainian);
   });
 
   describe('getStandard()', () => {
@@ -517,12 +517,12 @@ describe('AssessmentConstruction', () => {
 // ============================================================================
 
 describe('CompositeConstruction', () => {
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
   let composite: TestCompositeConstruction;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    composite = new TestCompositeConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    composite = new TestCompositeConstruction(mockLiBrainian);
   });
 
   describe('execute()', () => {
@@ -606,12 +606,12 @@ describe('CompositeConstruction', () => {
 // ============================================================================
 
 describe('Confidence Propagation Rules', () => {
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
   let composite: TestCompositeConstruction;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    composite = new TestCompositeConstruction(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    composite = new TestCompositeConstruction(mockLiBrainian);
   });
 
   describe('Sequential (D2 rule)', () => {
@@ -666,10 +666,10 @@ describe('Confidence Propagation Rules', () => {
 // ============================================================================
 
 describe('Error Handling', () => {
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
+    mockLiBrainian = createMockLiBrainian();
   });
 
   describe('ValidationConstruction', () => {
@@ -699,7 +699,7 @@ describe('Error Handling', () => {
         }
       }
 
-      const validation = new FailingValidation(mockLibrarian);
+      const validation = new FailingValidation(mockLiBrainian);
       const result = await validation.validate({ value: 'test' });
 
       // Should report the failure as a violation, not throw

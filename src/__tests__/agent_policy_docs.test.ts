@@ -17,7 +17,7 @@ describe('agent policy docs', () => {
     const normalizedClaude = claude.toLowerCase();
 
     for (const marker of [
-      'real_agent_real_librarian_only',
+      'real_agent_real_librainian_only',
       'no_retry_no_fallback',
       '100%',
       'test:agentic:strict',

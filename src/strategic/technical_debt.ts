@@ -1460,14 +1460,14 @@ export interface DebtPrioritizationOptions {
 // LIBRARIAN-ENHANCED DEBT DETECTION
 // ============================================================================
 
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianResponse, LlmOptional, ContextPack } from '../types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianResponse, LlmOptional, ContextPack } from '../types.js';
 import type { EvidenceRef } from '../api/evidence.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import { bounded, absent, deriveSequentialConfidence, getNumericValue } from '../epistemics/confidence.js';
 
 /**
- * Semantic debt indicator discovered through librarian analysis.
+ * Semantic debt indicator discovered through librainian analysis.
  */
 export interface SemanticDebtIndicator {
   /** Type of debt indicator */
@@ -1507,9 +1507,9 @@ export interface SemanticDebtIndicator {
 }
 
 /**
- * Result of librarian-enhanced debt detection.
+ * Result of librainian-enhanced debt detection.
  */
-export interface LibrarianEnhancedDebtDetection {
+export interface LiBrainianEnhancedDebtDetection {
   /** Semantic debt indicators found through code analysis */
   indicators: SemanticDebtIndicator[];
   /** Suggested debt items to add to inventory */
@@ -1518,9 +1518,9 @@ export interface LibrarianEnhancedDebtDetection {
   confidence: ConfidenceValue;
   /** Evidence references for traceability */
   evidenceRefs: EvidenceRef[];
-  /** Whether librarian was available for semantic analysis */
-  librarianAvailable: boolean;
-  /** Librarian query trace ID */
+  /** Whether librainian was available for semantic analysis */
+  librainianAvailable: boolean;
+  /** LiBrainian query trace ID */
   traceId?: string;
   /** Summary of detected debt patterns */
   summary: {
@@ -1533,16 +1533,16 @@ export interface LibrarianEnhancedDebtDetection {
 }
 
 /**
- * Analyze code for debt indicators using librarian semantic analysis.
+ * Analyze code for debt indicators using librainian semantic analysis.
  */
 async function analyzeCodeForDebtIndicators(
-  librarian: Librarian
+  librainian: LiBrainian
 ): Promise<{ indicators: SemanticDebtIndicator[]; evidenceRefs: EvidenceRef[] }> {
   const indicators: SemanticDebtIndicator[] = [];
   const evidenceRefs: EvidenceRef[] = [];
 
-  // Query librarian for technical debt patterns
-  const queryResult = await librarian.queryOptional({
+  // Query librainian for technical debt patterns
+  const queryResult = await librainian.queryOptional({
     intent: 'Find technical debt patterns and code quality issues. ' +
             'Look for: high complexity functions, tight coupling between modules, ' +
             'god classes, feature envy, code smells, outdated patterns, ' +
@@ -1743,48 +1743,48 @@ function convertIndicatorsToItems(
 }
 
 /**
- * Detect technical debt using librarian-enhanced semantic analysis.
+ * Detect technical debt using librainian-enhanced semantic analysis.
  *
- * This function uses complexity analysis from the librarian to identify
+ * This function uses complexity analysis from the librainian to identify
  * technical debt patterns that traditional static analysis might miss.
  * It analyzes code for complexity hotspots, coupling issues, code smells,
  * and other debt indicators, then suggests debt items for the inventory.
  *
- * @param librarian - Librarian instance for semantic analysis
+ * @param librainian - LiBrainian instance for semantic analysis
  * @returns Enhanced debt detection result with semantic findings
  *
  * @example
  * ```typescript
- * const result = await detectDebtWithLibrarian(librarian);
+ * const result = await detectDebtWithLiBrainian(librainian);
  * console.log(result.indicators); // Debt indicators found
  * console.log(result.suggestedItems); // Items to add to inventory
  * console.log(result.summary); // Summary by category
  * ```
  */
-export async function detectDebtWithLibrarian(
-  librarian: Librarian
-): Promise<LibrarianEnhancedDebtDetection> {
-  // Perform librarian-enhanced analysis
+export async function detectDebtWithLiBrainian(
+  librainian: LiBrainian
+): Promise<LiBrainianEnhancedDebtDetection> {
+  // Perform librainian-enhanced analysis
   let indicators: SemanticDebtIndicator[] = [];
   let evidenceRefs: EvidenceRef[] = [];
-  let librarianAvailable = false;
+  let librainianAvailable = false;
   let traceId: string | undefined;
 
   try {
-    const analysis = await analyzeCodeForDebtIndicators(librarian);
+    const analysis = await analyzeCodeForDebtIndicators(librainian);
     indicators = analysis.indicators;
     evidenceRefs = analysis.evidenceRefs;
-    librarianAvailable = true;
+    librainianAvailable = true;
 
     // Get trace ID
-    const statusQuery = await librarian.queryOptional({
+    const statusQuery = await librainian.queryOptional({
       intent: 'Technical debt detection trace',
       depth: 'L0',
     });
     traceId = statusQuery?.traceId;
   } catch {
-    // Librarian query failed
-    librarianAvailable = false;
+    // LiBrainian query failed
+    librainianAvailable = false;
   }
 
   // Convert indicators to suggested debt items
@@ -1800,7 +1800,7 @@ export async function detectDebtWithLibrarian(
   };
 
   // Derive confidence
-  const confidence = librarianAvailable
+  const confidence = librainianAvailable
     ? bounded(
         0.5,
         0.75,
@@ -1814,7 +1814,7 @@ export async function detectDebtWithLibrarian(
     suggestedItems,
     confidence,
     evidenceRefs,
-    librarianAvailable,
+    librainianAvailable,
     traceId,
     summary,
   };

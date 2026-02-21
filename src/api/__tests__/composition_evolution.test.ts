@@ -5,9 +5,9 @@ import { recordExecutionTrace, type ExecutionTrace } from '../../state/execution
 import { saveTechniquePrimitive } from '../../state/technique_primitives.js';
 import { saveTechniqueComposition } from '../../state/technique_compositions.js';
 import { DEFAULT_TECHNIQUE_PRIMITIVES } from '../technique_library.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -37,7 +37,7 @@ const baseTrace: ExecutionTrace = {
 async function seedPrimitives(storage: MockStorage): Promise<void> {
   const primitives = DEFAULT_TECHNIQUE_PRIMITIVES.filter((primitive) => REQUIRED_PRIMITIVES.includes(primitive.id));
   for (const primitive of primitives) {
-    await saveTechniquePrimitive(storage as unknown as LibrarianStorage, primitive);
+    await saveTechniquePrimitive(storage as unknown as LiBrainianStorage, primitive);
   }
 }
 
@@ -54,15 +54,15 @@ describe('CompositionEvolutionEngine', () => {
 
   it('proposes compositions from frequent successful patterns', async () => {
     await seedPrimitives(storage);
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_1',
     }));
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_2',
       timestamp: '2026-01-02T00:00:00.000Z',
     }));
 
-    const engine = new CompositionEvolutionEngine(storage as unknown as LibrarianStorage, {
+    const engine = new CompositionEvolutionEngine(storage as unknown as LiBrainianStorage, {
       minPatternFrequency: 2,
       minSuccessRate: 0.5,
       minPatternLength: 2,
@@ -79,21 +79,21 @@ describe('CompositionEvolutionEngine', () => {
 
   it('suggests mutations and deprecations for failing compositions', async () => {
     const oldTimestamp = '2025-01-01T00:00:00.000Z';
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_bad_1',
       compositionId: 'tc_bad',
       primitiveSequence: ['tp_change_impact', 'tp_hypothesis', 'tp_verify_plan'],
       outcome: 'failure',
       timestamp: oldTimestamp,
     }));
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_bad_2',
       compositionId: 'tc_bad',
       primitiveSequence: ['tp_change_impact', 'tp_hypothesis', 'tp_verify_plan'],
       outcome: 'failure',
       timestamp: oldTimestamp,
     }));
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_bad_3',
       compositionId: 'tc_bad',
       primitiveSequence: ['tp_change_impact', 'tp_hypothesis', 'tp_verify_plan'],
@@ -101,7 +101,7 @@ describe('CompositionEvolutionEngine', () => {
       timestamp: oldTimestamp,
     }));
 
-    const engine = new CompositionEvolutionEngine(storage as unknown as LibrarianStorage, {
+    const engine = new CompositionEvolutionEngine(storage as unknown as LiBrainianStorage, {
       minMutationSamples: 3,
       maxMutationSuccessRate: 0.9,
       minDeprecationSamples: 3,
@@ -115,18 +115,18 @@ describe('CompositionEvolutionEngine', () => {
   });
 
   it('ignores empty primitive sequences and clamps extreme options', async () => {
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_empty',
       primitiveSequence: [],
       timestamp: '2026-01-03T00:00:00.000Z',
     }));
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_invalid',
       primitiveSequence: ['tp_hypothesis', ''],
       timestamp: '2026-01-03T01:00:00.000Z',
     }));
 
-    const engine = new CompositionEvolutionEngine(storage as unknown as LibrarianStorage, {
+    const engine = new CompositionEvolutionEngine(storage as unknown as LiBrainianStorage, {
       deprecationWindowDays: Number.POSITIVE_INFINITY,
       maxProposals: 1,
     });
@@ -139,7 +139,7 @@ describe('CompositionEvolutionEngine', () => {
     await seedPrimitives(storage);
     const collisionSequence = ['tp_hypothesis', 'tp_verify_plan'];
     const collisionId = `tc_evolved_${crypto.createHash('sha256').update(JSON.stringify(collisionSequence)).digest('hex').slice(0, 8)}`;
-    await saveTechniqueComposition(storage as unknown as LibrarianStorage, {
+    await saveTechniqueComposition(storage as unknown as LiBrainianStorage, {
       id: collisionId,
       name: 'Existing composition',
       description: 'Existing composition to force id collision',
@@ -147,23 +147,23 @@ describe('CompositionEvolutionEngine', () => {
       createdAt: '2026-01-03T00:00:00.000Z',
       updatedAt: '2026-01-03T00:00:00.000Z',
     });
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_known_1',
       primitiveSequence: collisionSequence,
       timestamp: '2026-01-04T00:00:00.000Z',
     }));
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_known_2',
       primitiveSequence: ['tp_change_impact', 'tp_verify_plan'],
       timestamp: '2026-01-05T00:00:00.000Z',
     }));
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_unknown',
       primitiveSequence: ['tp_unknown', 'tp_verify_plan'],
       timestamp: '2026-01-06T00:00:00.000Z',
     }));
 
-    const engine = new CompositionEvolutionEngine(storage as unknown as LibrarianStorage, {
+    const engine = new CompositionEvolutionEngine(storage as unknown as LiBrainianStorage, {
       minPatternFrequency: 1,
       minSuccessRate: 0.5,
       maxPatternLength: 2,
@@ -184,13 +184,13 @@ describe('CompositionEvolutionEngine', () => {
 
   it('normalizes intent strings and enforces length limits', async () => {
     const noisyIntent = `Line1\r\nDROP TABLE users; [] / \\\\ ! ? - 😈 -- ${'a'.repeat(300)}`;
-    await recordExecutionTrace(storage as unknown as LibrarianStorage, buildTrace({
+    await recordExecutionTrace(storage as unknown as LiBrainianStorage, buildTrace({
       executionId: 'exec_intent',
       intent: noisyIntent,
       timestamp: '2026-01-07T00:00:00.000Z',
     }));
 
-    const engine = new CompositionEvolutionEngine(storage as unknown as LibrarianStorage, {
+    const engine = new CompositionEvolutionEngine(storage as unknown as LiBrainianStorage, {
       minPatternFrequency: 1,
       minSuccessRate: 0.5,
       maxPatternLength: 2,

@@ -31,8 +31,8 @@ describe('classifyDocument', () => {
       expect(result.audience).toBe('agent');
     });
 
-    it('classifies docs/librarian/AGENT_INTEGRATION.md as agent doc', () => {
-      const result = classifyDocument('docs/librarian/AGENT_INTEGRATION.md');
+    it('classifies docs/librainian/AGENT_INTEGRATION.md as agent doc', () => {
+      const result = classifyDocument('docs/librainian/AGENT_INTEGRATION.md');
       expect(result.isMetaDoc).toBe(true);
       expect(result.relevanceBoost).toBe(1.0);
       expect(result.audience).toBe('agent');
@@ -58,7 +58,7 @@ describe('classifyDocument', () => {
     it('classifies non-pattern matching docs with default relevance', () => {
       const result = classifyDocument('docs/guide/setup.md');
       expect(result.relevanceBoost).toBeGreaterThanOrEqual(0.3);
-      // Only librarian/** docs have the 0.5 boost, other docs get default
+      // Only librainian/** docs have the 0.5 boost, other docs get default
     });
 
     it('classifies random markdown with low relevance', () => {
@@ -75,7 +75,7 @@ describe('detectHowToContent', () => {
     texts.map((text, i) => ({ level: i === 0 ? 1 : 2, text, line: i + 1 }));
 
   it('detects "How to use" in headings', () => {
-    const headings = makeHeadings(['How to Use Librarian']);
+    const headings = makeHeadings(['How to Use LiBrainian']);
     expect(detectHowToContent('', headings)).toBe(true);
   });
 

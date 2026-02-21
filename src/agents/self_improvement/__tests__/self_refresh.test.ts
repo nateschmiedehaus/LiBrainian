@@ -4,10 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { selfRefresh, createSelfRefresh, type SelfRefreshResult, type SelfRefreshOptions, type ChangeSummary } from '../self_refresh.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 describe('selfRefresh', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(() => {
     mockStorage = {
@@ -33,7 +33,7 @@ describe('selfRefresh', () => {
       getFunctionsByPath: vi.fn().mockResolvedValue([]),
       getUniversalKnowledgeByFile: vi.fn().mockResolvedValue([]),
       deleteUniversalKnowledgeByFile: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires rootDir parameter', async () => {
@@ -49,7 +49,7 @@ describe('selfRefresh', () => {
     await expect(
       selfRefresh({
         rootDir: '/test',
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });

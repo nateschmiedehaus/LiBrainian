@@ -1,5 +1,5 @@
 /**
- * @fileoverview Error Boundaries for Librarian
+ * @fileoverview Error Boundaries for LiBrainian
  *
  * Provides comprehensive error handling:
  * - Error classification and normalization
@@ -31,7 +31,7 @@ export type ErrorCategory =
   | 'configuration';
 
 /** Structured error */
-export interface LibrarianError {
+export interface LiBrainianError {
   /** Error code */
   code: string;
 
@@ -72,10 +72,10 @@ export interface ErrorHandlerOptions {
   includeStack?: boolean;
 
   /** Custom error transformer */
-  transform?: (error: unknown) => LibrarianError;
+  transform?: (error: unknown) => LiBrainianError;
 
   /** Error callback */
-  onError?: (error: LibrarianError, original: unknown) => void;
+  onError?: (error: LiBrainianError, original: unknown) => void;
 
   /** Sensitive field patterns to redact */
   sensitivePatterns?: RegExp[];
@@ -185,9 +185,9 @@ const CATEGORY_SEVERITY: Record<ErrorCategory, ErrorSeverity> = {
 // ============================================================================
 
 /**
- * Base error class for Librarian errors.
+ * Base error class for LiBrainian errors.
  */
-export class LibrarianErrorBase extends Error {
+export class LiBrainianErrorBase extends Error {
   readonly code: string;
   readonly category: ErrorCategory;
   readonly severity: ErrorSeverity;
@@ -213,7 +213,7 @@ export class LibrarianErrorBase extends Error {
     } = {}
   ) {
     super(message);
-    this.name = 'LibrarianError';
+    this.name = 'LiBrainianError';
     this.code = code;
     this.category = category;
     this.severity = CATEGORY_SEVERITY[category];
@@ -235,9 +235,9 @@ export class LibrarianErrorBase extends Error {
   }
 
   /**
-   * Convert to LibrarianError format.
+   * Convert to LiBrainianError format.
    */
-  toJSON(): LibrarianError {
+  toJSON(): LiBrainianError {
     return {
       code: this.code,
       message: this.message,
@@ -257,7 +257,7 @@ export class LibrarianErrorBase extends Error {
 /**
  * Validation error.
  */
-export class ValidationError extends LibrarianErrorBase {
+export class ValidationError extends LiBrainianErrorBase {
   constructor(message: string, details?: Record<string, unknown>) {
     super(message, ERROR_CODES.INVALID_INPUT, 'validation', {
       details,
@@ -270,7 +270,7 @@ export class ValidationError extends LibrarianErrorBase {
 /**
  * Authentication error.
  */
-export class AuthenticationError extends LibrarianErrorBase {
+export class AuthenticationError extends LiBrainianErrorBase {
   constructor(message: string, code: string = ERROR_CODES.AUTHENTICATION_REQUIRED) {
     super(message, code, 'authentication', {
       suggestions: ['Provide valid authentication credentials'],
@@ -282,7 +282,7 @@ export class AuthenticationError extends LibrarianErrorBase {
 /**
  * Authorization error.
  */
-export class AuthorizationError extends LibrarianErrorBase {
+export class AuthorizationError extends LiBrainianErrorBase {
   constructor(message: string, code: string = ERROR_CODES.PERMISSION_DENIED) {
     super(message, code, 'authorization', {
       suggestions: ['Request additional permissions or contact administrator'],
@@ -294,7 +294,7 @@ export class AuthorizationError extends LibrarianErrorBase {
 /**
  * Not found error.
  */
-export class NotFoundError extends LibrarianErrorBase {
+export class NotFoundError extends LiBrainianErrorBase {
   constructor(resource: string, identifier?: string) {
     super(
       identifier ? `${resource} '${identifier}' not found` : `${resource} not found`,
@@ -308,7 +308,7 @@ export class NotFoundError extends LibrarianErrorBase {
 /**
  * Rate limit error.
  */
-export class RateLimitError extends LibrarianErrorBase {
+export class RateLimitError extends LiBrainianErrorBase {
   constructor(retryAfterMs: number) {
     super('Rate limit exceeded', ERROR_CODES.RATE_LIMIT_EXCEEDED, 'rate_limit', {
       retryable: true,
@@ -323,7 +323,7 @@ export class RateLimitError extends LibrarianErrorBase {
 /**
  * Internal error (safe for external exposure).
  */
-export class InternalError extends LibrarianErrorBase {
+export class InternalError extends LiBrainianErrorBase {
   constructor(traceId?: string) {
     super('An internal error occurred', ERROR_CODES.INTERNAL_ERROR, 'internal', {
       traceId,
@@ -350,14 +350,14 @@ const DEFAULT_SENSITIVE_PATTERNS = [
 ];
 
 /**
- * Normalize any error to LibrarianError format.
+ * Normalize any error to LiBrainianError format.
  */
 export function normalizeError(
   error: unknown,
   options: ErrorHandlerOptions = {}
-): LibrarianError {
-  // Already a LibrarianError
-  if (error instanceof LibrarianErrorBase) {
+): LiBrainianError {
+  // Already a LiBrainianError
+  if (error instanceof LiBrainianErrorBase) {
     return error.toJSON();
   }
 
@@ -388,7 +388,7 @@ export function normalizeError(
 /**
  * Classify a standard error.
  */
-function classifyError(error: Error): LibrarianError {
+function classifyError(error: Error): LiBrainianError {
   const message = error.message.toLowerCase();
 
   // Timeout
@@ -495,7 +495,7 @@ export async function withErrorBoundary<T>(
   operation: () => Promise<T>,
   context: ErrorBoundaryContext,
   options: ErrorHandlerOptions = {}
-): Promise<{ success: true; result: T } | { success: false; error: LibrarianError }> {
+): Promise<{ success: true; result: T } | { success: false; error: LiBrainianError }> {
   try {
     const result = await operation();
     return { success: true, result };
@@ -523,7 +523,7 @@ export function withErrorBoundarySync<T>(
   operation: () => T,
   context: ErrorBoundaryContext,
   options: ErrorHandlerOptions = {}
-): { success: true; result: T } | { success: false; error: LibrarianError } {
+): { success: true; result: T } | { success: false; error: LiBrainianError } {
   try {
     const result = operation();
     return { success: true, result };
@@ -549,8 +549,8 @@ export function withErrorBoundarySync<T>(
 /**
  * Format error for API response.
  */
-export function formatErrorResponse(error: LibrarianError): {
-  error: LibrarianError;
+export function formatErrorResponse(error: LiBrainianError): {
+  error: LiBrainianError;
   statusCode: number;
   headers: Record<string, string>;
 } {
@@ -578,7 +578,7 @@ export function createError(
   code: keyof typeof ERROR_CODES,
   message?: string,
   details?: Record<string, unknown>
-): LibrarianErrorBase {
+): LiBrainianErrorBase {
   const categoryMap: Record<string, ErrorCategory> = {
     INVALID_INPUT: 'validation',
     MISSING_REQUIRED_FIELD: 'validation',
@@ -624,7 +624,7 @@ export function createError(
     INTERNAL_ERROR: 'An internal error occurred',
   };
 
-  return new LibrarianErrorBase(
+  return new LiBrainianErrorBase(
     message || defaultMessages[code] || 'An error occurred',
     ERROR_CODES[code],
     category,

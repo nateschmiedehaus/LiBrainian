@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import { randomUUID } from 'crypto';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ContextPack, FunctionKnowledge, ModuleKnowledge } from '../types.js';
 import { attributeFailure as sbflAttributeFailure } from '../integration/causal_attribution.js';
 import type {
@@ -28,7 +28,7 @@ export class MetaKnowledgeEngine {
   private ingestionCache = new Map<string, Array<{ id: string; payload: unknown }>>();
 
   constructor(
-    private readonly storage: LibrarianStorage,
+    private readonly storage: LiBrainianStorage,
     private readonly workspaceRoot: string,
     private readonly reindex?: (scope: string[]) => Promise<void>,
   ) {}
@@ -159,7 +159,7 @@ export class MetaKnowledgeEngine {
       area,
       reason: 'No indexed entities for scope',
       risk: 'high',
-      suggestion: 'Run librarian bootstrap or reindex this directory.',
+      suggestion: 'Run librainian bootstrap or reindex this directory.',
     }));
   }
 
@@ -265,7 +265,7 @@ type ResolvedEntity =
   | { type: 'context_pack'; entity: ContextPack }
   | { type: 'unknown'; entity: null };
 
-async function resolveEntity(storage: LibrarianStorage, entityId: string): Promise<ResolvedEntity> {
+async function resolveEntity(storage: LiBrainianStorage, entityId: string): Promise<ResolvedEntity> {
   const fn = await storage.getFunction(entityId);
   if (fn) return { type: 'function', entity: fn };
   const mod = await storage.getModule(entityId);
@@ -305,7 +305,7 @@ async function buildFreshness(entityId: string, resolved: ResolvedEntity, indexe
   };
 }
 
-async function buildCoverage(storage: LibrarianStorage, resolved: ResolvedEntity): Promise<QualifiedKnowledge['coverage']> {
+async function buildCoverage(storage: LiBrainianStorage, resolved: ResolvedEntity): Promise<QualifiedKnowledge['coverage']> {
   const hasEntities = resolved.type !== 'unknown';
   let hasRelationships = false;
   if (resolved.type === 'function' || resolved.type === 'module') {
@@ -331,7 +331,7 @@ async function buildCoverage(storage: LibrarianStorage, resolved: ResolvedEntity
   return { hasEntities, hasRelationships, hasTestMapping, hasOwnership, score };
 }
 
-async function buildReliability(storage: LibrarianStorage, resolved: ResolvedEntity): Promise<QualifiedKnowledge['reliability']> {
+async function buildReliability(storage: LiBrainianStorage, resolved: ResolvedEntity): Promise<QualifiedKnowledge['reliability']> {
   let usageCount = 0;
   let successRate = 0.5;
   let lastFailure: Date | undefined;
@@ -370,7 +370,7 @@ async function buildReliability(storage: LibrarianStorage, resolved: ResolvedEnt
   };
 }
 
-async function resolveScopeEntities(storage: LibrarianStorage, scope: string[]): Promise<string[]> {
+async function resolveScopeEntities(storage: LiBrainianStorage, scope: string[]): Promise<string[]> {
   const modules = await storage.getModules();
   const matches = modules.filter((mod) => scope.some((entry) => mod.path.includes(entry)));
   return matches.map((mod) => mod.id);
@@ -421,7 +421,7 @@ function geometricMean(values: number[]): number {
   return Math.exp(logSum / clamped.length);
 }
 
-async function hasIngestionMatch(storage: LibrarianStorage, sourceType: string, filePath: string): Promise<boolean> {
+async function hasIngestionMatch(storage: LiBrainianStorage, sourceType: string, filePath: string): Promise<boolean> {
   const items = await storage.getIngestionItems({ sourceType, limit: 200 });
   const needle = filePath.replace(/\\/g, '/');
   for (const item of items) {

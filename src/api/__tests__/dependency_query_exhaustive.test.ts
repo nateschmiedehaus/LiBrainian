@@ -8,14 +8,14 @@ import {
   executeExhaustiveDependencyQuery,
   shouldUseExhaustiveMode,
 } from '../dependency_query.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { GraphEdge } from '../../types.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-function createMockStorage(edges: GraphEdge[], modules: { id: string; path: string }[] = []): LibrarianStorage {
+function createMockStorage(edges: GraphEdge[], modules: { id: string; path: string }[] = []): LiBrainianStorage {
   return {
     getGraphEdges: vi.fn(async (options) => {
       let filtered = edges;
@@ -52,7 +52,7 @@ function createMockStorage(edges: GraphEdge[], modules: { id: string; path: stri
       optional: { graphMetrics: false, multiVectors: false, embeddings: false, episodes: false, verificationPlans: false },
       versions: { schema: 1, api: 1 },
     })),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================

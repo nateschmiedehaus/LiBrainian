@@ -25,10 +25,10 @@ import {
   DEFAULT_CASCADE_CONFIG,
 } from '../cascading_impact.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, KnowledgeGraphEdge } from '../../storage/types.js';
+import type { LiBrainianStorage, KnowledgeGraphEdge } from '../../storage/types.js';
 
 describe('Cascading Impact Analysis', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
   let testDir: string;
 

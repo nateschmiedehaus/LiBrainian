@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ContextPack, LibrarianResponse, LlmOptional } from '../../types.js';
+import type { ContextPack, LiBrainianResponse, LlmOptional } from '../../types.js';
 import { getCurrentVersion } from '../versioning.js';
 import { CodebaseCompositionAdvisor, __testing } from '../codebase_advisor.js';
 import { logWarning } from '../../telemetry/logger.js';
@@ -34,7 +34,7 @@ function makePack(id: string, confidence = 0.8, files = ['src/example.ts']): Con
   };
 }
 
-function buildResponse(intent: string, packs: ContextPack[]): LlmOptional<LibrarianResponse> {
+function buildResponse(intent: string, packs: ContextPack[]): LlmOptional<LiBrainianResponse> {
   return {
     query: { intent, depth: 'L1', llmRequirement: 'optional' },
     packs,

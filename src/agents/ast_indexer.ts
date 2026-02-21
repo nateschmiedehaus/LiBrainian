@@ -15,8 +15,8 @@ import type { EvidenceEntry } from '../api/evidence.js';
 import { GovernorContext } from '../api/governor_context.js';
 import { DEFAULT_GOVERNOR_CONFIG } from '../api/governors.js';
 import { redactText } from '../api/redaction.js';
-import { buildEmbeddingInput } from './index_librarian.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import { buildEmbeddingInput } from './index_librainian.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { computeGraphMetrics, writeGraphMetricsReport, type GraphMetricsEntry } from '../graphs/metrics.js';
 import { emptyArray, noResult } from '../api/empty_values.js';
 import { globalEventBus, createLanguageOnboardingEvent } from '../events.js';
@@ -41,7 +41,7 @@ export interface AstIndexerOptions {
   embeddingModelId?: string;
   embeddingService?: EmbeddingService;
   enableEmbeddings?: boolean;
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
   workspaceRoot?: string;
   computeGraphMetrics?: boolean;
   governorContext?: GovernorContext;
@@ -64,11 +64,11 @@ export interface AstIndexResult {
   llmTokensUsed: number;
 }
 
-type AnalysisPayload = { schema_version: number; kind: 'LibrarianAstAnalysis.v1'; module: { purpose: string }; functions: Array<{ name: string; purpose?: string }> };
+type AnalysisPayload = { schema_version: number; kind: 'LiBrainianAstAnalysis.v1'; module: { purpose: string }; functions: Array<{ name: string; purpose?: string }> };
 type LlmAnalysisResult = { modulePurpose: string; functionPurposes: Map<string, string> };
 type ParserFallbackPayload = {
   schema_version: number;
-  kind: 'LibrarianParserFallback.v1';
+  kind: 'LiBrainianParserFallback.v1';
   functions: Array<{ name: string; signature?: string; startLine: number; endLine: number }>;
   module: { exports: string[]; dependencies: string[] };
 };
@@ -77,7 +77,7 @@ const PARSER_BEGIN_MARKER = 'BEGIN_PARSER_JSON', PARSER_END_MARKER = 'END_PARSER
 const DEFAULT_MAX_PROMPT_CHARS = 12000, MAX_ANALYSIS_RESPONSE_CHARS = 200_000;
 
 export class AstIndexer {
-  private registry: ParserRegistry; private readonly llmProvider: LlmProvider | null; private readonly llmModelId: string | null; private readonly llmService: LlmServiceAdapter | null; private readonly analysisEnabled: boolean; private readonly fallbackEnabled: boolean; private readonly embeddingService: EmbeddingService | null; private readonly embeddingsEnabled: boolean; private readonly storage?: LibrarianStorage; private readonly workspaceRoot?: string; private readonly computeMetrics: boolean; private governor: GovernorContext | null; private readonly maxPromptChars: number; private readonly resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>; private readonly resolveModuleId?: (filePath: string) => Promise<string | null>; private readonly scipBackend: ScipBackend | null;
+  private registry: ParserRegistry; private readonly llmProvider: LlmProvider | null; private readonly llmModelId: string | null; private readonly llmService: LlmServiceAdapter | null; private readonly analysisEnabled: boolean; private readonly fallbackEnabled: boolean; private readonly embeddingService: EmbeddingService | null; private readonly embeddingsEnabled: boolean; private readonly storage?: LiBrainianStorage; private readonly workspaceRoot?: string; private readonly computeMetrics: boolean; private governor: GovernorContext | null; private readonly maxPromptChars: number; private readonly resolveFunctionIds?: (filePath: string, functions: ParsedFunction[]) => Promise<Map<string, string>>; private readonly resolveModuleId?: (filePath: string) => Promise<string | null>; private readonly scipBackend: ScipBackend | null;
 
   constructor(options: AstIndexerOptions) {
     this.registry = options.registry ?? ParserRegistry.getInstance();
@@ -244,7 +244,7 @@ export class AstIndexer {
 	    try {
 	      await initable.initialize();
 	    } catch (error: unknown) {
-	      logWarning('Librarian evidence store failed to initialize storage', {
+	      logWarning('LiBrainian evidence store failed to initialize storage', {
 	        filePath,
 	        error: getErrorMessage(error),
 	      });
@@ -252,7 +252,7 @@ export class AstIndexer {
 	  }
 	  try { await evidenceStore.setEvidence(evidenceEntries); } catch (error: unknown) {
 	    if (!isBudgetExceeded(error)) {
-	      logWarning('Librarian evidence store failed', {
+	      logWarning('LiBrainian evidence store failed', {
 	        filePath,
 	        error: getErrorMessage(error),
 	      });
@@ -291,7 +291,7 @@ export class AstIndexer {
   private async recordLanguageGap(filePath: string, reason: string): Promise<void> {
     if (!this.storage) return;
     const extension = path.extname(filePath).toLowerCase() || 'unknown';
-    const key = 'librarian.language_onboarding.v1';
+    const key = 'librainian.language_onboarding.v1';
     const existing = await this.storage.getState(key);
     const parsed = existing ? safeJsonParse<Record<string, unknown>>(existing) : { ok: false } as const;
     const now = new Date().toISOString();
@@ -546,7 +546,7 @@ function buildAnalysisPrompt(filePath: string, source: string, parsed: ParserRes
     ? parsed.functions.map((fn) => `- ${fn.name} | ${fn.signature} | lines ${fn.startLine}-${fn.endLine}`).join('\n')
     : '- none';
   const content = truncateContent(source, maxChars);
-  return ['Return JSON only, no commentary.', `Wrap JSON with ${ANALYSIS_BEGIN_MARKER} and ${ANALYSIS_END_MARKER}.`, 'Schema:', '{"schema_version":1,"kind":"LibrarianAstAnalysis.v1","module":{"purpose":""},"functions":[{"name":"","purpose":""}]}', 'Rules:', '- Use the provided function list; include every function exactly once.', '- Do not invent functions.', '- If purpose is unknown, use empty string.', '- Keep each purpose under 160 characters.', '', `File: ${filePath}`, `Exports: ${exportsList}`, `Dependencies: ${dependenciesList}`, 'Functions:', functionsList, '', 'File content:', content].join('\n');
+  return ['Return JSON only, no commentary.', `Wrap JSON with ${ANALYSIS_BEGIN_MARKER} and ${ANALYSIS_END_MARKER}.`, 'Schema:', '{"schema_version":1,"kind":"LiBrainianAstAnalysis.v1","module":{"purpose":""},"functions":[{"name":"","purpose":""}]}', 'Rules:', '- Use the provided function list; include every function exactly once.', '- Do not invent functions.', '- If purpose is unknown, use empty string.', '- Keep each purpose under 160 characters.', '', `File: ${filePath}`, `Exports: ${exportsList}`, `Dependencies: ${dependenciesList}`, 'Functions:', functionsList, '', 'File content:', content].join('\n');
 }
 
 function buildParserFallbackPrompt(filePath: string, source: string, maxChars: number): string {
@@ -555,7 +555,7 @@ function buildParserFallbackPrompt(filePath: string, source: string, maxChars: n
     'Return JSON only, no commentary.',
     `Wrap JSON with ${PARSER_BEGIN_MARKER} and ${PARSER_END_MARKER}.`,
     'Schema:',
-    '{"schema_version":1,"kind":"LibrarianParserFallback.v1","functions":[{"name":"","signature":"","startLine":1,"endLine":1}],"module":{"exports":[],"dependencies":[]}}',
+    '{"schema_version":1,"kind":"LiBrainianParserFallback.v1","functions":[{"name":"","signature":"","startLine":1,"endLine":1}],"module":{"exports":[],"dependencies":[]}}',
     'Rules:',
     '- Include top-level functions, classes, methods, or exported definitions.',
     '- startLine/endLine must be 1-based line numbers.',
@@ -586,7 +586,7 @@ function parseAnalysisResponse(text: string, expected: ParsedFunction[]): LlmAna
     const missing = [...expectedNames].filter((name) => !functionPurposes.has(name));
     if (missing.length > 0) {
       // Log warning but continue - LLM may legitimately skip some functions if content was truncated
-      logWarning('[librarian] LLM analysis missing functions (will use AST fallback)', { missing: missing.slice(0, 5), total: missing.length });
+      logWarning('[librainian] LLM analysis missing functions (will use AST fallback)', { missing: missing.slice(0, 5), total: missing.length });
     }
   }
   const modulePurpose = typeof payload.module?.purpose === 'string' ? payload.module.purpose.trim() : '';
@@ -618,12 +618,12 @@ function parseParserFallbackResponse(text: string): ParserResult {
   return { parser: 'llm-fallback', functions, module };
 }
 
-function isAnalysisPayload(value: unknown): value is AnalysisPayload { return !!value && typeof value === 'object' && (value as AnalysisPayload).schema_version === 1 && (value as AnalysisPayload).kind === 'LibrarianAstAnalysis.v1' && typeof (value as AnalysisPayload).module === 'object' && typeof (value as AnalysisPayload).module?.purpose === 'string' && Array.isArray((value as AnalysisPayload).functions); }
+function isAnalysisPayload(value: unknown): value is AnalysisPayload { return !!value && typeof value === 'object' && (value as AnalysisPayload).schema_version === 1 && (value as AnalysisPayload).kind === 'LiBrainianAstAnalysis.v1' && typeof (value as AnalysisPayload).module === 'object' && typeof (value as AnalysisPayload).module?.purpose === 'string' && Array.isArray((value as AnalysisPayload).functions); }
 function isParserFallbackPayload(value: unknown): value is ParserFallbackPayload {
   return !!value &&
     typeof value === 'object' &&
     (value as ParserFallbackPayload).schema_version === 1 &&
-    (value as ParserFallbackPayload).kind === 'LibrarianParserFallback.v1' &&
+    (value as ParserFallbackPayload).kind === 'LiBrainianParserFallback.v1' &&
     Array.isArray((value as ParserFallbackPayload).functions) &&
     typeof (value as ParserFallbackPayload).module === 'object';
 }
@@ -663,12 +663,12 @@ function warnCallEdgeOnce(key: string, message: string, meta: Record<string, unk
   if (callEdgeWarnings.size >= limit) {
     if (!didWarnCallEdgeSuppression) {
       didWarnCallEdgeSuppression = true;
-      logWarning('[librarian] Suppressing further call-edge ambiguity warnings', { limit });
+      logWarning('[librainian] Suppressing further call-edge ambiguity warnings', { limit });
     }
     return;
   }
   callEdgeWarnings.add(key);
-  logWarning(`[librarian] ${message}`, meta);
+  logWarning(`[librainian] ${message}`, meta);
 }
 
 /**

@@ -81,13 +81,13 @@ async function main() {
     const installedPackageJson = JSON.parse(await fs.readFile(installedPackageJsonPath, 'utf8'));
     const bin = installedPackageJson?.bin;
     const binMap = typeof bin === 'string'
-      ? { librainian: bin, librarian: bin }
+      ? { librainian: bin, librainian: bin }
       : (bin ?? {});
     const librainianBin = typeof binMap.librainian === 'string' ? binMap.librainian : null;
-    const librarianBin = typeof binMap.librarian === 'string' ? binMap.librarian : null;
+    const librainianBin = typeof binMap.librainian === 'string' ? binMap.librainian : null;
 
-    if (!librainianBin || !librarianBin) {
-      throw new Error('Installed package is missing expected bin entries for librainian/librarian.');
+    if (!librainianBin || !librainianBin) {
+      throw new Error('Installed package is missing expected bin entries for librainian/librainian.');
     }
 
     run(
@@ -97,7 +97,7 @@ async function main() {
     );
     run(
       process.execPath,
-      [path.join(sandboxDir, 'node_modules', 'librainian', librarianBin), '--version'],
+      [path.join(sandboxDir, 'node_modules', 'librainian', librainianBin), '--version'],
       { cwd: sandboxDir },
     );
     run(

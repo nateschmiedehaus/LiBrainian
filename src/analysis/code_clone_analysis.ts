@@ -17,14 +17,14 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
-import type { LibrarianStorage, CloneEntry, CloneCluster, FunctionKnowledge, MultiVectorRecord } from '../storage/types.js';
+import type { LiBrainianStorage, CloneEntry, CloneCluster, FunctionKnowledge, MultiVectorRecord } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 export interface CloneAnalysisOptions {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   minSimilarity?: number;          // Minimum embedding similarity (default: 0.85)
   maxCandidates?: number;          // Max candidates per function (default: 100)
   includeSemanticClones?: boolean; // Detect Type-4 clones (default: true)
@@ -274,7 +274,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  * Find candidate clones using embedding similarity.
  */
 export async function findCloneCandidates(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   vectors: MultiVectorRecord[],
   minSimilarity: number,
   maxCandidates: number
@@ -466,7 +466,7 @@ export async function analyzeClones(options: CloneAnalysisOptions): Promise<Clon
  * Get all clones for a specific entity.
  */
 export async function getClonesForEntity(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<CloneEntry[]> {
   return storage.getClonesByEntity(entityId);
@@ -476,7 +476,7 @@ export async function getClonesForEntity(
  * Get clone clusters with analysis.
  */
 export async function getCloneClustersWithAnalysis(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<Array<CloneCluster & { entities: string[] }>> {
   const clusters = await storage.getCloneClusters();
   const entries = await storage.getCloneEntries({ limit: 10000 });
@@ -500,7 +500,7 @@ export async function getCloneClustersWithAnalysis(
  * Get refactoring opportunities sorted by potential benefit.
  */
 export async function getRefactoringOpportunities(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 20
 ): Promise<CloneEntry[]> {
   return storage.getCloneEntries({
@@ -515,7 +515,7 @@ export async function getRefactoringOpportunities(
  * Get semantic clones (Type-4).
  */
 export async function getSemanticClones(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 50
 ): Promise<CloneEntry[]> {
   return storage.getCloneEntries({
@@ -530,7 +530,7 @@ export async function getSemanticClones(
  * Calculate duplication metrics for the codebase.
  */
 export async function calculateDuplicationMetrics(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<{
   totalClones: number;
   totalDuplicatedLines: number;

@@ -3,17 +3,17 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import { queryLibrarian } from '../../api/query.js';
+import { queryLiBrainian } from '../../api/query.js';
 import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from '../../api/bootstrap.js';
-import { detectLibrarianVersion } from '../../api/versioning.js';
-import { resolveLibrarianModelConfigWithDiscovery, resolveLibrarianModelId } from '../../api/llm_env.js';
+import { detectLiBrainianVersion } from '../../api/versioning.js';
+import { resolveLiBrainianModelConfigWithDiscovery, resolveLiBrainianModelId } from '../../api/llm_env.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 import {
   computeEmbeddingCoverage,
   hasSufficientSemanticCoverage,
   SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT,
 } from '../../api/embedding_coverage.js';
-import type { LibrarianQuery, LibrarianResponse, StageReport, TokenBudget } from '../../types.js';
+import type { LiBrainianQuery, LiBrainianResponse, StageReport, TokenBudget } from '../../types.js';
 import { createError, suggestSimilarQueries } from '../errors.js';
 import { createSpinner, formatDuration, printKeyValue } from '../progress.js';
 import { safeJsonParse } from '../../utils/safe_json.js';
@@ -97,7 +97,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   const intent = positionals.join(' ').trim();
   const queryIntentRequired = !(sessionRequested && drillDownTarget);
   if (!intent && queryIntentRequired) {
-    throw createError('INVALID_ARGUMENT', 'Query intent is required. Usage: librarian query "<intent>"');
+    throw createError('INVALID_ARGUMENT', 'Query intent is required. Usage: librainian query "<intent>"');
   }
 
   const depth = validateDepth(values.depth as string);
@@ -118,7 +118,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     : undefined;
   const timeoutMs = parseInt(values.timeout as string, 10);
   if (timeoutMs > 0) {
-    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librarian queries');
+    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librainian queries');
   }
   const outputJson = values.json as boolean;
   const outputPath = typeof values.out === 'string' && values.out.trim().length > 0
@@ -197,7 +197,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   try {
     // Check if bootstrapped - detect current tier and use that as target
     // This allows operation on existing data without requiring upgrade
-    const currentVersion = await detectLibrarianVersion(storage);
+    const currentVersion = await detectLiBrainianVersion(storage);
     const effectiveTier = currentVersion?.qualityTier ?? 'full';
     const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: effectiveTier });
     if (bootstrapCheck.required) {
@@ -417,7 +417,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           `Semantic strategy requires at least ${SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT}% embedding coverage. `
           + `Current coverage is ${embeddingCoverage.coverage_pct.toFixed(1)}% `
           + `(${embeddingCoverage.embedded_functions}/${embeddingCoverage.total_functions}, `
-          + `${embeddingCoverage.needs_embedding_count} remaining). Run \`librarian embed --fix\` and retry.`
+          + `${embeddingCoverage.needs_embedding_count} remaining). Run \`librainian embed --fix\` and retry.`
         );
       }
     }
@@ -430,7 +430,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       else if (resolvedModel.startsWith('gpt-') || resolvedModel.startsWith('codex')) resolvedProvider = 'codex';
     }
     if (!resolvedProvider && !resolvedModel) {
-      const rawDefaults = await storage.getState('librarian.llm_defaults.v1');
+      const rawDefaults = await storage.getState('librainian.llm_defaults.v1');
       const parsed = rawDefaults ? safeJsonParse<Record<string, unknown>>(rawDefaults) : null;
       const provider = parsed?.ok ? parsed.value.provider : null;
       const modelId = parsed?.ok ? parsed.value.modelId : null;
@@ -441,7 +441,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     }
     if (!resolvedProvider && !resolvedModel && !noSynthesis) {
       try {
-        const discovered = await resolveLibrarianModelConfigWithDiscovery();
+        const discovered = await resolveLiBrainianModelConfigWithDiscovery();
         if (discovered.provider && discovered.modelId) {
           resolvedProvider = discovered.provider;
           resolvedModel = discovered.modelId;
@@ -452,7 +452,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     }
     if (resolvedProvider && !resolvedModel) {
       resolvedModel =
-        resolveLibrarianModelId(resolvedProvider)
+        resolveLiBrainianModelId(resolvedProvider)
         ?? (resolvedProvider === 'codex' ? 'gpt-5.1-codex-mini' : 'claude-haiku-4-5-20241022');
     }
     const hasLlmConfig = Boolean(resolvedProvider && resolvedModel);
@@ -460,8 +460,8 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       process.env.LIBRARIAN_LLM_PROVIDER = resolvedProvider;
       process.env.LIBRARIAN_LLM_MODEL = resolvedModel;
     }
-    let llmRequirement: LibrarianQuery['llmRequirement'] = noSynthesis ? 'disabled' : undefined;
-    let embeddingRequirement: LibrarianQuery['embeddingRequirement'] | undefined;
+    let llmRequirement: LiBrainianQuery['llmRequirement'] = noSynthesis ? 'disabled' : undefined;
+    let embeddingRequirement: LiBrainianQuery['embeddingRequirement'] | undefined;
     if (strategy === 'heuristic') {
       llmRequirement = 'disabled';
       embeddingRequirement = 'disabled';
@@ -477,7 +477,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         console.error(warning);
       }
     }
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent,
       depth,
       affectedFiles,
@@ -498,7 +498,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
     if (sessionRequested) {
       const sessionManager = new ContextAssemblySessionManager({
-        query: (sessionQuery) => queryLibrarian({
+        query: (sessionQuery) => queryLiBrainian({
           ...sessionQuery,
           llmRequirement: sessionQuery.llmRequirement ?? llmRequirement,
           embeddingRequirement: sessionQuery.embeddingRequirement ?? embeddingRequirement,
@@ -613,7 +613,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
     try {
       const startTime = Date.now();
-      const rawResponse = await queryLibrarian(query, storage);
+      const rawResponse = await queryLiBrainian(query, storage);
       const { response, droppedCount } = applyPackLimit(rawResponse, limit);
       const strategyInfo = inferRetrievalStrategy(response);
       const displayResponse = sanitizeQueryResponseForOutput(response);
@@ -812,7 +812,7 @@ function sanitizeMessageList(values: string[] | undefined): string[] | undefined
   return sanitized;
 }
 
-function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianResponse {
+function sanitizeQueryResponseForOutput(response: LiBrainianResponse): LiBrainianResponse {
   return {
     ...response,
     disclosures: sanitizeMessageList(response.disclosures) ?? response.disclosures,
@@ -830,9 +830,9 @@ function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianR
 }
 
 function applyPackLimit(
-  response: LibrarianResponse,
+  response: LiBrainianResponse,
   limit: number | undefined
-): { response: LibrarianResponse; droppedCount: number } {
+): { response: LiBrainianResponse; droppedCount: number } {
   if (!limit || response.packs.length <= limit) {
     return { response, droppedCount: 0 };
   }
@@ -850,7 +850,7 @@ function applyPackLimit(
   };
 }
 
-function inferRetrievalStrategy(response: LibrarianResponse): {
+function inferRetrievalStrategy(response: LiBrainianResponse): {
   strategy: RetrievalStrategy;
   reason?: string;
   warning?: string;
@@ -900,7 +900,7 @@ function findStage(stages: StageReport[] | undefined, stage: StageReport['stage'
   return stages?.find((entry) => entry.stage === stage);
 }
 
-function collectCriticalWarnings(response: LibrarianResponse): string[] {
+function collectCriticalWarnings(response: LiBrainianResponse): string[] {
   const warnings: string[] = [];
   const seen = new Set<string>();
   const add = (warning: string): void => {
@@ -926,7 +926,7 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
       || (entry.includes('storage') && entry.includes('lock') && entry.includes('degraded'))
     );
     if (storageWriteDegraded) {
-      add('Session degraded: results were returned but could not be persisted. Run `librarian doctor --heal` to recover storage locks.');
+      add('Session degraded: results were returned but could not be persisted. Run `librainian doctor --heal` to recover storage locks.');
     }
   }
 
@@ -940,7 +940,7 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
     add(`LLM synthesis error: ${response.llmError}`);
   }
   if (!response.synthesis && synthesisUnavailable) {
-    add('LLM synthesis unavailable: results are structural-only. Run `librarian check-providers` to diagnose provider/config issues.');
+    add('LLM synthesis unavailable: results are structural-only. Run `librainian check-providers` to diagnose provider/config issues.');
   }
 
   const indexIncompleteHint = combined.find((entry) =>
@@ -972,7 +972,7 @@ interface PersistedQuerySession {
 }
 
 function resolveQuerySessionsDir(workspace: string): string {
-  return path.resolve(workspace, '.librarian', 'query_sessions');
+  return path.resolve(workspace, '.librainian', 'query_sessions');
 }
 
 function resolveQuerySessionPath(workspace: string, sessionId: string): string {

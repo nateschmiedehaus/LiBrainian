@@ -1,8 +1,8 @@
 /**
  * @fileoverview Self-Bootstrap Primitive (tp_self_bootstrap)
  *
- * Bootstrap Librarian knowledge index on Librarian source code itself.
- * This primitive enables Librarian to index and understand its own codebase,
+ * Bootstrap LiBrainian knowledge index on LiBrainian source code itself.
+ * This primitive enables LiBrainian to index and understand its own codebase,
  * providing the foundation for self-analysis and self-improvement.
  *
  * Based on self-improvement-primitives.md specification.
@@ -11,8 +11,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
-import type { LibrarianStorage } from '../../storage/types.js';
-import { IndexLibrarian, type IndexLibrarianConfig } from '../index_librarian.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import { IndexLiBrainian, type IndexLiBrainianConfig } from '../index_librainian.js';
 import { isExcluded, getAllIncludePatterns, UNIVERSAL_EXCLUDES } from '../../universal_patterns.js';
 import { getErrorMessage } from '../../utils/errors.js';
 
@@ -36,7 +36,7 @@ export interface SelfBootstrapResult {
   duration: number;
   /** Any errors encountered during bootstrap */
   errors: string[];
-  /** Whether this was a self-referential bootstrap (indexing Librarian itself) */
+  /** Whether this was a self-referential bootstrap (indexing LiBrainian itself) */
   isSelfReferential: boolean;
   /** Coverage metrics */
   coverage: CoverageMetrics;
@@ -67,13 +67,13 @@ export interface SelfBootstrapOptions {
   /** Maximum number of files to index (for testing/limiting scope) */
   maxFiles?: number;
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Optional progress callback */
   onProgress?: (progress: { total: number; completed: number; currentFile?: string }) => void;
   /** Enable verbose logging */
   verbose?: boolean;
-  /** Custom index librarian config */
-  indexConfig?: Partial<IndexLibrarianConfig>;
+  /** Custom index librainian config */
+  indexConfig?: Partial<IndexLiBrainianConfig>;
 }
 
 // ============================================================================
@@ -81,12 +81,12 @@ export interface SelfBootstrapOptions {
 // ============================================================================
 
 /**
- * Detect if we are indexing the Librarian codebase itself.
+ * Detect if we are indexing the LiBrainian codebase itself.
  * This enables self-referential awareness for special handling.
  */
 async function isSelfReferentialBootstrap(rootDir: string): Promise<boolean> {
   const markers = [
-    'src/agents/index_librarian.ts',
+    'src/agents/index_librainian.ts',
     'src/storage/types.ts',
     'package.json',
   ];
@@ -100,7 +100,7 @@ async function isSelfReferentialBootstrap(rootDir: string): Promise<boolean> {
     }
   }
 
-  // Check package.json for Librarian package identity
+  // Check package.json for LiBrainian package identity
   try {
     const packagePath = path.join(rootDir, 'package.json');
     const content = await fs.readFile(packagePath, 'utf8');
@@ -108,9 +108,9 @@ async function isSelfReferentialBootstrap(rootDir: string): Promise<boolean> {
     const packageName = pkg.name ?? '';
     return (
       packageName === 'librainian' ||
-      packageName === 'librarian' ||
-      packageName === '@librarian/core' ||
-      packageName.includes('librarian')
+      packageName === 'librainian' ||
+      packageName === '@librainian/core' ||
+      packageName.includes('librainian')
     );
   } catch {
     return false;
@@ -173,7 +173,7 @@ async function discoverFiles(
 /**
  * Compute graph metrics from storage after indexing.
  */
-async function computeGraphMetrics(storage: LibrarianStorage): Promise<{
+async function computeGraphMetrics(storage: LiBrainianStorage): Promise<{
   nodes: number;
   edges: number;
 }> {
@@ -200,7 +200,7 @@ async function computeGraphMetrics(storage: LibrarianStorage): Promise<{
 // ============================================================================
 
 /**
- * Bootstrap Librarian knowledge index on a codebase.
+ * Bootstrap LiBrainian knowledge index on a codebase.
  *
  * This function indexes the specified codebase, extracting:
  * - Functions and their signatures
@@ -208,7 +208,7 @@ async function computeGraphMetrics(storage: LibrarianStorage): Promise<{
  * - Call graph relationships
  * - Context packs for retrieval
  *
- * When indexing the Librarian codebase itself, it enables
+ * When indexing the LiBrainian codebase itself, it enables
  * self-referential awareness for meta-cognitive capabilities.
  *
  * @param options - Bootstrap configuration options
@@ -217,7 +217,7 @@ async function computeGraphMetrics(storage: LibrarianStorage): Promise<{
  * @example
  * ```typescript
  * const result = await selfBootstrap({
- *   rootDir: '/path/to/librarian',
+ *   rootDir: '/path/to/librainian',
  *   storage: myStorage,
  * });
  * console.log(`Indexed ${result.indexedFiles} files with ${result.extractedSymbols} symbols`);
@@ -251,7 +251,7 @@ export async function selfBootstrap(
   const isSelfReferential = await isSelfReferentialBootstrap(rootDir);
 
   if (verbose && isSelfReferential) {
-    console.error('[selfBootstrap] Detected self-referential bootstrap - indexing Librarian itself');
+    console.error('[selfBootstrap] Detected self-referential bootstrap - indexing LiBrainian itself');
   }
 
   // Discover files to index
@@ -270,8 +270,8 @@ export async function selfBootstrap(
     };
   }
 
-  // Create and initialize index librarian
-  const indexLibrarian = new IndexLibrarian({
+  // Create and initialize index librainian
+  const indexLiBrainian = new IndexLiBrainian({
     generateEmbeddings: false, // Skip embeddings for bootstrap
     createContextPacks: true,
     computeGraphMetrics: true,
@@ -280,7 +280,7 @@ export async function selfBootstrap(
     ...indexConfig,
   });
 
-  await indexLibrarian.initialize(storage);
+  await indexLiBrainian.initialize(storage);
 
   // Process files
   let indexedFiles = 0;
@@ -288,7 +288,7 @@ export async function selfBootstrap(
 
   for (const filePath of files) {
     try {
-      const result = await indexLibrarian.indexFile(filePath);
+      const result = await indexLiBrainian.indexFile(filePath);
       indexedFiles++;
       extractedSymbols += result.functionsIndexed;
 
@@ -304,7 +304,7 @@ export async function selfBootstrap(
   const graphMetrics = await computeGraphMetrics(storage);
 
   // Get indexing stats
-  const stats = indexLibrarian.getStats();
+  const stats = indexLiBrainian.getStats();
 
   // Compute coverage metrics
   const coverage: CoverageMetrics = {
@@ -315,7 +315,7 @@ export async function selfBootstrap(
   };
 
   // Shutdown
-  await indexLibrarian.shutdown();
+  await indexLiBrainian.shutdown();
 
   return {
     indexedFiles,
@@ -335,7 +335,7 @@ export async function selfBootstrap(
  */
 export function createSelfBootstrap(
   defaultOptions: Partial<SelfBootstrapOptions>
-): (options: Partial<SelfBootstrapOptions> & { rootDir: string; storage: LibrarianStorage }) => Promise<SelfBootstrapResult> {
+): (options: Partial<SelfBootstrapOptions> & { rootDir: string; storage: LiBrainianStorage }) => Promise<SelfBootstrapResult> {
   return async (options) => {
     return selfBootstrap({
       ...defaultOptions,

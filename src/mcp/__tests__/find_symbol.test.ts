@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP find_symbol tool', () => {
   it('discovers claim IDs for verify_claim', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -41,7 +41,7 @@ describe('MCP find_symbol tool', () => {
   });
 
   it('returns function, composition, and run matches when kind is omitted', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -61,7 +61,7 @@ describe('MCP find_symbol tool', () => {
       getModules: vi.fn().mockResolvedValue([]),
     };
 
-    const mockLibrarian = {
+    const mockLiBrainian = {
       listTechniqueCompositions: vi.fn().mockResolvedValue([
         {
           id: 'tc_auth_review',
@@ -73,7 +73,7 @@ describe('MCP find_symbol tool', () => {
     };
 
     server.registerWorkspace(workspace);
-    server.updateWorkspaceState(workspace, { indexState: 'ready', librarian: mockLibrarian as any });
+    server.updateWorkspaceState(workspace, { indexState: 'ready', librainian: mockLiBrainian as any });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue(storage);
     (server as any).getBootstrapRunHistory = vi.fn().mockResolvedValue([
       {

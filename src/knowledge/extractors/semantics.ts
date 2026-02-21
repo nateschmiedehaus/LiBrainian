@@ -15,7 +15,7 @@
 
 import type { EntitySemantics } from '../universal_types.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 
 export interface SemanticsExtraction {
@@ -60,7 +60,7 @@ export async function extractSemanticsWithLLM(
   ];
 
   const modelId = config.llmModelId
-    || resolveLibrarianModelId(config.llmProvider)
+    || resolveLiBrainianModelId(config.llmProvider)
     || 'claude-haiku-4-5-20241022';
   const llmEvidence = await buildLlmEvidence({
     provider: config.llmProvider,

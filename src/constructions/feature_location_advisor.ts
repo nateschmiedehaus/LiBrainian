@@ -13,7 +13,7 @@
  * - Confidence System for uncertainty quantification
  */
 
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
 
@@ -78,10 +78,10 @@ export interface FeatureLocationReport {
 // ============================================================================
 
 export class FeatureLocationAdvisor {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -131,13 +131,13 @@ export class FeatureLocationAdvisor {
   }
 
   /**
-   * Step 1: Semantic search using librarian query.
+   * Step 1: Semantic search using librainian query.
    */
   private async semanticSearch(
     description: string,
     affectedAreas?: string[]
   ): Promise<FeatureLocation[]> {
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.librainian.queryOptional({
       intent: `Find code implementing: ${description}`,
       affectedFiles: affectedAreas,
       depth: 'L2',
@@ -164,7 +164,7 @@ export class FeatureLocationAdvisor {
     const locations: FeatureLocation[] = [];
 
     for (const keyword of keywords) {
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find code containing or related to: ${keyword}`,
         depth: 'L1',
         taskType: 'understand',
@@ -196,7 +196,7 @@ export class FeatureLocationAdvisor {
     const seenFiles = new Set(seedLocations.map(loc => loc.file));
 
     for (const seed of seedLocations.slice(0, 3)) {
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find code that calls or is called by functions in ${seed.file}`,
         affectedFiles: [seed.file],
         depth: 'L1',
@@ -350,6 +350,6 @@ export class FeatureLocationAdvisor {
 // FACTORY
 // ============================================================================
 
-export function createFeatureLocationAdvisor(librarian: Librarian): FeatureLocationAdvisor {
-  return new FeatureLocationAdvisor(librarian);
+export function createFeatureLocationAdvisor(librainian: LiBrainian): FeatureLocationAdvisor {
+  return new FeatureLocationAdvisor(librainian);
 }

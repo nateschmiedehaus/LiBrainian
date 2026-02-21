@@ -8,8 +8,8 @@ import { exportStructuralGroundTruth } from '../src/evaluation/ground_truth_expo
 const SKIP_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
-  '.librarian-eval',
+  '.librainian',
+  '.librainian-eval',
   'dist',
   'build',
   'coverage',
@@ -163,11 +163,11 @@ async function run(): Promise<void> {
         fileCount,
       },
       version,
-      verifiedBy: 'librarian:external-ground-truth',
+      verifiedBy: 'librainian:external-ground-truth',
       lastVerified: repo.verifiedAt,
     });
 
-    const evalRoot = path.join(repoRoot, '.librarian-eval');
+    const evalRoot = path.join(repoRoot, '.librainian-eval');
     await mkdir(evalRoot, { recursive: true });
     await writeFile(
       path.join(evalRoot, 'manifest.json'),

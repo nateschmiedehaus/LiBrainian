@@ -1,8 +1,8 @@
 /**
- * @fileoverview Core librarian infrastructure
+ * @fileoverview Core librainian infrastructure
  *
  * Exports Result types, errors, contracts, events, and provenance
- * for use throughout the librarian.
+ * for use throughout the librainian.
  *
  * ARCHITECTURAL ALIGNMENT:
  * - Result type: Explicit error handling (MF5 No Silent Fallbacks)
@@ -42,7 +42,7 @@ export {
 // Error types
 export {
   type ErrorJSON,
-  LibrarianError,
+  LiBrainianError,
   StorageError,
   type StorageOperation,
   ProviderError,
@@ -61,7 +61,7 @@ export {
   ExecutionError,
   type ExecutionFailureReason,
   ParseError,
-  isLibrarianError,
+  isLiBrainianError,
   isRetryableError,
   isStorageError,
   isProviderError,
@@ -113,7 +113,7 @@ export {
   type BootstrapStartedEvent,
   type BootstrapCompletedEvent,
   type KnowledgeUpdatedEvent,
-  type LibrarianEvent,
+  type LiBrainianEvent,
   type EventHandler,
   type EventSubscription,
   type EventBus,

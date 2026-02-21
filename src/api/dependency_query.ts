@@ -9,12 +9,12 @@
  *
  * Example queries this handles:
  * - "What imports utils.ts?" -> Find all files with 'imports' edges TO utils.ts
- * - "What depends on LibrarianStorage?" -> Find all entities that import/call it
+ * - "What depends on LiBrainianStorage?" -> Find all entities that import/call it
  * - "What does query.ts import?" -> Find all 'imports' edges FROM query.ts
  * - "What files call this function?" -> Find all 'calls' edges TO the function
  */
 
-import type { LibrarianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
+import type { LiBrainianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
 import type { GraphEdge, GraphEntityType, GraphEdgeType, FunctionKnowledge } from '../types.js';
 
 // ============================================================================
@@ -264,7 +264,7 @@ function cleanTargetEntity(target: string): string {
  * ```
  */
 export async function executeDependencyQuery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: StructuralQueryIntent,
   originalQuery: string
 ): Promise<DependencyQueryResult> {
@@ -365,7 +365,7 @@ export async function executeDependencyQuery(
  * Resolve a target entity name to a file path or entity ID.
  */
 async function resolveTargetEntity(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetEntity: string | null
 ): Promise<{
   resolvedPath: string | null;
@@ -499,7 +499,7 @@ function buildExplanation(
  *
  * @example
  * ```typescript
- * const intent = parseStructuralQueryIntent("What depends on SqliteLibrarianStorage?");
+ * const intent = parseStructuralQueryIntent("What depends on SqliteLiBrainianStorage?");
  * const result = await executeExhaustiveDependencyQuery(storage, intent, {
  *   includeTransitive: true,
  *   maxDepth: 5,
@@ -508,7 +508,7 @@ function buildExplanation(
  * ```
  */
 export async function executeExhaustiveDependencyQuery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: StructuralQueryIntent,
   options: {
     includeTransitive?: boolean;

@@ -1,11 +1,11 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { GraphEntityType, GraphMetricsEntry } from '../graphs/metrics.js';
 import { prioritizeExploration } from '../api/exploration_policy.js';
 
-type GraphMetricsStore = LibrarianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]> };
+type GraphMetricsStore = LiBrainianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]> };
 
 export class SwarmScheduler {
-  constructor(private readonly storage: LibrarianStorage) {}
+  constructor(private readonly storage: LiBrainianStorage) {}
   async prioritize(files: string[]): Promise<string[]> {
     const modules = await this.storage.getModules(); const moduleByPath = new Map(modules.map((mod) => [mod.path, mod]));
     const metricsStore = this.storage as GraphMetricsStore; const impactByModuleId = await loadModuleImpact(metricsStore, modules);

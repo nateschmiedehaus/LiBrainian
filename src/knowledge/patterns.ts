@@ -17,7 +17,7 @@
  * without LLM as these are objective measurements, not semantic claims.
  */
 
-import type { LibrarianStorage, FunctionKnowledge, ModuleKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge, ModuleKnowledge } from '../storage/types.js';
 import { computeGraphMetrics } from '../graphs/metrics.js';
 import { buildModuleGraphs } from './module_graph.js';
 import {
@@ -61,7 +61,7 @@ import {
   type TPatternAnalysisResult,
 } from './t_patterns.js';
 import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
-import { resolveLibrarianModelId } from '../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../api/llm_env.js';
 
 // Re-export T-pattern types and registry for external use
 export { T_PATTERN_REGISTRY, type TPatternAnalysisResult };
@@ -150,7 +150,7 @@ export interface PatternLLMConfig {
 let didWarnDeprecatedPatternQuery = false;
 
 export class PatternKnowledge {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   /**
    * LLM-backed pattern detection. Use this for production pattern analysis.
@@ -197,7 +197,7 @@ export class PatternKnowledge {
       const response = await llmService.chat({
         provider: config.provider,
         modelId: config.modelId
-          ?? resolveLibrarianModelId(config.provider)
+          ?? resolveLiBrainianModelId(config.provider)
           ?? 'claude-haiku-4-5-20241022',
         messages,
         maxTokens: 1500,

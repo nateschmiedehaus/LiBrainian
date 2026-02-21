@@ -6,7 +6,7 @@ import { checkExtractionSnapshot } from '../api/extraction_gate.js';
 import { SqliteEvidenceLedger, createSessionId } from '../epistemics/evidence_ledger.js';
 
 async function withTempWorkspace<T>(fn: (workspaceRoot: string) => Promise<T>): Promise<T> {
-  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-extraction-gate-'));
+  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-extraction-gate-'));
   try {
     return await fn(workspaceRoot);
   } finally {
@@ -15,7 +15,7 @@ async function withTempWorkspace<T>(fn: (workspaceRoot: string) => Promise<T>): 
 }
 
 async function writeGateFile(workspaceRoot: string, payload: unknown): Promise<string> {
-  const gatesPath = path.join(workspaceRoot, 'docs', 'librarian', 'GATES.json');
+  const gatesPath = path.join(workspaceRoot, 'docs', 'librainian', 'GATES.json');
   await fs.mkdir(path.dirname(gatesPath), { recursive: true });
   await fs.writeFile(gatesPath, JSON.stringify(payload, null, 2), 'utf8');
   return gatesPath;

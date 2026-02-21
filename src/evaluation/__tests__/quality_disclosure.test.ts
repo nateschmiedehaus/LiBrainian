@@ -3,7 +3,7 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Quality Disclosure system ensures Librarian's responses include honest
+ * The Quality Disclosure system ensures LiBrainian's responses include honest
  * quality disclosures. This is the user-facing component that communicates uncertainty.
  */
 
@@ -30,7 +30,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 /**
@@ -732,7 +732,7 @@ describe('QualityDisclosureGenerator - Integration', () => {
     profiler = createCodebaseProfiler();
   });
 
-  it('should work with real profile from Librarian repo', async () => {
+  it('should work with real profile from LiBrainian repo', async () => {
     const profile = await profiler.profile(LIBRARIAN_ROOT);
     const prediction = predictionModel.predict(profile);
     const disclosure = generator.generate(prediction);
@@ -747,7 +747,7 @@ describe('QualityDisclosureGenerator - Integration', () => {
     const prediction = predictionModel.predict(profile);
     const disclosure = generator.generate(prediction);
 
-    // Librarian is a high-quality TypeScript project
+    // LiBrainian is a high-quality TypeScript project
     expect(disclosure.level).toBe('high');
     expect(disclosure.recommendations.length).toBe(0);
   });

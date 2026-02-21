@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { __testing, createBootstrapConfig } from '../bootstrap.js';
 
 describe('bootstrap codebase briefing', () => {
@@ -17,7 +17,7 @@ describe('bootstrap codebase briefing', () => {
   });
 
   async function createWorkspace(): Promise<string> {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-briefing-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-briefing-'));
     tempDirs.push(workspace);
     return workspace;
   }
@@ -75,10 +75,10 @@ describe('bootstrap codebase briefing', () => {
 
     const storage = {
       setState: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
     const config = createBootstrapConfig(workspace, {
       include: ['**/*'],
-      exclude: ['**/.git/**', '**/node_modules/**', '**/.librarian/**'],
+      exclude: ['**/.git/**', '**/node_modules/**', '**/.librainian/**'],
     });
 
     const summary = await __testing.generateAndPersistCodebaseBriefing(config, storage);

@@ -16,7 +16,7 @@ type ExternalRepoSmokeModule = typeof import('../../evaluation/external_repo_smo
 async function loadExternalRepoSmokeModule(): Promise<ExternalRepoSmokeModule> {
   const externalModuleId = 'librainian-eval/external_repo_smoke.js';
   return loadEvaluationModule<ExternalRepoSmokeModule>(
-    'librarian smoke',
+    'librainian smoke',
     () => import('../../evaluation/external_repo_smoke.js'),
     () => import(externalModuleId) as Promise<ExternalRepoSmokeModule>,
   );

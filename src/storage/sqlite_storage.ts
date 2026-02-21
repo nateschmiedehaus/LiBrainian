@@ -397,14 +397,14 @@ const ALLOWED_ORDER_DIRECTIONS = new Set(['asc', 'desc', 'ASC', 'DESC']);
 
 /** Allowed table names for dynamic queries */
 const ALLOWED_TABLES = new Set([
-  'librarian_functions', 'librarian_modules', 'librarian_context_packs',
-  'librarian_graph_edges', 'librarian_embeddings', 'librarian_multi_vectors',
-  'librarian_snippets', 'librarian_ingested_items', 'librarian_query_cache',
-  'librarian_evolution_outcomes', 'librarian_quality_history', 'librarian_test_mappings',
-  'librarian_commits', 'librarian_cochange', 'librarian_ownership',
-  'librarian_confidence_events', 'librarian_universal_knowledge',
-  'librarian_files', 'librarian_directories', 'librarian_assessments',
-  'librarian_graph_metrics', 'librarian_evidence',
+  'librainian_functions', 'librainian_modules', 'librainian_context_packs',
+  'librainian_graph_edges', 'librainian_embeddings', 'librainian_multi_vectors',
+  'librainian_snippets', 'librainian_ingested_items', 'librainian_query_cache',
+  'librainian_evolution_outcomes', 'librainian_quality_history', 'librainian_test_mappings',
+  'librainian_commits', 'librainian_cochange', 'librainian_ownership',
+  'librainian_confidence_events', 'librainian_universal_knowledge',
+  'librainian_files', 'librainian_directories', 'librainian_assessments',
+  'librainian_graph_metrics', 'librainian_evidence',
 ]);
 
 /**
@@ -707,12 +707,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private rebindWorkspacePathsIfNeeded(): void {
-    if (!this.db || !this.workspaceRoot || !this.hasTable('librarian_metadata')) return;
+    if (!this.db || !this.workspaceRoot || !this.hasTable('librainian_metadata')) return;
     const db = this.db;
     const currentWorkspace = path.resolve(this.workspaceRoot);
 
     const metadataRow = db
-      .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+      .prepare('SELECT value FROM librainian_metadata WHERE key = ?')
       .get('metadata') as { value?: string } | undefined;
     if (!metadataRow?.value) return;
 
@@ -753,25 +753,25 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const transactional = db.transaction(() => {
       const pathColumns: Array<{ table: string; column: string }> = [
-        { table: 'librarian_functions', column: 'file_path' },
-        { table: 'librarian_modules', column: 'path' },
-        { table: 'librarian_files', column: 'path' },
-        { table: 'librarian_files', column: 'relative_path' },
-        { table: 'librarian_files', column: 'directory' },
-        { table: 'librarian_file_checksums', column: 'file_path' },
-        { table: 'librarian_graph_edges', column: 'source_file' },
-        { table: 'librarian_test_mapping', column: 'test_path' },
-        { table: 'librarian_test_mapping', column: 'source_path' },
-        { table: 'librarian_ownership', column: 'file_path' },
-        { table: 'librarian_assessments', column: 'entity_path' },
+        { table: 'librainian_functions', column: 'file_path' },
+        { table: 'librainian_modules', column: 'path' },
+        { table: 'librainian_files', column: 'path' },
+        { table: 'librainian_files', column: 'relative_path' },
+        { table: 'librainian_files', column: 'directory' },
+        { table: 'librainian_file_checksums', column: 'file_path' },
+        { table: 'librainian_graph_edges', column: 'source_file' },
+        { table: 'librainian_test_mapping', column: 'test_path' },
+        { table: 'librainian_test_mapping', column: 'source_path' },
+        { table: 'librainian_ownership', column: 'file_path' },
+        { table: 'librainian_assessments', column: 'entity_path' },
       ];
       for (const target of pathColumns) {
         columnUpdates += rebindPathColumn(target.table, target.column);
       }
 
-      if (this.hasTable('librarian_context_packs')) {
+      if (this.hasTable('librainian_context_packs')) {
         const rows = db
-          .prepare('SELECT rowid as rowid, related_files, code_snippets, invalidation_triggers FROM librarian_context_packs')
+          .prepare('SELECT rowid as rowid, related_files, code_snippets, invalidation_triggers FROM librainian_context_packs')
           .all() as Array<{
             rowid: number;
             related_files: string;
@@ -779,7 +779,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             invalidation_triggers: string;
           }>;
         const update = db.prepare(
-          'UPDATE librarian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ? WHERE rowid = ?'
+          'UPDATE librainian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ? WHERE rowid = ?'
         );
 
         for (const row of rows) {
@@ -843,7 +843,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       }
 
       const watchStateRow = db
-        .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+        .prepare('SELECT value FROM librainian_metadata WHERE key = ?')
         .get('watch_state') as { value?: string } | undefined;
       if (watchStateRow?.value) {
         const watchStateParsed = safeJsonParse<Record<string, unknown>>(watchStateRow.value);
@@ -852,7 +852,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             ...watchStateParsed.value,
             workspace_root: currentWorkspace,
           };
-          db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)')
+          db.prepare('INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)')
             .run('watch_state', JSON.stringify(next));
           watchStateUpdated = true;
         } else {
@@ -860,9 +860,9 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         }
       }
 
-      if (this.hasTable('librarian_bootstrap_history')) {
+      if (this.hasTable('librainian_bootstrap_history')) {
         bootstrapWorkspaceRows = db
-          .prepare('UPDATE librarian_bootstrap_history SET workspace = ? WHERE workspace = ?')
+          .prepare('UPDATE librainian_bootstrap_history SET workspace = ? WHERE workspace = ?')
           .run(currentWorkspace, previousWorkspace).changes;
       }
 
@@ -870,9 +870,9 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         ...(metadata ?? {}),
         workspace: currentWorkspace,
       };
-      db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)')
+      db.prepare('INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)')
         .run('metadata', JSON.stringify(nextMetadata));
-      db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)')
+      db.prepare('INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)')
         .run(
           'workspace_rebind',
           JSON.stringify({
@@ -890,7 +890,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     transactional();
 
-    logWarning('[librarian] Rebound workspace paths after index relocation', {
+    logWarning('[librainian] Rebound workspace paths after index relocation', {
       from: previousWorkspace,
       to: currentWorkspace,
       pathColumnUpdates: columnUpdates,
@@ -904,42 +904,42 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   private ensureEmbeddingColumns(): void {
     if (!this.db) return;
     const columns = this.db
-      .prepare('PRAGMA table_info(librarian_embeddings)')
+      .prepare('PRAGMA table_info(librainian_embeddings)')
       .all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
 
     if (!names.has('generated_at')) {
       this.db
-        .prepare('ALTER TABLE librarian_embeddings ADD COLUMN generated_at TEXT NOT NULL DEFAULT ""')
+        .prepare('ALTER TABLE librainian_embeddings ADD COLUMN generated_at TEXT NOT NULL DEFAULT ""')
         .run();
       if (names.has('created_at')) {
         this.db
-          .prepare('UPDATE librarian_embeddings SET generated_at = created_at WHERE generated_at = ""')
+          .prepare('UPDATE librainian_embeddings SET generated_at = created_at WHERE generated_at = ""')
           .run();
       } else {
         this.db
-          .prepare('UPDATE librarian_embeddings SET generated_at = ? WHERE generated_at = ""')
+          .prepare('UPDATE librainian_embeddings SET generated_at = ? WHERE generated_at = ""')
           .run(new Date().toISOString());
       }
     }
 
     if (!names.has('token_count')) {
       this.db
-        .prepare('ALTER TABLE librarian_embeddings ADD COLUMN token_count INTEGER NOT NULL DEFAULT 0')
+        .prepare('ALTER TABLE librainian_embeddings ADD COLUMN token_count INTEGER NOT NULL DEFAULT 0')
         .run();
     }
   }
 
   private ensureGraphTables(): void {
     if (!this.db) return;
-    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_graph_metrics (entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, pagerank REAL NOT NULL, betweenness REAL NOT NULL, closeness REAL NOT NULL, eigenvector REAL NOT NULL, community_id INTEGER NOT NULL, is_bridge INTEGER NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (entity_id, entity_type)); CREATE INDEX IF NOT EXISTS idx_graph_metrics_type ON librarian_graph_metrics(entity_type); CREATE INDEX IF NOT EXISTS idx_graph_metrics_community ON librarian_graph_metrics(community_id);');
-    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_graph_edges (from_id TEXT NOT NULL, from_type TEXT NOT NULL, to_id TEXT NOT NULL, to_type TEXT NOT NULL, edge_type TEXT NOT NULL, source_file TEXT NOT NULL, source_line INTEGER, confidence REAL NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (from_id, to_id, edge_type, source_file)); CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON librarian_graph_edges(from_id); CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON librarian_graph_edges(to_id); CREATE INDEX IF NOT EXISTS idx_graph_edges_file ON librarian_graph_edges(source_file); CREATE INDEX IF NOT EXISTS idx_graph_edges_type ON librarian_graph_edges(edge_type, from_type);');
+    this.db.exec('CREATE TABLE IF NOT EXISTS librainian_graph_metrics (entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, pagerank REAL NOT NULL, betweenness REAL NOT NULL, closeness REAL NOT NULL, eigenvector REAL NOT NULL, community_id INTEGER NOT NULL, is_bridge INTEGER NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (entity_id, entity_type)); CREATE INDEX IF NOT EXISTS idx_graph_metrics_type ON librainian_graph_metrics(entity_type); CREATE INDEX IF NOT EXISTS idx_graph_metrics_community ON librainian_graph_metrics(community_id);');
+    this.db.exec('CREATE TABLE IF NOT EXISTS librainian_graph_edges (from_id TEXT NOT NULL, from_type TEXT NOT NULL, to_id TEXT NOT NULL, to_type TEXT NOT NULL, edge_type TEXT NOT NULL, source_file TEXT NOT NULL, source_line INTEGER, confidence REAL NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (from_id, to_id, edge_type, source_file)); CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON librainian_graph_edges(from_id); CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON librainian_graph_edges(to_id); CREATE INDEX IF NOT EXISTS idx_graph_edges_file ON librainian_graph_edges(source_file); CREATE INDEX IF NOT EXISTS idx_graph_edges_type ON librainian_graph_edges(edge_type, from_type);');
   }
 
   private ensureTemporalTables(): void {
     if (!this.db) return;
-    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_cochange (file_a TEXT NOT NULL, file_b TEXT NOT NULL, change_count INTEGER NOT NULL, total_changes INTEGER NOT NULL, strength REAL NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (file_a, file_b)); CREATE INDEX IF NOT EXISTS idx_cochange_strength ON librarian_cochange(strength DESC); CREATE INDEX IF NOT EXISTS idx_cochange_file_a ON librarian_cochange(file_a);');
-    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_confidence_events (id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, delta REAL NOT NULL, updated_at TEXT NOT NULL, reason TEXT); CREATE INDEX IF NOT EXISTS idx_confidence_events_entity ON librarian_confidence_events(entity_id, entity_type); CREATE INDEX IF NOT EXISTS idx_confidence_events_time ON librarian_confidence_events(updated_at);');
+    this.db.exec('CREATE TABLE IF NOT EXISTS librainian_cochange (file_a TEXT NOT NULL, file_b TEXT NOT NULL, change_count INTEGER NOT NULL, total_changes INTEGER NOT NULL, strength REAL NOT NULL, computed_at TEXT NOT NULL, PRIMARY KEY (file_a, file_b)); CREATE INDEX IF NOT EXISTS idx_cochange_strength ON librainian_cochange(strength DESC); CREATE INDEX IF NOT EXISTS idx_cochange_file_a ON librainian_cochange(file_a);');
+    this.db.exec('CREATE TABLE IF NOT EXISTS librainian_confidence_events (id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, delta REAL NOT NULL, updated_at TEXT NOT NULL, reason TEXT); CREATE INDEX IF NOT EXISTS idx_confidence_events_entity ON librainian_confidence_events(entity_id, entity_type); CREATE INDEX IF NOT EXISTS idx_confidence_events_time ON librainian_confidence_events(updated_at);');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS retrieval_confidence_log (
         id TEXT PRIMARY KEY,
@@ -994,30 +994,30 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   private ensureEvidenceTables(): void {
     if (!this.db) return;
-    this.db.exec('CREATE TABLE IF NOT EXISTS librarian_evidence (claim_id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, file_path TEXT NOT NULL, line_start INTEGER NOT NULL, line_end INTEGER, snippet TEXT NOT NULL, claim TEXT NOT NULL, confidence TEXT NOT NULL, created_at TEXT NOT NULL, content_hash TEXT NOT NULL DEFAULT "", verified_at TEXT, is_stale INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS idx_evidence_entity ON librarian_evidence(entity_id, entity_type);');
+    this.db.exec('CREATE TABLE IF NOT EXISTS librainian_evidence (claim_id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, file_path TEXT NOT NULL, line_start INTEGER NOT NULL, line_end INTEGER, snippet TEXT NOT NULL, claim TEXT NOT NULL, confidence TEXT NOT NULL, created_at TEXT NOT NULL, content_hash TEXT NOT NULL DEFAULT "", verified_at TEXT, is_stale INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS idx_evidence_entity ON librainian_evidence(entity_id, entity_type);');
   }
 
   private ensureEvidenceColumns(): void {
     const db = this.db;
     if (!db) return;
-    const columns = db.prepare('PRAGMA table_info(librarian_evidence)').all() as { name: string }[];
+    const columns = db.prepare('PRAGMA table_info(librainian_evidence)').all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
     if (!names.has('content_hash')) {
-      db.prepare('ALTER TABLE librarian_evidence ADD COLUMN content_hash TEXT NOT NULL DEFAULT ""').run();
+      db.prepare('ALTER TABLE librainian_evidence ADD COLUMN content_hash TEXT NOT NULL DEFAULT ""').run();
     }
     if (!names.has('verified_at')) {
-      db.prepare('ALTER TABLE librarian_evidence ADD COLUMN verified_at TEXT').run();
+      db.prepare('ALTER TABLE librainian_evidence ADD COLUMN verified_at TEXT').run();
     }
     if (!names.has('is_stale')) {
-      db.prepare('ALTER TABLE librarian_evidence ADD COLUMN is_stale INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_evidence ADD COLUMN is_stale INTEGER NOT NULL DEFAULT 0').run();
     }
-    db.prepare('CREATE INDEX IF NOT EXISTS idx_evidence_stale ON librarian_evidence(is_stale)').run();
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_evidence_stale ON librainian_evidence(is_stale)').run();
   }
 
   private ensureEvolutionTables(): void {
     if (!this.db) return;
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_evolution_outcomes (
+      CREATE TABLE IF NOT EXISTS librainian_evolution_outcomes (
         task_id TEXT PRIMARY KEY,
         task_type TEXT NOT NULL,
         agent_id TEXT NOT NULL,
@@ -1027,24 +1027,24 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         files_changed TEXT NOT NULL,
         tests_added INTEGER NOT NULL,
         tests_pass INTEGER NOT NULL,
-        librarian_context_used INTEGER NOT NULL,
+        librainian_context_used INTEGER NOT NULL,
         context_pack_count INTEGER NOT NULL,
         decomposed INTEGER NOT NULL,
         timestamp TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_evolution_agent ON librarian_evolution_outcomes(agent_id);
-      CREATE INDEX IF NOT EXISTS idx_evolution_timestamp ON librarian_evolution_outcomes(timestamp);
-      CREATE INDEX IF NOT EXISTS idx_evolution_success ON librarian_evolution_outcomes(success);
+      CREATE INDEX IF NOT EXISTS idx_evolution_agent ON librainian_evolution_outcomes(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_evolution_timestamp ON librainian_evolution_outcomes(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_evolution_success ON librainian_evolution_outcomes(success);
 
-      CREATE TABLE IF NOT EXISTS librarian_learned_missing (
+      CREATE TABLE IF NOT EXISTS librainian_learned_missing (
         context TEXT NOT NULL,
         task_id TEXT NOT NULL,
         recorded_at TEXT NOT NULL,
         PRIMARY KEY (context, task_id)
       );
-      CREATE INDEX IF NOT EXISTS idx_learned_missing_context ON librarian_learned_missing(context);
+      CREATE INDEX IF NOT EXISTS idx_learned_missing_context ON librainian_learned_missing(context);
 
-      CREATE TABLE IF NOT EXISTS librarian_quality_history (
+      CREATE TABLE IF NOT EXISTS librainian_quality_history (
         id TEXT PRIMARY KEY,
         overall INTEGER NOT NULL,
         maintainability INTEGER NOT NULL,
@@ -1053,7 +1053,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         complexity INTEGER NOT NULL,
         recorded_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_quality_history_date ON librarian_quality_history(recorded_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_quality_history_date ON librainian_quality_history(recorded_at DESC);
     `);
   }
 
@@ -1061,23 +1061,23 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.db;
     if (!db) return;
     db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_index_coordination (
+      CREATE TABLE IF NOT EXISTS librainian_index_coordination (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         version INTEGER NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS librarian_change_log (
+      CREATE TABLE IF NOT EXISTS librainian_change_log (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
         path TEXT NOT NULL,
         version INTEGER NOT NULL,
         created_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_change_log_version ON librarian_change_log(version);
-      CREATE INDEX IF NOT EXISTS idx_change_log_path ON librarian_change_log(path);
-      CREATE INDEX IF NOT EXISTS idx_change_log_created_at ON librarian_change_log(created_at);
+      CREATE INDEX IF NOT EXISTS idx_change_log_version ON librainian_change_log(version);
+      CREATE INDEX IF NOT EXISTS idx_change_log_path ON librainian_change_log(path);
+      CREATE INDEX IF NOT EXISTS idx_change_log_created_at ON librainian_change_log(created_at);
     `);
     db.prepare(`
-      INSERT OR IGNORE INTO librarian_index_coordination (singleton, version)
+      INSERT OR IGNORE INTO librainian_index_coordination (singleton, version)
       VALUES (1, 0)
     `).run();
   }
@@ -1092,76 +1092,76 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       const names = new Set(columns.map((column) => column.name));
       if (!names.has('last_verified_at')) db.prepare(`ALTER TABLE ${validTable} ADD COLUMN last_verified_at TEXT`).run();
     };
-    addColumnIfMissing('librarian_functions');
-    addColumnIfMissing('librarian_modules');
-    addColumnIfMissing('librarian_context_packs');
+    addColumnIfMissing('librainian_functions');
+    addColumnIfMissing('librainian_modules');
+    addColumnIfMissing('librainian_context_packs');
   }
 
   private ensureFunctionBehaviorColumns(): void {
     const db = this.db;
     if (!db) return;
-    const columns = db.prepare('PRAGMA table_info(librarian_functions)').all() as { name: string }[];
+    const columns = db.prepare('PRAGMA table_info(librainian_functions)').all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
     if (!names.has('is_pure')) {
-      db.prepare('ALTER TABLE librarian_functions ADD COLUMN is_pure INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_functions ADD COLUMN is_pure INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('has_side_effects')) {
-      db.prepare('ALTER TABLE librarian_functions ADD COLUMN has_side_effects INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_functions ADD COLUMN has_side_effects INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('modifies_params')) {
-      db.prepare('ALTER TABLE librarian_functions ADD COLUMN modifies_params INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_functions ADD COLUMN modifies_params INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('throws')) {
-      db.prepare('ALTER TABLE librarian_functions ADD COLUMN throws INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_functions ADD COLUMN throws INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('return_depends_on_inputs')) {
-      db.prepare('ALTER TABLE librarian_functions ADD COLUMN return_depends_on_inputs INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_functions ADD COLUMN return_depends_on_inputs INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('effect_signature')) {
-      db.prepare('ALTER TABLE librarian_functions ADD COLUMN effect_signature TEXT NOT NULL DEFAULT \'[]\'').run();
+      db.prepare('ALTER TABLE librainian_functions ADD COLUMN effect_signature TEXT NOT NULL DEFAULT \'[]\'').run();
     }
-    db.prepare('CREATE INDEX IF NOT EXISTS idx_functions_is_pure ON librarian_functions(is_pure)').run();
-    db.prepare('CREATE INDEX IF NOT EXISTS idx_functions_side_effects ON librarian_functions(has_side_effects)').run();
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_functions_is_pure ON librainian_functions(is_pure)').run();
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_functions_side_effects ON librainian_functions(has_side_effects)').run();
   }
 
   private ensureContextPackOutcomeColumns(): void {
     const db = this.db;
     if (!db) return;
-    const columns = db.prepare('PRAGMA table_info(librarian_context_packs)').all() as { name: string }[];
+    const columns = db.prepare('PRAGMA table_info(librainian_context_packs)').all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
     if (!names.has('success_count')) {
-      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN success_count INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_context_packs ADD COLUMN success_count INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('failure_count')) {
-      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0').run();
+      db.prepare('ALTER TABLE librainian_context_packs ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0').run();
     }
   }
 
   private ensureContextPackVersioningColumns(): void {
     const db = this.db;
     if (!db) return;
-    const columns = db.prepare('PRAGMA table_info(librarian_context_packs)').all() as { name: string }[];
+    const columns = db.prepare('PRAGMA table_info(librainian_context_packs)').all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
     if (!names.has('content_hash')) {
-      db.prepare("ALTER TABLE librarian_context_packs ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''").run();
+      db.prepare("ALTER TABLE librainian_context_packs ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''").run();
       db.prepare(`
-        UPDATE librarian_context_packs
+        UPDATE librainian_context_packs
         SET content_hash = substr(pack_id || ':' || target_id || ':' || pack_type, 1, 128)
         WHERE content_hash = ''
       `).run();
     }
     if (!names.has('schema_version')) {
-      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1').run();
+      db.prepare('ALTER TABLE librainian_context_packs ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1').run();
     }
   }
 
   private ensureConfidenceEventColumns(): void {
     const db = this.db;
     if (!db) return;
-    const columns = db.prepare('PRAGMA table_info(librarian_confidence_events)').all() as { name: string }[];
+    const columns = db.prepare('PRAGMA table_info(librainian_confidence_events)').all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
     if (!names.has('reason')) {
-      db.prepare('ALTER TABLE librarian_confidence_events ADD COLUMN reason TEXT').run();
+      db.prepare('ALTER TABLE librainian_confidence_events ADD COLUMN reason TEXT').run();
     }
   }
 
@@ -1169,7 +1169,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.db;
     if (!db) return;
     db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_universal_knowledge (
+      CREATE TABLE IF NOT EXISTS librainian_universal_knowledge (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -1189,13 +1189,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         valid_until TEXT,
         hash TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_uk_file ON librarian_universal_knowledge(file);
-      CREATE INDEX IF NOT EXISTS idx_uk_kind ON librarian_universal_knowledge(kind);
-      CREATE INDEX IF NOT EXISTS idx_uk_maintainability ON librarian_universal_knowledge(maintainability_index);
-      CREATE INDEX IF NOT EXISTS idx_uk_risk ON librarian_universal_knowledge(risk_score);
-      CREATE INDEX IF NOT EXISTS idx_uk_coverage ON librarian_universal_knowledge(test_coverage);
-      CREATE INDEX IF NOT EXISTS idx_uk_confidence ON librarian_universal_knowledge(confidence);
-      CREATE INDEX IF NOT EXISTS idx_uk_hash ON librarian_universal_knowledge(hash);
+      CREATE INDEX IF NOT EXISTS idx_uk_file ON librainian_universal_knowledge(file);
+      CREATE INDEX IF NOT EXISTS idx_uk_kind ON librainian_universal_knowledge(kind);
+      CREATE INDEX IF NOT EXISTS idx_uk_maintainability ON librainian_universal_knowledge(maintainability_index);
+      CREATE INDEX IF NOT EXISTS idx_uk_risk ON librainian_universal_knowledge(risk_score);
+      CREATE INDEX IF NOT EXISTS idx_uk_coverage ON librainian_universal_knowledge(test_coverage);
+      CREATE INDEX IF NOT EXISTS idx_uk_confidence ON librainian_universal_knowledge(confidence);
+      CREATE INDEX IF NOT EXISTS idx_uk_hash ON librainian_universal_knowledge(hash);
     `);
   }
 
@@ -1203,7 +1203,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.db;
     if (!db) return;
     db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_files (
+      CREATE TABLE IF NOT EXISTS librainian_files (
         id TEXT PRIMARY KEY,
         path TEXT NOT NULL UNIQUE,
         relative_path TEXT NOT NULL,
@@ -1232,12 +1232,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         last_modified TEXT NOT NULL,
         llm_evidence TEXT DEFAULT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_files_path ON librarian_files(path);
-      CREATE INDEX IF NOT EXISTS idx_files_directory ON librarian_files(directory);
-      CREATE INDEX IF NOT EXISTS idx_files_category ON librarian_files(category);
-      CREATE INDEX IF NOT EXISTS idx_files_extension ON librarian_files(extension);
-      CREATE INDEX IF NOT EXISTS idx_files_checksum ON librarian_files(checksum);
-      CREATE INDEX IF NOT EXISTS idx_files_confidence ON librarian_files(confidence);
+      CREATE INDEX IF NOT EXISTS idx_files_path ON librainian_files(path);
+      CREATE INDEX IF NOT EXISTS idx_files_directory ON librainian_files(directory);
+      CREATE INDEX IF NOT EXISTS idx_files_category ON librainian_files(category);
+      CREATE INDEX IF NOT EXISTS idx_files_extension ON librainian_files(extension);
+      CREATE INDEX IF NOT EXISTS idx_files_checksum ON librainian_files(checksum);
+      CREATE INDEX IF NOT EXISTS idx_files_confidence ON librainian_files(confidence);
     `);
   }
 
@@ -1245,7 +1245,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.db;
     if (!db) return;
     db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_directories (
+      CREATE TABLE IF NOT EXISTS librainian_directories (
         id TEXT PRIMARY KEY,
         path TEXT NOT NULL UNIQUE,
         relative_path TEXT NOT NULL,
@@ -1274,28 +1274,28 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         last_indexed TEXT NOT NULL,
         llm_evidence TEXT DEFAULT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_dirs_path ON librarian_directories(path);
-      CREATE INDEX IF NOT EXISTS idx_dirs_parent ON librarian_directories(parent);
-      CREATE INDEX IF NOT EXISTS idx_dirs_role ON librarian_directories(role);
-      CREATE INDEX IF NOT EXISTS idx_dirs_depth ON librarian_directories(depth);
-      CREATE INDEX IF NOT EXISTS idx_dirs_confidence ON librarian_directories(confidence);
+      CREATE INDEX IF NOT EXISTS idx_dirs_path ON librainian_directories(path);
+      CREATE INDEX IF NOT EXISTS idx_dirs_parent ON librainian_directories(parent);
+      CREATE INDEX IF NOT EXISTS idx_dirs_role ON librainian_directories(role);
+      CREATE INDEX IF NOT EXISTS idx_dirs_depth ON librainian_directories(depth);
+      CREATE INDEX IF NOT EXISTS idx_dirs_confidence ON librainian_directories(confidence);
     `);
 
-    const columns = db.prepare('PRAGMA table_info(librarian_directories)').all() as { name: string }[];
+    const columns = db.prepare('PRAGMA table_info(librainian_directories)').all() as { name: string }[];
     const names = new Set(columns.map((column) => column.name));
     if (!names.has('fingerprint')) {
-      db.prepare('ALTER TABLE librarian_directories ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ""').run();
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_dirs_fingerprint ON librarian_directories(fingerprint)').run();
+      db.prepare('ALTER TABLE librainian_directories ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ""').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_dirs_fingerprint ON librainian_directories(fingerprint)').run();
     }
     if (!names.has('llm_evidence')) {
-      db.prepare('ALTER TABLE librarian_directories ADD COLUMN llm_evidence TEXT DEFAULT NULL').run();
+      db.prepare('ALTER TABLE librainian_directories ADD COLUMN llm_evidence TEXT DEFAULT NULL').run();
     }
 
-    // Also migrate librarian_files table
-    const fileColumns = db.prepare('PRAGMA table_info(librarian_files)').all() as { name: string }[];
+    // Also migrate librainian_files table
+    const fileColumns = db.prepare('PRAGMA table_info(librainian_files)').all() as { name: string }[];
     const fileNames = new Set(fileColumns.map((column) => column.name));
     if (!fileNames.has('llm_evidence')) {
-      db.prepare('ALTER TABLE librarian_files ADD COLUMN llm_evidence TEXT DEFAULT NULL').run();
+      db.prepare('ALTER TABLE librainian_files ADD COLUMN llm_evidence TEXT DEFAULT NULL').run();
     }
   }
 
@@ -1303,7 +1303,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     if (!this.db) return;
     // Flash assessments table - at-a-glance health checks for files and directories
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_assessments (
+      CREATE TABLE IF NOT EXISTS librainian_assessments (
         entity_id TEXT PRIMARY KEY,
         entity_type TEXT NOT NULL,
         entity_path TEXT NOT NULL,
@@ -1313,10 +1313,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         quick_summary TEXT NOT NULL,
         assessed_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_assess_path ON librarian_assessments(entity_path);
-      CREATE INDEX IF NOT EXISTS idx_assess_type ON librarian_assessments(entity_type);
-      CREATE INDEX IF NOT EXISTS idx_assess_health ON librarian_assessments(overall_health);
-      CREATE INDEX IF NOT EXISTS idx_assess_score ON librarian_assessments(health_score);
+      CREATE INDEX IF NOT EXISTS idx_assess_path ON librainian_assessments(entity_path);
+      CREATE INDEX IF NOT EXISTS idx_assess_type ON librainian_assessments(entity_type);
+      CREATE INDEX IF NOT EXISTS idx_assess_health ON librainian_assessments(overall_health);
+      CREATE INDEX IF NOT EXISTS idx_assess_score ON librainian_assessments(health_score);
     `);
   }
 
@@ -1325,7 +1325,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     // Tables created by migration 010, but ensure they exist for backwards compatibility
     this.db.exec(`
       -- Strongly Connected Components
-      CREATE TABLE IF NOT EXISTS librarian_scc (
+      CREATE TABLE IF NOT EXISTS librainian_scc (
         component_id INTEGER NOT NULL,
         entity_id TEXT NOT NULL,
         entity_type TEXT NOT NULL,
@@ -1334,11 +1334,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         computed_at TEXT NOT NULL,
         PRIMARY KEY (entity_id, entity_type)
       );
-      CREATE INDEX IF NOT EXISTS idx_scc_component ON librarian_scc(component_id);
-      CREATE INDEX IF NOT EXISTS idx_scc_size ON librarian_scc(component_size DESC);
+      CREATE INDEX IF NOT EXISTS idx_scc_component ON librainian_scc(component_id);
+      CREATE INDEX IF NOT EXISTS idx_scc_size ON librainian_scc(component_size DESC);
 
       -- Control Flow Graph edges
-      CREATE TABLE IF NOT EXISTS librarian_cfg_edges (
+      CREATE TABLE IF NOT EXISTS librainian_cfg_edges (
         function_id TEXT NOT NULL,
         from_block INTEGER NOT NULL,
         to_block INTEGER NOT NULL,
@@ -1348,10 +1348,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         confidence REAL NOT NULL DEFAULT 1.0,
         PRIMARY KEY (function_id, from_block, to_block, edge_type)
       );
-      CREATE INDEX IF NOT EXISTS idx_cfg_function ON librarian_cfg_edges(function_id);
+      CREATE INDEX IF NOT EXISTS idx_cfg_function ON librainian_cfg_edges(function_id);
 
       -- Bayesian confidence tracking
-      CREATE TABLE IF NOT EXISTS librarian_bayesian_confidence (
+      CREATE TABLE IF NOT EXISTS librainian_bayesian_confidence (
         entity_id TEXT NOT NULL,
         entity_type TEXT NOT NULL,
         prior_alpha REAL NOT NULL DEFAULT 1.0,
@@ -1363,10 +1363,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         computed_at TEXT NOT NULL,
         PRIMARY KEY (entity_id, entity_type)
       );
-      CREATE INDEX IF NOT EXISTS idx_bayesian_type ON librarian_bayesian_confidence(entity_type);
+      CREATE INDEX IF NOT EXISTS idx_bayesian_type ON librainian_bayesian_confidence(entity_type);
 
       -- Stability metrics
-      CREATE TABLE IF NOT EXISTS librarian_stability_metrics (
+      CREATE TABLE IF NOT EXISTS librainian_stability_metrics (
         entity_id TEXT NOT NULL,
         entity_type TEXT NOT NULL,
         volatility REAL NOT NULL,
@@ -1379,10 +1379,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         window_days INTEGER NOT NULL DEFAULT 30,
         PRIMARY KEY (entity_id, entity_type)
       );
-      CREATE INDEX IF NOT EXISTS idx_stability_volatility ON librarian_stability_metrics(volatility DESC);
+      CREATE INDEX IF NOT EXISTS idx_stability_volatility ON librainian_stability_metrics(volatility DESC);
 
       -- Feedback loops
-      CREATE TABLE IF NOT EXISTS librarian_feedback_loops (
+      CREATE TABLE IF NOT EXISTS librainian_feedback_loops (
         loop_id TEXT PRIMARY KEY,
         loop_type TEXT NOT NULL,
         entities TEXT NOT NULL,
@@ -1393,10 +1393,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         resolved_at TEXT,
         resolution_method TEXT
       );
-      CREATE INDEX IF NOT EXISTS idx_loops_severity ON librarian_feedback_loops(severity);
+      CREATE INDEX IF NOT EXISTS idx_loops_severity ON librainian_feedback_loops(severity);
 
       -- Graph analysis cache
-      CREATE TABLE IF NOT EXISTS librarian_graph_cache (
+      CREATE TABLE IF NOT EXISTS librainian_graph_cache (
         cache_key TEXT PRIMARY KEY,
         analysis_type TEXT NOT NULL,
         result TEXT NOT NULL,
@@ -1406,7 +1406,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         computed_at TEXT NOT NULL,
         expires_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_graph_cache_expires ON librarian_graph_cache(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_graph_cache_expires ON librainian_graph_cache(expires_at);
     `);
   }
 
@@ -1418,7 +1418,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     if (!this.db) return;
     this.db.exec(`
       -- Git blame entries (line-level ownership)
-      CREATE TABLE IF NOT EXISTS librarian_blame_entries (
+      CREATE TABLE IF NOT EXISTS librainian_blame_entries (
         id TEXT PRIMARY KEY,
         file_path TEXT NOT NULL,
         line_start INTEGER NOT NULL,
@@ -1430,12 +1430,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         original_line INTEGER,
         indexed_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_blame_file ON librarian_blame_entries(file_path);
-      CREATE INDEX IF NOT EXISTS idx_blame_author ON librarian_blame_entries(author);
-      CREATE INDEX IF NOT EXISTS idx_blame_commit ON librarian_blame_entries(commit_hash);
+      CREATE INDEX IF NOT EXISTS idx_blame_file ON librainian_blame_entries(file_path);
+      CREATE INDEX IF NOT EXISTS idx_blame_author ON librainian_blame_entries(author);
+      CREATE INDEX IF NOT EXISTS idx_blame_commit ON librainian_blame_entries(commit_hash);
 
       -- Git diff records (semantic change tracking)
-      CREATE TABLE IF NOT EXISTS librarian_diff_records (
+      CREATE TABLE IF NOT EXISTS librainian_diff_records (
         id TEXT PRIMARY KEY,
         commit_hash TEXT NOT NULL,
         file_path TEXT NOT NULL,
@@ -1448,12 +1448,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         impact_score REAL NOT NULL,
         indexed_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_diff_commit ON librarian_diff_records(commit_hash);
-      CREATE INDEX IF NOT EXISTS idx_diff_file ON librarian_diff_records(file_path);
-      CREATE INDEX IF NOT EXISTS idx_diff_category ON librarian_diff_records(change_category);
+      CREATE INDEX IF NOT EXISTS idx_diff_commit ON librainian_diff_records(commit_hash);
+      CREATE INDEX IF NOT EXISTS idx_diff_file ON librainian_diff_records(file_path);
+      CREATE INDEX IF NOT EXISTS idx_diff_category ON librainian_diff_records(change_category);
 
       -- Git reflog entries (branch history)
-      CREATE TABLE IF NOT EXISTS librarian_reflog_entries (
+      CREATE TABLE IF NOT EXISTS librainian_reflog_entries (
         id TEXT PRIMARY KEY,
         ref_name TEXT NOT NULL,
         commit_hash TEXT NOT NULL,
@@ -1464,12 +1464,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         author TEXT,
         indexed_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_reflog_ref ON librarian_reflog_entries(ref_name);
-      CREATE INDEX IF NOT EXISTS idx_reflog_action ON librarian_reflog_entries(action);
-      CREATE INDEX IF NOT EXISTS idx_reflog_time ON librarian_reflog_entries(timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_reflog_ref ON librainian_reflog_entries(ref_name);
+      CREATE INDEX IF NOT EXISTS idx_reflog_action ON librainian_reflog_entries(action);
+      CREATE INDEX IF NOT EXISTS idx_reflog_time ON librainian_reflog_entries(timestamp DESC);
 
       -- Code clone entries
-      CREATE TABLE IF NOT EXISTS librarian_clone_entries (
+      CREATE TABLE IF NOT EXISTS librainian_clone_entries (
         clone_group_id INTEGER NOT NULL,
         entity_id_1 TEXT NOT NULL,
         entity_id_2 TEXT NOT NULL,
@@ -1482,12 +1482,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         computed_at TEXT NOT NULL,
         PRIMARY KEY (entity_id_1, entity_id_2)
       );
-      CREATE INDEX IF NOT EXISTS idx_clone_group ON librarian_clone_entries(clone_group_id);
-      CREATE INDEX IF NOT EXISTS idx_clone_type ON librarian_clone_entries(clone_type);
-      CREATE INDEX IF NOT EXISTS idx_clone_similarity ON librarian_clone_entries(similarity DESC);
+      CREATE INDEX IF NOT EXISTS idx_clone_group ON librainian_clone_entries(clone_group_id);
+      CREATE INDEX IF NOT EXISTS idx_clone_type ON librainian_clone_entries(clone_type);
+      CREATE INDEX IF NOT EXISTS idx_clone_similarity ON librainian_clone_entries(similarity DESC);
 
       -- Technical debt metrics
-      CREATE TABLE IF NOT EXISTS librarian_debt_metrics (
+      CREATE TABLE IF NOT EXISTS librainian_debt_metrics (
         entity_id TEXT NOT NULL,
         entity_type TEXT NOT NULL,
         total_debt REAL NOT NULL,
@@ -1510,12 +1510,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         computed_at TEXT NOT NULL,
         PRIMARY KEY (entity_id, entity_type)
       );
-      CREATE INDEX IF NOT EXISTS idx_debt_total ON librarian_debt_metrics(total_debt DESC);
-      CREATE INDEX IF NOT EXISTS idx_debt_priority ON librarian_debt_metrics(priority);
-      CREATE INDEX IF NOT EXISTS idx_debt_trend ON librarian_debt_metrics(trend);
+      CREATE INDEX IF NOT EXISTS idx_debt_total ON librainian_debt_metrics(total_debt DESC);
+      CREATE INDEX IF NOT EXISTS idx_debt_priority ON librainian_debt_metrics(priority);
+      CREATE INDEX IF NOT EXISTS idx_debt_trend ON librainian_debt_metrics(trend);
 
       -- Knowledge graph edges
-      CREATE TABLE IF NOT EXISTS librarian_knowledge_edges (
+      CREATE TABLE IF NOT EXISTS librainian_knowledge_edges (
         id TEXT PRIMARY KEY,
         source_id TEXT NOT NULL,
         target_id TEXT NOT NULL,
@@ -1528,13 +1528,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         computed_at TEXT NOT NULL,
         valid_until TEXT
       );
-      CREATE INDEX IF NOT EXISTS idx_kg_source ON librarian_knowledge_edges(source_id);
-      CREATE INDEX IF NOT EXISTS idx_kg_target ON librarian_knowledge_edges(target_id);
-      CREATE INDEX IF NOT EXISTS idx_kg_edge_type ON librarian_knowledge_edges(edge_type);
-      CREATE INDEX IF NOT EXISTS idx_kg_weight ON librarian_knowledge_edges(weight DESC);
+      CREATE INDEX IF NOT EXISTS idx_kg_source ON librainian_knowledge_edges(source_id);
+      CREATE INDEX IF NOT EXISTS idx_kg_target ON librainian_knowledge_edges(target_id);
+      CREATE INDEX IF NOT EXISTS idx_kg_edge_type ON librainian_knowledge_edges(edge_type);
+      CREATE INDEX IF NOT EXISTS idx_kg_weight ON librainian_knowledge_edges(weight DESC);
 
       -- Fault localization results
-      CREATE TABLE IF NOT EXISTS librarian_fault_localizations (
+      CREATE TABLE IF NOT EXISTS librainian_fault_localizations (
         id TEXT PRIMARY KEY,
         failure_signature TEXT NOT NULL,
         suspicious_entities TEXT NOT NULL,
@@ -1542,8 +1542,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         confidence REAL NOT NULL,
         computed_at TEXT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_fault_signature ON librarian_fault_localizations(failure_signature);
-      CREATE INDEX IF NOT EXISTS idx_fault_methodology ON librarian_fault_localizations(methodology);
+      CREATE INDEX IF NOT EXISTS idx_fault_signature ON librainian_fault_localizations(failure_signature);
+      CREATE INDEX IF NOT EXISTS idx_fault_methodology ON librainian_fault_localizations(methodology);
     `);
   }
 
@@ -1750,7 +1750,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getMetadata(): Promise<LiBrainianMetadata | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+      .prepare('SELECT value FROM librainian_metadata WHERE key = ?')
       .get('metadata') as { value: string } | undefined;
 
     if (!row) return noResult();
@@ -1768,14 +1768,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async setMetadata(metadata: LiBrainianMetadata): Promise<void> {
     const db = this.ensureDb();
     db.prepare(
-      'INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)'
+      'INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)'
     ).run('metadata', JSON.stringify(metadata));
   }
 
   async getState(key: string): Promise<string | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+      .prepare('SELECT value FROM librainian_metadata WHERE key = ?')
       .get(key) as { value?: string } | undefined;
     if (!row?.value) return noResult();
     return row.value;
@@ -1784,7 +1784,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async setState(key: string, value: string): Promise<void> {
     const db = this.ensureDb();
     db.prepare(
-      'INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)'
+      'INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)'
     ).run(key, value);
   }
 
@@ -1795,7 +1795,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getVersion(): Promise<LiBrainianVersion | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+      .prepare('SELECT value FROM librainian_metadata WHERE key = ?')
       .get('version') as { value: string } | undefined;
 
     if (!row) return noResult();
@@ -1805,7 +1805,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async setVersion(version: LiBrainianVersion): Promise<void> {
     const db = this.ensureDb();
     db.prepare(
-      'INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)'
+      'INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)'
     ).run('version', JSON.stringify(version));
   }
 
@@ -1815,7 +1815,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getFunctions(options: QueryOptions = {}): Promise<FunctionKnowledge[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_functions WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_functions WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.minConfidence !== undefined) {
@@ -1848,7 +1848,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFunction(id: string): Promise<FunctionKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_functions WHERE id = ?')
+      .prepare('SELECT * FROM librainian_functions WHERE id = ?')
       .get(id) as FunctionRow | undefined;
     return row ? rowToFunction(row) : null;
   }
@@ -1859,7 +1859,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   ): Promise<FunctionKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_functions WHERE file_path = ? AND name = ?')
+      .prepare('SELECT * FROM librainian_functions WHERE file_path = ? AND name = ?')
       .get(filePath, name) as FunctionRow | undefined;
     return row ? rowToFunction(row) : null;
   }
@@ -1867,7 +1867,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFunctionsByPath(filePath: string): Promise<FunctionKnowledge[]> {
     const db = this.ensureDb();
     const rows = db
-      .prepare('SELECT * FROM librarian_functions WHERE file_path = ?')
+      .prepare('SELECT * FROM librainian_functions WHERE file_path = ?')
       .all(filePath) as FunctionRow[];
     return rows.map(rowToFunction);
   }
@@ -1875,7 +1875,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFunctionsByName(name: string): Promise<FunctionKnowledge[]> {
     const db = this.ensureDb();
     const rows = db
-      .prepare('SELECT * FROM librarian_functions WHERE name = ?')
+      .prepare('SELECT * FROM librainian_functions WHERE name = ?')
       .all(name) as FunctionRow[];
     return rows.map(rowToFunction);
   }
@@ -1886,7 +1886,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const { fn: sanitized, counts } = this.sanitizeFunction(fn);
 
     db.prepare(`
-      INSERT INTO librarian_functions (
+      INSERT INTO librainian_functions (
         id, file_path, name, signature, purpose, start_line, end_line,
         is_pure, has_side_effects, modifies_params, throws, return_depends_on_inputs, effect_signature,
         confidence, access_count, last_accessed, validation_count,
@@ -1941,7 +1941,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertFunctions(fns: FunctionKnowledge[]): Promise<void> {
     const db = this.ensureDb();
     const insert = db.prepare(`
-      INSERT INTO librarian_functions (
+      INSERT INTO librainian_functions (
         id, file_path, name, signature, purpose, start_line, end_line,
         is_pure, has_side_effects, modifies_params, throws, return_depends_on_inputs, effect_signature,
         confidence, access_count, last_accessed, validation_count,
@@ -2005,18 +2005,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFunction(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_functions WHERE id = ?').run(id);
-    db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?').run(id);
+    db.prepare('DELETE FROM librainian_functions WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_embeddings WHERE entity_id = ?').run(id);
   }
 
   async deleteFunctionsByPath(filePath: string): Promise<void> {
     const db = this.ensureDb();
     const ids = db
-      .prepare('SELECT id FROM librarian_functions WHERE file_path = ?')
+      .prepare('SELECT id FROM librainian_functions WHERE file_path = ?')
       .all(filePath) as { id: string }[];
 
-    const deleteFn = db.prepare('DELETE FROM librarian_functions WHERE file_path = ?');
-    const deleteEmbed = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
+    const deleteFn = db.prepare('DELETE FROM librainian_functions WHERE file_path = ?');
+    const deleteEmbed = db.prepare('DELETE FROM librainian_embeddings WHERE entity_id = ?');
 
     db.transaction(() => {
       deleteFn.run(filePath);
@@ -2032,7 +2032,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getModules(options: QueryOptions = {}): Promise<ModuleKnowledge[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_modules WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_modules WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.minConfidence !== undefined) {
@@ -2052,7 +2052,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getModule(id: string): Promise<ModuleKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_modules WHERE id = ?')
+      .prepare('SELECT * FROM librainian_modules WHERE id = ?')
       .get(id) as ModuleRow | undefined;
     return row ? rowToModule(row) : null;
   }
@@ -2060,7 +2060,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getModuleByPath(modulePath: string): Promise<ModuleKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_modules WHERE path = ?')
+      .prepare('SELECT * FROM librainian_modules WHERE path = ?')
       .get(modulePath) as ModuleRow | undefined;
     return row ? rowToModule(row) : null;
   }
@@ -2071,7 +2071,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const { mod: sanitized, counts } = this.sanitizeModule(mod);
 
     db.prepare(`
-      INSERT INTO librarian_modules (id, path, purpose, exports, dependencies, confidence, created_at, updated_at, last_verified_at)
+      INSERT INTO librainian_modules (id, path, purpose, exports, dependencies, confidence, created_at, updated_at, last_verified_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(path) DO UPDATE SET
         purpose = excluded.purpose,
@@ -2096,8 +2096,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteModule(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_modules WHERE id = ?').run(id);
-    db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?').run(id);
+    db.prepare('DELETE FROM librainian_modules WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_embeddings WHERE entity_id = ?').run(id);
   }
 
   // --------------------------------------------------------------------------
@@ -2106,7 +2106,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getFiles(options: FileQueryOptions = {}): Promise<FileKnowledge[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_files WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_files WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.category) {
@@ -2162,7 +2162,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFile(id: string): Promise<FileKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_files WHERE id = ?')
+      .prepare('SELECT * FROM librainian_files WHERE id = ?')
       .get(id) as FileKnowledgeRow | undefined;
     return row ? this.rowToFileKnowledge(row) : null;
   }
@@ -2170,7 +2170,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFileByPath(path: string): Promise<FileKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_files WHERE path = ?')
+      .prepare('SELECT * FROM librainian_files WHERE path = ?')
       .get(path) as FileKnowledgeRow | undefined;
     return row ? this.rowToFileKnowledge(row) : null;
   }
@@ -2178,7 +2178,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFilesByDirectory(directoryPath: string): Promise<FileKnowledge[]> {
     const db = this.ensureDb();
     const rows = db
-      .prepare('SELECT * FROM librarian_files WHERE directory = ?')
+      .prepare('SELECT * FROM librainian_files WHERE directory = ?')
       .all(directoryPath) as FileKnowledgeRow[];
     return rows.map(this.rowToFileKnowledge.bind(this));
   }
@@ -2186,7 +2186,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertFile(file: FileKnowledge): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_files (
+      INSERT INTO librainian_files (
         id, path, relative_path, name, extension, category, purpose, role,
         summary, key_exports, main_concepts, line_count, function_count,
         class_count, import_count, export_count, imports, imported_by,
@@ -2254,7 +2254,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertFiles(files: FileKnowledge[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT INTO librarian_files (
+      INSERT INTO librainian_files (
         id, path, relative_path, name, extension, category, purpose, role,
         summary, key_exports, main_concepts, line_count, function_count,
         class_count, import_count, export_count, imports, imported_by,
@@ -2328,12 +2328,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFile(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_files WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_files WHERE id = ?').run(id);
   }
 
   async deleteFileByPath(path: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_files WHERE path = ?').run(path);
+    db.prepare('DELETE FROM librainian_files WHERE path = ?').run(path);
   }
 
   private rowToFileKnowledge(row: FileKnowledgeRow): FileKnowledge {
@@ -2385,7 +2385,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getDirectories(options: DirectoryQueryOptions = {}): Promise<DirectoryKnowledge[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_directories WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_directories WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.role) {
@@ -2449,7 +2449,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getDirectory(id: string): Promise<DirectoryKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_directories WHERE id = ?')
+      .prepare('SELECT * FROM librainian_directories WHERE id = ?')
       .get(id) as DirectoryKnowledgeRow | undefined;
     return row ? this.rowToDirectoryKnowledge(row) : null;
   }
@@ -2457,7 +2457,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getDirectoryByPath(path: string): Promise<DirectoryKnowledge | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_directories WHERE path = ?')
+      .prepare('SELECT * FROM librainian_directories WHERE path = ?')
       .get(path) as DirectoryKnowledgeRow | undefined;
     return row ? this.rowToDirectoryKnowledge(row) : null;
   }
@@ -2465,7 +2465,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getSubdirectories(parentPath: string): Promise<DirectoryKnowledge[]> {
     const db = this.ensureDb();
     const rows = db
-      .prepare('SELECT * FROM librarian_directories WHERE parent = ?')
+      .prepare('SELECT * FROM librainian_directories WHERE parent = ?')
       .all(parentPath) as DirectoryKnowledgeRow[];
     return rows.map(this.rowToDirectoryKnowledge.bind(this));
   }
@@ -2473,7 +2473,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertDirectory(dir: DirectoryKnowledge): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_directories (
+      INSERT INTO librainian_directories (
         id, path, relative_path, name, fingerprint, purpose, role, description,
         bounded_context, pattern, depth, file_count, subdirectory_count,
         total_files, main_files, subdirectories, file_types, parent,
@@ -2541,7 +2541,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertDirectories(dirs: DirectoryKnowledge[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT INTO librarian_directories (
+      INSERT INTO librainian_directories (
         id, path, relative_path, name, fingerprint, purpose, role, description,
         bounded_context, pattern, depth, file_count, subdirectory_count,
         total_files, main_files, subdirectories, file_types, parent,
@@ -2615,12 +2615,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteDirectory(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_directories WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_directories WHERE id = ?').run(id);
   }
 
   async deleteDirectoryByPath(path: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_directories WHERE path = ?').run(path);
+    db.prepare('DELETE FROM librainian_directories WHERE path = ?').run(path);
   }
 
   private rowToDirectoryKnowledge(row: DirectoryKnowledgeRow): DirectoryKnowledge {
@@ -2639,7 +2639,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         }
       } catch {
         // Log warning for debugging but don't crash
-        console.warn(`[librarian] Invalid file_types JSON for directory ${row.path}`);
+        console.warn(`[librainian] Invalid file_types JSON for directory ${row.path}`);
       }
     }
 
@@ -2692,7 +2692,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getAssessment(entityId: string): Promise<FlashAssessment | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_assessments WHERE entity_id = ?')
+      .prepare('SELECT * FROM librainian_assessments WHERE entity_id = ?')
       .get(entityId) as AssessmentRow | undefined;
     return row ? this.rowToAssessment(row) : null;
   }
@@ -2700,14 +2700,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getAssessmentByPath(entityPath: string): Promise<FlashAssessment | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_assessments WHERE entity_path = ?')
+      .prepare('SELECT * FROM librainian_assessments WHERE entity_path = ?')
       .get(entityPath) as AssessmentRow | undefined;
     return row ? this.rowToAssessment(row) : null;
   }
 
   async getAssessments(options: AssessmentQueryOptions = {}): Promise<FlashAssessment[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_assessments WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_assessments WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.entityType) {
@@ -2752,7 +2752,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertAssessment(assessment: FlashAssessment): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_assessments (
+      INSERT INTO librainian_assessments (
         entity_id, entity_type, entity_path, findings, overall_health,
         health_score, quick_summary, assessed_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -2779,7 +2779,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertAssessments(assessments: FlashAssessment[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT INTO librarian_assessments (
+      INSERT INTO librainian_assessments (
         entity_id, entity_type, entity_path, findings, overall_health,
         health_score, quick_summary, assessed_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -2812,12 +2812,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteAssessment(entityId: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_assessments WHERE entity_id = ?').run(entityId);
+    db.prepare('DELETE FROM librainian_assessments WHERE entity_id = ?').run(entityId);
   }
 
   async deleteAssessmentByPath(entityPath: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_assessments WHERE entity_path = ?').run(entityPath);
+    db.prepare('DELETE FROM librainian_assessments WHERE entity_path = ?').run(entityPath);
   }
 
   private rowToAssessment(row: AssessmentRow): FlashAssessment {
@@ -2849,7 +2849,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getContextPacks(options: ContextPackQueryOptions = {}): Promise<ContextPack[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_context_packs WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_context_packs WHERE 1=1';
     const params: unknown[] = [];
     const relatedPathExpr = "lower(replace(rf.value, '\\\\', '/'))";
 
@@ -2889,28 +2889,28 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
     if (relatedFileCandidates.size > 0) {
       const placeholders = Array.from(relatedFileCandidates).map(() => '?').join(', ');
-      sql += ` AND EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE ${relatedPathExpr} IN (${placeholders}))`;
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(librainian_context_packs.related_files) rf WHERE ${relatedPathExpr} IN (${placeholders}))`;
       params.push(...Array.from(relatedFileCandidates));
     }
 
     const prefixCandidates = normalizeFilterPathPrefix(options.relatedFilePrefix, this.workspaceRoot);
     if (prefixCandidates.length > 0) {
       const clauses = prefixCandidates.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
-      sql += ` AND EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(librainian_context_packs.related_files) rf WHERE (${clauses}))`;
       params.push(...prefixCandidates.map((prefix) => `${prefix}%`));
     }
 
     const languageExtensions = normalizeLanguageExtensions(options.language);
     if (languageExtensions.length > 0) {
       const clauses = languageExtensions.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
-      sql += ` AND EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(librainian_context_packs.related_files) rf WHERE (${clauses}))`;
       params.push(...languageExtensions.map((ext) => `%${ext}`));
     }
 
     if (options.excludeTests) {
       const testPatterns = ['%/__tests__/%', '%.test.%', '%.spec.%', '%/test/%', '%/tests/%'];
       const clauses = testPatterns.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
-      sql += ` AND NOT EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
+      sql += ` AND NOT EXISTS (SELECT 1 FROM json_each(librainian_context_packs.related_files) rf WHERE (${clauses}))`;
       params.push(...testPatterns);
     }
     if (options.minConfidence !== undefined) {
@@ -2929,7 +2929,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getContextPack(packId: string): Promise<ContextPack | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_context_packs WHERE pack_id = ?')
+      .prepare('SELECT * FROM librainian_context_packs WHERE pack_id = ?')
       .get(packId) as ContextPackRow | undefined;
     return row ? rowToContextPack(row) : null;
   }
@@ -2941,7 +2941,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const row = db
       .prepare(
-        'SELECT * FROM librarian_context_packs WHERE target_id = ? AND pack_type = ? AND invalidated = 0'
+        'SELECT * FROM librainian_context_packs WHERE target_id = ? AND pack_type = ? AND invalidated = 0'
       )
       .get(targetId, packType) as ContextPackRow | undefined;
     return row ? rowToContextPack(row) : null;
@@ -2954,7 +2954,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const contentHash = computeContextPackContentHash(sanitized);
 
     db.prepare(`
-      INSERT INTO librarian_context_packs (
+      INSERT INTO librainian_context_packs (
         pack_id, pack_type, target_id, summary, key_facts, code_snippets,
         related_files, confidence, created_at, access_count, last_outcome,
         success_count, failure_count, version_string, content_hash, schema_version, invalidation_triggers,
@@ -2966,8 +2966,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         code_snippets = excluded.code_snippets,
         related_files = excluded.related_files,
         confidence = excluded.confidence,
-        success_count = librarian_context_packs.success_count,
-        failure_count = librarian_context_packs.failure_count,
+        success_count = librainian_context_packs.success_count,
+        failure_count = librainian_context_packs.failure_count,
         version_string = excluded.version_string,
         content_hash = excluded.content_hash,
         schema_version = excluded.schema_version,
@@ -3005,12 +3005,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     // Using JSON search (SQLite JSON1 extension)
     const result = db
       .prepare(`
-        UPDATE librarian_context_packs
+        UPDATE librainian_context_packs
         SET invalidated = 1
         WHERE invalidation_triggers IS NOT NULL
           AND EXISTS (
             SELECT 1
-            FROM json_each(librarian_context_packs.invalidation_triggers)
+            FROM json_each(librainian_context_packs.invalidation_triggers)
             WHERE value = ?
           )
       `)
@@ -3021,7 +3021,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteContextPack(packId: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_context_packs WHERE pack_id = ?').run(packId);
+    db.prepare('DELETE FROM librainian_context_packs WHERE pack_id = ?').run(packId);
   }
 
   async recordContextPackAccess(
@@ -3029,7 +3029,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     outcome?: 'success' | 'failure'
   ): Promise<void> {
     const db = this.ensureDb();
-    let sql = 'UPDATE librarian_context_packs SET access_count = access_count + 1';
+    let sql = 'UPDATE librainian_context_packs SET access_count = access_count + 1';
     const params: unknown[] = [];
 
     if (outcome) {
@@ -3055,7 +3055,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getIngestionItem(id: string): Promise<IngestionItem | null> {
     const db = this.ensureDb();
     const row = db.prepare(
-      'SELECT id, source_type, source_version, ingested_at, payload, metadata FROM librarian_ingested_items WHERE id = ?'
+      'SELECT id, source_type, source_version, ingested_at, payload, metadata FROM librainian_ingested_items WHERE id = ?'
     ).get(id) as {
       id?: string;
       source_type?: string;
@@ -3086,7 +3086,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
     const rows = db.prepare(
-      `SELECT id, source_type, source_version, ingested_at, payload, metadata FROM librarian_ingested_items ${where} ORDER BY ${orderBy} ${orderDirection} LIMIT ?`
+      `SELECT id, source_type, source_version, ingested_at, payload, metadata FROM librainian_ingested_items ${where} ORDER BY ${orderBy} ${orderDirection} LIMIT ?`
     ).all(...params, limit) as Array<{
       id?: string;
       source_type?: string;
@@ -3104,7 +3104,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertIngestionItem(item: IngestionItem): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_ingested_items (id, source_type, source_version, ingested_at, payload, metadata)
+      INSERT INTO librainian_ingested_items (id, source_type, source_version, ingested_at, payload, metadata)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         source_type = excluded.source_type,
@@ -3124,7 +3124,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteIngestionItem(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_ingested_items WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_ingested_items WHERE id = ?').run(id);
   }
 
   // --------------------------------------------------------------------------
@@ -3134,7 +3134,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFileChecksum(filePath: string): Promise<string | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT checksum FROM librarian_file_checksums WHERE file_path = ?')
+      .prepare('SELECT checksum FROM librainian_file_checksums WHERE file_path = ?')
       .get(filePath) as { checksum?: string } | undefined;
     if (!row?.checksum) return noResult();
     return row.checksum;
@@ -3146,17 +3146,17 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     if (!fileResult.value) return false;
 
     const functionRow = db
-      .prepare('SELECT 1 FROM librarian_functions WHERE file_path = ? LIMIT 1')
+      .prepare('SELECT 1 FROM librainian_functions WHERE file_path = ? LIMIT 1')
       .get(fileResult.value) as { 1?: number } | undefined;
     if (functionRow) return true;
 
     const moduleRow = db
-      .prepare('SELECT 1 FROM librarian_modules WHERE path = ? LIMIT 1')
+      .prepare('SELECT 1 FROM librainian_modules WHERE path = ? LIMIT 1')
       .get(fileResult.value) as { 1?: number } | undefined;
     if (moduleRow) return true;
 
     const packRow = db
-      .prepare('SELECT 1 FROM librarian_context_packs WHERE related_files LIKE ? LIMIT 1')
+      .prepare('SELECT 1 FROM librainian_context_packs WHERE related_files LIKE ? LIMIT 1')
       .get(`%\"${fileResult.value}\"%`) as { 1?: number } | undefined;
     return Boolean(packRow);
   }
@@ -3168,19 +3168,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       return { functions: 0, modules: 0, embeddings: 0, moduleEmbeddings: 0, contextPacks: 0 };
     }
     const functionRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_functions WHERE file_path = ?')
+      .prepare('SELECT COUNT(*) as count FROM librainian_functions WHERE file_path = ?')
       .get(fileResult.value) as { count?: number } | undefined;
     const moduleRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_modules WHERE path = ?')
+      .prepare('SELECT COUNT(*) as count FROM librainian_modules WHERE path = ?')
       .get(fileResult.value) as { count?: number } | undefined;
     const embeddingRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_embeddings WHERE entity_id IN (SELECT id FROM librarian_functions WHERE file_path = ?)')
+      .prepare('SELECT COUNT(*) as count FROM librainian_embeddings WHERE entity_id IN (SELECT id FROM librainian_functions WHERE file_path = ?)')
       .get(fileResult.value) as { count?: number } | undefined;
     const moduleEmbeddingRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_embeddings WHERE entity_id IN (SELECT id FROM librarian_modules WHERE path = ?)')
+      .prepare('SELECT COUNT(*) as count FROM librainian_embeddings WHERE entity_id IN (SELECT id FROM librainian_modules WHERE path = ?)')
       .get(fileResult.value) as { count?: number } | undefined;
     const packRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_context_packs WHERE related_files LIKE ?')
+      .prepare('SELECT COUNT(*) as count FROM librainian_context_packs WHERE related_files LIKE ?')
       .get(`%\"${fileResult.value}\"%`) as { count?: number } | undefined;
     return {
       functions: functionRow?.count ?? 0,
@@ -3197,13 +3197,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const timeResult = this.sanitizeString(accessedAt);
     if (!fileResult.value) return;
     const functionUpdate = db
-      .prepare('UPDATE librarian_functions SET last_accessed = ?, access_count = access_count + 1 WHERE file_path = ?')
+      .prepare('UPDATE librainian_functions SET last_accessed = ?, access_count = access_count + 1 WHERE file_path = ?')
       .run(timeResult.value, fileResult.value);
     const moduleUpdate = db
-      .prepare('UPDATE librarian_modules SET updated_at = ? WHERE path = ?')
+      .prepare('UPDATE librainian_modules SET updated_at = ? WHERE path = ?')
       .run(timeResult.value, fileResult.value);
     if (functionUpdate.changes + moduleUpdate.changes === 0) {
-      logWarning('librarian.touchFileAccess: no rows updated', { filePath: fileResult.value });
+      logWarning('librainian.touchFileAccess: no rows updated', { filePath: fileResult.value });
     }
     await this.recordRedactions(mergeRedactionCounts(fileResult.counts, timeResult.counts));
   }
@@ -3220,7 +3220,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     let counts = mergeRedactionCounts(fileResult.counts, checksumResult.counts);
     counts = mergeRedactionCounts(counts, updatedResult.counts);
     db.prepare(`
-      INSERT INTO librarian_file_checksums (file_path, checksum, updated_at)
+      INSERT INTO librainian_file_checksums (file_path, checksum, updated_at)
       VALUES (?, ?, ?)
       ON CONFLICT(file_path) DO UPDATE SET
         checksum = excluded.checksum,
@@ -3231,7 +3231,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFileChecksum(filePath: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_file_checksums WHERE file_path = ?').run(filePath);
+    db.prepare('DELETE FROM librainian_file_checksums WHERE file_path = ?').run(filePath);
   }
 
   // --------------------------------------------------------------------------
@@ -3242,7 +3242,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     if (!edges.length) return;
     const db = this.ensureDb();
     const insert = db.prepare(
-      `INSERT INTO librarian_graph_edges
+      `INSERT INTO librainian_graph_edges
         (from_id, from_type, to_id, to_type, edge_type, source_file, source_line, confidence, computed_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(from_id, to_id, edge_type, source_file) DO UPDATE SET
@@ -3291,7 +3291,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async deleteGraphEdgesForSource(sourceFile: string): Promise<void> {
     const db = this.ensureDb();
     const fileResult = this.sanitizeString(sourceFile);
-    db.prepare('DELETE FROM librarian_graph_edges WHERE source_file = ?').run(fileResult.value);
+    db.prepare('DELETE FROM librainian_graph_edges WHERE source_file = ?').run(fileResult.value);
     await this.recordRedactions(fileResult.counts);
   }
 
@@ -3337,7 +3337,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const where = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
-    const rows = db.prepare(`SELECT * FROM librarian_graph_edges${where}${limit}`).all(...params) as {
+    const rows = db.prepare(`SELECT * FROM librainian_graph_edges${where}${limit}`).all(...params) as {
       from_id: string;
       from_type: string;
       to_id: string;
@@ -3380,13 +3380,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     // Invalidate query cache entries that contain this file path in their params
     // Query params are stored as JSON, so we search for the file path within
     const result = db.prepare(`
-      DELETE FROM librarian_query_cache
+      DELETE FROM librainian_query_cache
       WHERE query_params LIKE ?
     `).run(`%${fileResult.value}%`);
 
     // Also invalidate context packs that have this file in their related files
     const packResult = db.prepare(`
-      UPDATE librarian_context_packs
+      UPDATE librainian_context_packs
       SET invalidated = 1
       WHERE related_files LIKE ?
     `).run(`%${fileResult.value}%`);
@@ -3408,18 +3408,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     // Get function IDs for this file
     const functionIds = db.prepare(`
-      SELECT id FROM librarian_functions WHERE file_path = ?
+      SELECT id FROM librainian_functions WHERE file_path = ?
     `).all(fileResult.value) as { id: string }[];
 
     // Get module ID for this file (module path == file path)
     const moduleIds = db.prepare(`
-      SELECT id FROM librarian_modules WHERE path = ?
+      SELECT id FROM librainian_modules WHERE path = ?
     `).all(fileResult.value) as { id: string }[];
 
     // Delete embeddings for these entities
     let deletedCount = 0;
-    const deleteEmbed = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
-    const deleteMultiVector = db.prepare('DELETE FROM librarian_multi_vectors WHERE entity_id = ?');
+    const deleteEmbed = db.prepare('DELETE FROM librainian_embeddings WHERE entity_id = ?');
+    const deleteMultiVector = db.prepare('DELETE FROM librainian_multi_vectors WHERE entity_id = ?');
 
     db.transaction(() => {
       for (const { id } of functionIds) {
@@ -3452,7 +3452,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     // Find all files that have an "imports" edge pointing to this file
     const rows = db.prepare(`
       SELECT DISTINCT source_file
-      FROM librarian_graph_edges
+      FROM librainian_graph_edges
       WHERE edge_type = 'imports' AND to_id = ?
     `).all(fileResult.value) as { source_file: string }[];
 
@@ -3467,7 +3467,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getEmbedding(entityId: string): Promise<Float32Array | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT embedding FROM librarian_embeddings WHERE entity_id = ?')
+      .prepare('SELECT embedding FROM librainian_embeddings WHERE entity_id = ?')
       .get(entityId) as { embedding: Buffer } | undefined;
 
     if (!row) return noResult();
@@ -3507,7 +3507,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const tokenCount = metadata.tokenCount ?? 0;
 
     db.prepare(`
-      INSERT INTO librarian_embeddings (entity_id, entity_type, embedding, model_id, generated_at, token_count)
+      INSERT INTO librainian_embeddings (entity_id, entity_type, embedding, model_id, generated_at, token_count)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(entity_id) DO UPDATE SET
         embedding = excluded.embedding,
@@ -3515,8 +3515,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         model_id = excluded.model_id,
         generated_at = excluded.generated_at,
         token_count = excluded.token_count
-      WHERE librarian_embeddings.generated_at IS NULL
-        OR librarian_embeddings.generated_at < excluded.generated_at
+      WHERE librainian_embeddings.generated_at IS NULL
+        OR librainian_embeddings.generated_at < excluded.generated_at
     `).run(
       entityId,
       entityTypeResult.value as EmbeddingMetadata['entityType'],
@@ -3542,18 +3542,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     // Delete embeddings where byte length doesn't match expected dimension
     const result = db.prepare(`
-      DELETE FROM librarian_embeddings WHERE length(embedding) != ?
+      DELETE FROM librainian_embeddings WHERE length(embedding) != ?
     `).run(expectedBytes);
 
     // Also clear multi-vectors with mismatched dimensions
     // Multi-vectors store dimension in the payload, so we need to check each one
     const multiVectorRows = db.prepare(`
-      SELECT entity_id, entity_type, payload FROM librarian_multi_vectors
+      SELECT entity_id, entity_type, payload FROM librainian_multi_vectors
     `).all() as Array<{ entity_id: string; entity_type: string; payload: string }>;
 
     let multiVectorDeleted = 0;
     const deleteMultiVector = db.prepare(
-      'DELETE FROM librarian_multi_vectors WHERE entity_id = ? AND entity_type = ?'
+      'DELETE FROM librainian_multi_vectors WHERE entity_id = ? AND entity_type = ?'
     );
 
     db.transaction(() => {
@@ -3575,7 +3575,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     if (totalDeleted > 0) {
       this.markVectorIndexDirty();
-      logWarning('[librarian] Cleared mismatched embeddings for auto-recovery', {
+      logWarning('[librainian] Cleared mismatched embeddings for auto-recovery', {
         expectedDimension,
         embeddingsDeleted: result.changes,
         multiVectorsDeleted: multiVectorDeleted,
@@ -3594,7 +3594,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const rows = db.prepare(`
       SELECT length(embedding) / 4 as dimension, COUNT(*) as count
-      FROM librarian_embeddings
+      FROM librainian_embeddings
       GROUP BY length(embedding)
       ORDER BY count DESC
     `).all() as Array<{ dimension: number; count: number }>;
@@ -3610,7 +3610,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const tolerance = options.normTolerance ?? EMBEDDING_INVALID_NORM_TOLERANCE;
     const sampleLimit = Math.max(1, options.sampleLimit ?? 20);
-    const rows = db.prepare('SELECT entity_id, embedding FROM librarian_embeddings').all() as Array<{
+    const rows = db.prepare('SELECT entity_id, embedding FROM librainian_embeddings').all() as Array<{
       entity_id: string;
       embedding: Buffer;
     }>;
@@ -3646,7 +3646,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const tolerance = options.normTolerance ?? EMBEDDING_INVALID_NORM_TOLERANCE;
     const sampleLimit = Math.max(1, options.sampleLimit ?? 20);
-    const rows = db.prepare('SELECT entity_id, embedding FROM librarian_embeddings').all() as Array<{
+    const rows = db.prepare('SELECT entity_id, embedding FROM librainian_embeddings').all() as Array<{
       entity_id: string;
       embedding: Buffer;
     }>;
@@ -3675,8 +3675,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       };
     }
 
-    const deleteEmbedding = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
-    const deleteMultiVector = db.prepare('DELETE FROM librarian_multi_vectors WHERE entity_id = ?');
+    const deleteEmbedding = db.prepare('DELETE FROM librainian_embeddings WHERE entity_id = ?');
+    const deleteMultiVector = db.prepare('DELETE FROM librainian_multi_vectors WHERE entity_id = ?');
     const result = db.transaction(() => {
       let removedEmbeddings = 0;
       let removedMultiVectors = 0;
@@ -3767,11 +3767,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const joins = requiresSqlFilterPushdown
-      ? ' LEFT JOIN librarian_functions f ON e.entity_type = \'function\' AND f.id = e.entity_id'
-        + ' LEFT JOIN librarian_modules m ON e.entity_type = \'module\' AND m.id = e.entity_id'
+      ? ' LEFT JOIN librainian_functions f ON e.entity_type = \'function\' AND f.id = e.entity_id'
+        + ' LEFT JOIN librainian_modules m ON e.entity_type = \'module\' AND m.id = e.entity_id'
       : '';
     const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
-    const countSql = `SELECT COUNT(*) as total, SUM(CASE WHEN length(e.embedding) = ? THEN 1 ELSE 0 END) as matching FROM librarian_embeddings e${joins}${whereSql}`;
+    const countSql = `SELECT COUNT(*) as total, SUM(CASE WHEN length(e.embedding) = ? THEN 1 ELSE 0 END) as matching FROM librainian_embeddings e${joins}${whereSql}`;
     const countRow = db.prepare(countSql).get(
       expectedBytes,
       ...filterParams,
@@ -3789,7 +3789,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       if (options.autoRecoverDimensionMismatch) {
         // Auto-recovery: clear mismatched embeddings and return degraded results
         clearedMismatchedCount = await this.clearMismatchedEmbeddings(queryEmbedding.length);
-        logWarning('[librarian] Auto-recovered from dimension mismatch by clearing embeddings', {
+        logWarning('[librainian] Auto-recovered from dimension mismatch by clearing embeddings', {
           expectedDimension: queryEmbedding.length,
           clearedCount: clearedMismatchedCount,
         });
@@ -3806,7 +3806,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     if (totalEmbeddings > matchingEmbeddings) {
-      logWarning('[librarian] Skipping embeddings with dimension mismatch', {
+      logWarning('[librainian] Skipping embeddings with dimension mismatch', {
         expectedDimension: queryEmbedding.length,
         totalEmbeddings,
         matchingEmbeddings,
@@ -3817,13 +3817,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     // Check for empty/null vector index (degraded state)
     if (!index) {
-      logWarning('[librarian] findSimilarByEmbedding: vector index is null', {
+      logWarning('[librainian] findSimilarByEmbedding: vector index is null', {
         queryDimension: queryEmbedding.length,
       });
       degraded = true;
       degradedReason = 'vector_index_null';
     } else if (index.size() === 0) {
-      logWarning('[librarian] findSimilarByEmbedding: vector index is empty', {
+      logWarning('[librainian] findSimilarByEmbedding: vector index is empty', {
         queryDimension: queryEmbedding.length,
       });
       degraded = true;
@@ -3842,7 +3842,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       degraded = true;
       degradedReason = 'fallback_to_brute_force';
     }
-    const sql = `SELECT e.entity_id, e.entity_type, e.embedding FROM librarian_embeddings e${joins}${whereSql}${whereClauses.length > 0 ? ' AND' : ' WHERE'} length(e.embedding) = ?`;
+    const sql = `SELECT e.entity_id, e.entity_type, e.embedding FROM librainian_embeddings e${joins}${whereSql}${whereClauses.length > 0 ? ' AND' : ' WHERE'} length(e.embedding) = ?`;
     const rows = db.prepare(sql).all(
       ...filterParams,
       expectedBytes,
@@ -3913,11 +3913,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   private resolveSimilarityResultPath(result: SimilarityResult): string | null {
     const db = this.ensureDb();
     if (result.entityType === 'function') {
-      const row = db.prepare('SELECT file_path FROM librarian_functions WHERE id = ?').get(result.entityId) as { file_path?: string } | undefined;
+      const row = db.prepare('SELECT file_path FROM librainian_functions WHERE id = ?').get(result.entityId) as { file_path?: string } | undefined;
       return typeof row?.file_path === 'string' ? row.file_path : null;
     }
     if (result.entityType === 'module') {
-      const row = db.prepare('SELECT path FROM librarian_modules WHERE id = ?').get(result.entityId) as { path?: string } | undefined;
+      const row = db.prepare('SELECT path FROM librainian_modules WHERE id = ?').get(result.entityId) as { path?: string } | undefined;
       return typeof row?.path === 'string' ? row.path : null;
     }
     if (result.entityType === 'document') {
@@ -3929,8 +3929,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getMultiVector(entityId: string, entityType?: 'function' | 'module'): Promise<MultiVectorRecord | null> {
     const db = this.ensureDb();
     const row = entityType
-      ? db.prepare('SELECT * FROM librarian_multi_vectors WHERE entity_id = ? AND entity_type = ?').get(entityId, entityType)
-      : db.prepare('SELECT * FROM librarian_multi_vectors WHERE entity_id = ?').get(entityId);
+      ? db.prepare('SELECT * FROM librainian_multi_vectors WHERE entity_id = ? AND entity_type = ?').get(entityId, entityType)
+      : db.prepare('SELECT * FROM librainian_multi_vectors WHERE entity_id = ?').get(entityId);
     if (!row) return noResult();
     const parsed = safeJsonParse<MultiVectorRecord['payload']>((row as { payload: string }).payload);
     if (!parsed.ok) {
@@ -3969,7 +3969,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
     const where = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
-    const rows = db.prepare(`SELECT * FROM librarian_multi_vectors${where}${limit}`).all(...params) as {
+    const rows = db.prepare(`SELECT * FROM librainian_multi_vectors${where}${limit}`).all(...params) as {
       entity_id: string;
       entity_type: string;
       payload: string;
@@ -4005,15 +4005,15 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     let counts = mergeRedactionCounts(modelIdResult.counts, entityTypeResult.counts);
     counts = mergeRedactionCounts(counts, generatedAtResult.counts);
     db.prepare(`
-      INSERT INTO librarian_multi_vectors (entity_id, entity_type, payload, model_id, generated_at, token_count)
+      INSERT INTO librainian_multi_vectors (entity_id, entity_type, payload, model_id, generated_at, token_count)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(entity_id, entity_type) DO UPDATE SET
         payload = excluded.payload,
         model_id = excluded.model_id,
         generated_at = excluded.generated_at,
         token_count = excluded.token_count
-      WHERE librarian_multi_vectors.generated_at IS NULL
-        OR librarian_multi_vectors.generated_at < excluded.generated_at
+      WHERE librainian_multi_vectors.generated_at IS NULL
+        OR librainian_multi_vectors.generated_at < excluded.generated_at
     `).run(
       record.entityId,
       entityTypeResult.value,
@@ -4032,7 +4032,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getQueryCacheEntry(queryHash: string): Promise<QueryCacheEntry | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT query_hash, query_params, response, created_at, last_accessed, access_count FROM librarian_query_cache WHERE query_hash = ?')
+      .prepare('SELECT query_hash, query_params, response, created_at, last_accessed, access_count FROM librainian_query_cache WHERE query_hash = ?')
       .get(queryHash) as QueryCacheRow | undefined;
     if (!row?.query_hash) return noResult();
     return {
@@ -4049,7 +4049,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 120;
     const rows = db
-      .prepare('SELECT query_hash, query_params, response, created_at, last_accessed, access_count FROM librarian_query_cache ORDER BY last_accessed DESC LIMIT ?')
+      .prepare('SELECT query_hash, query_params, response, created_at, last_accessed, access_count FROM librainian_query_cache ORDER BY last_accessed DESC LIMIT ?')
       .all(safeLimit) as QueryCacheRow[];
     return rows.map((row) => ({
       queryHash: row.query_hash,
@@ -4064,7 +4064,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertQueryCacheEntry(entry: QueryCacheEntry): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_query_cache (query_hash, query_params, response, created_at, last_accessed, access_count)
+      INSERT INTO librainian_query_cache (query_hash, query_params, response, created_at, last_accessed, access_count)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(query_hash) DO UPDATE SET
         query_params = excluded.query_params,
@@ -4085,21 +4085,21 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async recordQueryCacheAccess(queryHash: string): Promise<void> {
     const db = this.ensureDb();
     const now = new Date().toISOString();
-    db.prepare('UPDATE librarian_query_cache SET access_count = access_count + 1, last_accessed = ? WHERE query_hash = ?')
+    db.prepare('UPDATE librainian_query_cache SET access_count = access_count + 1, last_accessed = ? WHERE query_hash = ?')
       .run(now, queryHash);
   }
 
   async pruneQueryCache(options: QueryCachePruneOptions): Promise<number> {
     const db = this.ensureDb();
     const cutoff = new Date(Date.now() - options.maxAgeMs).toISOString();
-    const expired = db.prepare('DELETE FROM librarian_query_cache WHERE last_accessed < ?').run(cutoff).changes;
-    const row = db.prepare('SELECT COUNT(*) as count FROM librarian_query_cache').get() as { count?: number } | undefined;
+    const expired = db.prepare('DELETE FROM librainian_query_cache WHERE last_accessed < ?').run(cutoff).changes;
+    const row = db.prepare('SELECT COUNT(*) as count FROM librainian_query_cache').get() as { count?: number } | undefined;
     const count = row?.count ?? 0;
     let trimmed = 0;
     if (count > options.maxEntries) {
       const toRemove = count - options.maxEntries;
-      const rows = db.prepare('SELECT query_hash FROM librarian_query_cache ORDER BY last_accessed ASC LIMIT ?').all(toRemove) as { query_hash: string }[];
-      const deleteStmt = db.prepare('DELETE FROM librarian_query_cache WHERE query_hash = ?');
+      const rows = db.prepare('SELECT query_hash FROM librainian_query_cache ORDER BY last_accessed ASC LIMIT ?').all(toRemove) as { query_hash: string }[];
+      const deleteStmt = db.prepare('DELETE FROM librainian_query_cache WHERE query_hash = ?');
       for (const rowToDelete of rows) {
         deleteStmt.run(rowToDelete.query_hash);
         trimmed += 1;
@@ -4424,7 +4424,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         gm.eigenvector,
         qal.query_count,
         qal.last_queried_at
-      FROM librarian_graph_metrics gm
+      FROM librainian_graph_metrics gm
       LEFT JOIN query_access_log qal
         ON qal.entity_id = gm.entity_id
        AND qal.entity_type = gm.entity_type
@@ -4440,7 +4440,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       const placeholders = entityIds.map(() => '?').join(',');
       const dependentRows = db.prepare(`
         SELECT to_id AS entity_id, COUNT(*) AS dependent_count
-        FROM librarian_graph_edges
+        FROM librainian_graph_edges
         WHERE to_type = ?
           AND to_id IN (${placeholders})
         GROUP BY to_id
@@ -4515,7 +4515,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       return null;
     }
     const root = this.workspaceRoot ?? path.dirname(this.dbPath);
-    return path.join(root, '.librarian', 'hnsw.bin');
+    return path.join(root, '.librainian', 'hnsw.bin');
   }
 
   private tryLoadSerializedVectorIndex(index: VectorIndex): boolean {
@@ -4540,7 +4540,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       index.loadSerializedHNSW(payload);
       return true;
     } catch (error) {
-      logWarning('[librarian] Failed to load serialized vector index, rebuilding from SQLite', {
+      logWarning('[librainian] Failed to load serialized vector index, rebuilding from SQLite', {
         path: serializedPath,
         error,
       });
@@ -4558,7 +4558,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       fsSync.mkdirSync(path.dirname(serializedPath), { recursive: true });
       fsSync.writeFileSync(serializedPath, payload);
     } catch (error) {
-      logWarning('[librarian] Failed to persist serialized vector index', {
+      logWarning('[librainian] Failed to persist serialized vector index', {
         path: serializedPath,
         error,
       });
@@ -4571,7 +4571,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     try {
       fsSync.rmSync(serializedPath, { force: true });
     } catch (error) {
-      logWarning('[librarian] Failed to remove serialized vector index', {
+      logWarning('[librainian] Failed to remove serialized vector index', {
         path: serializedPath,
         error,
       });
@@ -4583,7 +4583,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     this.deleteSerializedVectorIndex();
   }
 
-  private loadVectorIndexItems(): Array<{ entityId: string; entityType: EmbeddableEntityType; embedding: Float32Array }> { const db = this.ensureDb(); const rows = db.prepare('SELECT entity_id, entity_type, embedding FROM librarian_embeddings').all() as { entity_id: string; entity_type: string; embedding: Buffer; }[]; return rows.map((row) => { const view = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.length / 4); return { entityId: row.entity_id, entityType: row.entity_type as EmbeddableEntityType, embedding: new Float32Array(view) }; }); }
+  private loadVectorIndexItems(): Array<{ entityId: string; entityType: EmbeddableEntityType; embedding: Float32Array }> { const db = this.ensureDb(); const rows = db.prepare('SELECT entity_id, entity_type, embedding FROM librainian_embeddings').all() as { entity_id: string; entity_type: string; embedding: Buffer; }[]; return rows.map((row) => { const view = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.length / 4); return { entityId: row.entity_id, entityType: row.entity_type as EmbeddableEntityType, embedding: new Float32Array(view) }; }); }
 
   // --------------------------------------------------------------------------
   // Graph Metrics
@@ -4591,9 +4591,9 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async setGraphMetrics(entries: GraphMetricsEntry[]): Promise<void> {
     const db = this.ensureDb();
-    const insert = db.prepare('INSERT INTO librarian_graph_metrics (entity_id, entity_type, pagerank, betweenness, closeness, eigenvector, community_id, is_bridge, computed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(entity_id, entity_type) DO UPDATE SET pagerank = excluded.pagerank, betweenness = excluded.betweenness, closeness = excluded.closeness, eigenvector = excluded.eigenvector, community_id = excluded.community_id, is_bridge = excluded.is_bridge, computed_at = excluded.computed_at');
+    const insert = db.prepare('INSERT INTO librainian_graph_metrics (entity_id, entity_type, pagerank, betweenness, closeness, eigenvector, community_id, is_bridge, computed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(entity_id, entity_type) DO UPDATE SET pagerank = excluded.pagerank, betweenness = excluded.betweenness, closeness = excluded.closeness, eigenvector = excluded.eigenvector, community_id = excluded.community_id, is_bridge = excluded.is_bridge, computed_at = excluded.computed_at');
     const tx = db.transaction((rows: GraphMetricsEntry[]) => {
-      db.prepare('DELETE FROM librarian_graph_metrics').run();
+      db.prepare('DELETE FROM librainian_graph_metrics').run();
       for (const entry of rows) {
         insert.run(
           entry.entityId,
@@ -4629,7 +4629,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
-    const rows = db.prepare(`SELECT * FROM librarian_graph_metrics${where} ORDER BY pagerank DESC${limit}`).all(...params) as {
+    const rows = db.prepare(`SELECT * FROM librainian_graph_metrics${where} ORDER BY pagerank DESC${limit}`).all(...params) as {
       entity_id: string;
       entity_type: GraphMetricsEntry['entityType'];
       pagerank: number;
@@ -4655,15 +4655,15 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteGraphMetrics(): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_graph_metrics').run();
+    db.prepare('DELETE FROM librainian_graph_metrics').run();
   }
 
   async setEvidence(entries: EvidenceEntry[]): Promise<void> {
     if (!entries.length) return;
     const db = this.ensureDb();
     const contentHashes = await this.computeEvidenceContentHashes(entries);
-    const insert = db.prepare('INSERT INTO librarian_evidence (claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(claim_id) DO UPDATE SET file_path = excluded.file_path, line_start = excluded.line_start, line_end = excluded.line_end, snippet = excluded.snippet, claim = excluded.claim, confidence = excluded.confidence, created_at = excluded.created_at, content_hash = excluded.content_hash, verified_at = excluded.verified_at, is_stale = excluded.is_stale');
-    const clear = db.prepare('DELETE FROM librarian_evidence WHERE entity_id = ? AND entity_type = ?');
+    const insert = db.prepare('INSERT INTO librainian_evidence (claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(claim_id) DO UPDATE SET file_path = excluded.file_path, line_start = excluded.line_start, line_end = excluded.line_end, snippet = excluded.snippet, claim = excluded.claim, confidence = excluded.confidence, created_at = excluded.created_at, content_hash = excluded.content_hash, verified_at = excluded.verified_at, is_stale = excluded.is_stale');
+    const clear = db.prepare('DELETE FROM librainian_evidence WHERE entity_id = ? AND entity_type = ?');
     let counts = createEmptyRedactionCounts();
     const tx = db.transaction((rows: EvidenceEntry[]) => {
       const cleared = new Set<string>();
@@ -4699,7 +4699,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getEvidenceForTarget(entityId: string, entityType: EvidenceEntry['entityType']): Promise<EvidenceRef[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence WHERE entity_id = ? AND entity_type = ? ORDER BY line_start').all(entityId, entityType) as StoredEvidenceRow[];
+    const rows = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librainian_evidence WHERE entity_id = ? AND entity_type = ? ORDER BY line_start').all(entityId, entityType) as StoredEvidenceRow[];
     if (!rows.length) return [];
     const verified = await this.verifyEvidenceRows(rows);
     return verified.map((row) => ({
@@ -4717,7 +4717,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteEvidence(entityId: string, entityType: 'function' | 'module'): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_evidence WHERE entity_id = ? AND entity_type = ?').run(entityId, entityType);
+    db.prepare('DELETE FROM librainian_evidence WHERE entity_id = ? AND entity_type = ?').run(entityId, entityType);
   }
 
   async getEvidenceVerificationSummary(options: EvidenceVerificationOptions = {}): Promise<EvidenceVerificationSummary> {
@@ -4726,8 +4726,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       ? Math.floor(options.limit)
       : undefined;
     const rows = limit
-      ? db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC LIMIT ?').all(limit) as StoredEvidenceRow[]
-      : db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
+      ? db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librainian_evidence ORDER BY created_at DESC LIMIT ?').all(limit) as StoredEvidenceRow[]
+      : db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librainian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
     if (rows.length > 0) {
       await this.verifyEvidenceRows(rows, { force: options.force === true });
     }
@@ -4737,7 +4737,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         SUM(CASE WHEN is_stale = 1 THEN 1 ELSE 0 END) AS stale_count,
         SUM(CASE WHEN verified_at IS NULL OR verified_at = '' THEN 1 ELSE 0 END) AS unverified_count,
         MIN(CASE WHEN verified_at IS NULL OR verified_at = '' THEN created_at END) AS oldest_unverified_at
-      FROM librarian_evidence
+      FROM librainian_evidence
     `).get() as {
       total_entries: number;
       stale_count: number | null;
@@ -4756,11 +4756,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async exportEvidenceMarkdown(outputPath?: string): Promise<string> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
+    const rows = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librainian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
     if (rows.length > 0) {
       await this.verifyEvidenceRows(rows);
     }
-    const refreshed = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librarian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
+    const refreshed = db.prepare('SELECT claim_id, entity_id, entity_type, file_path, line_start, line_end, snippet, claim, confidence, created_at, content_hash, verified_at, is_stale FROM librainian_evidence ORDER BY created_at DESC').all() as StoredEvidenceRow[];
     const summary = await this.getEvidenceVerificationSummary({ limit: undefined });
     const lines: string[] = [];
     lines.push('# EVIDENCE');
@@ -4854,7 +4854,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const now = new Date().toISOString();
     const fileCache = new Map<string, EvidenceFileState>();
     const update = db.prepare(`
-      UPDATE librarian_evidence
+      UPDATE librainian_evidence
       SET line_start = ?, line_end = ?, content_hash = ?, verified_at = ?, is_stale = ?
       WHERE claim_id = ?
     `);
@@ -5081,7 +5081,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
 
     db.prepare(`
-      INSERT INTO librarian_indexing_history (
+      INSERT INTO librainian_indexing_history (
         id, task_type, started_at, completed_at, files_processed, files_skipped,
         functions_indexed, modules_indexed, context_packs_created,
         errors, version_string
@@ -5105,7 +5105,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const row = db
       .prepare(
-        'SELECT * FROM librarian_indexing_history ORDER BY completed_at DESC LIMIT 1'
+        'SELECT * FROM librainian_indexing_history ORDER BY completed_at DESC LIMIT 1'
       )
       .get() as IndexingHistoryRow | undefined;
 
@@ -5121,7 +5121,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
 
     db.prepare(`
-      INSERT INTO librarian_bootstrap_history (
+      INSERT INTO librainian_bootstrap_history (
         id, workspace, started_at, completed_at, phases, total_files,
         total_functions, total_context_packs, version_string, success, error
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -5144,7 +5144,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const row = db
       .prepare(
-        'SELECT * FROM librarian_bootstrap_history ORDER BY started_at DESC LIMIT 1'
+        'SELECT * FROM librainian_bootstrap_history ORDER BY started_at DESC LIMIT 1'
       )
       .get() as BootstrapHistoryRow | undefined;
 
@@ -5159,9 +5159,9 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async recordEvolutionOutcome(outcome: EvolutionOutcome): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_evolution_outcomes (
+      INSERT INTO librainian_evolution_outcomes (
         task_id, task_type, agent_id, success, duration_ms, quality_score,
-        files_changed, tests_added, tests_pass, librarian_context_used,
+        files_changed, tests_added, tests_pass, librainian_context_used,
         context_pack_count, decomposed, timestamp
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(task_id) DO UPDATE SET
@@ -5173,7 +5173,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         files_changed = excluded.files_changed,
         tests_added = excluded.tests_added,
         tests_pass = excluded.tests_pass,
-        librarian_context_used = excluded.librarian_context_used,
+        librainian_context_used = excluded.librainian_context_used,
         context_pack_count = excluded.context_pack_count,
         decomposed = excluded.decomposed,
         timestamp = excluded.timestamp
@@ -5187,7 +5187,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       JSON.stringify(outcome.filesChanged),
       outcome.testsAdded,
       outcome.testsPass ? 1 : 0,
-      outcome.context.librarianContextUsed ? 1 : 0,
+      outcome.context.librainianContextUsed ? 1 : 0,
       outcome.context.contextPackCount,
       outcome.context.decomposed ? 1 : 0,
       outcome.timestamp.toISOString()
@@ -5226,7 +5226,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const rows = db.prepare(
-      `SELECT * FROM librarian_evolution_outcomes${where} ORDER BY ${orderBy} ${orderDir.toUpperCase()}${limitClause}`
+      `SELECT * FROM librainian_evolution_outcomes${where} ORDER BY ${orderBy} ${orderDir.toUpperCase()}${limitClause}`
     ).all(...params) as Array<{
       task_id: string;
       task_type: string;
@@ -5237,7 +5237,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       files_changed: string;
       tests_added: number;
       tests_pass: number;
-      librarian_context_used: number;
+      librainian_context_used: number;
       context_pack_count: number;
       decomposed: number;
       timestamp: string;
@@ -5254,7 +5254,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       testsAdded: row.tests_added,
       testsPass: row.tests_pass === 1,
       context: {
-        librarianContextUsed: row.librarian_context_used === 1,
+        librainianContextUsed: row.librainian_context_used === 1,
         contextPackCount: row.context_pack_count,
         decomposed: row.decomposed === 1,
       },
@@ -5269,7 +5269,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async recordLearnedMissing(context: string, taskId: string): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_learned_missing (context, task_id, recorded_at)
+      INSERT INTO librainian_learned_missing (context, task_id, recorded_at)
       VALUES (?, ?, ?)
       ON CONFLICT(context, task_id) DO UPDATE SET recorded_at = excluded.recorded_at
     `).run(context, taskId, new Date().toISOString());
@@ -5277,7 +5277,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getLearnedMissing(): Promise<LearnedMissingContext[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT context, task_id, recorded_at FROM librarian_learned_missing ORDER BY recorded_at DESC').all() as Array<{
+    const rows = db.prepare('SELECT context, task_id, recorded_at FROM librainian_learned_missing ORDER BY recorded_at DESC').all() as Array<{
       context: string;
       task_id: string;
       recorded_at: string;
@@ -5291,7 +5291,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async clearLearnedMissing(context: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_learned_missing WHERE context = ?').run(context);
+    db.prepare('DELETE FROM librainian_learned_missing WHERE context = ?').run(context);
   }
 
   // --------------------------------------------------------------------------
@@ -5301,7 +5301,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async recordQualityScore(score: Omit<QualityScoreHistory, 'id' | 'recordedAt'>): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_quality_history (id, overall, maintainability, testability, readability, complexity, recorded_at)
+      INSERT INTO librainian_quality_history (id, overall, maintainability, testability, readability, complexity, recorded_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       randomUUID(),
@@ -5317,7 +5317,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getQualityScoreHistory(limit: number = 30): Promise<QualityScoreHistory[]> {
     const db = this.ensureDb();
     const rows = db.prepare(
-      'SELECT id, overall, maintainability, testability, readability, complexity, recorded_at FROM librarian_quality_history ORDER BY recorded_at DESC LIMIT ?'
+      'SELECT id, overall, maintainability, testability, readability, complexity, recorded_at FROM librainian_quality_history ORDER BY recorded_at DESC LIMIT ?'
     ).all(limit) as Array<{
       id: string;
       overall: number;
@@ -5351,10 +5351,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const table =
       entityType === 'function'
-        ? 'librarian_functions'
+        ? 'librainian_functions'
         : entityType === 'module'
-          ? 'librarian_modules'
-          : 'librarian_context_packs';
+          ? 'librainian_modules'
+          : 'librainian_context_packs';
     const idCol = entityType === 'context_pack' ? 'pack_id' : 'id';
     const now = new Date().toISOString();
 
@@ -5365,7 +5365,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       WHERE ${idCol} = ?
     `).run(delta, now, entityId);
     db.prepare(`
-      INSERT INTO librarian_confidence_events (id, entity_id, entity_type, delta, updated_at, reason)
+      INSERT INTO librainian_confidence_events (id, entity_id, entity_type, delta, updated_at, reason)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(randomUUID(), entityId, entityType, delta, now, reason);
   }
@@ -5375,7 +5375,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const result1 = db
       .prepare(`
-        UPDATE librarian_functions
+        UPDATE librainian_functions
         SET confidence = MAX(0.1, confidence - ?)
         WHERE confidence > 0.1
       `)
@@ -5383,7 +5383,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const result2 = db
       .prepare(`
-        UPDATE librarian_modules
+        UPDATE librainian_modules
         SET confidence = MAX(0.1, confidence - ?)
         WHERE confidence > 0.1
       `)
@@ -5391,7 +5391,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const result3 = db
       .prepare(`
-        UPDATE librarian_context_packs
+        UPDATE librainian_context_packs
         SET confidence = MAX(0.1, confidence - ?)
         WHERE confidence > 0.1 AND invalidated = 0
       `)
@@ -5407,7 +5407,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     deltaFilter: 'any' | 'negative' | 'positive' = 'any'
   ): Promise<number> {
     const db = this.ensureDb();
-    let sql = 'SELECT COUNT(*) as count FROM librarian_confidence_events WHERE entity_id = ? AND entity_type = ? AND updated_at >= ?';
+    let sql = 'SELECT COUNT(*) as count FROM librainian_confidence_events WHERE entity_id = ? AND entity_type = ? AND updated_at >= ?';
     const params: unknown[] = [entityId, entityType, sinceIso];
     if (deltaFilter === 'negative') sql += ' AND delta < 0';
     if (deltaFilter === 'positive') sql += ' AND delta > 0';
@@ -5419,7 +5419,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     if (!edges.length) return;
     const insert = db.prepare(`
-      INSERT INTO librarian_cochange (file_a, file_b, change_count, total_changes, strength, computed_at)
+      INSERT INTO librainian_cochange (file_a, file_b, change_count, total_changes, strength, computed_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(file_a, file_b) DO UPDATE SET
         change_count = excluded.change_count,
@@ -5437,7 +5437,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getCochangeEdgeCount(): Promise<number> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT COUNT(*) as count FROM librarian_cochange').get() as { count?: number } | undefined;
+    const row = db.prepare('SELECT COUNT(*) as count FROM librainian_cochange').get() as { count?: number } | undefined;
     return row?.count ?? 0;
   }
 
@@ -5467,7 +5467,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       limitClause = ' LIMIT ?';
       params.push(options.limit);
     }
-    const rows = db.prepare(`SELECT * FROM librarian_cochange${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as {
+    const rows = db.prepare(`SELECT * FROM librainian_cochange${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as {
       file_a: string;
       file_b: string;
       change_count: number;
@@ -5486,7 +5486,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteCochangeEdges(): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_cochange').run();
+    db.prepare('DELETE FROM librainian_cochange').run();
   }
 
   // --------------------------------------------------------------------------
@@ -5519,7 +5519,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
     const orderDir = options.orderDirection === 'asc' ? 'ASC' : 'DESC';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
-    const rows = db.prepare(`SELECT * FROM librarian_confidence_events${where} ORDER BY updated_at ${orderDir}${limit}`).all(...params) as {
+    const rows = db.prepare(`SELECT * FROM librainian_confidence_events${where} ORDER BY updated_at ${orderDir}${limit}`).all(...params) as {
       id: string;
       entity_id: string;
       entity_type: 'function' | 'module' | 'context_pack';
@@ -5544,7 +5544,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getTestMapping(id: string): Promise<TestMapping | null> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT * FROM librarian_test_mapping WHERE id = ?').get(id) as TestMappingRow | undefined;
+    const row = db.prepare('SELECT * FROM librainian_test_mapping WHERE id = ?').get(id) as TestMappingRow | undefined;
     return row ? rowToTestMapping(row) : null;
   }
 
@@ -5568,19 +5568,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
-    const rows = db.prepare(`SELECT * FROM librarian_test_mapping${where} ORDER BY confidence DESC${limit}`).all(...params) as TestMappingRow[];
+    const rows = db.prepare(`SELECT * FROM librainian_test_mapping${where} ORDER BY confidence DESC${limit}`).all(...params) as TestMappingRow[];
     return rows.map(rowToTestMapping);
   }
 
   async getTestMappingsByTestPath(testPath: string): Promise<TestMapping[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_test_mapping WHERE test_path = ? ORDER BY confidence DESC').all(testPath) as TestMappingRow[];
+    const rows = db.prepare('SELECT * FROM librainian_test_mapping WHERE test_path = ? ORDER BY confidence DESC').all(testPath) as TestMappingRow[];
     return rows.map(rowToTestMapping);
   }
 
   async getTestMappingsBySourcePath(sourcePath: string): Promise<TestMapping[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_test_mapping WHERE source_path = ? ORDER BY confidence DESC').all(sourcePath) as TestMappingRow[];
+    const rows = db.prepare('SELECT * FROM librainian_test_mapping WHERE source_path = ? ORDER BY confidence DESC').all(sourcePath) as TestMappingRow[];
     return rows.map(rowToTestMapping);
   }
 
@@ -5590,7 +5590,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const id = randomUUID();
 
     db.prepare(`
-      INSERT INTO librarian_test_mapping (id, test_path, source_path, confidence, created_at, updated_at)
+      INSERT INTO librainian_test_mapping (id, test_path, source_path, confidence, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(test_path, source_path) DO UPDATE SET
         confidence = excluded.confidence,
@@ -5598,18 +5598,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     `).run(id, mapping.testPath, mapping.sourcePath, mapping.confidence, now, now);
 
     // Fetch the actual inserted/updated row
-    const row = db.prepare('SELECT * FROM librarian_test_mapping WHERE test_path = ? AND source_path = ?').get(mapping.testPath, mapping.sourcePath) as TestMappingRow;
+    const row = db.prepare('SELECT * FROM librainian_test_mapping WHERE test_path = ? AND source_path = ?').get(mapping.testPath, mapping.sourcePath) as TestMappingRow;
     return rowToTestMapping(row);
   }
 
   async deleteTestMapping(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_test_mapping WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_test_mapping WHERE id = ?').run(id);
   }
 
   async deleteTestMappingsByTestPath(testPath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_test_mapping WHERE test_path = ?').run(testPath);
+    const result = db.prepare('DELETE FROM librainian_test_mapping WHERE test_path = ?').run(testPath);
     return result.changes;
   }
 
@@ -5619,13 +5619,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getCommit(id: string): Promise<LiBrainianCommit | null> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT * FROM librarian_commits WHERE id = ?').get(id) as CommitRow | undefined;
+    const row = db.prepare('SELECT * FROM librainian_commits WHERE id = ?').get(id) as CommitRow | undefined;
     return row ? rowToCommit(row) : null;
   }
 
   async getCommitBySha(sha: string): Promise<LiBrainianCommit | null> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT * FROM librarian_commits WHERE sha = ?').get(sha) as CommitRow | undefined;
+    const row = db.prepare('SELECT * FROM librainian_commits WHERE sha = ?').get(sha) as CommitRow | undefined;
     return row ? rowToCommit(row) : null;
   }
 
@@ -5650,7 +5650,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
     const orderDir = options.orderDirection === 'asc' ? 'ASC' : 'DESC';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
-    const rows = db.prepare(`SELECT * FROM librarian_commits${where} ORDER BY created_at ${orderDir}${limit}`).all(...params) as CommitRow[];
+    const rows = db.prepare(`SELECT * FROM librainian_commits${where} ORDER BY created_at ${orderDir}${limit}`).all(...params) as CommitRow[];
     return rows.map(rowToCommit);
   }
 
@@ -5660,7 +5660,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const id = randomUUID();
 
     db.prepare(`
-      INSERT INTO librarian_commits (id, sha, message, author, category, files_changed, created_at)
+      INSERT INTO librainian_commits (id, sha, message, author, category, files_changed, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sha) DO UPDATE SET
         message = excluded.message,
@@ -5670,18 +5670,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     `).run(id, commit.sha, commit.message, commit.author, commit.category, JSON.stringify(commit.filesChanged), now);
 
     // Fetch the actual inserted/updated row
-    const row = db.prepare('SELECT * FROM librarian_commits WHERE sha = ?').get(commit.sha) as CommitRow;
+    const row = db.prepare('SELECT * FROM librainian_commits WHERE sha = ?').get(commit.sha) as CommitRow;
     return rowToCommit(row);
   }
 
   async deleteCommit(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_commits WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_commits WHERE id = ?').run(id);
   }
 
   async deleteCommitBySha(sha: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_commits WHERE sha = ?').run(sha);
+    db.prepare('DELETE FROM librainian_commits WHERE sha = ?').run(sha);
   }
 
   // --------------------------------------------------------------------------
@@ -5690,19 +5690,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getOwnership(id: string): Promise<FileOwnership | null> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT * FROM librarian_ownership WHERE id = ?').get(id) as OwnershipRow | undefined;
+    const row = db.prepare('SELECT * FROM librainian_ownership WHERE id = ?').get(id) as OwnershipRow | undefined;
     return row ? rowToOwnership(row) : null;
   }
 
   async getOwnershipByFilePath(filePath: string): Promise<FileOwnership[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_ownership WHERE file_path = ? ORDER BY score DESC').all(filePath) as OwnershipRow[];
+    const rows = db.prepare('SELECT * FROM librainian_ownership WHERE file_path = ? ORDER BY score DESC').all(filePath) as OwnershipRow[];
     return rows.map(rowToOwnership);
   }
 
   async getOwnershipByAuthor(author: string): Promise<FileOwnership[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_ownership WHERE author = ? ORDER BY score DESC').all(author) as OwnershipRow[];
+    const rows = db.prepare('SELECT * FROM librainian_ownership WHERE author = ? ORDER BY score DESC').all(author) as OwnershipRow[];
     return rows.map(rowToOwnership);
   }
 
@@ -5732,7 +5732,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       limitClause = ' LIMIT ?';
       params.push(options.limit);
     }
-    const rows = db.prepare(`SELECT * FROM librarian_ownership${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as OwnershipRow[];
+    const rows = db.prepare(`SELECT * FROM librainian_ownership${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as OwnershipRow[];
     return rows.map(rowToOwnership);
   }
 
@@ -5742,7 +5742,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const id = randomUUID();
 
     db.prepare(`
-      INSERT INTO librarian_ownership (id, file_path, author, score, last_modified, created_at)
+      INSERT INTO librainian_ownership (id, file_path, author, score, last_modified, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(file_path, author) DO UPDATE SET
         score = excluded.score,
@@ -5750,18 +5750,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     `).run(id, ownership.filePath, ownership.author, ownership.score, ownership.lastModified.toISOString(), now);
 
     // Fetch the actual inserted/updated row
-    const row = db.prepare('SELECT * FROM librarian_ownership WHERE file_path = ? AND author = ?').get(ownership.filePath, ownership.author) as OwnershipRow;
+    const row = db.prepare('SELECT * FROM librainian_ownership WHERE file_path = ? AND author = ?').get(ownership.filePath, ownership.author) as OwnershipRow;
     return rowToOwnership(row);
   }
 
   async deleteOwnership(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_ownership WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_ownership WHERE id = ?').run(id);
   }
 
   async deleteOwnershipByFilePath(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_ownership WHERE file_path = ?').run(filePath);
+    const result = db.prepare('DELETE FROM librainian_ownership WHERE file_path = ?').run(filePath);
     return result.changes;
   }
 
@@ -5771,19 +5771,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getUniversalKnowledge(id: string): Promise<UniversalKnowledgeRecord | null> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE id = ?').get(id) as UniversalKnowledgeRow | undefined;
+    const row = db.prepare('SELECT * FROM librainian_universal_knowledge WHERE id = ?').get(id) as UniversalKnowledgeRow | undefined;
     return row ? rowToUniversalKnowledge(row) : null;
   }
 
   async getUniversalKnowledgeByFile(filePath: string): Promise<UniversalKnowledgeRecord[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE file = ? ORDER BY line ASC').all(filePath) as UniversalKnowledgeRow[];
+    const rows = db.prepare('SELECT * FROM librainian_universal_knowledge WHERE file = ? ORDER BY line ASC').all(filePath) as UniversalKnowledgeRow[];
     return rows.map(rowToUniversalKnowledge);
   }
 
   async getUniversalKnowledgeByKind(kind: string): Promise<UniversalKnowledgeRecord[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE kind = ? ORDER BY name ASC').all(kind) as UniversalKnowledgeRow[];
+    const rows = db.prepare('SELECT * FROM librainian_universal_knowledge WHERE kind = ? ORDER BY name ASC').all(kind) as UniversalKnowledgeRow[];
     return rows.map(rowToUniversalKnowledge);
   }
 
@@ -5852,14 +5852,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       params.push(options.offset);
     }
 
-    const rows = db.prepare(`SELECT * FROM librarian_universal_knowledge${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as UniversalKnowledgeRow[];
+    const rows = db.prepare(`SELECT * FROM librainian_universal_knowledge${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as UniversalKnowledgeRow[];
     return rows.map(rowToUniversalKnowledge);
   }
 
   async upsertUniversalKnowledge(knowledge: UniversalKnowledgeRecord): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT INTO librarian_universal_knowledge (
+      INSERT INTO librainian_universal_knowledge (
         id, kind, name, qualified_name, file, line, knowledge,
         purpose_summary, maintainability_index, risk_score, test_coverage,
         cyclomatic_complexity, cognitive_complexity, embedding,
@@ -5909,7 +5909,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertUniversalKnowledgeBatch(records: UniversalKnowledgeRecord[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT INTO librarian_universal_knowledge (
+      INSERT INTO librainian_universal_knowledge (
         id, kind, name, qualified_name, file, line, knowledge,
         purpose_summary, maintainability_index, risk_score, test_coverage,
         cyclomatic_complexity, cognitive_complexity, embedding,
@@ -5954,12 +5954,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteUniversalKnowledge(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_universal_knowledge WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_universal_knowledge WHERE id = ?').run(id);
   }
 
   async deleteUniversalKnowledgeByFile(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_universal_knowledge WHERE file = ?').run(filePath);
+    const result = db.prepare('DELETE FROM librainian_universal_knowledge WHERE file = ?').run(filePath);
     return result.changes;
   }
 
@@ -5986,7 +5986,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
     const countRow = db.prepare(
       `SELECT COUNT(*) as total, SUM(CASE WHEN length(embedding) = ? THEN 1 ELSE 0 END) as matching ` +
-      `FROM librarian_universal_knowledge${where}`
+      `FROM librainian_universal_knowledge${where}`
     ).get(expectedBytes, ...params) as { total: number; matching: number | null } | undefined;
     const totalEmbeddings = countRow?.total ?? 0;
     const matchingEmbeddings = Number(countRow?.matching ?? 0);
@@ -5997,7 +5997,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       );
     }
     if (totalEmbeddings > matchingEmbeddings) {
-      logWarning('[librarian] Skipping universal knowledge embeddings with dimension mismatch', {
+      logWarning('[librainian] Skipping universal knowledge embeddings with dimension mismatch', {
         expectedDimension: embedding.length,
         totalEmbeddings,
         matchingEmbeddings,
@@ -6005,7 +6005,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const whereWithDimension = `${where}${where ? ' AND ' : ' WHERE '}length(embedding) = ?`;
-    const rows = db.prepare(`SELECT id, name, file, kind, purpose_summary, embedding FROM librarian_universal_knowledge${whereWithDimension}`)
+    const rows = db.prepare(`SELECT id, name, file, kind, purpose_summary, embedding FROM librainian_universal_knowledge${whereWithDimension}`)
       .all(...params, expectedBytes) as Array<{
       id: string;
       name: string;
@@ -6194,7 +6194,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   private readIndexCoordinationVersion(db: Database.Database): number {
     const row = db
-      .prepare('SELECT version FROM librarian_index_coordination WHERE singleton = ?')
+      .prepare('SELECT version FROM librainian_index_coordination WHERE singleton = ?')
       .get(this.indexCoordinationRowId) as { version?: number } | undefined;
     if (!row || !Number.isFinite(row.version)) return 0;
     return Number(row.version);
@@ -6202,7 +6202,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   private bumpIndexCoordinationVersion(db: Database.Database, expectedVersion: number): number {
     const result = db.prepare(`
-      UPDATE librarian_index_coordination
+      UPDATE librainian_index_coordination
       SET version = version + 1
       WHERE singleton = ? AND version = ?
     `).run(this.indexCoordinationRowId, expectedVersion);
@@ -6220,7 +6220,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     version: number
   ): void {
     const insert = db.prepare(`
-      INSERT INTO librarian_change_log (id, event_type, path, version, created_at)
+      INSERT INTO librainian_change_log (id, event_type, path, version, created_at)
       VALUES (?, ?, ?, ?, ?)
     `);
     for (const change of changes) {
@@ -6245,7 +6245,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const limit = options.limit && options.limit > 0 ? Math.floor(options.limit) : 200;
     const rows = db.prepare(`
       SELECT id, event_type, path, version, created_at
-      FROM librarian_change_log
+      FROM librainian_change_log
       ${where}
       ORDER BY version ASC, created_at ASC
       LIMIT ?
@@ -6300,19 +6300,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
 
     const fnCount = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_functions')
+      .prepare('SELECT COUNT(*) as count FROM librainian_functions')
       .get() as { count: number };
     const modCount = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_modules')
+      .prepare('SELECT COUNT(*) as count FROM librainian_modules')
       .get() as { count: number };
     const packCount = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_context_packs WHERE invalidated = 0')
+      .prepare('SELECT COUNT(*) as count FROM librainian_context_packs WHERE invalidated = 0')
       .get() as { count: number };
     const embedCount = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_embeddings')
+      .prepare('SELECT COUNT(*) as count FROM librainian_embeddings')
       .get() as { count: number };
     const avgConf = db
-      .prepare('SELECT AVG(confidence) as avg FROM librarian_functions')
+      .prepare('SELECT AVG(confidence) as avg FROM librainian_functions')
       .get() as { avg: number | null };
 
     // Approximate storage size
@@ -6337,7 +6337,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getSCCEntries(options: SCCQueryOptions = {}): Promise<SCCEntry[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_scc WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_scc WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.componentId !== undefined) {
@@ -6367,7 +6367,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getSCCByEntity(entityId: string, entityType: SCCEntry['entityType']): Promise<SCCEntry | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_scc WHERE entity_id = ? AND entity_type = ?')
+      .prepare('SELECT * FROM librainian_scc WHERE entity_id = ? AND entity_type = ?')
       .get(entityId, entityType) as SCCRow | undefined;
     return row ? rowToSCCEntry(row) : null;
   }
@@ -6375,7 +6375,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertSCCEntries(entries: SCCEntry[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_scc
+      INSERT OR REPLACE INTO librainian_scc
       (component_id, entity_id, entity_type, is_root, component_size, computed_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
@@ -6397,7 +6397,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteSCCEntries(): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_scc').run();
+    db.prepare('DELETE FROM librainian_scc').run();
   }
 
   // ==========================================================================
@@ -6406,7 +6406,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getCFGEdges(options: CFGQueryOptions = {}): Promise<CFGEdge[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_cfg_edges WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_cfg_edges WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.functionId) {
@@ -6433,7 +6433,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertCFGEdges(edges: CFGEdge[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_cfg_edges
+      INSERT OR REPLACE INTO librainian_cfg_edges
       (function_id, from_block, to_block, edge_type, condition, source_line, confidence)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
@@ -6458,7 +6458,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteCFGEdgesForFunction(functionId: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_cfg_edges WHERE function_id = ?').run(functionId);
+    db.prepare('DELETE FROM librainian_cfg_edges WHERE function_id = ?').run(functionId);
   }
 
   // ==========================================================================
@@ -6471,14 +6471,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   ): Promise<BayesianConfidence | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_bayesian_confidence WHERE entity_id = ? AND entity_type = ?')
+      .prepare('SELECT * FROM librainian_bayesian_confidence WHERE entity_id = ? AND entity_type = ?')
       .get(entityId, entityType) as BayesianConfidenceRow | undefined;
     return row ? rowToBayesianConfidence(row) : null;
   }
 
   async getBayesianConfidences(options: BayesianConfidenceQueryOptions = {}): Promise<BayesianConfidence[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_bayesian_confidence WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_bayesian_confidence WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.entityType) {
@@ -6501,7 +6501,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertBayesianConfidence(entry: BayesianConfidence): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT OR REPLACE INTO librarian_bayesian_confidence
+      INSERT OR REPLACE INTO librainian_bayesian_confidence
       (entity_id, entity_type, prior_alpha, prior_beta, posterior_alpha, posterior_beta,
        observation_count, last_observation, computed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -6529,7 +6529,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     // Bayesian update: alpha += 1 on success, beta += 1 on failure
     if (success) {
       db.prepare(`
-        UPDATE librarian_bayesian_confidence
+        UPDATE librainian_bayesian_confidence
         SET posterior_alpha = posterior_alpha + 1,
             observation_count = observation_count + 1,
             last_observation = ?,
@@ -6538,7 +6538,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       `).run(now, now, entityId, entityType);
     } else {
       db.prepare(`
-        UPDATE librarian_bayesian_confidence
+        UPDATE librainian_bayesian_confidence
         SET posterior_beta = posterior_beta + 1,
             observation_count = observation_count + 1,
             last_observation = ?,
@@ -6555,14 +6555,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getStabilityMetrics(entityId: string, entityType: string): Promise<StabilityMetrics | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_stability_metrics WHERE entity_id = ? AND entity_type = ?')
+      .prepare('SELECT * FROM librainian_stability_metrics WHERE entity_id = ? AND entity_type = ?')
       .get(entityId, entityType) as StabilityMetricsRow | undefined;
     return row ? rowToStabilityMetrics(row) : null;
   }
 
   async getStabilityMetricsList(options: StabilityQueryOptions = {}): Promise<StabilityMetrics[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_stability_metrics WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_stability_metrics WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.entityType) {
@@ -6606,7 +6606,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertStabilityMetrics(metrics: StabilityMetrics): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT OR REPLACE INTO librarian_stability_metrics
+      INSERT OR REPLACE INTO librainian_stability_metrics
       (entity_id, entity_type, volatility, trend, mean_reversion_rate, half_life_days,
        seasonality_period_days, last_change_delta, computed_at, window_days)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -6631,14 +6631,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getFeedbackLoop(loopId: string): Promise<FeedbackLoop | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_feedback_loops WHERE loop_id = ?')
+      .prepare('SELECT * FROM librainian_feedback_loops WHERE loop_id = ?')
       .get(loopId) as FeedbackLoopRow | undefined;
     return row ? rowToFeedbackLoop(row) : null;
   }
 
   async getFeedbackLoops(options: FeedbackLoopQueryOptions = {}): Promise<FeedbackLoop[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_feedback_loops WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_feedback_loops WHERE 1=1';
     const params: unknown[] = [];
 
     if (options.loopType) {
@@ -6664,7 +6664,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertFeedbackLoop(loop: FeedbackLoop): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT OR REPLACE INTO librarian_feedback_loops
+      INSERT OR REPLACE INTO librainian_feedback_loops
       (loop_id, loop_type, entities, severity, is_stable, cycle_length,
        detected_at, resolved_at, resolution_method)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -6685,7 +6685,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     db.prepare(`
-      UPDATE librarian_feedback_loops
+      UPDATE librainian_feedback_loops
       SET resolved_at = ?, resolution_method = ?
       WHERE loop_id = ?
     `).run(now, resolutionMethod, loopId);
@@ -6698,7 +6698,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getGraphCacheEntry(cacheKey: string): Promise<GraphCacheEntry | null> {
     const db = this.ensureDb();
     const row = db
-      .prepare('SELECT * FROM librarian_graph_cache WHERE cache_key = ?')
+      .prepare('SELECT * FROM librainian_graph_cache WHERE cache_key = ?')
       .get(cacheKey) as GraphCacheRow | undefined;
     return row ? rowToGraphCacheEntry(row) : null;
   }
@@ -6706,7 +6706,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertGraphCacheEntry(entry: GraphCacheEntry): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT OR REPLACE INTO librarian_graph_cache
+      INSERT OR REPLACE INTO librainian_graph_cache
       (cache_key, analysis_type, result, node_count, edge_count,
        computation_ms, computed_at, expires_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -6725,7 +6725,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async pruneExpiredGraphCache(): Promise<number> {
     const db = this.ensureDb();
     const now = new Date().toISOString();
-    const result = db.prepare('DELETE FROM librarian_graph_cache WHERE expires_at < ?').run(now);
+    const result = db.prepare('DELETE FROM librainian_graph_cache WHERE expires_at < ?').run(now);
     return result.changes;
   }
 
@@ -6736,7 +6736,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   // Git Blame methods
   async getBlameEntries(options?: BlameQueryOptions): Promise<BlameEntry[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_blame_entries WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_blame_entries WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.filePath) {
@@ -6813,7 +6813,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertBlameEntries(entries: BlameEntry[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_blame_entries
+      INSERT OR REPLACE INTO librainian_blame_entries
       (id, file_path, line_start, line_end, author, author_email, commit_hash, commit_date, original_line, indexed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -6840,14 +6840,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteBlameForFile(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_blame_entries WHERE file_path = ?').run(filePath);
+    const result = db.prepare('DELETE FROM librainian_blame_entries WHERE file_path = ?').run(filePath);
     return result.changes;
   }
 
   // Git Diff methods
   async getDiffRecords(options?: DiffQueryOptions): Promise<DiffRecord[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_diff_records WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_diff_records WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.commitHash) {
@@ -6891,7 +6891,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertDiffRecords(records: DiffRecord[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_diff_records
+      INSERT OR REPLACE INTO librainian_diff_records
       (id, commit_hash, file_path, additions, deletions, hunk_count, hunks, change_category, complexity, impact_score, indexed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -6919,14 +6919,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteDiffForCommit(commitHash: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_diff_records WHERE commit_hash = ?').run(commitHash);
+    const result = db.prepare('DELETE FROM librainian_diff_records WHERE commit_hash = ?').run(commitHash);
     return result.changes;
   }
 
   // Git Reflog methods
   async getReflogEntries(options?: ReflogQueryOptions): Promise<ReflogEntry[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_reflog_entries WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_reflog_entries WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.refName) {
@@ -6964,7 +6964,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertReflogEntries(entries: ReflogEntry[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_reflog_entries
+      INSERT OR REPLACE INTO librainian_reflog_entries
       (id, ref_name, commit_hash, action, previous_commit, timestamp, message, author, indexed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -6990,14 +6990,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteReflogEntries(beforeTimestamp: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_reflog_entries WHERE timestamp < ?').run(beforeTimestamp);
+    const result = db.prepare('DELETE FROM librainian_reflog_entries WHERE timestamp < ?').run(beforeTimestamp);
     return result.changes;
   }
 
   // Code Clone methods
   async getCloneEntries(options?: CloneQueryOptions): Promise<CloneEntry[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_clone_entries WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_clone_entries WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.cloneGroupId !== undefined) {
@@ -7051,7 +7051,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         COUNT(*) as memberCount,
         AVG(similarity) as avgSimilarity,
         SUM(COALESCE(shared_lines, 0)) as totalDuplicatedLines
-      FROM librarian_clone_entries
+      FROM librainian_clone_entries
       GROUP BY clone_group_id, clone_type
       ORDER BY memberCount DESC
     `;
@@ -7079,7 +7079,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertCloneEntries(entries: CloneEntry[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_clone_entries
+      INSERT OR REPLACE INTO librainian_clone_entries
       (clone_group_id, entity_id_1, entity_id_2, entity_type, similarity, clone_type, shared_lines, shared_tokens, refactoring_potential, computed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -7106,14 +7106,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteCloneEntries(): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_clone_entries').run();
+    const result = db.prepare('DELETE FROM librainian_clone_entries').run();
     return result.changes;
   }
 
   // Technical Debt methods
   async getDebtMetrics(options?: DebtQueryOptions): Promise<DebtMetrics[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_debt_metrics WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_debt_metrics WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.entityId) {
@@ -7157,7 +7157,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getDebtForEntity(entityId: string, entityType: DebtMetrics['entityType']): Promise<DebtMetrics | null> {
     const db = this.ensureDb();
-    const row = db.prepare('SELECT * FROM librarian_debt_metrics WHERE entity_id = ? AND entity_type = ?')
+    const row = db.prepare('SELECT * FROM librainian_debt_metrics WHERE entity_id = ? AND entity_type = ?')
       .get(entityId, entityType) as DebtRow | undefined;
     return row ? rowToDebtMetrics(row) : null;
   }
@@ -7168,7 +7168,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       SELECT entity_id, entity_type, total_debt,
              complexity_debt, duplication_debt, coupling_debt, coverage_debt,
              architecture_debt, churn_debt, documentation_debt, security_debt
-      FROM librarian_debt_metrics
+      FROM librainian_debt_metrics
       ORDER BY total_debt DESC
       LIMIT ?
     `;
@@ -7205,7 +7205,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertDebtMetrics(metrics: DebtMetrics[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_debt_metrics
+      INSERT OR REPLACE INTO librainian_debt_metrics
       (entity_id, entity_type, total_debt, complexity_debt, duplication_debt, coupling_debt,
        coverage_debt, architecture_debt, churn_debt, documentation_debt, security_debt,
        trend, trend_delta, velocity_per_day, estimated_fix_hours, priority, recommendations,
@@ -7245,13 +7245,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteDebtMetrics(entityId: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_debt_metrics WHERE entity_id = ?').run(entityId);
+    db.prepare('DELETE FROM librainian_debt_metrics WHERE entity_id = ?').run(entityId);
   }
 
   // Knowledge Graph methods
   async getKnowledgeEdges(options?: KnowledgeEdgeQueryOptions): Promise<KnowledgeGraphEdge[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_knowledge_edges WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_knowledge_edges WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.sourceId) {
@@ -7317,7 +7317,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       visited.add(current.id);
 
       // Get outgoing edges
-      let sql = 'SELECT * FROM librarian_knowledge_edges WHERE source_id = ?';
+      let sql = 'SELECT * FROM librainian_knowledge_edges WHERE source_id = ?';
       const params: unknown[] = [current.id];
       if (edgeTypes?.length) {
         sql += ` AND edge_type IN (${edgeTypes.map(() => '?').join(',')})`;
@@ -7364,7 +7364,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertKnowledgeEdges(edges: KnowledgeGraphEdge[]): Promise<void> {
     const db = this.ensureDb();
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_knowledge_edges
+      INSERT OR REPLACE INTO librainian_knowledge_edges
       (id, source_id, target_id, source_type, target_type, edge_type, weight, confidence, metadata, computed_at, valid_until)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -7392,12 +7392,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteKnowledgeEdge(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_knowledge_edges WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_knowledge_edges WHERE id = ?').run(id);
   }
 
   async deleteKnowledgeEdgesForEntity(entityId: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_knowledge_edges WHERE source_id = ? OR target_id = ?')
+    const result = db.prepare('DELETE FROM librainian_knowledge_edges WHERE source_id = ? OR target_id = ?')
       .run(entityId, entityId);
     return result.changes;
   }
@@ -7405,7 +7405,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   // Fault Localization methods
   async getFaultLocalizations(options?: FaultLocalizationQueryOptions): Promise<FaultLocalization[]> {
     const db = this.ensureDb();
-    let sql = 'SELECT * FROM librarian_fault_localizations WHERE 1=1';
+    let sql = 'SELECT * FROM librainian_fault_localizations WHERE 1=1';
     const params: unknown[] = [];
 
     if (options?.failureSignature) {
@@ -7439,7 +7439,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async upsertFaultLocalization(localization: FaultLocalization): Promise<void> {
     const db = this.ensureDb();
     db.prepare(`
-      INSERT OR REPLACE INTO librarian_fault_localizations
+      INSERT OR REPLACE INTO librainian_fault_localizations
       (id, failure_signature, suspicious_entities, methodology, confidence, computed_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(
@@ -7454,7 +7454,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFaultLocalization(id: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_fault_localizations WHERE id = ?').run(id);
+    db.prepare('DELETE FROM librainian_fault_localizations WHERE id = ?').run(id);
   }
 }
 
@@ -8208,7 +8208,7 @@ function parseJsonArray<T>(raw: string): T[] {
   const parsed = safeJsonParse<T[]>(raw);
   if (!parsed.ok) {
     // Log warning when JSON parsing fails - silent failures hide data corruption
-    console.warn(`[librarian] Failed to parse JSON array from stored data: ${raw.slice(0, 100)}...`);
+    console.warn(`[librainian] Failed to parse JSON array from stored data: ${raw.slice(0, 100)}...`);
     return [];
   }
   return Array.isArray(parsed.value) ? parsed.value : [];
@@ -8424,7 +8424,7 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
  *
  * @example
  * ```typescript
- * const storage = createSqliteStorage('./librarian.db', process.cwd());
+ * const storage = createSqliteStorage('./librainian.db', process.cwd());
  * await storage.initialize();
  * ```
  */
@@ -8443,7 +8443,7 @@ export function createSqliteStorage(dbPath: string, workspaceRoot?: string): LiB
  * ```typescript
  * const storage = await createStorageFromBackend({
  *   type: 'sqlite',
- *   connectionString: './librarian.db',
+ *   connectionString: './librainian.db',
  * });
  * ```
  */

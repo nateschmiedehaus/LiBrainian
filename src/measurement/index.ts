@@ -1,5 +1,5 @@
 /**
- * @fileoverview Librarian Measurement Module
+ * @fileoverview LiBrainian Measurement Module
  *
  * PHILOSOPHICAL ALIGNMENT:
  * - Measurement replaces binary verification for semantic quality (UNDERSTANDING_LAYER.md)
@@ -58,8 +58,8 @@ export {
   type ConfidenceState,
   type QueryPerformance,
   type RecoveryState,
-  type LibrarianStateReport,
-  type LibrarianHealth,
+  type LiBrainianStateReport,
+  type LiBrainianHealth,
   SLO_THRESHOLDS,
   collectCodeGraphHealth,
   collectIndexFreshness,
@@ -73,7 +73,7 @@ export {
   resetRecoveryState,
   generateStateReport,
   exportPrometheusMetrics,
-  isLibrarianStateReport,
+  isLiBrainianStateReport,
 } from './observability.js';
 
 // Calibration-Evidence Ledger integration

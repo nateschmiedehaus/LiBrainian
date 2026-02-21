@@ -142,7 +142,7 @@ const MAX_HALLUCINATION_RATE = 0.20; // < 20% hallucination
 // ============================================================================
 
 /**
- * Create a mock LibrarianStorage for agent initialization.
+ * Create a mock LiBrainianStorage for agent initialization.
  */
 function createMockStorage(): any {
   return {
@@ -695,7 +695,7 @@ Consistency Check Setup:
 - Sample variants: ${querySet.variants.slice(0, 3).map((v) => `"${v.query}"`).join(', ')}
 `);
 
-      // Generate mock answers (in real scenario, these would come from Librarian)
+      // Generate mock answers (in real scenario, these would come from LiBrainian)
       // Use ConsistencyAnswer format
       const answers = querySet.variants.map((variant) => ({
         queryId: variant.id,

@@ -1,12 +1,12 @@
 import { parseArgs } from 'node:util';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { Librarian } from '../../api/librarian.js';
-import { queryLibrarian } from '../../api/query.js';
+import { LiBrainian } from '../../api/librainian.js';
+import { queryLiBrainian } from '../../api/query.js';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from '../../api/bootstrap.js';
-import { detectLibrarianVersion } from '../../api/versioning.js';
+import { detectLiBrainianVersion } from '../../api/versioning.js';
 import { createError } from '../errors.js';
 import {
   PERFORMANCE_SLA,
@@ -146,7 +146,7 @@ async function ensureBootstrapForBenchmark(
   const storage = createSqliteStorage(dbPath, workspace);
   await storage.initialize();
   try {
-    const currentVersion = await detectLibrarianVersion(storage);
+    const currentVersion = await detectLiBrainianVersion(storage);
     const effectiveTier = currentVersion?.qualityTier ?? 'full';
     const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: effectiveTier });
     if (bootstrapCheck.required) {
@@ -183,7 +183,7 @@ async function runQueryBenchmark(workspace: string, queryCount: number): Promise
     for (let i = 0; i < samples; i++) {
       const intent = BENCHMARK_INTENTS[i % BENCHMARK_INTENTS.length]!;
       const startedAt = Date.now();
-      const response = await queryLibrarian(
+      const response = await queryLiBrainian(
         {
           intent,
           depth: 'L1',
@@ -219,7 +219,7 @@ async function runIncrementalBenchmark(workspace: string, incrementalFiles: numb
   const dbPath = await resolveDbPath(workspace);
   const storage = createSqliteStorage(dbPath, workspace);
   await storage.initialize();
-  let librarian: Librarian | null = null;
+  let librainian: LiBrainian | null = null;
   try {
     const files = await storage.getFiles({ category: 'code', limit: Math.max(10, incrementalFiles * 5) });
     const samplePaths = files
@@ -231,7 +231,7 @@ async function runIncrementalBenchmark(workspace: string, incrementalFiles: numb
       return { durationMs: null, fileCount: 0, peakRssMb: null };
     }
 
-    librarian = new Librarian({
+    librainian = new LiBrainian({
       workspace,
       dbPath,
       autoBootstrap: false,
@@ -239,7 +239,7 @@ async function runIncrementalBenchmark(workspace: string, incrementalFiles: numb
       disableLlmDiscovery: true,
       skipEmbeddings: true,
     });
-    await librarian.initialize();
+    await librainian.initialize();
 
     let peakRssMb = toMb(process.memoryUsage().rss);
     const sampler = setInterval(() => {
@@ -251,7 +251,7 @@ async function runIncrementalBenchmark(workspace: string, incrementalFiles: numb
 
     const startedAt = Date.now();
     try {
-      await librarian.reindexFiles(samplePaths);
+      await librainian.reindexFiles(samplePaths);
     } finally {
       clearInterval(sampler);
     }
@@ -262,8 +262,8 @@ async function runIncrementalBenchmark(workspace: string, incrementalFiles: numb
       peakRssMb,
     };
   } finally {
-    if (librarian) {
-      await librarian.shutdown();
+    if (librainian) {
+      await librainian.shutdown();
     }
     await storage.close();
   }

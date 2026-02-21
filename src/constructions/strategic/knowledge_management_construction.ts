@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -82,7 +82,7 @@ export interface KnowledgeManagementAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new KnowledgeManagementConstruction(librarian);
+ * const construction = new KnowledgeManagementConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['docs/**', 'adr/**', 'runbooks/**'],
  *   focus: ['decision', 'operational'],
@@ -94,11 +94,11 @@ export class KnowledgeManagementConstruction implements CalibratedConstruction {
   static readonly CONSTRUCTION_ID = 'KnowledgeManagementConstruction';
   readonly CONSTRUCTION_ID = KnowledgeManagementConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -149,13 +149,13 @@ export class KnowledgeManagementConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand knowledge context
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand knowledge context
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze knowledge management including documentation, decision records, runbooks, and domain knowledge',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:km_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:km_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Get or create knowledge graph
     const graph = input.knowledgeGraph || this.getStandard();
@@ -266,7 +266,7 @@ export class KnowledgeManagementConstruction implements CalibratedConstruction {
    * Extract knowledge items from query results.
    */
   private extractKnowledgeItems(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     focus?: km.KnowledgeType[]
   ): km.KnowledgeItem[] {
     const items: km.KnowledgeItem[] = [];
@@ -318,7 +318,7 @@ export class KnowledgeManagementConstruction implements CalibratedConstruction {
    * Infer knowledge type from pack content.
    */
   private inferKnowledgeType(
-    pack: Awaited<ReturnType<Librarian['queryOptional']>>['packs'][number]
+    pack: Awaited<ReturnType<LiBrainian['queryOptional']>>['packs'][number]
   ): km.KnowledgeType {
     const summary = (pack.summary || '').toLowerCase();
     const files = (pack.relatedFiles || []).join(' ').toLowerCase();
@@ -533,7 +533,7 @@ export class KnowledgeManagementConstruction implements CalibratedConstruction {
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -556,11 +556,11 @@ export class KnowledgeManagementConstruction implements CalibratedConstruction {
 /**
  * Create a new knowledge management construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new KnowledgeManagementConstruction
  */
 export function createKnowledgeManagementConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): KnowledgeManagementConstruction {
-  return new KnowledgeManagementConstruction(librarian);
+  return new KnowledgeManagementConstruction(librainian);
 }

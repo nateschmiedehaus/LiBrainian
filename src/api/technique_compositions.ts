@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import {
   createTechniqueComposition,
   type TechniqueCompositionGraphVersion,
@@ -1086,7 +1086,7 @@ export const DEFAULT_TECHNIQUE_COMPOSITIONS_BY_ID = new Map(
 );
 
 export async function ensureTechniqueCompositions(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: { overwrite?: boolean }
 ): Promise<TechniqueComposition[]> {
   assertCompositionReferences({

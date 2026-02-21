@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LibrarianStorage, TransactionContext } from '../../storage/types.js';
+import type { LiBrainianStorage, TransactionContext } from '../../storage/types.js';
 import type { IngestionItem } from '../../ingest/types.js';
 import { __testing } from '../bootstrap.js';
 
@@ -256,7 +256,7 @@ describe('bootstrap ingestion transactions', () => {
     ];
 
     const result = await applyIngestionResults(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       items,
       '/workspace'
     );
@@ -288,7 +288,7 @@ describe('bootstrap ingestion transactions', () => {
     ];
 
     const result = await applyIngestionResults(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       items,
       '/workspace'
     );
@@ -310,7 +310,7 @@ describe('bootstrap ingestion transactions', () => {
     });
 
     const result = await applyIngestionResults(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       [createItem('item-1'), invalidItem],
       '/workspace'
     );
@@ -340,7 +340,7 @@ describe('bootstrap ingestion transactions', () => {
     ];
 
     const result = await applyIngestionResults(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       items,
       '/workspace'
     );
@@ -359,7 +359,7 @@ describe('bootstrap ingestion transactions', () => {
 
     await expect(
       applyIngestionResults(
-        storage as unknown as LibrarianStorage,
+        storage as unknown as LiBrainianStorage,
         [createItem('item-1')],
         '/workspace'
       )

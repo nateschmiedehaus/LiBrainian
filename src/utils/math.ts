@@ -1,5 +1,5 @@
 /**
- * @fileoverview Math utilities for librarian
+ * @fileoverview Math utilities for librainian
  *
  * Consolidated clamping functions to avoid duplication across modules.
  */

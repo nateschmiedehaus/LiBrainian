@@ -34,7 +34,7 @@ export async function validateCommand(options: ValidateCommandOptions): Promise<
 
   const filePath = positionals.join(' ');
   if (!filePath) {
-    throw createError('INVALID_ARGUMENT', 'File path is required. Usage: librarian validate <file-path>');
+    throw createError('INVALID_ARGUMENT', 'File path is required. Usage: librainian validate <file-path>');
   }
 
   const beforeContent = values.before as string | undefined;

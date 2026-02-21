@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type {
   ContextPack,
-  LibrarianQuery,
-  LibrarianVersion,
+  LiBrainianQuery,
+  LiBrainianVersion,
   QueryIntentType,
   QueryResultContract,
   SynthesizedResponse,
@@ -95,12 +95,12 @@ function normalizeIntentTypeFromTaskType(taskType: string | undefined): QueryInt
   return 'understand';
 }
 
-export function resolveQueryIntentType(query: LibrarianQuery): QueryIntentType {
+export function resolveQueryIntentType(query: LiBrainianQuery): QueryIntentType {
   if (query.intentType) return query.intentType;
   return normalizeIntentTypeFromTaskType(query.taskType);
 }
 
-export function normalizeQueryIntentType(query: LibrarianQuery): LibrarianQuery {
+export function normalizeQueryIntentType(query: LiBrainianQuery): LiBrainianQuery {
   const intentType = resolveQueryIntentType(query);
   const inferredTaskType = query.taskType ?? INTENT_TO_TASK_TYPE[intentType];
   if (query.intentType === intentType && query.taskType === inferredTaskType) {
@@ -144,7 +144,7 @@ function collectRiskFactors(disclosures: string[] | undefined): string[] {
   return Array.from(new Set(risks)).slice(0, 20);
 }
 
-function toIsoString(indexedAt: LibrarianVersion['indexedAt']): string {
+function toIsoString(indexedAt: LiBrainianVersion['indexedAt']): string {
   if (indexedAt instanceof Date) {
     return indexedAt.toISOString();
   }
@@ -152,11 +152,11 @@ function toIsoString(indexedAt: LibrarianVersion['indexedAt']): string {
 }
 
 export function buildQueryResultContract(input: {
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   packs: ContextPack[];
   synthesis?: SynthesizedResponse;
   totalConfidence: number;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   disclosures?: string[];
 }): QueryResultContract | undefined {
   const { query, packs, synthesis, totalConfidence, version, disclosures } = input;

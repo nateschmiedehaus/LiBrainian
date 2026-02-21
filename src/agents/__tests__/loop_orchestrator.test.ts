@@ -18,7 +18,7 @@ import {
   createScientificLoopOrchestrator,
   ScientificLoopOrchestratorImpl,
 } from '../loop_orchestrator.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type {
   Problem,
   ProblemDetectionInput,
@@ -77,13 +77,13 @@ describe('ScientificLoopOrchestrator', () => {
 
     it('isReady returns true after initialization', async () => {
       const orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
       expect(orchestrator.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
       await orchestrator.shutdown();
       expect(orchestrator.isReady()).toBe(false);
     });
@@ -94,7 +94,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     it('setProblemDetector sets the problem detector agent', () => {
@@ -140,7 +140,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     it('returns initial state with iteration 0', () => {
@@ -184,7 +184,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     it('resets iteration to 0', async () => {
@@ -260,7 +260,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     describe('with no problems detected', () => {
@@ -487,7 +487,7 @@ describe('ScientificLoopOrchestrator', () => {
         const orchestrator = createScientificLoopOrchestrator({
           maxHypothesesPerProblem: 2,
         });
-        await orchestrator.initialize({} as LibrarianStorage);
+        await orchestrator.initialize({} as LiBrainianStorage);
 
         let testedCount = 0;
         setupOrchestratorWithHypothesisTesting(orchestrator, (_hyp) => {
@@ -504,7 +504,7 @@ describe('ScientificLoopOrchestrator', () => {
         const orchestrator = createScientificLoopOrchestrator({
           maxFixAttemptsPerProblem: 1,
         });
-        await orchestrator.initialize({} as LibrarianStorage);
+        await orchestrator.initialize({} as LiBrainianStorage);
 
         let fixAttempts = 0;
         setupOrchestratorWithFixAttempts(orchestrator, () => {
@@ -524,7 +524,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     it('stops when no problems remain', async () => {
@@ -556,7 +556,7 @@ describe('ScientificLoopOrchestrator', () => {
       const orchestrator = createScientificLoopOrchestrator({
         maxIterations: 3,
       });
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
 
       // Always find problems (infinite loop without max)
       setupOrchestratorForEscalation(orchestrator);
@@ -618,7 +618,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     it('returns state in result', async () => {
@@ -651,7 +651,7 @@ describe('ScientificLoopOrchestrator', () => {
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator();
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
     });
 
     it('calculates fixSuccessRate correctly', async () => {
@@ -659,7 +659,7 @@ describe('ScientificLoopOrchestrator', () => {
       const orchestrator = createScientificLoopOrchestrator({
         maxFixAttemptsPerProblem: 1,
       });
-      await orchestrator.initialize({} as LibrarianStorage);
+      await orchestrator.initialize({} as LiBrainianStorage);
 
       // 2 problems, 1 fixed, 1 escalated
       const problemDetector = createMockProblemDetector();
@@ -716,11 +716,11 @@ describe('ScientificLoopOrchestrator', () => {
   describe('Deterministic output (Tier-0)', () => {
     it('produces consistent output for same input', async () => {
       const orchestrator1 = createScientificLoopOrchestrator();
-      await orchestrator1.initialize({} as LibrarianStorage);
+      await orchestrator1.initialize({} as LiBrainianStorage);
       setupOrchestratorForSuccessfulFix(orchestrator1);
 
       const orchestrator2 = createScientificLoopOrchestrator();
-      await orchestrator2.initialize({} as LibrarianStorage);
+      await orchestrator2.initialize({} as LiBrainianStorage);
       setupOrchestratorForSuccessfulFix(orchestrator2);
 
       const input: ProblemDetectionInput = { testRuns: [] };

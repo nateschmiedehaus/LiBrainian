@@ -92,7 +92,7 @@ describe('ingestion payload limits', () => {
   let ctx: IngestionContext;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ingestion-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-ingestion-'));
     ctx = {
       workspace: tempDir,
       now: () => '2026-02-04T00:00:00.000Z',

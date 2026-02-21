@@ -11,8 +11,8 @@ function readDoc(pathFromRoot: string): string {
 describe('agent session test invocation docs', () => {
   it('documents concrete agent-session invocation in core test docs', () => {
     const testPolicy = readDoc('docs/TEST.md');
-    const liveFire = readDoc('docs/librarian/LIVE_FIRE_E2E.md');
-    const validation = readDoc('docs/librarian/validation.md');
+    const liveFire = readDoc('docs/librainian/LIVE_FIRE_E2E.md');
+    const validation = readDoc('docs/librainian/validation.md');
 
     expect(testPolicy).toContain('Agent Session Invocation Runbook (Tier-2)');
     expect(testPolicy).toContain('AB_HARNESS_AGENT_CMD');

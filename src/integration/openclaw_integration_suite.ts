@@ -52,7 +52,7 @@ interface MemoryStalenessFixture {
 
 interface NavigationFixtureEntry {
   id: string;
-  librarianTop1Correct: boolean;
+  librainianTop1Correct: boolean;
   grepTop1Correct: boolean;
 }
 
@@ -144,24 +144,24 @@ async function evaluateScenario3(fixtureRoot: string): Promise<OpenclawScenarioR
     path.join(fixtureRoot, 'nav-queries.json'),
   );
   const total = entries.length;
-  const librarianCorrect = entries.filter((entry) => entry.librarianTop1Correct).length;
+  const librainianCorrect = entries.filter((entry) => entry.librainianTop1Correct).length;
   const grepCorrect = entries.filter((entry) => entry.grepTop1Correct).length;
-  const librarianAccuracy = ratio(librarianCorrect, total);
+  const librainianAccuracy = ratio(librainianCorrect, total);
   const grepAccuracy = ratio(grepCorrect, total);
-  const minLibrarianAccuracy = 0.9;
+  const minLiBrainianAccuracy = 0.9;
 
   return {
     id: 'scenario_3_semantic_navigation_accuracy',
     title: 'Sub-agent Semantic Navigation Accuracy',
-    passed: librarianAccuracy >= minLibrarianAccuracy,
+    passed: librainianAccuracy >= minLiBrainianAccuracy,
     thresholds: {
-      minLibrarianAccuracy,
+      minLiBrainianAccuracy,
     },
     measurements: {
       totalQueries: total,
-      librarianCorrect,
+      librainianCorrect,
       grepCorrect,
-      librarianAccuracy,
+      librainianAccuracy,
       grepAccuracy,
     },
   };

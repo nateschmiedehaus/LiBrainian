@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { LibrarianQuery, LibrarianResponse, ContextPack, LibrarianVersion } from '../../types.js';
+import type { LiBrainianQuery, LiBrainianResponse, ContextPack, LiBrainianVersion } from '../../types.js';
 import { ContextAssemblySessionManager } from '../context_sessions.js';
 
-const version: LibrarianVersion = {
+const version: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -33,7 +33,7 @@ function makePack(packId: string, relatedFile: string, summary: string): Context
   };
 }
 
-function makeResponse(query: LibrarianQuery, packs: ContextPack[], hints: string[] = []): LibrarianResponse {
+function makeResponse(query: LiBrainianQuery, packs: ContextPack[], hints: string[] = []): LiBrainianResponse {
   return {
     query,
     packs,
@@ -57,7 +57,7 @@ function makeResponse(query: LibrarianQuery, packs: ContextPack[], hints: string
 
 describe('context assembly sessions', () => {
   it('accumulates follow-ups and drill-downs in a session', async () => {
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       if (query.intent.includes('refresh')) {
         return makeResponse(query, [makePack('pack_refresh', 'src/auth_refresh.ts', 'Refresh flow')], [
           'Check refresh token rotation',
@@ -102,7 +102,7 @@ describe('context assembly sessions', () => {
 
   it('keeps session state stable when follow-up query fails', async () => {
     let callCount = 0;
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       callCount += 1;
       if (callCount === 1) {
         return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
@@ -125,7 +125,7 @@ describe('context assembly sessions', () => {
 
   it('expires sessions based on TTL', async () => {
     let now = new Date('2026-01-19T00:00:00.000Z');
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
     });
     const manager = new ContextAssemblySessionManager({
@@ -140,7 +140,7 @@ describe('context assembly sessions', () => {
   });
 
   it('rejects empty follow-up questions', async () => {
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
     });
     const manager = new ContextAssemblySessionManager({ query: queryRunner });
@@ -151,7 +151,7 @@ describe('context assembly sessions', () => {
 
   it('serializes concurrent follow-up calls', async () => {
     let callCount = 0;
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       callCount += 1;
       if (callCount === 1) {
         await new Promise((resolve) => setTimeout(resolve, 5));
@@ -173,7 +173,7 @@ describe('context assembly sessions', () => {
   });
 
   it('can restore and snapshot session state across manager instances', async () => {
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       if (query.intent === 'auth overview') {
         return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
       }
@@ -194,7 +194,7 @@ describe('context assembly sessions', () => {
   });
 
   it('enforces pack limits on follow-ups', async () => {
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       if (query.intent === 'auth overview') {
         return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
       }
@@ -215,7 +215,7 @@ describe('context assembly sessions', () => {
     const gate = new Promise<void>((resolve) => {
       release = () => resolve();
     });
-    const queryRunner = vi.fn(async (query: LibrarianQuery) => {
+    const queryRunner = vi.fn(async (query: LiBrainianQuery) => {
       await gate;
       return makeResponse(query, [makePack('pack_auth', 'src/auth.ts', 'Auth overview')]);
     });

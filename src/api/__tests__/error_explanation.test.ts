@@ -18,13 +18,13 @@ import {
   type ErrorType,
   type ErrorExplanation,
 } from '../error_explanation.js';
-import type { LibrarianStorage, FunctionKnowledge, FileKnowledge } from '../../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge, FileKnowledge } from '../../storage/types.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-function createMockStorage(overrides: Partial<LibrarianStorage> = {}): LibrarianStorage {
+function createMockStorage(overrides: Partial<LiBrainianStorage> = {}): LiBrainianStorage {
   return {
     // Lifecycle
     initialize: vi.fn().mockResolvedValue(undefined),
@@ -117,7 +117,7 @@ function createMockStorage(overrides: Partial<LibrarianStorage> = {}): Librarian
       ].map(name => [name, vi.fn().mockResolvedValue(null)])
     ),
     ...overrides,
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -254,13 +254,13 @@ describe('extractIdentifiers', () => {
   });
 
   it('extracts PascalCase identifiers', () => {
-    const ids = extractIdentifiers('Error in LibrarianStorage.getFiles');
-    expect(ids).toContain('LibrarianStorage');
+    const ids = extractIdentifiers('Error in LiBrainianStorage.getFiles');
+    expect(ids).toContain('LiBrainianStorage');
   });
 
   it('extracts camelCase identifiers', () => {
-    const ids = extractIdentifiers('undefined is not a function at createLibrarian');
-    expect(ids).toContain('createLibrarian');
+    const ids = extractIdentifiers('undefined is not a function at createLiBrainian');
+    expect(ids).toContain('createLiBrainian');
   });
 
   it('extracts file paths', () => {
@@ -458,7 +458,7 @@ describe('isErrorExplanationQuery', () => {
 
   it('does not match unrelated queries', () => {
     expect(isErrorExplanationQuery('what is the purpose of this function')).toBe(false);
-    expect(isErrorExplanationQuery('show me the code for LibrarianStorage')).toBe(false);
+    expect(isErrorExplanationQuery('show me the code for LiBrainianStorage')).toBe(false);
   });
 });
 
@@ -556,10 +556,10 @@ describe('explainError', () => {
   it('searches for functions by extracted identifiers', async () => {
     const mockFunction: FunctionKnowledge = {
       id: 'func-1',
-      filePath: '/src/api/librarian.ts',
-      name: 'createLibrarian',
-      signature: 'createLibrarian(config: LibrarianConfig): Librarian',
-      purpose: 'Create a Librarian instance',
+      filePath: '/src/api/librainian.ts',
+      name: 'createLiBrainian',
+      signature: 'createLiBrainian(config: LiBrainianConfig): LiBrainian',
+      purpose: 'Create a LiBrainian instance',
       startLine: 10,
       endLine: 50,
       confidence: 0.9,
@@ -574,12 +574,12 @@ describe('explainError', () => {
     });
 
     const explanation = await explainError(
-      "Error in 'createLibrarian': foo is undefined",
+      "Error in 'createLiBrainian': foo is undefined",
       storage
     );
 
-    expect(storage.getFunctionsByName).toHaveBeenCalledWith('createLibrarian');
-    expect(explanation.relevantCode.some(r => r.relevance.includes('createLibrarian'))).toBe(true);
+    expect(storage.getFunctionsByName).toHaveBeenCalledWith('createLiBrainian');
+    expect(explanation.relevantCode.some(r => r.relevance.includes('createLiBrainian'))).toBe(true);
   });
 
   it('handles storage errors gracefully', async () => {
@@ -640,9 +640,9 @@ import {
   createRelevantCodePacks,
   formatErrorSummary,
 } from '../error_explanation.js';
-import type { LibrarianVersion } from '../../types.js';
+import type { LiBrainianVersion } from '../../types.js';
 
-const mockVersion: LibrarianVersion = {
+const mockVersion: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -658,7 +658,7 @@ describe('runErrorExplanationStage', () => {
     const storage = createMockStorage();
     const result = await runErrorExplanationStage({
       storage,
-      intent: 'what is the purpose of LibrarianStorage',
+      intent: 'what is the purpose of LiBrainianStorage',
       version: mockVersion,
     });
 

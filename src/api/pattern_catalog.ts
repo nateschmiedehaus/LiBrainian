@@ -905,7 +905,7 @@ export const COMPOSITION_PATTERN_CATALOG = freezeCatalog([
         context: ['meta', 'self', 'improve', 'evolve', 'learn'],
         confidence: patternConfidence('pattern_self_improvement', 1),
         examples: [
-          "Improve Librarian's accuracy",
+          "Improve LiBrainian's accuracy",
           "Evolve the agent's strategies",
           'Learn from past failures',
           'Optimize the system itself',

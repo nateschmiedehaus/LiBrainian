@@ -14,7 +14,7 @@
 
 import { createHash } from 'crypto';
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   KnowledgeGraphEdge,
   KnowledgeEdgeType,
   KnowledgeSubgraph,
@@ -35,7 +35,7 @@ import { buildTemporalGraph, type CochangeEdge } from './temporal_graph.js';
 
 export interface KnowledgeGraphBuildOptions {
   workspace: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   includeImports?: boolean;      // Build from AST import edges (default: true)
   includeCalls?: boolean;        // Build from function call edges (default: true)
   includeClones?: boolean;       // Build from clone analysis (default: true)
@@ -141,7 +141,7 @@ function generateEdgeId(sourceId: string, targetId: string, edgeType: KnowledgeE
  * Build knowledge edges from existing AST graph edges (imports, calls, extends).
  */
 async function buildFromGraphEdges(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   includeImports: boolean,
   includeCalls: boolean
 ): Promise<KnowledgeGraphEdge[]> {
@@ -186,7 +186,7 @@ async function buildFromGraphEdges(
 /**
  * Build knowledge edges from clone analysis results.
  */
-async function buildFromClones(storage: LibrarianStorage): Promise<KnowledgeGraphEdge[]> {
+async function buildFromClones(storage: LiBrainianStorage): Promise<KnowledgeGraphEdge[]> {
   const edges: KnowledgeGraphEdge[] = [];
   const now = new Date().toISOString();
 
@@ -218,7 +218,7 @@ async function buildFromClones(storage: LibrarianStorage): Promise<KnowledgeGrap
  */
 async function buildFromCochange(
   workspace: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   maxCommits: number
 ): Promise<KnowledgeGraphEdge[]> {
   const edges: KnowledgeGraphEdge[] = [];
@@ -253,7 +253,7 @@ async function buildFromCochange(
 /**
  * Build knowledge edges from blame/authorship data.
  */
-async function buildFromAuthorship(storage: LibrarianStorage): Promise<KnowledgeGraphEdge[]> {
+async function buildFromAuthorship(storage: LiBrainianStorage): Promise<KnowledgeGraphEdge[]> {
   const edges: KnowledgeGraphEdge[] = [];
   const now = new Date().toISOString();
 
@@ -309,7 +309,7 @@ async function buildFromAuthorship(storage: LibrarianStorage): Promise<Knowledge
 /**
  * Build knowledge edges from debt analysis results.
  */
-async function buildFromDebt(storage: LibrarianStorage): Promise<KnowledgeGraphEdge[]> {
+async function buildFromDebt(storage: LiBrainianStorage): Promise<KnowledgeGraphEdge[]> {
   const edges: KnowledgeGraphEdge[] = [];
   const now = new Date().toISOString();
 
@@ -352,7 +352,7 @@ async function buildFromDebt(storage: LibrarianStorage): Promise<KnowledgeGraphE
 /**
  * Build hierarchical containment edges (part_of).
  */
-async function buildHierarchicalEdges(storage: LibrarianStorage): Promise<KnowledgeGraphEdge[]> {
+async function buildHierarchicalEdges(storage: LiBrainianStorage): Promise<KnowledgeGraphEdge[]> {
   const edges: KnowledgeGraphEdge[] = [];
   const now = new Date().toISOString();
 
@@ -586,7 +586,7 @@ function buildGraphFromEdges(edges: KnowledgeGraphEdge[]): Map<string, Set<strin
  * Find clusters of cloned code.
  */
 export async function getCloneClusters(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: { minClusterSize?: number; minSimilarity?: number }
 ): Promise<CloneCluster[]> {
   const { minClusterSize = 2, minSimilarity = 0.7 } = options || {};
@@ -698,7 +698,7 @@ function calculateRefactoringPotential(
  * Find debt hotspots - high-debt nodes with high centrality.
  */
 export async function getDebtHotspots(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: { minDebt?: number; limit?: number }
 ): Promise<DebtHotspotResult[]> {
   const { minDebt = 30, limit = 20 } = options || {};
@@ -790,7 +790,7 @@ function generateDebtRecommendations(
  * Get ownership map for the codebase.
  */
 export async function getOwnershipMap(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: { path?: string; minOwnership?: number }
 ): Promise<OwnershipMapResult> {
   const { minOwnership = 0.1 } = options || {};
@@ -860,7 +860,7 @@ export async function getOwnershipMap(
  * Analyze the impact of changing a specific entity.
  */
 export async function analyzeImpact(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetId: string,
   options?: { maxDepth?: number }
 ): Promise<ImpactAnalysisResult> {
@@ -966,7 +966,7 @@ function calculateDirectImpact(edge: KnowledgeGraphEdge): number {
  * Get the evolution timeline for an entity.
  */
 export async function getEvolutionTimeline(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<EvolutionTimelineResult> {
   const timeline: EvolutionTimelineResult['timeline'] = [];
@@ -1064,7 +1064,7 @@ export async function getEvolutionTimeline(
  * Extract a focused subgraph around a root node.
  */
 export async function extractSubgraph(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   rootId: string,
   depth: number,
   edgeTypes?: KnowledgeEdgeType[]
@@ -1081,8 +1081,8 @@ export interface KnowledgeGraphIngestionSource {
   name: string;
   version: string;
   priority: number;
-  probe(context: { workspace: string; storage: LibrarianStorage }): Promise<boolean>;
-  ingest(context: { workspace: string; storage: LibrarianStorage }): Promise<{
+  probe(context: { workspace: string; storage: LiBrainianStorage }): Promise<boolean>;
+  ingest(context: { workspace: string; storage: LiBrainianStorage }): Promise<{
     items: Array<{ id: string; type: string; data: unknown }>;
     errors: string[];
     durationMs: number;

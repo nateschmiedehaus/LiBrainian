@@ -2,13 +2,13 @@
  * @fileoverview API module exports
  */
 
-// Main librarian API
+// Main librainian API
 export {
-  Librarian,
-  createLibrarian,
-  createLibrarianSync,
-} from './librarian.js';
-export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
+  LiBrainian,
+  createLiBrainian,
+  createLiBrainianSync,
+} from './librainian.js';
+export type { LiBrainianConfig, LiBrainianStatus, LiBrainianDependencyOverrides } from './librainian.js';
 export type {
   LlmRequirement,
   LlmRequired,
@@ -24,7 +24,7 @@ export type {
   QueryPipelineStageDefinition,
   QueryPipelineDefinition,
   QueryStageObserver,
-  LibrarianResponse,
+  LiBrainianResponse,
 } from '../types.js';
 
 // Core API utilities (providers, embeddings, redaction, reporting)
@@ -178,7 +178,7 @@ export {
 } from './reporting.js';
 export type {
   ProviderStatusReportV1,
-  LibrarianRunReportV1,
+  LiBrainianRunReportV1,
   TrajectoryAnalysisReportV1,
   KnowledgeCoverageReportV1,
 } from './reporting.js';
@@ -400,7 +400,7 @@ export {
 } from './operator_interpreters.js';
 export {
   llmProviderRegistry,
-  resolveLibrarianModelConfigWithDiscovery,
+  resolveLiBrainianModelConfigWithDiscovery,
 } from './llm_env.js';
 export type {
   LlmProviderDescriptor,
@@ -592,8 +592,8 @@ export type {
 
 // Query API
 export {
-  queryLibrarian,
-  queryLibrarianWithObserver,
+  queryLiBrainian,
+  queryLiBrainianWithObserver,
   getQueryPipelineDefinition,
   getQueryPipelineStages,
   createFunctionQuery,
@@ -760,7 +760,7 @@ export type {
 
 // Versioning API
 export {
-  detectLibrarianVersion,
+  detectLiBrainianVersion,
   compareVersions,
   upgradeRequired,
   runUpgrade,

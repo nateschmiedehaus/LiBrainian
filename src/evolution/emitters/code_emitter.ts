@@ -36,7 +36,7 @@ const SAFE_MUTATION_STRATEGIES: CodeMutationStrategy[] = [
     name: 'Increase Timeout',
     description: 'Increase timeout values for slow operations',
     pattern: /timeout:\s*(\d+)/,
-    targetFiles: ['src/librarian/**/*.ts'],
+    targetFiles: ['src/librainian/**/*.ts'],
     maxLinesChanged: 5,
   },
   {
@@ -44,7 +44,7 @@ const SAFE_MUTATION_STRATEGIES: CodeMutationStrategy[] = [
     name: 'Adjust Cache TTL',
     description: 'Modify cache TTL values',
     pattern: /ttl:\s*(\d+)/,
-    targetFiles: ['src/librarian/**/*.ts'],
+    targetFiles: ['src/librainian/**/*.ts'],
     maxLinesChanged: 5,
   },
   {
@@ -52,7 +52,7 @@ const SAFE_MUTATION_STRATEGIES: CodeMutationStrategy[] = [
     name: 'Adjust Thresholds',
     description: 'Modify confidence/quality thresholds',
     pattern: /threshold:\s*([\d.]+)/,
-    targetFiles: ['src/librarian/**/*.ts'],
+    targetFiles: ['src/librainian/**/*.ts'],
     maxLinesChanged: 5,
   },
   {
@@ -60,7 +60,7 @@ const SAFE_MUTATION_STRATEGIES: CodeMutationStrategy[] = [
     name: 'Adjust Batch Size',
     description: 'Modify batch processing sizes',
     pattern: /batchSize:\s*(\d+)/,
-    targetFiles: ['src/librarian/**/*.ts'],
+    targetFiles: ['src/librainian/**/*.ts'],
     maxLinesChanged: 5,
   },
 ];
@@ -118,7 +118,7 @@ export class CodeEmitter extends BaseEmitter {
       selectedParent,
       {
         codePatches: [{
-          file: `src/librarian/${strategy.targetFiles[0].replace('src/librarian/', '').replace('/**/*.ts', '/config.ts')}`,
+          file: `src/librainian/${strategy.targetFiles[0].replace('src/librainian/', '').replace('/**/*.ts', '/config.ts')}`,
           diff: patch.diff,
           targetTest: targetTestId,
           rationale: `${strategy.description} to fix ${targetTestId}`,
@@ -197,7 +197,7 @@ export class CodeEmitter extends BaseEmitter {
     }
 
     // Check file path is within allowed scope
-    const allowedPrefixes = ['src/librarian/', 'src/models/'];
+    const allowedPrefixes = ['src/librainian/', 'src/models/'];
     if (!allowedPrefixes.some((p) => patch.file.startsWith(p))) {
       return { valid: false, reason: 'File outside allowed scope' };
     }

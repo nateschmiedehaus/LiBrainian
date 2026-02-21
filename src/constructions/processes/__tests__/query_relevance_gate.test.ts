@@ -7,7 +7,7 @@ import { createQueryRelevanceGateConstruction } from '../query_relevance_gate.js
 const tempRoots: string[] = [];
 
 async function createFixture(files: Record<string, string>): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-relevance-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-query-relevance-'));
   tempRoots.push(root);
   for (const [relativePath, content] of Object.entries(files)) {
     const absolute = path.join(root, relativePath);
@@ -93,7 +93,7 @@ describe('Query Relevance Gate', () => {
 
     expect(
       result.fixtures.every((fixtureResult) =>
-        fixtureResult.pairResults.every((pair) => !pair.topFiles.some((file) => file.includes('.librarian/')))
+        fixtureResult.pairResults.every((pair) => !pair.topFiles.some((file) => file.includes('.librainian/')))
       )
     ).toBe(true);
 

@@ -14,7 +14,7 @@ import {
   exportPrometheusMetrics,
   type IndexCompletenessReport,
 } from '../index_completeness.js';
-import type { LibrarianStorage, FileKnowledge, IndexingResult } from '../../storage/types.js';
+import type { LiBrainianStorage, FileKnowledge, IndexingResult } from '../../storage/types.js';
 
 // ============================================================================
 // MOCK STORAGE
@@ -23,7 +23,7 @@ import type { LibrarianStorage, FileKnowledge, IndexingResult } from '../../stor
 function createMockStorage(
   files: FileKnowledge[] = [],
   lastIndexResult: IndexingResult | null = null
-): LibrarianStorage {
+): LiBrainianStorage {
   return {
     getFiles: vi.fn().mockResolvedValue(files),
     getLastIndexingResult: vi.fn().mockResolvedValue(lastIndexResult),
@@ -32,7 +32,7 @@ function createMockStorage(
     close: vi.fn(),
     isInitialized: vi.fn().mockReturnValue(true),
     getCapabilities: vi.fn().mockReturnValue({ core: {}, optional: {}, versions: {} }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -293,13 +293,13 @@ describe('exportPrometheusMetrics', () => {
 
     const output = exportPrometheusMetrics(report);
 
-    expect(output).toContain('librarian_index_completeness_ratio 0.8000');
-    expect(output).toContain('librarian_index_total_files 100');
-    expect(output).toContain('librarian_index_indexed_files 80');
-    expect(output).toContain('librarian_index_missing_files 20');
-    expect(output).toContain('librarian_index_stale_files 5');
-    expect(output).toContain('librarian_index_age_seconds 3600');
-    expect(output).toContain('librarian_index_extension_completeness{extension="ts"} 0.8750');
+    expect(output).toContain('librainian_index_completeness_ratio 0.8000');
+    expect(output).toContain('librainian_index_total_files 100');
+    expect(output).toContain('librainian_index_indexed_files 80');
+    expect(output).toContain('librainian_index_missing_files 20');
+    expect(output).toContain('librainian_index_stale_files 5');
+    expect(output).toContain('librainian_index_age_seconds 3600');
+    expect(output).toContain('librainian_index_extension_completeness{extension="ts"} 0.8750');
   });
 
   it('supports custom metric prefix', () => {

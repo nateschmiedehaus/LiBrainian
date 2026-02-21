@@ -3,17 +3,17 @@ import {
   constructionFixture,
   mockCalibrationTracker,
   mockLedger,
-  mockLibrarianContext,
+  mockLiBrainianContext,
 } from '../index.js';
 
 describe('testing helpers', () => {
-  it('creates deterministic librarian context with overrides', () => {
-    const context = mockLibrarianContext(
-      { librarian: { query: async () => ({ summary: 'ok' }) } },
+  it('creates deterministic librainian context with overrides', () => {
+    const context = mockLiBrainianContext(
+      { librainian: { query: async () => ({ summary: 'ok' }) } },
       { sessionId: 'abc' },
     );
     expect(context.sessionId).toBe('abc');
-    expect(context.deps.librarian).toBeTruthy();
+    expect(context.deps.librainian).toBeTruthy();
     expect(context.signal).toBeInstanceOf(AbortSignal);
   });
 

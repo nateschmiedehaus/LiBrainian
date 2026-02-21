@@ -24,7 +24,7 @@ export async function auditSkillCommand(options: AuditSkillCommandOptions): Prom
   const json = Boolean(values.json);
   const skillPathArg = args[0];
   if (!skillPathArg || skillPathArg.trim().length === 0) {
-    throw new CliError('Missing SKILL.md path. Usage: librarian audit-skill <path-to-SKILL.md>', 'INVALID_ARGUMENT');
+    throw new CliError('Missing SKILL.md path. Usage: librainian audit-skill <path-to-SKILL.md>', 'INVALID_ARGUMENT');
   }
 
   const skillPath = path.resolve(options.workspace, skillPathArg);
@@ -49,7 +49,7 @@ export async function auditSkillCommand(options: AuditSkillCommandOptions): Prom
     return;
   }
 
-  console.log('librarian skill audit');
+  console.log('librainian skill audit');
   console.log('====================\n');
   console.log(`Skill: ${skillPath}`);
   console.log(`Risk score: ${result.riskScore}/100`);

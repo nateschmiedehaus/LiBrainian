@@ -33,11 +33,10 @@ type MCPServerConstructor = new (config: {
 function resolveMcpServerCtor(): MCPServerConstructor {
   const moduleExports = mcpServerModule as unknown as {
     LiBrainianMCPServer?: MCPServerConstructor;
-    LibrarianMCPServer?: MCPServerConstructor;
   };
-  const ctor = moduleExports.LiBrainianMCPServer ?? moduleExports.LibrarianMCPServer;
+  const ctor = moduleExports.LiBrainianMCPServer;
   if (!ctor) {
-    throw new Error('MCP server constructor is unavailable; expected LiBrainianMCPServer or LibrarianMCPServer export.');
+    throw new Error('MCP server constructor is unavailable; expected LiBrainianMCPServer export.');
   }
   return ctor;
 }
@@ -53,7 +52,7 @@ function resolveMcpTools(workspace: string): ToolSummary[] {
     audit: {
       enabled: false,
       retentionDays: 1,
-      logPath: '.librarian/audit/mcp',
+      logPath: '.librainian/audit/mcp',
     },
   });
   return server.getAvailableTools();

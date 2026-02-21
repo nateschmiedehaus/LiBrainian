@@ -6,16 +6,16 @@
  *
  * IMPORTANT: This command invalidates context packs for target files and their
  * dependents BEFORE reindexing. If indexing fails, context packs may be lost.
- * Run `librarian bootstrap` to regenerate if needed.
+ * Run `librainian bootstrap` to regenerate if needed.
  *
- * Usage: librarian index <file...> [--workspace <path>]
+ * Usage: librainian index <file...> [--workspace <path>]
  *
  * @packageDocumentation
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { LiBrainian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librainian.js';
 import { CliError } from '../errors.js';
 import { globalEventBus, type LiBrainianEvent } from '../../events.js';
 import {
@@ -52,10 +52,10 @@ function buildIndexFailureGuidance(
   finalStatus: { stats: { totalFunctions: number; totalModules: number } } | null,
 ): string {
   const normalized = errorMessage.toLowerCase();
-  let guidance = 'Run "librarian bootstrap" to recover and retry.';
+  let guidance = 'Run "librainian bootstrap" to recover and retry.';
 
   if (normalized.includes('providerunavailable') || normalized.includes('provider')) {
-    guidance = 'Check provider credentials/network, then retry. If needed, run "librarian check-providers".';
+    guidance = 'Check provider credentials/network, then retry. If needed, run "librainian check-providers".';
   } else if (normalized.includes('lock') || normalized.includes('sqlite_busy')) {
     guidance = 'Another process may hold the database lock; wait and retry.';
   } else if (normalized.includes('extract') || normalized.includes('parse')) {
@@ -65,7 +65,7 @@ function buildIndexFailureGuidance(
   if (finalStatus) {
     guidance += ` Context packs were invalidated; current totals: ${finalStatus.stats.totalFunctions} functions, ${finalStatus.stats.totalModules} modules.`;
   } else {
-    guidance += ' Database state may be unknown; run "librarian bootstrap" before continuing.';
+    guidance += ' Database state may be unknown; run "librainian bootstrap" before continuing.';
   }
 
   return guidance;
@@ -87,7 +87,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
 
   if (!files || files.length === 0) {
     throw new CliError(
-      'No files specified. Usage: librarian index <file...>',
+      'No files specified. Usage: librainian index <file...>',
       'INVALID_ARGUMENT'
     );
   }
@@ -99,9 +99,9 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     throw new CliError(
       'CAUTION: Indexing invalidates context packs BEFORE reindexing.\n' +
       'If indexing fails, context packs for target files will be PERMANENTLY LOST.\n' +
-      'Recovery requires running `librarian bootstrap` to regenerate all context packs.\n\n' +
+      'Recovery requires running `librainian bootstrap` to regenerate all context packs.\n\n' +
       'To proceed, use the --force flag to acknowledge this risk:\n' +
-      '  librarian index --force <file...>',
+      '  librainian index --force <file...>',
       'INVALID_ARGUMENT'
     );
   }
@@ -194,9 +194,9 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     console.log('\u26A0\uFE0F  LLM not configured - proceeding without LLM enrichment. Context packs will not be regenerated.');
   }
 
-  // Initialize librarian with proper error handling
+  // Initialize librainian with proper error handling
   let initialized = false;
-  const librarian = new LiBrainian({
+  const librainian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
@@ -205,7 +205,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   });
 
   try {
-    await librarian.initialize();
+    await librainian.initialize();
     initialized = true;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -217,7 +217,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
       return;
     }
     throw new CliError(
-      `Failed to initialize librarian: ${errorMessage}`,
+      `Failed to initialize librainian: ${errorMessage}`,
       'STORAGE_ERROR'
     );
   }
@@ -241,14 +241,14 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     : null;
 
   try {
-    const status = await librarian.getStatus();
+    const status = await librainian.getStatus();
     if (!status.bootstrapped) {
       if (options.allowLockSkip) {
-        console.warn('LiBrainian index is not bootstrapped; skipping update. Run "librarian bootstrap" to initialize.');
+        console.warn('LiBrainian index is not bootstrapped; skipping update. Run "librainian bootstrap" to initialize.');
         return;
       }
       throw new CliError(
-        'LiBrainian not bootstrapped. Run "librarian bootstrap" first.',
+        'LiBrainian not bootstrapped. Run "librainian bootstrap" first.',
         'NOT_BOOTSTRAPPED'
       );
     }
@@ -257,16 +257,16 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
 
     // Warn about data loss risk
     console.log('\n\u26A0\uFE0F  Note: Indexing invalidates context packs for target files.');
-    console.log('   If indexing fails, run `librarian bootstrap` to regenerate.\n');
+    console.log('   If indexing fails, run `librainian bootstrap` to regenerate.\n');
 
     console.log('Indexing files...\n');
     const startTime = Date.now();
 
     try {
-      await librarian.reindexFiles(resolvedFiles);
+      await librainian.reindexFiles(resolvedFiles);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const finalStatus = await librarian.getStatus().catch(() => null);
+      const finalStatus = await librainian.getStatus().catch(() => null);
       const guidance = buildIndexFailureGuidance(errorMessage, finalStatus);
 
       throw new CliError(
@@ -283,7 +283,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     }
 
     const duration = Date.now() - startTime;
-    const finalStatus = await librarian.getStatus();
+    const finalStatus = await librainian.getStatus();
 
     console.log('');
     console.log('=== Index Complete ===\n');
@@ -300,7 +300,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     unsubscribe?.();
     if (initialized) {
       try {
-        await librarian.shutdown();
+        await librainian.shutdown();
       } catch (shutdownError) {
         if (verbose) {
           console.error(`Warning: Shutdown error: ${shutdownError instanceof Error ? shutdownError.message : String(shutdownError)}`);

@@ -34,7 +34,7 @@
 import * as crypto from 'crypto';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
 import { requireProviders } from '../provider_check.js';
-import { resolveLibrarianModelConfigWithDiscovery, resolveLibrarianModelId } from '../llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery, resolveLiBrainianModelId } from '../llm_env.js';
 import {
   generateStructuredWithRetries,
   type StructuredGenerateResult,
@@ -186,11 +186,11 @@ function resolvePurposeModelId(model: PurposeExtractionModel | undefined, provid
   if (provider === 'codex') {
     if (model === 'codex-low') return 'gpt-5-codex-low';
     if (model === 'codex-medium') return 'gpt-5-codex-medium';
-    return resolveLibrarianModelId('codex') ?? 'gpt-5.1-codex-mini';
+    return resolveLiBrainianModelId('codex') ?? 'gpt-5.1-codex-mini';
   }
   if (model === 'sonnet-4.5') return 'claude-sonnet-4-5-20241022';
   if (model === 'haiku-4.5') return 'claude-haiku-4-5-20241022';
-  return resolveLibrarianModelId('claude') ?? 'claude-haiku-4-5-20241022';
+  return resolveLiBrainianModelId('claude') ?? 'claude-haiku-4-5-20241022';
 }
 
 async function resolvePurposeLlmConfig(
@@ -202,7 +202,7 @@ async function resolvePurposeLlmConfig(
     return { provider, modelId: resolvePurposeModelId(model, provider), resolvedModel: model };
   }
 
-  const discovered = await resolveLibrarianModelConfigWithDiscovery();
+  const discovered = await resolveLiBrainianModelConfigWithDiscovery();
   const resolvedModel: PurposeExtractionModel = discovered.provider === 'codex' ? 'codex-low' : 'haiku-4.5';
   return { provider: discovered.provider, modelId: discovered.modelId, resolvedModel };
 }

@@ -12,9 +12,9 @@ describe('loadGovernorConfig', () => {
 
   beforeEach(async () => {
     // Create a unique temporary directory for each test
-    testDir = path.join(tmpdir(), `librarian-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = path.join(tmpdir(), `librainian-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     await fs.mkdir(testDir, { recursive: true });
-    configDir = path.join(testDir, '.librarian');
+    configDir = path.join(testDir, '.librainian');
   });
 
   afterEach(async () => {
@@ -296,7 +296,7 @@ describe('loadGovernorConfig', () => {
     it('should resolve symlinks to canonical paths', async () => {
       // Create real directory with config
       const realDir = path.join(testDir, 'real-workspace');
-      const realConfigDir = path.join(realDir, '.librarian');
+      const realConfigDir = path.join(realDir, '.librainian');
       await fs.mkdir(realConfigDir, { recursive: true });
       
       const customConfig: GovernorConfig = {

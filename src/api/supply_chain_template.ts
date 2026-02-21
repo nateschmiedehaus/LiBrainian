@@ -16,7 +16,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
-import type { ContextPack, LibrarianVersion } from '../types.js';
+import type { ContextPack, LiBrainianVersion } from '../types.js';
 import type {
   ConstructionTemplate,
   TemplateContext,

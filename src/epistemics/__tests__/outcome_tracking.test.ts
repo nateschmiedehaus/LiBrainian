@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { SqliteEvidenceLedger } from '../evidence_ledger.js';
 import { createClaimOutcomeTracker } from '../outcomes.js';
 import { bounded } from '../confidence.js';
 
-class MockStorage implements Pick<LibrarianStorage, 'getState' | 'setState'> {
+class MockStorage implements Pick<LiBrainianStorage, 'getState' | 'setState'> {
   private state = new Map<string, string>();
 
   async getState(key: string): Promise<string | null> {
@@ -30,7 +30,7 @@ describe('claim outcome tracking', () => {
 
   it('records claim and outcome with ledger linkage', async () => {
     const storage = new MockStorage();
-    const tracker = createClaimOutcomeTracker(storage as unknown as LibrarianStorage, { ledger });
+    const tracker = createClaimOutcomeTracker(storage as unknown as LiBrainianStorage, { ledger });
 
     const { record: claimRecord, ledgerEntry: claimEntry } = await tracker.recordClaim({
       claim: 'processData is pure',
@@ -68,7 +68,7 @@ describe('claim outcome tracking', () => {
 
   it('rejects outcomes for unknown claims', async () => {
     const storage = new MockStorage();
-    const tracker = createClaimOutcomeTracker(storage as unknown as LibrarianStorage, { ledger });
+    const tracker = createClaimOutcomeTracker(storage as unknown as LiBrainianStorage, { ledger });
 
     await expect(tracker.recordOutcome({
       claimId: 'missing',

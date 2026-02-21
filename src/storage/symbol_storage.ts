@@ -6,7 +6,7 @@
  * - Pattern-based fuzzy matching
  * - File-based symbol listing
  *
- * This is a separate storage module from the main LibrarianStorage to:
+ * This is a separate storage module from the main LiBrainianStorage to:
  * 1. Keep the symbol table focused and efficient
  * 2. Avoid bloating the main storage interface
  * 3. Enable independent versioning and migration
@@ -55,7 +55,7 @@ export interface SymbolStorageStats {
 /**
  * SQLite-backed storage for the symbol table.
  *
- * The symbol storage is initialized alongside the main librarian database
+ * The symbol storage is initialized alongside the main librainian database
  * but uses its own table for symbol data.
  */
 export class SymbolStorage {
@@ -113,7 +113,7 @@ export class SymbolStorage {
     const db = this.ensureDb();
 
     db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_symbols (
+      CREATE TABLE IF NOT EXISTS librainian_symbols (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         name_lower TEXT NOT NULL,
@@ -129,22 +129,22 @@ export class SymbolStorage {
       );
 
       -- Index for exact name lookup (most common query)
-      CREATE INDEX IF NOT EXISTS idx_symbols_name ON librarian_symbols(name);
+      CREATE INDEX IF NOT EXISTS idx_symbols_name ON librainian_symbols(name);
 
       -- Index for case-insensitive lookup
-      CREATE INDEX IF NOT EXISTS idx_symbols_name_lower ON librarian_symbols(name_lower);
+      CREATE INDEX IF NOT EXISTS idx_symbols_name_lower ON librainian_symbols(name_lower);
 
       -- Index for kind-based filtering
-      CREATE INDEX IF NOT EXISTS idx_symbols_kind ON librarian_symbols(kind);
+      CREATE INDEX IF NOT EXISTS idx_symbols_kind ON librainian_symbols(kind);
 
       -- Index for file-based listing
-      CREATE INDEX IF NOT EXISTS idx_symbols_file ON librarian_symbols(file);
+      CREATE INDEX IF NOT EXISTS idx_symbols_file ON librainian_symbols(file);
 
       -- Index for exported symbols
-      CREATE INDEX IF NOT EXISTS idx_symbols_exported ON librarian_symbols(exported);
+      CREATE INDEX IF NOT EXISTS idx_symbols_exported ON librainian_symbols(exported);
 
       -- Composite index for name + kind queries
-      CREATE INDEX IF NOT EXISTS idx_symbols_name_kind ON librarian_symbols(name, kind);
+      CREATE INDEX IF NOT EXISTS idx_symbols_name_kind ON librainian_symbols(name, kind);
     `);
   }
 
@@ -157,7 +157,7 @@ export class SymbolStorage {
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT OR REPLACE INTO librarian_symbols
+      INSERT OR REPLACE INTO librainian_symbols
       (id, name, name_lower, kind, file, line, end_line, signature, exported, description, qualified_name, indexed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -184,7 +184,7 @@ export class SymbolStorage {
     const now = new Date().toISOString();
 
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO librarian_symbols
+      INSERT OR REPLACE INTO librainian_symbols
       (id, name, name_lower, kind, file, line, end_line, signature, exported, description, qualified_name, indexed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -218,7 +218,7 @@ export class SymbolStorage {
   findByExactName(name: string): SymbolEntry[] {
     const db = this.ensureDb();
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols WHERE name = ?
+      SELECT * FROM librainian_symbols WHERE name = ?
     `).all(name) as SymbolRow[];
 
     return rows.map(rowToEntry);
@@ -230,7 +230,7 @@ export class SymbolStorage {
   findByExactNameIgnoreCase(name: string): SymbolEntry[] {
     const db = this.ensureDb();
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols WHERE name_lower = ?
+      SELECT * FROM librainian_symbols WHERE name_lower = ?
     `).all(name.toLowerCase()) as SymbolRow[];
 
     return rows.map(rowToEntry);
@@ -242,7 +242,7 @@ export class SymbolStorage {
   findByExactNameAndKind(name: string, kind: SymbolKind): SymbolEntry[] {
     const db = this.ensureDb();
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols WHERE name = ? AND kind = ?
+      SELECT * FROM librainian_symbols WHERE name = ? AND kind = ?
     `).all(name, kind) as SymbolRow[];
 
     return rows.map(rowToEntry);
@@ -255,7 +255,7 @@ export class SymbolStorage {
     const db = this.ensureDb();
     const likePattern = `%${pattern.toLowerCase()}%`;
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols
+      SELECT * FROM librainian_symbols
       WHERE name_lower LIKE ?
       ORDER BY
         CASE WHEN name_lower = ? THEN 0 ELSE 1 END,
@@ -273,7 +273,7 @@ export class SymbolStorage {
     const db = this.ensureDb();
     const likePattern = `%${pattern.toLowerCase()}%`;
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols
+      SELECT * FROM librainian_symbols
       WHERE name_lower LIKE ? AND kind = ?
       ORDER BY
         CASE WHEN name_lower = ? THEN 0 ELSE 1 END,
@@ -290,7 +290,7 @@ export class SymbolStorage {
   findByFile(filePath: string): SymbolEntry[] {
     const db = this.ensureDb();
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols WHERE file = ? ORDER BY line
+      SELECT * FROM librainian_symbols WHERE file = ? ORDER BY line
     `).all(filePath) as SymbolRow[];
 
     return rows.map(rowToEntry);
@@ -302,7 +302,7 @@ export class SymbolStorage {
   findByKind(kind: SymbolKind): SymbolEntry[] {
     const db = this.ensureDb();
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols WHERE kind = ? ORDER BY name
+      SELECT * FROM librainian_symbols WHERE kind = ? ORDER BY name
     `).all(kind) as SymbolRow[];
 
     return rows.map(rowToEntry);
@@ -339,7 +339,7 @@ export class SymbolStorage {
     const limitClause = options.limit ? `LIMIT ${options.limit}` : '';
 
     const rows = db.prepare(`
-      SELECT * FROM librarian_symbols ${whereClause} ORDER BY name ${limitClause}
+      SELECT * FROM librainian_symbols ${whereClause} ORDER BY name ${limitClause}
     `).all(...params) as SymbolRow[];
 
     return rows.map(rowToEntry);
@@ -351,7 +351,7 @@ export class SymbolStorage {
   deleteSymbolsForFile(filePath: string): number {
     const db = this.ensureDb();
     const result = db.prepare(`
-      DELETE FROM librarian_symbols WHERE file = ?
+      DELETE FROM librainian_symbols WHERE file = ?
     `).run(filePath);
     return result.changes;
   }
@@ -361,7 +361,7 @@ export class SymbolStorage {
    */
   clearAll(): void {
     const db = this.ensureDb();
-    db.exec('DELETE FROM librarian_symbols');
+    db.exec('DELETE FROM librainian_symbols');
   }
 
   /**
@@ -370,12 +370,12 @@ export class SymbolStorage {
   getStats(): SymbolStorageStats {
     const db = this.ensureDb();
 
-    const totalRow = db.prepare('SELECT COUNT(*) as count FROM librarian_symbols').get() as { count: number };
-    const filesRow = db.prepare('SELECT COUNT(DISTINCT file) as count FROM librarian_symbols').get() as { count: number };
-    const lastUpdatedRow = db.prepare('SELECT MAX(indexed_at) as last FROM librarian_symbols').get() as { last: string | null };
+    const totalRow = db.prepare('SELECT COUNT(*) as count FROM librainian_symbols').get() as { count: number };
+    const filesRow = db.prepare('SELECT COUNT(DISTINCT file) as count FROM librainian_symbols').get() as { count: number };
+    const lastUpdatedRow = db.prepare('SELECT MAX(indexed_at) as last FROM librainian_symbols').get() as { last: string | null };
 
     const kindCounts = db.prepare(`
-      SELECT kind, COUNT(*) as count FROM librarian_symbols GROUP BY kind
+      SELECT kind, COUNT(*) as count FROM librainian_symbols GROUP BY kind
     `).all() as Array<{ kind: string; count: number }>;
 
     const byKind: Record<SymbolKind, number> = {
@@ -415,7 +415,7 @@ export class SymbolStorage {
    */
   loadIntoSymbolTable(): SymbolTable {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_symbols').all() as SymbolRow[];
+    const rows = db.prepare('SELECT * FROM librainian_symbols').all() as SymbolRow[];
 
     const table = new SymbolTable();
     table.addSymbols(rows.map(rowToEntry));
@@ -463,10 +463,10 @@ function rowToEntry(row: SymbolRow): SymbolEntry {
 
 /**
  * Create a symbol storage instance for a given workspace.
- * Uses the same database as the main librarian storage.
+ * Uses the same database as the main librainian storage.
  */
 export function createSymbolStorage(workspaceRoot: string): SymbolStorage {
-  const dbPath = path.join(workspaceRoot, '.librarian', 'knowledge.db');
+  const dbPath = path.join(workspaceRoot, '.librainian', 'knowledge.db');
   return new SymbolStorage(dbPath);
 }
 

@@ -12,8 +12,8 @@
  * context packs for the query response.
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
-import type { ContextPack, LibrarianVersion } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { ContextPack, LiBrainianVersion } from '../types.js';
 import {
   ENTRY_POINT_SOURCE_TYPE,
   filterEntryPointItems,
@@ -50,8 +50,8 @@ export interface EntryPointQueryStageResult {
  * @returns Stage result with found flag, packs, and explanation
  */
 export async function runEntryPointQueryStage(options: {
-  storage: LibrarianStorage;
-  version: LibrarianVersion;
+  storage: LiBrainianStorage;
+  version: LiBrainianVersion;
 }): Promise<EntryPointQueryStageResult> {
   const { storage, version } = options;
 
@@ -109,7 +109,7 @@ export async function runEntryPointQueryStage(options: {
  */
 function createEntryPointSummaryPack(
   payload: EntryPointPayload,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack {
   return {
     packId: `entry_point_summary`,
@@ -138,7 +138,7 @@ function createEntryPointSummaryPack(
  */
 function createEntryPointPack(
   payload: EntryPointPayload,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack {
   const keyFacts: string[] = [
     `Kind: ${payload.kind.replace(/_/g, ' ')}`,

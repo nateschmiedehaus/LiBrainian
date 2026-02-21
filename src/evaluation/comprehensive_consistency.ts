@@ -2,7 +2,7 @@
  * @fileoverview Comprehensive Consistency Checker (WU-1112 - FINAL UNIT)
  *
  * Integrates all Phase 11 verification mechanisms to perform a complete
- * quality check on Librarian's responses:
+ * quality check on LiBrainian's responses:
  * - CitationValidationPipeline (WU-1107)
  * - EntailmentChecker (WU-1110)
  * - TestBasedVerifier (WU-1111)

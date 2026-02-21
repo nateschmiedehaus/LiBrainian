@@ -15,7 +15,7 @@ describe('AstIndexer parser_unavailable degradation', () => {
   });
 
   it('indexes a module even when no parser is available (no LLM configured)', async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ast-indexer-no-parser-'));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-ast-indexer-no-parser-'));
     const filePath = path.join(tmpDir, 'deploy.sh');
     await fs.writeFile(filePath, '#!/usr/bin/env bash\necho \"hello\"\n', 'utf8');
 

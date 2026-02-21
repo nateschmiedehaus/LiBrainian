@@ -1,15 +1,15 @@
 /**
  * @fileoverview Self-Refresh Primitive (tp_self_refresh)
  *
- * Incrementally update Librarian knowledge based on recent changes.
+ * Incrementally update LiBrainian knowledge based on recent changes.
  * Uses git history to detect what changed and updates the index accordingly.
  *
  * Based on self-improvement-primitives.md specification.
  */
 
 import * as path from 'path';
-import type { LibrarianStorage } from '../../storage/types.js';
-import { IndexLibrarian, type IndexLibrarianConfig } from '../index_librarian.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import { IndexLiBrainian, type IndexLiBrainianConfig } from '../index_librainian.js';
 import {
   isGitRepo,
   getGitRoot,
@@ -73,13 +73,13 @@ export interface SelfRefreshOptions {
   /** Refresh scope: how widely to propagate updates */
   scope?: 'changed_only' | 'changed_and_dependents' | 'full';
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Optional progress callback */
   onProgress?: (progress: { total: number; completed: number; currentFile?: string }) => void;
   /** Enable verbose logging */
   verbose?: boolean;
-  /** Custom index librarian config */
-  indexConfig?: Partial<IndexLibrarianConfig>;
+  /** Custom index librainian config */
+  indexConfig?: Partial<IndexLiBrainianConfig>;
 }
 
 // ============================================================================
@@ -204,7 +204,7 @@ function filterIndexableFiles(files: string[]): string[] {
  * This enables cascade refresh when scope is 'changed_and_dependents'.
  */
 async function findDependentFiles(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   changedFiles: string[]
 ): Promise<string[]> {
   const dependentFiles = new Set<string>();
@@ -239,7 +239,7 @@ async function findDependentFiles(
  * Returns the count of invalidated claims.
  */
 async function invalidateAffectedClaims(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   changedFiles: string[]
 ): Promise<number> {
   let invalidatedCount = 0;
@@ -262,7 +262,7 @@ async function invalidateAffectedClaims(
 // ============================================================================
 
 /**
- * Incrementally refresh the Librarian index based on recent changes.
+ * Incrementally refresh the LiBrainian index based on recent changes.
  *
  * This function:
  * 1. Detects what files have changed using git
@@ -358,8 +358,8 @@ export async function selfRefresh(
     path.isAbsolute(f) ? f : path.join(gitRoot, f)
   );
 
-  // Create index librarian
-  const indexLibrarian = new IndexLibrarian({
+  // Create index librainian
+  const indexLiBrainian = new IndexLiBrainian({
     generateEmbeddings: false,
     createContextPacks: true,
     computeGraphMetrics: false, // Skip for incremental
@@ -368,7 +368,7 @@ export async function selfRefresh(
     ...indexConfig,
   });
 
-  await indexLibrarian.initialize(storage);
+  await indexLiBrainian.initialize(storage);
 
   let updatedSymbols = 0;
   const changedFiles: string[] = [];
@@ -376,7 +376,7 @@ export async function selfRefresh(
   // Process deleted files first
   for (const file of absoluteDeletedFiles) {
     try {
-      await indexLibrarian.removeFile(file);
+      await indexLiBrainian.removeFile(file);
       changedFiles.push(file);
     } catch (error) {
       errors.push(`Failed to remove ${file}: ${getErrorMessage(error)}`);
@@ -386,7 +386,7 @@ export async function selfRefresh(
   // Re-index changed/added files
   for (const file of absoluteFilesToIndex) {
     try {
-      const result = await indexLibrarian.indexFile(file);
+      const result = await indexLiBrainian.indexFile(file);
       updatedSymbols += result.functionsIndexed;
       changedFiles.push(file);
 
@@ -402,7 +402,7 @@ export async function selfRefresh(
   const invalidatedClaims = await invalidateAffectedClaims(storage, changedFiles);
 
   // Shutdown
-  await indexLibrarian.shutdown();
+  await indexLiBrainian.shutdown();
 
   // New defeaters count (stub - would need defeater tracking)
   const newDefeaters = 0;
@@ -423,7 +423,7 @@ export async function selfRefresh(
  */
 export function createSelfRefresh(
   defaultOptions: Partial<SelfRefreshOptions>
-): (options: Partial<SelfRefreshOptions> & { rootDir: string; storage: LibrarianStorage }) => Promise<SelfRefreshResult> {
+): (options: Partial<SelfRefreshOptions> & { rootDir: string; storage: LiBrainianStorage }) => Promise<SelfRefreshResult> {
   return async (options) => {
     return selfRefresh({
       ...defaultOptions,

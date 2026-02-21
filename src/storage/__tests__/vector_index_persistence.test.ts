@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createSqliteStorage } from '../sqlite_storage.js';
-import type { EmbeddingMetadata, LibrarianStorage } from '../types.js';
+import type { EmbeddingMetadata, LiBrainianStorage } from '../types.js';
 
 function createEmbedding(seed: number, dimension = 64): Float32Array {
   const values = new Float32Array(dimension);
@@ -24,7 +24,7 @@ function createEmbedding(seed: number, dimension = 64): Float32Array {
 describe('vector index persistence', () => {
   let tempDir = '';
   let dbPath = '';
-  let storage: LibrarianStorage | null = null;
+  let storage: LiBrainianStorage | null = null;
   let previousThreshold: string | undefined;
   const metadata: EmbeddingMetadata = {
     modelId: 'test-model',
@@ -34,8 +34,8 @@ describe('vector index persistence', () => {
   beforeEach(async () => {
     previousThreshold = process.env.LIBRARIAN_HNSW_AUTO_THRESHOLD;
     process.env.LIBRARIAN_HNSW_AUTO_THRESHOLD = '1';
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-hnsw-persist-'));
-    dbPath = path.join(tempDir, 'librarian.sqlite');
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-hnsw-persist-'));
+    dbPath = path.join(tempDir, 'librainian.sqlite');
     storage = createSqliteStorage(dbPath, tempDir);
     await storage.initialize();
   });
@@ -55,7 +55,7 @@ describe('vector index persistence', () => {
     }
   });
 
-  async function seedEmbeddings(target: LibrarianStorage): Promise<Float32Array> {
+  async function seedEmbeddings(target: LiBrainianStorage): Promise<Float32Array> {
     const first = createEmbedding(0);
     await target.setEmbedding('entity-0', first, metadata);
     for (let i = 1; i < 12; i++) {
@@ -64,7 +64,7 @@ describe('vector index persistence', () => {
     return first;
   }
 
-  it('creates .librarian/hnsw.bin after building index from embeddings', async () => {
+  it('creates .librainian/hnsw.bin after building index from embeddings', async () => {
     const query = await seedEmbeddings(storage!);
     const result = await storage!.findSimilarByEmbedding(query, {
       limit: 5,
@@ -72,7 +72,7 @@ describe('vector index persistence', () => {
     });
 
     expect(result.results.length).toBeGreaterThan(0);
-    expect(existsSync(path.join(tempDir, '.librarian', 'hnsw.bin'))).toBe(true);
+    expect(existsSync(path.join(tempDir, '.librainian', 'hnsw.bin'))).toBe(true);
   });
 
   it('loads persisted hnsw.bin on restart when cache is fresh', async () => {
@@ -103,7 +103,7 @@ describe('vector index persistence', () => {
       limit: 5,
       minSimilarity: 0,
     });
-    await fs.rm(path.join(tempDir, '.librarian', 'hnsw.bin'), { force: true });
+    await fs.rm(path.join(tempDir, '.librainian', 'hnsw.bin'), { force: true });
     await storage!.close();
 
     const reopened = createSqliteStorage(dbPath, tempDir);
@@ -118,6 +118,6 @@ describe('vector index persistence', () => {
 
     expect(result.results.length).toBeGreaterThan(0);
     expect(loadItemsSpy).toHaveBeenCalled();
-    expect(existsSync(path.join(tempDir, '.librarian', 'hnsw.bin'))).toBe(true);
+    expect(existsSync(path.join(tempDir, '.librainian', 'hnsw.bin'))).toBe(true);
   });
 });

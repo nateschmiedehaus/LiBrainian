@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { diagnoseCommand } from '../diagnose.js';
-import { Librarian } from '../../../api/librarian.js';
+import { LiBrainian } from '../../../api/librainian.js';
 
-vi.mock('../../../api/librarian.js');
+vi.mock('../../../api/librainian.js');
 
 describe('diagnoseCommand', () => {
   const mockWorkspace = '/test/workspace';
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let mockLibrarian: {
+  let mockLiBrainian: {
     initialize: Mock;
     diagnoseSelf: Mock;
     diagnoseConfig: Mock;
@@ -20,7 +20,7 @@ describe('diagnoseCommand', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    mockLibrarian = {
+    mockLiBrainian = {
       initialize: vi.fn().mockResolvedValue(undefined),
       diagnoseSelf: vi.fn().mockResolvedValue({ status: 'ok' }),
       diagnoseConfig: vi.fn().mockResolvedValue({ healthScore: 0.9, isOptimal: true }),
@@ -28,7 +28,7 @@ describe('diagnoseCommand', () => {
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
 
-    (Librarian as unknown as Mock).mockImplementation(() => mockLibrarian);
+    (LiBrainian as unknown as Mock).mockImplementation(() => mockLiBrainian);
   });
 
   afterEach(() => {
@@ -38,9 +38,9 @@ describe('diagnoseCommand', () => {
   it('prints the diagnosis as JSON', async () => {
     await diagnoseCommand({ workspace: mockWorkspace });
 
-    expect(mockLibrarian.diagnoseSelf).toHaveBeenCalled();
+    expect(mockLiBrainian.diagnoseSelf).toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"status":"ok"'));
-    expect(mockLibrarian.shutdown).toHaveBeenCalled();
+    expect(mockLiBrainian.shutdown).toHaveBeenCalled();
   });
 
   it('prints pretty JSON when requested', async () => {
@@ -52,14 +52,14 @@ describe('diagnoseCommand', () => {
   it('includes config diagnosis when requested', async () => {
     await diagnoseCommand({ workspace: mockWorkspace, config: true });
 
-    expect(mockLibrarian.diagnoseConfig).toHaveBeenCalled();
+    expect(mockLiBrainian.diagnoseConfig).toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"config"'));
   });
 
   it('runs config healing when requested', async () => {
     await diagnoseCommand({ workspace: mockWorkspace, config: true, heal: true });
 
-    expect(mockLibrarian.healConfig).toHaveBeenCalledWith({ riskTolerance: 'low' });
+    expect(mockLiBrainian.healConfig).toHaveBeenCalledWith({ riskTolerance: 'low' });
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"healing"'));
   });
 

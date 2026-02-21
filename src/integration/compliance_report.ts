@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { computeCanonRef, computeEnvironmentRef } from '../spine/refs.js';
-import { createLibrarianTraceContext, getLibrarianTraceRefs, recordLibrarianTrace } from '../observability/librarian_traces.js';
+import { createLiBrainianTraceContext, getLiBrainianTraceRefs, recordLiBrainianTrace } from '../observability/librainian_traces.js';
 import type { AgentKnowledgeUsage } from './agent_protocol.js';
 import type { OutputValidationResult } from './output_validator.js';
 
@@ -41,8 +41,8 @@ export async function createAgentComplianceReport(input: {
   validation: OutputValidationResult;
 }): Promise<AgentComplianceReportV1> {
   const createdAt = new Date().toISOString();
-  const traceContext = createLibrarianTraceContext(input.taskId);
-  recordLibrarianTrace(traceContext, 'agent_compliance_report');
+  const traceContext = createLiBrainianTraceContext(input.taskId);
+  recordLiBrainianTrace(traceContext, 'agent_compliance_report');
   return {
     kind: 'AgentComplianceReport.v1',
     schema_version: 1,
@@ -57,7 +57,7 @@ export async function createAgentComplianceReport(input: {
     warnings: input.validation.warnings,
     summary: buildSummary(input.validation.usage),
     usage: input.validation.usage,
-    trace_refs: getLibrarianTraceRefs(traceContext),
+    trace_refs: getLiBrainianTraceRefs(traceContext),
   };
 }
 
@@ -66,7 +66,7 @@ export async function writeAgentComplianceReport(
   report: AgentComplianceReportV1
 ): Promise<string> {
   const timestamp = report.created_at.replace(/[:.]/g, '-');
-  const dir = path.join(workspaceRoot, 'state', 'audits', 'librarian', 'compliance', timestamp);
+  const dir = path.join(workspaceRoot, 'state', 'audits', 'librainian', 'compliance', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'AgentComplianceReport.v1.json');
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');

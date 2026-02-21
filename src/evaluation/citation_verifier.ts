@@ -1,8 +1,8 @@
 /**
  * @fileoverview Citation Verifier (WU-804)
  *
- * Validates Librarian's output citations against ground truth.
- * When Librarian claims "function X is defined in file Y at line Z",
+ * Validates LiBrainian's output citations against ground truth.
+ * When LiBrainian claims "function X is defined in file Y at line Z",
  * the Citation Verifier checks if that's actually true.
  *
  * @packageDocumentation
@@ -17,7 +17,7 @@ import { ASTFactExtractor, createASTFactExtractor, type ASTFact } from './ast_fa
 // ============================================================================
 
 /**
- * A citation extracted from Librarian output
+ * A citation extracted from LiBrainian output
  */
 export interface Citation {
   /** The file path being cited */
@@ -92,7 +92,7 @@ export interface CitationVerificationReport {
 // ============================================================================
 
 /**
- * Verifies citations in Librarian output against AST facts
+ * Verifies citations in LiBrainian output against AST facts
  */
 export class CitationVerifier {
   private astExtractor: ASTFactExtractor;
@@ -107,7 +107,7 @@ export class CitationVerifier {
   }
 
   /**
-   * Extract citations from Librarian output text
+   * Extract citations from LiBrainian output text
    */
   extractCitations(text: string): Citation[] {
     const citations: Citation[] = [];
@@ -452,9 +452,9 @@ export class CitationVerifier {
   }
 
   /**
-   * Verify citations extracted from Librarian output against a repository
+   * Verify citations extracted from LiBrainian output against a repository
    */
-  async verifyLibrarianOutput(output: string, repoPath: string): Promise<CitationVerificationReport> {
+  async verifyLiBrainianOutput(output: string, repoPath: string): Promise<CitationVerificationReport> {
     // Extract citations from the output
     const rawCitations = this.extractCitations(output);
 

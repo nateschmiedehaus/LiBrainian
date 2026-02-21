@@ -9,7 +9,7 @@ const DEFAULT_MAX_PER_QUERY = 10;
 const DEFAULT_SESSION_BUDGET_USD = 1;
 const MAX_QUERY_SCAN_ROWS = 5000;
 const QUERY_TOOL_NAME = 'query';
-const QUERY_COMPLETE_TOOL_NAME = 'librarian_query_complete';
+const QUERY_COMPLETE_TOOL_NAME = 'librainian_query_complete';
 
 type LedgerRow = {
   id: string;

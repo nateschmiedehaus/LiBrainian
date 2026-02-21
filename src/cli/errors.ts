@@ -57,9 +57,9 @@ export interface ErrorContext {
  */
 export const ErrorCodes = {
   // Storage errors
-  ENOINDEX: 'No index found. Run `librarian bootstrap` first.',
+  ENOINDEX: 'No index found. Run `librainian bootstrap` first.',
   ESTALE_INDEX: 'Index is stale. Consider re-bootstrapping.',
-  ESTORAGE_CORRUPT: 'Storage is corrupted. Run `librarian bootstrap --force`.',
+  ESTORAGE_CORRUPT: 'Storage is corrupted. Run `librainian bootstrap --force`.',
   ESTORAGE_LOCKED: 'Storage is locked by another process.',
 
   // Query errors
@@ -106,21 +106,21 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
   ENOINDEX: {
     retryable: false,
     recoveryHints: [
-      'Run `librarian bootstrap` to create the index',
+      'Run `librainian bootstrap` to create the index',
       'Ensure you are in the correct workspace directory',
     ],
   },
   ESTALE_INDEX: {
     retryable: false,
     recoveryHints: [
-      'Run `librarian bootstrap` to refresh the index',
-      'Run `librarian watch` to keep index up-to-date automatically',
+      'Run `librainian bootstrap` to refresh the index',
+      'Run `librainian watch` to keep index up-to-date automatically',
     ],
   },
   ESTORAGE_CORRUPT: {
     retryable: false,
     recoveryHints: [
-      'Run `librarian bootstrap --force` to rebuild the index',
+      'Run `librainian bootstrap --force` to rebuild the index',
       'Check disk space and permissions',
     ],
   },
@@ -128,8 +128,8 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
     retryable: true,
     recoveryHints: [
       'Wait for the other process to complete',
-      'Check for zombie librarian processes',
-      'Remove lock file if process crashed: .librarian/librarian.lock',
+      'Check for zombie librainian processes',
+      'Remove lock file if process crashed: .librainian/librainian.lock',
     ],
   },
 
@@ -139,13 +139,13 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
     recoveryHints: [
       'Retry with a lower depth level (e.g., --depth L0)',
       'Simplify the query intent',
-      'Check provider latency with `librarian check-providers`',
+      'Check provider latency with `librainian check-providers`',
     ],
   },
   EQUERY_INVALID: {
     retryable: false,
     recoveryHints: [
-      'Check query syntax with `librarian help query`',
+      'Check query syntax with `librainian help query`',
       'Ensure depth level is one of: L0, L1, L2, L3',
     ],
   },
@@ -153,15 +153,15 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
     retryable: false,
     recoveryHints: [
       'Try a broader query',
-      'Check if the codebase has been indexed with `librarian status`',
+      'Check if the codebase has been indexed with `librainian status`',
       'Increase depth level for more results',
     ],
   },
   EQUERY_FAILED: {
     retryable: true,
     recoveryHints: [
-      'Check `librarian status` for index health',
-      'Verify provider availability with `librarian check-providers`',
+      'Check `librainian status` for index health',
+      'Verify provider availability with `librainian check-providers`',
     ],
   },
 
@@ -169,7 +169,7 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
   EPROVIDER_UNAVAILABLE: {
     retryable: true,
     recoveryHints: [
-      'Run `librarian check-providers` to diagnose',
+      'Run `librainian check-providers` to diagnose',
       'Check network connectivity',
       'Verify API credentials are set correctly',
     ],
@@ -187,7 +187,7 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
     recoveryHints: [
       'Check API key environment variables (ANTHROPIC_API_KEY, OPENAI_API_KEY)',
       'Verify credentials are valid and not expired',
-      'Run `librarian check-providers` for detailed diagnostics',
+      'Run `librainian check-providers` for detailed diagnostics',
     ],
   },
   EPROVIDER_RATE_LIMIT: {
@@ -201,7 +201,7 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
   EPROVIDER_MODEL_UNAVAILABLE: {
     retryable: false,
     recoveryHints: [
-      'Check model availability with `librarian check-providers`',
+      'Check model availability with `librainian check-providers`',
       'Use a different model with --llm-model',
       'Verify model name spelling',
     ],
@@ -211,16 +211,16 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
   EBOOTSTRAP_REQUIRED: {
     retryable: false,
     recoveryHints: [
-      'Run `librarian bootstrap` first',
-      'Use `librarian bootstrap --force` if previous bootstrap failed',
+      'Run `librainian bootstrap` first',
+      'Use `librainian bootstrap --force` if previous bootstrap failed',
     ],
   },
   EBOOTSTRAP_FAILED: {
     retryable: true,
     recoveryHints: [
-      'Check `librarian status` for details',
-      'Run `librarian bootstrap --force` to retry',
-      'Verify provider availability with `librarian check-providers`',
+      'Check `librainian status` for details',
+      'Run `librainian bootstrap --force` to retry',
+      'Verify provider availability with `librainian check-providers`',
     ],
   },
   EPREFLIGHT_FAILED: {
@@ -235,14 +235,14 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
   EINVALID_ARGUMENT: {
     retryable: false,
     recoveryHints: [
-      'Run `librarian help <command>` for usage information',
+      'Run `librainian help <command>` for usage information',
       'Check argument types and formats',
     ],
   },
   EENTITY_NOT_FOUND: {
     retryable: false,
     recoveryHints: [
-      'Run `librarian status` to see available entities',
+      'Run `librainian status` to see available entities',
       'Check entity name spelling',
       'Ensure the entity has been indexed',
     ],
@@ -267,7 +267,7 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
   EUNKNOWN: {
     retryable: true,
     recoveryHints: [
-      'Check `librarian status` for system health',
+      'Check `librainian status` for system health',
       'Review error details for more information',
       'Report persistent issues to maintainers',
     ],
@@ -276,7 +276,7 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
     retryable: true,
     recoveryHints: [
       'This is likely a bug - please report it',
-      'Try `librarian bootstrap --force` to reset state',
+      'Try `librainian bootstrap --force` to reset state',
     ],
   },
   ETIMEOUT: {
@@ -284,7 +284,7 @@ export const ErrorMetadata: Record<ErrorCode, { retryable: boolean; recoveryHint
     recoveryHints: [
       'Retry the operation',
       'Check network connectivity',
-      'Check provider status with `librarian check-providers`',
+      'Check provider status with `librainian check-providers`',
     ],
   },
 };
@@ -376,18 +376,18 @@ const LegacyCodeMap: Record<CliErrorCode, ErrorCode> = {
  * Legacy error suggestions for backward compatibility
  */
 export const ERROR_SUGGESTIONS: Record<CliErrorCode, string> = {
-  PROVIDER_UNAVAILABLE: 'Run `librarian check-providers` to diagnose provider issues.',
-  NOT_BOOTSTRAPPED: 'Run `librarian bootstrap` first to initialize the knowledge index.',
-  BOOTSTRAP_FAILED: 'Check provider availability with `librarian check-providers` and ensure files are valid.',
-  INSUFFICIENT_EMBEDDING_COVERAGE: 'Run `librarian embed --fix` and retry once embedding coverage is at least 80%.',
-  QUERY_FAILED: 'Try a simpler query or check `librarian status` for index health.',
-  ENTITY_NOT_FOUND: 'Run `librarian status` to see available modules and functions.',
+  PROVIDER_UNAVAILABLE: 'Run `librainian check-providers` to diagnose provider issues.',
+  NOT_BOOTSTRAPPED: 'Run `librainian bootstrap` first to initialize the knowledge index.',
+  BOOTSTRAP_FAILED: 'Check provider availability with `librainian check-providers` and ensure files are valid.',
+  INSUFFICIENT_EMBEDDING_COVERAGE: 'Run `librainian embed --fix` and retry once embedding coverage is at least 80%.',
+  QUERY_FAILED: 'Try a simpler query or check `librainian status` for index health.',
+  ENTITY_NOT_FOUND: 'Run `librainian status` to see available modules and functions.',
   VALIDATION_FAILED: 'Check the file path and ensure it exists in the workspace.',
-  STORAGE_ERROR: 'Run `librarian bootstrap --force` to reinitialize the storage.',
-  INVALID_ARGUMENT: 'Run `librarian help <command>` for usage information.',
+  STORAGE_ERROR: 'Run `librainian bootstrap --force` to reinitialize the storage.',
+  INVALID_ARGUMENT: 'Run `librainian help <command>` for usage information.',
   TIMEOUT: 'The operation timed out. Try again or increase the timeout with --timeout.',
   PREFLIGHT_FAILED: 'Fix the issues listed above before running bootstrap.',
-  INDEX_FAILED: 'Check provider availability with `librarian check-providers` and ensure files are valid.',
+  INDEX_FAILED: 'Check provider availability with `librainian check-providers` and ensure files are valid.',
 };
 
 /**
@@ -550,7 +550,7 @@ function inferErrorCodeFromMessage(message: string): ErrorCode {
   }
 
   // Storage errors
-  if (lowerMessage.includes('not bootstrapped') || lowerMessage.includes('no existing librarian data')) {
+  if (lowerMessage.includes('not bootstrapped') || lowerMessage.includes('no existing librainian data')) {
     return 'ENOINDEX';
   }
   if (lowerMessage.includes('stale') || lowerMessage.includes('outdated')) {
@@ -617,7 +617,7 @@ export function formatError(error: unknown): string {
       return `Error [EPROVIDER_UNAVAILABLE]: Provider unavailable. Next: ${toSingleLine(ERROR_SUGGESTIONS.PROVIDER_UNAVAILABLE)}`;
     }
 
-    if (message.includes('not bootstrapped') || message.includes('No existing librarian data')) {
+    if (message.includes('not bootstrapped') || message.includes('No existing librainian data')) {
       return `Error [ENOINDEX]: LiBrainian not initialized. Next: ${toSingleLine(ERROR_SUGGESTIONS.NOT_BOOTSTRAPPED)}`;
     }
 
@@ -679,7 +679,7 @@ function resolvePrimaryRecoveryHint(hints: string[]): string {
       return sanitized;
     }
   }
-  return 'Run `librarian help <command>` for usage information.';
+  return 'Run `librainian help <command>` for usage information.';
 }
 
 /**

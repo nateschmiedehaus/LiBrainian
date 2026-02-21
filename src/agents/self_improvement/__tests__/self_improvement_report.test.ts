@@ -11,13 +11,13 @@ import {
   type Recommendation,
   type SelfImprovementReport,
 } from '../self_improvement_report.js';
-import type { LibrarianStorage, ModuleKnowledge, FunctionKnowledge } from '../../../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge, FunctionKnowledge } from '../../../storage/types.js';
 import type { ArchitectureAnalysisResult } from '../analyze_architecture.js';
 import type { ConsistencyAnalysisResult } from '../analyze_consistency.js';
 import type { CalibrationVerificationResult } from '../verify_calibration.js';
 
 describe('SelfImprovementReportGenerator', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let generator: SelfImprovementReportGenerator;
   let mockModules: ModuleKnowledge[];
   let mockFunctions: FunctionKnowledge[];
@@ -91,7 +91,7 @@ describe('SelfImprovementReportGenerator', () => {
         indexerVersion: '0.1.0',
         features: ['basic_indexing'],
       }),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     generator = new SelfImprovementReportGenerator(mockStorage);
   });
@@ -107,7 +107,7 @@ describe('SelfImprovementReportGenerator', () => {
     });
 
     it('should throw if storage is not provided', () => {
-      expect(() => new SelfImprovementReportGenerator(undefined as unknown as LibrarianStorage))
+      expect(() => new SelfImprovementReportGenerator(undefined as unknown as LiBrainianStorage))
         .toThrow('storage is required');
     });
   });
@@ -412,7 +412,7 @@ describe('SelfImprovementReportGenerator', () => {
       const report = await generator.generateReport('/test');
 
       expect(report).toHaveProperty('generatedAt');
-      expect(report).toHaveProperty('librarianVersion');
+      expect(report).toHaveProperty('librainianVersion');
       expect(report).toHaveProperty('analysisScope');
       expect(report).toHaveProperty('healthSummary');
       expect(report).toHaveProperty('issues');
@@ -536,7 +536,7 @@ describe('SelfImprovementReportGenerator', () => {
     it('should handle empty report gracefully', async () => {
       const emptyReport: SelfImprovementReport = {
         generatedAt: new Date(),
-        librarianVersion: '0.1.0',
+        librainianVersion: '0.1.0',
         analysisScope: {
           filesAnalyzed: 0,
           testsRun: 0,

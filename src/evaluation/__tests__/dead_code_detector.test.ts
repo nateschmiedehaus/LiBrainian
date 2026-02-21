@@ -26,7 +26,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 // External repos for diverse testing
@@ -774,13 +774,13 @@ describe('DeadCodeDetector - Real Repos', () => {
     expect(Array.isArray(report.candidates)).toBe(true);
   });
 
-  it('should analyze Librarian src directory', async () => {
+  it('should analyze LiBrainian src directory', async () => {
     const srcPath = path.join(LIBRARIAN_ROOT, 'src');
     const report = await detector.detect(srcPath);
 
     expect(report.repoPath).toBe(srcPath);
     expect(Array.isArray(report.candidates)).toBe(true);
-    // Librarian codebase should be relatively clean
+    // LiBrainian codebase should be relatively clean
   });
 });
 

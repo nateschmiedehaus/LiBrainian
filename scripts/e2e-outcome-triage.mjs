@@ -246,7 +246,7 @@ function buildExperienceFindings(report, suggestions, noteworthyObservations, pa
     });
   }
 
-  const missingHintHits = countPatternHits(corpus, /\bno librarian hints\b|minimal.*hint|context was minimal/i);
+  const missingHintHits = countPatternHits(corpus, /\bno librainian hints\b|minimal.*hint|context was minimal/i);
   if (missingHintHits > 0) {
     findings.push({
       key: 'theme-librainian-hints-insufficient',

@@ -1,8 +1,8 @@
 import type { EmbeddingService } from '../api/embeddings.js';
-import { ensureLibrarianReady } from './first_run_gate.js';
+import { ensureLiBrainianReady } from './first_run_gate.js';
 import { logInfo } from '../telemetry/logger.js';
 
-export interface OrchestratorLibrarianGateOptions {
+export interface OrchestratorLiBrainianGateOptions {
   onProgress?: (phase: string, progress: number, message: string) => void;
   timeoutMs?: number;
   maxWaitForBootstrapMs?: number;
@@ -12,19 +12,19 @@ export interface OrchestratorLibrarianGateOptions {
 const isDeterministicMode = (): boolean =>
   process.env.LIBRARIAN_DETERMINISTIC === '1' || process.env.WAVE0_TEST_MODE === 'true';
 
-export async function ensureLibrarianReadyForOrchestrator(
+export async function ensureLiBrainianReadyForOrchestrator(
   workspace: string,
-  options: OrchestratorLibrarianGateOptions = {}
+  options: OrchestratorLiBrainianGateOptions = {}
 ): Promise<void> {
   if (isDeterministicMode()) {
-    logInfo('[librarian] Deterministic mode enabled; skipping librarian gate.');
+    logInfo('[librainian] Deterministic mode enabled; skipping librainian gate.');
     return;
   }
 
   const timeoutMs = options.timeoutMs ?? 0;
   const maxWaitForBootstrapMs = options.maxWaitForBootstrapMs ?? 0;
 
-  await ensureLibrarianReady(workspace, {
+  await ensureLiBrainianReady(workspace, {
     onProgress: options.onProgress,
     timeoutMs,
     maxWaitForBootstrapMs,

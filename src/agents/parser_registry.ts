@@ -214,7 +214,7 @@ function parseGenericModule(
 
 function parseDeterministicFallbackModule(language: string, content: string): Omit<ParserResult, 'parser'> {
   // Deterministic, provider-free fallback when full parsers are unavailable (e.g. missing tree-sitter grammars).
-  // This prevents "0 files indexed" and keeps Librarian usable in constrained environments.
+  // This prevents "0 files indexed" and keeps LiBrainian usable in constrained environments.
   const functions: ParsedFunction[] = [];
   const dependencies = new Set<string>();
 

@@ -1,7 +1,7 @@
 /**
- * @fileoverview Agent Protocol for Librarian Integration
+ * @fileoverview Agent Protocol for LiBrainian Integration
  *
- * Defines the protocol that agents must follow when using librarian knowledge.
+ * Defines the protocol that agents must follow when using librainian knowledge.
  * Includes both knowledge usage protocol and modularization enforcement.
  */
 
@@ -43,10 +43,10 @@ export interface AgentKnowledgeUsage {
 // KNOWLEDGE PROTOCOL PROMPT
 // ============================================================================
 
-const KNOWLEDGE_PROTOCOL = `## Librarian Knowledge Protocol (${AGENT_PROTOCOL_VERSION})
+const KNOWLEDGE_PROTOCOL = `## LiBrainian Knowledge Protocol (${AGENT_PROTOCOL_VERSION})
 
 Rules:
-- Query librarian before direct reads outside provided context.
+- Query librainian before direct reads outside provided context.
 - Cite evidence with file:line references.
 - Acknowledge gaps; do not proceed past blocking gaps.
 - Direct reads allowed only for:
@@ -106,7 +106,7 @@ export const buildKnowledgeProtocolPrompt = (taskId?: string): string => {
 // FEEDBACK SUBMISSION
 // ============================================================================
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { processAgentFeedback, createTaskOutcomeFeedback, type AgentFeedback } from './agent_feedback.js';
 import { getFeedbackContext } from '../api/query.js';
 import { applyRetrievalStrategyFeedbackForQuery } from '../api/retrieval_strategy_bandit.js';
@@ -117,14 +117,14 @@ import { applyRetrievalStrategyFeedbackForQuery } from '../api/retrieval_strateg
  *
  * @param feedbackToken - Token from query response
  * @param outcome - Task outcome (success/failure/partial)
- * @param storage - Librarian storage
+ * @param storage - LiBrainian storage
  * @param options - Optional feedback details
  * @returns Processing result
  */
 export async function submitQueryFeedback(
   feedbackToken: string,
   outcome: 'success' | 'failure' | 'partial',
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: {
     agentId?: string;
     missingContext?: string;
@@ -211,7 +211,7 @@ export async function submitQueryFeedback(
  */
 export async function reportHelpful(
   feedbackToken: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   agentId?: string
 ): Promise<{ success: boolean; adjustmentsApplied: number; error?: string }> {
   return submitQueryFeedback(feedbackToken, 'success', storage, { agentId });
@@ -223,7 +223,7 @@ export async function reportHelpful(
  */
 export async function reportNotHelpful(
   feedbackToken: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options?: { agentId?: string; missingContext?: string }
 ): Promise<{ success: boolean; adjustmentsApplied: number; error?: string }> {
   return submitQueryFeedback(feedbackToken, 'failure', storage, options);

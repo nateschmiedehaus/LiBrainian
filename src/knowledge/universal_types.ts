@@ -1,5 +1,5 @@
 /**
- * @fileoverview Universal Knowledge Types for Librarian
+ * @fileoverview Universal Knowledge Types for LiBrainian
  *
  * A single unified knowledge structure per code entity that implicitly provides
  * answers to ANY question ANY stakeholder could ask. This schema covers 150+
@@ -1552,7 +1552,7 @@ export function createEmptyKnowledge(
       },
       evidence: [],
       generatedAt: now,
-      generatedBy: 'librarian',
+      generatedBy: 'librainian',
       llmEvidence: {},
       defeaters: [],
     },

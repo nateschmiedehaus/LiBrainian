@@ -21,7 +21,7 @@ import {
   findProblematicPatterns,
 } from '../reflog_indexer.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, ReflogEntry } from '../../storage/types.js';
+import type { LiBrainianStorage, ReflogEntry } from '../../storage/types.js';
 
 describe('Reflog Indexer', () => {
   describe('parseAction', () => {
@@ -156,7 +156,7 @@ def456789012345678901234567890abcdef12 HEAD@{1} merge: Also good`;
   });
 
   describe('Integration with Storage', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
     let dbPath: string;
     const testDir = join(tmpdir(), 'reflog-indexer-test-' + Date.now());
 

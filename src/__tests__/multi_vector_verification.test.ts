@@ -1,7 +1,7 @@
 /**
  * @fileoverview Multi-Vector Scoring Verification Test
  *
- * Per docs/librarian/validation.md requirement:
+ * Per docs/librainian/validation.md requirement:
  * "Add ranking-comparison tests and RetrievalQualityReport that show
  * multi-vector blending measurably improves ranking on a dataset."
  *
@@ -29,7 +29,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const AUDIT_DIR = path.join(REPO_ROOT, 'state', 'audits', 'librarian', 'retrieval');
+const AUDIT_DIR = path.join(REPO_ROOT, 'state', 'audits', 'librainian', 'retrieval');
 
 // ============================================================================
 // CURATED EVALUATION DATASET
@@ -43,11 +43,11 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
   // Purpose-based queries
   {
     queryId: 'Q001',
-    query: 'What does the librarian bootstrap process do?',
+    query: 'What does the librainian bootstrap process do?',
     queryType: 'purpose-query',
     relevantTargets: [
-      'src/librarian/api/bootstrap.ts',
-      'src/librarian/types.ts',
+      'src/librainian/api/bootstrap.ts',
+      'src/librainian/types.ts',
     ],
     category: 'purpose',
   },
@@ -56,9 +56,9 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'How are embeddings generated and stored?',
     queryType: 'purpose-query',
     relevantTargets: [
-      'src/librarian/api/embeddings.ts',
-      'src/librarian/api/embedding_providers/real_embeddings.ts',
-      'src/librarian/api/embedding_providers/unified_embedding_pipeline.ts',
+      'src/librainian/api/embeddings.ts',
+      'src/librainian/api/embedding_providers/real_embeddings.ts',
+      'src/librainian/api/embedding_providers/unified_embedding_pipeline.ts',
     ],
     category: 'purpose',
   },
@@ -68,9 +68,9 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Find files that implement multi-vector similarity scoring',
     queryType: 'similar-purpose',
     relevantTargets: [
-      'src/librarian/api/embedding_providers/multi_vector_representations.ts',
-      'src/librarian/query/multi_signal_scorer.ts',
-      'src/librarian/query/scoring.ts',
+      'src/librainian/api/embedding_providers/multi_vector_representations.ts',
+      'src/librainian/query/multi_signal_scorer.ts',
+      'src/librainian/query/scoring.ts',
     ],
     category: 'implementation',
   },
@@ -79,9 +79,9 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Code that handles LLM provider calls',
     queryType: 'similar-purpose',
     relevantTargets: [
-      'src/librarian/adapters/llm_service.ts',
-      'src/librarian/api/provider_gate.ts',
-      'src/librarian/api/provider_check.ts',
+      'src/librainian/adapters/llm_service.ts',
+      'src/librainian/api/provider_gate.ts',
+      'src/librainian/api/provider_check.ts',
     ],
     category: 'implementation',
   },
@@ -91,10 +91,10 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Find files with similar structure to knowledge extractors',
     queryType: 'similar-structure',
     relevantTargets: [
-      'src/librarian/knowledge/extractors/semantics.ts',
-      'src/librarian/knowledge/extractors/rationale_extractor.ts',
-      'src/librarian/knowledge/extractors/security_extractor.ts',
-      'src/librarian/knowledge/extractors/relationships_extractor.ts',
+      'src/librainian/knowledge/extractors/semantics.ts',
+      'src/librainian/knowledge/extractors/rationale_extractor.ts',
+      'src/librainian/knowledge/extractors/security_extractor.ts',
+      'src/librainian/knowledge/extractors/relationships_extractor.ts',
     ],
     category: 'structure',
   },
@@ -104,9 +104,9 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Files that depend on storage types',
     queryType: 'related-modules',
     relevantTargets: [
-      'src/librarian/storage/sqlite_storage.ts',
-      'src/librarian/storage/types.ts',
-      'src/librarian/api/bootstrap.ts',
+      'src/librainian/storage/sqlite_storage.ts',
+      'src/librainian/storage/types.ts',
+      'src/librainian/api/bootstrap.ts',
     ],
     category: 'dependency',
   },
@@ -116,8 +116,8 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Where is the context pack generation logic?',
     queryType: 'purpose-query',
     relevantTargets: [
-      'src/librarian/api/packs.ts',
-      'src/librarian/api/context_assembly.ts',
+      'src/librainian/api/packs.ts',
+      'src/librainian/api/context_assembly.ts',
     ],
     category: 'debug',
   },
@@ -127,20 +127,20 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Find all files related to governor budgets',
     queryType: 'related-modules',
     relevantTargets: [
-      'src/librarian/api/governors.ts',
-      'src/librarian/api/governor_context.ts',
+      'src/librainian/api/governors.ts',
+      'src/librainian/api/governor_context.ts',
     ],
     category: 'refactor',
   },
   // Impact analysis
   {
     queryId: 'Q009',
-    query: 'What files would be affected by changes to LibrarianQuery?',
+    query: 'What files would be affected by changes to LiBrainianQuery?',
     queryType: 'related-modules',
     relevantTargets: [
-      'src/librarian/types.ts',
-      'src/librarian/api/query.ts',
-      'src/librarian/api/query_interface.ts',
+      'src/librainian/types.ts',
+      'src/librainian/api/query.ts',
+      'src/librainian/api/query_interface.ts',
     ],
     category: 'impact',
   },
@@ -150,9 +150,9 @@ const EVALUATION_QUERIES: EvaluationQuery[] = [
     query: 'Find files with similar APIs to ingestion sources',
     queryType: 'compatible-apis',
     relevantTargets: [
-      'src/librarian/ingest/docs_indexer.ts',
-      'src/librarian/ingest/config_indexer.ts',
-      'src/librarian/ingest/framework.ts',
+      'src/librainian/ingest/docs_indexer.ts',
+      'src/librainian/ingest/config_indexer.ts',
+      'src/librainian/ingest/framework.ts',
     ],
     category: 'api',
   },
@@ -171,7 +171,7 @@ function simulateMultiVectorRetrieval(query: EvaluationQuery): EvaluationResult 
   // Simulate by including relevant targets + some noise
   const relevant = query.relevantTargets.slice(0, 3);
   const noise = [
-    'src/librarian/index.ts',
+    'src/librainian/index.ts',
     'src/utils/errors.ts',
     'src/telemetry/logger.ts',
   ].filter((f) => !query.relevantTargets.includes(f));
@@ -201,11 +201,11 @@ function simulateSingleVectorRetrieval(query: EvaluationQuery): EvaluationResult
   // Single-vector: relevant items more scattered, some missed
   const relevant = query.relevantTargets.slice(0, 2);
   const noise = [
-    'src/librarian/index.ts',
+    'src/librainian/index.ts',
     'src/utils/errors.ts',
     'src/telemetry/logger.ts',
-    'src/librarian/events.ts',
-    'src/librarian/core/errors.ts',
+    'src/librainian/events.ts',
+    'src/librainian/core/errors.ts',
   ].filter((f) => !query.relevantTargets.includes(f));
 
   // Single-vector: noise interspersed, fewer relevant items found

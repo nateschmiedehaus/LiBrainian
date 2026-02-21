@@ -2,10 +2,10 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 vi.mock('../versioning.js', () => ({
-  detectLibrarianVersion: vi.fn(),
+  detectLiBrainianVersion: vi.fn(),
   upgradeRequired: vi.fn(),
   runUpgrade: vi.fn(),
 }));
@@ -19,7 +19,7 @@ vi.mock('../../state/watch_state.js', () => ({
   updateWatchState: vi.fn(),
 }));
 
-function createStorageStub(): LibrarianStorage {
+function createStorageStub(): LiBrainianStorage {
   return {
     getMetadata: vi.fn().mockResolvedValue({ lastIndexing: '2026-02-18T00:00:00.000Z' }),
     getStats: vi.fn().mockResolvedValue({
@@ -29,14 +29,14 @@ function createStorageStub(): LibrarianStorage {
       totalEmbeddings: 1,
     }),
     getLastBootstrapReport: vi.fn().mockResolvedValue({ success: true }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 describe('isBootstrapRequired watch freshness checks', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { detectLibrarianVersion, upgradeRequired } = await import('../versioning.js');
-    vi.mocked(detectLibrarianVersion).mockResolvedValue({ qualityTier: 'full' } as never);
+    const { detectLiBrainianVersion, upgradeRequired } = await import('../versioning.js');
+    vi.mocked(detectLiBrainianVersion).mockResolvedValue({ qualityTier: 'full' } as never);
     vi.mocked(upgradeRequired).mockResolvedValue({ required: false, reason: 'up-to-date' });
   });
 
@@ -101,7 +101,7 @@ describe('isBootstrapRequired watch freshness checks', () => {
     const result = await isBootstrapRequired('/tmp/workspace', createStorageStub());
 
     expect(result.required).toBe(false);
-    expect(result.reason).toBe('Librarian data is up-to-date');
+    expect(result.reason).toBe('LiBrainian data is up-to-date');
     expect(vi.mocked(updateWatchState)).not.toHaveBeenCalled();
   });
 
@@ -110,14 +110,14 @@ describe('isBootstrapRequired watch freshness checks', () => {
     const { getWatchState } = await import('../../state/watch_state.js');
     const { getCurrentGitSha } = await import('../../utils/git.js');
 
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-consistency-inprogress-'));
-    const librarianDir = path.join(workspace, '.librarian');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-consistency-inprogress-'));
+    const librainianDir = path.join(workspace, '.librainian');
     const nowIso = new Date().toISOString();
 
     try {
-      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.mkdir(librainianDir, { recursive: true });
       await fs.writeFile(
-        path.join(librarianDir, 'bootstrap_consistency.json'),
+        path.join(librainianDir, 'bootstrap_consistency.json'),
         JSON.stringify({
           kind: 'BootstrapConsistencyState.v1',
           schema_version: 1,
@@ -127,9 +127,9 @@ describe('isBootstrapRequired watch freshness checks', () => {
           started_at: nowIso,
           updated_at: nowIso,
           artifacts: {
-            librarian: { path: path.join(librarianDir, 'librarian.sqlite'), exists: false },
-            knowledge: { path: path.join(librarianDir, 'knowledge.db'), exists: false },
-            evidence: { path: path.join(librarianDir, 'evidence_ledger.db'), exists: false },
+            librainian: { path: path.join(librainianDir, 'librainian.sqlite'), exists: false },
+            knowledge: { path: path.join(librainianDir, 'knowledge.db'), exists: false },
+            evidence: { path: path.join(librainianDir, 'evidence_ledger.db'), exists: false },
           },
         }),
         'utf8',
@@ -151,19 +151,19 @@ describe('isBootstrapRequired watch freshness checks', () => {
     const { getWatchState } = await import('../../state/watch_state.js');
     const { getCurrentGitSha } = await import('../../utils/git.js');
 
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-consistency-missing-artifact-'));
-    const librarianDir = path.join(workspace, '.librarian');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-consistency-missing-artifact-'));
+    const librainianDir = path.join(workspace, '.librainian');
     const nowIso = new Date().toISOString();
-    const existingDb = path.join(librarianDir, 'librarian.sqlite');
-    const missingDb = path.join(librarianDir, 'knowledge.db');
-    const evidenceDb = path.join(librarianDir, 'evidence_ledger.db');
+    const existingDb = path.join(librainianDir, 'librainian.sqlite');
+    const missingDb = path.join(librainianDir, 'knowledge.db');
+    const evidenceDb = path.join(librainianDir, 'evidence_ledger.db');
 
     try {
-      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.mkdir(librainianDir, { recursive: true });
       await fs.writeFile(existingDb, '', 'utf8');
       await fs.writeFile(evidenceDb, '', 'utf8');
       await fs.writeFile(
-        path.join(librarianDir, 'bootstrap_consistency.json'),
+        path.join(librainianDir, 'bootstrap_consistency.json'),
         JSON.stringify({
           kind: 'BootstrapConsistencyState.v1',
           schema_version: 1,
@@ -174,7 +174,7 @@ describe('isBootstrapRequired watch freshness checks', () => {
           updated_at: nowIso,
           completed_at: nowIso,
           artifacts: {
-            librarian: { path: existingDb, exists: true },
+            librainian: { path: existingDb, exists: true },
             knowledge: { path: missingDb, exists: true },
             evidence: { path: evidenceDb, exists: true },
           },

@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { parseUnifiedDiff } from '../ingest/diff_indexer.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 export type FunctionId = string;
 
@@ -28,7 +28,7 @@ export interface FunctionRangeMapper {
 }
 
 export interface FunctionRangeMapperDeps {
-  storage: Pick<LibrarianStorage, 'getFunctionsByPath'>;
+  storage: Pick<LiBrainianStorage, 'getFunctionsByPath'>;
   workspaceRoot: string;
 }
 
@@ -77,7 +77,7 @@ export function createFunctionRangeMapper(deps: FunctionRangeMapperDeps): Functi
 
 class DefaultFunctionRangeMapper implements FunctionRangeMapper {
   private readonly workspaceRoot: string;
-  private readonly storage: Pick<LibrarianStorage, 'getFunctionsByPath'>;
+  private readonly storage: Pick<LiBrainianStorage, 'getFunctionsByPath'>;
   private readonly indexCache = new Map<string, Promise<FileIntervalIndex>>();
 
   constructor(deps: FunctionRangeMapperDeps) {

@@ -1,7 +1,7 @@
 /**
  * @fileoverview E2E Hallucination Detection Test
  *
- * WU-1202: End-to-end tests for hallucination detection in Librarian responses.
+ * WU-1202: End-to-end tests for hallucination detection in LiBrainian responses.
  *
  * This is VALIDATION - we MEASURE actual hallucination rates using:
  * 1. Citation Verification: Do cited files/lines actually exist?
@@ -52,7 +52,7 @@ const MIN_QUERIES_FOR_MEASUREMENT = 10;
 // ============================================================================
 
 /**
- * Simulates Librarian responses with citations for testing.
+ * Simulates LiBrainian responses with citations for testing.
  * These are based on actual facts from the external repo.
  */
 interface SimulatedResponse {
@@ -63,7 +63,7 @@ interface SimulatedResponse {
 }
 
 /**
- * Generate a correct Librarian response based on actual AST facts
+ * Generate a correct LiBrainian response based on actual AST facts
  */
 function generateCorrectResponse(facts: ASTFact[], repoPath: string): SimulatedResponse {
   // Find a function fact to reference
@@ -238,7 +238,7 @@ describe('E2E Hallucination Detection', () => {
 
       // Generate a correct response based on actual facts
       const simResponse = generateCorrectResponse(typedriverFacts, TYPEDRIVER_REPO);
-      const report = await citationVerifier.verifyLibrarianOutput(simResponse.response, TYPEDRIVER_REPO);
+      const report = await citationVerifier.verifyLiBrainianOutput(simResponse.response, TYPEDRIVER_REPO);
 
       // Log for visibility
       console.log(`
@@ -261,7 +261,7 @@ Citation Verification (valid response):
 
       // Generate a hallucinated response
       const simResponse = generateHallucinatedResponse(typedriverFacts, TYPEDRIVER_REPO);
-      const report = await citationVerifier.verifyLibrarianOutput(simResponse.response, TYPEDRIVER_REPO);
+      const report = await citationVerifier.verifyLiBrainianOutput(simResponse.response, TYPEDRIVER_REPO);
 
       // Log for visibility
       console.log(`
@@ -294,7 +294,7 @@ Citation Verification (hallucinated response):
       // Use a line number that's way out of range
       const badResponse = `The function is at \`${realFile}:99999\` which is incorrect.`;
 
-      const report = await citationVerifier.verifyLibrarianOutput(badResponse, TYPEDRIVER_REPO);
+      const report = await citationVerifier.verifyLiBrainianOutput(badResponse, TYPEDRIVER_REPO);
 
       // Should flag the out-of-range line
       const outOfRangeResult = report.results.find((r) => r.reason === 'line_out_of_range');
@@ -311,7 +311,7 @@ Citation Verification (hallucinated response):
       const response = `The \`compile\` function in \`src/compile.ts:62\` compiles a schema into a typed Validator.
 It uses \`CreateTypeScriptValidator\` from \`src/compile.ts:51\` for TypeScript schemas.`;
 
-      const report = await citationVerifier.verifyLibrarianOutput(response, TYPEDRIVER_REPO);
+      const report = await citationVerifier.verifyLiBrainianOutput(response, TYPEDRIVER_REPO);
 
       console.log(`
 Compile.ts Citation Verification:
@@ -436,7 +436,7 @@ Claim Extraction:
       const entailmentReports: EntailmentReport[] = [];
 
       for (const simResponse of responses) {
-        const citationReport = await citationVerifier.verifyLibrarianOutput(
+        const citationReport = await citationVerifier.verifyLiBrainianOutput(
           simResponse.response,
           TYPEDRIVER_REPO
         );
@@ -520,7 +520,7 @@ Contradiction rate: ${(metrics.contradictionRate * 100).toFixed(1)}%
       let verifiedCitations = 0;
 
       for (const q of queries) {
-        const report = await citationVerifier.verifyLibrarianOutput(q.response, TYPEDRIVER_REPO);
+        const report = await citationVerifier.verifyLiBrainianOutput(q.response, TYPEDRIVER_REPO);
         totalCitations += report.totalCitations;
         verifiedCitations += report.verifiedCount;
       }
@@ -768,11 +768,11 @@ Chain-of-Verification Hedging:
       const hallucinatedResponse = generateHallucinatedResponse(typedriverFacts, TYPEDRIVER_REPO);
 
       // Verify both
-      const correctReport = await citationVerifier.verifyLibrarianOutput(
+      const correctReport = await citationVerifier.verifyLiBrainianOutput(
         correctResponse.response,
         TYPEDRIVER_REPO
       );
-      const hallucinatedReport = await citationVerifier.verifyLibrarianOutput(
+      const hallucinatedReport = await citationVerifier.verifyLiBrainianOutput(
         hallucinatedResponse.response,
         TYPEDRIVER_REPO
       );

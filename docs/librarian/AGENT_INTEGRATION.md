@@ -8,7 +8,7 @@ Truth source for “what runs today”: `docs/LiBrainian/STATUS.md` and `package
 
 ## Release Qualification Rule
 
-- `REAL_AGENT_REAL_LIBRARIAN_ONLY`: launch qualification must be produced by real agents executing against the real LiBrainian repository.
+- `REAL_AGENT_REAL_LIBRAINIAN_ONLY`: launch qualification must be produced by real agents executing against the real LiBrainian repository.
 - `NO_SYNTHETIC_OR_REFERENCE_FOR_RELEASE`: simulations, mocks, and reference harness workers are for diagnostics, not release proof.
 - `NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE`: retry/fallback/degraded publish artifacts are treated as failures.
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: release qualification only accepts 100% strict pass evidence.

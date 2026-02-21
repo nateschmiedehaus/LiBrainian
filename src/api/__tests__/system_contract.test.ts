@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { LibrarianMetadata, LibrarianVersion } from '../../types.js';
+import type { LiBrainianMetadata, LiBrainianVersion } from '../../types.js';
 import { buildSystemContract } from '../system_contract.js';
 
 describe('buildSystemContract', () => {
-  const version: LibrarianVersion = {
+  const version: LiBrainianVersion = {
     major: 2,
     minor: 0,
     patch: 0,
@@ -15,7 +15,7 @@ describe('buildSystemContract', () => {
   };
 
   it('includes provenance and invariants', () => {
-    const metadata: LibrarianMetadata = {
+    const metadata: LiBrainianMetadata = {
       version,
       workspace: '/tmp/workspace',
       lastBootstrap: new Date('2026-01-18T00:00:00.000Z'),

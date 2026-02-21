@@ -214,7 +214,7 @@ export class DomainRegistry {
    * Load custom domains from a codebase config file
    */
   async loadCodebaseDomains(repoRoot: string): Promise<Result<number, ConfigurationError>> {
-    const configPath = path.join(repoRoot, '.librarian', 'domains.yaml');
+    const configPath = path.join(repoRoot, '.librainian', 'domains.yaml');
 
     // Check if config exists
     const configResult = await safeAsync(() => fs.readFile(configPath, 'utf-8'));

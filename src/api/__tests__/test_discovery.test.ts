@@ -9,10 +9,10 @@ import {
 
 describe('detectTestQuery', () => {
   describe('positive cases - should detect test queries', () => {
-    it('detects "tests for SqliteLibrarianStorage"', () => {
-      const result = detectTestQuery('tests for SqliteLibrarianStorage');
+    it('detects "tests for SqliteLiBrainianStorage"', () => {
+      const result = detectTestQuery('tests for SqliteLiBrainianStorage');
       expect(result.isTestQuery).toBe(true);
-      expect(result.target).toBe('SqliteLibrarianStorage');
+      expect(result.target).toBe('SqliteLiBrainianStorage');
       expect(result.confidence).toBeGreaterThanOrEqual(0.85);
     });
 
@@ -34,10 +34,10 @@ describe('detectTestQuery', () => {
       expect(result.target).toBe('EmbeddingService');
     });
 
-    it('detects "SqliteLibrarianStorage tests"', () => {
-      const result = detectTestQuery('SqliteLibrarianStorage tests');
+    it('detects "SqliteLiBrainianStorage tests"', () => {
+      const result = detectTestQuery('SqliteLiBrainianStorage tests');
       expect(result.isTestQuery).toBe(true);
-      expect(result.target).toBe('SqliteLibrarianStorage');
+      expect(result.target).toBe('SqliteLiBrainianStorage');
     });
 
     it('detects "unit tests for ConfigManager"', () => {
@@ -71,8 +71,8 @@ describe('detectTestQuery', () => {
     });
 
     it('has higher confidence for PascalCase targets', () => {
-      const pascalCase = detectTestQuery('tests for SqliteLibrarianStorage');
-      const camelCase = detectTestQuery('tests for sqliteLibrarianStorage');
+      const pascalCase = detectTestQuery('tests for SqliteLiBrainianStorage');
+      const camelCase = detectTestQuery('tests for sqliteLiBrainianStorage');
 
       expect(pascalCase.confidence).toBeGreaterThan(camelCase.confidence);
     });
@@ -111,8 +111,8 @@ describe('findTestsForClass', () => {
   // We use the actual workspace to test real file discovery
   const workspaceRoot = path.resolve(__dirname, '../../..');
 
-  it('finds test files that reference SqliteLibrarianStorage', async () => {
-    const result = await findTestsForClass(workspaceRoot, 'SqliteLibrarianStorage');
+  it('finds test files that reference SqliteLiBrainianStorage', async () => {
+    const result = await findTestsForClass(workspaceRoot, 'SqliteLiBrainianStorage');
 
     expect(result.testFiles.length).toBeGreaterThan(0);
     expect(result.coverageStatus).not.toBe('none');
@@ -153,11 +153,11 @@ describe('findTestsForClass', () => {
   }, 30000);
 
   it('discovery method is class_reference when found by grepping', async () => {
-    // SqliteLibrarianStorage doesn't have a file named after it,
+    // SqliteLiBrainianStorage doesn't have a file named after it,
     // so it should be found via class_reference
-    const result = await findTestsForClass(workspaceRoot, 'SqliteLibrarianStorage');
+    const result = await findTestsForClass(workspaceRoot, 'SqliteLiBrainianStorage');
 
-    // Since there's no SqliteLibrarianStorage.test.ts, discovery should be via reference
+    // Since there's no SqliteLiBrainianStorage.test.ts, discovery should be via reference
     expect(['class_reference', 'both']).toContain(result.discoveryMethod);
   }, 30000);
 });

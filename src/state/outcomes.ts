@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ClaimId } from '../epistemics/types.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import type { CalibrationReportSnapshot } from '../epistemics/calibration.js';
@@ -55,13 +55,13 @@ type OutcomeCalibrationState = {
 
 const OUTCOME_CALIBRATION_KEY = 'librarian.claim_outcome_calibration.v1';
 
-export async function listTrackedClaims(storage: LibrarianStorage): Promise<TrackedClaimRecord[]> {
+export async function listTrackedClaims(storage: LiBrainianStorage): Promise<TrackedClaimRecord[]> {
   const state = await loadOutcomeState(storage);
   return state.claims.map((item) => ({ ...item }));
 }
 
 export async function getTrackedClaim(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string
 ): Promise<TrackedClaimRecord | null> {
   const state = await loadOutcomeState(storage);
@@ -70,7 +70,7 @@ export async function getTrackedClaim(
 }
 
 export async function recordTrackedClaim(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   record: TrackedClaimRecord,
   options: { maxClaims?: number } = {}
 ): Promise<TrackedClaimRecord> {
@@ -94,7 +94,7 @@ export async function recordTrackedClaim(
 }
 
 export async function listOutcomeCalibrationReports(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { limit?: number } = {}
 ): Promise<CalibrationReportSnapshot[]> {
   const state = await loadOutcomeCalibrationState(storage);
@@ -105,7 +105,7 @@ export async function listOutcomeCalibrationReports(
 }
 
 export async function recordOutcomeCalibrationReport(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   report: CalibrationReportSnapshot,
   options: { maxReports?: number } = {}
 ): Promise<CalibrationReportSnapshot> {
@@ -129,7 +129,7 @@ export async function recordOutcomeCalibrationReport(
 }
 
 export async function listClaimOutcomes(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { claimId?: string; limit?: number } = {}
 ): Promise<ClaimOutcomeRecord[]> {
   const state = await loadOutcomeState(storage);
@@ -143,7 +143,7 @@ export async function listClaimOutcomes(
 }
 
 export async function recordClaimOutcome(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   record: ClaimOutcomeRecord,
   options: { maxOutcomes?: number } = {}
 ): Promise<ClaimOutcomeRecord> {
@@ -166,7 +166,7 @@ export async function recordClaimOutcome(
   return { ...record };
 }
 
-async function loadOutcomeState(storage: LibrarianStorage): Promise<OutcomeState> {
+async function loadOutcomeState(storage: LiBrainianStorage): Promise<OutcomeState> {
   const raw = await storage.getState(OUTCOME_STATE_KEY);
   if (!raw) {
     return {
@@ -193,7 +193,7 @@ async function loadOutcomeState(storage: LibrarianStorage): Promise<OutcomeState
   };
 }
 
-async function writeOutcomeState(storage: LibrarianStorage, state: OutcomeState): Promise<void> {
+async function writeOutcomeState(storage: LiBrainianStorage, state: OutcomeState): Promise<void> {
   const payload: OutcomeState = {
     schema_version: 1,
     updatedAt: new Date().toISOString(),
@@ -203,7 +203,7 @@ async function writeOutcomeState(storage: LibrarianStorage, state: OutcomeState)
   await storage.setState(OUTCOME_STATE_KEY, JSON.stringify(payload));
 }
 
-async function loadOutcomeCalibrationState(storage: LibrarianStorage): Promise<OutcomeCalibrationState> {
+async function loadOutcomeCalibrationState(storage: LiBrainianStorage): Promise<OutcomeCalibrationState> {
   const raw = await storage.getState(OUTCOME_CALIBRATION_KEY);
   if (!raw) {
     return {
@@ -228,7 +228,7 @@ async function loadOutcomeCalibrationState(storage: LibrarianStorage): Promise<O
 }
 
 async function writeOutcomeCalibrationState(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   state: OutcomeCalibrationState
 ): Promise<void> {
   const payload: OutcomeCalibrationState = {

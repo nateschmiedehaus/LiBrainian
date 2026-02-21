@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { glob } from 'glob';
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { getAllIncludePatterns, getFileCategory, isExcluded, EXCLUDE_PATTERNS } from '../universal_patterns.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
@@ -26,8 +26,8 @@ export interface FileWatcherOptions {
   /** Max queued events per batch window before catch-up (default: 200) */
   stormThreshold?: number;
   workspaceRoot: string;
-  librarian: Librarian;
-  storage?: LibrarianStorage;
+  librainian: LiBrainian;
+  storage?: LiBrainianStorage;
   watch?: (root: string, options: fs.WatchOptions & { recursive: boolean }, listener: (event: string, filename: string | Buffer) => void) => fs.FSWatcher;
   /** Enable lazy cascade re-indexing of dependent files */
   cascadeReindex?: boolean;
@@ -39,7 +39,7 @@ export interface FileWatcherOptions {
 
 export interface FileWatcherHandle {
   stop(): void | Promise<void>;
-  attachStorage?(storage: LibrarianStorage): void;
+  attachStorage?(storage: LiBrainianStorage): void;
 }
 
 const DEFAULT_DEBOUNCE_MS = 200;
@@ -50,7 +50,7 @@ const DEFAULT_CASCADE_BATCH_SIZE = 5;
 const MAX_CASCADE_DEPENDENTS = 50; // Limit cascade to prevent runaway graph traversal
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const RECONCILE_BATCH_SIZE = 50;
-const WATCH_EXCLUDES = ['.librarian/', 'state/audits/'];
+const WATCH_EXCLUDES = ['.librainian/', 'state/audits/'];
 const watchers = new Map<string, FileWatcherHandle>();
 
 /**
@@ -71,7 +71,7 @@ class CascadeReindexQueue {
   private stopped = false;
 
   constructor(
-    private readonly librarian: Librarian,
+    private readonly librainian: LiBrainian,
     private readonly delayMs: number,
     private readonly batchSize: number,
   ) {}
@@ -99,7 +99,7 @@ class CascadeReindexQueue {
 
     try {
       if (options?.flush && (this.queue.size > 0 || this.processing)) {
-        logInfo('[librarian] Flushing cascade queue before stop', {
+        logInfo('[librainian] Flushing cascade queue before stop', {
           remaining: this.queue.size,
           processing: this.processing,
         });
@@ -112,7 +112,7 @@ class CascadeReindexQueue {
           await this.processBatch();
         }
       } else if (this.queue.size > 0) {
-        logWarning('[librarian] Discarding cascade queue items on stop', { discarded: this.queue.size });
+        logWarning('[librainian] Discarding cascade queue items on stop', { discarded: this.queue.size });
       }
     } finally {
       // Always set stopped and clear queue, even if flush fails
@@ -153,17 +153,17 @@ class CascadeReindexQueue {
 
       if (batch.length > 0) {
         const filePaths = batch.map(item => item.filePath);
-        logInfo('[librarian] Cascade reindex starting', {
+        logInfo('[librainian] Cascade reindex starting', {
           files: batch.length,
           remaining: this.queue.size
         });
 
         try {
           // Reindex the batch - reindexFiles handles multiple files
-          await this.librarian.reindexFiles(filePaths);
-          logInfo('[librarian] Cascade reindex completed', { files: batch.length });
+          await this.librainian.reindexFiles(filePaths);
+          logInfo('[librainian] Cascade reindex completed', { files: batch.length });
         } catch (error) {
-          logWarning('[librarian] Cascade reindex failed', {
+          logWarning('[librainian] Cascade reindex failed', {
             files: batch.length,
             error: error instanceof Error ? error.message : String(error),
           });
@@ -176,7 +176,7 @@ class CascadeReindexQueue {
                   retryCount: item.retryCount + 1,
                 });
               } else {
-                logWarning('[librarian] Cascade reindex max retries exceeded', {
+                logWarning('[librainian] Cascade reindex max retries exceeded', {
                   filePath: item.filePath,
                   retries: item.retryCount,
                 });
@@ -232,8 +232,8 @@ class IncrementalFileWatcher implements FileWatcherHandle {
   private batchEventCount = 0;
   private stormActive = false;
   private readonly workspaceRoot: string;
-  private readonly librarian: Librarian;
-  private storage?: LibrarianStorage;
+  private readonly librainian: LiBrainian;
+  private storage?: LiBrainianStorage;
   private readonly watchImpl: FileWatcherOptions['watch'];
   private readonly cascadeEnabled: boolean;
   private readonly cascadeQueue: CascadeReindexQueue | null;
@@ -243,7 +243,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
 
   constructor(options: FileWatcherOptions) {
     this.workspaceRoot = options.workspaceRoot;
-    this.librarian = options.librarian;
+    this.librainian = options.librainian;
     this.storage = options.storage;
     this.debounceMs = Math.max(50, options.debounceMs ?? DEFAULT_DEBOUNCE_MS);
     this.batchWindowMs = Math.max(0, options.batchWindowMs ?? DEFAULT_BATCH_WINDOW_MS);
@@ -252,7 +252,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
     this.cascadeEnabled = options.cascadeReindex ?? true; // Default enabled
     this.cascadeQueue = this.cascadeEnabled
       ? new CascadeReindexQueue(
-          this.librarian,
+          this.librainian,
           options.cascadeDelayMs ?? DEFAULT_CASCADE_DELAY_MS,
           options.cascadeBatchSize ?? DEFAULT_CASCADE_BATCH_SIZE,
         )
@@ -284,7 +284,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       this.schedule(relativePath);
     });
     this.startHeartbeat();
-    logInfo('[librarian] File watcher started', { workspaceRoot: this.workspaceRoot, debounceMs: this.debounceMs });
+    logInfo('[librainian] File watcher started', { workspaceRoot: this.workspaceRoot, debounceMs: this.debounceMs });
     void this.markIncremental();
     void this.updateWatchStarted();
     void this.reconcileWorkspace();
@@ -314,7 +314,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
     // Graceful shutdown: flush remaining cascade items
     const queueSize = this.cascadeQueue?.size ?? 0;
     await this.cascadeQueue?.stop({ flush: true });
-    logInfo('[librarian] File watcher stopped', {
+    logInfo('[librainian] File watcher stopped', {
       workspaceRoot: this.workspaceRoot,
       cascadeQueueSize: queueSize,
     });
@@ -330,7 +330,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         this.queueBatch(relativePath);
       } else {
         this.handleChange(relativePath).catch((error) => {
-          logWarning('[librarian] File watcher reindex failed', {
+          logWarning('[librainian] File watcher reindex failed', {
             filePath: relativePath,
             error: error instanceof Error ? error.message : String(error),
           });
@@ -352,7 +352,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       if (!stat.isFile()) return;
     } catch (error: unknown) {
       const message = getErrorMessage(error);
-      logWarning('[librarian] Failed to stat file for reindex', { filePath: absolutePath, error: message });
+      logWarning('[librainian] Failed to stat file for reindex', { filePath: absolutePath, error: message });
       return;
     }
 
@@ -362,7 +362,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
 
     void globalEventBus.emit(createFileModifiedEvent(absolutePath, 'watcher'));
     await this.updateWatchEvent();
-    await this.librarian.reindexFiles([absolutePath]);
+    await this.librainian.reindexFiles([absolutePath]);
     await this.updateWatchReindexOk();
 
     // Lazy cascade: find and queue dependent files for background reindexing
@@ -377,7 +377,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
     this.batchEventCount += 1;
 
     if (this.stormThreshold > 0 && this.batchEventCount >= this.stormThreshold) {
-      logWarning('[librarian] Watch event storm detected', {
+      logWarning('[librainian] Watch event storm detected', {
         workspaceRoot: this.workspaceRoot,
         queued: this.batchEventCount,
       });
@@ -414,7 +414,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         if (!stat.isFile()) continue;
       } catch (error: unknown) {
         const message = getErrorMessage(error);
-        logWarning('[librarian] Failed to stat file for reindex', { filePath: absolutePath, error: message });
+        logWarning('[librainian] Failed to stat file for reindex', { filePath: absolutePath, error: message });
         continue;
       }
 
@@ -435,10 +435,10 @@ class IncrementalFileWatcher implements FileWatcherHandle {
     }
     await this.updateWatchEvent();
     try {
-      await this.librarian.reindexFiles(toReindex);
+      await this.librainian.reindexFiles(toReindex);
       await this.updateWatchReindexOk();
     } catch (error) {
-      logWarning('[librarian] Batch reindex failed', {
+      logWarning('[librainian] Batch reindex failed', {
         files: toReindex.length,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -480,7 +480,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
     if (typeof storageAny.getModule !== 'function') missing.push('getModule');
     if (missing.length > 0) {
       this.cascadeDisabled = true;
-      this.warnOnce('cascade_storage_missing_graph_apis', '[librarian] Cascade reindex disabled', {
+      this.warnOnce('cascade_storage_missing_graph_apis', '[librainian] Cascade reindex disabled', {
         workspaceRoot: this.workspaceRoot,
         reason: 'storage_missing_graph_apis',
         missing,
@@ -510,7 +510,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       // Limit cascade to prevent runaway graph traversal
       const edgesToProcess = edges.slice(0, MAX_CASCADE_DEPENDENTS);
       if (edges.length > MAX_CASCADE_DEPENDENTS) {
-        logWarning('[librarian] Cascade limited due to high dependent count', {
+        logWarning('[librainian] Cascade limited due to high dependent count', {
           changedFile: changedFilePath,
           totalDependents: edges.length,
           limited: MAX_CASCADE_DEPENDENTS,
@@ -531,7 +531,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       }
 
       if (dependentPaths.length > 0) {
-        logInfo('[librarian] Queueing cascade reindex for dependents', {
+        logInfo('[librainian] Queueing cascade reindex for dependents', {
           changedFile: changedFilePath,
           dependents: dependentPaths.length,
         });
@@ -541,14 +541,14 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       const message = getErrorMessage(error);
       if (message.includes('storage_slice_missing_method') || message.includes('is not a function')) {
         this.cascadeDisabled = true;
-        this.warnOnce('cascade_storage_capability_mismatch', '[librarian] Cascade reindex disabled', {
+        this.warnOnce('cascade_storage_capability_mismatch', '[librainian] Cascade reindex disabled', {
           workspaceRoot: this.workspaceRoot,
           reason: 'storage_capability_mismatch',
           error: message,
         });
         return;
       }
-      logWarning('[librarian] Failed to queue cascade reindex', {
+      logWarning('[librainian] Failed to queue cascade reindex', {
         filePath: changedFilePath,
         error: message,
       });
@@ -564,7 +564,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       }
     } catch (error: unknown) {
       const message = getErrorMessage(error);
-      logWarning('[librarian] Failed to update index state', { error: message });
+      logWarning('[librainian] Failed to update index state', { error: message });
     }
   }
 
@@ -594,10 +594,10 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       } catch {
         // Ignore: state updates are best-effort in degraded storage scenarios.
       }
-      this.warnOnce('watch_reconcile_storage_missing_getFiles', '[librarian] Watch reconcile disabled', {
+      this.warnOnce('watch_reconcile_storage_missing_getFiles', '[librainian] Watch reconcile disabled', {
         workspaceRoot: this.workspaceRoot,
         reason: 'storage_missing_getFiles',
-        hint: 'Attach a full LibrarianStorage implementation to enable reconcile/catch-up.',
+        hint: 'Attach a full LiBrainianStorage implementation to enable reconcile/catch-up.',
       });
       return;
     }
@@ -644,7 +644,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
           for (let i = 0; i < toReindex.length; i += RECONCILE_BATCH_SIZE) {
             const batch = toReindex.slice(i, i + RECONCILE_BATCH_SIZE);
             if (batch.length === 0) continue;
-            await this.librarian.reindexFiles(batch);
+            await this.librainian.reindexFiles(batch);
             await this.updateWatchReindexOk();
           }
 
@@ -667,7 +667,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
             cursor,
             last_error: prev?.last_error,
           }));
-          logInfo('[librarian] Watch reconcile completed (git)', {
+          logInfo('[librainian] Watch reconcile completed (git)', {
             workspaceRoot: this.workspaceRoot,
             added: added.size,
             changed: modified.size,
@@ -709,7 +709,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
             changed.push(resolved);
           }
         } catch (error) {
-          logWarning('[librarian] Watch reconcile stat failed', {
+          logWarning('[librainian] Watch reconcile stat failed', {
             filePath: resolved,
             error: getErrorMessage(error),
           });
@@ -728,7 +728,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       for (let i = 0; i < toReindex.length; i += RECONCILE_BATCH_SIZE) {
         const batch = toReindex.slice(i, i + RECONCILE_BATCH_SIZE);
         if (batch.length === 0) continue;
-        await this.librarian.reindexFiles(batch);
+        await this.librainian.reindexFiles(batch);
         await this.updateWatchReindexOk();
       }
 
@@ -751,7 +751,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         cursor,
         last_error: prev?.last_error,
       }));
-      logInfo('[librarian] Watch reconcile completed', {
+      logInfo('[librainian] Watch reconcile completed', {
         workspaceRoot: this.workspaceRoot,
         added: added.length,
         changed: changed.length,
@@ -776,18 +776,18 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       }));
       if (message.includes('storage_slice_missing_method') || message.includes('is not a function')) {
         this.reconcileDisabled = true;
-        this.warnOnce('watch_reconcile_storage_capability_mismatch', '[librarian] Watch reconcile disabled', {
+        this.warnOnce('watch_reconcile_storage_capability_mismatch', '[librainian] Watch reconcile disabled', {
           workspaceRoot: this.workspaceRoot,
           reason: 'storage_capability_mismatch',
           error: message,
         });
         return;
       }
-      logWarning('[librarian] Watch reconcile failed', { workspaceRoot: this.workspaceRoot, error: message });
+      logWarning('[librainian] Watch reconcile failed', { workspaceRoot: this.workspaceRoot, error: message });
     }
   }
 
-  attachStorage(storage: LibrarianStorage): void {
+  attachStorage(storage: LiBrainianStorage): void {
     this.storage = storage;
     this.reconcileDisabled = false;
     this.cascadeDisabled = false;
@@ -977,7 +977,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       void globalEventBus.emit(createFileDeletedEvent(absolutePath));
     } catch (error: unknown) {
       const message = getErrorMessage(error);
-      logWarning('[librarian] File deletion cleanup failed', { filePath: absolutePath, error: message });
+      logWarning('[librainian] File deletion cleanup failed', { filePath: absolutePath, error: message });
     }
   }
 
@@ -990,7 +990,7 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       return Boolean(existing && existing === checksum);
     } catch (error: unknown) {
       const message = getErrorMessage(error);
-      logWarning('[librarian] Failed to compute checksum', { filePath: absolutePath, error: message });
+      logWarning('[librainian] Failed to compute checksum', { filePath: absolutePath, error: message });
       return false;
     }
   }

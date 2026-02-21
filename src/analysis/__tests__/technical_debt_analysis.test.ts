@@ -22,7 +22,7 @@ import {
   type DebtSignals,
 } from '../technical_debt_analysis.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, DebtMetrics } from '../../storage/types.js';
+import type { LiBrainianStorage, DebtMetrics } from '../../storage/types.js';
 
 // Helper to create complete DebtMetrics with defaults
 function createDebtMetrics(partial: Partial<DebtMetrics> & Pick<DebtMetrics, 'entityId' | 'entityType' | 'totalDebt' | 'trend'>): DebtMetrics {
@@ -328,7 +328,7 @@ describe('Technical Debt Analysis', () => {
   });
 
   describe('Integration with Storage', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
     let dbPath: string;
     const testDir = join(tmpdir(), 'debt-analysis-test-' + Date.now());
 

@@ -20,7 +20,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue, DerivedConfidence } from '../../epistemics/confidence.js';
 import {
   sequenceConfidence,

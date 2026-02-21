@@ -1,15 +1,15 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-export interface LibrarianSessionEvent {
+export interface LiBrainianSessionEvent {
   timestamp: string;
   event: 'query' | 'error' | 'task_start' | 'task_update';
   content: string;
 }
 
-export interface LibrarianSessionState {
+export interface LiBrainianSessionState {
   schema_version: 1;
-  kind: 'LibrarianSession.v1';
+  kind: 'LiBrainianSession.v1';
   startedAt: string;
   lastActiveAt: string;
   workingContext: {
@@ -18,7 +18,7 @@ export interface LibrarianSessionState {
     recentFiles: string[];
     coreMemory: Record<string, string>;
   };
-  episodicLog: LibrarianSessionEvent[];
+  episodicLog: LiBrainianSessionEvent[];
 }
 
 const MAX_RECENT_QUERIES = 20;
@@ -26,10 +26,10 @@ const MAX_RECENT_FILES = 30;
 const MAX_EPISODIC_EVENTS = 50;
 const MAX_CORE_MEMORY_CHARS = 5000;
 
-function createInitialSession(nowIso: string): LibrarianSessionState {
+function createInitialSession(nowIso: string): LiBrainianSessionState {
   return {
     schema_version: 1,
-    kind: 'LibrarianSession.v1',
+    kind: 'LiBrainianSession.v1',
     startedAt: nowIso,
     lastActiveAt: nowIso,
     workingContext: {
@@ -42,7 +42,7 @@ function createInitialSession(nowIso: string): LibrarianSessionState {
 }
 
 function sessionPath(workspaceRoot: string): string {
-  return path.join(workspaceRoot, '.librarian', 'session.json');
+  return path.join(workspaceRoot, '.librainian', 'session.json');
 }
 
 function clampCoreMemory(coreMemory: Record<string, string>): Record<string, string> {
@@ -73,18 +73,18 @@ function dedupeRecent(values: string[], limit: number): string[] {
   return result;
 }
 
-async function readSession(workspaceRoot: string): Promise<LibrarianSessionState> {
+async function readSession(workspaceRoot: string): Promise<LiBrainianSessionState> {
   const nowIso = new Date().toISOString();
   const filePath = sessionPath(workspaceRoot);
   try {
     const raw = await fs.readFile(filePath, 'utf8');
-    const parsed = JSON.parse(raw) as Partial<LibrarianSessionState>;
-    if (parsed?.kind !== 'LibrarianSession.v1' || parsed.schema_version !== 1) {
+    const parsed = JSON.parse(raw) as Partial<LiBrainianSessionState>;
+    if (parsed?.kind !== 'LiBrainianSession.v1' || parsed.schema_version !== 1) {
       return createInitialSession(nowIso);
     }
     return {
       schema_version: 1,
-      kind: 'LibrarianSession.v1',
+      kind: 'LiBrainianSession.v1',
       startedAt: typeof parsed.startedAt === 'string' ? parsed.startedAt : nowIso,
       lastActiveAt: typeof parsed.lastActiveAt === 'string' ? parsed.lastActiveAt : nowIso,
       workingContext: {
@@ -104,12 +104,12 @@ async function readSession(workspaceRoot: string): Promise<LibrarianSessionState
       },
       episodicLog: Array.isArray(parsed.episodicLog)
         ? parsed.episodicLog
-            .filter((entry): entry is LibrarianSessionEvent =>
+            .filter((entry): entry is LiBrainianSessionEvent =>
               Boolean(entry)
               && typeof entry === 'object'
-              && typeof (entry as LibrarianSessionEvent).timestamp === 'string'
-              && typeof (entry as LibrarianSessionEvent).event === 'string'
-              && typeof (entry as LibrarianSessionEvent).content === 'string')
+              && typeof (entry as LiBrainianSessionEvent).timestamp === 'string'
+              && typeof (entry as LiBrainianSessionEvent).event === 'string'
+              && typeof (entry as LiBrainianSessionEvent).content === 'string')
         : [],
     };
   } catch {
@@ -117,23 +117,23 @@ async function readSession(workspaceRoot: string): Promise<LibrarianSessionState
   }
 }
 
-async function writeSession(workspaceRoot: string, state: LibrarianSessionState): Promise<void> {
+async function writeSession(workspaceRoot: string, state: LiBrainianSessionState): Promise<void> {
   const filePath = sessionPath(workspaceRoot);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 }
 
-export async function getSessionState(workspaceRoot: string): Promise<LibrarianSessionState> {
+export async function getSessionState(workspaceRoot: string): Promise<LiBrainianSessionState> {
   return readSession(workspaceRoot);
 }
 
-export async function setSessionCoreMemory(workspaceRoot: string, key: string, value: string): Promise<LibrarianSessionState> {
+export async function setSessionCoreMemory(workspaceRoot: string, key: string, value: string): Promise<LiBrainianSessionState> {
   const state = await readSession(workspaceRoot);
   const nowIso = new Date().toISOString();
   state.lastActiveAt = nowIso;
   const coreMemory = { ...state.workingContext.coreMemory, [key]: value };
   state.workingContext.coreMemory = clampCoreMemory(coreMemory);
-  const event: LibrarianSessionEvent = {
+  const event: LiBrainianSessionEvent = {
     timestamp: nowIso,
     event: 'task_update',
     content: `core_memory:${key}`,
@@ -163,7 +163,7 @@ export async function recordSessionQuery(
     [...relatedFiles, ...state.workingContext.recentFiles],
     MAX_RECENT_FILES,
   );
-  const event: LibrarianSessionEvent = {
+  const event: LiBrainianSessionEvent = {
     timestamp: nowIso,
     event: 'query',
     content: queryIntent,
@@ -179,7 +179,7 @@ export async function recordSessionError(workspaceRoot: string, message: string)
   const state = await readSession(workspaceRoot);
   const nowIso = new Date().toISOString();
   state.lastActiveAt = nowIso;
-  const event: LibrarianSessionEvent = {
+  const event: LiBrainianSessionEvent = {
     timestamp: nowIso,
     event: 'error',
     content: message,
@@ -191,7 +191,7 @@ export async function recordSessionError(workspaceRoot: string, message: string)
   await writeSession(workspaceRoot, state);
 }
 
-export function buildCoreMemoryDisclosure(state: LibrarianSessionState): string | null {
+export function buildCoreMemoryDisclosure(state: LiBrainianSessionState): string | null {
   const entries = Object.entries(state.workingContext.coreMemory);
   if (entries.length === 0) return null;
   const payload = entries.map(([key, value]) => `${key}: ${value}`).join(' | ');

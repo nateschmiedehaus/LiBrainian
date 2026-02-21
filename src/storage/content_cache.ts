@@ -1,5 +1,5 @@
 /**
- * @fileoverview Content-Hash Based Caching for Librarian
+ * @fileoverview Content-Hash Based Caching for LiBrainian
  *
  * Implements content-addressable caching for analysis results using SHA-256 hashing.
  * This enables:
@@ -229,12 +229,12 @@ export class SqliteContentCache<T> implements ContentCache<T> {
     // Prepare statements
     this.stmtGet = this.db.prepare(`
       SELECT hash, version, result, created_at, access_count, last_accessed, size_bytes
-      FROM librarian_content_cache
+      FROM librainian_content_cache
       WHERE hash = ? AND version = ?
     `);
 
     this.stmtInsert = this.db.prepare(`
-      INSERT INTO librarian_content_cache (hash, version, result, created_at, access_count, last_accessed, size_bytes)
+      INSERT INTO librainian_content_cache (hash, version, result, created_at, access_count, last_accessed, size_bytes)
       VALUES (?, ?, ?, ?, 0, ?, ?)
       ON CONFLICT(hash) DO UPDATE SET
         version = excluded.version,
@@ -246,61 +246,61 @@ export class SqliteContentCache<T> implements ContentCache<T> {
     `);
 
     this.stmtUpdate = this.db.prepare(`
-      UPDATE librarian_content_cache
+      UPDATE librainian_content_cache
       SET access_count = access_count + 1, last_accessed = ?
       WHERE hash = ?
     `);
 
     this.stmtHas = this.db.prepare(`
-      SELECT 1 FROM librarian_content_cache
+      SELECT 1 FROM librainian_content_cache
       WHERE hash = ? AND version = ?
     `);
 
     this.stmtDelete = this.db.prepare(`
-      DELETE FROM librarian_content_cache WHERE hash = ?
+      DELETE FROM librainian_content_cache WHERE hash = ?
     `);
 
     this.stmtDeleteByVersion = this.db.prepare(`
-      DELETE FROM librarian_content_cache WHERE version = ?
+      DELETE FROM librainian_content_cache WHERE version = ?
     `);
 
     this.stmtStats = this.db.prepare(`
-      SELECT COUNT(*) as entries FROM librarian_content_cache
+      SELECT COUNT(*) as entries FROM librainian_content_cache
     `);
 
     this.stmtTotalSize = this.db.prepare(`
-      SELECT COALESCE(SUM(size_bytes), 0) as total_size FROM librarian_content_cache
+      SELECT COALESCE(SUM(size_bytes), 0) as total_size FROM librainian_content_cache
     `);
 
     this.stmtClear = this.db.prepare(`
-      DELETE FROM librarian_content_cache
+      DELETE FROM librainian_content_cache
     `);
 
     this.stmtEvictOldest = this.db.prepare(`
-      DELETE FROM librarian_content_cache
+      DELETE FROM librainian_content_cache
       WHERE hash IN (
-        SELECT hash FROM librarian_content_cache
+        SELECT hash FROM librainian_content_cache
         ORDER BY last_accessed ASC
         LIMIT ?
       )
     `);
 
     this.stmtCountEntries = this.db.prepare(`
-      SELECT COUNT(*) as count FROM librarian_content_cache
+      SELECT COUNT(*) as count FROM librainian_content_cache
     `);
 
     this.stmtGetStaleHashes = this.db.prepare(`
-      SELECT hash FROM librarian_content_cache
+      SELECT hash FROM librainian_content_cache
       WHERE created_at < ?
     `);
 
     this.stmtDeleteStale = this.db.prepare(`
-      DELETE FROM librarian_content_cache
+      DELETE FROM librainian_content_cache
       WHERE created_at < ?
     `);
 
     this.stmtCountStale = this.db.prepare(`
-      SELECT COUNT(*) as count FROM librarian_content_cache
+      SELECT COUNT(*) as count FROM librainian_content_cache
       WHERE created_at < ?
     `);
   }
@@ -310,7 +310,7 @@ export class SqliteContentCache<T> implements ContentCache<T> {
    */
   private ensureTable(): void {
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS librarian_content_cache (
+      CREATE TABLE IF NOT EXISTS librainian_content_cache (
         hash TEXT PRIMARY KEY,
         version TEXT NOT NULL,
         result BLOB NOT NULL,
@@ -319,8 +319,8 @@ export class SqliteContentCache<T> implements ContentCache<T> {
         last_accessed INTEGER NOT NULL,
         size_bytes INTEGER NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_content_cache_version ON librarian_content_cache(version);
-      CREATE INDEX IF NOT EXISTS idx_content_cache_last_accessed ON librarian_content_cache(last_accessed);
+      CREATE INDEX IF NOT EXISTS idx_content_cache_version ON librainian_content_cache(version);
+      CREATE INDEX IF NOT EXISTS idx_content_cache_last_accessed ON librainian_content_cache(last_accessed);
     `);
   }
 

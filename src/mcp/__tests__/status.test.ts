@@ -53,7 +53,7 @@ describe('MCP status tool', () => {
 
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
-      librarian: mockLiBrainian,
+      librainian: mockLiBrainian,
       watching: true,
       indexState: 'ready',
       indexedAt: '2026-01-19T00:00:00.000Z',

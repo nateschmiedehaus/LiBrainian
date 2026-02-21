@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createBenchmarkEvolver } from '../benchmark_evolver.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type {
   Problem,
   Fix,
@@ -60,13 +60,13 @@ describe('BenchmarkEvolver', () => {
 
     it('isReady returns true after initialization', async () => {
       const evolver = createBenchmarkEvolver();
-      await evolver.initialize({} as LibrarianStorage);
+      await evolver.initialize({} as LiBrainianStorage);
       expect(evolver.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const evolver = createBenchmarkEvolver();
-      await evolver.initialize({} as LibrarianStorage);
+      await evolver.initialize({} as LiBrainianStorage);
       await evolver.shutdown();
       expect(evolver.isReady()).toBe(false);
     });
@@ -77,7 +77,7 @@ describe('BenchmarkEvolver', () => {
 
     beforeEach(async () => {
       evolver = createBenchmarkEvolver();
-      await evolver.initialize({} as LibrarianStorage);
+      await evolver.initialize({} as LiBrainianStorage);
     });
 
     describe('BenchmarkEvolution structure', () => {

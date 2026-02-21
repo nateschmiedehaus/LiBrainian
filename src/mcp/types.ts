@@ -2004,7 +2004,7 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     tool: 'bootstrap',
     requiredScopes: ['read', 'write'],
     requiresConsent: true,
-    consentMessage: 'Bootstrap will index the workspace and write to .librarian directory',
+    consentMessage: 'Bootstrap will index the workspace and write to .librainian directory',
     riskLevel: 'medium',
   },
   get_session_briefing: {
@@ -2436,7 +2436,7 @@ export interface LiBrainianMCPServerConfig {
 
 /** Default server configuration */
 export const DEFAULT_MCP_SERVER_CONFIG: LiBrainianMCPServerConfig = {
-  name: 'librarian-mcp-server',
+  name: 'librainian-mcp-server',
   version: MCP_SCHEMA_VERSION,
   workspaces: [],
   authorization: {
@@ -2445,7 +2445,7 @@ export const DEFAULT_MCP_SERVER_CONFIG: LiBrainianMCPServerConfig = {
   },
   audit: {
     enabled: true,
-    logPath: '.librarian/audit/mcp',
+    logPath: '.librainian/audit/mcp',
     retentionDays: 30,
   },
   performance: {

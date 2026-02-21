@@ -10,7 +10,7 @@ export interface RedactionAuditReportV1 { kind: 'RedactionAuditReport.v1'; schem
 const REDACTION_PATTERNS: Array<{ type: RedactionType; regex: RegExp }> = [{ type: 'api_key', regex: /api[_-]?key\s*[:=]\s*['"][^'"]{20,}['"]/gi }, { type: 'password', regex: /password\s*[:=]\s*['"][^'"]+['"]/gi }, { type: 'token', regex: /token\s*[:=]\s*['"][A-Za-z0-9+/=]{20,}['"]|gh[pousr]_[A-Za-z0-9]{20,}/gi }, { type: 'aws_key', regex: /AKIA[0-9A-Z]{16}/g }, { type: 'private_key', regex: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC )?PRIVATE KEY-----/g }];
 export const DEFAULT_SNIPPET_LIMITS = { maxChars: 2000, contextLines: 5 };
 const SNIPPET_GAP_MARKER = '... [snip] ...';
-const resolveAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librarian', 'redaction');
+const resolveAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librainian', 'redaction');
 export const createEmptyRedactionCounts = (): RedactionCounts => ({ total: 0, by_type: { api_key: 0, password: 0, token: 0, aws_key: 0, private_key: 0 } });
 export function mergeRedactionCounts(base: RedactionCounts, extra: RedactionCounts): RedactionCounts {
   const merged = createEmptyRedactionCounts(); for (const key of Object.keys(merged.by_type) as RedactionType[]) merged.by_type[key] = (base.by_type[key] || 0) + (extra.by_type[key] || 0);

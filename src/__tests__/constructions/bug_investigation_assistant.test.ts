@@ -2,7 +2,7 @@
  * @fileoverview Tests for BugInvestigationAssistant
  *
  * Tests the enhanced multi-signal bug similarity detection including:
- * - Semantic similarity (librarian queries)
+ * - Semantic similarity (librainian queries)
  * - Structural similarity (AST-based)
  * - Error signature matching
  * - Historical correlation
@@ -17,7 +17,7 @@ import {
   type SimilarBug,
   type SimilarityWeights,
 } from '../../constructions/bug_investigation_assistant.js';
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 
 // Mock the AST extractor to avoid file system dependencies
 vi.mock('../../evaluation/ast_fact_extractor.js', () => ({
@@ -82,9 +82,9 @@ vi.mock('../../evaluation/ast_fact_extractor.js', () => ({
 }));
 
 /**
- * Create a mock Librarian instance for testing.
+ * Create a mock LiBrainian instance for testing.
  */
-function createMockLibrarian(): Librarian {
+function createMockLiBrainian(): LiBrainian {
   return {
     queryOptional: vi.fn().mockImplementation(async (query) => {
       // Simulate different responses based on query intent
@@ -155,16 +155,16 @@ function createMockLibrarian(): Librarian {
       // Default empty response
       return { packs: [] };
     }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 describe('BugInvestigationAssistant', () => {
   let assistant: BugInvestigationAssistant;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    assistant = createBugInvestigationAssistant(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    assistant = createBugInvestigationAssistant(mockLiBrainian);
   });
 
   afterEach(() => {
@@ -491,11 +491,11 @@ describe('BugInvestigationAssistant', () => {
 
     it('should return absent confidence when no data available', async () => {
       // Create a mock that returns no results
-      const emptyMockLibrarian = {
+      const emptyMockLiBrainian = {
         queryOptional: vi.fn().mockResolvedValue({ packs: [] }),
-      } as unknown as Librarian;
+      } as unknown as LiBrainian;
 
-      const emptyAssistant = createBugInvestigationAssistant(emptyMockLibrarian);
+      const emptyAssistant = createBugInvestigationAssistant(emptyMockLiBrainian);
 
       const bugReport: BugReport = {
         description: 'Unknown bug',

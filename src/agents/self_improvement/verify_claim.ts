@@ -7,7 +7,7 @@
  * Based on self-improvement-primitives.md specification.
  */
 
-import type { LibrarianStorage, FunctionKnowledge, ModuleKnowledge } from '../../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge, ModuleKnowledge } from '../../storage/types.js';
 import type { ConfidenceValue, Evidence, ClaimType, EpistemicStatus, GettierAnalysis } from './types.js';
 import { getErrorMessage } from '../../utils/errors.js';
 
@@ -74,7 +74,7 @@ export interface VerifyClaimOptions {
   /** Root directory of the codebase */
   rootDir?: string;
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Maximum evidence items to gather */
   maxEvidence?: number;
   /** Maximum search depth for evidence */
@@ -108,7 +108,7 @@ const DEFAULT_BUDGET: VerificationBudget = {
  * Gather code evidence for a claim.
  */
 async function gatherCodeEvidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   claim: string,
   maxEvidence: number,
   verbose: boolean
@@ -156,7 +156,7 @@ async function gatherCodeEvidence(
  * Gather test evidence for a claim.
  */
 async function gatherTestEvidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   claim: string,
   maxEvidence: number,
   verbose: boolean
@@ -201,7 +201,7 @@ async function gatherTestEvidence(
  * Gather assertion evidence from graph edges.
  */
 async function gatherAssertionEvidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   claim: string,
   maxEvidence: number,
   verbose: boolean
@@ -304,7 +304,7 @@ function calculateRelevance(fn: FunctionKnowledge, terms: string[]): number {
  * Find potential defeaters for a claim.
  */
 async function findDefeaters(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   claim: string,
   evidence: Evidence[],
   verbose: boolean

@@ -4,7 +4,7 @@
  * Runs the evolutionary improvement loop using MAP-Elites + UCB1 allocation.
  * Proposes variants, evaluates via staged evaluators, archives improvements.
  *
- * Usage: librarian evolve [--cycles N] [--candidates N] [--dry-run]
+ * Usage: librainian evolve [--cycles N] [--candidates N] [--dry-run]
  *
  * @packageDocumentation
  */
@@ -42,7 +42,7 @@ export async function evolveCommand(options: EvolveOptions): Promise<void> {
   } = options;
 
   if (format === 'text') {
-    console.log('\n=== Librarian Evolution ===\n');
+    console.log('\n=== LiBrainian Evolution ===\n');
 
     if (dryRun) {
       console.log('[DRY RUN] Simulating evolution without applying changes\n');
@@ -83,7 +83,7 @@ export async function evolveCommand(options: EvolveOptions): Promise<void> {
       }
     } else {
       if (format === 'text') {
-        console.log('No baseline found. Run `librarian eval` first to establish baseline.\n');
+        console.log('No baseline found. Run `librainian eval` first to establish baseline.\n');
       }
     }
 

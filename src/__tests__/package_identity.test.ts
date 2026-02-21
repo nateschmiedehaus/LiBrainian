@@ -12,7 +12,7 @@ describe('package identity', () => {
 
     expect(packageJson.name).toBe('librainian');
     expect(packageJson.bin?.librainian).toBe('./dist/cli/index.js');
-    expect(packageJson.bin?.librarian).toBe('./dist/cli/index.js');
+    expect(packageJson.bin?.librainian).toBe('./dist/cli/index.js');
   });
 
   it('documents install and import using librainian package id', () => {
@@ -20,6 +20,6 @@ describe('package identity', () => {
     const readme = fs.readFileSync(readmePath, 'utf8');
 
     expect(readme).toContain('npm install librainian');
-    expect(readme).toContain("import { createLibrarian } from 'librainian';");
+    expect(readme).toContain("import { createLiBrainian } from 'librainian';");
   });
 });

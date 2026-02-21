@@ -23,7 +23,7 @@ export interface MockCalibrationTracker {
 /**
  * Create a deterministic construction execution context for tests.
  */
-export function mockLibrarianContext<TDeps extends Record<string, unknown>>(
+export function mockLiBrainianContext<TDeps extends Record<string, unknown>>(
   deps: TDeps,
   overrides: Partial<Omit<Context<TDeps>, 'deps'>> = {},
 ): Context<TDeps> {

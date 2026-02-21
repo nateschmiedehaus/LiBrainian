@@ -32,7 +32,7 @@ export async function confidenceCommand(options: ConfidenceCommandOptions): Prom
 
   const entityId = positionals.join(' ');
   if (!entityId) {
-    throw createError('INVALID_ARGUMENT', 'Entity ID is required. Usage: librarian confidence <entity-id>');
+    throw createError('INVALID_ARGUMENT', 'Entity ID is required. Usage: librainian confidence <entity-id>');
   }
 
   const showHistory = values.history as boolean;

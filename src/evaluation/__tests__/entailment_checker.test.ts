@@ -3,7 +3,7 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Entailment Checker verifies whether claims made in Librarian's responses
+ * The Entailment Checker verifies whether claims made in LiBrainian's responses
  * are actually entailed by the source code. This is a hallucination detection mechanism.
  *
  * Entailment logic:

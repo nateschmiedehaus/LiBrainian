@@ -10,7 +10,7 @@ This guide defines the repeatable, agentic, external-repo evaluation loop for Li
 
 ## Release Evidence Policy
 
-- `REAL_AGENT_REAL_LIBRARIAN_ONLY`: release artifacts must come from real agents running on the real LiBrainian codebase.
+- `REAL_AGENT_REAL_LIBRAINIAN_ONLY`: release artifacts must come from real agents running on the real LiBrainian codebase.
 - `NO_SYNTHETIC_OR_REFERENCE_FOR_RELEASE`: reference/smoke harness runs are diagnostic aids, never release signoff evidence.
 - `NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE`: any retry/fallback/degraded evidence path is release-blocking.
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: release qualification is binary; only full strict pass is acceptable.

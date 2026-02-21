@@ -1640,14 +1640,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 // LIBRARIAN-ENHANCED TEST GAP ANALYSIS
 // ============================================================================
 
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianResponse, LlmOptional, ContextPack } from '../types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianResponse, LlmOptional, ContextPack } from '../types.js';
 import type { EvidenceRef } from '../api/evidence.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import { bounded, absent, deriveSequentialConfidence, getNumericValue } from '../epistemics/confidence.js';
 
 /**
- * Semantic test gap discovered through librarian analysis.
+ * Semantic test gap discovered through librainian analysis.
  */
 export interface SemanticTestGap {
   /** Type of test gap */
@@ -1681,18 +1681,18 @@ export interface SemanticTestGap {
 }
 
 /**
- * Result of librarian-enhanced test gap analysis.
+ * Result of librainian-enhanced test gap analysis.
  */
-export interface LibrarianEnhancedTestGapAnalysis extends CoverageGapAnalysis {
+export interface LiBrainianEnhancedTestGapAnalysis extends CoverageGapAnalysis {
   /** Semantic test gaps found through code analysis */
   semanticGaps: SemanticTestGap[];
   /** Overall confidence in the analysis */
   confidence: ConfidenceValue;
   /** Evidence references for traceability */
   evidenceRefs: EvidenceRef[];
-  /** Whether librarian was available for semantic analysis */
-  librarianAvailable: boolean;
-  /** Librarian query trace ID */
+  /** Whether librainian was available for semantic analysis */
+  librainianAvailable: boolean;
+  /** LiBrainian query trace ID */
   traceId?: string;
   /** Summary of untested code paths */
   untestedPathsSummary: {
@@ -1704,16 +1704,16 @@ export interface LibrarianEnhancedTestGapAnalysis extends CoverageGapAnalysis {
 }
 
 /**
- * Analyze code for untested paths using librarian semantic analysis.
+ * Analyze code for untested paths using librainian semantic analysis.
  */
 async function analyzeUntestedPaths(
-  librarian: Librarian
+  librainian: LiBrainian
 ): Promise<{ gaps: SemanticTestGap[]; evidenceRefs: EvidenceRef[] }> {
   const gaps: SemanticTestGap[] = [];
   const evidenceRefs: EvidenceRef[] = [];
 
-  // Query librarian for untested code paths
-  const queryResult = await librarian.queryOptional({
+  // Query librainian for untested code paths
+  const queryResult = await librainian.queryOptional({
     intent: 'Find code paths that appear to lack test coverage. ' +
             'Look for: error handling branches without tests, edge cases without assertions, ' +
             'complex conditional logic without property tests, integration points without contract tests, ' +
@@ -1856,57 +1856,57 @@ function analyzeSnippetForTestGaps(
 }
 
 /**
- * Analyze test coverage gaps with librarian-enhanced semantic analysis.
+ * Analyze test coverage gaps with librainian-enhanced semantic analysis.
  *
  * This function combines traditional coverage gap analysis with semantic code
- * analysis from the librarian. It identifies untested code paths, missing edge
+ * analysis from the librainian. It identifies untested code paths, missing edge
  * case tests, and other gaps that coverage metrics alone might miss.
  *
  * @param strategy - Testing strategy configuration
  * @param currentMetrics - Current test quality metrics
- * @param librarian - Librarian instance for semantic analysis
+ * @param librainian - LiBrainian instance for semantic analysis
  * @returns Enhanced gap analysis with semantic findings and confidence
  *
  * @example
  * ```typescript
- * const result = await analyzeTestGapsWithLibrarian(
+ * const result = await analyzeTestGapsWithLiBrainian(
  *   myTestingStrategy,
  *   currentMetrics,
- *   librarian
+ *   librainian
  * );
  * console.log(result.semanticGaps); // Untested paths found semantically
  * console.log(result.untestedPathsSummary); // Summary by category
  * ```
  */
-export async function analyzeTestGapsWithLibrarian(
+export async function analyzeTestGapsWithLiBrainian(
   strategy: TestingStrategy,
   currentMetrics: TestQualityMetrics,
-  librarian: Librarian
-): Promise<LibrarianEnhancedTestGapAnalysis> {
+  librainian: LiBrainian
+): Promise<LiBrainianEnhancedTestGapAnalysis> {
   // Perform traditional coverage gap analysis
   const staticAnalysis = analyzeCoverageGaps(strategy, currentMetrics);
 
-  // Perform librarian-enhanced analysis
+  // Perform librainian-enhanced analysis
   let semanticGaps: SemanticTestGap[] = [];
   let evidenceRefs: EvidenceRef[] = [];
-  let librarianAvailable = false;
+  let librainianAvailable = false;
   let traceId: string | undefined;
 
   try {
-    const semanticAnalysis = await analyzeUntestedPaths(librarian);
+    const semanticAnalysis = await analyzeUntestedPaths(librainian);
     semanticGaps = semanticAnalysis.gaps;
     evidenceRefs = semanticAnalysis.evidenceRefs;
-    librarianAvailable = true;
+    librainianAvailable = true;
 
     // Get trace ID
-    const statusQuery = await librarian.queryOptional({
+    const statusQuery = await librainian.queryOptional({
       intent: 'Test gap analysis trace',
       depth: 'L0',
     });
     traceId = statusQuery?.traceId;
   } catch {
-    // Librarian query failed, proceed with static analysis only
-    librarianAvailable = false;
+    // LiBrainian query failed, proceed with static analysis only
+    librainianAvailable = false;
   }
 
   // Calculate untested paths summary
@@ -1925,11 +1925,11 @@ export async function analyzeTestGapsWithLibrarian(
     'Coverage metrics provide accurate but incomplete view of test quality'
   );
 
-  const librarianConfidence = librarianAvailable
+  const librainianConfidence = librainianAvailable
     ? bounded(0.5, 0.75, 'literature', 'Semantic analysis identifies patterns but may have false positives')
     : absent('uncalibrated');
 
-  const confidence = deriveSequentialConfidence([staticConfidence, librarianConfidence]);
+  const confidence = deriveSequentialConfidence([staticConfidence, librainianConfidence]);
 
   // Adjust overall score based on semantic findings
   const semanticPenalty = semanticGaps.reduce((penalty, gap) => {
@@ -1948,7 +1948,7 @@ export async function analyzeTestGapsWithLibrarian(
     semanticGaps,
     confidence,
     evidenceRefs,
-    librarianAvailable,
+    librainianAvailable,
     traceId,
     untestedPathsSummary,
   };

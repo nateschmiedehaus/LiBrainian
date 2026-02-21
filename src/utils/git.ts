@@ -1,6 +1,6 @@
 /**
  * @fileoverview Git Utilities
- * Provides git operations for standalone librarian.
+ * Provides git operations for standalone librainian.
  */
 
 import { execSync } from 'node:child_process';

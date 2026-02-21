@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 function parseToolPayload(result: unknown): Record<string, unknown> {
   const text = (result as { content?: Array<{ text?: string }> })?.content?.[0]?.text;
@@ -21,7 +21,7 @@ function createDeferred<T = void>() {
 
 describe('MCP performance guards', () => {
   it('returns server_busy when maxConcurrent is exceeded', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
       performance: { maxConcurrent: 1, timeoutMs: 30000, cacheEnabled: true },
     });
@@ -50,7 +50,7 @@ describe('MCP performance guards', () => {
   });
 
   it('times out tool execution using performance.timeoutMs', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
       performance: { maxConcurrent: 5, timeoutMs: 25, cacheEnabled: true },
     });
@@ -68,7 +68,7 @@ describe('MCP performance guards', () => {
   });
 
   it('deduplicates concurrent bootstrap calls for the same workspace', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
       performance: { maxConcurrent: 5, timeoutMs: 30000, cacheEnabled: true },
     });
@@ -84,7 +84,7 @@ describe('MCP performance guards', () => {
       };
     });
 
-    const workspace = '/tmp/librarian-bootstrap-dedupe';
+    const workspace = '/tmp/librainian-bootstrap-dedupe';
     const [first, second] = await Promise.all([
       (server as any).callTool('bootstrap', { workspace }),
       (server as any).callTool('bootstrap', { workspace }),

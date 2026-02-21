@@ -19,8 +19,8 @@ import {
 
 describe('classifyQueryIntent', () => {
   describe('meta-query detection', () => {
-    it('classifies "How should an agent use Librarian?" as meta-query', () => {
-      const result = classifyQueryIntent('How should an agent use Librarian?');
+    it('classifies "How should an agent use LiBrainian?" as meta-query', () => {
+      const result = classifyQueryIntent('How should an agent use LiBrainian?');
       expect(result.isMetaQuery).toBe(true);
       expect(result.isCodeQuery).toBe(false);
       expect(result.documentBias).toBeGreaterThanOrEqual(0.7);
@@ -58,8 +58,8 @@ describe('classifyQueryIntent', () => {
   });
 
   describe('implementation query detection', () => {
-    it('classifies "where is queryLibrarian defined" as implementation query', () => {
-      const result = classifyQueryIntent('where is queryLibrarian defined');
+    it('classifies "where is queryLiBrainian defined" as implementation query', () => {
+      const result = classifyQueryIntent('where is queryLiBrainian defined');
       expect(result.isCodeQuery).toBe(true);
       expect(result.isMetaQuery).toBe(false);
       expect(result.documentBias).toBeLessThan(0.3);
@@ -106,8 +106,8 @@ describe('classifyQueryIntent', () => {
       expect(result.definitionBias).toBeGreaterThan(0.0);
     });
 
-    it('classifies "LibrarianStorage interface definition" as a definition query', () => {
-      const result = classifyQueryIntent('LibrarianStorage interface definition');
+    it('classifies "LiBrainianStorage interface definition" as a definition query', () => {
+      const result = classifyQueryIntent('LiBrainianStorage interface definition');
       expect(result.isDefinitionQuery).toBe(true);
       expect(result.definitionBias).toBeGreaterThanOrEqual(0.7);
     });
@@ -188,7 +188,7 @@ describe('classifyQueryIntent', () => {
     });
 
     it('does not classify implementation queries as WHY queries', () => {
-      const result = classifyQueryIntent('where is queryLibrarian defined');
+      const result = classifyQueryIntent('where is queryLiBrainian defined');
       expect(result.isWhyQuery).toBe(false);
     });
 
@@ -200,12 +200,12 @@ describe('classifyQueryIntent', () => {
 
   describe('entity type routing', () => {
     it('includes document entity type for meta-queries', () => {
-      const result = classifyQueryIntent('How should an agent use Librarian?');
+      const result = classifyQueryIntent('How should an agent use LiBrainian?');
       expect(result.entityTypes).toContain('document');
     });
 
     it('excludes document entity type for pure implementation queries', () => {
-      const result = classifyQueryIntent('where is queryLibrarian defined');
+      const result = classifyQueryIntent('where is queryLiBrainian defined');
       expect(result.entityTypes).not.toContain('document');
     });
 
@@ -217,16 +217,16 @@ describe('classifyQueryIntent', () => {
   });
 
   describe('refactoring safety query detection', () => {
-    it('classifies "what would break if I changed SqliteLibrarianStorage" as refactoring safety query', () => {
-      const result = classifyQueryIntent('what would break if I changed SqliteLibrarianStorage');
+    it('classifies "what would break if I changed SqliteLiBrainianStorage" as refactoring safety query', () => {
+      const result = classifyQueryIntent('what would break if I changed SqliteLiBrainianStorage');
       expect(result.isRefactoringSafetyQuery).toBe(true);
-      expect(result.refactoringTarget).toBe('SqliteLibrarianStorage');
+      expect(result.refactoringTarget).toBe('SqliteLiBrainianStorage');
     });
 
-    it('classifies "can I safely rename createLibrarian" as refactoring safety query', () => {
-      const result = classifyQueryIntent('can I safely rename createLibrarian');
+    it('classifies "can I safely rename createLiBrainian" as refactoring safety query', () => {
+      const result = classifyQueryIntent('can I safely rename createLiBrainian');
       expect(result.isRefactoringSafetyQuery).toBe(true);
-      expect(result.refactoringTarget).toBe('createLibrarian');
+      expect(result.refactoringTarget).toBe('createLiBrainian');
     });
 
     it('classifies "is it safe to refactor EmbeddingService" as refactoring safety query', () => {
@@ -235,16 +235,16 @@ describe('classifyQueryIntent', () => {
       expect(result.refactoringTarget).toBe('EmbeddingService');
     });
 
-    it('classifies "impact of changing queryLibrarian" as refactoring safety query', () => {
-      const result = classifyQueryIntent('impact of changing queryLibrarian');
+    it('classifies "impact of changing queryLiBrainian" as refactoring safety query', () => {
+      const result = classifyQueryIntent('impact of changing queryLiBrainian');
       expect(result.isRefactoringSafetyQuery).toBe(true);
-      expect(result.refactoringTarget).toBe('queryLibrarian');
+      expect(result.refactoringTarget).toBe('queryLiBrainian');
     });
 
-    it('classifies "safe to refactor LibrarianStorage" as refactoring safety query', () => {
-      const result = classifyQueryIntent('safe to refactor LibrarianStorage');
+    it('classifies "safe to refactor LiBrainianStorage" as refactoring safety query', () => {
+      const result = classifyQueryIntent('safe to refactor LiBrainianStorage');
       expect(result.isRefactoringSafetyQuery).toBe(true);
-      expect(result.refactoringTarget).toBe('LibrarianStorage');
+      expect(result.refactoringTarget).toBe('LiBrainianStorage');
     });
 
     it('classifies "can we safely delete OldFunction" as refactoring safety query', () => {
@@ -259,13 +259,13 @@ describe('classifyQueryIntent', () => {
       expect(result.refactoringTarget).toBe('Storage');
     });
 
-    it('does not classify "what is SqliteLibrarianStorage" as refactoring safety query', () => {
-      const result = classifyQueryIntent('what is SqliteLibrarianStorage');
+    it('does not classify "what is SqliteLiBrainianStorage" as refactoring safety query', () => {
+      const result = classifyQueryIntent('what is SqliteLiBrainianStorage');
       expect(result.isRefactoringSafetyQuery).toBe(false);
     });
 
-    it('does not classify "how does createLibrarian work" as refactoring safety query', () => {
-      const result = classifyQueryIntent('how does createLibrarian work');
+    it('does not classify "how does createLiBrainian work" as refactoring safety query', () => {
+      const result = classifyQueryIntent('how does createLiBrainian work');
       expect(result.isRefactoringSafetyQuery).toBe(false);
     });
   });
@@ -334,7 +334,7 @@ describe('classifyQueryIntent', () => {
     });
 
     it('does not classify specific function queries as project understanding', () => {
-      const result = classifyQueryIntent('where is the queryLibrarian function defined');
+      const result = classifyQueryIntent('where is the queryLiBrainian function defined');
       // This should be a code query, not a project understanding query
       expect(result.isCodeQuery).toBe(true);
       expect(result.isProjectUnderstandingQuery).toBe(false);
@@ -402,7 +402,7 @@ describe('classifyQueryIntent', () => {
 
 describe('applyIntentTypeRoutingOverrides', () => {
   it('forces document-first routing for document intent type', () => {
-    const base = classifyQueryIntent('where is queryLibrarian defined');
+    const base = classifyQueryIntent('where is queryLiBrainian defined');
     const routed = applyIntentTypeRoutingOverrides(base, 'document');
 
     expect(routed.isMetaQuery).toBe(true);
@@ -484,7 +484,7 @@ describe('applyDocumentBias', () => {
 
 describe('isDefinitionEntity', () => {
   it('returns true for entity IDs containing "interface"', () => {
-    expect(isDefinitionEntity('func:src/storage/types.ts::LibrarianStorage::interface')).toBe(true);
+    expect(isDefinitionEntity('func:src/storage/types.ts::LiBrainianStorage::interface')).toBe(true);
   });
 
   it('returns true for entity IDs containing "type:"', () => {
@@ -524,7 +524,7 @@ describe('applyDefinitionBias', () => {
   it('boosts interface results for high definition bias', () => {
     const results = [
       { entityId: 'func:getStorage', entityType: 'function' as const, similarity: 0.8 },
-      { entityId: 'func:src/storage/types.ts::LibrarianStorage', entityType: 'function' as const, similarity: 0.7 },
+      { entityId: 'func:src/storage/types.ts::LiBrainianStorage', entityType: 'function' as const, similarity: 0.7 },
     ];
 
     const boosted = applyDefinitionBias(results, 0.8);
@@ -538,7 +538,7 @@ describe('applyDefinitionBias', () => {
   it('does not boost when definition bias is low', () => {
     const results = [
       { entityId: 'func:getStorage', entityType: 'function' as const, similarity: 0.8 },
-      { entityId: 'func:src/storage/types.ts::LibrarianStorage', entityType: 'function' as const, similarity: 0.7 },
+      { entityId: 'func:src/storage/types.ts::LiBrainianStorage', entityType: 'function' as const, similarity: 0.7 },
     ];
 
     const boosted = applyDefinitionBias(results, 0.05);
@@ -551,7 +551,7 @@ describe('applyDefinitionBias', () => {
   it('reorders results when interface gets boosted above implementation', () => {
     const results = [
       { entityId: 'func:getStorage', entityType: 'function' as const, similarity: 0.75 },
-      { entityId: 'func:src/storage/types.ts::LibrarianStorage', entityType: 'function' as const, similarity: 0.65 },
+      { entityId: 'func:src/storage/types.ts::LiBrainianStorage', entityType: 'function' as const, similarity: 0.65 },
     ];
 
     // High bias should boost interface enough to overtake implementation
@@ -578,19 +578,19 @@ describe('applyDefinitionBias', () => {
     expect(boosted[0].entityId).toBe('func:StorageInterface');
   });
 
-  it('correctly prioritizes LibrarianStorage interface over storage functions', () => {
+  it('correctly prioritizes LiBrainianStorage interface over storage functions', () => {
     // This is the critical test case from the bug report
     const results = [
       { entityId: 'func:src/storage/sqlite.ts::getStorage', entityType: 'function' as const, similarity: 0.82 },
       { entityId: 'func:src/storage/sqlite.ts::createStorage', entityType: 'function' as const, similarity: 0.80 },
       { entityId: 'func:src/storage/sqlite.ts::initStorage', entityType: 'function' as const, similarity: 0.78 },
-      { entityId: 'func:src/storage/types.ts::LibrarianStorage', entityType: 'function' as const, similarity: 0.70 },
+      { entityId: 'func:src/storage/types.ts::LiBrainianStorage', entityType: 'function' as const, similarity: 0.70 },
     ];
     const entityNames = new Map([
       ['func:src/storage/sqlite.ts::getStorage', 'getStorage'],
       ['func:src/storage/sqlite.ts::createStorage', 'createStorage'],
       ['func:src/storage/sqlite.ts::initStorage', 'initStorage'],
-      ['func:src/storage/types.ts::LibrarianStorage', 'LibrarianStorage'],
+      ['func:src/storage/types.ts::LiBrainianStorage', 'LiBrainianStorage'],
     ]);
 
     // Query: "What is the storage interface?"
@@ -599,9 +599,9 @@ describe('applyDefinitionBias', () => {
 
     const boosted = applyDefinitionBias(results, classification.definitionBias, entityNames);
 
-    // LibrarianStorage (the interface) should be ranked first despite lower initial similarity
+    // LiBrainianStorage (the interface) should be ranked first despite lower initial similarity
     expect(boosted[0].entityId).toContain('types.ts');
-    expect(boosted[0].entityId).toContain('LibrarianStorage');
+    expect(boosted[0].entityId).toContain('LiBrainianStorage');
   });
 });
 
@@ -620,15 +620,15 @@ describe('classifyUnifiedQueryIntent', () => {
       expect(result.structuralIntent?.isStructural).toBe(true);
     });
 
-    it('classifies "What depends on LibrarianStorage?" as structural', () => {
-      const result = classifyUnifiedQueryIntent('What depends on LibrarianStorage?');
+    it('classifies "What depends on LiBrainianStorage?" as structural', () => {
+      const result = classifyUnifiedQueryIntent('What depends on LiBrainianStorage?');
       expect(result.intentType).toBe('structural');
       expect(result.primaryStrategy).toBe('graph');
       expect(result.graphEdgeTypes).toContain('imports');
     });
 
-    it('classifies "What calls queryLibrarian?" as structural with calls edge', () => {
-      const result = classifyUnifiedQueryIntent('What calls queryLibrarian?');
+    it('classifies "What calls queryLiBrainian?" as structural with calls edge', () => {
+      const result = classifyUnifiedQueryIntent('What calls queryLiBrainian?');
       expect(result.intentType).toBe('structural');
       expect(result.graphEdgeTypes).toContain('calls');
     });
@@ -652,14 +652,14 @@ describe('classifyUnifiedQueryIntent', () => {
     });
 
     it('detects exhaustive mode for refactoring queries', () => {
-      const result = classifyUnifiedQueryIntent('What will break if I refactor LibrarianStorage?');
+      const result = classifyUnifiedQueryIntent('What will break if I refactor LiBrainianStorage?');
       expect(result.requiresExhaustive).toBe(true);
     });
   });
 
   describe('location query detection (search strategy)', () => {
-    it('classifies "Where is queryLibrarian defined?" as location', () => {
-      const result = classifyUnifiedQueryIntent('Where is queryLibrarian defined?');
+    it('classifies "Where is queryLiBrainian defined?" as location', () => {
+      const result = classifyUnifiedQueryIntent('Where is queryLiBrainian defined?');
       expect(result.intentType).toBe('location');
       expect(result.primaryStrategy).toBe('search');
     });
@@ -682,8 +682,8 @@ describe('classifyUnifiedQueryIntent', () => {
   });
 
   describe('explanation query detection (summary strategy)', () => {
-    it('classifies "What does queryLibrarian do?" as explanation', () => {
-      const result = classifyUnifiedQueryIntent('What does queryLibrarian do?');
+    it('classifies "What does queryLiBrainian do?" as explanation', () => {
+      const result = classifyUnifiedQueryIntent('What does queryLiBrainian do?');
       expect(result.intentType).toBe('explanation');
       expect(result.primaryStrategy).toBe('summary');
     });
@@ -716,8 +716,8 @@ describe('classifyUnifiedQueryIntent', () => {
       expect(result.primaryStrategy).toBe('docs');
     });
 
-    it('classifies "How do I use Librarian?" as meta', () => {
-      const result = classifyUnifiedQueryIntent('How do I use Librarian?');
+    it('classifies "How do I use LiBrainian?" as meta', () => {
+      const result = classifyUnifiedQueryIntent('How do I use LiBrainian?');
       expect(result.intentType).toBe('meta');
       expect(result.documentBias).toBeGreaterThan(0.7);
     });
@@ -763,7 +763,7 @@ describe('classifyUnifiedQueryIntent', () => {
     });
 
     it('provides search -> graph -> summary fallback for location queries', () => {
-      const result = classifyUnifiedQueryIntent('Where is queryLibrarian?');
+      const result = classifyUnifiedQueryIntent('Where is queryLiBrainian?');
       expect(result.fallbackStrategies).toEqual(['graph', 'summary']);
     });
 

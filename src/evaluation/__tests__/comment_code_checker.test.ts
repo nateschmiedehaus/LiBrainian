@@ -32,7 +32,7 @@ import { ASTFactExtractor, createASTFactExtractor, type ASTFact } from '../ast_f
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 // External repos for diverse testing
@@ -908,7 +908,7 @@ describe('CommentCodeChecker - Real Repos', () => {
     expect(Array.isArray(report.mismatches)).toBe(true);
   });
 
-  it('should analyze Librarian src directory', async () => {
+  it('should analyze LiBrainian src directory', async () => {
     const srcPath = path.join(LIBRARIAN_ROOT, 'src');
     const report = await checker.check(srcPath);
 

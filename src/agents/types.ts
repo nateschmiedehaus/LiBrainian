@@ -1,19 +1,19 @@
 /**
- * @fileoverview Agent interfaces for Librarian system
+ * @fileoverview Agent interfaces for LiBrainian system
  *
- * Designed for extension: MVP ships with IndexLibrarian only,
- * future versions add PatternLibrarian, DecisionLibrarian, etc.
+ * Designed for extension: MVP ships with IndexLiBrainian only,
+ * future versions add PatternLiBrainian, DecisionLiBrainian, etc.
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianVersion, IndexingTask, IndexingResult } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianVersion, IndexingTask, IndexingResult } from '../types.js';
 
 // ============================================================================
 // AGENT CAPABILITY ENUM
 // ============================================================================
 
 /**
- * Capabilities that librarian agents can have.
+ * Capabilities that librainian agents can have.
  * Used for discovery and routing.
  */
 export type AgentCapability =
@@ -34,10 +34,10 @@ export type AgentCapability =
 // ============================================================================
 
 /**
- * Base interface for all librarian agents.
+ * Base interface for all librainian agents.
  * Agents are specialized workers that perform specific knowledge tasks.
  */
-export interface LibrarianAgent {
+export interface LiBrainianAgent {
   /** Unique identifier for this agent type */
   readonly agentType: string;
 
@@ -57,7 +57,7 @@ export interface LibrarianAgent {
    * Initialize the agent with storage.
    * Called once before any work methods.
    */
-  initialize(storage: LibrarianStorage): Promise<void>;
+  initialize(storage: LiBrainianStorage): Promise<void>;
 
   /**
    * Check if agent is ready to work.
@@ -77,7 +77,7 @@ export interface LibrarianAgent {
 /**
  * Interface for agents that can index code.
  */
-export interface IndexingAgent extends LibrarianAgent {
+export interface IndexingAgent extends LiBrainianAgent {
   /**
    * Process an indexing task.
    * Should emit progress events during execution.
@@ -194,7 +194,7 @@ export interface ProblemDetectionReport {
 
 export type CommandRunner = (check: TestFailureCheck) => Promise<CommandResult>;
 
-export interface ProblemDetectorAgent extends LibrarianAgent {
+export interface ProblemDetectorAgent extends LiBrainianAgent {
   testFailures(tests: TestFailureCheck[]): Promise<Problem[]>;
   regressionCheck(regressions: RegressionCheck[]): Problem[];
   adversarialProbe(probes: AdversarialProbe[]): Problem[];
@@ -241,7 +241,7 @@ export interface HypothesisGenerationReport {
   rankedByLikelihood: string[];  // Hypothesis IDs in order
 }
 
-export interface HypothesisGeneratorAgent extends LibrarianAgent {
+export interface HypothesisGeneratorAgent extends LiBrainianAgent {
   /**
    * Generate hypotheses for a given problem.
    * Uses heuristic-based approach (no LLM) for Tier-0 compatibility.
@@ -286,7 +286,7 @@ export interface HypothesisTesterInput {
   codebaseContext?: string;      // Optional additional context
 }
 
-export interface HypothesisTesterAgent extends LibrarianAgent {
+export interface HypothesisTesterAgent extends LiBrainianAgent {
   /**
    * Test a hypothesis to determine if it's supported, refuted, or inconclusive.
    * Uses heuristic-based approach (no LLM) for Tier-0 compatibility.
@@ -360,7 +360,7 @@ export interface FixGeneratorReport {
 /**
  * Interface for agents that generate fixes for supported hypotheses.
  */
-export interface FixGeneratorAgent extends LibrarianAgent {
+export interface FixGeneratorAgent extends LiBrainianAgent {
   /**
    * Generate fixes for a supported hypothesis.
    * Uses heuristic-based approach (no LLM) for Tier-0 compatibility.
@@ -412,7 +412,7 @@ export interface FixVerifierInput {
 /**
  * Interface for agents that verify fixes using RLVR-style binary verification.
  */
-export interface FixVerifierAgent extends LibrarianAgent {
+export interface FixVerifierAgent extends LiBrainianAgent {
   agentType: 'fix_verifier';
   capabilities: readonly ['fix_verification'];
 
@@ -505,7 +505,7 @@ export interface BenchmarkEvolverInput {
  * Interface for agents that evolve benchmarks after verified fixes.
  * Uses heuristic-based approach (no LLM) for Tier-0 compatibility.
  */
-export interface BenchmarkEvolverAgent extends LibrarianAgent {
+export interface BenchmarkEvolverAgent extends LiBrainianAgent {
   agentType: 'benchmark_evolver';
   capabilities: readonly ['benchmark_evolution'];
 
@@ -590,7 +590,7 @@ export interface ScientificLoopOrchestratorConfig {
  * Interface for the Scientific Loop Orchestrator.
  * Coordinates all agents in the scientific debugging loop.
  */
-export interface ScientificLoopOrchestrator extends LibrarianAgent {
+export interface ScientificLoopOrchestrator extends LiBrainianAgent {
   /**
    * Run a single iteration of the loop.
    */
@@ -630,7 +630,7 @@ export interface ScientificLoopOrchestrator extends LibrarianAgent {
  * Interface for agents that detect patterns.
  * Not implemented in MVP.
  */
-export interface PatternAgent extends LibrarianAgent {
+export interface PatternAgent extends LiBrainianAgent {
   detectPatterns(files: string[]): Promise<PatternDetectionResult>;
 }
 
@@ -736,33 +736,33 @@ export interface ImprovementTracker {
  * Agents register themselves here for discovery.
  */
 export interface AgentRegistry {
-  register(agent: LibrarianAgent): void;
-  getAgent(agentType: string): LibrarianAgent | undefined;
-  getAgentsByCapability(capability: AgentCapability): LibrarianAgent[];
-  getAllAgents(): LibrarianAgent[];
+  register(agent: LiBrainianAgent): void;
+  getAgent(agentType: string): LiBrainianAgent | undefined;
+  getAgentsByCapability(capability: AgentCapability): LiBrainianAgent[];
+  getAllAgents(): LiBrainianAgent[];
 }
 
 /**
  * Simple in-memory agent registry.
  */
 export class SimpleAgentRegistry implements AgentRegistry {
-  private agents = new Map<string, LibrarianAgent>();
+  private agents = new Map<string, LiBrainianAgent>();
 
-  register(agent: LibrarianAgent): void {
+  register(agent: LiBrainianAgent): void {
     this.agents.set(agent.agentType, agent);
   }
 
-  getAgent(agentType: string): LibrarianAgent | undefined {
+  getAgent(agentType: string): LiBrainianAgent | undefined {
     return this.agents.get(agentType);
   }
 
-  getAgentsByCapability(capability: AgentCapability): LibrarianAgent[] {
+  getAgentsByCapability(capability: AgentCapability): LiBrainianAgent[] {
     return Array.from(this.agents.values()).filter((agent) =>
       agent.capabilities.includes(capability)
     );
   }
 
-  getAllAgents(): LibrarianAgent[] {
+  getAllAgents(): LiBrainianAgent[] {
     return Array.from(this.agents.values());
   }
 }

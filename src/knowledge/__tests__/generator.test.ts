@@ -14,21 +14,21 @@ import { existsSync, unlinkSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { UniversalKnowledgeGenerator } from '../generator.js';
-import type { LibrarianStorage, UniversalKnowledgeRecord } from '../../storage/types.js';
+import type { LiBrainianStorage, UniversalKnowledgeRecord } from '../../storage/types.js';
 import type { FunctionKnowledge, ModuleKnowledge } from '../../types.js';
 import type { KnowledgeMeta } from '../universal_types.js';
 
 describe('UniversalKnowledgeGenerator Defeater Activation', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let workspace: string;
-  const testDir = join(tmpdir(), 'librarian-generator-test-' + Date.now());
+  const testDir = join(tmpdir(), 'librainian-generator-test-' + Date.now());
 
   beforeEach(async () => {
     if (!existsSync(testDir)) {
       mkdirSync(testDir, { recursive: true });
     }
     workspace = testDir;
-    storage = new MockStorage() as unknown as LibrarianStorage;
+    storage = new MockStorage() as unknown as LiBrainianStorage;
     
     // Suppress console.warn during tests to reduce noise
     vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -446,7 +446,7 @@ async function collectReleaseSignals(input: {
     : path.join(input.workspace, 'eval-results', 'final-verification.json');
   const conversationInsightsPath = input.overrides?.conversationInsightsPath
     ? path.resolve(input.overrides.conversationInsightsPath)
-    : path.join(input.workspace, 'docs', 'librarian', 'CONVERSATION_INSIGHTS.md');
+    : path.join(input.workspace, 'docs', 'librainian', 'CONVERSATION_INSIGHTS.md');
   const expectedReposRoot = resolveExpectedExternalReposRoot(input.workspace);
 
   return Promise.all([
@@ -720,8 +720,8 @@ async function collectReleaseSignals(input: {
         if (treatmentWithoutContext > 0) {
           return {
             ok: false,
-            message: `A/B treatment runs missing Librarian context evidence (${treatmentWithoutContext})`,
-            hint: 'Treatment runs must include retrieved Librarian context files.',
+            message: `A/B treatment runs missing LiBrainian context evidence (${treatmentWithoutContext})`,
+            hint: 'Treatment runs must include retrieved LiBrainian context files.',
           };
         }
         const disallowedAgentCommands = results.filter((entry) => {
@@ -1580,7 +1580,7 @@ async function collectReleaseSignals(input: {
           return {
             ok: false,
             message: `Conversation insights doc is missing required sections: ${missingHeadings.join(', ')}`,
-            hint: 'Update docs/librarian/CONVERSATION_INSIGHTS.md to include all required sections.',
+            hint: 'Update docs/librainian/CONVERSATION_INSIGHTS.md to include all required sections.',
           };
         }
         const reviewChecked = new RegExp(`^\\s*-\\s*\\[[xX]\\]\\s*${escapeRegExp(CONVERSATION_INSIGHTS_REVIEW_TOKEN)}\\s*$`, 'm')
@@ -1662,7 +1662,7 @@ export function evaluatePublishReadiness(input: {
         severity: 'warning',
         count: broadIssueCount,
         message: `${broadIssueCount} non-release status drift issue(s) detected in GATES/STATUS`,
-        hint: 'Run `librarian publish-gate --profile broad` to inspect full backlog status drift.',
+        hint: 'Run `librainian publish-gate --profile broad` to inspect full backlog status drift.',
       });
     }
 
@@ -1703,7 +1703,7 @@ export function evaluatePublishReadiness(input: {
         severity: 'blocking',
         count: gatesStrictMarkers.length,
         message: `GATES artifact contains strict failure markers: ${gatesStrictMarkers.join(', ')}`,
-        hint: 'Release evidence must not carry fallback/unverified markers in docs/librarian/GATES.json.',
+        hint: 'Release evidence must not carry fallback/unverified markers in docs/librainian/GATES.json.',
       });
     }
 
@@ -1716,7 +1716,7 @@ export function evaluatePublishReadiness(input: {
         severity: 'blocking',
         count: statusStrictMarkers.length,
         message: `STATUS artifact contains strict failure markers: ${statusStrictMarkers.join(', ')}`,
-        hint: 'Release evidence must not carry fallback/unverified markers in docs/librarian/STATUS.md.',
+        hint: 'Release evidence must not carry fallback/unverified markers in docs/librainian/STATUS.md.',
       });
     }
 
@@ -1790,10 +1790,10 @@ export async function publishGateCommand(options: PublishGateCommandOptions): Pr
 
   const gatesFilePath = typeof values['gates-file'] === 'string' && values['gates-file'].trim().length > 0
     ? path.resolve(values['gates-file'])
-    : path.join(workspace, 'docs', 'librarian', 'GATES.json');
+    : path.join(workspace, 'docs', 'librainian', 'GATES.json');
   const statusFilePath = typeof values['status-file'] === 'string' && values['status-file'].trim().length > 0
     ? path.resolve(values['status-file'])
-    : path.join(workspace, 'docs', 'librarian', 'STATUS.md');
+    : path.join(workspace, 'docs', 'librainian', 'STATUS.md');
 
   const [gatesRaw, statusMarkdown] = await Promise.all([
     readFile(gatesFilePath, 'utf8'),

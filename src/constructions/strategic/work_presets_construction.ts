@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -114,7 +114,7 @@ export interface WorkPresetAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new WorkPresetsConstruction(librarian);
+ * const construction = new WorkPresetsConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['src/feature.ts'],
  *   phase: 'testing',
@@ -127,11 +127,11 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
   static readonly CONSTRUCTION_ID = 'WorkPresetsConstruction';
   readonly CONSTRUCTION_ID = WorkPresetsConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -182,13 +182,13 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand the work context
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand the work context
+    const queryResult = await this.librainian.queryOptional({
       intent: `Analyze work quality for ${input.phase} phase including test coverage, code quality, and documentation`,
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:work_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:work_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Select preset
     const preset = input.preset || this.getStandard();
@@ -295,7 +295,7 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
   private checkGates(
     gatesPreset: workPresets.QualityGatesPreset,
     input: WorkPresetAssessmentInput,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): GateCheckResult[] {
     const results: GateCheckResult[] = [];
 
@@ -333,7 +333,7 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
   private checkRequirement(
     requirement: workPresets.PresetGateRequirement,
     input: WorkPresetAssessmentInput,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): { passed: boolean; actual?: number | string } {
     switch (requirement.type) {
       case 'test_coverage':
@@ -384,7 +384,7 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
   private checkDeliverables(
     deliverables: workPresets.DeliverablePreset[],
     type: workPresets.DeliverableType,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): Array<{ id: string; name: string; met: boolean; mandatory: boolean }> {
     const preset = deliverables.find((d) => d.type === type);
     if (!preset) return [];
@@ -402,7 +402,7 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
    */
   private checkDeliverableRequirement(
     requirement: workPresets.DeliverableRequirement,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): boolean {
     // Simple heuristics based on requirement ID
     switch (requirement.id) {
@@ -465,7 +465,7 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
    */
   private computeReviewReadiness(
     input: WorkPresetAssessmentInput,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): number {
     let score = 60; // Baseline
 
@@ -516,7 +516,7 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -540,11 +540,11 @@ export class WorkPresetsConstruction implements CalibratedConstruction {
 /**
  * Create a new work presets construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new WorkPresetsConstruction
  */
 export function createWorkPresetsConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): WorkPresetsConstruction {
-  return new WorkPresetsConstruction(librarian);
+  return new WorkPresetsConstruction(librainian);
 }

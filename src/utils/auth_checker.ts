@@ -11,7 +11,7 @@
 import {
   getAllProviderStatus,
   llmProviderRegistry,
-  type LibrarianLlmProvider,
+  type LiBrainianLlmProvider,
 } from '../api/llm_provider_discovery.js';
 
 // ============================================================================
@@ -19,7 +19,7 @@ import {
 // ============================================================================
 
 export interface AuthStatus {
-  provider: LibrarianLlmProvider;
+  provider: LiBrainianLlmProvider;
   authenticated: boolean;
   reason?: string;
   expiresAt?: number;
@@ -31,7 +31,7 @@ export interface AuthStatus {
 export interface AuthStatusSummary {
   anyAuthenticated: boolean;
   providers: AuthStatus[];
-  recommended?: LibrarianLlmProvider;
+  recommended?: LiBrainianLlmProvider;
   // Provider-specific status
   claude_code?: AuthStatus;
   codex?: AuthStatus;
@@ -68,7 +68,7 @@ export class AuthChecker {
    */
   async checkAll(): Promise<AuthStatusSummary> {
     const statuses: AuthStatus[] = [];
-    let recommended: LibrarianLlmProvider | undefined;
+    let recommended: LiBrainianLlmProvider | undefined;
 
     const discovered = await getAllProviderStatus({ forceRefresh: false });
     for (const entry of discovered) {
@@ -88,7 +88,7 @@ export class AuthChecker {
       });
     }
 
-    const preference: LibrarianLlmProvider[] = ['claude', 'codex'];
+    const preference: LiBrainianLlmProvider[] = ['claude', 'codex'];
     for (const provider of preference) {
       if (statuses.some((s) => s.provider === provider && s.authenticated)) {
         recommended = provider;
@@ -96,7 +96,7 @@ export class AuthChecker {
       }
     }
 
-    const findProvider = (name: LibrarianLlmProvider) => statuses.find((s) => s.provider === name);
+    const findProvider = (name: LiBrainianLlmProvider) => statuses.find((s) => s.provider === name);
 
     return {
       anyAuthenticated: statuses.some(s => s.authenticated),
@@ -111,7 +111,7 @@ export class AuthChecker {
   /**
    * Check if a specific provider is authenticated
    */
-  async check(providerId: LibrarianLlmProvider): Promise<AuthStatus> {
+  async check(providerId: LiBrainianLlmProvider): Promise<AuthStatus> {
     const status = await llmProviderRegistry.checkProvider(providerId);
     return {
       provider: providerId,
@@ -124,7 +124,7 @@ export class AuthChecker {
   /**
    * Get first authenticated provider
    */
-  async getFirstAuthenticated(): Promise<LibrarianLlmProvider | undefined> {
+  async getFirstAuthenticated(): Promise<LiBrainianLlmProvider | undefined> {
     const summary = await this.checkAll();
     return summary.recommended;
   }

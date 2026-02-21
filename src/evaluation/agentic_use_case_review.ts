@@ -1,10 +1,10 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { ensureLibrarianReady } from '../integration/first_run_gate.js';
+import { ensureLiBrainianReady } from '../integration/first_run_gate.js';
 import { runProviderReadinessGate } from '../api/provider_gate.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 import { withTimeout } from '../utils/async.js';
-import type { LibrarianQuery, LibrarianResponse } from '../types.js';
+import type { LiBrainianQuery, LiBrainianResponse } from '../types.js';
 
 export interface AgenticUseCase {
   id: string;
@@ -233,7 +233,7 @@ export interface AgenticUseCaseQueryOptions {
   queryTimeoutMs: number;
 }
 
-export function createAgenticUseCaseQuery(options: AgenticUseCaseQueryOptions): LibrarianQuery {
+export function createAgenticUseCaseQuery(options: AgenticUseCaseQueryOptions): LiBrainianQuery {
   return {
     intent: options.intent,
     depth: 'L1',
@@ -1085,7 +1085,7 @@ function extractUnverifiedMarkers(value: unknown): string[] {
   );
 }
 
-function summarizeResponseQuality(response: LibrarianResponse): {
+function summarizeResponseQuality(response: LiBrainianResponse): {
   packCount: number;
   evidenceCount: number;
   hasUsefulSummary: boolean;
@@ -1118,7 +1118,7 @@ function summarizeResponseQuality(response: LibrarianResponse): {
   };
 }
 
-function summarizeExplorationAnswer(response: LibrarianResponse): string | null {
+function summarizeExplorationAnswer(response: LiBrainianResponse): string | null {
   const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
   const isRiskSignal = (value: string): boolean =>
     /\b(risk|issue|problem|failure|regression|bug|brittle|fragile|missing|incorrect|inconsistent|error|debt|improve)\b/i
@@ -1195,7 +1195,7 @@ function summarizeExplorationAnswer(response: LibrarianResponse): string | null 
   return normalized;
 }
 
-function extractExplorationCitations(response: LibrarianResponse, limit = 6): AgenticUseCaseExplorationCitation[] {
+function extractExplorationCitations(response: LiBrainianResponse, limit = 6): AgenticUseCaseExplorationCitation[] {
   const out: AgenticUseCaseExplorationCitation[] = [];
   const seen = new Set<string>();
   const citations = response.synthesis?.citations ?? [];
@@ -1455,7 +1455,7 @@ export async function runAgenticUseCaseReview(
 ): Promise<AgenticUseCaseReviewReport> {
   throwIfAborted(options.signal, 'agentic_use_case_review');
   const reposRoot = path.resolve(options.reposRoot);
-  const matrixPath = path.resolve(options.matrixPath ?? path.join(process.cwd(), 'docs', 'librarian', 'USE_CASE_MATRIX.md'));
+  const matrixPath = path.resolve(options.matrixPath ?? path.join(process.cwd(), 'docs', 'librainian', 'USE_CASE_MATRIX.md'));
   const ucStart = options.ucStart ?? 1;
   const ucEnd = options.ucEnd ?? 310;
   const selectionMode = options.selectionMode ?? 'probabilistic';
@@ -1549,7 +1549,7 @@ export async function runAgenticUseCaseReview(
     const repoExplorationFindings: AgenticUseCaseExplorationFinding[] = [];
     let repoError: string | null = null;
     let providerSnapshot: unknown = null;
-    let librarianForCleanup: { shutdown(): Promise<void> } | null = null;
+    let librainianForCleanup: { shutdown(): Promise<void> } | null = null;
     try {
       const providerGate = await withTimeout(
         runProviderReadinessGate(repoRoot, { emitReport: true }),
@@ -1575,7 +1575,7 @@ export async function runAgenticUseCaseReview(
       }
 
       const gateResult = await withTimeout(
-        ensureLibrarianReady(repoRoot, {
+        ensureLiBrainianReady(repoRoot, {
           allowDegradedEmbeddings: false,
           skipLlm: true,
           requireCompleteParserCoverage: true,
@@ -1587,10 +1587,10 @@ export async function runAgenticUseCaseReview(
         initTimeoutMs,
         { context: `unverified_by_trace(timeout_initialization): ${repoName}` }
       );
-      if (!gateResult.librarian) {
-        throw new Error('unverified_by_trace(initialization_failed): librarian unavailable');
+      if (!gateResult.librainian) {
+        throw new Error('unverified_by_trace(initialization_failed): librainian unavailable');
       }
-      librarianForCleanup = gateResult.librarian;
+      librainianForCleanup = gateResult.librainian;
 
       const repoUseCaseSuccess = new Map<string, boolean>();
       let repoFailFastReason: string | null = null;
@@ -1651,7 +1651,7 @@ export async function runAgenticUseCaseReview(
             queryTimeoutMs,
           });
           const response = await withTimeout(
-            gateResult.librarian.queryRequired(queryInput),
+            gateResult.librainian.queryRequired(queryInput),
             queryTimeoutMs,
             { context: `unverified_by_trace(timeout_query): ${repoName}:${useCase.id}` }
           );
@@ -1744,7 +1744,7 @@ export async function runAgenticUseCaseReview(
             queryTimeoutMs,
           });
           const response = await withTimeout(
-            gateResult.librarian.queryRequired(queryInput),
+            gateResult.librainian.queryRequired(queryInput),
             queryTimeoutMs,
             { context: `unverified_by_trace(timeout_query): ${repoName}:exploration` }
           );
@@ -1841,8 +1841,8 @@ export async function runAgenticUseCaseReview(
         repoExplorationFindings.push(finding);
       }
     } finally {
-      if (librarianForCleanup) {
-        await librarianForCleanup.shutdown().catch(() => {});
+      if (librainianForCleanup) {
+        await librainianForCleanup.shutdown().catch(() => {});
       }
     }
 

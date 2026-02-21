@@ -21,7 +21,7 @@ npx tsx examples/quickstart_programmatic.ts /absolute/path/to/repo "Where is aut
 ## Example Guide
 
 - `quickstart_programmatic.ts`
-  - Single-call `initializeLibrarian(...)`
+  - Single-call `initializeLiBrainian(...)`
   - Query + confidence + related files output
   - Session health and graceful shutdown
 - `agentic_task_loop.ts`

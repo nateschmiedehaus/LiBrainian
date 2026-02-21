@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import yaml from 'yaml';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { ArchitectureKnowledge } from '../knowledge/architecture.js';
 import type {
   ProposedChange,
@@ -31,7 +31,7 @@ type ExplicitConstraintConfig = {
 
 type ExceptionEntry = { expiresAt: number; reason: string };
 
-const DEFAULT_CONSTRAINT_FILE = '.librarian/constraints.yaml';
+const DEFAULT_CONSTRAINT_FILE = '.librainian/constraints.yaml';
 const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class ConstraintEngine {
@@ -42,7 +42,7 @@ export class ConstraintEngine {
   private readonly suggestedConstraints = new Map<string, SuggestedConstraint>();
 
   constructor(
-    private readonly storage: LibrarianStorage,
+    private readonly storage: LiBrainianStorage,
     private readonly workspaceRoot: string,
   ) {
     this.architecture = new ArchitectureKnowledge(storage);

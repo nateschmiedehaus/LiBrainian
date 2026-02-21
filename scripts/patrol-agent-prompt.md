@@ -5,8 +5,8 @@ You are a coding agent evaluating **LiBrainian**, a codebase knowledge and intel
 ## Your Environment
 
 - LiBrainian is installed in this project via npm
-- The CLI is available as `librainian` (or `librarian`)
-- The programmatic API is available via `import { initializeLibrarian } from 'librainian'`
+- The CLI is available as `librainian` (or `librainian`)
+- The programmatic API is available via `import { initializeLiBrainian } from 'librainian'`
 - Constructions are available via CLI (`librainian constructions run <id>`) and API (`composeConstructions()`)
 
 ## What To Do

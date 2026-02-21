@@ -1,7 +1,7 @@
 /**
  * @fileoverview Epistemics Module - Evidence Graph and Defeater Calculus
  *
- * This module provides the epistemic engine for Librarian:
+ * This module provides the epistemic engine for LiBrainian:
  * - Evidence graph with claims, supports, opposes, and defeaters
  * - Contradiction tracking (never silently reconciled)
  * - Calibrated confidence decomposition
@@ -918,7 +918,7 @@ export {
   inferStructure,
   suggestPreset,
 
-  // Integration with Librarian epistemics
+  // Integration with LiBrainian epistemics
   toConfidenceValue,
   fromConfidenceValue,
   toClaim,

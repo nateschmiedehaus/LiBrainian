@@ -1,5 +1,5 @@
 /**
- * @fileoverview Inspector for debugging librarian entities (G10)
+ * @fileoverview Inspector for debugging librainian entities (G10)
  *
  * Provides detailed inspection capabilities for:
  * - Modules: purpose, exports, dependencies, confidence
@@ -8,13 +8,13 @@
  * - Confidence: breakdown of scoring factors
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type {
   FunctionKnowledge,
   ModuleKnowledge,
   ContextPack,
-  LibrarianQuery,
-  LibrarianResponse,
+  LiBrainianQuery,
+  LiBrainianResponse,
 } from '../types.js';
 import type { TraceSpan } from './tracer.js';
 
@@ -74,8 +74,8 @@ export interface FunctionInspection {
  */
 export interface QueryInspection {
   queryId: string;
-  query: LibrarianQuery;
-  response: LibrarianResponse;
+  query: LiBrainianQuery;
+  response: LiBrainianResponse;
   timing: {
     totalMs: number;
     embeddingMs?: number;
@@ -144,17 +144,17 @@ export interface ConfidenceHistoryEntry {
 // ============================================================================
 
 /**
- * LibrarianInspector provides detailed inspection of librarian entities.
+ * LiBrainianInspector provides detailed inspection of librainian entities.
  *
  * Usage:
  * ```typescript
- * const inspector = new LibrarianInspector(storage);
+ * const inspector = new LiBrainianInspector(storage);
  * const moduleInfo = await inspector.inspectModule('src/api/index.ts');
  * const funcInfo = await inspector.inspectFunction('handleRequest');
  * ```
  */
-export class LibrarianInspector {
-  constructor(private readonly storage: LibrarianStorage) {}
+export class LiBrainianInspector {
+  constructor(private readonly storage: LiBrainianStorage) {}
 
   /**
    * Inspect a module by ID or path.
@@ -196,12 +196,12 @@ export class LibrarianInspector {
 
   /**
    * Inspect a query execution.
-   * @param queryId - The query ID (from LibrarianResponse)
+   * @param queryId - The query ID (from LiBrainianResponse)
    * @param response - The query response to inspect
    * @param trace - Optional trace span from the query
    * @returns Query execution details
    */
-  inspectQuery(queryId: string, response: LibrarianResponse, trace?: TraceSpan): QueryInspection {
+  inspectQuery(queryId: string, response: LiBrainianResponse, trace?: TraceSpan): QueryInspection {
     return {
       queryId,
       query: response.query,
@@ -342,7 +342,7 @@ export class LibrarianInspector {
 
     // Try to get graph metrics if available
     let graphMetrics: ModuleInspection['graphMetrics'] | undefined;
-    const graphStore = this.storage as LibrarianStorage & {
+    const graphStore = this.storage as LiBrainianStorage & {
       getGraphMetrics?: (options?: { entityIds?: string[] }) => Promise<Array<{
         entityId: string;
         pagerank: number;
@@ -564,6 +564,6 @@ export class LibrarianInspector {
 /**
  * Create a new inspector instance.
  */
-export function createInspector(storage: LibrarianStorage): LibrarianInspector {
-  return new LibrarianInspector(storage);
+export function createInspector(storage: LiBrainianStorage): LiBrainianInspector {
+  return new LiBrainianInspector(storage);
 }

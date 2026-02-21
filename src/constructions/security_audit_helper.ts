@@ -17,7 +17,7 @@
 
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
 
@@ -546,10 +546,10 @@ export function analyzeTaintFlow(code: string, filePath: string): TaintFlow[] {
 // ============================================================================
 
 export class SecurityAuditHelper {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -620,8 +620,8 @@ export class SecurityAuditHelper {
     const patterns = this.getPatternsForCheck(checkType);
     const findings: SecurityFinding[] = [];
 
-    // Query librarian for relevant code
-    const queryResult = await this.librarian.queryOptional({
+    // Query librainian for relevant code
+    const queryResult = await this.librainian.queryOptional({
       intent: this.getCheckIntent(checkType),
       affectedFiles: files,
       depth: 'L2',
@@ -648,7 +648,7 @@ export class SecurityAuditHelper {
 
     // Also run pattern-based detection on file queries
     for (const file of files) {
-      const fileResult = await this.librarian.queryOptional({
+      const fileResult = await this.librainian.queryOptional({
         intent: `Get security-relevant code from ${file}`,
         affectedFiles: [file],
         depth: 'L1',
@@ -1430,6 +1430,6 @@ function dependencyVulnerabilitiesToFindings(
 // FACTORY
 // ============================================================================
 
-export function createSecurityAuditHelper(librarian: Librarian): SecurityAuditHelper {
-  return new SecurityAuditHelper(librarian);
+export function createSecurityAuditHelper(librainian: LiBrainian): SecurityAuditHelper {
+  return new SecurityAuditHelper(librainian);
 }

@@ -14,7 +14,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence } from '../../epistemics/confidence.js';
 import type { ContextPack } from '../../types.js';
 import type {
@@ -68,20 +68,20 @@ export interface QualityAssessmentResult {
  *
  * Usage:
  * ```typescript
- * const construction = new QualityAssessmentConstruction(librarian);
+ * const construction = new QualityAssessmentConstruction(librainian);
  * const result = await construction.assess(['src/module.ts']);
  * console.log(`Compliance: ${result.compliance.passed}`);
  * console.log(`Score: ${result.compliance.score}`);
  * ```
  */
 export class QualityAssessmentConstruction implements CalibratedConstruction {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
   static readonly CONSTRUCTION_ID = 'QualityAssessmentConstruction';
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -131,13 +131,13 @@ export class QualityAssessmentConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Step 1: Query librarian for code metrics
-    const queryResult = await this.librarian.queryOptional({
+    // Step 1: Query librainian for code metrics
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze code quality metrics',
       affectedFiles: files,
       depth: 'L2',
     });
-    evidenceRefs.push('librarian_query:quality_metrics');
+    evidenceRefs.push('librainian_query:quality_metrics');
 
     // Step 2: Extract metrics from query result
     const collectedMetrics = this.extractMetricsFromPacks(queryResult.packs, files);
@@ -184,7 +184,7 @@ export class QualityAssessmentConstruction implements CalibratedConstruction {
   }
 
   /**
-   * Extract metrics from context packs returned by librarian.
+   * Extract metrics from context packs returned by librainian.
    */
   private extractMetricsFromPacks(
     packs: ContextPack[],
@@ -310,11 +310,11 @@ export class QualityAssessmentConstruction implements CalibratedConstruction {
 /**
  * Create a Quality Assessment Construction.
  *
- * @param librarian - The librarian instance to use for queries
+ * @param librainian - The librainian instance to use for queries
  * @returns New construction instance
  */
 export function createQualityAssessmentConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): QualityAssessmentConstruction {
-  return new QualityAssessmentConstruction(librarian);
+  return new QualityAssessmentConstruction(librainian);
 }

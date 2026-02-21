@@ -2,12 +2,12 @@
  * @fileoverview Watch Command - Real-time file change monitoring and reindexing
  *
  * Starts a file watcher that automatically reindexes changed files,
- * keeping the librarian knowledge base up-to-date as you code.
+ * keeping the librainian knowledge base up-to-date as you code.
  */
 
-import { Librarian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librainian.js';
 import { startFileWatcher, stopFileWatcher } from '../../integration/file_watcher.js';
-import { globalEventBus, type LibrarianEvent } from '../../events.js';
+import { globalEventBus, type LiBrainianEvent } from '../../events.js';
 import { CliError } from '../errors.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 
@@ -43,20 +43,20 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
   const quiet = options.quiet ?? false;
 
   if (!quiet) {
-    console.log('Librarian Watch Mode');
+    console.log('LiBrainian Watch Mode');
     console.log('====================');
     console.log(`Workspace: ${workspace}`);
     console.log(`Debounce: ${debounceMs}ms`);
     console.log('');
   }
 
-  // Initialize librarian without auto-bootstrap
+  // Initialize librainian without auto-bootstrap
   const llmProviderEnv = process.env.LIBRARIAN_LLM_PROVIDER;
   const llmModelEnv = process.env.LIBRARIAN_LLM_MODEL;
   const llmProvider = llmProviderEnv === 'claude' || llmProviderEnv === 'codex' ? llmProviderEnv : undefined;
   const llmModelId = typeof llmModelEnv === 'string' && llmModelEnv.trim().length > 0 ? llmModelEnv : undefined;
   const hasLlmConfig = Boolean(llmProvider && llmModelId);
-  const librarian = new Librarian({
+  const librainian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
@@ -64,12 +64,12 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
     llmModelId: hasLlmConfig ? llmModelId : undefined,
   });
 
-  await librarian.initialize();
+  await librainian.initialize();
 
-  const status = await librarian.getStatus();
+  const status = await librainian.getStatus();
   if (!status.bootstrapped) {
     throw new CliError(
-      'Librarian not bootstrapped. Run "librarian quickstart" or "librarian bootstrap" first.',
+      'LiBrainian not bootstrapped. Run "librainian quickstart" or "librainian bootstrap" first.',
       'NOT_BOOTSTRAPPED'
     );
   }
@@ -84,7 +84,7 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
   let lastReindexTime = Date.now();
 
   // Subscribe to events for logging using globalEventBus.on('*', handler)
-  const unsubscribe = globalEventBus.on('*', (event: LibrarianEvent) => {
+  const unsubscribe = globalEventBus.on('*', (event: LiBrainianEvent) => {
     if (quiet) return;
 
     switch (event.type) {
@@ -110,9 +110,9 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
     }
   });
 
-  let storage: ReturnType<typeof librarian.getStorage> | undefined;
+  let storage: ReturnType<typeof librainian.getStorage> | undefined;
   try {
-    storage = librarian.getStorage() ?? undefined;
+    storage = librainian.getStorage() ?? undefined;
   } catch (error) {
     storage = undefined;
     if (!quiet) {
@@ -124,7 +124,7 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
   // Start the file watcher
   const handle = startFileWatcher({
     workspaceRoot: workspace,
-    librarian,
+    librainian,
     storage,
     debounceMs,
     batchWindowMs,
@@ -147,7 +147,7 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
     unsubscribe();
     await handle.stop();
     await stopFileWatcher(workspace);
-    await librarian.shutdown();
+    await librainian.shutdown();
     if (!quiet) {
       console.log(`Session complete. Total reindexes: ${reindexCount}`);
     }

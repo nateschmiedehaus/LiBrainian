@@ -3,7 +3,7 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Adaptive Synthesis system adjusts Librarian's response generation strategy
+ * The Adaptive Synthesis system adjusts LiBrainian's response generation strategy
  * based on quality prediction. When quality is expected to be low, it uses more
  * conservative synthesis with more hedging.
  */
@@ -33,7 +33,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 /**
@@ -627,7 +627,7 @@ describe('AdaptiveSynthesizer - Integration', () => {
     profiler = createCodebaseProfiler();
   });
 
-  it('should work with real profile from Librarian repo', async () => {
+  it('should work with real profile from LiBrainian repo', async () => {
     const profile = await profiler.profile(LIBRARIAN_ROOT);
     const prediction = predictionModel.predict(profile);
 
@@ -661,7 +661,7 @@ describe('AdaptiveSynthesizer - Integration', () => {
 
     const response = synthesizer.synthesize(context);
 
-    // Librarian is high-quality, should get aggressive strategy
+    // LiBrainian is high-quality, should get aggressive strategy
     // (or at least not conservative)
     expect(['aggressive', 'moderate']).toContain(response.strategy.name);
   });

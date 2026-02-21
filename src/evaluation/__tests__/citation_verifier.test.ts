@@ -3,8 +3,8 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Citation Verifier validates Librarian's output citations against ground truth.
- * When Librarian claims "function X is defined in file Y at line Z", the Citation
+ * The Citation Verifier validates LiBrainian's output citations against ground truth.
+ * When LiBrainian claims "function X is defined in file Y at line Z", the Citation
  * Verifier checks if that's actually true.
  *
  * @packageDocumentation
@@ -460,39 +460,39 @@ describe('CitationVerifier - verifyAll', () => {
 // VERIFY LIBRARIAN OUTPUT TESTS
 // ============================================================================
 
-describe('CitationVerifier - verifyLibrarianOutput', () => {
+describe('CitationVerifier - verifyLiBrainianOutput', () => {
   let verifier: CitationVerifier;
 
   beforeAll(() => {
     verifier = createCitationVerifier();
   });
 
-  it('should extract and verify citations from Librarian output text', async () => {
-    const librarianOutput = `
+  it('should extract and verify citations from LiBrainian output text', async () => {
+    const librainianOutput = `
       The \`ProblemDetector\` class is defined in \`src/agents/problem_detector.ts:50\`.
       It has a method \`identifyProblems\` at line 80.
       The factory function \`createProblemDetector\` is exported from the same file.
     `;
 
-    const report = await verifier.verifyLibrarianOutput(librarianOutput, LIBRARIAN_ROOT);
+    const report = await verifier.verifyLiBrainianOutput(librainianOutput, LIBRARIAN_ROOT);
 
     expect(report.totalCitations).toBeGreaterThan(0);
     expect(report.results.length).toBeGreaterThan(0);
   });
 
-  it('should handle Librarian output with no citations', async () => {
-    const librarianOutput = 'This response has no code citations at all.';
+  it('should handle LiBrainian output with no citations', async () => {
+    const librainianOutput = 'This response has no code citations at all.';
 
-    const report = await verifier.verifyLibrarianOutput(librarianOutput, LIBRARIAN_ROOT);
+    const report = await verifier.verifyLiBrainianOutput(librainianOutput, LIBRARIAN_ROOT);
 
     expect(report.totalCitations).toBe(0);
     expect(report.verificationRate).toBe(0);
   });
 
   it('should resolve relative paths against repo root', async () => {
-    const librarianOutput = 'See `src/agents/problem_detector.ts:50` for the class definition';
+    const librainianOutput = 'See `src/agents/problem_detector.ts:50` for the class definition';
 
-    const report = await verifier.verifyLibrarianOutput(librarianOutput, LIBRARIAN_ROOT);
+    const report = await verifier.verifyLiBrainianOutput(librainianOutput, LIBRARIAN_ROOT);
 
     expect(report.totalCitations).toBe(1);
     // The verifier should resolve src/agents/problem_detector.ts against LIBRARIAN_ROOT
@@ -501,12 +501,12 @@ describe('CitationVerifier - verifyLibrarianOutput', () => {
 
   it('should use AST extractor to get facts from repo', async () => {
     // Use a citation with a known identifier that exists in the file
-    const librarianOutput = `
+    const librainianOutput = `
       The \`createProblemDetector\` function in \`src/agents/problem_detector.ts\`
       creates a new instance of the ProblemDetector class.
     `;
 
-    const report = await verifier.verifyLibrarianOutput(librarianOutput, LIBRARIAN_ROOT);
+    const report = await verifier.verifyLiBrainianOutput(librainianOutput, LIBRARIAN_ROOT);
 
     // Should have extracted facts from the repo and verified against them
     // At minimum, the file should exist and be verified
@@ -514,9 +514,9 @@ describe('CitationVerifier - verifyLibrarianOutput', () => {
   });
 
   it('should handle invalid repo path gracefully', async () => {
-    const librarianOutput = 'Check `src/foo.ts:10`';
+    const librainianOutput = 'Check `src/foo.ts:10`';
 
-    const report = await verifier.verifyLibrarianOutput(librarianOutput, '/nonexistent/repo');
+    const report = await verifier.verifyLiBrainianOutput(librainianOutput, '/nonexistent/repo');
 
     expect(report.totalCitations).toBeGreaterThan(0);
     expect(report.failedCount).toBe(report.totalCitations);

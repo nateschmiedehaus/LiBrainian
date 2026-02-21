@@ -1,5 +1,5 @@
 import { emptyArray } from '../api/empty_values.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { GovernorContext } from '../api/governor_context.js';
 import { getMethodPack } from './method_pack_service.js';
 
@@ -110,7 +110,7 @@ export async function resolveMethodGuidance(options: {
   taskType?: string;
   intent?: string;
   maxHints?: number;
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
   llmProvider?: 'claude' | 'codex';
   llmModelId?: string;
   governorContext?: GovernorContext;

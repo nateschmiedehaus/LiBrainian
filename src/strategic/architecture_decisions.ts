@@ -1212,13 +1212,13 @@ export const NAMING_CONVENTION_CONSTRAINTS: ArchitectureConstraint[] = [
 // LIBRARIAN-ENHANCED ARCHITECTURE VALIDATION
 // ============================================================================
 
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianResponse, LlmOptional, ContextPack } from '../types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianResponse, LlmOptional, ContextPack } from '../types.js';
 import type { EvidenceRef } from '../api/evidence.js';
 import { deriveSequentialConfidence, getNumericValue } from '../epistemics/confidence.js';
 
 /**
- * Architecture issue discovered through librarian semantic analysis.
+ * Architecture issue discovered through librainian semantic analysis.
  */
 export interface SemanticArchitectureIssue {
   /** Type of architecture issue */
@@ -1248,20 +1248,20 @@ export interface SemanticArchitectureIssue {
 }
 
 /**
- * Result of librarian-enhanced architecture validation.
+ * Result of librainian-enhanced architecture validation.
  */
-export interface LibrarianEnhancedArchitectureResult {
+export interface LiBrainianEnhancedArchitectureResult {
   /** Constraint violations found through static analysis */
   violations: ConstraintViolation[];
-  /** Semantic architecture issues found through librarian analysis */
+  /** Semantic architecture issues found through librainian analysis */
   semanticIssues: SemanticArchitectureIssue[];
   /** Overall confidence in the validation result */
   confidence: ConfidenceValue;
   /** Evidence references for traceability */
   evidenceRefs: EvidenceRef[];
-  /** Whether librarian was available for semantic analysis */
-  librarianAvailable: boolean;
-  /** Librarian query trace ID */
+  /** Whether librainian was available for semantic analysis */
+  librainianAvailable: boolean;
+  /** LiBrainian query trace ID */
   traceId?: string;
   /** Summary statistics */
   summary: {
@@ -1274,17 +1274,17 @@ export interface LibrarianEnhancedArchitectureResult {
 }
 
 /**
- * Analyze call graph for layer violations using librarian.
+ * Analyze call graph for layer violations using librainian.
  */
 async function analyzeCallGraphForViolations(
-  librarian: Librarian,
+  librainian: LiBrainian,
   constraints: ArchitectureConstraint[]
 ): Promise<{ issues: SemanticArchitectureIssue[]; evidenceRefs: EvidenceRef[] }> {
   const issues: SemanticArchitectureIssue[] = [];
   const evidenceRefs: EvidenceRef[] = [];
 
-  // Query librarian for call graph information
-  const queryResult = await librarian.queryOptional({
+  // Query librainian for call graph information
+  const queryResult = await librainian.queryOptional({
     intent: 'Find function calls that cross architectural layer boundaries. ' +
             'Identify calls from domain layer to infrastructure, application layer to adapters, ' +
             'or any violation of clean architecture dependency rules.',
@@ -1391,34 +1391,34 @@ function detectLayer(filePath: string): string {
 }
 
 /**
- * Validate architecture constraints with librarian-enhanced semantic analysis.
+ * Validate architecture constraints with librainian-enhanced semantic analysis.
  *
  * This function combines traditional static constraint validation with semantic
- * code analysis from the librarian. It uses the call graph to detect layer
+ * code analysis from the librainian. It uses the call graph to detect layer
  * violations, circular dependencies, and other architecture issues that static
  * analysis might miss.
  *
  * @param constraints - Architecture constraints to validate
  * @param dependencies - Map of file paths to their dependencies
- * @param librarian - Librarian instance for semantic analysis
+ * @param librainian - LiBrainian instance for semantic analysis
  * @returns Enhanced validation result with semantic issues and confidence
  *
  * @example
  * ```typescript
- * const result = await validateArchitectureWithLibrarian(
+ * const result = await validateArchitectureWithLiBrainian(
  *   CLEAN_ARCHITECTURE_CONSTRAINTS,
  *   dependencyMap,
- *   librarian
+ *   librainian
  * );
  * console.log(result.semanticIssues); // Issues found through call graph analysis
  * console.log(result.confidence); // Overall confidence in the validation
  * ```
  */
-export async function validateArchitectureWithLibrarian(
+export async function validateArchitectureWithLiBrainian(
   constraints: ArchitectureConstraint[],
   dependencies: Map<string, string[]>,
-  librarian: Librarian
-): Promise<LibrarianEnhancedArchitectureResult> {
+  librainian: LiBrainian
+): Promise<LiBrainianEnhancedArchitectureResult> {
   // Perform static validation first
   const staticViolations: ConstraintViolation[] = [];
 
@@ -1436,27 +1436,27 @@ export async function validateArchitectureWithLibrarian(
     }
   }
 
-  // Perform librarian-enhanced analysis
+  // Perform librainian-enhanced analysis
   let semanticIssues: SemanticArchitectureIssue[] = [];
   let evidenceRefs: EvidenceRef[] = [];
-  let librarianAvailable = false;
+  let librainianAvailable = false;
   let traceId: string | undefined;
 
   try {
-    const callGraphAnalysis = await analyzeCallGraphForViolations(librarian, constraints);
+    const callGraphAnalysis = await analyzeCallGraphForViolations(librainian, constraints);
     semanticIssues = callGraphAnalysis.issues;
     evidenceRefs = callGraphAnalysis.evidenceRefs;
-    librarianAvailable = true;
+    librainianAvailable = true;
 
     // Get trace ID from a follow-up query to capture the session
-    const statusQuery = await librarian.queryOptional({
+    const statusQuery = await librainian.queryOptional({
       intent: 'Architecture validation trace',
       depth: 'L0',
     });
     traceId = statusQuery?.traceId;
   } catch {
-    // Librarian query failed, proceed with static validation only
-    librarianAvailable = false;
+    // LiBrainian query failed, proceed with static validation only
+    librainianAvailable = false;
   }
 
   // Calculate summary statistics
@@ -1475,18 +1475,18 @@ export async function validateArchitectureWithLibrarian(
     'Static constraint validation is deterministic given the dependency map'
   );
 
-  const librarianConfidence = librarianAvailable
+  const librainianConfidence = librainianAvailable
     ? bounded(0.6, 0.85, 'literature', 'Semantic analysis confidence from call graph interpretation')
     : absent('uncalibrated');
 
-  const confidence = deriveSequentialConfidence([staticConfidence, librarianConfidence]);
+  const confidence = deriveSequentialConfidence([staticConfidence, librainianConfidence]);
 
   return {
     violations: staticViolations,
     semanticIssues,
     confidence,
     evidenceRefs,
-    librarianAvailable,
+    librainianAvailable,
     traceId,
     summary: {
       totalViolations: staticViolations.length,

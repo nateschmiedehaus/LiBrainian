@@ -1,5 +1,5 @@
 /**
- * @fileoverview Real-world evaluation of Librarian's Decision Support system
+ * @fileoverview Real-world evaluation of LiBrainian's Decision Support system
  *
  * This test evaluates whether the decision support system provides:
  * 1. Relevant options for technical decisions
@@ -18,14 +18,14 @@ import {
   type DecisionOption,
 } from '../api/decision_support.js';
 import { SqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TEST CONFIGURATION
 // ============================================================================
 
 const WORKSPACE_ROOT = process.cwd();
-const TEST_DB_PATH = path.join(WORKSPACE_ROOT, '.librarian', 'test_decision_support.db');
+const TEST_DB_PATH = path.join(WORKSPACE_ROOT, '.librainian', 'test_decision_support.db');
 
 // Real technical questions an agent might ask
 // Note: Not all questions need to match the isDecisionSupportQuery() patterns -
@@ -232,17 +232,17 @@ function evaluateDecisionSupport(
 // ============================================================================
 
 describe('Decision Support Real-World Evaluation', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   const results: EvaluationResult[] = [];
 
   beforeAll(async () => {
-    // Create storage with the librarian's own indexed data if available,
+    // Create storage with the librainian's own indexed data if available,
     // otherwise use a temporary in-memory mock
     try {
-      const realDbPath = path.join(WORKSPACE_ROOT, '.librarian', 'index.db');
+      const realDbPath = path.join(WORKSPACE_ROOT, '.librainian', 'index.db');
       storage = new SqliteStorage(realDbPath);
       await storage.initialize();
-      console.log('Using real librarian index for testing');
+      console.log('Using real librainian index for testing');
     } catch {
       // Fallback to minimal mock storage
       console.log('Using mock storage for testing (no real index found)');
@@ -517,7 +517,7 @@ describe('Decision Support Real-World Evaluation', () => {
 // MOCK STORAGE HELPER
 // ============================================================================
 
-function createMinimalMockStorage(): LibrarianStorage {
+function createMinimalMockStorage(): LiBrainianStorage {
   return {
     initialize: async () => {},
     close: async () => {},
@@ -537,5 +537,5 @@ function createMinimalMockStorage(): LibrarianStorage {
     getModules: async () => [],
     getGraphEdges: async () => [],
     // Add other required methods as no-ops
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }

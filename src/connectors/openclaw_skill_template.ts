@@ -27,7 +27,7 @@ name: librainian
 description: "Semantic codebase intelligence with context packs, blast radius reasoning, and call graph navigation."
 version: 1.0.0
 metadata:
-  {"openclaw":{"requires":{"bins":["librarian"]},"trust":"verified"}}
+  {"openclaw":{"requires":{"bins":["librainian"]},"trust":"verified"}}
 triggers:
   - "code"
   - "refactor"

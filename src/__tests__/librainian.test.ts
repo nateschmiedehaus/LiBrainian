@@ -1,5 +1,5 @@
 /**
- * @fileoverview Tests for Librarian subsystem
+ * @fileoverview Tests for LiBrainian subsystem
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
@@ -8,14 +8,14 @@ import * as path from 'path';
 import * as os from 'os';
 import { safeJsonParseOrThrow } from '../utils/safe_json.js';
 import {
-  Librarian,
+  LiBrainian,
   createSqliteStorage,
   LIBRARIAN_VERSION,
   QUALITY_TIERS,
   compareVersions,
   shouldReplaceExistingData,
-  ensureLibrarianReady,
-  isLibrarianReady,
+  ensureLiBrainianReady,
+  isLiBrainianReady,
   resetGate,
 } from '../index.js';
 import { ProviderUnavailableError } from '../api/provider_check.js';
@@ -25,11 +25,11 @@ import { GovernorContext, estimateTokenCount } from '../api/governor_context.js'
 import { loadGovernorConfig } from '../api/bootstrap.js';
 import { DEFAULT_GOVERNOR_CONFIG, writeGovernorBudgetReport, type GovernorConfig } from '../api/governors.js';
 import { minimizeSnippet, redactText } from '../api/redaction.js';
-import type { LibrarianVersion, FunctionKnowledge } from '../types.js';
+import type { LiBrainianVersion, FunctionKnowledge } from '../types.js';
 import { cleanupWorkspace } from './helpers/index.js';
 
 const createTempWorkspace = async (): Promise<string> => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-test-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-test-'));
   const canonPath = path.join(root, 'config', 'canon.json');
   await fs.mkdir(path.dirname(canonPath), { recursive: true });
   await fs.writeFile(canonPath, JSON.stringify({ schema_version: 1 }, null, 2));
@@ -52,7 +52,7 @@ export function multiply(a: number, b: number): number {
 `;
 
 
-describe('Librarian Versioning', () => {
+describe('LiBrainian Versioning', () => {
   it('should have valid version constants', () => {
     expect(LIBRARIAN_VERSION.major).toBeGreaterThanOrEqual(1);
     expect(LIBRARIAN_VERSION.minor).toBeGreaterThanOrEqual(0);
@@ -66,7 +66,7 @@ describe('Librarian Versioning', () => {
   });
 
   describe('compareVersions', () => {
-    const baseVersion: LibrarianVersion = {
+    const baseVersion: LiBrainianVersion = {
       major: 1,
       minor: 0,
       patch: 0,
@@ -78,28 +78,28 @@ describe('Librarian Versioning', () => {
     };
 
     it('should detect major version upgrade', () => {
-      const target: LibrarianVersion = { ...baseVersion, major: 2, string: '2.0.0' };
+      const target: LiBrainianVersion = { ...baseVersion, major: 2, string: '2.0.0' };
       const result = compareVersions(baseVersion, target);
       expect(result.upgradeRequired).toBe(true);
       expect(result.upgradeType).toBe('major');
     });
 
     it('should detect minor version upgrade', () => {
-      const target: LibrarianVersion = { ...baseVersion, minor: 1, string: '1.1.0' };
+      const target: LiBrainianVersion = { ...baseVersion, minor: 1, string: '1.1.0' };
       const result = compareVersions(baseVersion, target);
       expect(result.upgradeRequired).toBe(true);
       expect(result.upgradeType).toBe('minor');
     });
 
     it('should detect patch version (optional upgrade)', () => {
-      const target: LibrarianVersion = { ...baseVersion, patch: 1, string: '1.0.1' };
+      const target: LiBrainianVersion = { ...baseVersion, patch: 1, string: '1.0.1' };
       const result = compareVersions(baseVersion, target);
       expect(result.upgradeRequired).toBe(false);
       expect(result.upgradeType).toBe('patch');
     });
 
     it('should detect quality tier upgrade', () => {
-      const target: LibrarianVersion = { ...baseVersion, qualityTier: 'enhanced' };
+      const target: LiBrainianVersion = { ...baseVersion, qualityTier: 'enhanced' };
       const result = compareVersions(baseVersion, target);
       expect(result.upgradeRequired).toBe(true);
       expect(result.upgradeType).toBe('quality_tier');
@@ -113,7 +113,7 @@ describe('Librarian Versioning', () => {
   });
 
   describe('shouldReplaceExistingData', () => {
-    const baseVersion: LibrarianVersion = {
+    const baseVersion: LiBrainianVersion = {
       major: 1,
       minor: 0,
       patch: 0,
@@ -125,24 +125,24 @@ describe('Librarian Versioning', () => {
     };
 
     it('should replace for quality tier upgrade', () => {
-      const target: LibrarianVersion = { ...baseVersion, qualityTier: 'enhanced' };
+      const target: LiBrainianVersion = { ...baseVersion, qualityTier: 'enhanced' };
       expect(shouldReplaceExistingData(baseVersion, target)).toBe(true);
     });
 
     it('should replace for major version upgrade', () => {
-      const target: LibrarianVersion = { ...baseVersion, major: 2, string: '2.0.0' };
+      const target: LiBrainianVersion = { ...baseVersion, major: 2, string: '2.0.0' };
       expect(shouldReplaceExistingData(baseVersion, target)).toBe(true);
     });
 
     it('should not replace for minor version upgrade', () => {
-      const target: LibrarianVersion = { ...baseVersion, minor: 1, string: '1.1.0' };
+      const target: LiBrainianVersion = { ...baseVersion, minor: 1, string: '1.1.0' };
       expect(shouldReplaceExistingData(baseVersion, target)).toBe(false);
     });
   });
 });
 
 
-describe('Librarian Storage', () => {
+describe('LiBrainian Storage', () => {
   let workspace: string;
 
   beforeEach(async () => {
@@ -166,35 +166,35 @@ describe('Librarian Storage', () => {
   });
 
   it('applies migrations and writes a migration report', async () => {
-    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    const dbPath = path.join(workspace, '.librainian', 'librainian.sqlite');
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
     const storage = createSqliteStorage(dbPath, workspace);
     await storage.initialize();
-    const auditRoot = path.join(workspace, 'state', 'audits', 'librarian', 'migrations');
+    const auditRoot = path.join(workspace, 'state', 'audits', 'librainian', 'migrations');
     const entries = await fs.readdir(auditRoot);
     expect(entries.length).toBeGreaterThan(0);
     const latest = entries.sort().at(-1);
-    const reportPath = path.join(auditRoot, latest ?? '', 'LibrarianSchemaMigrationReport.v1.json');
+    const reportPath = path.join(auditRoot, latest ?? '', 'LiBrainianSchemaMigrationReport.v1.json');
     const report = safeJsonParseOrThrow<{ kind: string; from_version: number; to_version: number; applied: unknown[] }>(await fs.readFile(reportPath, 'utf8'), 'migration report');
-    expect(report.kind).toBe('LibrarianSchemaMigrationReport.v1');
+    expect(report.kind).toBe('LiBrainianSchemaMigrationReport.v1');
     expect(report.from_version).toBe(0);
     expect(report.to_version).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(report.applied)).toBe(true);
     await storage.close();
   });
 
-  it('creates a pre-migration backup of .librarian state', async () => {
-    const librarianDir = path.join(workspace, '.librarian');
-    const dbPath = path.join(librarianDir, 'librarian.sqlite');
-    await fs.mkdir(librarianDir, { recursive: true });
-    await fs.writeFile(path.join(librarianDir, 'preexisting.txt'), 'seed\n', 'utf8');
+  it('creates a pre-migration backup of .librainian state', async () => {
+    const librainianDir = path.join(workspace, '.librainian');
+    const dbPath = path.join(librainianDir, 'librainian.sqlite');
+    await fs.mkdir(librainianDir, { recursive: true });
+    await fs.writeFile(path.join(librainianDir, 'preexisting.txt'), 'seed\n', 'utf8');
 
     const storage = createSqliteStorage(dbPath, workspace);
     await storage.initialize();
     await storage.close();
 
     const rootEntries = await fs.readdir(workspace);
-    const backupDir = rootEntries.find((entry) => entry.startsWith('.librarian.backup.v0.'));
+    const backupDir = rootEntries.find((entry) => entry.startsWith('.librainian.backup.v0.'));
     expect(backupDir).toBeTruthy();
     const backupFile = path.join(workspace, backupDir ?? '', 'preexisting.txt');
     const backupContent = await fs.readFile(backupFile, 'utf8');
@@ -474,7 +474,7 @@ describe('GovernorContext', () => {
 
       expect(parsed.kind).toBe('GovernorBudgetReport.v1');
       expect(parsed.phase).toBe('write-test');
-      expect(reportPath).toContain(path.join('state', 'audits', 'librarian', 'governor'));
+      expect(reportPath).toContain(path.join('state', 'audits', 'librainian', 'governor'));
     } finally {
       await cleanupWorkspace(workspace);
     }
@@ -483,7 +483,7 @@ describe('GovernorContext', () => {
   it('loads governor config overrides from workspace file', async () => {
     const workspace = await createTempWorkspace();
     try {
-      const configPath = path.join(workspace, '.librarian', 'governor.json');
+      const configPath = path.join(workspace, '.librainian', 'governor.json');
       await fs.mkdir(path.dirname(configPath), { recursive: true });
       await fs.writeFile(
         configPath,
@@ -500,12 +500,12 @@ describe('GovernorContext', () => {
   });
 });
 
-describe('Librarian Initialize', () => {
-  it('rejects dbPath outside workspace .librarian', async () => {
+describe('LiBrainian Initialize', () => {
+  it('rejects dbPath outside workspace .librainian', async () => {
     const workspace = await createTempWorkspace();
     try {
-      const librarian = new Librarian({ workspace, autoBootstrap: false, dbPath: '../escape.db' });
-      await expect(librarian.initialize()).rejects.toThrow('unverified_by_trace(storage_path_escape)');
+      const librainian = new LiBrainian({ workspace, autoBootstrap: false, dbPath: '../escape.db' });
+      await expect(librainian.initialize()).rejects.toThrow('unverified_by_trace(storage_path_escape)');
     } finally {
       await cleanupWorkspace(workspace);
     }
@@ -519,7 +519,7 @@ describe('Librarian Initialize', () => {
     );
 
     try {
-      const librarian = new Librarian({
+      const librainian = new LiBrainian({
         workspace,
         autoBootstrap: false,
         dependencyOverrides: {
@@ -527,10 +527,10 @@ describe('Librarian Initialize', () => {
           createStorage: (ctx) => createStorageOverride({ dbPath: ctx.dbPath, workspace: ctx.workspace }),
         },
       });
-      await librarian.initialize();
+      await librainian.initialize();
       expect(createEmbeddingService).toHaveBeenCalledTimes(1);
       expect(createStorageOverride).toHaveBeenCalled();
-      await librarian.shutdown();
+      await librainian.shutdown();
     } finally {
       await cleanupWorkspace(workspace);
     }
@@ -607,7 +607,7 @@ describe('First-Run Gate (Tier-0)', () => {
 
   it('should detect when bootstrap is required (Tier-0: no provider needed)', async () => {
     // This test is Tier-0 - it tests gate state detection, not semantic behavior
-    expect(isLibrarianReady(workspace)).toBe(false);
+    expect(isLiBrainianReady(workspace)).toBe(false);
   });
 
   it('fails closed when provider gate reports unavailable (Tier-0: tests gate behavior)', async () => {
@@ -627,7 +627,7 @@ describe('First-Run Gate (Tier-0)', () => {
     });
 
     await expect(
-      ensureLibrarianReady(workspace, {
+      ensureLiBrainianReady(workspace, {
         throwOnFailure: true,
         includePatterns: ['**/*.ts'],
         allowDegradedEmbeddings: false,

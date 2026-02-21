@@ -1,13 +1,13 @@
 /**
- * @fileoverview Librarian End-to-End Validation Tests
+ * @fileoverview LiBrainian End-to-End Validation Tests
  *
- * Proves librarian works as a complete system:
+ * Proves librainian works as a complete system:
  * - Phase 1: Bootstrap produces queryable knowledge
  * - Phase 2: Queries return accurate answers
  * - Phase 3: Feedback loop persists and affects queries
  * - Phase 4: Confidence correlates with quality
  *
- * @see docs/librarian/E2E_VALIDATION_PLAN.md
+ * @see docs/librainian/E2E_VALIDATION_PLAN.md
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -118,7 +118,7 @@ let sharedStorage: Awaited<ReturnType<typeof import('../storage/sqlite_storage.j
 let sharedEmbeddingService: InstanceType<typeof import('../api/embeddings.js').EmbeddingService> | null = null;
 
 async function createTestWorkspace(): Promise<string> {
-  const workspace = path.join(os.tmpdir(), `librarian-e2e-${Date.now()}`);
+  const workspace = path.join(os.tmpdir(), `librainian-e2e-${Date.now()}`);
   await fs.mkdir(path.join(workspace, 'src', 'api'), { recursive: true });
 
   await fs.writeFile(path.join(workspace, 'src', 'calculator.ts'), CALCULATOR_TS);
@@ -171,7 +171,7 @@ describe('Phase 1: Bootstrap Validation', () => {
 
     console.log('[E2E] Live providers available - creating test workspace');
     testWorkspace = await createTestWorkspace();
-    dbPath = path.join(testWorkspace, 'librarian.db');
+    dbPath = path.join(testWorkspace, 'librainian.db');
     console.log(`[E2E] Test workspace: ${testWorkspace}`);
   }, 30000);
 
@@ -327,7 +327,7 @@ describe('Phase 2: Query Accuracy Validation', () => {
       return;
     }
 
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
 
     // Use shared storage and embedding service
     const storage = await getSharedStorage();
@@ -338,7 +338,7 @@ describe('Phase 2: Query Accuracy Validation', () => {
     console.log(`[E2E] Context packs in storage: ${packs.length}`);
 
     console.log('[E2E] Querying: What does the divide function do?');
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: 'What does the divide function do and what errors can it throw?', depth: 'L1' },
       storage,
       embeddingService
@@ -397,14 +397,14 @@ describe('Phase 2: Query Accuracy Validation', () => {
       return;
     }
 
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
 
     // Use shared storage and embedding service
     const storage = await getSharedStorage();
     const embeddingService = await getSharedEmbeddingService();
 
     console.log('[E2E] Querying: Which functions does average() depend on?');
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: 'Which functions does the average function depend on?', depth: 'L2' },
       storage,
       embeddingService
@@ -454,14 +454,14 @@ describe('Phase 2: Query Accuracy Validation', () => {
       return;
     }
 
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
 
     // Use shared storage and embedding service
     const storage = await getSharedStorage();
     const embeddingService = await getSharedEmbeddingService();
 
     console.log('[E2E] Querying for citations: How do I use the calculate API?');
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: 'How do I use the calculate API to add two numbers?', depth: 'L1' },
       storage,
       embeddingService
@@ -522,7 +522,7 @@ describe('Phase 3: Feedback Loop Validation', () => {
     const { processAgentFeedback } = await import('../integration/agent_feedback.js');
 
     // Create isolated storage
-    const feedbackDbPath = path.join(os.tmpdir(), `librarian-feedback-test-${Date.now()}.db`);
+    const feedbackDbPath = path.join(os.tmpdir(), `librainian-feedback-test-${Date.now()}.db`);
     const storage = await createSqliteStorage(feedbackDbPath);
     await storage.initialize();
 
@@ -588,7 +588,7 @@ describe('Phase 3: Feedback Loop Validation', () => {
     const { submitQueryFeedback } = await import('../api/feedback.js');
 
     // Create isolated storage
-    const feedbackDbPath = path.join(os.tmpdir(), `librarian-feedback-test-${Date.now()}.db`);
+    const feedbackDbPath = path.join(os.tmpdir(), `librainian-feedback-test-${Date.now()}.db`);
     const storage = await createSqliteStorage(feedbackDbPath);
     await storage.initialize();
 
@@ -651,7 +651,7 @@ describe('Phase 3: Feedback Loop Validation', () => {
     const { submitQueryFeedback } = await import('../api/feedback.js');
 
     // Create isolated storage
-    const feedbackDbPath = path.join(os.tmpdir(), `librarian-feedback-test-${Date.now()}.db`);
+    const feedbackDbPath = path.join(os.tmpdir(), `librainian-feedback-test-${Date.now()}.db`);
     const storage = await createSqliteStorage(feedbackDbPath);
     await storage.initialize();
 
@@ -734,21 +734,21 @@ describe('Phase 4: Confidence Calibration Validation', () => {
       return;
     }
 
-    const { queryLibrarian } = await import('../api/query.js');
+    const { queryLiBrainian } = await import('../api/query.js');
 
     // Use shared storage and embedding service
     const storage = await getSharedStorage();
     const embeddingService = await getSharedEmbeddingService();
 
     // Query with good expected answer (specific function)
-    const goodQuery = await queryLibrarian(
+    const goodQuery = await queryLiBrainian(
       { intent: 'What does the divide function do?', depth: 'L1' },
       storage,
       embeddingService
     );
 
     // Query with vague expected answer (architectural question)
-    const vagueQuery = await queryLibrarian(
+    const vagueQuery = await queryLiBrainian(
       { intent: 'What is the overall philosophy of this codebase?', depth: 'L1' },
       storage,
       embeddingService

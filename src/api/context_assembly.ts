@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { LibrarianQuery, LibrarianResponse, ContextPack, CodeSnippet } from '../types.js';
+import type { LiBrainianQuery, LiBrainianResponse, ContextPack, CodeSnippet } from '../types.js';
 import { resolveContextLevel, type ContextLevel } from './context_levels.js';
 import { enforceTokenBudget } from './token_budget.js';
 import { createQueryInterface, type QueryInterface, type QueryRunner } from './query_interface.js';
@@ -106,7 +106,7 @@ const LOW_CONFIDENCE_THRESHOLD = configurable(
 function createFallbackQueryInterface(): QueryInterface {
   return createQueryInterface({
     query: async () => {
-      throw new Error('unverified_by_trace(librarian_unavailable): query interface unavailable');
+      throw new Error('unverified_by_trace(librainian_unavailable): query interface unavailable');
     },
   });
 }
@@ -273,8 +273,8 @@ async function applyStickyScrollToFiles(files: FileKnowledge[], workspace?: stri
   return updated;
 }
 
-function buildCoverage(response: LibrarianResponse, files: FileKnowledge[]): AgentKnowledgeContext['coverage'] {
-  const coverageGaps = (response as LibrarianResponse & { coverageGaps?: string[] }).coverageGaps ?? [];
+function buildCoverage(response: LiBrainianResponse, files: FileKnowledge[]): AgentKnowledgeContext['coverage'] {
+  const coverageGaps = (response as LiBrainianResponse & { coverageGaps?: string[] }).coverageGaps ?? [];
   const gaps = coverageGaps.map((gap) => ({ description: gap }));
   const threshold = resolveQuantifiedValue(LOW_CONFIDENCE_THRESHOLD);
   const lowConfidence = files
@@ -288,7 +288,7 @@ function buildCoverage(response: LibrarianResponse, files: FileKnowledge[]): Age
 }
 
 export async function assembleContextFromResponse(
-  response: LibrarianResponse,
+  response: LiBrainianResponse,
   options: ContextAssemblyOptions = {}
 ): Promise<AgentKnowledgeContext> {
   const now = options.now ?? (() => new Date().toISOString());
@@ -384,6 +384,6 @@ export async function assembleContextFromResponse(
   return budget.context;
 }
 
-export function buildContextQuery(intent: string, depth: LibrarianQuery['depth']): LibrarianQuery {
+export function buildContextQuery(intent: string, depth: LiBrainianQuery['depth']): LiBrainianQuery {
   return { intent, depth };
 }

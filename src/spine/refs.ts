@@ -1,6 +1,6 @@
 /**
  * @fileoverview Refs Stub
- * Provides file reference utilities for standalone librarian.
+ * Provides file reference utilities for standalone librainian.
  */
 
 import { createHash } from 'crypto';

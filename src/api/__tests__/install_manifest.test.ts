@@ -25,7 +25,7 @@ describe('install manifest', () => {
     const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-manifest-'));
     workspaces.push(workspace);
     await writeFile(path.join(workspace, 'package.json'), JSON.stringify({ name: 'fixture', version: '1.0.0' }, null, 2));
-    await mkdir(path.join(workspace, '.librarian'), { recursive: true });
+    await mkdir(path.join(workspace, '.librainian'), { recursive: true });
     await mkdir(path.join(workspace, 'state'), { recursive: true });
 
     const written = await writeInstallManifest({
@@ -37,7 +37,7 @@ describe('install manifest', () => {
 
     expect(written.path).toBe(path.join(workspace, INSTALL_MANIFEST_FILENAME));
     expect(written.manifest.package_json).toBe('package.json');
-    expect(written.manifest.directories_created).toEqual(['.librarian', 'state']);
+    expect(written.manifest.directories_created).toEqual(['.librainian', 'state']);
     expect(written.manifest.injected_docs_files).toEqual(['AGENTS.md', 'docs/CLAUDE.md']);
 
     const loaded = await readInstallManifest(workspace);
@@ -49,11 +49,11 @@ describe('install manifest', () => {
   it('detects known install directories when present', async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-dirs-'));
     workspaces.push(workspace);
-    await mkdir(path.join(workspace, '.librarian', 'locks'), { recursive: true });
+    await mkdir(path.join(workspace, '.librainian', 'locks'), { recursive: true });
     await mkdir(path.join(workspace, 'state', 'audits'), { recursive: true });
     await mkdir(path.join(workspace, 'apps', 'web', 'state'), { recursive: true });
 
     const directories = await detectInstallDirectories(workspace);
-    expect(directories).toEqual(['.librarian', 'apps/web/state', 'state']);
+    expect(directories).toEqual(['.librainian', 'apps/web/state', 'state']);
   });
 });

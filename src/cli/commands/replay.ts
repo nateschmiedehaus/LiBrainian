@@ -4,7 +4,7 @@
  * Replays an evolution cycle or variant evaluation for debugging and analysis.
  * Useful for understanding why variants succeeded or failed.
  *
- * Usage: librarian replay <cycle-id|variant-id> [--verbose]
+ * Usage: librainian replay <cycle-id|variant-id> [--verbose]
  *
  * @packageDocumentation
  */
@@ -37,7 +37,7 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
 
   if (!target) {
     throw new CliError(
-      'Missing replay target. Usage: librarian replay <cycle-id|variant-id>.',
+      'Missing replay target. Usage: librainian replay <cycle-id|variant-id>.',
       'INVALID_ARGUMENT',
     );
   }

@@ -7,8 +7,8 @@ import * as debugApi from '../debug/index.js';
 describe('public debug surface', () => {
   it('does not expose internal debug primitives from root package exports', () => {
     expect('globalTracer' in rootApi).toBe(false);
-    expect('LibrarianTracer' in rootApi).toBe(false);
-    expect('LibrarianInspector' in rootApi).toBe(false);
+    expect('LiBrainianTracer' in rootApi).toBe(false);
+    expect('LiBrainianInspector' in rootApi).toBe(false);
     expect('projectForPersona' in rootApi).toBe(false);
     expect('generateGlanceCard' in rootApi).toBe(false);
     expect('getPersonaSummary' in rootApi).toBe(false);

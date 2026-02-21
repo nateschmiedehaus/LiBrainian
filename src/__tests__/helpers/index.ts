@@ -1,5 +1,5 @@
 /**
- * @fileoverview Test helpers for librarian tests
+ * @fileoverview Test helpers for librainian tests
  *
  * Centralized utilities for test setup, teardown, and common operations.
  */

@@ -90,7 +90,7 @@ const REGRESSION_RATE_TARGET = 0.05;
 // ============================================================================
 
 /**
- * Create a mock LibrarianStorage for agent initialization.
+ * Create a mock LiBrainianStorage for agent initialization.
  */
 function createMockStorage(): any {
   return {

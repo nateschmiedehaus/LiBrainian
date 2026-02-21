@@ -14,7 +14,7 @@ import {
 import { checkAllProviders } from '../../../api/provider_check.js';
 import { diagnoseConfiguration, autoHealConfiguration } from '../../../config/self_healing.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 vi.mock('../../db_path.js', () => ({
   resolveDbPath: vi.fn(),
@@ -51,7 +51,7 @@ const createStorageStub = (statsOverrides: Partial<{
   version: { string: string };
   qualityTier: string;
   lastIndexing: string | Date | null;
-}> = {}): LibrarianStorage => ({
+}> = {}): LiBrainianStorage => ({
   initialize: vi.fn().mockResolvedValue(undefined) as Mock,
   close: vi.fn().mockResolvedValue(undefined) as Mock,
   getMetadata: vi.fn().mockResolvedValue({
@@ -88,7 +88,7 @@ const createStorageStub = (statsOverrides: Partial<{
     completedAt: new Date().toISOString(),
   }) as Mock,
   getState: vi.fn().mockResolvedValue(null) as Mock,
-} as unknown as LibrarianStorage);
+} as unknown as LiBrainianStorage);
 
 function parseJsonReport(consoleLogSpy: ReturnType<typeof vi.spyOn>): any {
   const raw = consoleLogSpy.mock.calls
@@ -99,14 +99,14 @@ function parseJsonReport(consoleLogSpy: ReturnType<typeof vi.spyOn>): any {
 }
 
 describe('doctorCommand', () => {
-  const workspace = '/tmp/librarian-doctor-workspace';
+  const workspace = '/tmp/librainian-doctor-workspace';
   let dbPath: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   const originalHome = process.env.HOME;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    dbPath = path.join(os.tmpdir(), `librarian-doctor-${Date.now()}.db`);
+    dbPath = path.join(os.tmpdir(), `librainian-doctor-${Date.now()}.db`);
     fs.writeFileSync(dbPath, '');
 
     vi.mocked(resolveDbPath).mockResolvedValue(dbPath);
@@ -272,7 +272,7 @@ describe('doctorCommand', () => {
         storage_attached: true,
         cursor: { kind: 'fs', lastReconcileCompletedAt: new Date(now.getTime() - 120_000).toISOString() },
       }));
-      return storage as unknown as LibrarianStorage;
+      return storage as unknown as LiBrainianStorage;
     });
 
     await doctorCommand({ workspace, json: true });
@@ -326,7 +326,7 @@ describe('doctorCommand', () => {
         last_error: 'watcher crashed',
         cursor: { kind: 'fs', lastReconcileCompletedAt: new Date(now.getTime() - 10_000).toISOString() },
       }));
-      return storage as unknown as LibrarianStorage;
+      return storage as unknown as LiBrainianStorage;
     });
 
     await doctorCommand({ workspace, json: true });
@@ -345,7 +345,7 @@ describe('doctorCommand', () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
 
-    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-freshness-'));
+    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-doctor-freshness-'));
     fs.mkdirSync(path.join(dynamicWorkspace, 'src'), { recursive: true });
     const sourceFile = path.join(dynamicWorkspace, 'src', 'app.ts');
     fs.writeFileSync(sourceFile, 'export const health = true;\n', 'utf8');
@@ -374,8 +374,8 @@ describe('doctorCommand', () => {
   });
 
   it('reports stale lock files in lock directories', async () => {
-    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-locks-'));
-    const locksDir = path.join(dynamicWorkspace, '.librarian', 'locks');
+    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-doctor-locks-'));
+    const locksDir = path.join(dynamicWorkspace, '.librainian', 'locks');
     fs.mkdirSync(locksDir, { recursive: true });
     fs.writeFileSync(path.join(locksDir, 'stale.lock'), JSON.stringify({ pid: 999999 }), 'utf8');
 
@@ -398,8 +398,8 @@ describe('doctorCommand', () => {
     fs.rmSync(dynamicWorkspace, { recursive: true, force: true });
   });
 
-  it('flags missing librarian MCP registration when config exists', async () => {
-    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-home-'));
+  it('flags missing librainian MCP registration when config exists', async () => {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-doctor-home-'));
     process.env.HOME = homeDir;
     const claudeDir = path.join(homeDir, '.claude');
     fs.mkdirSync(claudeDir, { recursive: true });
@@ -445,7 +445,7 @@ describe('doctorCommand', () => {
     const report = JSON.parse(raw!);
     expect(Array.isArray(report.actions)).toBe(true);
     expect(report.actions.length).toBeGreaterThan(0);
-    expect(report.actions[0].command).toContain('librarian bootstrap --force');
+    expect(report.actions[0].command).toContain('librainian bootstrap --force');
   });
 
   it('reports invalid embeddings and suggests doctor --fix', async () => {
@@ -458,7 +458,7 @@ describe('doctorCommand', () => {
         invalidEmbeddings: 2,
         sampleEntityIds: ['fn-1', 'fn-2'],
       });
-      return storage as unknown as LibrarianStorage;
+      return storage as unknown as LiBrainianStorage;
     });
 
     await doctorCommand({ workspace, json: true });
@@ -485,7 +485,7 @@ describe('doctorCommand', () => {
       removedMultiVectors: 1,
       sampleEntityIds: ['fn-1'],
     });
-    vi.mocked(createSqliteStorage).mockImplementation(() => storage as unknown as LibrarianStorage);
+    vi.mocked(createSqliteStorage).mockImplementation(() => storage as unknown as LiBrainianStorage);
 
     await doctorCommand({ workspace, json: true, fix: true });
 

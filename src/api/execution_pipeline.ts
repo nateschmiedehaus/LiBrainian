@@ -1,5 +1,5 @@
-import { ensureOutputEnvelope, type LibrarianQuery, type LibrarianResponse } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import { ensureOutputEnvelope, type LiBrainianQuery, type LiBrainianResponse } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { EmbeddingService } from './embeddings.js';
 import type { GovernorContext } from './governor_context.js';
 import type { QueryStageObserver } from '../types.js';
@@ -14,7 +14,7 @@ import {
   type LlmPrimitiveExecutorOptions,
   type PrimitiveExecutionHandler,
 } from './technique_execution.js';
-import { queryLibrarian } from './query.js';
+import { queryLiBrainian } from './query.js';
 import {
   planWorkFromIntentWithContext,
   type PlanWorkOptions,
@@ -48,8 +48,8 @@ export interface ExecutionPipelineOptions {
 }
 
 export interface ExecutionPipelineResult {
-  query: LibrarianQuery;
-  response: LibrarianResponse;
+  query: LiBrainianQuery;
+  response: LiBrainianResponse;
   plan: PlanWorkResult;
   steps: CompositionStepResult[];
   executionId: string;
@@ -58,14 +58,14 @@ export interface ExecutionPipelineResult {
 }
 
 export async function executeQueryPipeline(
-  query: LibrarianQuery,
-  storage: LibrarianStorage,
+  query: LiBrainianQuery,
+  storage: LiBrainianStorage,
   options: ExecutionPipelineOptions = {}
 ): Promise<ExecutionPipelineResult> {
   const querySessionId = options.evidenceLedger
     ? (options.sessionId ?? createSessionId())
     : undefined;
-  const response = ensureOutputEnvelope(await queryLibrarian(
+  const response = ensureOutputEnvelope(await queryLiBrainian(
     query,
     storage,
     options.embeddingService,

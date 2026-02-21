@@ -5,7 +5,7 @@ import { resolveDbPath } from '../../db_path.js';
 import { createSqliteStorage } from '../../../storage/sqlite_storage.js';
 import { isBootstrapRequired } from '../../../api/bootstrap.js';
 import { getGitDiffNames, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn(),
@@ -28,6 +28,7 @@ vi.mock('../../../utils/git.js', () => ({
 describe('checkCommand', () => {
   const workspace = '/test/workspace';
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
 
   let mockStorage: {
     initialize: Mock;
@@ -44,6 +45,7 @@ describe('checkCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     mockStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
@@ -61,8 +63,8 @@ describe('checkCommand', () => {
       getEvidenceForTarget: vi.fn().mockResolvedValue([]),
     };
 
-    vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
-    vi.mocked(createSqliteStorage).mockReturnValue(mockStorage as unknown as LibrarianStorage);
+    vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librainian.sqlite');
+    vi.mocked(createSqliteStorage).mockReturnValue(mockStorage as unknown as LiBrainianStorage);
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: false, reason: 'ok' });
     vi.mocked(isGitRepo).mockReturnValue(true);
     vi.mocked(getGitStatusChanges).mockResolvedValue(null);
@@ -71,6 +73,7 @@ describe('checkCommand', () => {
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+    stdoutWriteSpy.mockRestore();
     vi.restoreAllMocks();
   });
 
@@ -102,7 +105,13 @@ describe('checkCommand', () => {
       rawArgs: ['check', '--json'],
     });
 
-    const payload = consoleLogSpy.mock.calls[0]?.[0] as string;
+    const payloadChunk = stdoutWriteSpy.mock.calls[0]?.[0];
+    const payload =
+      payloadChunk == null
+        ? ''
+        : typeof payloadChunk === 'string'
+          ? payloadChunk
+          : Buffer.from(payloadChunk as Uint8Array).toString('utf8');
     const parsed = JSON.parse(payload) as { status?: string; checks?: Array<{ name?: string; status?: string }> };
 
     expect(exitCode).toBe(1);
@@ -120,7 +129,7 @@ describe('checkCommand', () => {
     const output = consoleLogSpy.mock.calls[0]?.[0] as string;
     expect(exitCode).toBe(0);
     expect(output).toContain('<testsuite');
-    expect(output).toContain('name="librarian.check"');
+    expect(output).toContain('name="librainian.check"');
   });
 
   it('supports explicit diff ranges like HEAD~1..HEAD', async () => {

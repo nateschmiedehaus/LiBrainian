@@ -1,12 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { GovernorContext } from '../api/governor_context.js';
 import type { EmbeddingProvider, EmbeddingService } from '../api/embeddings.js';
 import { computeGraphMetrics, writeGraphMetricsReport, type GraphMetricsEntry } from '../graphs/metrics.js';
 import type { IndexingTask } from '../types.js';
-import { IndexLibrarian } from './index_librarian.js';
+import { IndexLiBrainian } from './index_librainian.js';
 import { SwarmScheduler } from './swarm_scheduler.js';
 import { ParserRegistry } from './parser_registry.js';
 import { safeJsonParse } from '../utils/safe_json.js';
@@ -94,7 +94,7 @@ interface CheckpointV1 {
 }
 
 export interface SwarmRunnerOptions {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspace: string;
   maxWorkers: number;
   maxFileSizeBytes: number;
@@ -118,7 +118,7 @@ export interface SwarmRunnerOptions {
 }
 
 export class SwarmRunner {
-  private readonly storage: LibrarianStorage;
+  private readonly storage: LiBrainianStorage;
   private readonly workspace: string;
   private readonly maxWorkers: number;
   private readonly maxFileSizeBytes: number;
@@ -206,7 +206,7 @@ export class SwarmRunner {
       ? Array.from({ length: this.maxWorkers }, () => this.governor!.fork())
       : Array.from({ length: this.maxWorkers }, () => undefined);
 
-    const workers = workerGovernors.map((governorContext) => new IndexLibrarian({
+    const workers = workerGovernors.map((governorContext) => new IndexLiBrainian({
       maxFileSizeBytes: this.maxFileSizeBytes,
       useAstIndexer: this.useAstIndexer,
       generateEmbeddings: this.generateEmbeddings ?? true,
@@ -255,7 +255,7 @@ export class SwarmRunner {
     const MEMORY_CLEANUP_INTERVAL = 50; // Clean up every 50 files
     let workerFilesProcessed = 0;
 
-    const runWorker = async (worker: IndexLibrarian): Promise<void> => {
+    const runWorker = async (worker: IndexLiBrainian): Promise<void> => {
       while (true) {
         const filePath = await takeNext();
         if (!filePath) break;
@@ -329,7 +329,7 @@ export class SwarmRunner {
 // ============================================================================
 
 async function ensureSwarmDirs(workspace: string): Promise<{ checkpointPath: string; lockDir: string }> {
-  const swarmDir = path.join(workspace, '.librarian', 'swarm');
+  const swarmDir = path.join(workspace, '.librainian', 'swarm');
   const lockDir = path.join(swarmDir, 'locks');
   await fs.mkdir(lockDir, { recursive: true });
   return { checkpointPath: path.join(swarmDir, 'checkpoint.json'), lockDir };
@@ -583,7 +583,7 @@ function createGraphAccumulator(): GraphAccumulator {
 }
 
 async function persistGraphMetrics(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   accumulator: GraphAccumulator,
   workspace: string
 ): Promise<void> {

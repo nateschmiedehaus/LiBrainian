@@ -2,7 +2,7 @@
  * @fileoverview Quickstart Command
  *
  * Runs end-to-end onboarding recovery with sensible defaults to get
- * Librarian operational in a new workspace.
+ * LiBrainian operational in a new workspace.
  */
 
 import { parseArgs } from 'node:util';
@@ -138,7 +138,7 @@ function formatMcpRegistrationValue(
   mcpReport: ConfigureEditorMcpForInitReport | null,
 ): string {
   if (noMcp || ci) return 'skipped';
-  if (!mcpReport) return 'manual setup (run `librarian mcp --print-config`)';
+  if (!mcpReport) return 'manual setup (run `librainian mcp --print-config`)';
 
   if (mcpReport.dryRun) {
     return `dry-run (${mcpReport.wouldWrite} planned changes)`;
@@ -292,7 +292,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
   if (json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log('Librarian Quickstart');
+    console.log('LiBrainian Quickstart');
     console.log('====================\n');
     printKeyValue([
       { key: 'Workspace', value: workspaceRoot },
@@ -370,10 +370,10 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
         console.log(`  - ${error}`);
       }
       console.log('\nNext steps:');
-      console.log('  - Run `librarian doctor --heal` for deeper diagnostics');
-      console.log('  - Run `librarian bootstrap --force` for a full rebuild');
+      console.log('  - Run `librainian doctor --heal` for deeper diagnostics');
+      console.log('  - Run `librainian bootstrap --force` for a full rebuild');
     } else {
-      console.log('\nLibrarian is ready for use.');
+      console.log('\nLiBrainian is ready for use.');
     }
   }
 

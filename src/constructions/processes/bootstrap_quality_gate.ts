@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { createLiBrainian } from '../../api/librarian.js';
+import { createLiBrainian } from '../../api/librainian.js';
 import type { LiBrainianStorage } from '../../storage/types.js';
 import type { Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
@@ -58,7 +58,7 @@ async function collectSourceFiles(root: string): Promise<string[]> {
     if (!current) break;
     const entries = await fs.readdir(current, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.name === '.git' || entry.name === '.librarian' || entry.name === 'node_modules' || entry.name === 'dist') {
+      if (entry.name === '.git' || entry.name === '.librainian' || entry.name === 'node_modules' || entry.name === 'dist') {
         continue;
       }
       const absolute = path.join(current, entry.name);
@@ -77,7 +77,7 @@ async function collectSourceFiles(root: string): Promise<string[]> {
 }
 
 async function createDefaultCFixture(repoRoot: string): Promise<{ fixture: BootstrapQualityFixture; cleanupPath: string }> {
-  const parent = path.join(repoRoot, '.librarian', 'tmp');
+  const parent = path.join(repoRoot, '.librainian', 'tmp');
   await fs.mkdir(parent, { recursive: true });
   const cRoot = await fs.mkdtemp(path.join(parent, 'bootstrap-gate-c-'));
   await fs.mkdir(path.join(cRoot, 'src'), { recursive: true });
@@ -171,13 +171,14 @@ async function validateEmbeddings(storage: LiBrainianStorage): Promise<Bootstrap
 async function runFixtureValidation(
   fixture: BootstrapQualityFixture,
   repoRoot: string,
+  deadlineMs?: number,
 ): Promise<BootstrapQualityFixtureResult> {
   const startedAt = Date.now();
   const findings: string[] = [];
   const expectedFileCount =
     fixture.expectedFileCount ??
     (await collectSourceFiles(fixture.repoPath)).length;
-  const tempRoot = path.join(repoRoot, '.librarian', 'tmp');
+  const tempRoot = path.join(repoRoot, '.librainian', 'tmp');
   await fs.mkdir(tempRoot, { recursive: true });
   const workspace = await fs.mkdtemp(path.join(tempRoot, `bootstrap-gate-${fixture.name}-`));
 
@@ -189,21 +190,28 @@ async function runFixtureValidation(
   let callGraphEdgeCount = 0;
   let queryPackCount = 0;
 
-  const librarian = await createLiBrainian({
+  const unitMode = process.env.LIBRAINIAN_TEST_MODE === 'unit';
+  const librainian = await createLiBrainian({
     workspace,
     autoBootstrap: true,
     autoWatch: false,
-    skipEmbeddings: false,
+    skipEmbeddings: unitMode,
+    bootstrapConfig: {
+      bootstrapMode: unitMode ? 'fast' : 'full',
+      skipLlm: true,
+      skipEmbeddings: unitMode,
+      skipProviderProbe: true,
+    },
   });
 
   try {
-    const status = await librarian.getStatus();
+    const status = await librainian.getStatus();
     bootstrapped = status.bootstrapped;
     if (!status.bootstrapped) {
       findings.push('bootstrap failed: status.bootstrapped=false');
     }
 
-    const storage = librarian.getStorage();
+    const storage = librainian.getStorage();
     if (!storage) {
       findings.push('storage unavailable after bootstrap');
     } else {
@@ -231,12 +239,14 @@ async function runFixtureValidation(
       }
     }
 
-    const query = await librarian.queryOptional({
+    const remainingMs = deadlineMs == null ? 30_000 : Math.max(5_000, deadlineMs - Date.now());
+    const queryTimeoutMs = Math.min(30_000, remainingMs);
+    const query = await librainian.queryOptional({
       intent: 'Find key entry points and main execution flow',
       depth: 'L1',
       llmRequirement: 'disabled',
       deterministic: true,
-      timeoutMs: 30_000,
+      timeoutMs: queryTimeoutMs,
     });
     queryPackCount = query.packs.length;
     if (query.packs.length === 0) {
@@ -245,7 +255,7 @@ async function runFixtureValidation(
   } catch (error) {
     findings.push(`validation error: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
-    await librarian.shutdown();
+    await librainian.shutdown();
     await fs.rm(workspace, { recursive: true, force: true });
   }
 
@@ -278,17 +288,21 @@ export function createBootstrapQualityGateConstruction(): Construction<
     async execute(input: BootstrapQualityGateInput = {}): Promise<BootstrapQualityGateOutput> {
       const startedAt = Date.now();
       const repoRoot = process.cwd();
+      const timeoutMs = input.timeoutMs ?? 120_000;
+      const deadlineMs = startedAt + timeoutMs;
       const resolvedDefaults = input.fixtures ? null : await defaultFixtures(repoRoot);
       const fixtures = input.fixtures ?? resolvedDefaults?.fixtures ?? [];
       const results: BootstrapQualityFixtureResult[] = [];
       const findings: string[] = [];
 
       try {
-        for (const fixture of fixtures) {
-          const result = await runFixtureValidation(fixture, repoRoot);
+        const fixtureResults = await Promise.all(
+          fixtures.map((fixture) => runFixtureValidation(fixture, repoRoot, deadlineMs)),
+        );
+        for (const result of fixtureResults) {
           results.push(result);
           if (!result.pass) {
-            findings.push(`${fixture.name}: ${result.findings.join('; ')}`);
+            findings.push(`${result.name}: ${result.findings.join('; ')}`);
           }
         }
       } finally {

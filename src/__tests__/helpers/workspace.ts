@@ -10,10 +10,10 @@ import * as path from 'node:path';
 
 /**
  * Create a temporary workspace directory for testing.
- * @param prefix - Prefix for the temp directory name (default: 'librarian-test-')
+ * @param prefix - Prefix for the temp directory name (default: 'librainian-test-')
  * @returns Path to the created workspace
  */
-export async function createTempWorkspace(prefix = 'librarian-test-'): Promise<string> {
+export async function createTempWorkspace(prefix = 'librainian-test-'): Promise<string> {
   const tmpDir = os.tmpdir();
   const workspace = await fs.mkdtemp(path.join(tmpDir, prefix));
   return workspace;
@@ -58,7 +58,7 @@ export async function createTestFile(
  */
 export async function createWorkspaceWithFiles(
   files: Record<string, string>,
-  prefix = 'librarian-test-'
+  prefix = 'librainian-test-'
 ): Promise<string> {
   const workspace = await createTempWorkspace(prefix);
   for (const [relativePath, content] of Object.entries(files)) {

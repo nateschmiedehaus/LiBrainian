@@ -15,14 +15,14 @@ import {
   toFileList,
   type ExhaustiveQueryOptions,
 } from '../exhaustive_graph_query.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { GraphEdge } from '../../types.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-function createMockStorage(edges: GraphEdge[]): LibrarianStorage {
+function createMockStorage(edges: GraphEdge[]): LiBrainianStorage {
   return {
     getGraphEdges: vi.fn(async (options) => {
       let filtered = edges;
@@ -54,7 +54,7 @@ function createMockStorage(edges: GraphEdge[]): LibrarianStorage {
       optional: { graphMetrics: false, multiVectors: false, embeddings: false, episodes: false, verificationPlans: false },
       versions: { schema: 1, api: 1 },
     })),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -89,8 +89,8 @@ describe('detectExhaustiveIntent', () => {
 
 describe('extractTargetFromIntent', () => {
   it('should extract target from "depends on X"', () => {
-    const result = extractTargetFromIntent('What depends on SqliteLibrarianStorage');
-    expect(result.name).toBe('SqliteLibrarianStorage');
+    const result = extractTargetFromIntent('What depends on SqliteLiBrainianStorage');
+    expect(result.name).toBe('SqliteLiBrainianStorage');
     expect(result.type).toBe('symbol');
   });
 
@@ -107,8 +107,8 @@ describe('extractTargetFromIntent', () => {
   });
 
   it('should categorize camelCase as symbol', () => {
-    const result = extractTargetFromIntent('uses queryLibrarian');
-    expect(result.name).toBe('queryLibrarian');
+    const result = extractTargetFromIntent('uses queryLiBrainian');
+    expect(result.name).toBe('queryLiBrainian');
     expect(result.type).toBe('symbol');
   });
 });

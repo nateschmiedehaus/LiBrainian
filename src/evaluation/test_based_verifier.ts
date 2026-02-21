@@ -1,8 +1,8 @@
 /**
  * @fileoverview Test-Based Verifier (WU-1111)
  *
- * Uses existing tests in a codebase to verify Librarian's claims.
- * If Librarian claims "function X does Y", we can check if there's a test
+ * Uses existing tests in a codebase to verify LiBrainian's claims.
+ * If LiBrainian claims "function X does Y", we can check if there's a test
  * that demonstrates this behavior.
  *
  * Verification Strength Levels:
@@ -108,7 +108,7 @@ const FUNCTION_NAME_PATTERN = /\b([a-z][a-zA-Z0-9]*)\b/g;
 // ============================================================================
 
 /**
- * Verifies Librarian's claims using test evidence from a codebase
+ * Verifies LiBrainian's claims using test evidence from a codebase
  */
 export class TestBasedVerifier {
   private entailmentChecker: EntailmentChecker;

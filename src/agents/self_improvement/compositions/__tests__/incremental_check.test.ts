@@ -10,10 +10,10 @@ import {
   type AnalysisResult,
   type Issue,
 } from '../incremental_check.js';
-import type { LibrarianStorage } from '../../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../../storage/types.js';
 
 describe('incrementalSelfCheck', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(() => {
     mockStorage = {
@@ -44,7 +44,7 @@ describe('incrementalSelfCheck', () => {
       getEvolutionOutcomes: vi.fn().mockResolvedValue([]),
       getBayesianConfidences: vi.fn().mockResolvedValue([]),
       getConfidenceEvents: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires rootDir parameter', async () => {
@@ -60,7 +60,7 @@ describe('incrementalSelfCheck', () => {
     await expect(
       incrementalSelfCheck({
         rootDir: '/test',
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });
@@ -274,7 +274,7 @@ describe('incrementalSelfCheck', () => {
     const failingStorage = {
       ...mockStorage,
       getFunctions: vi.fn().mockRejectedValue(new Error('Database error')),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await incrementalSelfCheck({
       rootDir: '/test',

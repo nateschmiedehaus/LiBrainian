@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -84,7 +84,7 @@ export interface ArchitectureAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new ArchitectureDecisionsConstruction(librarian);
+ * const construction = new ArchitectureDecisionsConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['src/domain/**', 'src/infrastructure/**'],
  *   constraints: archDecisions.CLEAN_ARCHITECTURE_CONSTRAINTS,
@@ -96,11 +96,11 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
   static readonly CONSTRUCTION_ID = 'ArchitectureDecisionsConstruction';
   readonly CONSTRUCTION_ID = ArchitectureDecisionsConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -151,13 +151,13 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand architecture
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand architecture
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze architecture including layer structure, dependencies, and design patterns',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:architecture_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:architecture_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Select constraints
     const constraints = input.constraints || this.getStandard();
@@ -268,7 +268,7 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
   private async validateConstraints(
     constraints: archDecisions.ArchitectureConstraint[],
     input: ArchitectureAssessmentInput,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): Promise<archDecisions.ConstraintViolation[]> {
     const violations: archDecisions.ConstraintViolation[] = [];
     const focus = input.focus || ['layers', 'naming', 'dependencies', 'patterns'];
@@ -297,7 +297,7 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
   private checkConstraint(
     constraint: archDecisions.ArchitectureConstraint,
     input: ArchitectureAssessmentInput,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): archDecisions.ConstraintViolation[] {
     const violations: archDecisions.ConstraintViolation[] = [];
     const packs = queryResult.packs || [];
@@ -391,7 +391,7 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
    * Generate pattern recommendations.
    */
   private generatePatternRecommendations(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     violations: archDecisions.ConstraintViolation[]
   ): archDecisions.PatternRecommendation[] {
     const recommendations: archDecisions.PatternRecommendation[] = [];
@@ -509,7 +509,7 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number; violations: archDecisions.ConstraintViolation[] }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -535,11 +535,11 @@ export class ArchitectureDecisionsConstruction implements CalibratedConstruction
 /**
  * Create a new architecture decisions construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new ArchitectureDecisionsConstruction
  */
 export function createArchitectureDecisionsConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): ArchitectureDecisionsConstruction {
-  return new ArchitectureDecisionsConstruction(librarian);
+  return new ArchitectureDecisionsConstruction(librainian);
 }

@@ -109,7 +109,7 @@ const queryPredictions = new Map<string, Set<string>>();
 /**
  * Initialize the stage calibration system.
  *
- * Call this during Librarian initialization to enable calibration tracking.
+ * Call this during LiBrainian initialization to enable calibration tracking.
  * If not called, predictions will be generated but not recorded.
  *
  * @param ledger - Optional evidence ledger for persistence

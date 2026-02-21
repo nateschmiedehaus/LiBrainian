@@ -88,7 +88,7 @@ export interface EvidenceAdapterOptions {
  * @example
  * ```typescript
  * const auditEvent = auditLogger.logToolCall({
- *   operation: 'librarian_query',
+ *   operation: 'librainian_query',
  *   status: 'success',
  *   durationMs: 150,
  *   input: { intent: 'find all async functions' },

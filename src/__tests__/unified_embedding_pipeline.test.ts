@@ -19,14 +19,14 @@ import {
 } from '../api/embedding_providers/unified_embedding_pipeline.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const librarianRoot = path.resolve(__dirname, '..');
+const librainianRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(__dirname, '../../..');
 
 // ============================================================================
 // HELPERS
 // ============================================================================
 
-async function loadLibrarianFiles(): Promise<Array<{ path: string; content: string }>> {
+async function loadLiBrainianFiles(): Promise<Array<{ path: string; content: string }>> {
   const files: Array<{ path: string; content: string }> = [];
 
   const walkDir = async (dir: string, prefix: string = '') => {
@@ -51,7 +51,7 @@ async function loadLibrarianFiles(): Promise<Array<{ path: string; content: stri
     }
   };
 
-  await walkDir(librarianRoot);
+  await walkDir(librainianRoot);
   return files;
 }
 
@@ -69,8 +69,8 @@ describe('Unified Embedding Pipeline', () => {
     console.log('='.repeat(70) + '\n');
 
     // Load files
-    console.log('Loading librarian files...');
-    files = await loadLibrarianFiles();
+    console.log('Loading librainian files...');
+    files = await loadLiBrainianFiles();
     console.log(`Found ${files.length} source files\n`);
 
     // Create pipeline

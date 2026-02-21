@@ -107,7 +107,7 @@ describe('statusCommand', () => {
       getFileByPath: vi.fn().mockResolvedValue(null),
     };
 
-    vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
+    vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librainian.sqlite');
     vi.mocked(resolveWorkspaceRoot).mockReturnValue({
       original: workspace,
       workspace,
@@ -167,7 +167,7 @@ describe('statusCommand', () => {
         cascadeReindex: true,
         cascadeDelayMs: 2000,
         cascadeBatchSize: 5,
-        excludes: ['.librarian/', 'state/audits/'],
+        excludes: ['.librainian/', 'state/audits/'],
       },
     });
 
@@ -401,12 +401,12 @@ describe('statusCommand', () => {
   it('includes lock hygiene details in JSON output', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     vi.mocked(inspectWorkspaceLocks).mockResolvedValue({
-      lockDirs: [`${workspace}/.librarian/locks`],
+      lockDirs: [`${workspace}/.librainian/locks`],
       scannedFiles: 4,
       staleFiles: 2,
       activePidFiles: 1,
       unknownFreshFiles: 1,
-      stalePaths: [`${workspace}/.librarian/locks/a.lock`, `${workspace}/.librarian/locks/b.lock`],
+      stalePaths: [`${workspace}/.librainian/locks/a.lock`, `${workspace}/.librainian/locks/b.lock`],
     });
 
     await statusCommand({ workspace, verbose: false, format: 'json' });
@@ -419,7 +419,7 @@ describe('statusCommand', () => {
 
   it('writes JSON report to --out path', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-status-out-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-status-out-'));
     const outPath = path.join(tmpDir, 'status.json');
 
     try {

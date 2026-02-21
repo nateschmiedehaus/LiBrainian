@@ -15,10 +15,10 @@ async function main(): Promise<void> {
   const root = process.cwd();
   const statusPath = values.status
     ? path.resolve(String(values.status))
-    : path.join(root, 'docs', 'librarian', 'STATUS.md');
+    : path.join(root, 'docs', 'librainian', 'STATUS.md');
   const gatesPath = values.gates
     ? path.resolve(String(values.gates))
-    : path.join(root, 'docs', 'librarian', 'GATES.json');
+    : path.join(root, 'docs', 'librainian', 'GATES.json');
 
   const findings: string[] = [];
 

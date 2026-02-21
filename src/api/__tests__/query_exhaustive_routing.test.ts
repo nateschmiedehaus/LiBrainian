@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { EmbeddingService } from '../embeddings.js';
 
 vi.mock('../provider_check.js', () => ({
@@ -26,18 +26,18 @@ vi.mock('../provider_check.js', () => ({
 const workspaceRoot = process.cwd();
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-exhaustive-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-exhaustive-${randomUUID()}.db`);
 }
 
-describe('queryLibrarian exhaustive routing', () => {
-  let storage: LibrarianStorage;
+describe('queryLiBrainian exhaustive routing', () => {
+  let storage: LiBrainianStorage;
 
   afterEach(async () => {
     await storage?.close?.();
   });
 
   it('skips semantic retrieval for exhaustive structural queries', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
 
@@ -71,7 +71,7 @@ describe('queryLibrarian exhaustive routing', () => {
       generateEmbedding: vi.fn().mockRejectedValue(new Error('embedding should not be called')),
     } as unknown as EmbeddingService;
 
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: 'all files that depend on src/target.ts', depth: 'L1', llmRequirement: 'disabled' },
       storage,
       embeddingService

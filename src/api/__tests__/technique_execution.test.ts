@@ -20,7 +20,7 @@ vi.mock('../llm_env.js', async () => {
   const actual = await vi.importActual<typeof import('../llm_env.js')>('../llm_env.js');
   return {
     ...actual,
-    resolveLibrarianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
+    resolveLiBrainianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
       provider: 'claude',
       modelId: 'test-model',
     }),
@@ -1268,8 +1268,8 @@ describe('llm primitive executor', () => {
     delete process.env.WAVE0_LLM_MODEL;
 
     try {
-      const { resolveLibrarianModelConfigWithDiscovery } = await import('../llm_env.js');
-      vi.mocked(resolveLibrarianModelConfigWithDiscovery).mockRejectedValueOnce(
+      const { resolveLiBrainianModelConfigWithDiscovery } = await import('../llm_env.js');
+      vi.mocked(resolveLiBrainianModelConfigWithDiscovery).mockRejectedValueOnce(
         new Error('unverified_by_trace(provider_unavailable): LLM config missing for execution')
       );
       const executor = createLlmPrimitiveExecutor({

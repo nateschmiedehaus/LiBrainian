@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
 
 export type ExecutionOutcome = 'success' | 'failure' | 'partial' | 'unknown';
@@ -23,7 +23,7 @@ type ExecutionTraceState = {
 const EXECUTION_TRACES_KEY = 'librarian.execution_traces.v1';
 
 export async function recordExecutionTrace(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   trace: ExecutionTrace,
   options: { maxTraces?: number } = {}
 ): Promise<void> {
@@ -39,7 +39,7 @@ export async function recordExecutionTrace(
 }
 
 export async function listExecutionTraces(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { limit?: number } = {}
 ): Promise<ExecutionTrace[]> {
   const records = await loadExecutionTraces(storage);
@@ -68,7 +68,7 @@ function normalizeTrace(trace: ExecutionTrace): ExecutionTrace {
   };
 }
 
-async function loadExecutionTraces(storage: LibrarianStorage): Promise<ExecutionTrace[]> {
+async function loadExecutionTraces(storage: LiBrainianStorage): Promise<ExecutionTrace[]> {
   const raw = await storage.getState(EXECUTION_TRACES_KEY);
   if (!raw) return [];
   const parsed = safeJsonParseSimple<ExecutionTraceState>(raw);
@@ -77,7 +77,7 @@ async function loadExecutionTraces(storage: LibrarianStorage): Promise<Execution
 }
 
 async function writeExecutionTraces(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   items: ExecutionTrace[]
 ): Promise<void> {
   const payload: ExecutionTraceState = {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ContextPack, LibrarianQuery, SynthesizedResponse } from '../../types.js';
+import type { ContextPack, LiBrainianQuery, SynthesizedResponse } from '../../types.js';
 import { createQueryVerificationPlan } from '../verification_plans.js';
 import type { AdequacyReport } from '../difficulty_detectors.js';
 
@@ -35,7 +35,7 @@ const createPack = (overrides: Partial<ContextPack>): ContextPack => ({
 
 describe('createQueryVerificationPlan', () => {
   it('builds a plan from packs, gaps, and uncertainties', () => {
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'How does auth flow work?',
       depth: 'L1',
       taskType: 'bugfix',
@@ -73,13 +73,13 @@ describe('createQueryVerificationPlan', () => {
   });
 
   it('returns null when there is nothing to verify', () => {
-    const query: LibrarianQuery = { intent: 'Empty query', depth: 'L0' };
+    const query: LiBrainianQuery = { intent: 'Empty query', depth: 'L0' };
     const plan = createQueryVerificationPlan({ query, packs: [] });
     expect(plan).toBeNull();
   });
 
   it('falls back to manual validation without files', () => {
-    const query: LibrarianQuery = { intent: 'Spec check', depth: 'L1' };
+    const query: LiBrainianQuery = { intent: 'Spec check', depth: 'L1' };
     const synthesis: SynthesizedResponse = {
       answer: 'Answer',
       confidence: 0.2,
@@ -102,7 +102,7 @@ describe('createQueryVerificationPlan', () => {
   });
 
   it('adds adequacy gaps to expected observations', () => {
-    const query: LibrarianQuery = { intent: 'Release plan', depth: 'L1' };
+    const query: LiBrainianQuery = { intent: 'Release plan', depth: 'L1' };
     const adequacyReport: AdequacyReport = {
       spec: {
         id: 'adequacy_release',

@@ -1,4 +1,4 @@
-import { Librarian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librainian.js';
 
 export interface ContractCommandOptions {
   workspace?: string;
@@ -9,7 +9,7 @@ export async function contractCommand(options: ContractCommandOptions): Promise<
   const workspace = options.workspace || process.cwd();
   const pretty = options.pretty ?? false;
 
-  const librarian = new Librarian({
+  const librainian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
@@ -17,9 +17,9 @@ export async function contractCommand(options: ContractCommandOptions): Promise<
     llmModelId: process.env.LIBRARIAN_LLM_MODEL,
   });
 
-  await librarian.initialize();
-  const contract = await librarian.getSystemContract();
+  await librainian.initialize();
+  const contract = await librainian.getSystemContract();
   const output = JSON.stringify(contract, null, pretty ? 2 : 0);
   console.log(output);
-  await librarian.shutdown();
+  await librainian.shutdown();
 }

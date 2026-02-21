@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 describe('MCP Server tool adapter wiring', () => {
   it('does not initialize evidence instrumentation for read-only tools', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         name: 'tool-adapter-test-server',
         authorization: { enabledScopes: ['read'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
 
       server.registerWorkspace(workspace);
@@ -32,13 +32,13 @@ describe('MCP Server tool adapter wiring', () => {
   });
 
   it('records tool calls to the workspace evidence ledger for write tools', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         name: 'tool-adapter-test-server',
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
 
       server.registerWorkspace(workspace);

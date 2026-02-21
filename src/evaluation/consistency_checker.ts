@@ -1,7 +1,7 @@
 /**
  * @fileoverview Consistency Checker (WU-805)
  *
- * Detects when Librarian gives contradictory answers to semantically equivalent
+ * Detects when LiBrainian gives contradictory answers to semantically equivalent
  * questions. This is a hallucination detection mechanism that works by querying
  * the same information in different ways and checking if the answers are consistent.
  *

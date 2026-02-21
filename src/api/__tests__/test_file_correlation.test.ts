@@ -15,7 +15,7 @@ import {
   type TestQueryClassification,
   type TestCorrelationResult,
 } from '../test_file_correlation.js';
-import type { LibrarianStorage, TestMapping } from '../../storage/types.js';
+import type { LiBrainianStorage, TestMapping } from '../../storage/types.js';
 import type { FileKnowledge, FunctionKnowledge } from '../../types.js';
 
 // Mock storage
@@ -23,7 +23,7 @@ function createMockStorage(options: {
   files?: FileKnowledge[];
   testMappings?: TestMapping[];
   functions?: FunctionKnowledge[];
-} = {}): LibrarianStorage {
+} = {}): LiBrainianStorage {
   const files = options.files ?? [];
   const testMappings = options.testMappings ?? [];
   const functions = options.functions ?? [];
@@ -49,7 +49,7 @@ function createMockStorage(options: {
       return functions.filter(f => f.filePath === path);
     }),
     getContextPackForTarget: vi.fn().mockResolvedValue(null),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 describe('classifyTestQuery', () => {
@@ -103,7 +103,7 @@ describe('classifyTestQuery', () => {
     });
 
     it('rejects implementation queries', () => {
-      const result = classifyTestQuery('where is queryLibrarian defined');
+      const result = classifyTestQuery('where is queryLiBrainian defined');
       expect(result.isTestQuery).toBe(false);
     });
   });
@@ -321,7 +321,7 @@ describe('integration: query.ts test files discovery', () => {
         { id: '4', relativePath: 'src/api/__tests__/query_trace_ledger.test.ts', category: 'test' } as FileKnowledge,
         { id: '5', relativePath: 'src/api/__tests__/query_intent_classification.test.ts', category: 'test' } as FileKnowledge,
         { id: '6', relativePath: 'src/api/__tests__/query_edge_filtering.test.ts', category: 'test' } as FileKnowledge,
-        { id: '7', relativePath: 'src/api/__tests__/librarian_query_fallback.test.ts', category: 'test' } as FileKnowledge,
+        { id: '7', relativePath: 'src/api/__tests__/librainian_query_fallback.test.ts', category: 'test' } as FileKnowledge,
         // Unrelated test file
         { id: '8', relativePath: 'src/__tests__/bootstrap.test.ts', category: 'test' } as FileKnowledge,
       ],

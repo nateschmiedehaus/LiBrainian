@@ -22,7 +22,7 @@
 
 import { createHash, randomUUID } from 'crypto';
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   DebtMetrics,
   DebtHotspot,
   FunctionKnowledge,
@@ -37,7 +37,7 @@ import type {
 // ============================================================================
 
 export interface DebtAnalysisOptions {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   entityType?: DebtMetrics['entityType'];
   forceRecalculate?: boolean;
   includeRecommendations?: boolean;
@@ -183,7 +183,7 @@ export function calculateComplexityDebt(
  * Calculate duplication debt from clone data.
  */
 export async function calculateDuplicationDebt(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<{ score: number; details: string[] }> {
   const details: string[] = [];
@@ -246,7 +246,7 @@ export async function calculateDuplicationDebt(
  * Calculate coupling debt from graph metrics.
  */
 export async function calculateCouplingDebt(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<{ score: number; details: string[] }> {
   const details: string[] = [];
@@ -291,7 +291,7 @@ export async function calculateCouplingDebt(
  * Calculate architecture debt from SCC analysis.
  */
 export async function calculateArchitectureDebt(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<{ score: number; details: string[] }> {
   const details: string[] = [];
@@ -342,7 +342,7 @@ export async function calculateArchitectureDebt(
  * Calculate churn debt from diff history.
  */
 export async function calculateChurnDebt(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePath: string
 ): Promise<{ score: number; details: string[] }> {
   const details: string[] = [];
@@ -701,7 +701,7 @@ export async function analyzeDebt(options: DebtAnalysisOptions): Promise<DebtAna
  * Get debt hotspots (high-debt entities).
  */
 export async function getDebtHotspots(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 20
 ): Promise<DebtHotspot[]> {
   return storage.getDebtHotspots(limit);
@@ -711,7 +711,7 @@ export async function getDebtHotspots(
  * Get entities with degrading debt trends.
  */
 export async function getDegradingEntities(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 20
 ): Promise<DebtMetrics[]> {
   return storage.getDebtMetrics({
@@ -726,7 +726,7 @@ export async function getDegradingEntities(
  * Get entities by priority.
  */
 export async function getEntitiesByPriority(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   priority: DebtMetrics['priority'],
   limit: number = 50
 ): Promise<DebtMetrics[]> {
@@ -742,7 +742,7 @@ export async function getEntitiesByPriority(
  * Calculate overall codebase debt health.
  */
 export async function calculateCodebaseHealth(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<{
   overallDebt: number;
   entityCount: number;

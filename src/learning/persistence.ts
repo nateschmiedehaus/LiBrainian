@@ -22,7 +22,7 @@ import { logInfo, logWarning } from '../telemetry/logger.js';
 const LEARNER_STATE_FILENAME = 'recovery_learner_state.json';
 
 /** State directory relative to workspace */
-const STATE_DIR = '.librarian';
+const STATE_DIR = '.librainian';
 
 // ============================================================================
 // TYPES

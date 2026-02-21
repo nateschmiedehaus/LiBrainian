@@ -46,9 +46,9 @@ describe('ralphCommand', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ralph-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-ralph-'));
 
-    vi.mocked(resolveDbPath).mockResolvedValue(path.join(workspace, '.librarian', 'librarian.sqlite'));
+    vi.mocked(resolveDbPath).mockResolvedValue(path.join(workspace, '.librainian', 'librainian.sqlite'));
     vi.mocked(checkAllProviders).mockResolvedValue({
       llm: { available: false, provider: null, model: null, reason: 'not configured' },
       embedding: { available: false, provider: null, model: null, reason: 'not configured' },
@@ -118,7 +118,7 @@ describe('ralphCommand', () => {
       rawArgs: ['ralph', '--mode', 'fast', '--max-cycles', '1'],
     });
 
-    expect(consoleWarnSpy).toHaveBeenCalledWith('[deprecated] `librarian ralph` is deprecated. Use `librarian repair`.');
+    expect(consoleWarnSpy).toHaveBeenCalledWith('[deprecated] `librainian ralph` is deprecated. Use `librainian repair`.');
   });
 
   it('does not run evaluation in fast mode by default', async () => {

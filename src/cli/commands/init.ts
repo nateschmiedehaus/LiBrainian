@@ -187,8 +187,8 @@ function buildConstructionDoc(options: { pascalName: string; slug: string }): st
     '',
     '## Files',
     '',
-    `- \`.librarian/constructions/${slug}.ts\``,
-    `- \`.librarian/constructions/${slug}.test.ts\``,
+    `- \`.librainian/constructions/${slug}.ts\``,
+    `- \`.librainian/constructions/${slug}.test.ts\``,
     `- \`docs/constructions/${slug}.md\``,
     '',
     '## Next Steps',
@@ -210,8 +210,8 @@ async function scaffoldConstruction(options: {
   const pascalName = toPascalCase(slug);
   const camelName = toCamelCase(slug);
 
-  const constructionPath = path.join(workspace, '.librarian', 'constructions', `${slug}.ts`);
-  const testPath = path.join(workspace, '.librarian', 'constructions', `${slug}.test.ts`);
+  const constructionPath = path.join(workspace, '.librainian', 'constructions', `${slug}.ts`);
+  const testPath = path.join(workspace, '.librainian', 'constructions', `${slug}.test.ts`);
   const docsPath = path.join(workspace, 'docs', 'constructions', `${slug}.md`);
 
   const [constructionAction, testAction, docsAction] = await Promise.all([
@@ -277,15 +277,15 @@ async function scaffoldMcpConfig(options: {
   }
 
   const mcpServers: Record<string, unknown> = { ...(existingServers as Record<string, unknown> | undefined) };
-  const existingLibrarianEntry = mcpServers.librarian;
+  const existingLiBrainianEntry = mcpServers.librainian;
 
-  if (existingLibrarianEntry !== undefined) {
-    const isSame = JSON.stringify(existingLibrarianEntry) === JSON.stringify(desiredEntry);
+  if (existingLiBrainianEntry !== undefined) {
+    const isSame = JSON.stringify(existingLiBrainianEntry) === JSON.stringify(desiredEntry);
     if (!isSame && !force) {
       return {
         path: '.mcp.json',
         status: 'skipped',
-        reason: 'librarian MCP entry already exists (use --force to overwrite)',
+        reason: 'librainian MCP entry already exists (use --force to overwrite)',
       };
     }
     if (isSame) {
@@ -297,7 +297,7 @@ async function scaffoldMcpConfig(options: {
     }
   }
 
-  mcpServers.librarian = desiredEntry;
+  mcpServers.librainian = desiredEntry;
   const updated: McpConfigFile = {
     ...parsed,
     mcpServers,
@@ -348,7 +348,7 @@ function buildClaudeSection(): string {
   ].join('\n');
 }
 
-function upsertLibrarianSection(content: string, section: string): string {
+function upsertLiBrainianSection(content: string, section: string): string {
   const managedSection = section.trimEnd();
   const start = content.indexOf(LIBRARIAN_SECTION_START);
   const end = content.indexOf(LIBRARIAN_SECTION_END);
@@ -383,7 +383,7 @@ async function scaffoldClaudeMd(options: {
   const existing = await readFileIfExists(filePath);
   const baseContent = existing ?? '# CLAUDE.md\n\n';
   const section = buildClaudeSection();
-  const nextContent = upsertLibrarianSection(baseContent, section);
+  const nextContent = upsertLiBrainianSection(baseContent, section);
 
   if (existing !== undefined && existing === nextContent) {
     return {

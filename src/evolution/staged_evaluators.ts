@@ -23,7 +23,7 @@ import type {
   ResourceUsage,
 } from './types.js';
 import { computeFitnessReport } from './fitness.js';
-import type { LibrarianStateReport } from '../measurement/observability.js';
+import type { LiBrainianStateReport } from '../measurement/observability.js';
 import type { EvalOptions, EvalReport } from '../evaluation/runner.js';
 
 // ============================================================================
@@ -544,8 +544,8 @@ export async function runStagedEvaluation(
   const fitnessReport = computeFitnessReport(
     variant.id,
     {
-      repository: 'librarian',
-      subsystem: 'librarian',
+      repository: 'librainian',
+      subsystem: 'librainian',
       commitHash: 'current',
     },
     {
@@ -587,10 +587,10 @@ function canAffordEvaluator(
 }
 
 async function resolveDbPathForWorkspace(workspaceRoot: string): Promise<string> {
-  const librarianDir = path.join(workspaceRoot, '.librarian');
-  const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
-  const legacyPath = path.join(librarianDir, 'librarian.db');
-  await fs.mkdir(librarianDir, { recursive: true });
+  const librainianDir = path.join(workspaceRoot, '.librainian');
+  const sqlitePath = path.join(librainianDir, 'librainian.sqlite');
+  const legacyPath = path.join(librainianDir, 'librainian.db');
+  await fs.mkdir(librainianDir, { recursive: true });
 
   try {
     await fs.access(sqlitePath);
@@ -611,7 +611,7 @@ async function resolveDbPathForWorkspace(workspaceRoot: string): Promise<string>
 async function maybeGenerateStateReport(
   context: EvaluationContext,
   auditRoot: string
-): Promise<LibrarianStateReport | undefined> {
+): Promise<LiBrainianStateReport | undefined> {
   const { createSqliteStorage } = await import('../storage/sqlite_storage.js');
   const { generateStateReport } = await import('../measurement/observability.js');
   const dbPath = context.dbPath ?? await resolveDbPathForWorkspace(context.workspaceRoot);
@@ -619,7 +619,7 @@ async function maybeGenerateStateReport(
   try {
     await storage.initialize();
     const report = await generateStateReport(storage);
-    await fs.writeFile(path.join(auditRoot, 'LibrarianStateReport.v1.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+    await fs.writeFile(path.join(auditRoot, 'LiBrainianStateReport.v1.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
       .catch(() => {});
     return report;
   } catch {
@@ -660,9 +660,9 @@ async function maybeRunRetrievalEval(
   }
 
   const { createEvalRunner } = await import('../evaluation/runner.js');
-  const { createLibrarianEvalPipeline } = await import('../evaluation/librarian_eval_pipeline.js');
+  const { createLiBrainianEvalPipeline } = await import('../evaluation/librainian_eval_pipeline.js');
 
-  const { pipeline, shutdown } = createLibrarianEvalPipeline({
+  const { pipeline, shutdown } = createLiBrainianEvalPipeline({
     maxDocs: 12,
     depth: 'L1',
     llmRequirement: 'disabled',

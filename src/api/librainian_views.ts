@@ -1,15 +1,15 @@
 /**
- * @fileoverview Librarian Views Delegate
+ * @fileoverview LiBrainian Views Delegate
  *
  * Handles persona-specific views, visualization, and recommendations.
- * Extracted from librarian.ts per MF4 (Hard File Limits: 300 lines).
+ * Extracted from librainian.ts per MF4 (Hard File Limits: 300 lines).
  *
  * ARCHITECTURAL NOTE (Control Theory Model):
- * The Librarian class is the perception layer. This delegate handles
+ * The LiBrainian class is the perception layer. This delegate handles
  * the output formatting and projections for different stakeholders.
  */
 
-import type { LibrarianStorage, UniversalKnowledgeQueryOptions, UniversalKnowledgeRecord } from '../storage/types.js';
+import type { LiBrainianStorage, UniversalKnowledgeQueryOptions, UniversalKnowledgeRecord } from '../storage/types.js';
 import type { UniversalKnowledge } from '../knowledge/universal_types.js';
 import { projectForPersona, generateGlanceCard, type PersonaView, type GlanceCard } from '../views/persona_views.js';
 import { generateMermaidDiagram, type DiagramRequest, type DiagramResult } from '../visualization/mermaid_generator.js';
@@ -25,20 +25,20 @@ export type { ASCIIResult } from '../visualization/ascii_diagrams.js';
 
 export type PersonaType = 'programmer' | 'engineer' | 'manager' | 'designer' | 'qa' | 'security' | 'scientist' | 'product';
 
-export interface LibrarianViewsConfig {
-  storage: LibrarianStorage;
+export interface LiBrainianViewsConfig {
+  storage: LiBrainianStorage;
   workspaceRoot: string;
 }
 
 /**
- * Delegate for Librarian view operations.
+ * Delegate for LiBrainian view operations.
  * Handles persona projections, visualization, and recommendations.
  */
-export class LibrarianViewsDelegate {
-  private readonly storage: LibrarianStorage;
+export class LiBrainianViewsDelegate {
+  private readonly storage: LiBrainianStorage;
   private readonly workspaceRoot: string;
 
-  constructor(config: LibrarianViewsConfig) {
+  constructor(config: LiBrainianViewsConfig) {
     this.storage = config.storage;
     this.workspaceRoot = config.workspaceRoot;
   }

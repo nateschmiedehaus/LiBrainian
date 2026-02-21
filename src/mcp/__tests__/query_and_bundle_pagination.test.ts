@@ -3,30 +3,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 
-const { queryLibrarianMock } = vi.hoisted(() => ({
-  queryLibrarianMock: vi.fn(),
+const { queryLiBrainianMock } = vi.hoisted(() => ({
+  queryLiBrainianMock: vi.fn(),
 }));
 
 vi.mock('../../api/index.js', async () => {
   const actual = await vi.importActual<typeof import('../../api/index.js')>('../../api/index.js');
   return {
     ...actual,
-    queryLibrarian: queryLibrarianMock,
+    queryLiBrainian: queryLiBrainianMock,
   };
 });
 
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP query and context bundle pagination', () => {
-  const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
-  const CONFORMAL_CALIBRATION_STATE_KEY = 'librarian.mcp.conformal_calibration.v1';
+  const SESSION_EPISODES_STATE_KEY = 'librainian.mcp.session_episodes.v1';
+  const CONFORMAL_CALIBRATION_STATE_KEY = 'librainian.mcp.conformal_calibration.v1';
 
   beforeEach(() => {
-    queryLibrarianMock.mockReset();
+    queryLiBrainianMock.mockReset();
   });
 
   it('injects recent episodic files into query affectedFiles for the same session', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -61,7 +61,7 @@ describe('MCP query and context bundle pagination', () => {
       }),
     });
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [touchedFile], confidence: 0.9 },
       ],
@@ -85,8 +85,8 @@ describe('MCP query and context bundle pagination', () => {
       sessionId: 'session-1',
     });
 
-    expect(queryLibrarianMock).toHaveBeenCalledTimes(1);
-    expect((queryLibrarianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles).toContain(touchedFile);
+    expect(queryLiBrainianMock).toHaveBeenCalledTimes(1);
+    expect((queryLiBrainianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles).toContain(touchedFile);
     expect(result.episodic_hints?.sessionId).toBe('session-1');
     expect(result.episodic_hints?.injectedFiles).toContain(touchedFile);
     expect(result.recency_weight_used).toBe(0.3);
@@ -95,7 +95,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('disables recency episodic boosting when recencyWeight is set to 0', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -130,7 +130,7 @@ describe('MCP query and context bundle pagination', () => {
       }),
     });
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [],
       disclosures: [],
       adequacy: undefined,
@@ -153,12 +153,12 @@ describe('MCP query and context bundle pagination', () => {
       recencyWeight: 0,
     });
 
-    const affected = (queryLibrarianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles ?? [];
+    const affected = (queryLiBrainianMock.mock.calls[0]?.[0] as { affectedFiles?: string[] }).affectedFiles ?? [];
     expect(affected).not.toContain(touchedFile);
   });
 
   it('decays recency boost toward zero for old episodic traces', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -193,7 +193,7 @@ describe('MCP query and context bundle pagination', () => {
       }),
     });
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [],
       disclosures: [],
       adequacy: undefined,
@@ -221,7 +221,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('persists query session episodes with touched files', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -238,7 +238,7 @@ describe('MCP query and context bundle pagination', () => {
       }),
     });
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [touchedFile], confidence: 0.85 },
       ],
@@ -273,7 +273,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('applies context_hints to query intent and affected file scope', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -284,7 +284,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [],
       disclosures: [],
       adequacy: undefined,
@@ -311,7 +311,7 @@ describe('MCP query and context bundle pagination', () => {
       },
     });
 
-    const queryArg = queryLibrarianMock.mock.calls[0]?.[0] as {
+    const queryArg = queryLiBrainianMock.mock.calls[0]?.[0] as {
       intent: string;
       affectedFiles?: string[];
     };
@@ -323,7 +323,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns clarification guidance when symbol references are ambiguous', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -349,7 +349,7 @@ describe('MCP query and context bundle pagination', () => {
       intent: 'what does config do in this repo?',
     });
 
-    expect(queryLibrarianMock).not.toHaveBeenCalled();
+    expect(queryLiBrainianMock).not.toHaveBeenCalled();
     expect(result.decomposition_strategy).toBe('ambiguity_clarify');
     expect(result.clarification_needed).toBe(true);
     expect(Array.isArray(result.candidate_symbols)).toBe(true);
@@ -358,7 +358,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('decomposes multi-hop queries into parallel retrieval branches and merges packs', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -369,7 +369,7 @@ describe('MCP query and context bundle pagination', () => {
       getFunctionsByName: vi.fn(async () => []),
     });
 
-    queryLibrarianMock
+    queryLiBrainianMock
       .mockResolvedValueOnce({
         packs: [
           { packId: 'auth-pack', packType: 'function_context', targetId: 'auth', summary: 'auth flow', keyFacts: [], relatedFiles: ['src/auth.ts'], confidence: 0.9 },
@@ -410,8 +410,8 @@ describe('MCP query and context bundle pagination', () => {
       intent: 'How does AuthService flow into BillingService?',
     });
 
-    expect(queryLibrarianMock).toHaveBeenCalledTimes(2);
-    const calledIntents = queryLibrarianMock.mock.calls.map((call) => String(call[0]?.intent ?? ''));
+    expect(queryLiBrainianMock).toHaveBeenCalledTimes(2);
+    const calledIntents = queryLiBrainianMock.mock.calls.map((call) => String(call[0]?.intent ?? ''));
     expect(new Set(calledIntents).size).toBe(2);
     expect(result.decomposition_strategy).toBe('multi_hop_parallel');
     expect(Array.isArray(result.sub_queries)).toBe(true);
@@ -422,7 +422,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('applies conformal alpha routing and exposes coverage guarantee metadata', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -441,7 +441,7 @@ describe('MCP query and context bundle pagination', () => {
       setState: vi.fn(async (key: string, value: string) => state.set(key, value)),
     });
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.8 },
       ],
@@ -465,7 +465,7 @@ describe('MCP query and context bundle pagination', () => {
       alpha: 0.1,
     });
 
-    const queryArg = queryLibrarianMock.mock.calls[0]?.[0] as { minConfidence?: number };
+    const queryArg = queryLiBrainianMock.mock.calls[0]?.[0] as { minConfidence?: number };
     expect(queryArg.minConfidence).toBeCloseTo(0.27, 4);
     expect(result.coverage_guarantee).toBe(0.9);
     expect(result.conformal_calibration?.source).toBe('state');
@@ -474,7 +474,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('paginates query packs and returns pagination metadata', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -483,7 +483,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.9 },
         { packId: 'p2', packType: 'module_context', targetId: 'b', summary: 'two', keyFacts: [], relatedFiles: [], confidence: 0.8 },
@@ -530,7 +530,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns near misses when explain_misses is enabled', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -539,7 +539,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: ['src/a.ts'], confidence: 0.9 },
         { packId: 'p2', packType: 'module_context', targetId: 'b', summary: 'two', keyFacts: [], relatedFiles: ['src/b.ts'], confidence: 0.8 },
@@ -577,7 +577,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns uncertainty diagnostics via librainian_get_uncertainty', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -597,7 +597,7 @@ describe('MCP query and context bundle pagination', () => {
       ]),
     });
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'auth', keyFacts: [], relatedFiles: ['src/auth.ts'], confidence: 0.42 },
       ],
@@ -634,11 +634,11 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('annotates stale context packs with freshness metadata and warning', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-freshness-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-freshness-'));
     const filePath = path.join(workspace, 'src', 'auth.ts');
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export const auth = true;\n', 'utf8');
@@ -647,7 +647,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         {
           packId: 'stale-pack',
@@ -688,19 +688,19 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('writes query page payload to outputFile and returns reference metadata', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
     const workspace = '/tmp/workspace';
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-query-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-query-'));
     const outputFile = path.join(tmpDir, 'query-page.json');
 
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.9 },
         { packId: 'p2', packType: 'module_context', targetId: 'b', summary: 'two', keyFacts: [], relatedFiles: [], confidence: 0.8 },
@@ -739,7 +739,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns chunked stream metadata when stream mode is enabled', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -748,7 +748,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.9 },
         { packId: 'p2', packType: 'module_context', targetId: 'b', summary: 'two', keyFacts: [], relatedFiles: [], confidence: 0.8 },
@@ -787,7 +787,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns partial payload with timedOut flag when query exceeds timeout budget', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
       performance: { maxConcurrent: 5, timeoutMs: 20, cacheEnabled: true },
     });
@@ -797,7 +797,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockImplementation(async () => {
+    queryLiBrainianMock.mockImplementation(async () => {
       await new Promise((resolve) => setTimeout(resolve, 60));
       return {
         packs: [
@@ -832,7 +832,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('sanitizes epistemic disclosures and traceId in query output', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -841,7 +841,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.9 },
       ],
@@ -876,7 +876,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns retrievalStatus even when query response omits it', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -885,7 +885,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'one', keyFacts: [], relatedFiles: [], confidence: 0.2 },
       ],
@@ -913,7 +913,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('detects futile repeated queries per session and escalates strategy', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -923,7 +923,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [],
       disclosures: [],
       adequacy: undefined,
@@ -948,7 +948,7 @@ describe('MCP query and context bundle pagination', () => {
     expect(second.loopDetection?.pattern).toBe('futile_repeat');
     expect(second.loop_detection?.detected).toBe(true);
     expect(third.loopDetection?.occurrences).toBeGreaterThanOrEqual(3);
-    expect(queryLibrarianMock).toHaveBeenNthCalledWith(
+    expect(queryLiBrainianMock).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         depth: 'L2',
@@ -963,7 +963,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('resets loop detection state with reset_session_state', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -973,7 +973,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [],
       disclosures: [],
       adequacy: undefined,
@@ -998,7 +998,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('adds human review recommendation when retrieval confidence is uncertain', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -1007,7 +1007,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'auth update', keyFacts: [], relatedFiles: [], confidence: 0.45 },
         { packId: 'p2', packType: 'function_context', targetId: 'b', summary: 'auth update alt', keyFacts: [], relatedFiles: [], confidence: 0.42 },
@@ -1039,7 +1039,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('omits human review recommendation fields when escalation is not required', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -1048,7 +1048,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'read docs flow', keyFacts: [], relatedFiles: ['src/docs.ts'], confidence: 0.93 },
       ],
@@ -1079,7 +1079,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('returns actionable fixes when workspace is not registered', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -1094,7 +1094,7 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.disclosures.join(' ')).not.toContain('unverified_by_trace');
     expect(result.fix).toEqual(
       expect.arrayContaining([
-        `Run \`librarian bootstrap --workspace ${missingWorkspace}\` to register and index this workspace.`,
+        `Run \`librainian bootstrap --workspace ${missingWorkspace}\` to register and index this workspace.`,
       ])
     );
     expect(result.epistemicsDebug.join(' ')).toContain('unverified_by_trace(workspace_unavailable)');
@@ -1102,7 +1102,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('paginates get_context_pack_bundle pack output', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -1142,7 +1142,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('supports configurable confidence tier thresholds', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
       confidenceUx: {
         thresholds: {
@@ -1159,7 +1159,7 @@ describe('MCP query and context bundle pagination', () => {
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
     (server as any).getOrCreateStorage = vi.fn().mockResolvedValue({});
 
-    queryLibrarianMock.mockResolvedValue({
+    queryLiBrainianMock.mockResolvedValue({
       packs: [
         { packId: 'p1', packType: 'function_context', targetId: 'a', summary: 'auth one', keyFacts: [], relatedFiles: ['src/a.ts'], confidence: 0.86 },
       ],
@@ -1187,7 +1187,7 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('uses token_budget estimator when enforcing get_context_pack_bundle maxTokens', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -1232,12 +1232,12 @@ describe('MCP query and context bundle pagination', () => {
   });
 
   it('writes get_context_pack_bundle page payload to outputFile', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
     const workspace = '/tmp/workspace';
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-bundle-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-bundle-'));
     const outputFile = path.join(tmpDir, 'bundle-page.json');
 
     server.registerWorkspace(workspace);

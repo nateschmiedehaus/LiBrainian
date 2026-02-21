@@ -1,20 +1,20 @@
 /**
  * @fileoverview Automatic Agent Integration Hooks
  *
- * Provides transparent Librarian integration for any AI agent (Claude Code, Codex, etc.)
- * Agents don't need to know about Librarian - context is automatically injected.
+ * Provides transparent LiBrainian integration for any AI agent (Claude Code, Codex, etc.)
+ * Agents don't need to know about LiBrainian - context is automatically injected.
  *
  * ARCHITECTURE NOTE: This module is a thin wrapper around the unified orchestrator
  * (../orchestrator/unified_init.ts). All core functionality is delegated to the
- * LibrarianSession interface. This layer provides:
+ * LiBrainianSession interface. This layer provides:
  * - Agent-friendly API surface (TaskContext, TaskOutcome types)
  * - Caching for repeated queries
  * - File change monitoring utilities
  * - Pre/post task hooks for lifecycle management
  *
  * DESIGN PRINCIPLES:
- * 1. Zero-config: Works automatically when Librarian is bootstrapped
- * 2. Non-blocking: Falls back gracefully if Librarian unavailable
+ * 1. Zero-config: Works automatically when LiBrainian is bootstrapped
+ * 2. Non-blocking: Falls back gracefully if LiBrainian unavailable
  * 3. Learning: Records outcomes to improve future context retrieval
  * 4. Transparent: Agents can use full API or simple helpers
  */
@@ -23,10 +23,10 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
-import type { LibrarianContext } from './wave0_integration.js';
-import { formatLibrarianContext } from './wave0_integration.js';
+import type { LiBrainianContext } from './wave0_integration.js';
+import { formatLiBrainianContext } from './wave0_integration.js';
 import { processAgentFeedback, type AgentFeedback } from './agent_feedback.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 import {
@@ -37,10 +37,10 @@ import {
   createFileModifiedEvent,
 } from '../events.js';
 import {
-  initializeLibrarian,
+  initializeLiBrainian,
   getSession,
   hasSession,
-  type LibrarianSession,
+  type LiBrainianSession,
   type Context,
 } from '../orchestrator/unified_init.js';
 
@@ -76,13 +76,13 @@ export interface TaskContext {
   /** Pre-formatted context string ready for prompt injection */
   formatted: string;
   /** Structured context data for programmatic access */
-  structured: LibrarianContext;
+  structured: LiBrainianContext;
   /** Pack IDs used (needed for outcome reporting) */
   packIds: string[];
   /** Overall confidence in the context (0-1) */
   confidence: number;
-  /** Whether Librarian was available */
-  librarianAvailable: boolean;
+  /** Whether LiBrainian was available */
+  librainianAvailable: boolean;
   /** Hints for agent on what to investigate further */
   drillDownHints: string[];
   /** Method hints for accomplishing the task */
@@ -115,7 +115,7 @@ export interface TaskOutcome {
 export interface AgentHookConfig {
   /** Workspace root (auto-detected if not provided) */
   workspace?: string;
-  /** Whether to automatically initialize Librarian */
+  /** Whether to automatically initialize LiBrainian */
   autoInitialize?: boolean;
   /** Timeout for initialization (ms) */
   initTimeoutMs?: number;
@@ -159,7 +159,7 @@ const CACHE_TTL_MS = 30_000; // 30 seconds
  * Get context for a task - THE MAIN API FOR AGENTS.
  *
  * Agents just call this with their intent and get back formatted context.
- * Librarian initialization is handled automatically.
+ * LiBrainian initialization is handled automatically.
  *
  * @example
  * ```typescript
@@ -199,9 +199,9 @@ export async function getTaskContext(
     void globalEventBus.emit(createTaskReceivedEvent(taskId, request.intent, request.affectedFiles));
   }
 
-  // Try to get Librarian context via unified_init
+  // Try to get LiBrainian context via unified_init
   try {
-    let session: LibrarianSession;
+    let session: LiBrainianSession;
 
     // Check if session already exists
     if (hasSession(workspace)) {
@@ -211,20 +211,20 @@ export async function getTaskContext(
         logInfo('[agent_hooks] Using existing session', { workspace });
       } else {
         // Shouldn't happen, but handle gracefully
-        session = await initializeLibrarian(workspace, {
+        session = await initializeLiBrainian(workspace, {
           silent: true,
           bootstrapTimeoutMs: config.initTimeoutMs ?? 60_000,
         });
       }
     } else if (config.autoInitialize !== false) {
       // Initialize new session
-      session = await initializeLibrarian(workspace, {
+      session = await initializeLiBrainian(workspace, {
         silent: true,
         bootstrapTimeoutMs: config.initTimeoutMs ?? 60_000,
       });
     } else {
       // Auto-initialize disabled and no existing session
-      return createFallbackContext(taskId, request, 'Librarian not initialized');
+      return createFallbackContext(taskId, request, 'LiBrainian not initialized');
     }
 
     // Query the session for context
@@ -234,8 +234,8 @@ export async function getTaskContext(
       waitForIndexMs: request.waitForIndexMs,
     });
 
-    // Convert Context to LibrarianContext for structured field
-    const librarianContext: LibrarianContext = {
+    // Convert Context to LiBrainianContext for structured field
+    const librainianContext: LiBrainianContext = {
       intent: request.intent,
       taskType: request.taskType,
       summary: sessionContext.summary,
@@ -252,15 +252,15 @@ export async function getTaskContext(
     };
 
     // Format for prompt injection
-    const formatted = formatLibrarianContext(librarianContext);
+    const formatted = formatLiBrainianContext(librainianContext);
 
     const context: TaskContext = {
       taskId,
       formatted,
-      structured: librarianContext,
+      structured: librainianContext,
       packIds: sessionContext.packIds,
       confidence: sessionContext.confidence,
-      librarianAvailable: true,
+      librainianAvailable: true,
       drillDownHints: sessionContext.drillDownHints,
       methodHints: sessionContext.methodHints,
     };
@@ -304,7 +304,7 @@ export async function getContext(
 /**
  * Report task outcome for learning loop.
  *
- * Agents should call this after completing a task to help Librarian
+ * Agents should call this after completing a task to help LiBrainian
  * learn which context was useful.
  */
 export async function reportTaskOutcome(
@@ -342,7 +342,7 @@ export async function reportTaskOutcome(
     // If context usefulness was provided, submit detailed feedback
     if (outcome.contextUsefulness !== undefined || outcome.missingContext) {
       const sessionForFeedback = getSession(workspace);
-      const storage = sessionForFeedback?.librarian?.getStorage?.();
+      const storage = sessionForFeedback?.librainian?.getStorage?.();
       if (storage) {
         await submitDetailedFeedback(taskId, packIds, outcome, storage, config.agentId);
       }
@@ -615,10 +615,10 @@ export function createAgentHooks(config: AgentHookConfig = {}): {
 // ============================================================================
 
 /**
- * Check if Librarian is available for the current workspace.
- * Agents can use this to decide whether to use Librarian or fall back.
+ * Check if LiBrainian is available for the current workspace.
+ * Agents can use this to decide whether to use LiBrainian or fall back.
  */
-export async function isLibrarianAvailable(workspace?: string): Promise<boolean> {
+export async function isLiBrainianAvailable(workspace?: string): Promise<boolean> {
   try {
     const resolved = await resolveWorkspace(workspace);
     return hasSession(resolved);
@@ -646,17 +646,17 @@ export async function detectWorkspace(): Promise<string | null> {
 
   const cwd = process.cwd();
 
-  // If `.librarian/` exists in the current directory, treat it as the workspace
+  // If `.librainian/` exists in the current directory, treat it as the workspace
   // even if the directory lacks other "project root" markers.
   try {
-    const stats = await fs.stat(path.join(cwd, '.librarian'));
+    const stats = await fs.stat(path.join(cwd, '.librainian'));
     if (stats.isDirectory()) return cwd;
   } catch {
     // continue
   }
 
   // Scope detection to a real project root so we don't "snap" to an unrelated
-  // `.librarian/` directory elsewhere on the machine (common when users
+  // `.librainian/` directory elsewhere on the machine (common when users
   // accidentally index their home directory once).
   const projectMarkers = [
     '.git',
@@ -724,10 +724,10 @@ export async function detectWorkspace(): Promise<string | null> {
 
   if (!projectRoot) return null;
 
-  // Walk from cwd up to projectRoot (inclusive) looking for `.librarian/`.
+  // Walk from cwd up to projectRoot (inclusive) looking for `.librainian/`.
   let dir = cwd;
   while (true) {
-    const libDir = path.join(dir, '.librarian');
+    const libDir = path.join(dir, '.librainian');
     try {
       const stats = await fs.stat(libDir);
       if (stats.isDirectory()) return dir;
@@ -784,7 +784,7 @@ function createFallbackContext(
     },
     packIds: [],
     confidence: 0,
-    librarianAvailable: false,
+    librainianAvailable: false,
     drillDownHints: [],
     methodHints: [],
   };
@@ -826,7 +826,7 @@ async function submitDetailedFeedback(
   taskId: string,
   packIds: string[],
   outcome: Omit<TaskOutcome, 'taskId'>,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   agentId?: string
 ): Promise<void> {
   // Create relevance ratings based on context usefulness
@@ -857,6 +857,6 @@ async function submitDetailedFeedback(
 // ============================================================================
 
 export {
-  type LibrarianContext,
+  type LiBrainianContext,
   type AgentFeedback,
 };

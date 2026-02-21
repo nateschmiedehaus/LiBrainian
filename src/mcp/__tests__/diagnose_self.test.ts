@@ -1,27 +1,27 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 describe('MCP diagnose self tool', () => {
   it('returns diagnosis for workspace', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
       },
     });
 
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-diagnose-self-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-diagnose-self-'));
     const diagnosis = { status: 'ok', issues: [] };
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       diagnoseSelf: vi.fn().mockResolvedValue(diagnosis),
     };
 
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
-      librarian: mockLibrarian,
+      librainian: mockLiBrainian,
       indexState: 'ready',
     });
 

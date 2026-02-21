@@ -27,15 +27,15 @@ import {
 
 const TEST_SYMBOLS: SymbolEntry[] = [
   {
-    name: 'SqliteLibrarianStorage',
+    name: 'SqliteLiBrainianStorage',
     kind: 'class',
     file: 'src/storage/sqlite_storage.ts',
     line: 225,
     endLine: 2500,
     exported: true,
-    signature: 'class SqliteLibrarianStorage implements LibrarianStorage',
-    description: 'SQLite storage implementation for Librarian',
-    qualifiedName: 'storage/sqlite_storage:SqliteLibrarianStorage',
+    signature: 'class SqliteLiBrainianStorage implements LiBrainianStorage',
+    description: 'SQLite storage implementation for LiBrainian',
+    qualifiedName: 'storage/sqlite_storage:SqliteLiBrainianStorage',
   },
   {
     name: 'bootstrapProject',
@@ -45,19 +45,19 @@ const TEST_SYMBOLS: SymbolEntry[] = [
     endLine: 1200,
     exported: true,
     signature: 'function bootstrapProject(workspace: string, options?: BootstrapOptions): Promise<BootstrapResult>',
-    description: 'Bootstrap a project for librarian indexing',
+    description: 'Bootstrap a project for librainian indexing',
     qualifiedName: 'api/bootstrap:bootstrapProject',
   },
   {
-    name: 'LibrarianStorage',
+    name: 'LiBrainianStorage',
     kind: 'interface',
     file: 'src/storage/types.ts',
     line: 61,
     endLine: 350,
     exported: true,
-    signature: 'interface LibrarianStorage',
-    description: 'Abstract storage interface for librarian data',
-    qualifiedName: 'storage/types:LibrarianStorage',
+    signature: 'interface LiBrainianStorage',
+    description: 'Abstract storage interface for librainian data',
+    qualifiedName: 'storage/types:LiBrainianStorage',
   },
   {
     name: 'SymbolKind',
@@ -75,7 +75,7 @@ const TEST_SYMBOLS: SymbolEntry[] = [
     line: 15,
     exported: true,
     signature: 'LIBRARIAN_VERSION: string',
-    description: 'Current librarian version',
+    description: 'Current librainian version',
     qualifiedName: 'index:LIBRARIAN_VERSION',
   },
   {
@@ -88,13 +88,13 @@ const TEST_SYMBOLS: SymbolEntry[] = [
     qualifiedName: 'types:GraphEntityType',
   },
   {
-    name: 'createLibrarian',
+    name: 'createLiBrainian',
     kind: 'function',
-    file: 'src/api/librarian.ts',
+    file: 'src/api/librainian.ts',
     line: 50,
     exported: true,
-    signature: 'function createLibrarian(storage: LibrarianStorage): Librarian',
-    qualifiedName: 'api/librarian:createLibrarian',
+    signature: 'function createLiBrainian(storage: LiBrainianStorage): LiBrainian',
+    qualifiedName: 'api/librainian:createLiBrainian',
   },
   {
     name: 'createStorage',
@@ -102,7 +102,7 @@ const TEST_SYMBOLS: SymbolEntry[] = [
     file: 'src/storage/index.ts',
     line: 20,
     exported: true,
-    signature: 'function createStorage(path: string): LibrarianStorage',
+    signature: 'function createStorage(path: string): LiBrainianStorage',
     qualifiedName: 'storage/index:createStorage',
   },
 ];
@@ -121,9 +121,9 @@ describe('SymbolTable', () => {
 
   describe('findByExactName', () => {
     it('should find symbol by exact name', () => {
-      const results = table.findByExactName('SqliteLibrarianStorage');
+      const results = table.findByExactName('SqliteLiBrainianStorage');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('SqliteLibrarianStorage');
+      expect(results[0].name).toBe('SqliteLiBrainianStorage');
       expect(results[0].kind).toBe('class');
       expect(results[0].line).toBe(225);
     });
@@ -134,16 +134,16 @@ describe('SymbolTable', () => {
     });
 
     it('should be case-sensitive', () => {
-      const results = table.findByExactName('sqlitelibrariantstorage');
+      const results = table.findByExactName('sqlitelibrainiantstorage');
       expect(results).toHaveLength(0);
     });
   });
 
   describe('findByExactNameIgnoreCase', () => {
     it('should find symbol case-insensitively', () => {
-      const results = table.findByExactNameIgnoreCase('sqlitelibrarianStorage');
+      const results = table.findByExactNameIgnoreCase('sqlitelibrainianStorage');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('SqliteLibrarianStorage');
+      expect(results[0].name).toBe('SqliteLiBrainianStorage');
     });
 
     it('should find symbol with uppercase query', () => {
@@ -156,13 +156,13 @@ describe('SymbolTable', () => {
 
   describe('findByExactNameAndKind', () => {
     it('should find symbol by name and kind', () => {
-      const results = table.findByExactNameAndKind('SqliteLibrarianStorage', 'class');
+      const results = table.findByExactNameAndKind('SqliteLiBrainianStorage', 'class');
       expect(results).toHaveLength(1);
       expect(results[0].kind).toBe('class');
     });
 
     it('should not find symbol with wrong kind', () => {
-      const results = table.findByExactNameAndKind('SqliteLibrarianStorage', 'function');
+      const results = table.findByExactNameAndKind('SqliteLiBrainianStorage', 'function');
       expect(results).toHaveLength(0);
     });
 
@@ -177,8 +177,8 @@ describe('SymbolTable', () => {
     it('should find symbols containing partial name', () => {
       const results = table.findByFuzzyName('Storage');
       expect(results.length).toBeGreaterThan(0);
-      expect(results.some((s) => s.name === 'SqliteLibrarianStorage')).toBe(true);
-      expect(results.some((s) => s.name === 'LibrarianStorage')).toBe(true);
+      expect(results.some((s) => s.name === 'SqliteLiBrainianStorage')).toBe(true);
+      expect(results.some((s) => s.name === 'LiBrainianStorage')).toBe(true);
     });
 
     it('should prioritize exact matches', () => {
@@ -188,7 +188,7 @@ describe('SymbolTable', () => {
 
     it('should find partial matches', () => {
       const results = table.findByFuzzyName('create');
-      expect(results.some((s) => s.name === 'createLibrarian')).toBe(true);
+      expect(results.some((s) => s.name === 'createLiBrainian')).toBe(true);
       expect(results.some((s) => s.name === 'createStorage')).toBe(true);
     });
   });
@@ -197,7 +197,7 @@ describe('SymbolTable', () => {
     it('should find fuzzy matches of specific kind', () => {
       const results = table.findByFuzzyNameAndKind('Storage', 'interface');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('LibrarianStorage');
+      expect(results[0].name).toBe('LiBrainianStorage');
     });
 
     it('should find functions by partial name', () => {
@@ -211,7 +211,7 @@ describe('SymbolTable', () => {
     it('should find all symbols in a file', () => {
       const results = table.findByFile('src/storage/types.ts');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('LibrarianStorage');
+      expect(results[0].name).toBe('LiBrainianStorage');
     });
 
     it('should return empty for file with no symbols', () => {
@@ -224,7 +224,7 @@ describe('SymbolTable', () => {
     it('should find all classes', () => {
       const results = table.findByKind('class');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('SqliteLibrarianStorage');
+      expect(results[0].name).toBe('SqliteLiBrainianStorage');
     });
 
     it('should find all functions', () => {
@@ -236,7 +236,7 @@ describe('SymbolTable', () => {
     it('should find all interfaces', () => {
       const results = table.findByKind('interface');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('LibrarianStorage');
+      expect(results[0].name).toBe('LiBrainianStorage');
     });
   });
 
@@ -261,7 +261,7 @@ describe('SymbolTable', () => {
   describe('lookup', () => {
     it('should return high confidence for exact match', () => {
       const result = table.lookup({
-        symbolName: 'SqliteLibrarianStorage',
+        symbolName: 'SqliteLiBrainianStorage',
         isDefinitionQuery: true,
       });
 
@@ -319,9 +319,9 @@ describe('SymbolTable', () => {
 
 describe('parseSymbolQuery', () => {
   it('should parse "X class" pattern', () => {
-    const result = parseSymbolQuery('SqliteLibrarianStorage class');
+    const result = parseSymbolQuery('SqliteLiBrainianStorage class');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
     expect(result!.expectedKind).toBe('class');
   });
 
@@ -333,9 +333,9 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should parse "X interface" pattern', () => {
-    const result = parseSymbolQuery('LibrarianStorage interface');
+    const result = parseSymbolQuery('LiBrainianStorage interface');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('LibrarianStorage');
+    expect(result!.symbolName).toBe('LiBrainianStorage');
     expect(result!.expectedKind).toBe('interface');
   });
 
@@ -347,16 +347,16 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should parse "class X" pattern', () => {
-    const result = parseSymbolQuery('class SqliteLibrarianStorage');
+    const result = parseSymbolQuery('class SqliteLiBrainianStorage');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
     expect(result!.expectedKind).toBe('class');
   });
 
   it('should parse "the X class" pattern', () => {
-    const result = parseSymbolQuery('the SqliteLibrarianStorage class');
+    const result = parseSymbolQuery('the SqliteLiBrainianStorage class');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
     expect(result!.expectedKind).toBe('class');
   });
 
@@ -368,9 +368,9 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should parse bare symbol name', () => {
-    const result = parseSymbolQuery('SqliteLibrarianStorage');
+    const result = parseSymbolQuery('SqliteLiBrainianStorage');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
     expect(result!.expectedKind).toBeUndefined();
   });
 
@@ -380,17 +380,17 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should parse "find X" pattern', () => {
-    const result = parseSymbolQuery('find SqliteLibrarianStorage');
+    const result = parseSymbolQuery('find SqliteLiBrainianStorage');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
   });
 
   it('should parse "find the X class" pattern', () => {
     // Note: the current pattern only matches "find X class" or "find the X"
     // "find the X class" requires a more complex pattern
-    const result = parseSymbolQuery('find SqliteLibrarianStorage class');
+    const result = parseSymbolQuery('find SqliteLiBrainianStorage class');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
     expect(result!.expectedKind).toBe('class');
   });
 
@@ -405,7 +405,7 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should handle case insensitivity', () => {
-    const result = parseSymbolQuery('SqliteLibrarianStorage CLASS');
+    const result = parseSymbolQuery('SqliteLiBrainianStorage CLASS');
     expect(result).not.toBeNull();
     expect(result!.expectedKind).toBe('class');
   });
@@ -419,9 +419,9 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should parse "interface definitions for X" pattern', () => {
-    const result = parseSymbolQuery('interface definitions for LibrarianStorage');
+    const result = parseSymbolQuery('interface definitions for LiBrainianStorage');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('LibrarianStorage');
+    expect(result!.symbolName).toBe('LiBrainianStorage');
     expect(result!.isDefinitionQuery).toBe(true);
   });
 
@@ -440,9 +440,9 @@ describe('parseSymbolQuery', () => {
   });
 
   it('should parse "definition of X" pattern', () => {
-    const result = parseSymbolQuery('definition of LibrarianStorage');
+    const result = parseSymbolQuery('definition of LiBrainianStorage');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('LibrarianStorage');
+    expect(result!.symbolName).toBe('LiBrainianStorage');
     expect(result!.isDefinitionQuery).toBe(true);
   });
 
@@ -460,9 +460,9 @@ describe('parseSymbolQuery', () => {
 
 describe('detectSymbolQuery', () => {
   it('should detect symbol query for class lookup', () => {
-    const result = detectSymbolQuery('SqliteLibrarianStorage class');
+    const result = detectSymbolQuery('SqliteLiBrainianStorage class');
     expect(result).not.toBeNull();
-    expect(result!.symbolName).toBe('SqliteLibrarianStorage');
+    expect(result!.symbolName).toBe('SqliteLiBrainianStorage');
   });
 
   it('should detect symbol query for function lookup', () => {
@@ -487,12 +487,12 @@ describe('detectSymbolQuery', () => {
 describe('symbolToContextPack', () => {
   it('should create context pack from symbol', () => {
     const symbol: SymbolEntry = {
-      name: 'SqliteLibrarianStorage',
+      name: 'SqliteLiBrainianStorage',
       kind: 'class',
       file: 'src/storage/sqlite_storage.ts',
       line: 225,
       exported: true,
-      signature: 'class SqliteLibrarianStorage implements LibrarianStorage',
+      signature: 'class SqliteLiBrainianStorage implements LiBrainianStorage',
     };
 
     const pack = symbolToContextPack(symbol, 0.99);
@@ -502,7 +502,7 @@ describe('symbolToContextPack', () => {
     expect(pack.filePath).toBe('src/storage/sqlite_storage.ts');
     expect(pack.line).toBe(225);
     expect(pack.kind).toBe('class');
-    expect(pack.summary).toContain('SqliteLibrarianStorage');
+    expect(pack.summary).toContain('SqliteLiBrainianStorage');
     expect(pack.keyFacts).toContain('Kind: class');
     expect(pack.keyFacts).toContain('Line: 225');
   });
@@ -547,8 +547,8 @@ describe('Symbol Lookup Integration', () => {
     table.addSymbols(TEST_SYMBOLS);
   });
 
-  it('should find SqliteLibrarianStorage class at line 225', () => {
-    const query = parseSymbolQuery('SqliteLibrarianStorage class');
+  it('should find SqliteLiBrainianStorage class at line 225', () => {
+    const query = parseSymbolQuery('SqliteLiBrainianStorage class');
     expect(query).not.toBeNull();
 
     const result = table.lookup(query!);
@@ -569,8 +569,8 @@ describe('Symbol Lookup Integration', () => {
     expect(result.symbols[0].line).toBe(821);
   });
 
-  it('should find LibrarianStorage interface', () => {
-    const query = parseSymbolQuery('LibrarianStorage interface');
+  it('should find LiBrainianStorage interface', () => {
+    const query = parseSymbolQuery('LiBrainianStorage interface');
     expect(query).not.toBeNull();
 
     const result = table.lookup(query!);

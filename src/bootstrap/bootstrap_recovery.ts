@@ -33,10 +33,10 @@ export function planBootstrapRecovery(input: BootstrapRecoveryInput): BootstrapR
   }
 
   if (/include patterns match(ed)? no files/i.test(message)) {
-    if (input.scope === 'librarian') {
+    if (input.scope === 'librainian') {
       return {
         scopeOverride: 'full',
-        reason: 'Scope "librarian" matched no files; retrying with full scope',
+        reason: 'Scope "librainian" matched no files; retrying with full scope',
       };
     }
     return {

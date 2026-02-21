@@ -1,17 +1,17 @@
 /**
  * @fileoverview Self-Index Validator (WU-META-002)
  *
- * Validates the quality of Librarian's self-index by querying the index
- * with known questions about Librarian's own codebase and verifying that
+ * Validates the quality of LiBrainian's self-index by querying the index
+ * with known questions about LiBrainian's own codebase and verifying that
  * results are accurate, relevant, and provide good coverage.
  *
- * This is a key primitive for the meta-epistemic loop: Librarian must be
+ * This is a key primitive for the meta-epistemic loop: LiBrainian must be
  * able to verify that its knowledge about itself is accurate.
  *
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { QueryInterface, SearchResult } from '../../api/query_interface.js';
 
 // ============================================================================
@@ -93,7 +93,7 @@ export interface ValidationReport {
  */
 export interface SelfIndexValidatorOptions {
   /** Storage instance to use */
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
   /** Query interface to use (alternative to storage) */
   queryInterface?: QueryInterface;
   /** Minimum relevance score to consider a query passed (default: 0.5) */
@@ -107,8 +107,8 @@ export interface SelfIndexValidatorOptions {
 // ============================================================================
 
 /**
- * Default validation queries that cover key Librarian components.
- * These queries test the self-index's knowledge of Librarian's own codebase.
+ * Default validation queries that cover key LiBrainian components.
+ * These queries test the self-index's knowledge of LiBrainian's own codebase.
  */
 export const DEFAULT_VALIDATION_QUERIES: QuerySpec[] = [
   // Epistemics - Confidence
@@ -148,7 +148,7 @@ export const DEFAULT_VALIDATION_QUERIES: QuerySpec[] = [
   },
   // Storage
   {
-    query: 'How does Librarian storage work?',
+    query: 'How does LiBrainian storage work?',
     expectedFiles: ['src/storage/'],
     expectedConcepts: ['function', 'module', 'context', 'pack'],
     category: 'storage',
@@ -167,10 +167,10 @@ export const DEFAULT_VALIDATION_QUERIES: QuerySpec[] = [
     expectedConcepts: ['intent', 'search', 'similar'],
     category: 'api',
   },
-  // Index Librarian
+  // Index LiBrainian
   {
-    query: 'What does IndexLibrarian do?',
-    expectedFiles: ['src/agents/index_librarian.ts'],
+    query: 'What does IndexLiBrainian do?',
+    expectedFiles: ['src/agents/index_librainian.ts'],
     expectedConcepts: ['index', 'file', 'function', 'symbol'],
     category: 'agents',
   },
@@ -223,7 +223,7 @@ export const DEFAULT_VALIDATION_QUERIES: QuerySpec[] = [
 // ============================================================================
 
 /**
- * Validates the quality of Librarian's self-index.
+ * Validates the quality of LiBrainian's self-index.
  *
  * This class provides methods to:
  * - Validate individual queries against expected results
@@ -240,7 +240,7 @@ export const DEFAULT_VALIDATION_QUERIES: QuerySpec[] = [
  */
 export class SelfIndexValidator {
   private queryInterface: QueryInterface | null;
-  private storage: LibrarianStorage | null;
+  private storage: LiBrainianStorage | null;
   private passThreshold: number;
   private verbose: boolean;
 
@@ -425,7 +425,7 @@ export class SelfIndexValidator {
   /**
    * Set the storage (for dependency injection).
    */
-  setStorage(storage: LibrarianStorage): void {
+  setStorage(storage: LiBrainianStorage): void {
     this.storage = storage;
   }
 
@@ -439,7 +439,7 @@ export class SelfIndexValidator {
     }
 
     // Fallback: create a mock result if no query interface
-    // This allows the validator to be tested without a full Librarian instance
+    // This allows the validator to be tested without a full LiBrainian instance
     return [];
   }
 

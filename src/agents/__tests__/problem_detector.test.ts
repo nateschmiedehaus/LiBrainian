@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createProblemDetector } from '../problem_detector.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { ProblemDetectionInput, CommandRunner, CommandResult } from '../types.js';
 
 describe('ProblemDetector', () => {
   it('returns structured problems for stub inputs', async () => {
     const detector = createProblemDetector();
-    await detector.initialize({} as LibrarianStorage);
+    await detector.initialize({} as LiBrainianStorage);
 
     const input: ProblemDetectionInput = {
       testRuns: [
@@ -75,7 +75,7 @@ describe('ProblemDetector', () => {
   describe('CommandRunner integration', () => {
     it('invokes CommandRunner when testRuns result is missing', async () => {
       const detector = createProblemDetector();
-      await detector.initialize({} as LibrarianStorage);
+      await detector.initialize({} as LiBrainianStorage);
 
       const mockResult: CommandResult = {
         command: 'npm test -- --run',
@@ -110,7 +110,7 @@ describe('ProblemDetector', () => {
 
     it('does not invoke CommandRunner when result is provided', async () => {
       const detector = createProblemDetector();
-      await detector.initialize({} as LibrarianStorage);
+      await detector.initialize({} as LiBrainianStorage);
 
       const mockCommandRunner: CommandRunner = vi.fn();
       detector.setCommandRunner(mockCommandRunner);
@@ -139,7 +139,7 @@ describe('ProblemDetector', () => {
 
     it('handles multiple test runs with mixed results', async () => {
       const detector = createProblemDetector();
-      await detector.initialize({} as LibrarianStorage);
+      await detector.initialize({} as LiBrainianStorage);
 
       const mockCommandRunner: CommandRunner = vi.fn().mockResolvedValue({
         command: 'npx tsc --noEmit',
@@ -178,7 +178,7 @@ describe('ProblemDetector', () => {
 
     it('handles CommandRunner errors gracefully', async () => {
       const detector = createProblemDetector();
-      await detector.initialize({} as LibrarianStorage);
+      await detector.initialize({} as LiBrainianStorage);
 
       const mockCommandRunner: CommandRunner = vi.fn().mockRejectedValue(
         new Error('Command execution failed: timeout')
@@ -205,7 +205,7 @@ describe('ProblemDetector', () => {
 
     it('skips test checks without CommandRunner when results are missing', async () => {
       const detector = createProblemDetector();
-      await detector.initialize({} as LibrarianStorage);
+      await detector.initialize({} as LiBrainianStorage);
       // Note: no CommandRunner set
 
       const input: ProblemDetectionInput = {

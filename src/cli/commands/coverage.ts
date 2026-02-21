@@ -66,7 +66,7 @@ type CoverageReport = {
   entries: CoverageEntry[];
 };
 
-const DEFAULT_OUTPUT = path.join('state', 'audits', 'librarian', 'coverage', 'uc_method_scenario_matrix.json');
+const DEFAULT_OUTPUT = path.join('state', 'audits', 'librainian', 'coverage', 'uc_method_scenario_matrix.json');
 
 export async function coverageCommand(options: CoverageCommandOptions): Promise<void> {
   const { workspace, args } = options;
@@ -85,8 +85,8 @@ export async function coverageCommand(options: CoverageCommandOptions): Promise<
   const workspaceRoot = path.resolve(workspace);
   const outputPath = path.resolve(workspaceRoot, values.output as string || DEFAULT_OUTPUT);
 
-  const ucIds = await readUcIds(path.join(workspaceRoot, 'docs', 'librarian', 'USE_CASE_MATRIX.md'));
-  const scenarioIds = await readScenarioIds(path.join(workspaceRoot, 'docs', 'librarian', 'scenarios.md'));
+  const ucIds = await readUcIds(path.join(workspaceRoot, 'docs', 'librainian', 'USE_CASE_MATRIX.md'));
+  const scenarioIds = await readScenarioIds(path.join(workspaceRoot, 'docs', 'librainian', 'scenarios.md'));
 
   if (ucIds.length === 0) {
     throw createError('VALIDATION_FAILED', 'No UC IDs found in USE_CASE_MATRIX.md');
@@ -115,7 +115,7 @@ export async function coverageCommand(options: CoverageCommandOptions): Promise<
         evidence: {
           source: 'none',
           reason:
-            'No method family mapping for this UC. Fix: update use-case method mappings, then re-run `librarian coverage --strict`.',
+            'No method family mapping for this UC. Fix: update use-case method mappings, then re-run `librainian coverage --strict`.',
         },
       };
       entries.push(entry);
@@ -231,7 +231,7 @@ export async function coverageCommand(options: CoverageCommandOptions): Promise<
  */
 async function loadMethodPackEvidence(workspace: string): Promise<Map<string, { timestamp: string; families: string[] }>> {
   const evidence = new Map<string, { timestamp: string; families: string[] }>();
-  const cachePath = path.join(workspace, '.librarian', 'method_pack_cache.json');
+  const cachePath = path.join(workspace, '.librainian', 'method_pack_cache.json');
 
   try {
     const raw = await fs.readFile(cachePath, 'utf8');
@@ -261,7 +261,7 @@ async function loadMethodPackEvidence(workspace: string): Promise<Map<string, { 
  */
 async function loadTestEvidence(workspace: string): Promise<Map<string, { timestamp: string; testFile: string }>> {
   const evidence = new Map<string, { timestamp: string; testFile: string }>();
-  const testDir = path.join(workspace, 'src', 'librarian', '__tests__');
+  const testDir = path.join(workspace, 'src', 'librainian', '__tests__');
 
   try {
     const files = await fs.readdir(testDir);
@@ -341,7 +341,7 @@ function collectEvidence(
   return {
     source: 'none',
     reason:
-      'No evidence found for this combination. Fix: run relevant tests and regenerate method-pack evidence before re-running `librarian coverage --strict`.',
+      'No evidence found for this combination. Fix: run relevant tests and regenerate method-pack evidence before re-running `librainian coverage --strict`.',
   };
 }
 

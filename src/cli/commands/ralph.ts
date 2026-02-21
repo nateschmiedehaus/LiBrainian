@@ -1,10 +1,10 @@
 /**
  * @fileoverview Ralph Wiggum Loop
  *
- * A pragmatic DETECT -> FIX -> VERIFY loop for getting Librarian into
+ * A pragmatic DETECT -> FIX -> VERIFY loop for getting LiBrainian into
  * operational shape, with an evidence audit artifact written to disk.
  *
- * Usage: librarian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]
+ * Usage: librainian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]
  */
 
 import * as fs from 'node:fs';
@@ -14,7 +14,7 @@ import { resolveDbPath } from '../db_path.js';
 import { runOnboardingRecovery, type OnboardingRecoveryResult } from '../../api/onboarding_recovery.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import { generateStateReport, type LibrarianStateReport } from '../../measurement/observability.js';
+import { generateStateReport, type LiBrainianStateReport } from '../../measurement/observability.js';
 import type { FitnessReport, EvaluationContext, Variant } from '../../evolution/index.js';
 import { doctorCommand, type DoctorReport } from './doctor.js';
 import { externalReposCommand } from './external_repos.js';
@@ -54,7 +54,7 @@ export interface RalphLoopReportV1 {
     doctor?: DoctorReport;
     externalRepos?: unknown;
     recovery: OnboardingRecoveryResult;
-    stateAfter: LibrarianStateReport | null;
+    stateAfter: LiBrainianStateReport | null;
     fitnessReport?: FitnessReport;
     verdict: 'healthy' | 'degraded' | 'failed';
     nextActions: string[];
@@ -111,7 +111,7 @@ export async function ralphCommand(options: RalphCommandOptions): Promise<void> 
   const invokedAs = (rawArgs[0] ?? 'repair').toLowerCase();
 
   if (invokedAs === 'ralph' && !json) {
-    console.warn('[deprecated] `librarian ralph` is deprecated. Use `librarian repair`.');
+    console.warn('[deprecated] `librainian ralph` is deprecated. Use `librainian repair`.');
   }
 
   const providerStatus = await checkAllProviders({ workspaceRoot: workspace });
@@ -219,7 +219,7 @@ export async function ralphCommand(options: RalphCommandOptions): Promise<void> 
   if (json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log('\n=== Librarian Repair Loop ===\n');
+    console.log('\n=== LiBrainian Repair Loop ===\n');
     console.log(`Workspace: ${workspace}`);
     console.log(`Mode: ${mode}`);
     console.log(`Cycles: ${report.cyclesRun}/${resolvedMaxCycles}`);
@@ -253,7 +253,7 @@ export async function ralphCommand(options: RalphCommandOptions): Promise<void> 
   }
 }
 
-async function loadStateReport(options: { workspace: string; dbPath: string }): Promise<LibrarianStateReport | null> {
+async function loadStateReport(options: { workspace: string; dbPath: string }): Promise<LiBrainianStateReport | null> {
   const { workspace, dbPath } = options;
   const storage = createSqliteStorage(dbPath, workspace);
   try {
@@ -329,7 +329,7 @@ async function runEvaluation(options: {
 function computeVerdict(options: {
   objective: RalphObjective;
   recovery: OnboardingRecoveryResult;
-  stateAfter: LibrarianStateReport | null;
+  stateAfter: LiBrainianStateReport | null;
   fitnessReport?: FitnessReport;
 }): 'healthy' | 'degraded' | 'failed' {
   const { objective, recovery, stateAfter, fitnessReport } = options;
@@ -359,19 +359,19 @@ function computeNextActions(options: {
   mode: RalphMode;
   objective: RalphObjective;
   recovery: OnboardingRecoveryResult;
-  stateAfter: LibrarianStateReport | null;
+  stateAfter: LiBrainianStateReport | null;
   fitnessReport?: FitnessReport;
 }): string[] {
   const { mode, objective, recovery, stateAfter, fitnessReport } = options;
   const actions: string[] = [];
 
   if (recovery.errors.length > 0) {
-    actions.push('Run `librarian doctor --json` and inspect recovery errors');
+    actions.push('Run `librainian doctor --json` and inspect recovery errors');
   }
 
   const bootstrap = recovery.bootstrap;
   if (bootstrap && bootstrap.attempted && !bootstrap.success) {
-    actions.push('Run `librarian bootstrap --force`');
+    actions.push('Run `librainian bootstrap --force`');
   }
 
   if (bootstrap?.report?.warnings && bootstrap.report.warnings.length > 0) {
@@ -379,19 +379,19 @@ function computeNextActions(options: {
   }
 
   if (stateAfter && stateAfter.health.status !== 'healthy') {
-    actions.push('Run `librarian doctor --heal --risk-tolerance safe`');
-    actions.push('Run `librarian watch` to keep index fresh');
+    actions.push('Run `librainian doctor --heal --risk-tolerance safe`');
+    actions.push('Run `librainian watch` to keep index fresh');
   }
 
   if (mode === 'full' && fitnessReport && fitnessReport.fitness.overall < 0.7) {
-    actions.push('Run `librarian eval --save-baseline` and inspect stage failures');
-    actions.push('Run `librarian evolve --cycles 3 --candidates 4` (when providers available)');
+    actions.push('Run `librainian eval --save-baseline` and inspect stage failures');
+    actions.push('Run `librainian evolve --cycles 3 --candidates 4` (when providers available)');
   }
 
   if (objective === 'worldclass' && fitnessReport) {
     const strictFailures = getWorldclassStrictFailures(fitnessReport);
     if (strictFailures.length > 0) {
-      actions.push('Run `librarian eval --stages 0-4 --save-baseline` and resolve strict worldclass gate failures');
+      actions.push('Run `librainian eval --stages 0-4 --save-baseline` and resolve strict worldclass gate failures');
       actions.push(`Resolve strict failures: ${strictFailures.join('; ')}`);
     }
   }

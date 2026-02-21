@@ -3,18 +3,18 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createSqliteStorage } from '../sqlite_storage.js';
-import type { LibrarianStorage } from '../types.js';
+import type { LiBrainianStorage } from '../types.js';
 import type { EvidenceEntry } from '../../api/evidence.js';
 
 describe('Evidence verification', () => {
   let tempDir: string;
   let dbPath: string;
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let sourceFile: string;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-evidence-'));
-    dbPath = path.join(tempDir, 'librarian.sqlite');
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-evidence-'));
+    dbPath = path.join(tempDir, 'librainian.sqlite');
     sourceFile = path.join(tempDir, 'src', 'auth.ts');
     await fs.mkdir(path.dirname(sourceFile), { recursive: true });
     storage = createSqliteStorage(dbPath, tempDir);
@@ -129,7 +129,7 @@ describe('Evidence verification', () => {
     expect(refs).toHaveLength(1);
     expect(refs[0]?.stale).toBe(true);
 
-    const summaryProvider = storage as LibrarianStorage & {
+    const summaryProvider = storage as LiBrainianStorage & {
       getEvidenceVerificationSummary?: (options?: { limit?: number; force?: boolean }) => Promise<{
         staleCount: number;
       }>;

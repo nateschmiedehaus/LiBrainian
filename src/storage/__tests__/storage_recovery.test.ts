@@ -11,7 +11,7 @@ import {
 } from '../storage_recovery.js';
 
 async function createTempDir(): Promise<string> {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-storage-recovery-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'librainian-storage-recovery-'));
 }
 
 describe('attemptStorageRecovery', () => {
@@ -25,7 +25,7 @@ describe('attemptStorageRecovery', () => {
   it('removes stale lock and WAL/SHM files when pid is not alive', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     await fs.writeFile(dbPath, '');
     await fs.writeFile(dbPath + '.lock', JSON.stringify({ pid: 999999 }));
     await fs.writeFile(dbPath + '-wal', 'wal');
@@ -42,7 +42,7 @@ describe('attemptStorageRecovery', () => {
   it('does not remove active lock files', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     await fs.writeFile(dbPath, '');
     await fs.writeFile(dbPath + '.lock', JSON.stringify({ pid: process.pid }));
     await fs.writeFile(dbPath + '-wal', 'wal');
@@ -57,7 +57,7 @@ describe('attemptStorageRecovery', () => {
   it('removes stale lock directories from proper-lockfile', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = dbPath + '.lock';
     await fs.writeFile(dbPath, '');
     await fs.mkdir(lockPath, { recursive: true });
@@ -77,7 +77,7 @@ describe('attemptStorageRecovery', () => {
   it('removes empty lock directories after the short empty-dir timeout', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = dbPath + '.lock';
     await fs.writeFile(dbPath, '');
     await fs.mkdir(lockPath, { recursive: true });
@@ -97,7 +97,7 @@ describe('attemptStorageRecovery', () => {
   it('does not claim recovery when lock directory is still fresh', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = dbPath + '.lock';
     await fs.writeFile(dbPath, '');
     await fs.mkdir(lockPath, { recursive: true });
@@ -115,7 +115,7 @@ describe('attemptStorageRecovery', () => {
   it('removes unknown-pid lock files once they age past the quick recovery threshold', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = dbPath + '.lock';
     await fs.writeFile(dbPath, '');
     await fs.writeFile(lockPath, 'not-json-pid');
@@ -140,7 +140,7 @@ describe('attemptStorageRecovery', () => {
   it('quarantines corrupt db file during recovery', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     await fs.writeFile(dbPath, 'not-a-valid-sqlite-db');
     await fs.writeFile(dbPath + '-wal', 'wal');
     await fs.writeFile(dbPath + '-shm', 'shm');
@@ -156,14 +156,14 @@ describe('attemptStorageRecovery', () => {
     expect(existsSync(dbPath + '-shm')).toBe(false);
 
     const entries = await fs.readdir(dir);
-    expect(entries.some((entry) => entry.startsWith('librarian.sqlite.corrupt.'))).toBe(true);
+    expect(entries.some((entry) => entry.startsWith('librainian.sqlite.corrupt.'))).toBe(true);
   });
 
-  it('detects stale lock files under .librarian/locks and .librarian/swarm/locks', async () => {
+  it('detects stale lock files under .librainian/locks and .librainian/swarm/locks', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const lockDir = path.join(dir, '.librarian', 'locks');
-    const swarmLockDir = path.join(dir, '.librarian', 'swarm', 'locks');
+    const lockDir = path.join(dir, '.librainian', 'locks');
+    const swarmLockDir = path.join(dir, '.librainian', 'swarm', 'locks');
     await fs.mkdir(lockDir, { recursive: true });
     await fs.mkdir(swarmLockDir, { recursive: true });
 
@@ -186,7 +186,7 @@ describe('attemptStorageRecovery', () => {
   it('removes stale workspace lock files during cleanup', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
-    const lockDir = path.join(dir, '.librarian', 'locks');
+    const lockDir = path.join(dir, '.librainian', 'locks');
     await fs.mkdir(lockDir, { recursive: true });
 
     const stalePath = path.join(lockDir, 'dead.lock');

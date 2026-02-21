@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { TechniqueOperator } from '../strategic/techniques.js';
 import { listTechniqueCompositionSummaries } from '../state/technique_compositions.js';
 import { listTechniquePrimitiveIds } from '../state/technique_primitives.js';
@@ -86,10 +86,10 @@ const INTENT_SAFE_PATTERN = /[^a-zA-Z0-9 _.,:;()'"\\\[\]\/!?-]/g;
 const WHITESPACE_PATTERN = /\s+/g;
 
 export class CompositionEvolutionEngine {
-  private storage: LibrarianStorage;
+  private storage: LiBrainianStorage;
   private options: Required<CompositionEvolutionOptions>;
 
-  constructor(storage: LibrarianStorage, options: CompositionEvolutionOptions = {}) {
+  constructor(storage: LiBrainianStorage, options: CompositionEvolutionOptions = {}) {
     this.storage = storage;
     this.options = {
       minPatternFrequency: clampNumber(options.minPatternFrequency, DEFAULT_MIN_PATTERN_FREQUENCY, 1),

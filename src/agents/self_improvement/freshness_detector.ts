@@ -16,7 +16,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { LibrarianStorage, FileKnowledge } from '../../storage/types.js';
+import type { LiBrainianStorage, FileKnowledge } from '../../storage/types.js';
 import type { IEvidenceLedger, EvidenceProvenance } from '../../epistemics/evidence_ledger.js';
 
 // ============================================================================
@@ -250,7 +250,7 @@ function getRecommendedAction(
  */
 export class FreshnessDetector {
   private config: FreshnessConfig;
-  private storage: LibrarianStorage;
+  private storage: LiBrainianStorage;
   private ledger?: IEvidenceLedger;
 
   /**
@@ -262,7 +262,7 @@ export class FreshnessDetector {
    * @throws Error if criticalThreshold > staleThreshold
    */
   constructor(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     ledger?: IEvidenceLedger,
     config?: Partial<FreshnessConfig>
   ) {
@@ -541,7 +541,7 @@ export class FreshnessDetector {
  * @returns New FreshnessDetector instance
  */
 export function createFreshnessDetector(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   ledger?: IEvidenceLedger,
   config?: Partial<FreshnessConfig>
 ): FreshnessDetector {

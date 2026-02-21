@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { getCurrentVersion } from '../versioning.js';
 import { SqliteEvidenceLedger, createSessionId } from '../../epistemics/evidence_ledger.js';
 
@@ -41,10 +41,10 @@ vi.mock('../provider_check.js', () => ({
 const workspaceRoot = process.cwd();
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-trace-test-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-trace-test-${randomUUID()}.db`);
 }
 
-async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: string): Promise<void> {
+async function seedStorageForQuery(storage: LiBrainianStorage, relatedFile: string): Promise<void> {
   await storage.upsertFunction({
     id: 'fn-trace-1',
     filePath: path.join(workspaceRoot, relatedFile),
@@ -79,14 +79,14 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
 }
 
 describe('Query trace ledger', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
 
   afterEach(async () => {
     await storage?.close?.();
   });
 
   it('records query lifecycle and stage evidence', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
     await seedStorageForQuery(storage, 'src/auth.ts');
@@ -95,7 +95,7 @@ describe('Query trace ledger', () => {
     await ledger.initialize();
     const sessionId = createSessionId('sess_query_trace');
 
-    const response = await queryLibrarian(
+    const response = await queryLiBrainian(
       { intent: 'trace evidence', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
       storage,
       undefined,
@@ -112,8 +112,8 @@ describe('Query trace ledger', () => {
       .filter((value): value is string => Boolean(value));
 
     expect(response.traceId).toBe(sessionId);
-    expect(toolNames).toContain('librarian_query_query_start');
-    expect(toolNames).toContain('librarian_query_query_complete');
-    expect(toolNames).toContain('librarian_query_stage');
+    expect(toolNames).toContain('librainian_query_query_start');
+    expect(toolNames).toContain('librainian_query_query_complete');
+    expect(toolNames).toContain('librainian_query_stage');
   });
 });

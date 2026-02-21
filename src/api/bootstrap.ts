@@ -1,4 +1,4 @@
-// Bootstrap API for Librarian.
+// Bootstrap API for LiBrainian.
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'glob';
@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'crypto';
 import { getErrorMessage } from '../utils/errors.js';
 import { getCurrentGitSha } from '../utils/git.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
-import type { LibrarianStorage, TransactionContext } from '../storage/types.js';
+import type { LiBrainianStorage, TransactionContext } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
 import type {
   BootstrapConfig,
@@ -21,13 +21,13 @@ import type {
   BootstrapPhaseMetrics,
   CompositionSuggestion,
   GraphEdge,
-  LibrarianMetadata,
-  LibrarianVersion,
+  LiBrainianMetadata,
+  LiBrainianVersion,
   IndexingTask,
 } from '../types.js';
 import { BOOTSTRAP_PHASES } from '../types.js';
 import { LIBRARIAN_VERSION, QUALITY_TIERS } from '../index.js';
-import { IndexLibrarian } from '../agents/index_librarian.js';
+import { IndexLiBrainian } from '../agents/index_librainian.js';
 import { ParserRegistry } from '../agents/parser_registry.js';
 import { SwarmRunner } from '../agents/swarm_runner.js';
 import { IngestionFramework, createIngestionContext } from '../ingest/framework.js';
@@ -63,8 +63,8 @@ import { buildKnowledgeGraph } from '../graphs/knowledge_graph.js';
 import { storeSCCAnalysis } from '../analysis/deterministic_analysis.js';
 import { buildModuleGraphs } from '../knowledge/module_graph.js';
 import type { IngestionItem } from '../ingest/types.js';
-import { detectLibrarianVersion, upgradeRequired, runUpgrade } from './versioning.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import { detectLiBrainianVersion, upgradeRequired, runUpgrade } from './versioning.js';
+import { resolveLiBrainianModelConfigWithDiscovery } from './llm_env.js';
 import { EmbeddingService } from './embeddings.js';
 import { preloadEmbeddingModel } from './embedding_providers/real_embeddings.js';
 import { generateContextPacks } from './packs.js';
@@ -72,7 +72,7 @@ import { createKnowledgeGenerator } from '../knowledge/generator.js';
 import { requireProviders } from './provider_check.js';
 import { ResourceMonitor } from './resource_monitor.js';
 import { ensureDailyModelSelection } from '../adapters/model_policy.js';
-import { queryLibrarian } from './query.js';
+import { queryLiBrainian } from './query.js';
 import { CodebaseCompositionAdvisor } from './codebase_advisor.js';
 import { preloadMethodPacks } from '../methods/method_pack_service.js';
 import { integrateWithBootstrap as selectConstructables, type ManualOverrides } from '../constructions/auto_selector.js';
@@ -189,7 +189,7 @@ interface BootstrapConsistencyState {
   updated_at: string;
   completed_at?: string;
   artifacts: {
-    librarian: BootstrapArtifactSnapshot;
+    librainian: BootstrapArtifactSnapshot;
     knowledge: BootstrapArtifactSnapshot;
     evidence: BootstrapArtifactSnapshot;
   };
@@ -309,29 +309,29 @@ interface FrameworkDetectionResult {
 }
 
 function bootstrapStatePath(workspace: string): string {
-  return path.join(workspace, '.librarian', BOOTSTRAP_STATE_FILENAME);
+  return path.join(workspace, '.librainian', BOOTSTRAP_STATE_FILENAME);
 }
 
 function bootstrapConsistencyPath(workspace: string): string {
-  return path.join(workspace, '.librarian', BOOTSTRAP_CONSISTENCY_FILENAME);
+  return path.join(workspace, '.librainian', BOOTSTRAP_CONSISTENCY_FILENAME);
 }
 
 function bootstrapArtifactBackupPath(workspace: string): string {
-  return path.join(workspace, '.librarian', BOOTSTRAP_ARTIFACT_BACKUP_FILENAME);
+  return path.join(workspace, '.librainian', BOOTSTRAP_ARTIFACT_BACKUP_FILENAME);
 }
 
 function codebaseBriefingPath(workspace: string): string {
-  return path.join(workspace, '.librarian', CODEBASE_BRIEFING_FILENAME);
+  return path.join(workspace, '.librainian', CODEBASE_BRIEFING_FILENAME);
 }
 
 function getBootstrapArtifactPaths(workspace: string): {
-  librarian: string;
+  librainian: string;
   knowledge: string;
   evidence: string;
 } {
-  const root = path.join(workspace, '.librarian');
+  const root = path.join(workspace, '.librainian');
   return {
-    librarian: path.join(root, 'librarian.sqlite'),
+    librainian: path.join(root, 'librainian.sqlite'),
     knowledge: path.join(root, 'knowledge.db'),
     evidence: path.join(root, 'evidence_ledger.db'),
   };
@@ -353,12 +353,12 @@ async function buildArtifactSnapshot(filePath: string): Promise<BootstrapArtifac
 
 async function collectBootstrapArtifacts(workspace: string): Promise<BootstrapConsistencyState['artifacts']> {
   const paths = getBootstrapArtifactPaths(workspace);
-  const [librarian, knowledge, evidence] = await Promise.all([
-    buildArtifactSnapshot(paths.librarian),
+  const [librainian, knowledge, evidence] = await Promise.all([
+    buildArtifactSnapshot(paths.librainian),
     buildArtifactSnapshot(paths.knowledge),
     buildArtifactSnapshot(paths.evidence),
   ]);
-  return { librarian, knowledge, evidence };
+  return { librainian, knowledge, evidence };
 }
 
 async function createBootstrapArtifactBackup(workspace: string, generationId: string): Promise<void> {
@@ -609,7 +609,7 @@ function isBootstrapConsistencyState(value: unknown): value is BootstrapConsiste
   if (value.last_error !== undefined && typeof value.last_error !== 'string') return false;
   if (!isRecord(value.artifacts)) return false;
   return (
-    isBootstrapArtifactSnapshot(value.artifacts.librarian)
+    isBootstrapArtifactSnapshot(value.artifacts.librainian)
     && isBootstrapArtifactSnapshot(value.artifacts.knowledge)
     && isBootstrapArtifactSnapshot(value.artifacts.evidence)
   );
@@ -638,7 +638,7 @@ function isBootstrapPhaseProgress(value: unknown): value is BootstrapPhaseProgre
   );
 }
 
-const FINGERPRINT_EXCLUDE_PATTERNS = ['**/.librarian/**', '**/.git/**'];
+const FINGERPRINT_EXCLUDE_PATTERNS = ['**/.librainian/**', '**/.git/**'];
 
 function buildFingerprintExcludes(exclude: string[]): string[] {
   const combined = [...exclude, ...FINGERPRINT_EXCLUDE_PATTERNS];
@@ -860,7 +860,7 @@ async function resolveMonorepoPackages(workspace: string, patterns: string[]): P
       absolute: false,
       nodir: true,
       follow: false,
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.librarian/**'],
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.librainian/**'],
     });
     for (const match of matches) {
       const relative = path.posix.dirname(match.replace(/\\/g, '/'));
@@ -1219,7 +1219,7 @@ function renderCodebaseBriefingMarkdown(summary: BootstrapBriefingSummary, annot
 
 async function generateAndPersistCodebaseBriefing(
   config: BootstrapConfig,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<BootstrapBriefingSummary> {
   const pkg = await readWorkspacePackageJson(config.workspace);
   const files = await collectWorkspaceFiles({
@@ -1455,7 +1455,7 @@ const CHECKPOINT_BATCH_SIZE = 10;
 const MAX_FILE_RETRIES = 3;
 
 function bootstrapCheckpointPath(workspace: string): string {
-  return path.join(workspace, '.librarian', BOOTSTRAP_CHECKPOINT_FILENAME);
+  return path.join(workspace, '.librainian', BOOTSTRAP_CHECKPOINT_FILENAME);
 }
 
 async function readBootstrapCheckpoint(workspace: string): Promise<BootstrapCheckpoint | null> {
@@ -1581,7 +1581,7 @@ export interface BootstrapWithRecoveryOptions {
  */
 export async function bootstrapWithRecovery(
   workspace: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: BootstrapWithRecoveryOptions = {}
 ): Promise<BootstrapWithRecoveryResult> {
   const startTime = Date.now();
@@ -1768,7 +1768,7 @@ export async function bootstrapWithRecovery(
  */
 export async function bootstrapSafe(
   workspace: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: BootstrapWithRecoveryOptions & { lockTimeoutMs?: number } = {}
 ): Promise<BootstrapWithRecoveryResult> {
   let lock: WorkspaceLockHandle | null = null;
@@ -1788,7 +1788,7 @@ export async function bootstrapSafe(
 }
 
 /**
- * Loads the governor configuration from the workspace's .librarian directory.
+ * Loads the governor configuration from the workspace's .librainian directory.
  *
  * If no configuration file exists, returns the default governor config.
  * If maxConcurrentWorkers is set to 0 (auto mode), automatically detects
@@ -1880,7 +1880,7 @@ export async function loadGovernorConfig(workspace: string): Promise<GovernorCon
   }
 
   const safeWorkspace = canonicalResult.value;
-  const configPath = path.join(safeWorkspace, '.librarian', GOVERNOR_CONFIG_FILENAME);
+  const configPath = path.join(safeWorkspace, '.librainian', GOVERNOR_CONFIG_FILENAME);
   let baseConfig: GovernorConfig;
 
   try {
@@ -1924,7 +1924,7 @@ export async function loadGovernorConfig(workspace: string): Promise<GovernorCon
       }
     } catch (error) {
       // Log auto-detection failure - user explicitly requested auto mode (0), should know why it failed
-      console.warn(`[librarian] Auto-detection failed, using default concurrency: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(`[librainian] Auto-detection failed, using default concurrency: ${error instanceof Error ? error.message : String(error)}`);
       // Fall back to DEFAULT_GOVERNOR_CONFIG.maxConcurrentWorkers
       baseConfig.maxConcurrentWorkers = DEFAULT_GOVERNOR_CONFIG.maxConcurrentWorkers;
     }
@@ -2001,7 +2001,7 @@ function readNumericLimit(
  * Checks whether bootstrap is required for the given workspace.
  *
  * Bootstrap is required when:
- * - No existing librarian data is found
+ * - No existing librainian data is found
  * - A previous bootstrap was interrupted and needs recovery
  * - The existing version requires an upgrade to reach the target quality tier
  * - The index appears empty or corrupted
@@ -2022,14 +2022,14 @@ function readNumericLimit(
  */
 export async function isBootstrapRequired(
   workspace: string,
-  storage: LibrarianStorage,
-  options?: { targetQualityTier?: LibrarianVersion['qualityTier'] }
+  storage: LiBrainianStorage,
+  options?: { targetQualityTier?: LiBrainianVersion['qualityTier'] }
 ): Promise<{ required: boolean; reason: string }> {
   const recovery = await readBootstrapRecoveryState(workspace);
   if (recovery) {
     return {
       required: true,
-      reason: `Previous bootstrap incomplete (last recorded phase: ${recovery.phase_name}). Resume with \`librarian bootstrap\` or restart with \`librarian bootstrap --force\`.`,
+      reason: `Previous bootstrap incomplete (last recorded phase: ${recovery.phase_name}). Resume with \`librainian bootstrap\` or restart with \`librainian bootstrap --force\`.`,
     };
   }
   const consistency = await readBootstrapConsistencyState(workspace);
@@ -2039,7 +2039,7 @@ export async function isBootstrapRequired(
       : 'last attempt was interrupted before consistency commit';
     return {
       required: true,
-      reason: `Bootstrap consistency marker is ${consistency.status} (${statusReason}). Run \`librarian bootstrap --force\` to restore cross-database consistency.`,
+      reason: `Bootstrap consistency marker is ${consistency.status} (${statusReason}). Run \`librainian bootstrap --force\` to restore cross-database consistency.`,
     };
   }
   if (consistency?.status === 'complete') {
@@ -2055,18 +2055,18 @@ export async function isBootstrapRequired(
     if (missingArtifacts.length > 0) {
       return {
         required: true,
-        reason: `Bootstrap artifacts missing (${missingArtifacts.join(', ')}); run \`librarian bootstrap --force\` to restore consistent state.`,
+        reason: `Bootstrap artifacts missing (${missingArtifacts.join(', ')}); run \`librainian bootstrap --force\` to restore consistent state.`,
       };
     }
   }
-  const existingVersion = await detectLibrarianVersion(storage);
+  const existingVersion = await detectLiBrainianVersion(storage);
   const targetQualityTier = options?.targetQualityTier ?? 'full';
   const targetVersion = getTargetVersion(targetQualityTier);
 
   if (!existingVersion) {
     return {
       required: true,
-      reason: 'No existing librarian data found - fresh bootstrap required',
+      reason: 'No existing librainian data found - fresh bootstrap required',
     };
   }
 
@@ -2139,7 +2139,7 @@ export async function isBootstrapRequired(
 
   return {
     required: false,
-    reason: 'Librarian data is up-to-date',
+    reason: 'LiBrainian data is up-to-date',
   };
 }
 
@@ -2159,14 +2159,14 @@ export function getBootstrapStatus(workspace: string): BootstrapState {
 }
 
 /**
- * Bootstraps the librarian index for a workspace.
+ * Bootstraps the librainian index for a workspace.
  *
- * This is the main entry point for initializing the librarian knowledge base.
+ * This is the main entry point for initializing the librainian knowledge base.
  * It scans the workspace, extracts code knowledge (functions, modules, dependencies),
  * generates embeddings for semantic search, and creates context packs.
  *
  * **CRITICAL**: This function BLOCKS until completion. No agent work should
- * proceed until this returns successfully. Use `ensureLibrarianReady` for
+ * proceed until this returns successfully. Use `ensureLiBrainianReady` for
  * a higher-level API that handles bootstrap checks automatically.
  *
  * Bootstrap phases:
@@ -2185,7 +2185,7 @@ export function getBootstrapStatus(workspace: string): BootstrapState {
  * @example
  * ```typescript
  * const config = createBootstrapConfig('/path/to/workspace', { mode: 'full' });
- * const storage = createSqliteStorage('./librarian.db');
+ * const storage = createSqliteStorage('./librainian.db');
  * await storage.initialize();
  *
  * const report = await bootstrapProject(config, storage);
@@ -2196,7 +2196,7 @@ export function getBootstrapStatus(workspace: string): BootstrapState {
  */
 export async function bootstrapProject(
   config: BootstrapConfig,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<BootstrapReport> {
   const workspaceConfigWarnings: string[] = [];
   const configuredWorkspace = path.resolve(config.workspace);
@@ -2221,7 +2221,7 @@ export async function bootstrapProject(
   }
   workspaceConfigWarnings.push(...workspaceIgnore.warnings);
   const workspaceRoot = path.resolve(workspace);
-  // Providers are optional: Librarian can bootstrap in degraded mode (AST-only / keyword-only)
+  // Providers are optional: LiBrainian can bootstrap in degraded mode (AST-only / keyword-only)
   // when embeddings or LLM providers are unavailable.
   if (!config.skipLlm) {
     try {
@@ -2378,7 +2378,7 @@ export async function bootstrapProject(
 
   try {
     // Check if upgrade is needed first
-    const existingVersion = await detectLibrarianVersion(storage);
+    const existingVersion = await detectLiBrainianVersion(storage);
     if (existingVersion) {
       const upgrade = await upgradeRequired(existingVersion, report.version);
       if (upgrade.required) {
@@ -2446,18 +2446,18 @@ export async function bootstrapProject(
           : isUnitTestMode
             ? 'unit_test_mode'
             : `resource_pressure_${pressure.level}`;
-        logInfo('[librarian] Skipping embedding preload', { reason, pressure: pressure.level, availableMB });
+        logInfo('[librainian] Skipping embedding preload', { reason, pressure: pressure.level, availableMB });
       } else {
         // Preload embedding model to avoid cold-start latency on first query.
-        logInfo('[librarian] Preloading embedding model...');
+        logInfo('[librainian] Preloading embedding model...');
         const preloadStart = Date.now();
         try {
           await preloadEmbeddingModel();
-          logInfo(`[librarian] Embedding model preloaded in ${Date.now() - preloadStart}ms`);
+          logInfo(`[librainian] Embedding model preloaded in ${Date.now() - preloadStart}ms`);
         } catch (error) {
           // Log but don't fail bootstrap - embeddings will load lazily on first query.
           const message = error instanceof Error ? error.message : String(error);
-          logWarning('[librarian] Embedding model preload failed (will load lazily)', { error: message });
+          logWarning('[librainian] Embedding model preload failed (will load lazily)', { error: message });
         }
       }
     }
@@ -2636,7 +2636,7 @@ export async function bootstrapProject(
     report.success = true;
     await storage.recordBootstrapReport(report);
 	    if (config.llmProvider && config.llmModelId) {
-	      await storage.setState('librarian.llm_defaults.v1', JSON.stringify({ schema_version: 1, kind: 'LibrarianLlmDefaults.v1', provider: config.llmProvider, modelId: config.llmModelId, bootstrapMode: config.bootstrapMode ?? 'full', updatedAt: report.completedAt.toISOString() }));
+	      await storage.setState('librainian.llm_defaults.v1', JSON.stringify({ schema_version: 1, kind: 'LiBrainianLlmDefaults.v1', provider: config.llmProvider, modelId: config.llmModelId, bootstrapMode: config.bootstrapMode ?? 'full', updatedAt: report.completedAt.toISOString() }));
 	    }
 
 	    // Update metadata (especially important for resumed bootstraps that skip structural_scan).
@@ -2714,7 +2714,7 @@ export async function bootstrapProject(
         });
         if (docsResult.filesUpdated.length > 0) {
           docsUpdatedFiles = docsResult.filesUpdated;
-          report.warnings.push(`Librarian docs updated: ${docsResult.filesUpdated.join(', ')}`);
+          report.warnings.push(`LiBrainian docs updated: ${docsResult.filesUpdated.join(', ')}`);
         }
         if (docsResult.warnings.length > 0) {
           report.warnings.push(`Docs update warnings: ${docsResult.warnings.join('; ')}`);
@@ -2842,7 +2842,7 @@ export async function bootstrapProject(
 }
 
 async function upsertMetadataForSuccessfulBootstrap(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspace: string,
   report: BootstrapReport
 ): Promise<void> {
@@ -2854,7 +2854,7 @@ async function upsertMetadataForSuccessfulBootstrap(
       storage.getFiles({}),
     ]);
 
-	const nextMetadata: LibrarianMetadata = {
+	const nextMetadata: LiBrainianMetadata = {
 	  version: report.version,
 	  workspace,
 	  lastBootstrap: completedAt,
@@ -2873,7 +2873,7 @@ async function upsertMetadataForSuccessfulBootstrap(
 }
 
 async function seedWatchStateAfterBootstrap(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
   completedAt: Date | null
 ): Promise<void> {
@@ -2901,12 +2901,12 @@ async function seedWatchStateAfterBootstrap(
 
 async function preloadMethodPacksForBootstrap(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governorConfig: GovernorConfig,
   governorRunState: ReturnType<typeof createGovernorRunState>
 ): Promise<void> {
   await requireProviders({ llm: true, embedding: false });
-  const resolved = await resolveLibrarianModelConfigWithDiscovery();
+  const resolved = await resolveLiBrainianModelConfigWithDiscovery();
   const llmProvider = config.llmProvider ?? resolved.provider;
   const llmModelId = config.llmModelId ?? resolved.modelId;
   if (!llmProvider || !llmModelId) {
@@ -2932,7 +2932,7 @@ async function preloadMethodPacksForBootstrap(
 async function runBootstrapPhase(
   phase: BootstrapPhase,
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   report: BootstrapReport,
   governorConfig: typeof DEFAULT_GOVERNOR_CONFIG,
   governorRunState: ReturnType<typeof createGovernorRunState>,
@@ -3178,7 +3178,7 @@ async function runBootstrapPhase(
 
 async function runStructuralScan(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext,
   onProgress?: (current: number, total: number, currentFile?: string) => void
 ): Promise<{ itemsProcessed: number; errors: string[]; totalFiles: number; metrics: BootstrapPhaseMetrics }> {
@@ -3216,7 +3216,7 @@ async function runStructuralScan(
     } catch {
       // Best-effort diagnostics only.
     }
-    logWarning('[librarian] Structural scan found no files', {
+    logWarning('[librainian] Structural scan found no files', {
       workspace: phaseConfig.workspace,
       resolvedWorkspace,
       include: phaseConfig.include,
@@ -3275,7 +3275,7 @@ async function runStructuralScan(
  */
 async function runFileDirectoryKnowledgeExtraction(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   files: string[],
   governor?: GovernorContext,
   onProgress?: (current: number, total: number, currentFile?: string) => void
@@ -3510,7 +3510,7 @@ function computeDirectoryFingerprint(
 
 async function runSemanticIndexing(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext,
   progress?: { onProgress?: IndexProgressCallback }
 ): Promise<{ files: number; functions: number; totalFiles: number; errors: string[] }> {
@@ -3542,7 +3542,7 @@ async function runSemanticIndexing(
   const { llmProvider, llmModelId } = await resolveIndexLlmConfig(phaseConfig);
 
   // Extract and store TypeScript symbols for direct symbol lookup
-  // This populates the symbol table used by queries like "SqliteLibrarianStorage class"
+  // This populates the symbol table used by queries like "SqliteLiBrainianStorage class"
   const tsFiles = astFiles.filter((f) => f.endsWith('.ts') || f.endsWith('.tsx'));
   const polyglotSymbolFiles = astFiles.filter((f) => !(f.endsWith('.ts') || f.endsWith('.tsx')));
   if (tsFiles.length > 0 || polyglotSymbolFiles.length > 0) {
@@ -3606,8 +3606,8 @@ async function runSemanticIndexing(
     return { ...swarmResult, totalFiles };
   }
 
-  // Create index librarian
-  const indexer = new IndexLibrarian({
+  // Create index librainian
+  const indexer = new IndexLiBrainian({
     maxFileSizeBytes: phaseConfig.maxFileSizeBytes,
     generateEmbeddings,
     createContextPacks: false, // Done in separate phase
@@ -3655,7 +3655,7 @@ async function runSemanticIndexing(
 
 async function runRelationshipMapping(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext,
   onProgress?: (current: number, total: number, currentItem?: string) => void
 ): Promise<number> {
@@ -3697,7 +3697,7 @@ async function runRelationshipMapping(
     await storage.upsertGraphEdges(edges);
   }
 
-  const cochangeStore = storage as LibrarianStorage & {
+  const cochangeStore = storage as LiBrainianStorage & {
     getCochangeEdgeCount?: () => Promise<number>;
     getCochangeEdges?: () => Promise<TemporalGraph['edges']>;
     storeCochangeEdges?: (edges: TemporalGraph['edges'], computedAt?: string) => Promise<void>;
@@ -3746,7 +3746,7 @@ async function runRelationshipMapping(
   // Advanced Library Features (2025-2026 research)
   // Run git primitives indexing and analysis passes for full mode
   // NOTE: These passes can be extremely expensive (e.g., clone detection is O(n^2) over functions).
-  // Treat them as an opt-in "deep analysis" stage; core Librarian functionality should not depend on them.
+  // Treat them as an opt-in "deep analysis" stage; core LiBrainian functionality should not depend on them.
   if (config.bootstrapMode === 'full' && !config.skipLlm) {
     await runAdvancedLibraryFeatures(config, storage, governor);
   }
@@ -3797,7 +3797,7 @@ function mergeIncrementalCochangeEdges(
  */
 async function runAdvancedLibraryFeatures(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext
 ): Promise<void> {
   governor?.checkBudget();
@@ -3918,7 +3918,7 @@ async function runAdvancedLibraryFeatures(
 
 async function runContextPackGeneration(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext,
   onProgress?: (current: number, total: number, currentItem?: string) => void
 ): Promise<number> {
@@ -3982,7 +3982,7 @@ async function runContextPackGeneration(
  */
 async function indexEntryPoints(
   workspace: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<number> {
   // Get indexed modules and functions
   const [modules, functions] = await Promise.all([
@@ -4029,7 +4029,7 @@ async function indexEntryPoints(
 
 async function runKnowledgeGeneration(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext,
   onProgress?: (current: number, total: number, currentItem?: string) => void
 ): Promise<number> {
@@ -4074,7 +4074,7 @@ async function runKnowledgeGeneration(
 
 // HELPERS
 
-function getTargetVersion(qualityTier: LibrarianVersion['qualityTier']): LibrarianVersion {
+function getTargetVersion(qualityTier: LiBrainianVersion['qualityTier']): LiBrainianVersion {
   return {
     major: LIBRARIAN_VERSION.major,
     minor: LIBRARIAN_VERSION.minor,
@@ -4089,7 +4089,7 @@ function getTargetVersion(qualityTier: LibrarianVersion['qualityTier']): Librari
 
 async function resolvePackLlmConfig(options?: { allowMissing?: boolean }): Promise<{ provider?: 'claude' | 'codex'; modelId?: string }> {
   try {
-    const resolved = await resolveLibrarianModelConfigWithDiscovery();
+    const resolved = await resolveLiBrainianModelConfigWithDiscovery();
     return {
       provider: coerceProvider(resolved.provider),
       modelId: resolved.modelId,
@@ -4211,7 +4211,7 @@ function requireTransactionMethod<K extends keyof TransactionContext>(
 }
 
 async function applyIngestionResults(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   items: IngestionItem[],
   workspace: string
 ): Promise<
@@ -4235,7 +4235,7 @@ async function applyIngestionResults(
 
 async function runIngestionSources(
   config: BootstrapConfig,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   governor?: GovernorContext
 ): Promise<{ itemsProcessed: number; errors: string[] }> {
   // Use config values first, then fall back to environment variables
@@ -4575,7 +4575,7 @@ function normalizeIngestionPath(workspace: string, value: string): string {
  * Documents with high relevance (AGENTS.md, README.md, etc.) are prioritized.
  */
 async function generateDocumentEmbeddings(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   docItems: IngestionItem[],
   embeddingService: EmbeddingService,
   workspace: string
@@ -4687,7 +4687,7 @@ function estimateCompletion(startedAtMs: number, progress: { total: number; comp
  * requires complete codebase consciousness. Tests are knowledge. Configs are
  * knowledge. Documentation is knowledge.
  *
- * The librarian exists to answer questions about the codebase. It cannot
+ * The librainian exists to answer questions about the codebase. It cannot
  * answer questions about files it hasn't indexed. Therefore, we index
  * everything except truly binary/generated content.
  *
@@ -4695,8 +4695,8 @@ function estimateCompletion(startedAtMs: number, progress: { total: number; comp
  * - Embeddings are mandatory for full semantic search
  * - Degraded mode may skip embeddings (skipEmbeddings) with explicit disclosures
  *
- * See src/librarian/universal_patterns.ts for the complete file type list.
- * See docs/librarian/VISION.md section 6.3 for bootstrap modes.
+ * See src/librainian/universal_patterns.ts for the complete file type list.
+ * See docs/librainian/VISION.md section 6.3 for bootstrap modes.
  */
 export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
   bootstrapMode: 'full',
@@ -4725,15 +4725,15 @@ export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
   compositionSuggestions: { enabled: true },
 
   // LLM/Embedding configuration is passed via createBootstrapConfig overrides
-  // See scripts/bootstrap_librarian.ts for example usage
+  // See scripts/bootstrap_librainian.ts for example usage
 };
 
 /**
  * Compute bootstrap capabilities and generate a human-readable summary.
- * This gives users a clear picture of what the librarian can do after bootstrap.
+ * This gives users a clear picture of what the librainian can do after bootstrap.
  */
 async function computeBootstrapCapabilities(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   report: BootstrapReport
 ): Promise<{
   capabilities: BootstrapCapabilities;
@@ -4819,7 +4819,7 @@ async function computeBootstrapCapabilities(
   const nextSteps: string[] = [];
 
   // Always recommend starting file watcher
-  nextSteps.push('Call librarian.startWatching() or set autoWatch:true to keep index updated on file changes.');
+  nextSteps.push('Call librainian.startWatching() or set autoWatch:true to keep index updated on file changes.');
 
   // If partial capabilities, suggest how to get full
   if (!capabilities.semanticSearch) {
@@ -4832,14 +4832,14 @@ async function computeBootstrapCapabilities(
     nextSteps.push('Check if your file types are supported by AST parsers (JS/TS/Python/Go/Rust).');
   }
   if (!capabilities.contextPacks && capabilities.functionData) {
-    nextSteps.push('Run librarian.enhance() to generate context packs from existing function data.');
+    nextSteps.push('Run librainian.enhance() to generate context packs from existing function data.');
   }
 
   // If all capabilities available
   if (capabilityCount === totalCapabilities) {
     nextSteps.length = 0; // Clear and replace
-    nextSteps.push('Librarian is fully operational. Use librarian.query() to search your codebase.');
-    nextSteps.push('Consider librarian.startWatching() to keep index fresh as code changes.');
+    nextSteps.push('LiBrainian is fully operational. Use librainian.query() to search your codebase.');
+    nextSteps.push('Consider librainian.startWatching() to keep index fresh as code changes.');
   }
 
   return { capabilities, warnings, statusSummary, nextSteps };
@@ -4863,7 +4863,7 @@ function resolveBootstrapEmbeddingService(config: BootstrapConfig): EmbeddingSer
 }
 
 async function computeCompositionSuggestions(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   config: BootstrapConfig,
   governorConfig: GovernorConfig,
   governorRunState: GovernorRunState,
@@ -4894,7 +4894,7 @@ async function computeCompositionSuggestions(
   const advisor = new CodebaseCompositionAdvisor(
     {
       queryOptional: async (query) => {
-        const response = await queryLibrarian(query, storage, embeddingService, governor);
+        const response = await queryLiBrainian(query, storage, embeddingService, governor);
         const llmRequirement = query.llmRequirement === 'disabled' ? 'disabled' : 'optional';
         return {
           ...response,

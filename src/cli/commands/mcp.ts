@@ -46,7 +46,7 @@ function buildServerEntry(workspace: string, launcher: LauncherMode): McpServerE
   }
 
   return {
-    command: 'librarian',
+    command: 'librainian',
     args: ['mcp', '--stdio'],
     env: { LIBRARIAN_WORKSPACE: workspace },
   };
@@ -54,7 +54,7 @@ function buildServerEntry(workspace: string, launcher: LauncherMode): McpServerE
 
 function buildClientBundles(workspace: string, launcher: LauncherMode): McpConfigBundle[] {
   const serverEntry = buildServerEntry(workspace, launcher);
-  const mcpServers = { librarian: serverEntry };
+  const mcpServers = { librainian: serverEntry };
 
   return [
     {

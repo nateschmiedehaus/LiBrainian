@@ -393,7 +393,7 @@ describe('Evidence Record Schema (WU-PROV-002)', () => {
       const entityKey = Object.keys(provDoc.entity)[0];
       const entity = provDoc.entity[entityKey];
 
-      expect(entity['librarian:contentHash']).toBe(record.contentHash);
+      expect(entity['librainian:contentHash']).toBe(record.contentHash);
     });
 
     it('should handle empty records array', () => {

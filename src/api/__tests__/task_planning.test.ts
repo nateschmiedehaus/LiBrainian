@@ -7,7 +7,7 @@ import {
   type TaskPlan,
   type TaskType,
 } from '../task_planning.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // MOCK STORAGE
@@ -47,7 +47,7 @@ function createMockStorage(options: {
     confidence: number;
     computedAt: Date;
   }>;
-} = {}): LibrarianStorage {
+} = {}): LiBrainianStorage {
   return {
     initialize: vi.fn(),
     close: vi.fn(),
@@ -251,7 +251,7 @@ function createMockStorage(options: {
     getFaultLocalizations: vi.fn().mockResolvedValue([]),
     upsertFaultLocalization: vi.fn().mockResolvedValue(undefined),
     deleteFaultLocalization: vi.fn().mockResolvedValue(undefined),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================

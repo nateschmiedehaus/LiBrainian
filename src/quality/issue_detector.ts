@@ -5,7 +5,7 @@
  * Called during bootstrap and incremental indexing.
  */
 
-import type { LibrarianStorage, FunctionKnowledge, FileKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge, FileKnowledge } from '../storage/types.js';
 import type { QualityIssue, IssueCategory, IssueSeverity } from './issue_registry.js';
 
 // ============================================================================
@@ -33,7 +33,7 @@ export interface DetectedIssue {
 }
 
 export interface DetectionContext {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspace: string;
 }
 
@@ -172,7 +172,7 @@ function detectFunctionIssues(fn: FunctionKnowledge): DetectedIssue[] {
       startLine: fn.startLine,
       endLine: fn.endLine,
       title: `Low understanding confidence: ${fn.name} (${(fn.confidence * 100).toFixed(0)}%)`,
-      description: `The librarian has low confidence in its understanding of this function. This may indicate missing documentation, complex logic, or ambiguous purpose.`,
+      description: `The librainian has low confidence in its understanding of this function. This may indicate missing documentation, complex logic, or ambiguous purpose.`,
       evidence: [
         `Confidence score: ${(fn.confidence * 100).toFixed(0)}%`,
         `Threshold: 50%`,

@@ -6,8 +6,8 @@ import { coverageCommand } from '../coverage.js';
 
 describe('coverageCommand', () => {
   it('emits plain-language remediation reasons without unverified trace markers', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-coverage-'));
-    const docsDir = path.join(workspace, 'docs', 'librarian');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-coverage-'));
+    const docsDir = path.join(workspace, 'docs', 'librainian');
     await fs.mkdir(docsDir, { recursive: true });
 
     await fs.writeFile(

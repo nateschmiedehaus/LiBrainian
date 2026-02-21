@@ -1,5 +1,5 @@
 /**
- * @fileoverview Librarian Understanding Module
+ * @fileoverview LiBrainian Understanding Module
  *
  * PHILOSOPHICAL ALIGNMENT (UNDERSTANDING_LAYER.md):
  * The understanding layer represents deep semantic knowledge about code -

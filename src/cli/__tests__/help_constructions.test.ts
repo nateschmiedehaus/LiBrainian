@@ -9,7 +9,7 @@ describe('constructions help', () => {
 
   it('documents constructions subcommands', () => {
     const help = getCommandHelp('constructions');
-    expect(help).toContain('librarian constructions');
+    expect(help).toContain('librainian constructions');
     expect(help).toContain('list');
     expect(help).toContain('search');
     expect(help).toContain('describe');

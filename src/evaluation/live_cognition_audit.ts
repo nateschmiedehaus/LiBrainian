@@ -1,7 +1,7 @@
 import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createDefaultLlmServiceAdapter, type LlmChatMessage } from '../adapters/llm_service.js';
-import { resolveLibrarianModelConfigWithDiscovery } from '../api/llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery } from '../api/llm_env.js';
 import { removeControlChars } from '../security/sanitization.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 import { TimeoutError, withTimeout } from '../utils/async.js';
@@ -250,7 +250,7 @@ export async function runLiveCognitionAudit(
   };
 
   try {
-    const model = await resolveLibrarianModelConfigWithDiscovery();
+    const model = await resolveLiBrainianModelConfigWithDiscovery();
     const llm = createDefaultLlmServiceAdapter();
 
     topLevelFiles = await listTopLevelFiles(workspaceRoot, budget.maxTopLevelFiles);
@@ -334,7 +334,7 @@ export async function runLiveCognitionAudit(
     const reportPath = await writeReport(report);
     return { reportPath, report };
   } catch (error) {
-    const model = await resolveLibrarianModelConfigWithDiscovery().catch(() => ({
+    const model = await resolveLiBrainianModelConfigWithDiscovery().catch(() => ({
       provider: 'unknown',
       modelId: 'unknown',
     }));

@@ -65,7 +65,7 @@ describe('Modularization Hooks', () => {
 
     it('allows domain-specific names', async () => {
       const result = await checkModularization({
-        filePath: 'src/librarian/query_synthesis.ts',
+        filePath: 'src/librainian/query_synthesis.ts',
         workspace: '/tmp/test-workspace',
       });
 
@@ -221,7 +221,7 @@ describe('Modularization Hooks', () => {
       expect(
         suggestionsText.includes('Rename') ||
         suggestionsText.includes('domain') ||
-        suggestionsText.includes('librarian') ||
+        suggestionsText.includes('librainian') ||
         suggestionsText.includes('existing')
       ).toBe(true);
     });
@@ -235,7 +235,7 @@ describe('Agent Protocol Integration', () => {
     const prompt = buildAgentProtocolPrompt('test-task-123');
 
     // Should include knowledge protocol
-    expect(prompt).toContain('Librarian Knowledge Protocol');
+    expect(prompt).toContain('LiBrainian Knowledge Protocol');
 
     // Should include modularization guidance
     expect(prompt).toContain('Modularization-First');
@@ -249,7 +249,7 @@ describe('Agent Protocol Integration', () => {
 
     const prompt = buildKnowledgeProtocolPrompt('test-task-456');
 
-    expect(prompt).toContain('Librarian Knowledge Protocol');
+    expect(prompt).toContain('LiBrainian Knowledge Protocol');
     expect(prompt).not.toContain('Modularization-First');
     expect(prompt).toContain('test-task-456');
   });

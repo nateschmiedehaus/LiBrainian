@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP symbol lookup tools', () => {
   it('explain_function returns function details with callers and callees', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -13,8 +13,8 @@ describe('MCP symbol lookup tools', () => {
       getFunctionsByName: vi.fn().mockResolvedValue([
         {
           id: 'fn-query',
-          name: 'queryLibrarian',
-          signature: 'queryLibrarian(query, storage)',
+          name: 'queryLiBrainian',
+          signature: 'queryLiBrainian(query, storage)',
           filePath: 'src/api/query.ts',
           purpose: 'Run ranked context retrieval',
           confidence: 0.91,
@@ -50,7 +50,7 @@ describe('MCP symbol lookup tools', () => {
 
     const result = await (server as any).executeExplainFunction({
       workspace,
-      name: 'queryLibrarian',
+      name: 'queryLiBrainian',
     });
 
     expect(result.found).toBe(true);
@@ -62,7 +62,7 @@ describe('MCP symbol lookup tools', () => {
   });
 
   it('find_usages returns callsites for matching symbols', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -71,10 +71,10 @@ describe('MCP symbol lookup tools', () => {
       getFunctionsByName: vi.fn().mockResolvedValue([
         {
           id: 'fn-create',
-          name: 'createLibrarian',
-          signature: 'createLibrarian(config)',
+          name: 'createLiBrainian',
+          signature: 'createLiBrainian(config)',
           filePath: 'src/api/index.ts',
-          purpose: 'Factory for librarian instances',
+          purpose: 'Factory for librainian instances',
         },
       ]),
       getFunctions: vi.fn().mockResolvedValue([]),
@@ -95,7 +95,7 @@ describe('MCP symbol lookup tools', () => {
 
     const result = await (server as any).executeFindUsages({
       workspace,
-      symbol: 'createLibrarian',
+      symbol: 'createLiBrainian',
     });
 
     expect(result.success).toBe(true);
@@ -107,7 +107,7 @@ describe('MCP symbol lookup tools', () => {
   });
 
   it('find_callers returns direct and transitive callers', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -158,7 +158,7 @@ describe('MCP symbol lookup tools', () => {
   });
 
   it('find_callees returns direct callees for a function', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -167,8 +167,8 @@ describe('MCP symbol lookup tools', () => {
       getFunctionsByName: vi.fn().mockResolvedValue([
         {
           id: 'fn-query',
-          name: 'queryLibrarian',
-          signature: 'queryLibrarian()',
+          name: 'queryLiBrainian',
+          signature: 'queryLiBrainian()',
           filePath: 'src/api/query.ts',
         },
       ]),
@@ -190,7 +190,7 @@ describe('MCP symbol lookup tools', () => {
 
     const result = await (server as any).executeFindCallees({
       workspace,
-      functionId: 'queryLibrarian',
+      functionId: 'queryLiBrainian',
       limit: 10,
     });
 
@@ -202,7 +202,7 @@ describe('MCP symbol lookup tools', () => {
   });
 
   it('trace_imports returns import and importedBy graph up to depth', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -254,7 +254,7 @@ describe('MCP symbol lookup tools', () => {
   });
 
   it('trace_control_flow returns basic blocks and cfg edges for a function', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -318,7 +318,7 @@ describe('MCP symbol lookup tools', () => {
   });
 
   it('trace_data_flow finds source-to-sink evidence for request params into db.query', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 

@@ -25,7 +25,7 @@ import type {
   CommandRunner,
   HypothesisLikelihood,
 } from './types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 /**
  * Configuration for the HypothesisTester agent.
@@ -68,7 +68,7 @@ export class HypothesisTester implements HypothesisTesterAgent {
   readonly version = '1.0.0';
   readonly qualityTier = 'full' as const;
 
-  private storage: LibrarianStorage | null = null;
+  private storage: LiBrainianStorage | null = null;
   private config: Required<HypothesisTesterConfig>;
   private commandRunner: CommandRunner | null = null;
 
@@ -76,7 +76,7 @@ export class HypothesisTester implements HypothesisTesterAgent {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this.storage = storage;
   }
 

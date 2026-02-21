@@ -721,7 +721,7 @@ function deriveAbstractionLevel(category: TechniquePrimitiveCategory): Technique
   return DEFAULT_PRIMITIVE_LEVEL_BY_CATEGORY[category] ?? 'tactical';
 }
 
-// Keep in sync with MAX_CONDITION_COUNT in src/librarian/api/technique_contracts.ts.
+// Keep in sync with MAX_CONDITION_COUNT in src/librainian/api/technique_contracts.ts.
 const MAX_CONDITION_COUNT = 200;
 
 function buildContractFromPrimitive(input: {

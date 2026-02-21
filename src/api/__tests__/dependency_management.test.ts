@@ -27,7 +27,7 @@ import {
   type DependencyAnalysis,
   type DependencyInfo,
 } from '../dependency_management.js';
-import type { LibrarianStorage, FileKnowledge } from '../../storage/types.js';
+import type { LiBrainianStorage, FileKnowledge } from '../../storage/types.js';
 
 // ============================================================================
 // MOCKS
@@ -48,12 +48,12 @@ vi.mock('node:child_process', () => ({
   execSync: vi.fn(),
 }));
 
-function createMockStorage(files: FileKnowledge[] = []): LibrarianStorage {
+function createMockStorage(files: FileKnowledge[] = []): LiBrainianStorage {
   return {
     getFiles: vi.fn().mockResolvedValue(files),
     // Add other required storage methods as needed
     getFileContent: vi.fn().mockResolvedValue(''),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================

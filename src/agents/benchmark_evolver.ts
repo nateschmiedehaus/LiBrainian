@@ -30,7 +30,7 @@ import type {
   Fix,
   ProblemType,
 } from './types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 /**
  * Configuration for the BenchmarkEvolver agent.
@@ -61,14 +61,14 @@ export class BenchmarkEvolver implements BenchmarkEvolverAgent {
   readonly version = '1.0.0';
   readonly qualityTier = 'full' as const;
 
-  private storage: LibrarianStorage | null = null;
+  private storage: LiBrainianStorage | null = null;
   private config: Required<BenchmarkEvolverConfig>;
 
   constructor(config: BenchmarkEvolverConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async initialize(storage: LibrarianStorage): Promise<void> {
+  async initialize(storage: LiBrainianStorage): Promise<void> {
     this.storage = storage;
   }
 

@@ -238,7 +238,7 @@ async function writeConversationInsightsFixture(root: string, options?: {
 }): Promise<string> {
   const reviewChecked = options?.reviewChecked ?? true;
   const noFallbackChecked = options?.noFallbackChecked ?? true;
-  const filePath = path.join(root, 'docs', 'librarian', 'CONVERSATION_INSIGHTS.md');
+  const filePath = path.join(root, 'docs', 'librainian', 'CONVERSATION_INSIGHTS.md');
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, [
     '# Conversation Insights',
@@ -249,7 +249,7 @@ async function writeConversationInsightsFixture(root: string, options?: {
     '- Conversation source: strategy thread',
     '',
     '## Non-Negotiable Product Signals',
-    '- Librarian is the world\'s best knowledge, cognitive support, and organizational support tool for software agents.',
+    '- LiBrainian is the world\'s best knowledge, cognitive support, and organizational support tool for software agents.',
     '',
     '## Agent Failure Modes Observed',
     '- Endless test loops without concept-level diagnosis.',
@@ -260,16 +260,16 @@ async function writeConversationInsightsFixture(root: string, options?: {
     '## Action Items',
     '| ID | Mapping | Owner | File Targets | Gate Impact | Status |',
     '| --- | --- | --- | --- | --- | --- |',
-    '| CI-001 | Documentation task | docs | `docs/librarian/README.md` | `release.conversation_insights_review` | active |',
+    '| CI-001 | Documentation task | docs | `docs/librainian/README.md` | `release.conversation_insights_review` | active |',
     '',
     '## Accepted Wording for Positioning',
-    '- Librarian is the world\'s best knowledge, cognitive support, and organizational support system for codebase agents.',
+    '- LiBrainian is the world\'s best knowledge, cognitive support, and organizational support system for codebase agents.',
     '',
     '## Deferred Ideas',
     '- None',
     '',
     '## Evidence Links',
-    '- `docs/librarian/CONVERSATION_INSIGHTS.md`',
+    '- `docs/librainian/CONVERSATION_INSIGHTS.md`',
     '',
     '### Release Gate Signoff Checklist',
     `- [${reviewChecked ? 'x' : ' '}] ${CONVERSATION_INSIGHTS_REVIEW_TOKEN}`,
@@ -384,7 +384,7 @@ describe('publishGateCommand', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
-    workspace = await mkdtemp(path.join(tmpdir(), 'librarian-publish-gate-'));
+    workspace = await mkdtemp(path.join(tmpdir(), 'librainian-publish-gate-'));
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     process.exitCode = undefined;
     await writeConversationInsightsFixture(workspace);

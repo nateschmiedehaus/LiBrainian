@@ -1,8 +1,8 @@
 /**
- * @fileoverview WU-META-001: Librarian Self-Bootstrap Test
+ * @fileoverview WU-META-001: LiBrainian Self-Bootstrap Test
  *
- * This test validates that Librarian can successfully index its own codebase.
- * It serves as the ultimate dogfooding test - if Librarian can't understand
+ * This test validates that LiBrainian can successfully index its own codebase.
+ * It serves as the ultimate dogfooding test - if LiBrainian can't understand
  * itself, it can't be trusted to understand other codebases.
  *
  * Test modes:
@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { glob } from 'glob';
 import { selfBootstrap, type SelfBootstrapOptions } from '../self_bootstrap.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 import { isExcluded, getAllIncludePatterns, UNIVERSAL_EXCLUDES } from '../../../universal_patterns.js';
 
 // ============================================================================
@@ -23,12 +23,12 @@ import { isExcluded, getAllIncludePatterns, UNIVERSAL_EXCLUDES } from '../../../
 // ============================================================================
 
 // __dirname in ESM resolves to: src/agents/self_improvement/__tests__/
-// Need to go up 4 levels to reach librarian root
+// Need to go up 4 levels to reach librainian root
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../../..');
 
-// Files that MUST be discovered in any valid Librarian index
+// Files that MUST be discovered in any valid LiBrainian index
 const REQUIRED_FILES = [
-  'src/agents/index_librarian.ts',
+  'src/agents/index_librainian.ts',
   'src/agents/self_improvement/self_bootstrap.ts',
   'src/storage/types.ts',
   'src/universal_patterns.ts',
@@ -128,7 +128,7 @@ async function getSelfBootstrapFiles(): Promise<string[]> {
  * Create a mock storage that tracks what files would be indexed.
  * Used for file discovery validation without LLM providers.
  */
-function createDryRunStorage(): LibrarianStorage & { trackedFiles: Set<string> } {
+function createDryRunStorage(): LiBrainianStorage & { trackedFiles: Set<string> } {
   const trackedFiles = new Set<string>();
 
   return {
@@ -354,27 +354,27 @@ function createDryRunStorage(): LibrarianStorage & { trackedFiles: Set<string> }
     getFaultLocalizations: vi.fn().mockResolvedValue([]),
     upsertFaultLocalization: vi.fn().mockResolvedValue(undefined),
     deleteFaultLocalization: vi.fn().mockResolvedValue(undefined),
-  } as unknown as LibrarianStorage & { trackedFiles: Set<string> };
+  } as unknown as LiBrainianStorage & { trackedFiles: Set<string> };
 }
 
 // ============================================================================
 // WU-META-001: LIBRARIAN SELF-BOOTSTRAP TESTS
 // ============================================================================
 
-describe('WU-META-001: Librarian Self-Bootstrap', () => {
+describe('WU-META-001: LiBrainian Self-Bootstrap', () => {
   // ==========================================================================
   // FILE DISCOVERY TESTS (DRY RUN MODE)
   // ==========================================================================
 
   describe('File Discovery (Dry Run Mode)', () => {
-    it('should discover Librarian source files', async () => {
+    it('should discover LiBrainian source files', async () => {
       const files = await getSelfBootstrapFiles();
 
       // Should find a substantial number of files
       expect(files.length).toBeGreaterThan(50);
 
       // Log file count for visibility
-      console.log(`[meta_bootstrap] Discovered ${files.length} files in Librarian codebase`);
+      console.log(`[meta_bootstrap] Discovered ${files.length} files in LiBrainian codebase`);
     });
 
     it('should discover all required core files', async () => {
@@ -407,8 +407,8 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
     it('should exclude test files when configured', async () => {
       const files = await getSelfBootstrapFiles();
 
-      // Filter to find test files in the Librarian src directory (not eval-corpus or external repos)
-      const librarianSrcTestFiles = files.filter(f => {
+      // Filter to find test files in the LiBrainian src directory (not eval-corpus or external repos)
+      const librainianSrcTestFiles = files.filter(f => {
         const rel = path.relative(LIBRARIAN_ROOT, f);
         return (f.endsWith('.test.ts') || f.endsWith('.spec.ts')) &&
                rel.startsWith('src/') &&
@@ -416,11 +416,11 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
                !rel.includes('external-repos');
       });
 
-      // Should not find any test files in Librarian's own src directory
-      if (librarianSrcTestFiles.length > 0) {
-        console.log('[meta_bootstrap] Unexpected test files found:', librarianSrcTestFiles.slice(0, 5));
+      // Should not find any test files in LiBrainian's own src directory
+      if (librainianSrcTestFiles.length > 0) {
+        console.log('[meta_bootstrap] Unexpected test files found:', librainianSrcTestFiles.slice(0, 5));
       }
-      expect(librarianSrcTestFiles.length).toBe(0);
+      expect(librainianSrcTestFiles.length).toBe(0);
     });
 
     it('should respect maxFiles limit', async () => {
@@ -451,7 +451,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
 
       // Key agent files
       const keyAgentFiles = [
-        'src/agents/index_librarian.ts',
+        'src/agents/index_librainian.ts',
         'src/agents/ast_indexer.ts',
         'src/agents/types.ts',
       ];
@@ -481,25 +481,25 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
   // ==========================================================================
 
   describe('Self-Referential Detection', () => {
-    it('should detect Librarian as self-referential', async () => {
-      // Check that package.json exists and has librarian name
+    it('should detect LiBrainian as self-referential', async () => {
+      // Check that package.json exists and has librainian name
       const packageJsonPath = path.join(LIBRARIAN_ROOT, 'package.json');
       const packageContent = await fs.readFile(packageJsonPath, 'utf8');
       const pkg = JSON.parse(packageContent);
 
-      // Package name should identify this as Librarian
-      const isLibrarianPackage = (
+      // Package name should identify this as LiBrainian
+      const isLiBrainianPackage = (
         pkg.name === 'librainian' ||
-        pkg.name === 'librarian' ||
-        pkg.name === '@librarian/core' ||
-        pkg.name?.includes('librarian')
+        pkg.name === 'librainian' ||
+        pkg.name === '@librainian/core' ||
+        pkg.name?.includes('librainian')
       );
-      expect(isLibrarianPackage).toBe(true);
+      expect(isLiBrainianPackage).toBe(true);
     });
 
     it('should have required marker files for self-referential detection', async () => {
       const markers = [
-        'src/agents/index_librarian.ts',
+        'src/agents/index_librainian.ts',
         'src/storage/types.ts',
         'package.json',
       ];
@@ -526,7 +526,7 @@ describe('WU-META-001: Librarian Self-Bootstrap', () => {
       );
     };
 
-    it.skipIf(!hasLlmProvider())('should successfully bootstrap Librarian codebase', async () => {
+    it.skipIf(!hasLlmProvider())('should successfully bootstrap LiBrainian codebase', async () => {
       const mockStorage = createDryRunStorage();
 
       // This test requires actual LLM provider - will throw ProviderUnavailableError otherwise

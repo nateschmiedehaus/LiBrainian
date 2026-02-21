@@ -13,9 +13,9 @@ describe('retrieval strategy storage', () => {
   });
 
   it('records selections, updates rewards, and stays idempotent on duplicate feedback', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-strategy-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-strategy-'));
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
 
     const storage = createSqliteStorage(dbPath, dir);
     await storage.initialize();

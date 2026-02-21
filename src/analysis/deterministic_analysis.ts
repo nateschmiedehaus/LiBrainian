@@ -8,7 +8,7 @@
  * - Integration with storage layer
  */
 
-import type { LibrarianStorage, SCCEntry, CFGEdge } from '../storage/types.js';
+import type { LiBrainianStorage, SCCEntry, CFGEdge } from '../storage/types.js';
 import type { ModuleGraph } from '../knowledge/module_graph.js';
 
 // ============================================================================
@@ -89,7 +89,7 @@ function tarjanVisit(node: string, graph: ModuleGraph, state: TarjanState): void
  * Store SCC analysis results in the database.
  */
 export async function storeSCCAnalysis(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   entityType: SCCEntry['entityType'] = 'module'
 ): Promise<{ totalComponents: number; cyclicComponents: number }> {
@@ -376,7 +376,7 @@ export function buildControlFlowGraph(
  * Store CFG edges in the database.
  */
 export async function storeCFGAnalysis(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   result: ControlFlowResult
 ): Promise<void> {
   await storage.upsertCFGEdges(result.edges);
@@ -485,7 +485,7 @@ export interface DeterministicAnalysisResult {
  * Run full deterministic analysis on a module graph.
  */
 export async function runDeterministicAnalysis(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   reverse: ModuleGraph
 ): Promise<DeterministicAnalysisResult> {

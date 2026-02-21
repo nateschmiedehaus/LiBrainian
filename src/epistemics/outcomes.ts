@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ConfidenceAdjustmentResult, ConfidenceValue } from './confidence.js';
 import { adjustConfidenceValue, deterministic, getNumericValue } from './confidence.js';
 import type { ClaimId } from './types.js';
@@ -81,7 +81,7 @@ type EvidenceSubjectType = 'file' | 'function' | 'class' | 'pattern' | 'system';
 
 export class ClaimOutcomeTracker {
   constructor(
-    private storage: LibrarianStorage,
+    private storage: LiBrainianStorage,
     private config: ClaimOutcomeTrackerConfig = {}
   ) {}
 
@@ -243,7 +243,7 @@ export class ClaimOutcomeTracker {
 }
 
 export function createClaimOutcomeTracker(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   config: ClaimOutcomeTrackerConfig = {}
 ): ClaimOutcomeTracker {
   return new ClaimOutcomeTracker(storage, config);

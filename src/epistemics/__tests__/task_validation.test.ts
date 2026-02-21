@@ -49,7 +49,7 @@ describe('Task Validation System', () => {
   let ledger: SqliteEvidenceLedger;
   let dbPath: string;
   let ledgerPath: string;
-  const testDir = join(tmpdir(), 'librarian-task-validation-test-' + Date.now());
+  const testDir = join(tmpdir(), 'librainian-task-validation-test-' + Date.now());
   const workspace = '/test/workspace';
 
   beforeEach(async () => {

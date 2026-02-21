@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP harvest_session_knowledge memory bridge', () => {
   it('writes annotated MEMORY.md entries and appends memory-bridge evidence records', async () => {
@@ -10,9 +10,9 @@ describe('MCP harvest_session_knowledge memory bridge', () => {
     const memoryFilePath = path.join(workspace, '.openclaw', 'memory', 'MEMORY.md');
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
       server.updateWorkspaceState(workspace, { indexState: 'ready' });

@@ -17,7 +17,7 @@ type AgenticJourneyModule = typeof import('../../evaluation/agentic_journey.js')
 async function loadAgenticJourneyModule(): Promise<AgenticJourneyModule> {
   const externalModuleId = 'librainian-eval/agentic_journey.js';
   return loadEvaluationModule<AgenticJourneyModule>(
-    'librarian journey',
+    'librainian journey',
     () => import('../../evaluation/agentic_journey.js'),
     () => import(externalModuleId) as Promise<AgenticJourneyModule>,
   );

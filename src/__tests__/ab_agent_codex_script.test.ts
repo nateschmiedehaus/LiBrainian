@@ -54,7 +54,7 @@ describe('ab-agent-codex script', () => {
       promptPath,
       [
         'Task ID: task-a',
-        'Librarian Context:',
+        'LiBrainian Context:',
         '- src/utils/target.ts',
         '',
         'Context Excerpts:',
@@ -75,7 +75,7 @@ describe('ab-agent-codex script', () => {
     expect(exitCode).toBe(0);
 
     expect(captured).toContain('Task prompt follows:');
-    expect(captured).toContain('Librarian Context:');
+    expect(captured).toContain('LiBrainian Context:');
     expect(captured).toContain('Context Excerpts:');
     expect(captured).toContain('export const marker = true;');
   });
@@ -103,7 +103,7 @@ describe('ab-agent-codex script', () => {
         files: [
           {
             file: 'src/utils/path.ts',
-            source: 'librarian',
+            source: 'librainian',
             exists: true,
             excerpt: 'export function normalizePath(input) { return input.trim(); }',
           },
@@ -125,8 +125,8 @@ describe('ab-agent-codex script', () => {
     expect(captured).toContain('Bug report: Fix a regression in path handling.');
     expect(captured).toContain('Acceptance target files (must modify at least one):');
     expect(captured).toContain('src/utils/path.ts');
-    expect(captured).toContain('Librarian-retrieved file hints:');
-    expect(captured).toContain('Librarian context excerpts:');
+    expect(captured).toContain('LiBrainian-retrieved file hints:');
+    expect(captured).toContain('LiBrainian context excerpts:');
     expect(captured).toContain('normalizePath');
   });
 

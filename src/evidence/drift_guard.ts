@@ -21,7 +21,7 @@ const RELEASE_CLAIM_PATTERN =
   /(Retrieval Recall@5|Context Precision|Hallucination Rate|Faithfulness|Answer Relevancy|A\/B Lift|Memory per 1K LOC|Scenario Families|\|\s*Metric\s*\|)/i;
 
 const EVIDENCE_REFERENCE_PATTERN =
-  /(manifest\.json|state\/audits\/librarian|state\/audits\/LiBrainian|`[^`]*[\\/][^`]*`|`[^`]*\.[a-z0-9]+(?::[0-9]+)?`)/i;
+  /(manifest\.json|state\/audits\/librainian|state\/audits\/LiBrainian|`[^`]*[\\/][^`]*`|`[^`]*\.[a-z0-9]+(?::[0-9]+)?`)/i;
 
 function hasNearby(lines: string[], index: number, pattern: RegExp, window = 2): boolean {
   const from = Math.max(0, index - window);

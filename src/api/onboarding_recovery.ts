@@ -1,7 +1,7 @@
 import type { BootstrapConfig, BootstrapReport } from '../types.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { AllProviderStatus } from './provider_check.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import {
@@ -15,16 +15,16 @@ import { planBootstrapRecovery } from '../bootstrap/bootstrap_recovery.js';
 import { diagnoseConfiguration, autoHealConfiguration } from '../config/self_healing.js';
 import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
 
-const SQLITE_FILENAME = 'librarian.sqlite';
-const LEGACY_DB_FILENAME = 'librarian.db';
+const SQLITE_FILENAME = 'librainian.sqlite';
+const LEGACY_DB_FILENAME = 'librainian.db';
 
 async function resolveDbPathForWorkspace(workspaceRoot: string): Promise<string> {
-  const librarianDir = path.join(workspaceRoot, '.librarian');
-  const sqlitePath = path.join(librarianDir, SQLITE_FILENAME);
-  const legacyPath = path.join(librarianDir, LEGACY_DB_FILENAME);
+  const librainianDir = path.join(workspaceRoot, '.librainian');
+  const sqlitePath = path.join(librainianDir, SQLITE_FILENAME);
+  const legacyPath = path.join(librainianDir, LEGACY_DB_FILENAME);
 
   try {
-    await fs.mkdir(librarianDir, { recursive: true });
+    await fs.mkdir(librainianDir, { recursive: true });
   } catch {
     // Ignore; bootstrap will surface invalid paths.
   }
@@ -101,7 +101,7 @@ export interface OnboardingRecoveryOptions {
   emitBaseline?: boolean;
   updateAgentDocs?: boolean;
   forceBootstrap?: boolean;
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
 }
 
 export async function runOnboardingRecovery(
@@ -168,7 +168,7 @@ export async function runOnboardingRecovery(
     }
   }
 
-  let storage: LibrarianStorage | null = providedStorage ?? null;
+  let storage: LiBrainianStorage | null = providedStorage ?? null;
   let ownsStorage = false;
 
   if (!storage) {
@@ -215,8 +215,8 @@ export async function runOnboardingRecovery(
 
   const workspaceLockCleanup = await cleanupWorkspaceLocks(activeWorkspace).catch((error) => ({
     lockDirs: [
-      path.join(activeWorkspace, '.librarian', 'locks'),
-      path.join(activeWorkspace, '.librarian', 'swarm', 'locks'),
+      path.join(activeWorkspace, '.librainian', 'locks'),
+      path.join(activeWorkspace, '.librainian', 'swarm', 'locks'),
     ],
     scannedFiles: 0,
     staleFiles: 0,

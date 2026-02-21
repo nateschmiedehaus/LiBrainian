@@ -32,7 +32,7 @@ describe('workspace_set', () => {
   });
 
   it('loads and resolves workspace-set package paths', async () => {
-    const root = await makeTemp('librarian-workspace-set-');
+    const root = await makeTemp('librainian-workspace-set-');
 
     await writeJson(path.join(root, 'apps', 'web', 'package.json'), {
       name: '@acme/web',
@@ -74,7 +74,7 @@ describe('workspace_set', () => {
   });
 
   it('builds dependency graph from explicit dependsOn and package.json dependencies', async () => {
-    const root = await makeTemp('librarian-workspace-graph-');
+    const root = await makeTemp('librainian-workspace-graph-');
 
     await writeJson(path.join(root, 'apps', 'web', 'package.json'), {
       name: '@acme/web',
@@ -110,8 +110,8 @@ describe('workspace_set', () => {
     );
   });
 
-  it('persists and loads workspace-set state in .librarian', async () => {
-    const root = await makeTemp('librarian-workspace-state-');
+  it('persists and loads workspace-set state in .librainian', async () => {
+    const root = await makeTemp('librainian-workspace-state-');
 
     await writeWorkspaceSetState(root, {
       kind: 'WorkspaceSetState.v1',
@@ -123,7 +123,7 @@ describe('workspace_set', () => {
         {
           name: 'apps/web',
           path: path.join(root, 'apps', 'web'),
-          dbPath: path.join(root, 'apps', 'web', '.librarian', 'librarian.sqlite'),
+          dbPath: path.join(root, 'apps', 'web', '.librainian', 'librainian.sqlite'),
           status: 'ready',
         },
       ],

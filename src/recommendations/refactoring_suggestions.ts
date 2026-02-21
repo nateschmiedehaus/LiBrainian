@@ -10,7 +10,7 @@
  * Designed for agent queries like "what should I refactor" or "refactoring opportunities".
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -92,7 +92,7 @@ export interface RefactoringOptions {
  * Analyzes code for common code smells and returns prioritized suggestions
  * for improving code quality.
  *
- * @param storage - The librarian storage instance
+ * @param storage - The librainian storage instance
  * @param filePath - Optional specific file to analyze (analyzes all if not provided)
  * @param options - Configuration options
  * @returns Array of refactoring suggestions sorted by risk (low first)
@@ -110,7 +110,7 @@ export interface RefactoringOptions {
  * ```
  */
 export async function findRefactoringOpportunities(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePath?: string,
   options: RefactoringOptions = {}
 ): Promise<RefactoringSuggestion[]> {
@@ -646,7 +646,7 @@ function process(options: ProcessOptions) { ... }`,
  * Storage types don't include raw code content, so we read from disk.
  */
 async function getFileContent(
-  _storage: LibrarianStorage,
+  _storage: LiBrainianStorage,
   filePath: string
 ): Promise<string | null> {
   try {

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Rate Limiter for Librarian
+ * @fileoverview Rate Limiter for LiBrainian
  *
  * Implements multiple rate limiting strategies:
  * - Token bucket for burst capacity

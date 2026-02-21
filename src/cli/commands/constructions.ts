@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';
-import { Librarian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librainian.js';
 import { LIBRARIAN_VERSION } from '../../index.js';
 import {
   CONSTRUCTION_REGISTRY,
@@ -225,8 +225,8 @@ async function runList(params: {
     }
     console.log('');
   }
-  console.log('Run `librarian constructions describe <id>` for details.');
-  console.log('Run `librarian constructions search <query>` to rank by relevance.');
+  console.log('Run `librainian constructions describe <id>` for details.');
+  console.log('Run `librainian constructions search <query>` to rank by relevance.');
 }
 
 async function runSearch(params: {
@@ -237,7 +237,7 @@ async function runSearch(params: {
   const { values, subcommandArgs, json } = params;
   const query = subcommandArgs.join(' ').trim();
   if (!query) {
-    throw createError('INVALID_ARGUMENT', 'Search query is required. Usage: librarian constructions search "<query>"');
+    throw createError('INVALID_ARGUMENT', 'Search query is required. Usage: librainian constructions search "<query>"');
   }
 
   const limit = parseNonNegativeInteger(readStringArg(values.limit), 'limit') ?? 10;
@@ -292,7 +292,7 @@ async function runDescribe(params: {
   const { subcommandArgs, json } = params;
   const id = subcommandArgs[0];
   if (!id) {
-    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librarian constructions describe <id>');
+    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librainian constructions describe <id>');
   }
 
   const manifest = getConstructionManifest(id);
@@ -341,7 +341,7 @@ async function runDescribe(params: {
     packageName: toPackageName(manifest.id),
     installMode,
     installCommand,
-    runCommand: `librarian constructions run ${manifest.id} --input '${JSON.stringify(exampleInput)}'`,
+    runCommand: `librainian constructions run ${manifest.id} --input '${JSON.stringify(exampleInput)}'`,
   };
 
   if (json) {
@@ -376,7 +376,7 @@ async function runInstall(params: {
   const { workspace, subcommandArgs, json, dryRun } = params;
   const id = subcommandArgs[0];
   if (!id) {
-    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librarian constructions install <id>');
+    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librainian constructions install <id>');
   }
 
   const manifest = getConstructionManifest(id);
@@ -405,9 +405,9 @@ async function runInstall(params: {
       `Construction ${manifest.id} is discoverable but not executable/installable in this runtime.`,
       {
         recoveryHints: [
-          'Run `librarian constructions list` to view executable constructions.',
-          'Use `librarian constructions run <id> --input <json>` for built-in constructions.',
-          'Use `librarian compose "<intent>"` for composition-based execution.',
+          'Run `librainian constructions list` to view executable constructions.',
+          'Use `librainian constructions run <id> --input <json>` for built-in constructions.',
+          'Use `librainian compose "<intent>"` for composition-based execution.',
         ],
       },
     );
@@ -478,7 +478,7 @@ async function runRun(params: {
   const { workspace, subcommandArgs, json, inputFlag } = params;
   const id = subcommandArgs[0];
   if (!id) {
-    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librarian constructions run <id> --input \'{"key":"value"}\'');
+    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librainian constructions run <id> --input \'{"key":"value"}\'');
   }
   const manifest = getConstructionManifest(id);
   if (!manifest) {
@@ -490,28 +490,28 @@ async function runRun(params: {
       `Construction ${manifest.id} is not executable in this runtime.`,
       {
         recoveryHints: [
-          'Run `librarian constructions list` to see executable constructions.',
-          'Run `librarian constructions list --all` to inspect discovery-only entries.',
-          'Use `librarian compose "<intent>"` for composition workflows.',
+          'Run `librainian constructions list` to see executable constructions.',
+          'Run `librainian constructions list --all` to inspect discovery-only entries.',
+          'Use `librainian compose "<intent>"` for composition workflows.',
         ],
       },
     );
   }
   const input = parseRunInput(inputFlag, subcommandArgs.slice(1));
-  const librarian = new Librarian({
+  const librainian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
     llmProvider: (process.env.LIBRARIAN_LLM_PROVIDER as 'claude' | 'codex') || 'claude',
     llmModelId: process.env.LIBRARIAN_LLM_MODEL,
   });
-  await librarian.initialize();
+  await librainian.initialize();
   try {
     const output = await invokeConstruction(
       manifest.id,
       input,
       {
-        deps: { librarian },
+        deps: { librainian },
         signal: new AbortController().signal,
         sessionId: randomUUID(),
       },
@@ -530,7 +530,7 @@ async function runRun(params: {
     console.log(`Ran ${manifest.id}`);
     console.log(JSON.stringify(output, null, 2));
   } finally {
-    await librarian.shutdown();
+    await librainian.shutdown();
   }
 }
 
@@ -649,7 +649,7 @@ function formatInstallCommand(manifest: ConstructionManifest): string {
   if (mode === 'npm') {
     return `npm install ${toPackageName(manifest.id)}@${manifest.version}`;
   }
-  return `librarian constructions install ${manifest.id}`;
+  return `librainian constructions install ${manifest.id}`;
 }
 
 function parseRunInput(inputFlag: string | undefined, positionalRemainder: string[]): unknown {
@@ -772,7 +772,7 @@ function buildExampleCode(id: string, input: unknown): string {
 }
 
 function getKnownCapabilities(): Set<string> {
-  const capabilities = new Set<string>(['librarian']);
+  const capabilities = new Set<string>(['librainian']);
   for (const manifest of listConstructions()) {
     for (const capability of manifest.requiredCapabilities) {
       capabilities.add(capability);

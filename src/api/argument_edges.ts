@@ -13,7 +13,7 @@
  */
 
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   KnowledgeGraphEdge,
   KnowledgeEdgeType,
   ArgumentEdge,
@@ -129,7 +129,7 @@ export interface ContradictionResult {
  * Retrieves all argument edges where the entity is either the source or target.
  * Filters by edge type if specified.
  *
- * @param storage - The librarian storage instance
+ * @param storage - The librainian storage instance
  * @param entityId - The entity ID to query (decision, constraint, etc.)
  * @param options - Query options
  * @returns Array of argument edges
@@ -143,7 +143,7 @@ export interface ContradictionResult {
  * ```
  */
 export async function getArgumentEdgesForEntity(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   options?: ArgumentEdgeFilterOptions & { edgeTypes?: ArgumentEdgeType[] }
 ): Promise<ArgumentEdgeQueryResult> {
@@ -207,7 +207,7 @@ export async function getArgumentEdgesForEntity(
  * - 'supports' edges (direct evidence)
  * - 'warrants' edges (reasoning principles)
  *
- * @param storage - The librarian storage instance
+ * @param storage - The librainian storage instance
  * @param decisionId - The decision entity ID
  * @returns Supporting evidence result
  *
@@ -219,7 +219,7 @@ export async function getArgumentEdgesForEntity(
  * ```
  */
 export async function getSupportingEvidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   decisionId: string
 ): Promise<SupportingEvidenceResult> {
   // Get edges where decision is the target (being supported)
@@ -267,7 +267,7 @@ export async function getSupportingEvidence(
  * - 'undermines' edges (attacks on premises)
  * - 'rebuts' edges (defeating conditions)
  *
- * @param storage - The librarian storage instance
+ * @param storage - The librainian storage instance
  * @param entityId - The entity ID to analyze
  * @returns Contradiction analysis result
  *
@@ -281,7 +281,7 @@ export async function getSupportingEvidence(
  * ```
  */
 export async function getContradictions(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string
 ): Promise<ContradictionResult> {
   // Get edges both from and to the entity
@@ -333,7 +333,7 @@ export async function getContradictions(
  * - 'supersedes' edges (replacement chain)
  * - 'depends_on_decision' edges (dependency chain)
  *
- * @param storage - The librarian storage instance
+ * @param storage - The librainian storage instance
  * @param decisionId - The decision ID to start from
  * @param options - Query options
  * @returns Decision chain traversal result
@@ -347,7 +347,7 @@ export async function getContradictions(
  * ```
  */
 export async function getDecisionChain(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   decisionId: string,
   options?: { maxDepth?: number }
 ): Promise<DecisionChainResult> {
@@ -581,14 +581,14 @@ function knowledgeEdgeToArgumentEdge(edge: KnowledgeGraphEdge): ArgumentEdge {
  *
  * Used by the query pipeline to filter graph expansion to specific edge types.
  *
- * @param storage - The librarian storage instance
+ * @param storage - The librainian storage instance
  * @param rootIds - Starting entity IDs
  * @param edgeTypes - Edge types to traverse
  * @param maxDepth - Maximum traversal depth
  * @returns Related entity IDs discovered through filtered edges
  */
 export async function expandGraphWithEdgeFilter(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   rootIds: string[],
   edgeTypes: string[],
   maxDepth: number = 2
@@ -647,7 +647,7 @@ export interface QueryEdgeInfo {
 /**
  * Extract edge info for query response.
  *
- * Converts edges to a simplified format suitable for including in LibrarianResponse.
+ * Converts edges to a simplified format suitable for including in LiBrainianResponse.
  *
  * @param edges - Array of knowledge graph edges
  * @returns Simplified edge information

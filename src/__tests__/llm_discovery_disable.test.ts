@@ -5,13 +5,13 @@ vi.mock('../api/llm_env.js', async () => {
   const actual = await vi.importActual<typeof import('../api/llm_env.js')>('../api/llm_env.js');
   return {
     ...actual,
-    resolveLibrarianModelConfigWithDiscovery: vi.fn(async () => {
+    resolveLiBrainianModelConfigWithDiscovery: vi.fn(async () => {
       throw new Error('llm_discovery_called');
     }),
   };
 });
 
-describe('Librarian LLM discovery control', () => {
+describe('LiBrainian LLM discovery control', () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -21,22 +21,22 @@ describe('Librarian LLM discovery control', () => {
       'config/canon.json': JSON.stringify({ schema_version: 1 }, null, 2),
       'package.json': JSON.stringify({ name: 'llm-disable-test' }, null, 2),
       'src/index.ts': 'export const ok = true;\n',
-    }, 'librarian-llm-disable-');
+    }, 'librainian-llm-disable-');
 
-    const { Librarian } = await import('../api/librarian.js');
-    const { resolveLibrarianModelConfigWithDiscovery } = await import('../api/llm_env.js');
+    const { LiBrainian } = await import('../api/librainian.js');
+    const { resolveLiBrainianModelConfigWithDiscovery } = await import('../api/llm_env.js');
 
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace,
       autoBootstrap: false,
       disableLlmDiscovery: true,
     } as unknown as { workspace: string; autoBootstrap: boolean; disableLlmDiscovery: boolean });
 
     try {
-      await librarian.initialize();
-      expect(vi.mocked(resolveLibrarianModelConfigWithDiscovery)).not.toHaveBeenCalled();
+      await librainian.initialize();
+      expect(vi.mocked(resolveLiBrainianModelConfigWithDiscovery)).not.toHaveBeenCalled();
     } finally {
-      await librarian.shutdown();
+      await librainian.shutdown();
       await cleanupWorkspace(workspace);
     }
   });

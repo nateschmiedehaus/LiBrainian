@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { LibrarianStorage, KnowledgeGraphEdge } from '../../storage/types.js';
+import type { LiBrainianStorage, KnowledgeGraphEdge } from '../../storage/types.js';
 import { computeChangeImpactReport } from '../change_impact_tool.js';
 
 function module(path: string, dependencies: string[] = []): any {
@@ -33,7 +33,7 @@ function edge(sourceId: string, targetId: string, weight: number): KnowledgeGrap
 function createMockStorage(options?: {
   modules?: any[];
   coChanged?: KnowledgeGraphEdge[];
-}): LibrarianStorage {
+}): LiBrainianStorage {
   const modules = options?.modules ?? [];
   const coChanged = options?.coChanged ?? [];
 
@@ -47,7 +47,7 @@ function createMockStorage(options?: {
         return true;
       });
     }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 describe('computeChangeImpactReport', () => {

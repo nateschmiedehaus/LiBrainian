@@ -134,7 +134,7 @@ describe('ClaimOutcomeIndex - indexClaim', () => {
       content: 'Full content',
       confidence: 0.85,
       claimType: 'behavioral',
-      source: 'librarian',
+      source: 'librainian',
       tags: ['api', 'function'],
     });
     index.indexClaim(claim);
@@ -143,7 +143,7 @@ describe('ClaimOutcomeIndex - indexClaim', () => {
     expect(retrieved?.content).toBe('Full content');
     expect(retrieved?.confidence).toBe(0.85);
     expect(retrieved?.claimType).toBe('behavioral');
-    expect(retrieved?.source).toBe('librarian');
+    expect(retrieved?.source).toBe('librainian');
     expect(retrieved?.tags).toEqual(['api', 'function']);
   });
 });

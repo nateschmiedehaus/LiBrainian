@@ -1,5 +1,5 @@
 /**
- * @fileoverview Automatic Quality Tier Selection for Librarian
+ * @fileoverview Automatic Quality Tier Selection for LiBrainian
  *
  * This module provides intelligent tier selection based on:
  * - Codebase characteristics (files, LOC, complexity)
@@ -51,7 +51,7 @@ export interface CodebaseMetrics {
   hasDeepNesting: boolean;
   /** Is a monorepo (has workspace indicators) */
   isMonorepo: boolean;
-  /** Has existing librarian index */
+  /** Has existing librainian index */
   hasExistingIndex: boolean;
 }
 
@@ -222,7 +222,7 @@ export async function analyzeCodebase(workspace: string): Promise<CodebaseMetric
   // Check for existing index
   let hasExistingIndex = false;
   try {
-    await fs.access(path.join(workspace, '.librarian'));
+    await fs.access(path.join(workspace, '.librainian'));
     hasExistingIndex = true;
   } catch {
     // No existing index

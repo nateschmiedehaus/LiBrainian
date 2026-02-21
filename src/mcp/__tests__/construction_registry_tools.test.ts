@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deterministic } from '../../epistemics/confidence.js';
 import { createConstruction } from '../../constructions/composition.js';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 const GENERATED_ID = '@librainian-community/mcp-invoke-registry-test';
 
@@ -16,9 +16,9 @@ describe('MCP construction registry tools', () => {
       }),
     );
 
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const results = await (server as any).executeListConstructions({
@@ -44,9 +44,9 @@ describe('MCP construction registry tools', () => {
       }),
     );
 
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const result = await (server as any).executeInvokeConstruction({
@@ -60,9 +60,9 @@ describe('MCP construction registry tools', () => {
   });
 
   it('rejects unknown construction IDs with an actionable error', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     await expect(
@@ -74,9 +74,9 @@ describe('MCP construction registry tools', () => {
   });
 
   it('describes a construction with example and composition hints', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const result = await (server as any).executeDescribeConstruction({
@@ -97,9 +97,9 @@ describe('MCP construction registry tools', () => {
   });
 
   it('recommends an operator when explain_operator receives only situation text', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const result = await (server as any).executeExplainOperator({
@@ -113,9 +113,9 @@ describe('MCP construction registry tools', () => {
   });
 
   it('returns compatibility guidance for check_construction_types', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const compatible = await (server as any).executeCheckConstructionTypes({
@@ -135,9 +135,9 @@ describe('MCP construction registry tools', () => {
   });
 
   it('publishes construction discovery tools in tools/list', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const tools = (server as any).getAvailableTools().map((tool: { name: string }) => tool.name);

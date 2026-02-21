@@ -1,8 +1,8 @@
 /**
- * @fileoverview Multi-Graph Importance Metrics for Librarian
+ * @fileoverview Multi-Graph Importance Metrics for LiBrainian
  *
  * Implements per-graph importance metrics and unified importance scoring
- * across the four interconnected graphs in Librarian:
+ * across the four interconnected graphs in LiBrainian:
  * - Code Graph: Functions, classes, modules with calls/imports/extends edges
  * - Rationale Graph: Decisions, justifications, tradeoffs, ADRs
  * - Epistemic Graph: Claims, evidence, confidence values, defeaters
@@ -29,7 +29,7 @@ import type {
   ArgumentEdgeType,
   KnowledgeGraphEdge,
   KnowledgeEdgeType,
-  LibrarianStorage,
+  LiBrainianStorage,
 } from '../storage/types.js';
 import { isArgumentEdge, isSupportEdge, isConflictEdge, isDecisionChainEdge } from '../storage/types.js';
 import type { Claim, ClaimId, EvidenceEdge, EdgeType, Contradiction, ExtendedDefeater } from '../epistemics/types.js';

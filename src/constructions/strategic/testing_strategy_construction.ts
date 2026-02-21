@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -82,7 +82,7 @@ export interface TestingStrategyAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new TestingStrategyConstruction(librarian);
+ * const construction = new TestingStrategyConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['src/**', 'tests/**'],
  *   metrics: { coverage: 0.75, mutationScore: 0.6 },
@@ -94,11 +94,11 @@ export class TestingStrategyConstruction implements CalibratedConstruction {
   static readonly CONSTRUCTION_ID = 'TestingStrategyConstruction';
   readonly CONSTRUCTION_ID = TestingStrategyConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -154,13 +154,13 @@ export class TestingStrategyConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand testing context
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand testing context
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze testing practices including test coverage, test quality, and testing infrastructure',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:testing_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:testing_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Select strategy
     const strategy = input.strategy || this.getStandard();
@@ -269,7 +269,7 @@ export class TestingStrategyConstruction implements CalibratedConstruction {
    */
   private extractMetrics(
     inputMetrics: Partial<testingStrategy.TestQualityMetrics> | undefined,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): testingStrategy.TestQualityMetrics {
     const packs = queryResult.packs || [];
 
@@ -379,7 +379,7 @@ export class TestingStrategyConstruction implements CalibratedConstruction {
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -403,11 +403,11 @@ export class TestingStrategyConstruction implements CalibratedConstruction {
 /**
  * Create a new testing strategy construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new TestingStrategyConstruction
  */
 export function createTestingStrategyConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): TestingStrategyConstruction {
-  return new TestingStrategyConstruction(librarian);
+  return new TestingStrategyConstruction(librainian);
 }

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Hotspot Scoring for Librarian Prioritization
+ * @fileoverview Hotspot Scoring for LiBrainian Prioritization
  *
  * Hotspots are code locations with high churn AND high complexity - these are
  * where bugs cluster and where refactoring has the highest ROI.

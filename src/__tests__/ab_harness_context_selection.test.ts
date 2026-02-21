@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { refineLibrarianContextFiles } from '../evaluation/ab_harness.js';
+import { refineLiBrainianContextFiles } from '../evaluation/ab_harness.js';
 
-describe('refineLibrarianContextFiles', () => {
+describe('refineLiBrainianContextFiles', () => {
   it('filters noisy paths, prefers source twins, and caps candidate volume', () => {
-    const selected = refineLibrarianContextFiles(
+    const selected = refineLiBrainianContextFiles(
       [
         'src/utils/dependencyGraph.test.ts',
         'src/utils/dependencyGraph.js',
@@ -24,7 +24,7 @@ describe('refineLibrarianContextFiles', () => {
   });
 
   it('keeps test paths when target files are tests', () => {
-    const selected = refineLibrarianContextFiles(
+    const selected = refineLiBrainianContextFiles(
       [
         'src/utils/dependencyGraph.test.ts',
         'src/utils/dependencyGraph.ts',

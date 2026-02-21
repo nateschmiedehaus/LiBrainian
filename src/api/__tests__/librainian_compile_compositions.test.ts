@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Librarian } from '../librarian.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { LiBrainian } from '../librainian.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { createTechniqueComposition } from '../../strategic/techniques.js';
 import { saveTechniqueComposition } from '../../state/technique_compositions.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -18,27 +18,27 @@ class MockStorage implements StorageStub {
   }
 }
 
-describe('Librarian composition compilation', () => {
+describe('LiBrainian composition compilation', () => {
   it('compiles a seeded composition into a work template', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const result = await librarian.compileTechniqueCompositionTemplate('tc_release_readiness');
+    const result = await librainian.compileTechniqueCompositionTemplate('tc_release_readiness');
     expect(result.template?.id).toBe('wt_tc_release_readiness');
     expect(result.missingPrimitiveIds).toEqual([]);
   });
 
   it('reports missing primitives for custom compositions', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    const storage = new MockStorage() as unknown as LibrarianStorage;
-    (librarian as unknown as { storage: LibrarianStorage }).storage = storage;
+    const storage = new MockStorage() as unknown as LiBrainianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage = storage;
 
     await saveTechniqueComposition(storage, createTechniqueComposition({
       id: 'tc-missing',
@@ -47,35 +47,35 @@ describe('Librarian composition compilation', () => {
       primitiveIds: ['tp_missing'],
     }));
 
-    const result = await librarian.compileTechniqueCompositionTemplate('tc-missing');
+    const result = await librainian.compileTechniqueCompositionTemplate('tc-missing');
     expect(result.template?.id).toBe('wt_tc-missing');
     expect(result.missingPrimitiveIds).toEqual(['tp_missing']);
   });
 
   it('bundles composition template with primitive definitions', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const bundle = await librarian.compileTechniqueCompositionBundle('tc_release_readiness');
+    const bundle = await librainian.compileTechniqueCompositionBundle('tc_release_readiness');
     expect(bundle.template?.id).toBe('wt_tc_release_readiness');
     expect(bundle.primitives.map((item) => item.id)).toEqual(
       expect.arrayContaining(['tp_release_plan'])
     );
   });
 
-  it('compiles bundles from intent via librarian', async () => {
-    const librarian = new Librarian({
+  it('compiles bundles from intent via librainian', async () => {
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const bundles = await librarian.compileTechniqueBundlesFromIntent('Prepare a release plan', {
+    const bundles = await librainian.compileTechniqueBundlesFromIntent('Prepare a release plan', {
       selectionMode: 'keyword',
     });
     expect(bundles.map((bundle) => bundle.template?.id)).toEqual(
@@ -84,29 +84,29 @@ describe('Librarian composition compilation', () => {
   });
 
   it('compiles intent bundles with limit', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const bundles = await librarian.compileTechniqueBundlesFromIntent('Prepare a release plan', {
+    const bundles = await librainian.compileTechniqueBundlesFromIntent('Prepare a release plan', {
       limit: 1,
       selectionMode: 'keyword',
     });
     expect(bundles).toHaveLength(1);
   });
 
-  it('plans work from intent via librarian', async () => {
-    const librarian = new Librarian({
+  it('plans work from intent via librainian', async () => {
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const plans = await librarian.planWork('Prepare a release plan', {
+    const plans = await librainian.planWork('Prepare a release plan', {
       selectionMode: 'keyword',
     });
     expect(plans.map((plan) => plan.composition.id)).toContain('tc_release_readiness');
@@ -114,14 +114,14 @@ describe('Librarian composition compilation', () => {
   });
 
   it('can omit primitives from intent bundles', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const bundles = await librarian.compileTechniqueBundlesFromIntent('Prepare a release plan', {
+    const bundles = await librainian.compileTechniqueBundlesFromIntent('Prepare a release plan', {
       includePrimitives: false,
       selectionMode: 'keyword',
     });

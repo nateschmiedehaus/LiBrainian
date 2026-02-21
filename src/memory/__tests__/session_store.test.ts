@@ -28,7 +28,7 @@ describe('session_store', () => {
     await recordSessionQuery(workspace, 'How is auth refreshed?', ['src/session.ts']);
 
     const state = await getSessionState(workspace);
-    expect(state.kind).toBe('LibrarianSession.v1');
+    expect(state.kind).toBe('LiBrainianSession.v1');
     expect(state.workingContext.recentQueries[0]).toBe('How is auth refreshed?');
     expect(state.workingContext.recentQueries).toContain('Where is auth middleware?');
     expect(state.workingContext.activeTask).toBe('How is auth refreshed?');

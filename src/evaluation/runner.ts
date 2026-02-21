@@ -1,5 +1,5 @@
 /**
- * @fileoverview Eval runner for Librarian ground-truth corpus.
+ * @fileoverview Eval runner for LiBrainian ground-truth corpus.
  */
 
 import { readFile, readdir } from 'node:fs/promises';
@@ -508,7 +508,7 @@ async function loadEvalCorpus(corpusPath: string, corpusPaths?: string[]): Promi
 
     for (const entry of repoEntries) {
       if (!entry.isDirectory()) continue;
-      const repoRoot = join(reposRoot, entry.name, '.librarian-eval');
+      const repoRoot = join(reposRoot, entry.name, '.librainian-eval');
       const manifest = await readJson<RepoManifest>(join(repoRoot, 'manifest.json'));
       const groundTruth = await readJson<{ version?: string; repoId?: string; queries?: GroundTruthQuery[] }>(
         join(repoRoot, 'ground-truth.json')

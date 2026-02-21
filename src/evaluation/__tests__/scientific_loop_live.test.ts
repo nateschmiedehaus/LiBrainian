@@ -49,7 +49,7 @@ import type {
   HypothesisTesterAgent,
   HypothesisTesterInput,
 } from '../../agents/types.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // TEST FIXTURES: Bug Injection Types
@@ -290,7 +290,7 @@ function createVerificationCommandRunner(): CommandRunner {
  * This simulates the scenario where we've successfully identified the root cause.
  * Used in integration tests to exercise the full loop flow.
  */
-function createSupportiveHypothesisTester(mockStorage: LibrarianStorage): HypothesisTesterAgent {
+function createSupportiveHypothesisTester(mockStorage: LiBrainianStorage): HypothesisTesterAgent {
   let callCount = 0;
 
   return {
@@ -335,7 +335,7 @@ function createSupportiveHypothesisTester(mockStorage: LibrarianStorage): Hypoth
 /**
  * Creates a minimal mock storage for agent initialization.
  */
-function createMockStorage(): LibrarianStorage {
+function createMockStorage(): LiBrainianStorage {
   return {
     db: null as any,
     initialize: async () => {},
@@ -409,7 +409,7 @@ describe('Scientific Loop Live Execution', () => {
   describe('WU-1502: Problem Detection', () => {
     let problemDetector: ProblemDetector;
     let injectedBugs: InjectedBug[];
-    let mockStorage: LibrarianStorage;
+    let mockStorage: LiBrainianStorage;
 
     beforeEach(async () => {
       problemDetector = createProblemDetector();
@@ -482,7 +482,7 @@ describe('Scientific Loop Live Execution', () => {
   describe('WU-1503: Hypothesis Generation', () => {
     let problemDetector: ProblemDetector;
     let hypothesisGenerator: HypothesisGenerator;
-    let mockStorage: LibrarianStorage;
+    let mockStorage: LiBrainianStorage;
     let detectedProblems: Problem[];
 
     beforeEach(async () => {
@@ -592,7 +592,7 @@ describe('Scientific Loop Live Execution', () => {
     let hypothesisTester: HypothesisTester;
     let fixGenerator: FixGenerator;
     let fixVerifier: FixVerifier;
-    let mockStorage: LibrarianStorage;
+    let mockStorage: LiBrainianStorage;
 
     beforeEach(async () => {
       problemDetector = createProblemDetector();
@@ -723,7 +723,7 @@ describe('Scientific Loop Live Execution', () => {
     let fixGenerator: FixGenerator;
     let fixVerifier: FixVerifier;
     let benchmarkEvolver: BenchmarkEvolver;
-    let mockStorage: LibrarianStorage;
+    let mockStorage: LiBrainianStorage;
 
     beforeEach(async () => {
       problemDetector = createProblemDetector();
@@ -819,7 +819,7 @@ describe('Scientific Loop Live Execution', () => {
   describe('Integration: Full Loop Execution', () => {
     let orchestrator: ScientificLoopOrchestratorImpl;
     let improvementTracker: ImprovementTrackerImpl;
-    let mockStorage: LibrarianStorage;
+    let mockStorage: LiBrainianStorage;
 
     beforeEach(async () => {
       orchestrator = createScientificLoopOrchestrator({

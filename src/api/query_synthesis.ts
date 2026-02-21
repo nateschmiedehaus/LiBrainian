@@ -1,7 +1,7 @@
-import type { ContextPack, LibrarianQuery } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { ContextPack, LiBrainianQuery } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery } from './llm_env.js';
 import { requireProviders } from './provider_check.js';
 import { createHash } from 'crypto';
 import { generateStructuredWithRetries, type StructuredParseResult } from './structured_generation.js';
@@ -9,7 +9,7 @@ import { generateStructuredWithRetries, type StructuredParseResult } from './str
 // Helpers
 
 /** Generate a unique query ID for feedback tracking */
-function generateQueryId(query: LibrarianQuery): string {
+function generateQueryId(query: LiBrainianQuery): string {
   const timestamp = Date.now();
   const queryHash = createHash('sha256')
     .update(query.intent + (query.taskType ?? '') + timestamp.toString())
@@ -21,9 +21,9 @@ function generateQueryId(query: LibrarianQuery): string {
 // Types
 
 export interface QuerySynthesisInput {
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   packs: ContextPack[];
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   workspace: string;
 }
 
@@ -102,7 +102,7 @@ export async function synthesizeQueryAnswer(
 
   // Check LLM availability - MANDATORY
   await requireProviders({ llm: true, embedding: false });
-  const llmConfig = await resolveLibrarianModelConfigWithDiscovery();
+  const llmConfig = await resolveLiBrainianModelConfigWithDiscovery();
 
   // No packs = no knowledge to synthesize from
   // This can happen when:
@@ -303,7 +303,7 @@ const SYNTHESIS_OUTPUT_SCHEMA: Record<string, unknown> = {
 };
 
 function buildSynthesisPrompt(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   knowledge: ExtractedKnowledge
 ): string {
   const parts: string[] = [];
@@ -534,7 +534,7 @@ function estimateConfidence(citations: Citation[], packs: ContextPack[]): number
  * Used to skip full LLM synthesis for straightforward lookups.
  */
 export function canAnswerFromSummaries(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   packs: ContextPack[]
 ): boolean {
   if (!packs.length) return false;
@@ -561,7 +561,7 @@ export function canAnswerFromSummaries(
  * Only use when canAnswerFromSummaries returns true.
  */
 export function createQuickAnswer(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   packs: ContextPack[]
 ): SynthesizedAnswer {
   const topPack = packs

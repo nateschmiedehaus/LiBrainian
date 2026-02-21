@@ -5,7 +5,7 @@
  * This hook system is integrated into:
  * 1. Agent prompts (via agent_protocol.ts)
  * 2. File write operations (via file_ops.ts)
- * 3. Librarian queries (via wave0_integration.ts)
+ * 3. LiBrainian queries (via wave0_integration.ts)
  *
  * PHILOSOPHY (from Wave0 development standards):
  * - Search before creating: Always search for existing implementations before creating new files
@@ -17,7 +17,7 @@
  */
 
 import path from 'node:path';
-import { getLibrarian } from './first_run_gate.js';
+import { getLiBrainian } from './first_run_gate.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
 
 // ============================================================================
@@ -84,7 +84,7 @@ const MODULARIZATION_PROMPT = `## Modularization-First Development Protocol
 CRITICAL: Before creating ANY new file, you MUST:
 
 1. **Search First**: Search for existing implementations that could be extended
-   - Use librarian query: "existing implementations of [functionality]"
+   - Use librainian query: "existing implementations of [functionality]"
    - Check related modules for similar patterns
    - Review AGENTS.md or similar guides for existing conventions
 
@@ -226,7 +226,7 @@ function checkGenericFileName(filePath: string): ModularizationCheckResult {
       suggestions: [
         `Rename to describe the specific functionality (e.g., "${basename}_for_[domain].ts")`,
         'Consider adding to an existing domain-specific file',
-        'Use librarian query to find appropriate existing location',
+        'Use librainian query to find appropriate existing location',
       ],
       confidence: 0.95,
     };
@@ -260,16 +260,16 @@ function checkPoorNamingPatterns(filePath: string): ModularizationCheckResult {
 }
 
 /**
- * Check for similar existing files using librarian.
+ * Check for similar existing files using librainian.
  */
 async function checkSimilarFiles(
   workspace: string,
   filePath: string,
   content?: string
 ): Promise<ModularizationCheckResult> {
-  const librarian = getLibrarian(workspace);
-  if (!librarian) {
-    // Librarian not available - allow with lower confidence
+  const librainian = getLiBrainian(workspace);
+  if (!librainian) {
+    // LiBrainian not available - allow with lower confidence
     return { allowed: true, confidence: 0.5 };
   }
 
@@ -283,8 +283,8 @@ async function checkSimilarFiles(
       return { allowed: true, confidence: 0.7 };
     }
 
-    // Query librarian for similar functionality
-    const response = await librarian.query({
+    // Query librainian for similar functionality
+    const response = await librainian.query({
       intent: `Find existing implementations for: ${purposeHints.join(', ')}`,
       affectedFiles: [filePath],
       depth: 'L1',
@@ -308,7 +308,7 @@ async function checkSimilarFiles(
             similarFiles: sameDir,
             suggestions: [
               `Review ${sameDir[0]} for potential consolidation`,
-              'Query librarian for detailed comparison',
+              'Query librainian for detailed comparison',
               'If truly new functionality, explain why existing files cannot be extended',
             ],
             confidence: 0.75,
@@ -330,7 +330,7 @@ async function checkSimilarFiles(
 
     return { allowed: true, confidence: 0.85 };
   } catch (error) {
-    // Librarian query failed - allow with lower confidence
+    // LiBrainian query failed - allow with lower confidence
     return { allowed: true, confidence: 0.5 };
   }
 }

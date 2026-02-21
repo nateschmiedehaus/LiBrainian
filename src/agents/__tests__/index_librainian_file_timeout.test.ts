@@ -1,16 +1,16 @@
 /**
- * File timeout behavior tests for IndexLibrarian.
+ * File timeout behavior tests for IndexLiBrainian.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IndexLibrarian } from '../index_librarian.js';
+import { IndexLiBrainian } from '../index_librainian.js';
 import { globalEventBus } from '../../events.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 
 // Skip in unit test mode (no real providers)
 const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && !process.env.LIBRARIAN_TIER0);
 const describeWithProviders = IS_UNIT_MODE ? describe.skip : describe;
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { IndexingTask } from '../../types.js';
 import type { FileIndexResult } from '../types.js';
 
@@ -21,13 +21,13 @@ vi.mock('../ast_indexer.js', () => ({
   })),
 }));
 
-function createMockStorage(): LibrarianStorage {
+function createMockStorage(): LiBrainianStorage {
   return {
     initialize: vi.fn(async () => undefined),
     isInitialized: vi.fn(() => true),
     getModules: vi.fn(async () => []),
     recordIndexingResult: vi.fn(async () => undefined),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 function buildTask(paths: string[]): IndexingTask {
@@ -52,7 +52,7 @@ function buildResult(filePath: string): FileIndexResult {
   };
 }
 
-describeWithProviders('IndexLibrarian file timeouts', () => {
+describeWithProviders('IndexLiBrainian file timeouts', () => {
   beforeAll(async () => {
     const status = await checkAllProviders({ workspaceRoot: process.cwd(), forceProbe: false });
     if (!status.embedding.available) {
@@ -76,7 +76,7 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
   it('skips a file after timeout when policy is skip', async () => {
     const storage = createMockStorage();
     const onFileSkipped = vi.fn();
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       computeGraphMetrics: false,
       llmProvider: 'claude',
@@ -86,12 +86,12 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
       fileTimeoutPolicy: 'skip',
       onFileSkipped,
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    vi.spyOn(librarian, 'indexFile').mockImplementation(() => new Promise(() => {}));
+    vi.spyOn(librainian, 'indexFile').mockImplementation(() => new Promise(() => {}));
 
     const task = buildTask(['timeout.ts']);
-    const resultPromise = librarian.processTask(task);
+    const resultPromise = librainian.processTask(task);
     await vi.advanceTimersByTimeAsync(15);
     const result = await resultPromise;
 
@@ -105,7 +105,7 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
   it('retries then succeeds when fileTimeoutRetries > 0', async () => {
     const storage = createMockStorage();
     const onFileSkipped = vi.fn();
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       computeGraphMetrics: false,
       llmProvider: 'claude',
@@ -115,16 +115,16 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
       fileTimeoutPolicy: 'skip',
       onFileSkipped,
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
     const filePath = 'retry.ts';
     const fileSpy = vi
-      .spyOn(librarian, 'indexFile')
+      .spyOn(librainian, 'indexFile')
       .mockImplementationOnce(() => new Promise(() => {}))
       .mockResolvedValueOnce(buildResult(filePath));
 
     const task = buildTask([filePath]);
-    const resultPromise = librarian.processTask(task);
+    const resultPromise = librainian.processTask(task);
     await vi.advanceTimersByTimeAsync(15);
     const result = await resultPromise;
 
@@ -136,7 +136,7 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
 
   it('fails when policy is retry and all attempts time out', async () => {
     const storage = createMockStorage();
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       computeGraphMetrics: false,
       llmProvider: 'claude',
@@ -145,12 +145,12 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
       fileTimeoutRetries: 1,
       fileTimeoutPolicy: 'retry',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    const fileSpy = vi.spyOn(librarian, 'indexFile').mockImplementation(() => new Promise(() => {}));
+    const fileSpy = vi.spyOn(librainian, 'indexFile').mockImplementation(() => new Promise(() => {}));
 
     const task = buildTask(['timeout.ts']);
-    const resultPromise = librarian.processTask(task);
+    const resultPromise = librainian.processTask(task);
     const expectation = expect(resultPromise).rejects.toThrow('file_timeout');
     await vi.advanceTimersByTimeAsync(25);
     await expectation;
@@ -160,7 +160,7 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
   it('reports progress and emits index_file events for mixed outcomes', async () => {
     const storage = createMockStorage();
     const progressCalls: Array<{ total: number; completed: number; currentFile?: string }> = [];
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       computeGraphMetrics: false,
       llmProvider: 'claude',
@@ -170,9 +170,9 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
       fileTimeoutPolicy: 'skip',
       progressCallback: (progress) => progressCalls.push(progress),
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    vi.spyOn(librarian, 'indexFile').mockImplementation((filePath) => {
+    vi.spyOn(librainian, 'indexFile').mockImplementation((filePath) => {
       if (filePath.includes('ok')) {
         return Promise.resolve(buildResult(filePath));
       }
@@ -185,7 +185,7 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
     });
 
     const task = buildTask(['ok.ts', 'timeout.ts']);
-    const resultPromise = librarian.processTask(task);
+    const resultPromise = librainian.processTask(task);
     await vi.advanceTimersByTimeAsync(15);
     const result = await resultPromise;
     await vi.runAllTimersAsync();
@@ -200,7 +200,7 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
 
   it('fails when policy is fail', async () => {
     const storage = createMockStorage();
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       computeGraphMetrics: false,
       llmProvider: 'claude',
@@ -209,12 +209,12 @@ describeWithProviders('IndexLibrarian file timeouts', () => {
       fileTimeoutRetries: 0,
       fileTimeoutPolicy: 'fail',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    vi.spyOn(librarian, 'indexFile').mockImplementation(() => new Promise(() => {}));
+    vi.spyOn(librainian, 'indexFile').mockImplementation(() => new Promise(() => {}));
 
     const task = buildTask(['timeout.ts']);
-    const resultPromise = librarian.processTask(task);
+    const resultPromise = librainian.processTask(task);
     const expectation = expect(resultPromise).rejects.toThrow('file_timeout');
     await vi.advanceTimersByTimeAsync(15);
     await expectation;

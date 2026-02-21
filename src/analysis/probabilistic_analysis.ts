@@ -9,7 +9,7 @@
  */
 
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   BayesianConfidence,
   StabilityMetrics,
 } from '../storage/types.js';
@@ -146,7 +146,7 @@ export function updateConfidence(
  * Batch update confidence from multiple observations.
  */
 export async function recordObservations(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   observations: ConfidenceObservation[]
 ): Promise<void> {
   for (const obs of observations) {
@@ -166,7 +166,7 @@ export async function recordObservations(
  * PropagatedConf(A) = w * Conf(A) + (1-w) * avg(Conf(deps of A))
  */
 export async function propagateConfidence(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   selfWeight: number = 0.7 // Weight given to self vs dependencies
 ): Promise<PropagationResult[]> {
@@ -346,7 +346,7 @@ export function computeStabilityFromHistory(
  * Record stability metrics for an entity.
  */
 export async function recordStabilityMetrics(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   entityType: StabilityMetrics['entityType'],
   values: number[],
@@ -446,7 +446,7 @@ export interface ProbabilisticAnalysisResult {
  * Run full probabilistic analysis on entities.
  */
 export async function runProbabilisticAnalysis(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityIds: string[],
   entityType: BayesianConfidence['entityType'],
   graph?: ModuleGraph

@@ -89,7 +89,7 @@ export async function feedbackCommand(options: FeedbackCommandOptions): Promise<
 
   const feedbackToken = (positionals[0] ?? '').trim();
   if (!feedbackToken) {
-    throw createError('INVALID_ARGUMENT', 'feedbackToken is required. Usage: librarian feedback <feedbackToken> --outcome <success|failure|partial>');
+    throw createError('INVALID_ARGUMENT', 'feedbackToken is required. Usage: librainian feedback <feedbackToken> --outcome <success|failure|partial>');
   }
 
   if (typeof values.outcome !== 'string' || values.outcome.trim().length === 0) {

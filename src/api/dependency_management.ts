@@ -22,7 +22,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
-import type { LibrarianStorage, FileKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, FileKnowledge } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -173,12 +173,12 @@ export function extractDependencyAction(
  * Analyze project dependencies comprehensively.
  *
  * @param workspace - Path to the project workspace
- * @param storage - Librarian storage for file access
+ * @param storage - LiBrainian storage for file access
  * @returns Complete dependency analysis
  */
 export async function analyzeDependencies(
   workspace: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<DependencyAnalysis> {
   const pkgPath = path.join(workspace, 'package.json');
   const lockPath = path.join(workspace, 'package-lock.json');
@@ -249,7 +249,7 @@ export async function analyzeDependencies(
  */
 async function analyzeDirect(
   deps: Record<string, string>,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspace: string,
   isDev: boolean
 ): Promise<DependencyInfo[]> {
@@ -339,7 +339,7 @@ function checkImport(content: string, packageName: string): boolean {
  * Find dependencies that appear to be unused in the codebase.
  */
 async function findUnusedDependencies(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   pkg: {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;

@@ -10,7 +10,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -127,14 +127,14 @@ const DEFAULT_IGNORE_PATTERNS = [
 /**
  * Calculate index completeness for a workspace.
  *
- * Compares discovered source files against the librarian index to determine:
+ * Compares discovered source files against the librainian index to determine:
  * - Overall completeness percentage
  * - Missing files that need indexing
  * - Stale files that need re-indexing
  * - Breakdown by extension and directory
  *
  * @param workspace - Root directory of the workspace
- * @param storage - Librarian storage instance
+ * @param storage - LiBrainian storage instance
  * @param options - Calculation options
  * @returns Comprehensive completeness report
  *
@@ -147,7 +147,7 @@ const DEFAULT_IGNORE_PATTERNS = [
  */
 export async function calculateIndexCompleteness(
   workspace: string,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: CompletenessOptions = {}
 ): Promise<IndexCompletenessReport> {
   const {
@@ -316,12 +316,12 @@ function generateRecommendations(analysis: {
   if (analysis.completeness < 0.5) {
     recommendations.push(
       `Index is only ${(analysis.completeness * 100).toFixed(1)}% complete. ` +
-      `Run 'librarian bootstrap --force' for a full reindex.`
+      `Run 'librainian bootstrap --force' for a full reindex.`
     );
   } else if (analysis.completeness < 0.9) {
     recommendations.push(
       `Index is ${(analysis.completeness * 100).toFixed(1)}% complete. ` +
-      `Run 'librarian bootstrap' to index missing files.`
+      `Run 'librainian bootstrap' to index missing files.`
     );
   }
 
@@ -329,12 +329,12 @@ function generateRecommendations(analysis: {
   if (analysis.staleCount > 50) {
     recommendations.push(
       `${analysis.staleCount} files have been modified since indexing. ` +
-      `Consider running 'librarian bootstrap' to update stale entries.`
+      `Consider running 'librainian bootstrap' to update stale entries.`
     );
   } else if (analysis.staleCount > 0) {
     recommendations.push(
       `${analysis.staleCount} files have been modified since indexing. ` +
-      `Use 'librarian index --force <files>' for targeted updates.`
+      `Use 'librainian index --force <files>' for targeted updates.`
     );
   }
 
@@ -346,7 +346,7 @@ function generateRecommendations(analysis: {
     const days = Math.floor(analysis.indexAge / oneDay);
     recommendations.push(
       `Index is ${days} days old. Consider running periodic reindex ` +
-      `or enable 'librarian watch' for continuous updates.`
+      `or enable 'librainian watch' for continuous updates.`
     );
   }
 
@@ -499,12 +499,12 @@ function formatDuration(ms: number): string {
  * Export completeness metrics in Prometheus format.
  *
  * @param report - The completeness report
- * @param prefix - Metric name prefix (default: 'librarian_index')
+ * @param prefix - Metric name prefix (default: 'librainian_index')
  * @returns Prometheus-formatted metrics string
  */
 export function exportPrometheusMetrics(
   report: IndexCompletenessReport,
-  prefix = 'librarian_index'
+  prefix = 'librainian_index'
 ): string {
   const lines: string[] = [];
 

@@ -11,7 +11,7 @@ This file is the Claude-specific entrypoint. It adopts all repository rules from
 
 ## Mandatory Launch-Quality Rules
 
-1. `REAL_AGENT_REAL_LIBRARIAN_ONLY`
+1. `REAL_AGENT_REAL_LIBRAINIAN_ONLY`
    - Qualification and publish evidence must come from real agents running on real LiBrainian repos/workspaces.
 2. `NO_RETRY_NO_FALLBACK_NO_DEGRADED_FOR_RELEASE`
    - Retry/fallback/degraded/unavailable/unverified evidence states are failures, not warnings.

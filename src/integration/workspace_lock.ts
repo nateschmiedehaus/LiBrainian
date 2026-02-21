@@ -39,8 +39,8 @@ export async function acquireWorkspaceLock(workspaceRoot: string, options: Works
   const existing = await readLockState(lockPath);
   const details = existing ? ` (pid=${existing.pid}, startedAt=${existing.startedAt})` : '';
   throw new Error(
-    `unverified_by_trace(lease_conflict): timed out waiting for librarian bootstrap lock${details}. ` +
-      'If this is stale, delete `.librarian/bootstrap.lock` or run `librarian doctor`.'
+    `unverified_by_trace(lease_conflict): timed out waiting for librainian bootstrap lock${details}. ` +
+      'If this is stale, delete `.librainian/bootstrap.lock` or run `librainian doctor`.'
   );
 }
 
@@ -68,7 +68,7 @@ function registerLockCleanup(lockPath: string, state: WorkspaceLockState): void 
   ensureGlobalCleanupHandlers();
 }
 
-const resolveLockPath = (workspaceRoot: string): string => path.join(workspaceRoot, '.librarian', 'bootstrap.lock');
+const resolveLockPath = (workspaceRoot: string): string => path.join(workspaceRoot, '.librainian', 'bootstrap.lock');
 
 function ensureGlobalCleanupHandlers(): void {
   if (globalCleanupRegistered) return;

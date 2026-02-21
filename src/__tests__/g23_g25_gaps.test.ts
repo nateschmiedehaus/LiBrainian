@@ -12,7 +12,7 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import * as fsSync from 'node:fs';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { QueryCacheEntry } from '../storage/types.js';
 import { cleanupWorkspace } from './helpers/index.js';
 
@@ -26,7 +26,7 @@ const HAS_ORCHESTRATOR = expertiseMatcherCandidates.some((candidate) => fsSync.e
 const describeWave0 = HAS_ORCHESTRATOR ? describe : describe.skip;
 
 // Extended storage type with query cache methods
-type QueryCacheStorage = LibrarianStorage & {
+type QueryCacheStorage = LiBrainianStorage & {
   getQueryCacheEntry(queryHash: string): Promise<QueryCacheEntry | null>;
   upsertQueryCacheEntry(entry: QueryCacheEntry): Promise<void>;
   recordQueryCacheAccess(queryHash: string): Promise<void>;
@@ -205,7 +205,7 @@ describe('G24: Persistent Query Cache', () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'g24-test-'));
-    const dbPath = path.join(tempDir, 'librarian.db');
+    const dbPath = path.join(tempDir, 'librainian.db');
     storage = createSqliteStorage(dbPath, tempDir) as QueryCacheStorage;
     await storage.initialize();
   });

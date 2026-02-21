@@ -9,10 +9,10 @@ import {
   type FullAuditOptions,
   type HealthScore,
 } from '../full_audit.js';
-import type { LibrarianStorage } from '../../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../../storage/types.js';
 
 describe('fullSelfAudit', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(() => {
     mockStorage = {
@@ -44,7 +44,7 @@ describe('fullSelfAudit', () => {
       getEvolutionOutcomes: vi.fn().mockResolvedValue([]),
       getBayesianConfidences: vi.fn().mockResolvedValue([]),
       getConfidenceEvents: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires rootDir parameter', async () => {
@@ -60,7 +60,7 @@ describe('fullSelfAudit', () => {
     await expect(
       fullSelfAudit({
         rootDir: '/test',
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });
@@ -282,7 +282,7 @@ describe('fullSelfAudit', () => {
       getModules: vi.fn().mockImplementation(() => {
         throw new Error('Module fetch failed');
       }),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await fullSelfAudit({
       rootDir: '/test',

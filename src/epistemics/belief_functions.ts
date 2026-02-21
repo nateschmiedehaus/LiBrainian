@@ -53,7 +53,7 @@
  * - Belief = lower bound
  * - Plausibility = upper bound
  *
- * Use `toBoundedConfidence()` to convert D-S results to Librarian's
+ * Use `toBoundedConfidence()` to convert D-S results to LiBrainian's
  * BoundedConfidence type for integration with the rest of the system.
  *
  * ## References
@@ -768,14 +768,14 @@ export function combineWithHighConflict<T extends string>(
 /**
  * Converts a D-S belief function to BoundedConfidence for a specific hypothesis.
  *
- * This bridges D-S theory to Librarian's confidence system:
+ * This bridges D-S theory to LiBrainian's confidence system:
  * - Belief becomes the lower bound
  * - Plausibility becomes the upper bound
  *
  * @template T - String literal type for frame elements
  * @param bm - The belief mass function
  * @param hypothesis - The subset to convert (typically a singleton like {correct})
- * @returns BoundedConfidence compatible with Librarian's confidence system
+ * @returns BoundedConfidence compatible with LiBrainian's confidence system
  *
  * @example
  * ```typescript

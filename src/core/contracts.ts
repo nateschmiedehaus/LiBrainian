@@ -1,5 +1,5 @@
 /**
- * @fileoverview Canonical types and contracts for the librarian
+ * @fileoverview Canonical types and contracts for the librainian
  *
  * Branded types prevent mixing incompatible IDs and ensure
  * proper validation at boundaries.
@@ -20,7 +20,7 @@ type Brand<T, B extends string> = T & { readonly __brand: B };
 
 /**
  * Entity ID - uniquely identifies any entity in the system
- * Format: "type:path" e.g. "file:src/librarian/api/librarian.ts"
+ * Format: "type:path" e.g. "file:src/librainian/api/librainian.ts"
  */
 export type EntityId = Brand<string, 'EntityId'>;
 

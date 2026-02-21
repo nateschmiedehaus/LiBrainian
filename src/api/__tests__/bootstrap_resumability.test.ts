@@ -8,7 +8,7 @@ describe('bootstrap resumability', () => {
   let workspace: string;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-bootstrap-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-bootstrap-'));
   });
 
   afterEach(async () => {

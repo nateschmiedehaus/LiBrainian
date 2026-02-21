@@ -6,7 +6,7 @@
  * - Thompson Sampling for strategy learning
  * - Persistent learning across sessions
  *
- * Usage: librarian heal [--max-cycles N] [--budget-tokens N] [--dry-run] [--daemon]
+ * Usage: librainian heal [--max-cycles N] [--budget-tokens N] [--dry-run] [--daemon]
  *
  * @packageDocumentation
  */
@@ -17,7 +17,7 @@ import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import {
   generateStateReport,
-  type LibrarianStateReport,
+  type LiBrainianStateReport,
 } from '../../measurement/observability.js';
 import {
   type RecoveryBudget,
@@ -35,7 +35,7 @@ import {
   saveLearnerState,
   getLearnerStateSummary,
 } from '../../learning/index.js';
-import { LibrarianEventBus } from '../../events.js';
+import { LiBrainianEventBus } from '../../events.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 
 interface HealOptions {
@@ -74,7 +74,7 @@ export async function healCommand(options: HealOptions): Promise<void> {
     watchInterval = 60000,
   } = options;
 
-  console.log('\n=== Librarian Heal ===\n');
+  console.log('\n=== LiBrainian Heal ===\n');
 
   if (dryRun) {
     console.log('[DRY RUN] No changes will be made\n');
@@ -90,7 +90,7 @@ export async function healCommand(options: HealOptions): Promise<void> {
   await storage.initialize();
 
   // Create event bus for homeostasis
-  const eventBus = new LibrarianEventBus();
+  const eventBus = new LiBrainianEventBus();
 
   // Load persistent learner
   const { learner, save: saveLearner } = await createPersistentLearner({
@@ -122,7 +122,7 @@ export async function healCommand(options: HealOptions): Promise<void> {
     console.log(`Recovery State: ${initialReport.recoveryState}\n`);
 
     if (initialReport.health.status === 'healthy' && !daemon) {
-      console.log('\u2705 Librarian is already healthy. No healing needed.\n');
+      console.log('\u2705 LiBrainian is already healthy. No healing needed.\n');
       return;
     }
 
@@ -231,7 +231,7 @@ export async function healCommand(options: HealOptions): Promise<void> {
 
 async function runSingleHealSession(options: {
   storage: ReturnType<typeof createSqliteStorage>;
-  eventBus: LibrarianEventBus;
+  eventBus: LiBrainianEventBus;
   learner: Awaited<ReturnType<typeof createPersistentLearner>>['learner'];
   workspace: string;
   verbose: boolean;
@@ -239,7 +239,7 @@ async function runSingleHealSession(options: {
   maxCycles: number;
   budgetTokens: number;
   result: HealResult;
-  initialReport: LibrarianStateReport;
+  initialReport: LiBrainianStateReport;
 }): Promise<void> {
   const {
     storage,
@@ -329,7 +329,7 @@ async function runSingleHealSession(options: {
 
 async function runDaemonMode(options: {
   storage: ReturnType<typeof createSqliteStorage>;
-  eventBus: LibrarianEventBus;
+  eventBus: LiBrainianEventBus;
   learner: Awaited<ReturnType<typeof createPersistentLearner>>['learner'];
   workspace: string;
   verbose: boolean;

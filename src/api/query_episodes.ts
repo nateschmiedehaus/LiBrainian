@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { ContextPack, LibrarianQuery, LibrarianResponse } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { ContextPack, LiBrainianQuery, LiBrainianResponse } from '../types.js';
 import type { Episode } from '../strategic/building_blocks.js';
 import type { EpisodeEvent, EpisodeOutcome } from '../strategic/building_blocks.js';
 import { createEpisode } from '../strategic/episodes.js';
 import { recordEpisode } from '../state/episodes_state.js';
 
 export interface QueryEpisodeInput {
-  query: LibrarianQuery;
-  response?: LibrarianResponse;
+  query: LiBrainianQuery;
+  response?: LiBrainianResponse;
   error?: string;
   timestamp?: Date;
   durationMs?: number;
@@ -46,7 +46,7 @@ export function buildQueryEpisode(input: QueryEpisodeInput): Episode | null {
     timestamp: eventTimestamp,
     type: 'discovery',
     context: {
-      environment: 'librarian.query',
+      environment: 'librainian.query',
       state: {
         intent,
         depth: input.query.depth,
@@ -75,14 +75,14 @@ export function buildQueryEpisode(input: QueryEpisodeInput): Episode | null {
   });
 }
 
-export async function recordQueryEpisode(storage: LibrarianStorage, input: QueryEpisodeInput): Promise<Episode | null> {
+export async function recordQueryEpisode(storage: LiBrainianStorage, input: QueryEpisodeInput): Promise<Episode | null> {
   const episode = buildQueryEpisode(input);
   if (!episode) return null;
   await recordEpisode(storage, episode);
   return episode;
 }
 
-function summarizeResponse(response: LibrarianResponse): Record<string, unknown> {
+function summarizeResponse(response: LiBrainianResponse): Record<string, unknown> {
   return {
     packCount: response.packs.length,
     totalConfidence: response.totalConfidence,
@@ -94,7 +94,7 @@ function summarizeResponse(response: LibrarianResponse): Record<string, unknown>
   };
 }
 
-function summarizeEvent(response: LibrarianResponse): Record<string, unknown> {
+function summarizeEvent(response: LiBrainianResponse): Record<string, unknown> {
   return {
     packCount: response.packs.length,
     totalConfidence: response.totalConfidence,
@@ -103,7 +103,7 @@ function summarizeEvent(response: LibrarianResponse): Record<string, unknown> {
   };
 }
 
-function collectRelatedFiles(query: LibrarianQuery, packs?: ContextPack[]): string[] {
+function collectRelatedFiles(query: LiBrainianQuery, packs?: ContextPack[]): string[] {
   const files = new Set<string>();
   for (const file of query.affectedFiles ?? []) {
     if (file) files.add(file);

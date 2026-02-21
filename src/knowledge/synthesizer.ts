@@ -4,19 +4,19 @@
  * Synthesizes knowledge from the Knowledge module for agent context assembly.
  * Uses LLM to summarize knowledge query results into actionable insights.
  *
- * Extracted from librarian.ts to reduce god object size.
+ * Extracted from librainian.ts to reduce god object size.
  */
 
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianQuery } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianQuery } from '../types.js';
 import type { KnowledgeSourceRef } from '../api/context_assembly.js';
 import type { KnowledgeCategory, KnowledgeQuery, KnowledgeResult } from './index.js';
 import { Knowledge } from './index.js';
 import { GovernorContext } from '../api/governor_context.js';
 import { ProviderUnavailableError } from '../api/provider_check.js';
-import { resolveLibrarianModelConfigWithDiscovery, resolveLibrarianModelId } from '../api/llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery, resolveLiBrainianModelId } from '../api/llm_env.js';
 import { llmProviderRegistry } from '../api/llm_provider_discovery.js';
 import { requireProviders } from '../api/provider_check.js';
 import { safeJsonParse, getResultErrorMessage } from '../utils/safe_json.js';
@@ -82,7 +82,7 @@ export class KnowledgeSynthesizer {
   private knowledge: Knowledge;
   private config: KnowledgeSynthesizerConfig;
 
-  constructor(storage: LibrarianStorage, config: KnowledgeSynthesizerConfig) {
+  constructor(storage: LiBrainianStorage, config: KnowledgeSynthesizerConfig) {
     this.knowledge = new Knowledge(storage);
     this.config = config;
   }
@@ -91,7 +91,7 @@ export class KnowledgeSynthesizer {
    * Build knowledge sources for agent context assembly.
    */
   async buildKnowledgeSources(
-    query: LibrarianQuery,
+    query: LiBrainianQuery,
     workspaceRoot: string,
     governor: GovernorContext
   ): Promise<KnowledgeSourceRef[]> {
@@ -99,13 +99,13 @@ export class KnowledgeSynthesizer {
     if (!categories.length) return [];
 
     await requireProviders({ llm: true, embedding: false });
-    const resolved = await resolveLibrarianModelConfigWithDiscovery();
+    const resolved = await resolveLiBrainianModelConfigWithDiscovery();
     const overrideProvider = this.config.llmProvider;
     const overrideModel = this.config.llmModelId;
     const llmProvider = overrideProvider ?? resolved.provider;
     let llmModelId =
       overrideModel ??
-      (overrideProvider ? resolveLibrarianModelId(overrideProvider) : undefined) ??
+      (overrideProvider ? resolveLiBrainianModelId(overrideProvider) : undefined) ??
       resolved.modelId ??
       llmProviderRegistry.getProbe(overrideProvider ?? '')?.descriptor.defaultModel;
     if (!llmProvider || !llmModelId) {
@@ -159,7 +159,7 @@ export class KnowledgeSynthesizer {
 
   private async summarizeKnowledgeResult(options: {
     category: KnowledgeCategory;
-    query: LibrarianQuery;
+    query: LiBrainianQuery;
     result: KnowledgeResult;
     llm: LlmServiceAdapter;
     llmProvider: 'claude' | 'codex';
@@ -220,10 +220,10 @@ export class KnowledgeSynthesizer {
 // HELPER FUNCTIONS
 // ============================================================================
 
-function resolveKnowledgeCategories(query: LibrarianQuery): KnowledgeCategory[] {
+function resolveKnowledgeCategories(query: LiBrainianQuery): KnowledgeCategory[] {
   const categories = new Set<KnowledgeCategory>();
   const depth = query.depth ?? 'L1';
-  const depthDefaults: Record<NonNullable<LibrarianQuery['depth']>, KnowledgeCategory[]> = {
+  const depthDefaults: Record<NonNullable<LiBrainianQuery['depth']>, KnowledgeCategory[]> = {
     L0: ['structure'],
     L1: ['structure', 'architecture'],
     L2: ['structure', 'architecture', 'impact', 'quality', 'patterns'],
@@ -251,7 +251,7 @@ function resolveKnowledgeCategories(query: LibrarianQuery): KnowledgeCategory[] 
   return Array.from(categories.values());
 }
 
-function resolveKnowledgeTarget(query: LibrarianQuery, workspaceRoot: string): string | null {
+function resolveKnowledgeTarget(query: LiBrainianQuery, workspaceRoot: string): string | null {
   const target = query.affectedFiles?.find(Boolean);
   if (!target) return null;
   return path.isAbsolute(target) ? target : path.resolve(workspaceRoot, target);
@@ -259,7 +259,7 @@ function resolveKnowledgeTarget(query: LibrarianQuery, workspaceRoot: string): s
 
 function buildKnowledgeQuery(
   category: KnowledgeCategory,
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   target: string | null
 ): KnowledgeQuery | null {
   const depth = query.depth === 'L3' ? 4 : query.depth === 'L2' ? 3 : 2;

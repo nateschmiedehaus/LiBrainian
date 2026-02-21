@@ -17,7 +17,7 @@ describe('bootstrap workspace ignore loading', () => {
   });
 
   async function createWorkspace(): Promise<string> {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-bootstrap-ignore-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-bootstrap-ignore-'));
     createdDirs.push(dir);
     return dir;
   }

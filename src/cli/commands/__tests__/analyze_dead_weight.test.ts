@@ -6,7 +6,7 @@ import * as path from 'node:path';
 
 describe('analyzeCommand dead-weight mode', () => {
   it('emits DeadWeightReport.v1 JSON and ranks candidates', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-analyze-dead-weight-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-analyze-dead-weight-'));
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     try {

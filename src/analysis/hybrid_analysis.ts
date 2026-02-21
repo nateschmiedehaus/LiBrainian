@@ -8,7 +8,7 @@
  * - Risk propagation through cycles
  */
 
-import type { LibrarianStorage, FeedbackLoop } from '../storage/types.js';
+import type { LiBrainianStorage, FeedbackLoop } from '../storage/types.js';
 import type { ModuleGraph } from '../knowledge/module_graph.js';
 import { findSCCs, computeGraphMetrics, type GraphMetrics } from './deterministic_analysis.js';
 import {
@@ -36,7 +36,7 @@ export interface DetectedLoop {
  * with confidence metrics to determine severity.
  */
 export async function detectFeedbackLoops(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   entityType: 'function' | 'module' | 'file' = 'module'
 ): Promise<DetectedLoop[]> {
@@ -159,7 +159,7 @@ function describeImpact(
  * Store detected feedback loops in the database.
  */
 export async function storeFeedbackLoops(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   loops: DetectedLoop[]
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -197,7 +197,7 @@ export interface ControlStabilityMetrics {
  * Combines graph structure with confidence metrics.
  */
 export async function computeControlStability(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   reverse: ModuleGraph,
   entityType: 'function' | 'module' | 'file' = 'module'
@@ -280,7 +280,7 @@ export interface SystemHealthReport {
  * Generate a comprehensive system health report.
  */
 export async function generateSystemHealthReport(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   reverse: ModuleGraph,
   entityType: 'function' | 'module' | 'file' = 'module'
@@ -402,7 +402,7 @@ export interface RiskPropagationResult {
  * Entities with low confidence propagate risk to their dependents.
  */
 export async function propagateRisk(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   reverse: ModuleGraph,
   entityType: 'function' | 'module' | 'file' = 'module',
@@ -463,7 +463,7 @@ export interface HybridAnalysisResult {
  * Run full hybrid analysis combining deterministic and probabilistic methods.
  */
 export async function runHybridAnalysis(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   graph: ModuleGraph,
   reverse: ModuleGraph,
   entityType: 'function' | 'module' | 'file' = 'module'

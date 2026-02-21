@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 function parseToolPayload(result: unknown): Record<string, unknown> {
   const text = (result as { content?: Array<{ text?: string }> })?.content?.[0]?.text;
@@ -11,7 +11,7 @@ function parseToolPayload(result: unknown): Record<string, unknown> {
 
 describe('MCP agent-actionable errors', () => {
   it('adds code, nextSteps, and recoverWith for workspace bootstrap failures', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -45,7 +45,7 @@ describe('MCP agent-actionable errors', () => {
   });
 
   it('returns invalid_input guidance for schema validation failures', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -66,7 +66,7 @@ describe('MCP agent-actionable errors', () => {
   });
 
   it('returns authorization_denied guidance when scopes are missing', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 

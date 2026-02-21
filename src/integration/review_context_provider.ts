@@ -1,5 +1,5 @@
 /**
- * Review Context Provider - Bridges agentic review with librarian knowledge
+ * Review Context Provider - Bridges agentic review with librainian knowledge
  *
  * Provides enriched context for code review perspectives by:
  * 1. On-demand AST parsing of changed files (no regex)
@@ -7,11 +7,11 @@
  * 3. Call/import graph analysis for impact assessment
  * 4. Test mapping for coverage awareness
  *
- * Philosophy: Use librarian's capabilities to make review smarter,
+ * Philosophy: Use librainian's capabilities to make review smarter,
  * not just faster. The goal is richer findings with fewer false positives.
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { FileKnowledge, GraphEdge } from '../types.js';
 import { logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
@@ -34,7 +34,7 @@ export interface ReviewContextRequest {
   reviewIntent?: 'security' | 'correctness' | 'maintainability' | 'general';
   /** Max time to spend on pre-indexing (ms) */
   timeoutMs?: number;
-  /** Skip if librarian unavailable (graceful degradation) */
+  /** Skip if librainian unavailable (graceful degradation) */
   optional?: boolean;
 }
 
@@ -78,7 +78,7 @@ export interface ReviewContext {
   };
   /** Anti-patterns detected */
   antiPatterns?: string[];
-  /** Similar historical issues (from librarian memory) */
+  /** Similar historical issues (from librainian memory) */
   similarIssues?: Array<{
     description: string;
     resolution: string;
@@ -88,24 +88,24 @@ export interface ReviewContext {
   assemblyTimeMs: number;
   /** Whether context came from cache */
   fromCache: boolean;
-  /** Source of context (librarian, fallback, etc.) */
-  source: 'librarian' | 'fallback' | 'partial';
+  /** Source of context (librainian, fallback, etc.) */
+  source: 'librainian' | 'fallback' | 'partial';
 }
 
 export interface ReviewContextProvider {
   /** Assemble enriched context for review */
   getContext(request: ReviewContextRequest): Promise<ReviewContext>;
-  /** Check if librarian is available for context */
+  /** Check if librainian is available for context */
   isAvailable(): Promise<boolean>;
   /** Pre-warm cache for files (async background) */
   preWarmCache?(files: string[]): void;
 }
 
 /**
- * Create a review context provider backed by librarian
+ * Create a review context provider backed by librainian
  */
 export function createReviewContextProvider(
-  storage: LibrarianStorage | null,
+  storage: LiBrainianStorage | null,
   options: { enableCache?: boolean; maxFileCount?: number } = {}
 ): ReviewContextProvider {
   const { enableCache = true, maxFileCount = 50 } = options;
@@ -114,17 +114,17 @@ export function createReviewContextProvider(
     async getContext(request: ReviewContextRequest): Promise<ReviewContext> {
       const startTime = Date.now();
 
-      // If librarian storage unavailable, return fallback context
+      // If librainian storage unavailable, return fallback context
       if (!storage) {
         return buildFallbackContext(request, startTime);
       }
 
       try {
-        return await assembleLibrarianContext(storage, request, enableCache, maxFileCount, startTime);
+        return await assembleLiBrainianContext(storage, request, enableCache, maxFileCount, startTime);
       } catch (error) {
         if (request.optional) {
           // Graceful degradation - return fallback
-          console.warn('[review-context] Librarian context failed, using fallback:', error);
+          console.warn('[review-context] LiBrainian context failed, using fallback:', error);
           return buildFallbackContext(request, startTime);
         }
         throw error;
@@ -152,10 +152,10 @@ export function createReviewContextProvider(
 }
 
 /**
- * Assemble context from librarian storage
+ * Assemble context from librainian storage
  */
-async function assembleLibrarianContext(
-  storage: LibrarianStorage,
+async function assembleLiBrainianContext(
+  storage: LiBrainianStorage,
   request: ReviewContextRequest,
   enableCache: boolean,
   maxFileCount: number,
@@ -213,7 +213,7 @@ async function assembleLibrarianContext(
     }
   }
 
-  // Detect patterns from file contents (use librarian AST data)
+  // Detect patterns from file contents (use librainian AST data)
   const detectedPatterns = await detectPatternsFromStorage(storage, filesToProcess.map(f => f.path));
   for (const pattern of detectedPatterns) {
     patterns.add(pattern);
@@ -235,7 +235,7 @@ async function assembleLibrarianContext(
     },
     assemblyTimeMs: Date.now() - startTime,
     fromCache: enableCache, // TODO: track actual cache hits
-    source: 'librarian',
+    source: 'librainian',
   };
 }
 
@@ -243,7 +243,7 @@ async function assembleLibrarianContext(
  * Assemble context for a single file
  */
 async function assembleFileContext(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   file: ReviewFile,
   workspaceRoot: string,
   graphEdges: GraphEdge[]
@@ -302,10 +302,10 @@ async function assembleFileContext(
 }
 
 /**
- * Detect code patterns from librarian storage
+ * Detect code patterns from librainian storage
  */
 async function detectPatternsFromStorage(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   files: string[]
 ): Promise<string[]> {
   const patterns = new Set<string>();
@@ -382,7 +382,7 @@ function inferDomainFromPath(filePath: string): string | null {
 }
 
 /**
- * Build fallback context when librarian is unavailable
+ * Build fallback context when librainian is unavailable
  */
 function buildFallbackContext(request: ReviewContextRequest, startTime: number): ReviewContext {
   const files = new Map<string, FileContext>();
@@ -391,7 +391,7 @@ function buildFallbackContext(request: ReviewContextRequest, startTime: number):
   for (const file of request.affectedFiles) {
     files.set(file.path, {
       path: file.path,
-      confidence: 0.2, // Low confidence without librarian
+      confidence: 0.2, // Low confidence without librainian
     });
 
     const domain = inferDomainFromPath(file.path);
@@ -418,7 +418,7 @@ function buildFallbackContext(request: ReviewContextRequest, startTime: number):
 /**
  * Background pre-warming of file cache
  */
-async function preWarmFilesAsync(storage: LibrarianStorage, files: string[]): Promise<void> {
+async function preWarmFilesAsync(storage: LiBrainianStorage, files: string[]): Promise<void> {
   // Limit concurrent pre-warms
   const batchSize = 10;
   for (let i = 0; i < files.length; i += batchSize) {
@@ -436,7 +436,7 @@ async function preWarmFilesAsync(storage: LibrarianStorage, files: string[]): Pr
 export function formatContextForPrompt(context: ReviewContext): string {
   const lines: string[] = [];
 
-  lines.push('## Code Context (from Librarian analysis)');
+  lines.push('## Code Context (from LiBrainian analysis)');
   lines.push('');
 
   // Domains

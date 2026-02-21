@@ -5,7 +5,7 @@ import path from 'node:path';
 
 describe('agent patrol codex model selection policy', () => {
   it('uses latest medium model for patrol and cheapest model for internal indexing/synthesis', async () => {
-    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-patrol-models-'));
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-patrol-models-'));
     const codexDir = path.join(tmpHome, '.codex');
     fs.mkdirSync(codexDir, { recursive: true });
     fs.writeFileSync(

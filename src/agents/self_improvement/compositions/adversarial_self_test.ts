@@ -7,7 +7,7 @@
  * Based on self-improvement-primitives.md specification (WU-SELF-204).
  */
 
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 import {
   analyzeArchitecture,
   type ArchitectureAnalysisResult,
@@ -108,7 +108,7 @@ export interface AdversarialSelfTestOptions {
   /** Root directory of the codebase */
   rootDir: string;
   /** Storage instance */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Focus areas to analyze (module paths or patterns) */
   focusAreas?: string[];
   /** Maximum tests to generate per weakness */
@@ -118,7 +118,7 @@ export interface AdversarialSelfTestOptions {
   /**
    * Executes generated adversarial tests against a real test runner.
    *
-   * If `executeTests` is enabled but `testExecutor` is not provided, Librarian
+   * If `executeTests` is enabled but `testExecutor` is not provided, LiBrainian
    * fails closed and marks the execution phase as failed.
    */
   testExecutor?: TestExecutor;
@@ -136,7 +136,7 @@ export interface AdversarialSelfTestOptions {
 
 export interface TestExecutionContext {
   rootDir: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   verbose: boolean;
 }
 
@@ -780,7 +780,7 @@ export async function adversarialSelfTest(
  */
 export function createAdversarialSelfTest(
   defaultOptions: Partial<AdversarialSelfTestOptions>
-): (options: Partial<AdversarialSelfTestOptions> & { rootDir: string; storage: LibrarianStorage }) => Promise<AdversarialSelfTestResult> {
+): (options: Partial<AdversarialSelfTestOptions> & { rootDir: string; storage: LiBrainianStorage }) => Promise<AdversarialSelfTestResult> {
   return async (options) => {
     return adversarialSelfTest({
       ...defaultOptions,

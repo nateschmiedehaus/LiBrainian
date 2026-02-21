@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 export interface TaskOutcomeSummary { success: boolean; failureReason?: string; failureType?: string; }
 export interface AgentKnowledgeContext { packIds: string[]; affectedEntities: string[]; }
@@ -10,7 +10,7 @@ const KNOWLEDGE_FAILURES = ['unexpected_behavior', 'knowledge_mismatch', 'incorr
 const MIN_SAMPLES = 3;
 
 export async function attributeFailure(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   outcome: TaskOutcomeSummary,
   context: AgentKnowledgeContext
 ): Promise<CausalAttribution> {
@@ -72,7 +72,7 @@ export async function attributeFailure(
 }
 
 export async function recordPackOutcome(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   packId: string,
   success: boolean
 ): Promise<void> {

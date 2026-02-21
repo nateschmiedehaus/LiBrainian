@@ -2,7 +2,7 @@
  * @fileoverview Feedback Loop Integration Tests (TDD)
  *
  * Tests for the closed-loop feedback system where agents report
- * relevance ratings and librarian adjusts confidence accordingly.
+ * relevance ratings and librainian adjusts confidence accordingly.
  *
  * REQUIREMENTS:
  * - Query responses must include feedbackToken for later feedback submission
@@ -54,7 +54,7 @@ import os from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { processAgentFeedback } from '../../integration/agent_feedback.js';
 import type { AgentFeedback } from '../../integration/agent_feedback.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { getCurrentVersion } from '../versioning.js';
 import { SqliteEvidenceLedger, createSessionId } from '../../epistemics/evidence_ledger.js';
 
@@ -62,10 +62,10 @@ const workspaceRoot = process.cwd();
 
 // Use unique temp DB paths to avoid lock contention
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-test-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-test-${randomUUID()}.db`);
 }
 
-async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: string): Promise<void> {
+async function seedStorageForQuery(storage: LiBrainianStorage, relatedFile: string): Promise<void> {
   await storage.upsertFunction({
     id: 'fn-feedback-1',
     filePath: path.join(workspaceRoot, relatedFile),
@@ -101,20 +101,20 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
 
 describe('Feedback Loop Integration', () => {
   describe('feedbackToken in query response', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
 
     afterEach(async () => {
       await storage?.close?.();
     });
 
     it('query response includes feedbackToken', async () => {
-      const { queryLibrarian } = await import('../query.js');
+      const { queryLiBrainian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       // Run a simple query
-      const result = await queryLibrarian(
+      const result = await queryLiBrainian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
@@ -125,27 +125,27 @@ describe('Feedback Loop Integration', () => {
     });
 
     it('feedbackToken is unique per query', async () => {
-      const { queryLibrarian } = await import('../query.js');
+      const { queryLiBrainian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       // Run two identical queries
       const [result1, result2] = await Promise.all([
-        queryLibrarian({ intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
-        queryLibrarian({ intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
+        queryLiBrainian({ intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
+        queryLiBrainian({ intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
       ]);
 
       expect(result1.feedbackToken).not.toBe(result2.feedbackToken);
     });
 
     it('query response includes required envelope fields', async () => {
-      const { queryLibrarian } = await import('../query.js');
+      const { queryLiBrainian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
-      const result = await queryLibrarian(
+      const result = await queryLiBrainian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
@@ -161,16 +161,16 @@ describe('Feedback Loop Integration', () => {
     });
 
     it('records query access logs when retrieval targets are returned', async () => {
-      const { queryLibrarian } = await import('../query.js');
+      const { queryLiBrainian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
-      const firstResult = await queryLibrarian(
+      const firstResult = await queryLiBrainian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
-      const secondResult = await queryLibrarian(
+      const secondResult = await queryLiBrainian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
@@ -196,7 +196,7 @@ describe('Feedback Loop Integration', () => {
     });
 
     it('records construction plan evidence when ledger is provided', async () => {
-      const { queryLibrarian } = await import('../query.js');
+      const { queryLiBrainian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
       await seedStorageForQuery(storage, 'src/auth.ts');
@@ -205,7 +205,7 @@ describe('Feedback Loop Integration', () => {
       await ledger.initialize();
       const sessionId = createSessionId('sess_query_construction_plan');
 
-      const result = await queryLibrarian(
+      const result = await queryLiBrainian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage,
         undefined,
@@ -226,7 +226,7 @@ describe('Feedback Loop Integration', () => {
   });
 
   describe('feedback submission', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
 
     beforeEach(async () => {
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
@@ -346,7 +346,7 @@ describe('Feedback Loop Integration', () => {
   });
 
   describe('feedback token storage', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
 
     afterEach(async () => {
       await storage?.close?.();
@@ -356,7 +356,7 @@ describe('Feedback Loop Integration', () => {
       // This test verifies that the feedbackToken allows mapping
       // back to the original query results for feedback attribution
 
-      const { queryLibrarian, getFeedbackContext } = await import('../query.js');
+      const { queryLiBrainian, getFeedbackContext } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
 
@@ -367,7 +367,7 @@ describe('Feedback Loop Integration', () => {
         return;
       }
 
-      const result = await queryLibrarian(
+      const result = await queryLiBrainian(
         { intent: 'test query', depth: 'L0' },
         storage
       ).catch(() => null);
@@ -385,7 +385,7 @@ describe('Feedback Loop Integration', () => {
       await storage.initialize();
 
       await seedStorageForQuery(storage, 'src/feedback/reload_test.ts');
-      const result = await queryModule.queryLibrarian(
+      const result = await queryModule.queryLiBrainian(
         { intent: 'feedback reload query', depth: 'L1' },
         storage
       );
@@ -404,7 +404,7 @@ describe('Feedback Loop Integration', () => {
   });
 
   describe('confidence bounds', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
 
     beforeEach(async () => {
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
@@ -490,7 +490,7 @@ describe('Feedback Loop Integration', () => {
 });
 
 describe('FeedbackProcessingResult type', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
 
   afterEach(async () => {
     await storage?.close?.();

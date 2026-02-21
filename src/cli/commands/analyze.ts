@@ -5,8 +5,8 @@
  * and complexity metrics.
  *
  * Usage:
- *   librarian analyze --dead-code [--format text|json]
- *   librarian analyze --complexity [--format text|json] [--threshold <n>]
+ *   librainian analyze --dead-code [--format text|json]
+ *   librainian analyze --complexity [--format text|json] [--threshold <n>]
  *
  * @packageDocumentation
  */
@@ -43,7 +43,7 @@ interface DeadCodeReport {
 async function loadDeadCodeDetectorModule(): Promise<DeadCodeDetectorModule> {
   const externalModuleId = 'librainian-eval/dead_code_detector.js';
   return loadEvaluationModule<DeadCodeDetectorModule>(
-    'librarian analyze',
+    'librainian analyze',
     () => import('../../evaluation/dead_code_detector.js'),
     () => import(externalModuleId) as Promise<DeadCodeDetectorModule>,
   );
@@ -817,7 +817,7 @@ export async function analyzeCommand(options: AnalyzeCommandOptions): Promise<vo
   const threshold = parseInt(values.threshold as string, 10) || 10;
 
   if (!runDeadCode && !runDeadWeight && !runComplexity) {
-    console.log('Usage: librarian analyze --dead-code | --dead-weight | --complexity');
+    console.log('Usage: librainian analyze --dead-code | --dead-weight | --complexity');
     console.log();
     console.log('Options:');
     console.log('  --dead-code      Run dead code detection');
@@ -827,9 +827,9 @@ export async function analyzeCommand(options: AnalyzeCommandOptions): Promise<vo
     console.log('  --threshold <n>  Complexity threshold (default: 10)');
     console.log();
     console.log('Examples:');
-    console.log('  librarian analyze --dead-code');
-    console.log('  librarian analyze --complexity --threshold 15');
-    console.log('  librarian analyze --dead-code --format json');
+    console.log('  librainian analyze --dead-code');
+    console.log('  librainian analyze --complexity --threshold 15');
+    console.log('  librainian analyze --dead-code --format json');
     return;
   }
 

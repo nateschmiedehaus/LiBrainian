@@ -23,7 +23,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { LibrarianStorage, SimilarityResult } from '../storage/types.js';
+import type { LiBrainianStorage, SimilarityResult } from '../storage/types.js';
 import type { FunctionKnowledge, ModuleKnowledge, GraphEdge } from '../types.js';
 
 // ============================================================================
@@ -226,7 +226,7 @@ interface AffectedAreas {
 /**
  * Generate a structured task plan for implementing a given task.
  *
- * @param storage - Librarian storage instance
+ * @param storage - LiBrainian storage instance
  * @param taskDescription - Description of the task to plan
  * @param workspace - Workspace root path
  * @returns A structured task plan
@@ -237,7 +237,7 @@ interface AffectedAreas {
  * ```
  */
 export async function planTask(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   taskDescription: string,
   workspace: string
 ): Promise<TaskPlan> {
@@ -408,7 +408,7 @@ export function extractTaskFromQuery(intent: string): string {
 // ============================================================================
 
 async function findRelevantContext(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   taskDescription: string
 ): Promise<RelevantContext[]> {
   const results: RelevantContext[] = [];
@@ -466,7 +466,7 @@ async function findRelevantContext(
 }
 
 async function identifyAffectedAreas(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   taskDescription: string,
   context: RelevantContext[],
   workspace: string

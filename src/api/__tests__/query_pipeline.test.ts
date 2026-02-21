@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { __testing, getQueryPipelineStages, queryLibrarianWithObserver } from '../query.js';
+import { __testing, getQueryPipelineStages, queryLiBrainianWithObserver } from '../query.js';
 import type { ContextPack, StageIssueSeverity, StageName } from '../../types.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { GovernorContext } from '../governor_context.js';
 
 const baseVersion = {
@@ -77,9 +77,9 @@ describe('query pipeline definition', () => {
   });
 
   it('rejects non-function observers early', async () => {
-    const storage = {} as LibrarianStorage;
+    const storage = {} as LiBrainianStorage;
     await expect(
-      queryLibrarianWithObserver({ intent: 'test', depth: 'L0' }, storage, {
+      queryLiBrainianWithObserver({ intent: 'test', depth: 'L0' }, storage, {
         onStage: 'nope' as unknown as () => void,
       })
     ).rejects.toThrow(/onStage must be a function/);
@@ -245,7 +245,7 @@ describe('query pipeline definition', () => {
     });
 
     const result = await __testing.runDefeaterStage({
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: packs,
       stageTracker,
       recordCoverageGap,
@@ -274,7 +274,7 @@ describe('query pipeline definition', () => {
     });
     const result = await __testing.runMethodGuidanceStage({
       query: { intent: 'test method guidance', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       governor: new GovernorContext({ phase: 'test' }),
       stageTracker,
       recordCoverageGap,
@@ -298,7 +298,7 @@ describe('query pipeline definition', () => {
     const resolveMethodGuidanceFn = vi.fn();
     const result = await __testing.runMethodGuidanceStage({
       query: { intent: 'test method guidance', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       governor: new GovernorContext({ phase: 'test' }),
       stageTracker,
       recordCoverageGap,
@@ -321,7 +321,7 @@ describe('query pipeline definition', () => {
     const resolveMethodGuidanceFn = vi.fn();
     const result = await __testing.runMethodGuidanceStage({
       query: { intent: 'test method guidance', depth: 'L1', disableMethodGuidance: true },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       governor: new GovernorContext({ phase: 'test' }),
       stageTracker,
       recordCoverageGap,
@@ -346,7 +346,7 @@ describe('query pipeline definition', () => {
     const resolveMethodGuidanceFn = vi.fn().mockRejectedValue(new Error('boom'));
     const result = await __testing.runMethodGuidanceStage({
       query: { intent: 'test method guidance', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       governor: new GovernorContext({ phase: 'test' }),
       stageTracker,
       recordCoverageGap,
@@ -370,7 +370,7 @@ describe('query pipeline definition', () => {
     };
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,
@@ -401,7 +401,7 @@ describe('query pipeline definition', () => {
     });
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,
@@ -442,7 +442,7 @@ describe('query pipeline definition', () => {
     });
     const result = await __testing.runSynthesisStage({
       query: { intent: 'explain architecture map', depth: 'L1', forceSummarySynthesis: true },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,
@@ -475,7 +475,7 @@ describe('query pipeline definition', () => {
     });
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,
@@ -506,7 +506,7 @@ describe('query pipeline definition', () => {
     });
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,
@@ -535,7 +535,7 @@ describe('query pipeline definition', () => {
     const synthesizeQueryAnswerFn = vi.fn().mockRejectedValue(new Error('kaboom'));
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1' },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,
@@ -618,7 +618,7 @@ describe('query pipeline definition', () => {
 
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1', showLlmErrors: false },
-      storage: {} as LibrarianStorage,
+      storage: {} as LiBrainianStorage,
       finalPacks: [createPack({})],
       stageTracker,
       recordCoverageGap,

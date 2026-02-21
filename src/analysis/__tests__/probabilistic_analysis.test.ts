@@ -27,10 +27,10 @@ import {
 } from '../probabilistic_analysis.js';
 import type { ModuleGraph } from '../../knowledge/module_graph.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, BayesianConfidence } from '../../storage/types.js';
+import type { LiBrainianStorage, BayesianConfidence } from '../../storage/types.js';
 
 describe('Probabilistic Analysis', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
   const testDir = join(tmpdir(), 'probabilistic-analysis-test-' + Date.now());
 

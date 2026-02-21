@@ -1,5 +1,5 @@
 /**
- * @fileoverview Tests for verifying LibrarianEventBus wiring across the system.
+ * @fileoverview Tests for verifying LiBrainianEventBus wiring across the system.
  *
  * This test file verifies that events are properly emitted from all key operations:
  * - Bootstrap operations (start, phase, complete, error)
@@ -12,8 +12,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   globalEventBus,
-  onLibrarianEvent,
-  onceLibrarianEvent,
+  onLiBrainianEvent,
+  onceLiBrainianEvent,
   createBootstrapStartedEvent,
   createBootstrapPhaseCompleteEvent,
   createBootstrapCompleteEvent,
@@ -33,18 +33,18 @@ import {
   createEngineConfidenceEvent,
   createIntegrationContextEvent,
   createIntegrationOutcomeEvent,
-  type LibrarianEvent,
+  type LiBrainianEvent,
 } from '../events.js';
 
-describe('LibrarianEventBus Wiring', () => {
+describe('LiBrainianEventBus Wiring', () => {
   // Collect events for verification
-  const collectedEvents: LibrarianEvent[] = [];
+  const collectedEvents: LiBrainianEvent[] = [];
   let unsubscribe: (() => void) | null = null;
 
   beforeEach(() => {
     collectedEvents.length = 0;
     // Subscribe to all events for testing
-    unsubscribe = onLibrarianEvent('*', (event) => {
+    unsubscribe = onLiBrainianEvent('*', (event) => {
       collectedEvents.push(event);
     });
   });
@@ -56,7 +56,7 @@ describe('LibrarianEventBus Wiring', () => {
     }
   });
 
-  describe('onLibrarianEvent subscription', () => {
+  describe('onLiBrainianEvent subscription', () => {
     it('should subscribe to all events with wildcard', async () => {
       const event = createBootstrapStartedEvent('/test/workspace');
       await globalEventBus.emit(event);
@@ -66,8 +66,8 @@ describe('LibrarianEventBus Wiring', () => {
     });
 
     it('should return an unsubscribe function', async () => {
-      const specificEvents: LibrarianEvent[] = [];
-      const unsub = onLibrarianEvent('query_start', (event) => {
+      const specificEvents: LiBrainianEvent[] = [];
+      const unsub = onLiBrainianEvent('query_start', (event) => {
         specificEvents.push(event);
       });
 
@@ -81,10 +81,10 @@ describe('LibrarianEventBus Wiring', () => {
     });
   });
 
-  describe('onceLibrarianEvent subscription', () => {
+  describe('onceLiBrainianEvent subscription', () => {
     it('should only fire once', async () => {
-      const onceEvents: LibrarianEvent[] = [];
-      onceLibrarianEvent('index_complete', (event) => {
+      const onceEvents: LiBrainianEvent[] = [];
+      onceLiBrainianEvent('index_complete', (event) => {
         onceEvents.push(event);
       });
 

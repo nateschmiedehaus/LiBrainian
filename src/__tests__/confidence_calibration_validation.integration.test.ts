@@ -1,14 +1,14 @@
 /**
  * @fileoverview Confidence Calibration Validation Tests (Integration)
  *
- * Real-data calibration checks against a bootstrapped Librarian DB.
+ * Real-data calibration checks against a bootstrapped LiBrainian DB.
  * These are excluded from Tier-0 unit runs via *.integration.test.ts.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // CALIBRATION METRICS
@@ -159,13 +159,13 @@ function printCalibrationDiagram(result: CalibrationResult): void {
 // ============================================================================
 
 describe('Confidence Calibration Validation (integration)', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let storageInitialized = false;
   let calibrationPredictions: CalibrationPrediction[] = [];
 
   beforeAll(async () => {
     const workspaceRoot = process.cwd();
-    const dbPath = path.join(workspaceRoot, 'state', 'librarian.db');
+    const dbPath = path.join(workspaceRoot, 'state', 'librainian.db');
 
     try {
       storage = createSqliteStorage(dbPath, workspaceRoot);
@@ -174,7 +174,7 @@ describe('Confidence Calibration Validation (integration)', () => {
 
       const version = await storage.getVersion();
       if (!version) {
-        console.warn('Librarian not bootstrapped - calibration validation will skip');
+        console.warn('LiBrainian not bootstrapped - calibration validation will skip');
         storageInitialized = false;
       }
     } catch (error) {
@@ -198,7 +198,7 @@ describe('Confidence Calibration Validation (integration)', () => {
       if (!storageInitialized) {
         ctx.skip(
           true,
-          'unverified_by_trace(test_fixture_missing): Confidence calibration requires a bootstrapped librarian DB'
+          'unverified_by_trace(test_fixture_missing): Confidence calibration requires a bootstrapped librainian DB'
         );
         return;
       }
@@ -310,7 +310,7 @@ describe('Confidence Calibration Validation (integration)', () => {
       if (!storageInitialized) {
         ctx.skip(
           true,
-          'unverified_by_trace(test_fixture_missing): Confidence bounds require a bootstrapped librarian DB'
+          'unverified_by_trace(test_fixture_missing): Confidence bounds require a bootstrapped librainian DB'
         );
         return;
       }

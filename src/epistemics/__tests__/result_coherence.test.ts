@@ -19,13 +19,13 @@ import {
   MIN_RESULTS_FOR_CLUSTERING,
   type CoherenceAnalysis,
 } from '../result_coherence.js';
-import type { ContextPack, LibrarianVersion } from '../../types.js';
+import type { ContextPack, LiBrainianVersion } from '../../types.js';
 
 // ============================================================================
 // TEST FIXTURES
 // ============================================================================
 
-const TEST_VERSION: LibrarianVersion = { major: 1, minor: 0, patch: 0 };
+const TEST_VERSION: LiBrainianVersion = { major: 1, minor: 0, patch: 0 };
 
 function createTestPack(overrides: Partial<ContextPack> = {}): ContextPack {
   return {

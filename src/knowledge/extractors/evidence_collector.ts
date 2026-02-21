@@ -382,7 +382,7 @@ export function collectEvidence(input: EvidenceCollectionInput): EvidenceCollect
     confidence,
     evidence: allEvidence,
     generatedAt: new Date().toISOString(),
-    generatedBy: input.generatedBy ?? 'librarian/evidence-collector-v1',
+    generatedBy: input.generatedBy ?? 'librainian/evidence-collector-v1',
     llmEvidence,
     validUntil,
     defeaters: allDefeaters,

@@ -50,7 +50,7 @@ const MAX_CANDIDATES = 300;
 const MAX_EVENTS = 5000;
 
 function memoryDbPath(workspaceRoot: string): string {
-  return path.join(path.resolve(workspaceRoot), '.librarian', 'memory.db');
+  return path.join(path.resolve(workspaceRoot), '.librainian', 'memory.db');
 }
 
 function normalizeText(value: string): string {

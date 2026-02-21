@@ -1,7 +1,7 @@
 /**
- * @fileoverview Full Mode Configuration Preset for Librarian Library
+ * @fileoverview Full Mode Configuration Preset for LiBrainian Library
  *
- * This is the "super high mode" configuration that enables ALL librarian
+ * This is the "super high mode" configuration that enables ALL librainian
  * capabilities at maximum fidelity. Use this when you need:
  * - Complete LLM enrichment for all entities
  * - Maximum context depth (L3 - 80k tokens, 20 packs)
@@ -56,7 +56,7 @@ export const FULL_MODE_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
 /**
  * Full mode governor configuration.
  *
- * No limits - let the librarian process everything without constraints.
+ * No limits - let the librainian process everything without constraints.
  * Higher concurrency for faster processing on capable machines.
  */
 export const FULL_MODE_GOVERNOR_CONFIG: GovernorConfig = {
@@ -196,7 +196,7 @@ export const FULL_MODE_TDD_CONFIG: FullModeTddConfig = {
 /**
  * Complete full mode configuration bundle.
  *
- * Use this to configure the librarian for maximum capability.
+ * Use this to configure the librainian for maximum capability.
  *
  * @example
  * ```typescript

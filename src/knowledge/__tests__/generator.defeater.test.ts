@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { UniversalKnowledgeGenerator, type DefeaterActivationModule } from '../generator.js';
 import type { FunctionKnowledge } from '../../types.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // Mock modules
 vi.mock('fs/promises');
@@ -27,7 +27,7 @@ vi.mock('../extractors/evidence_collector.js');
 vi.mock('../extractors/relationships_extractor.js');
 
 describe('generateForFunction - Defeater Activation Error Handling', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let generator: UniversalKnowledgeGenerator;
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
   let defeaterLoaderImpl: () => Promise<DefeaterActivationModule>;
@@ -62,7 +62,7 @@ describe('generateForFunction - Defeater Activation Error Handling', () => {
       getGraphEdges: vi.fn().mockResolvedValue([]),
       getFunctions: vi.fn().mockResolvedValue([]),
       getModules: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     // Mock fs.readFile
     const fs = await import('fs/promises');

@@ -30,7 +30,7 @@ afterEach(async () => {
 });
 
 async function createFixture(files: Record<string, string>): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-depth-gate-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-depth-gate-'));
   tempRoots.push(root);
   for (const [relative, content] of Object.entries(files)) {
     const absolute = path.join(root, relative);

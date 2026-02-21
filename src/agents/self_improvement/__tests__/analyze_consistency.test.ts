@@ -4,10 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { analyzeConsistency, createAnalyzeConsistency } from '../analyze_consistency.js';
-import type { LibrarianStorage, ModuleKnowledge, FunctionKnowledge, TestMapping } from '../../../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge, FunctionKnowledge, TestMapping } from '../../../storage/types.js';
 
 describe('analyzeConsistency', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let mockFunctions: FunctionKnowledge[];
   let mockModules: ModuleKnowledge[];
   let mockTestMappings: TestMapping[];
@@ -116,7 +116,7 @@ describe('analyzeConsistency', () => {
       getModules: vi.fn().mockResolvedValue(mockModules),
       getTestMappings: vi.fn().mockResolvedValue(mockTestMappings),
       getGraphEdges: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires rootDir parameter', async () => {
@@ -132,7 +132,7 @@ describe('analyzeConsistency', () => {
     await expect(
       analyzeConsistency({
         rootDir: '/test',
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });

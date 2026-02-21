@@ -1,5 +1,5 @@
 /**
- * Token budget enforcement for Librarian responses.
+ * Token budget enforcement for LiBrainian responses.
  *
  * Agents have finite context windows. This module provides intelligent
  * truncation of responses to fit within specified token budgets while
@@ -7,7 +7,7 @@
  *
  * Two levels of budgeting:
  * 1. Context-level (AgentKnowledgeContext) - used by assembleContext
- * 2. Response-level (LibrarianResponse) - used by queryLibrarian
+ * 2. Response-level (LiBrainianResponse) - used by queryLiBrainian
  */
 import { estimateTokenCount } from './governor_context.js';
 import { resolveContextLevel, type ContextLevel } from './context_levels.js';
@@ -16,7 +16,7 @@ import type {
   ContextPack,
   TokenBudget,
   TokenBudgetResult as ResponseTokenBudgetResult,
-  LibrarianResponse,
+  LiBrainianResponse,
   SynthesizedResponse,
 } from '../types.js';
 
@@ -160,7 +160,7 @@ export function estimateSynthesisTokens(synthesis: SynthesizedResponse | undefin
 /**
  * Estimate tokens for the entire response (excluding packs).
  */
-export function estimateResponseOverheadTokens(response: Partial<LibrarianResponse>): number {
+export function estimateResponseOverheadTokens(response: Partial<LiBrainianResponse>): number {
   let tokens = 0;
   // Query object
   if (response.query) {

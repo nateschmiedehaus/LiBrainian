@@ -1,5 +1,5 @@
 /**
- * @fileoverview Tests for Librarian Constructions
+ * @fileoverview Tests for LiBrainian Constructions
  *
  * Tests the composed constructions for:
  * - Correct output structure
@@ -20,14 +20,14 @@ import {
   isParameterTypeCompatible,
 } from '../refactoring_safety_checker.js';
 import { BugInvestigationAssistant } from '../bug_investigation_assistant.js';
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ContextPack } from '../../types.js';
 
 // ============================================================================
 // MOCK LIBRARIAN
 // ============================================================================
 
-function createMockLibrarian(): Librarian {
+function createMockLiBrainian(): LiBrainian {
   const mockPacks: ContextPack[] = [
     {
       packId: 'test-pack-1',
@@ -59,7 +59,7 @@ function createMockLibrarian(): Librarian {
     queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
     queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
     query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 // ============================================================================
@@ -68,11 +68,11 @@ function createMockLibrarian(): Librarian {
 
 describe('RefactoringSafetyChecker', () => {
   let checker: RefactoringSafetyChecker;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    checker = new RefactoringSafetyChecker(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    checker = new RefactoringSafetyChecker(mockLiBrainian);
   });
 
   describe('check()', () => {
@@ -169,15 +169,15 @@ describe('RefactoringSafetyChecker', () => {
         getFiles: vi.fn().mockResolvedValue([]),
       };
 
-      const librarian = {
+      const librainian = {
         queryOptional,
         queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
         query: vi.fn().mockResolvedValue({ packs: [] }),
         getStorage: () => storage,
         workspaceRoot: process.cwd(),
-      } as unknown as Librarian;
+      } as unknown as LiBrainian;
 
-      const graphChecker = new RefactoringSafetyChecker(librarian);
+      const graphChecker = new RefactoringSafetyChecker(librainian);
       const result = await graphChecker.check({
         entityId: 'testFunction',
         refactoringType: 'rename',
@@ -216,14 +216,14 @@ describe('RefactoringSafetyChecker', () => {
           { path: join(workspaceRoot, 'a.ts') },
         ]),
       };
-      const librarian = {
+      const librainian = {
         queryOptional,
         queryRequired: vi.fn().mockResolvedValue({ packs: [] }),
         query: vi.fn().mockResolvedValue({ packs: [] }),
         getStorage: () => storage,
         workspaceRoot,
-      } as unknown as Librarian;
-      const graphChecker = new RefactoringSafetyChecker(librarian);
+      } as unknown as LiBrainian;
+      const graphChecker = new RefactoringSafetyChecker(librainian);
 
       try {
         const result = await graphChecker.check({
@@ -453,11 +453,11 @@ describe('Type Compatibility Checking', () => {
 
 describe('BugInvestigationAssistant', () => {
   let assistant: BugInvestigationAssistant;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarian();
-    assistant = new BugInvestigationAssistant(mockLibrarian);
+    mockLiBrainian = createMockLiBrainian();
+    assistant = new BugInvestigationAssistant(mockLiBrainian);
   });
 
   describe('investigate()', () => {
@@ -550,7 +550,7 @@ import { CodeQualityReporter } from '../code_quality_reporter.js';
 import { ArchitectureVerifier } from '../architecture_verifier.js';
 import { SecurityAuditHelper } from '../security_audit_helper.js';
 
-function createMockLibrarianWithContent(): Librarian {
+function createMockLiBrainianWithContent(): LiBrainian {
   const mockPacks: ContextPack[] = [
     {
       packId: 'test-pack-1',
@@ -582,16 +582,16 @@ function createMockLibrarianWithContent(): Librarian {
     queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
     queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
     query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 describe('FeatureLocationAdvisor', () => {
   let advisor: FeatureLocationAdvisor;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarianWithContent();
-    advisor = new FeatureLocationAdvisor(mockLibrarian);
+    mockLiBrainian = createMockLiBrainianWithContent();
+    advisor = new FeatureLocationAdvisor(mockLiBrainian);
   });
 
   describe('locate()', () => {
@@ -648,11 +648,11 @@ describe('FeatureLocationAdvisor', () => {
 
 describe('CodeQualityReporter', () => {
   let reporter: CodeQualityReporter;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarianWithContent();
-    reporter = new CodeQualityReporter(mockLibrarian);
+    mockLiBrainian = createMockLiBrainianWithContent();
+    reporter = new CodeQualityReporter(mockLiBrainian);
   });
 
   describe('analyze()', () => {
@@ -715,11 +715,11 @@ describe('CodeQualityReporter', () => {
 
 describe('ArchitectureVerifier', () => {
   let verifier: ArchitectureVerifier;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
-    mockLibrarian = createMockLibrarianWithContent();
-    verifier = new ArchitectureVerifier(mockLibrarian);
+    mockLiBrainian = createMockLiBrainianWithContent();
+    verifier = new ArchitectureVerifier(mockLiBrainian);
   });
 
   describe('verify()', () => {
@@ -790,7 +790,7 @@ describe('ArchitectureVerifier', () => {
 
 describe('SecurityAuditHelper', () => {
   let auditor: SecurityAuditHelper;
-  let mockLibrarian: Librarian;
+  let mockLiBrainian: LiBrainian;
 
   beforeEach(() => {
     // Create mock with security-relevant content
@@ -821,13 +821,13 @@ describe('SecurityAuditHelper', () => {
       },
     ];
 
-    mockLibrarian = {
+    mockLiBrainian = {
       queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
       queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
       query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-    } as unknown as Librarian;
+    } as unknown as LiBrainian;
 
-    auditor = new SecurityAuditHelper(mockLibrarian);
+    auditor = new SecurityAuditHelper(mockLiBrainian);
   });
 
   describe('audit()', () => {
@@ -900,8 +900,8 @@ describe('SecurityAuditHelper', () => {
 
 describe('Confidence Propagation', () => {
   it('should propagate confidence through RefactoringSafetyChecker', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const checker = new RefactoringSafetyChecker(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const checker = new RefactoringSafetyChecker(mockLiBrainian);
 
     const result = await checker.check({
       entityId: 'testFunction',
@@ -921,8 +921,8 @@ describe('Confidence Propagation', () => {
   });
 
   it('should propagate confidence through BugInvestigationAssistant', async () => {
-    const mockLibrarian = createMockLibrarian();
-    const assistant = new BugInvestigationAssistant(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainian();
+    const assistant = new BugInvestigationAssistant(mockLiBrainian);
 
     const result = await assistant.investigate({
       description: 'Test bug',
@@ -938,8 +938,8 @@ describe('Confidence Propagation', () => {
   });
 
   it('should propagate confidence through FeatureLocationAdvisor', async () => {
-    const mockLibrarian = createMockLibrarianWithContent();
-    const advisor = new FeatureLocationAdvisor(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainianWithContent();
+    const advisor = new FeatureLocationAdvisor(mockLiBrainian);
 
     const result = await advisor.locate({
       description: 'Find test function',
@@ -956,8 +956,8 @@ describe('Confidence Propagation', () => {
   });
 
   it('should propagate confidence through CodeQualityReporter', async () => {
-    const mockLibrarian = createMockLibrarianWithContent();
-    const reporter = new CodeQualityReporter(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainianWithContent();
+    const reporter = new CodeQualityReporter(mockLiBrainian);
 
     const result = await reporter.analyze({
       files: ['src/test.ts'],
@@ -974,8 +974,8 @@ describe('Confidence Propagation', () => {
   });
 
   it('should propagate confidence through ArchitectureVerifier', async () => {
-    const mockLibrarian = createMockLibrarianWithContent();
-    const verifier = new ArchitectureVerifier(mockLibrarian);
+    const mockLiBrainian = createMockLiBrainianWithContent();
+    const verifier = new ArchitectureVerifier(mockLiBrainian);
 
     const result = await verifier.verify({
       layers: [{ name: 'test', patterns: ['src/**'], allowedDependencies: [] }],
@@ -1018,13 +1018,13 @@ describe('Confidence Propagation', () => {
       },
     ];
 
-    const mockLibrarian = {
+    const mockLiBrainian = {
       queryOptional: vi.fn().mockResolvedValue({ packs: mockPacks }),
       queryRequired: vi.fn().mockResolvedValue({ packs: mockPacks }),
       query: vi.fn().mockResolvedValue({ packs: mockPacks }),
-    } as unknown as Librarian;
+    } as unknown as LiBrainian;
 
-    const auditor = new SecurityAuditHelper(mockLibrarian);
+    const auditor = new SecurityAuditHelper(mockLiBrainian);
     const result = await auditor.audit({
       files: ['src/test.ts'],
       checkTypes: ['injection'],

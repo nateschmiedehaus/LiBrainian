@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
 
 export type IndexPhase =
@@ -33,7 +33,7 @@ const INDEX_STATE_KEY = 'index_state';
 const DEFAULT_STATE: IndexState = { phase: 'uninitialized' };
 const DEFAULT_WRITE_THROTTLE_MS = 500;
 
-export async function getIndexState(storage: LibrarianStorage): Promise<IndexState> {
+export async function getIndexState(storage: LiBrainianStorage): Promise<IndexState> {
   const raw = await storage.getState(INDEX_STATE_KEY);
   if (!raw) return { ...DEFAULT_STATE };
   const parsed = safeJsonParseSimple<IndexState>(raw);
@@ -47,7 +47,7 @@ export async function getIndexState(storage: LibrarianStorage): Promise<IndexSta
   };
 }
 
-export async function setIndexState(storage: LibrarianStorage, state: IndexState): Promise<void> {
+export async function setIndexState(storage: LiBrainianStorage, state: IndexState): Promise<void> {
   const next: IndexState = {
     ...state,
     updatedAt: new Date().toISOString(),
@@ -56,7 +56,7 @@ export async function setIndexState(storage: LibrarianStorage, state: IndexState
 }
 
 export function createIndexStateWriter(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { throttleMs?: number } = {}
 ): IndexStateWriter {
   let lastWriteAt = 0;
@@ -110,7 +110,7 @@ export class IndexNotReadyError extends Error {
 }
 
 export async function waitForIndexReady(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { timeoutMs?: number; pollIntervalMs?: number } = {}
 ): Promise<IndexState> {
   // Default to 30 seconds instead of infinite wait (0)

@@ -14,21 +14,21 @@ import {
   type ProjectUnderstanding,
   type GenerateProjectUnderstandingOptions,
 } from '../project_understanding.js';
-import type { LibrarianStorage } from '../../storage/types.js';
-import type { FunctionKnowledge, ModuleKnowledge, FileKnowledge, LibrarianVersion } from '../../types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import type { FunctionKnowledge, ModuleKnowledge, FileKnowledge, LiBrainianVersion } from '../../types.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStorage {
+function createMockStorage(overrides?: Partial<LiBrainianStorage>): LiBrainianStorage {
   const mockFunctions: FunctionKnowledge[] = [
     {
       id: 'fn1',
       filePath: '/workspace/src/api/query.ts',
-      name: 'queryLibrarian',
-      signature: 'queryLibrarian(options: QueryOptions): Promise<QueryResult>',
-      purpose: 'Main query entry point for the librarian API',
+      name: 'queryLiBrainian',
+      signature: 'queryLiBrainian(options: QueryOptions): Promise<QueryResult>',
+      purpose: 'Main query entry point for the librainian API',
       startLine: 10,
       endLine: 50,
       confidence: 0.9,
@@ -40,9 +40,9 @@ function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStor
     {
       id: 'fn2',
       filePath: '/workspace/src/api/bootstrap.ts',
-      name: 'createLibrarian',
-      signature: 'createLibrarian(config: Config): Promise<Librarian>',
-      purpose: 'Factory function to create a Librarian instance',
+      name: 'createLiBrainian',
+      signature: 'createLiBrainian(config: Config): Promise<LiBrainian>',
+      purpose: 'Factory function to create a LiBrainian instance',
       startLine: 20,
       endLine: 80,
       confidence: 0.95,
@@ -100,7 +100,7 @@ function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStor
       id: 'mod1',
       path: '/workspace/src/api/index.ts',
       purpose: 'Main API exports',
-      exports: ['queryLibrarian', 'createLibrarian', 'Librarian'],
+      exports: ['queryLiBrainian', 'createLiBrainian', 'LiBrainian'],
       dependencies: ['./query.js', './bootstrap.js', '../storage/index.js'],
       confidence: 0.9,
     },
@@ -140,8 +140,8 @@ function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStor
       category: 'code',
       purpose: 'Query API implementation',
       role: 'core',
-      summary: 'Handles librarian queries',
-      keyExports: ['queryLibrarian'],
+      summary: 'Handles librainian queries',
+      keyExports: ['queryLiBrainian'],
       mainConcepts: ['query', 'context'],
       lineCount: 200,
       functionCount: 5,
@@ -214,7 +214,7 @@ function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStor
     },
   ];
 
-  const defaultStorage: LibrarianStorage = {
+  const defaultStorage: LiBrainianStorage = {
     // Lifecycle
     initialize: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
@@ -480,7 +480,7 @@ function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStor
     deleteFaultLocalization: vi.fn().mockResolvedValue(undefined),
 
     ...overrides,
-  } as LibrarianStorage;
+  } as LiBrainianStorage;
 
   return defaultStorage;
 }
@@ -747,7 +747,7 @@ describe('createDeepProjectUnderstandingPack', () => {
       },
     };
 
-    const version: LibrarianVersion = {
+    const version: LiBrainianVersion = {
       major: 0,
       minor: 2,
       patch: 0,
@@ -773,8 +773,8 @@ describe('createDeepProjectUnderstandingPack', () => {
 describe('Integration with real workspace', () => {
   const workspaceRoot = path.resolve(process.cwd());
 
-  it('analyzes the actual librarian project', async () => {
-    // Use the actual librarian project but with mock storage
+  it('analyzes the actual librainian project', async () => {
+    // Use the actual librainian project but with mock storage
     const storage = createMockStorage();
 
     const understanding = await generateProjectUnderstanding({

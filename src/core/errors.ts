@@ -1,5 +1,5 @@
 /**
- * @fileoverview Librarian error hierarchy
+ * @fileoverview LiBrainian error hierarchy
  *
  * Replaces string errors like 'unverified_by_trace(provider_unavailable): ...'
  * with typed, structured errors.
@@ -22,7 +22,7 @@ export interface ErrorJSON {
 // BASE ERROR
 // ============================================================================
 
-export abstract class LibrarianError extends Error {
+export abstract class LiBrainianError extends Error {
   abstract readonly code: string;
   abstract readonly retryable: boolean;
   readonly timestamp = Date.now();
@@ -48,7 +48,7 @@ export abstract class LibrarianError extends Error {
 
 export type StorageOperation = 'read' | 'write' | 'delete' | 'lock' | 'migrate' | 'query';
 
-export class StorageError extends LibrarianError {
+export class StorageError extends LiBrainianError {
   readonly code = 'STORAGE_ERROR';
 
   constructor(
@@ -87,7 +87,7 @@ export type ProviderErrorReason =
   | 'unavailable'
   | 'circuit_open';
 
-export class ProviderError extends LibrarianError {
+export class ProviderError extends LiBrainianError {
   readonly code = 'PROVIDER_ERROR';
 
   constructor(
@@ -117,7 +117,7 @@ export class ProviderError extends LibrarianError {
 
 export type ExtractionPhase = 'parse' | 'transform' | 'validate' | 'store' | 'embed';
 
-export class ExtractionError extends LibrarianError {
+export class ExtractionError extends LiBrainianError {
   readonly code = 'EXTRACTION_ERROR';
 
   constructor(
@@ -147,7 +147,7 @@ export class ExtractionError extends LibrarianError {
 // VALIDATION ERRORS
 // ============================================================================
 
-export class ValidationError extends LibrarianError {
+export class ValidationError extends LiBrainianError {
   readonly code = 'VALIDATION_ERROR';
   readonly retryable = false;
 
@@ -178,7 +178,7 @@ export class ValidationError extends LibrarianError {
 
 export type QueryPhase = 'parse' | 'retrieve' | 'rank' | 'synthesize' | 'format';
 
-export class QueryError extends LibrarianError {
+export class QueryError extends LiBrainianError {
   readonly code = 'QUERY_ERROR';
 
   constructor(
@@ -206,7 +206,7 @@ export class QueryError extends LibrarianError {
 // EMBEDDING ERRORS
 // ============================================================================
 
-export class EmbeddingError extends LibrarianError {
+export class EmbeddingError extends LiBrainianError {
   readonly code = 'EMBEDDING_ERROR';
 
   constructor(
@@ -234,7 +234,7 @@ export class EmbeddingError extends LibrarianError {
 // DISCOVERY ERRORS
 // ============================================================================
 
-export class DiscoveryError extends LibrarianError {
+export class DiscoveryError extends LiBrainianError {
   readonly code = 'DISCOVERY_ERROR';
 
   constructor(
@@ -260,7 +260,7 @@ export class DiscoveryError extends LibrarianError {
 // TRANSACTION ERRORS
 // ============================================================================
 
-export class TransactionError extends LibrarianError {
+export class TransactionError extends LiBrainianError {
   readonly code = 'TRANSACTION_ERROR';
   readonly retryable = false;
 
@@ -287,7 +287,7 @@ export class TransactionError extends LibrarianError {
 // SCHEMA ERRORS
 // ============================================================================
 
-export class SchemaError extends LibrarianError {
+export class SchemaError extends LiBrainianError {
   readonly code = 'SCHEMA_ERROR';
   readonly retryable = false;
 
@@ -316,7 +316,7 @@ export class SchemaError extends LibrarianError {
 // CONFIGURATION ERRORS
 // ============================================================================
 
-export class ConfigurationError extends LibrarianError {
+export class ConfigurationError extends LiBrainianError {
   readonly code = 'CONFIGURATION_ERROR';
   readonly retryable = false;
 
@@ -349,7 +349,7 @@ export type ExecutionFailureReason =
   | 'cancelled'
   | 'resource_exhausted';
 
-export class ExecutionError extends LibrarianError {
+export class ExecutionError extends LiBrainianError {
   readonly code = 'EXECUTION_ERROR';
 
   constructor(
@@ -375,7 +375,7 @@ export class ExecutionError extends LibrarianError {
 // PARSE ERRORS
 // ============================================================================
 
-export class ParseError extends LibrarianError {
+export class ParseError extends LiBrainianError {
   readonly code = 'PARSE_ERROR';
   readonly retryable = false;
 
@@ -405,12 +405,12 @@ export class ParseError extends LibrarianError {
 // ERROR TYPE GUARDS
 // ============================================================================
 
-export function isLibrarianError(error: unknown): error is LibrarianError {
-  return error instanceof LibrarianError;
+export function isLiBrainianError(error: unknown): error is LiBrainianError {
+  return error instanceof LiBrainianError;
 }
 
 export function isRetryableError(error: unknown): boolean {
-  if (error instanceof LibrarianError) {
+  if (error instanceof LiBrainianError) {
     return error.retryable;
   }
 

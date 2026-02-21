@@ -14,7 +14,7 @@ import {
   type MockRequirement,
   type TestSuggestionQueryClassification,
 } from '../test_suggestions.js';
-import type { LibrarianStorage, GraphEdge } from '../../storage/types.js';
+import type { LiBrainianStorage, GraphEdge } from '../../storage/types.js';
 import type { FunctionKnowledge } from '../../types.js';
 
 // ============================================================================
@@ -25,9 +25,9 @@ function createMockFunction(overrides: Partial<FunctionKnowledge> = {}): Functio
   return {
     id: 'func-1',
     filePath: 'src/api/query.ts',
-    name: 'queryLibrarian',
-    signature: 'export async function queryLibrarian(storage: LibrarianStorage, query: LibrarianQuery): Promise<LibrarianResponse>',
-    purpose: 'Executes a query against the librarian storage and returns relevant context packs',
+    name: 'queryLiBrainian',
+    signature: 'export async function queryLiBrainian(storage: LiBrainianStorage, query: LiBrainianQuery): Promise<LiBrainianResponse>',
+    purpose: 'Executes a query against the librainian storage and returns relevant context packs',
     startLine: 100,
     endLine: 200,
     confidence: 0.9,
@@ -42,7 +42,7 @@ function createMockFunction(overrides: Partial<FunctionKnowledge> = {}): Functio
 function createMockStorage(options: {
   functions?: FunctionKnowledge[];
   edges?: GraphEdge[];
-} = {}): LibrarianStorage {
+} = {}): LiBrainianStorage {
   const functions = options.functions ?? [];
   const edges = options.edges ?? [];
 
@@ -54,7 +54,7 @@ function createMockStorage(options: {
       return functions.filter(f => f.filePath === path);
     }),
     getGraphEdges: vi.fn().mockImplementation(async () => edges),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -100,15 +100,15 @@ describe('classifyTestSuggestionQuery', () => {
     });
 
     it('detects "test cases for X" queries', () => {
-      const result = classifyTestSuggestionQuery('test cases for queryLibrarian');
+      const result = classifyTestSuggestionQuery('test cases for queryLiBrainian');
       expect(result.isTestSuggestionQuery).toBe(true);
-      expect(result.target).toBe('queryLibrarian');
+      expect(result.target).toBe('queryLiBrainian');
     });
 
     it('detects "testing strategy for X" queries', () => {
-      const result = classifyTestSuggestionQuery('testing strategy for src/api/librarian.ts');
+      const result = classifyTestSuggestionQuery('testing strategy for src/api/librainian.ts');
       expect(result.isTestSuggestionQuery).toBe(true);
-      expect(result.target).toBe('src/api/librarian.ts');
+      expect(result.target).toBe('src/api/librainian.ts');
     });
   });
 
@@ -129,7 +129,7 @@ describe('classifyTestSuggestionQuery', () => {
     });
 
     it('rejects implementation queries', () => {
-      const result = classifyTestSuggestionQuery('where is queryLibrarian defined');
+      const result = classifyTestSuggestionQuery('where is queryLiBrainian defined');
       expect(result.isTestSuggestionQuery).toBe(false);
     });
   });
@@ -148,7 +148,7 @@ describe('suggestTests', () => {
       const suggestions = await suggestTests(storage, func.filePath);
 
       expect(suggestions).toHaveLength(1);
-      expect(suggestions[0]!.targetFunction).toBe('queryLibrarian');
+      expect(suggestions[0]!.targetFunction).toBe('queryLiBrainian');
       expect(suggestions[0]!.file).toBe(func.filePath);
     });
 
@@ -254,8 +254,8 @@ describe('suggestTests', () => {
   describe('priority calculation', () => {
     it('assigns critical priority to exported public API functions', async () => {
       const func = createMockFunction({
-        signature: 'export async function queryLibrarian(storage: LibrarianStorage): Promise<Response>',
-        purpose: 'Main public API for querying the librarian',
+        signature: 'export async function queryLiBrainian(storage: LiBrainianStorage): Promise<Response>',
+        purpose: 'Main public API for querying the librainian',
       });
       const storage = createMockStorage({ functions: [func] });
 
@@ -627,9 +627,9 @@ describe('mock requirements', () => {
 describe('integration: real-world scenarios', () => {
   it('generates comprehensive tests for complex async function', async () => {
     const func = createMockFunction({
-      name: 'queryLibrarian',
-      signature: 'export async function queryLibrarian(storage: LibrarianStorage, query: LibrarianQuery, options?: QueryOptions): Promise<LibrarianResponse>',
-      purpose: 'Executes a query against the librarian storage database and returns relevant context packs. Throws on invalid queries.',
+      name: 'queryLiBrainian',
+      signature: 'export async function queryLiBrainian(storage: LiBrainianStorage, query: LiBrainianQuery, options?: QueryOptions): Promise<LiBrainianResponse>',
+      purpose: 'Executes a query against the librainian storage database and returns relevant context packs. Throws on invalid queries.',
       startLine: 100,
       endLine: 300,
     });

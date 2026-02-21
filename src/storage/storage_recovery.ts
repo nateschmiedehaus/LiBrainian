@@ -18,7 +18,7 @@ const LOCK_DIR_RECOVERY_TIMEOUT_MS = 2 * 60_000;
 const LOCK_EMPTY_DIR_RECOVERY_TIMEOUT_MS = 20_000;
 const LOCK_PID_UNKNOWN_RECOVERY_TIMEOUT_MS = 5_000;
 const WORKSPACE_LOCK_UNKNOWN_STALE_TIMEOUT_MS = 2 * 60 * 60_000;
-const WORKSPACE_LOCK_DIRECTORIES = ['.librarian/locks', '.librarian/swarm/locks'] as const;
+const WORKSPACE_LOCK_DIRECTORIES = ['.librainian/locks', '.librainian/swarm/locks'] as const;
 
 export interface WorkspaceLockInspection {
   lockDirs: string[];

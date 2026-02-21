@@ -20,8 +20,8 @@ describe('retrieval confidence log storage', () => {
   });
 
   it('persists and retrieves retrieval confidence log entries', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-retrieval-log-workspace-'));
-    const dbPath = path.join(os.tmpdir(), `librarian-retrieval-log-${randomUUID()}.db`);
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retrieval-log-workspace-'));
+    const dbPath = path.join(os.tmpdir(), `librainian-retrieval-log-${randomUUID()}.db`);
     tempPaths.push(workspace);
     tempPaths.push(dbPath);
 

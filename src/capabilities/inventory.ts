@@ -103,7 +103,7 @@ function buildConstructionExample(manifest: ConstructionManifest): string {
     && typeof rawInput === 'object'
     && !Array.isArray(rawInput)
   ) ? rawInput as Record<string, unknown> : buildExampleArgs(asObjectSchema(manifest.inputSchema));
-  return `librarian constructions run ${manifest.id} --input '${JSON.stringify(input)}'`;
+  return `librainian constructions run ${manifest.id} --input '${JSON.stringify(input)}'`;
 }
 
 function makeConstructionCapabilities(manifests: ConstructionManifest[]): CapabilityEntry[] {

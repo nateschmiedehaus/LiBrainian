@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { __testing } from '../query.js';
-import type { LibrarianQuery } from '../../types.js';
+import type { LiBrainianQuery } from '../../types.js';
 
 const normalizeQueryScope = __testing.normalizeQueryScope;
 
@@ -10,7 +10,7 @@ describe('query scope alias', () => {
       intent: 'How does auth work?',
       depth: 'L1',
       scope: 'apps/api',
-    } as LibrarianQuery;
+    } as LiBrainianQuery;
 
     const normalized = await normalizeQueryScope(query, '/repo');
 
@@ -26,7 +26,7 @@ describe('query scope alias', () => {
       filter: {
         pathPrefix: 'shared/',
       },
-    } as LibrarianQuery;
+    } as LiBrainianQuery;
 
     const normalized = await normalizeQueryScope(query, '/repo');
 

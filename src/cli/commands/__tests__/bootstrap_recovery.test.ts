@@ -14,17 +14,17 @@ describe('planBootstrapRecovery', () => {
     expect(plan?.reason).toMatch(/workspace root/i);
   });
 
-  it('upgrades scope when librarian scope finds no files', () => {
+  it('upgrades scope when librainian scope finds no files', () => {
     const plan = planBootstrapRecovery({
       workspaceRoot: '/tmp/project',
-      scope: 'librarian',
+      scope: 'librainian',
       errorMessage: 'Include patterns matched no files in workspace.',
     });
 
     expect(plan?.scopeOverride).toBe('full');
   });
 
-  it('resets patterns when include patterns match no files outside librarian scope', () => {
+  it('resets patterns when include patterns match no files outside librainian scope', () => {
     const plan = planBootstrapRecovery({
       workspaceRoot: '/tmp/project',
       scope: 'full',

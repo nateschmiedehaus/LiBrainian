@@ -20,7 +20,7 @@ import type {
 } from './types.js';
 import type { EvaluationReport } from '../evaluation/harness.js';
 import type { EvalReport } from '../evaluation/runner.js';
-import type { LibrarianStateReport } from '../measurement/observability.js';
+import type { LiBrainianStateReport } from '../measurement/observability.js';
 import { isRetrievalQualityReport, type RetrievalQualityReport } from '../measurement/retrieval_quality.js';
 import { computeContinuousOverallScore } from './continuous_fitness.js';
 
@@ -44,7 +44,7 @@ export function computeFitnessReport(
     stage4: StageResult;
   },
   retrievalReport?: RetrievalReportLike,
-  stateReport?: LibrarianStateReport,
+  stateReport?: LiBrainianStateReport,
   resourceUsage?: ResourceUsage,
   baseline?: FitnessReport
 ): FitnessReport {
@@ -88,7 +88,7 @@ export function computeFitnessVector(
     stage4: StageResult;
   },
   retrievalReport?: RetrievalReportLike,
-  stateReport?: LibrarianStateReport
+  stateReport?: LiBrainianStateReport
 ): FitnessVector {
   // Correctness from stage results
   const correctness = {
@@ -140,7 +140,7 @@ export function computeFitnessVector(
  */
 export function computeBehaviorDescriptors(
   fitness: FitnessVector,
-  stateReport?: LibrarianStateReport
+  stateReport?: LiBrainianStateReport
 ): BehaviorDescriptors {
   // Latency bucket
   const latencyP50 = fitness.operationalQuality.queryLatencyP50Ms;
@@ -319,7 +319,7 @@ function extractRetrievalQuality(report?: RetrievalReportLike): FitnessVector['r
   };
 }
 
-function extractEpistemicQuality(stateReport?: LibrarianStateReport): FitnessVector['epistemicQuality'] {
+function extractEpistemicQuality(stateReport?: LiBrainianStateReport): FitnessVector['epistemicQuality'] {
   const completeness = getEpistemicMeasurementCompleteness(stateReport);
   if (!stateReport || !completeness.measured) {
     // Missing measurement is not "bad epistemics". Use sentinel values so scoring can mask.
@@ -339,7 +339,7 @@ function extractEpistemicQuality(stateReport?: LibrarianStateReport): FitnessVec
   };
 }
 
-function extractOperationalQuality(stateReport?: LibrarianStateReport): FitnessVector['operationalQuality'] {
+function extractOperationalQuality(stateReport?: LiBrainianStateReport): FitnessVector['operationalQuality'] {
   const completeness = getOperationalMeasurementCompleteness(stateReport);
   if (!stateReport || !completeness.measured) {
     // Missing measurement is not "slow". Use sentinel values so scoring can mask.
@@ -363,7 +363,7 @@ function extractOperationalQuality(stateReport?: LibrarianStateReport): FitnessV
 
 function computeMeasurementCompleteness(
   retrievalReport?: RetrievalReportLike,
-  stateReport?: LibrarianStateReport
+  stateReport?: LiBrainianStateReport
 ): MeasurementCompleteness {
   return {
     retrievalQuality: getRetrievalMeasurementCompleteness(retrievalReport),
@@ -461,7 +461,7 @@ function getRetrievalMeasurementCompleteness(
 }
 
 function getEpistemicMeasurementCompleteness(
-  stateReport?: LibrarianStateReport
+  stateReport?: LiBrainianStateReport
 ): MeasurementCompleteness['epistemicQuality'] {
   if (!stateReport) {
     return { measured: false, reason: 'missing_or_budget_skipped' };
@@ -477,7 +477,7 @@ function getEpistemicMeasurementCompleteness(
 }
 
 function getOperationalMeasurementCompleteness(
-  stateReport?: LibrarianStateReport
+  stateReport?: LiBrainianStateReport
 ): MeasurementCompleteness['operationalQuality'] {
   if (!stateReport) {
     return { measured: false, reason: 'missing_or_budget_skipped' };
@@ -590,7 +590,7 @@ function compareMetric(
   }
 }
 
-function inferRetrievalStrategy(_stateReport?: LibrarianStateReport): BehaviorDescriptors['retrievalStrategy'] {
+function inferRetrievalStrategy(_stateReport?: LiBrainianStateReport): BehaviorDescriptors['retrievalStrategy'] {
   // Would analyze actual retrieval weights; default to balanced
   return 'balanced';
 }

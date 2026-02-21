@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 function parseArgs(argv) {
   const options = {
     workspace: process.cwd(),
-    outDir: '.librarian/packs',
+    outDir: '.librainian/packs',
     json: false,
   };
 
@@ -94,18 +94,18 @@ function canonicalizePack(row) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const dbPath = path.join(options.workspace, '.librarian', 'librarian.sqlite');
+  const dbPath = path.join(options.workspace, '.librainian', 'librainian.sqlite');
   const outDir = path.resolve(options.workspace, options.outDir);
 
   const db = new Database(dbPath);
   try {
-    const tableInfo = db.prepare('PRAGMA table_info(librarian_context_packs)').all();
+    const tableInfo = db.prepare('PRAGMA table_info(librainian_context_packs)').all();
     const columnNames = new Set(tableInfo.map((column) => String(column.name)));
     if (!columnNames.has('content_hash')) {
-      db.prepare("ALTER TABLE librarian_context_packs ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''").run();
+      db.prepare("ALTER TABLE librainian_context_packs ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''").run();
     }
     if (!columnNames.has('schema_version')) {
-      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1').run();
+      db.prepare('ALTER TABLE librainian_context_packs ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1').run();
     }
     const rows = db.prepare(`
       SELECT
@@ -122,7 +122,7 @@ async function main() {
         content_hash,
         schema_version,
         invalidation_triggers
-      FROM librarian_context_packs
+      FROM librainian_context_packs
       ORDER BY pack_type ASC, target_id ASC
     `).all();
 

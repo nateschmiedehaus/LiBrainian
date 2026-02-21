@@ -3,13 +3,13 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { __testing } from '../query.js';
-import type { LibrarianQuery } from '../../types.js';
+import type { LiBrainianQuery } from '../../types.js';
 
 describe('query scope filtering helpers', () => {
   let workspace = '';
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-scope-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-query-scope-'));
     await fs.mkdir(path.join(workspace, 'packages', 'api', 'src', 'auth'), { recursive: true });
     await fs.mkdir(path.join(workspace, 'packages', 'web', 'src'), { recursive: true });
     await fs.writeFile(path.join(workspace, 'package.json'), JSON.stringify({
@@ -29,7 +29,7 @@ describe('query scope filtering helpers', () => {
   });
 
   it('auto-derives monorepo package prefix from workingFile', async () => {
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'authentication',
       depth: 'L1',
       workingFile: 'packages/api/src/auth/jwt.ts',
@@ -41,7 +41,7 @@ describe('query scope filtering helpers', () => {
   });
 
   it('normalizes absolute pathPrefix filters to workspace-relative form', async () => {
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'authentication',
       depth: 'L1',
       filter: {
@@ -54,7 +54,7 @@ describe('query scope filtering helpers', () => {
   });
 
   it('preserves caller-provided affectedFiles while normalizing scope metadata', async () => {
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'authentication',
       depth: 'L1',
       affectedFiles: ['packages/api/src/auth/jwt.ts'],

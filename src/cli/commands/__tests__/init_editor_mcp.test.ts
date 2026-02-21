@@ -123,7 +123,7 @@ describe('configureEditorMcpForInit', () => {
     const cursorConfigRaw = await fs.readFile(path.join(workspace, '.cursor', 'mcp.json'), 'utf8');
     const cursorConfig = JSON.parse(cursorConfigRaw) as { mcpServers?: Record<string, unknown> };
     const matchingKeys = Object.keys(cursorConfig.mcpServers ?? {}).filter(
-      (key) => key.includes('librarian') || key.includes('librainian'),
+      (key) => key.includes('librainian') || key.includes('librainian'),
     );
     expect(matchingKeys).toHaveLength(1);
   });

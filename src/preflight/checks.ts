@@ -301,11 +301,11 @@ const checkWorkspaceDirectory: CheckFunction = async (options) => {
     }
 
     // Check if writable
-    const testFile = path.join(options.workspaceRoot, '.librarian', '.preflight_test');
-    const librarianDir = path.dirname(testFile);
+    const testFile = path.join(options.workspaceRoot, '.librainian', '.preflight_test');
+    const librainianDir = path.dirname(testFile);
 
-    if (!fs.existsSync(librarianDir)) {
-      fs.mkdirSync(librarianDir, { recursive: true });
+    if (!fs.existsSync(librainianDir)) {
+      fs.mkdirSync(librainianDir, { recursive: true });
     }
 
     fs.writeFileSync(testFile, 'test');
@@ -434,7 +434,7 @@ const checkDiskSpace: CheckFunction = async (options) => {
  */
 const checkDatabaseAccess: CheckFunction = async (options) => {
   const startTime = Date.now();
-  const dbPath = path.join(options.workspaceRoot, '.librarian', 'librarian.db');
+  const dbPath = path.join(options.workspaceRoot, '.librainian', 'librainian.db');
 
   if (!fs.existsSync(dbPath)) {
     return {
@@ -583,7 +583,7 @@ function countSourceFilesRecursive(root: string): number {
     '.git',
     '.hg',
     '.svn',
-    '.librarian',
+    '.librainian',
     '.next',
     '.turbo',
     '.cache',

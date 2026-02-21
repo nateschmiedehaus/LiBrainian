@@ -23,7 +23,7 @@ import {
   extractSubgraph,
 } from '../knowledge_graph.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, KnowledgeGraphEdge, CloneEntry, DebtMetrics, BlameEntry, GraphEdge } from '../../storage/types.js';
+import type { LiBrainianStorage, KnowledgeGraphEdge, CloneEntry, DebtMetrics, BlameEntry, GraphEdge } from '../../storage/types.js';
 
 // Helper to create complete DebtMetrics with defaults
 function createDebtMetrics(partial: Partial<DebtMetrics> & Pick<DebtMetrics, 'entityId' | 'entityType' | 'totalDebt' | 'trend'>): DebtMetrics {
@@ -49,7 +49,7 @@ function createDebtMetrics(partial: Partial<DebtMetrics> & Pick<DebtMetrics, 'en
 }
 
 describe('Knowledge Graph', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let dbPath: string;
   let testDir: string;
 

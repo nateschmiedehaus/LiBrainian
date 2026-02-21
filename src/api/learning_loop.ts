@@ -1,8 +1,8 @@
-import type { LibrarianStorage, MetadataStorage, StorageSlices } from '../storage/types.js';
+import type { LiBrainianStorage, MetadataStorage, StorageSlices } from '../storage/types.js';
 import type { Episode } from '../strategic/building_blocks.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 
-const LEARNING_STATE_KEY = 'librarian.learning_loop.v1';
+const LEARNING_STATE_KEY = 'librainian.learning_loop.v1';
 const DEFAULT_MAX_INTENTS = 200;
 const DEFAULT_MAX_WARNINGS = 50;
 const DEFAULT_MIN_SIMILARITY = 0.2;
@@ -193,7 +193,7 @@ const EMPTY_STATE: LearningLoopState = {
   },
 };
 
-type LearningStorage = MetadataStorage | StorageSlices | LibrarianStorage;
+type LearningStorage = MetadataStorage | StorageSlices | LiBrainianStorage;
 
 export class ClosedLoopLearner implements LearningLoop {
   private storage: MetadataStorage;

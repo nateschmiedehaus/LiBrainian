@@ -32,7 +32,7 @@ async function main() {
   const root = process.cwd();
   const manifestPath = values.manifest
     ? path.resolve(values.manifest)
-    : path.join(root, 'state', 'audits', 'librarian', 'manifest.json');
+    : path.join(root, 'state', 'audits', 'librainian', 'manifest.json');
 
   const manifestRaw = await readFile(manifestPath, 'utf8');
   const manifest = JSON.parse(manifestRaw);
@@ -45,12 +45,12 @@ async function main() {
     ? manifest.artifacts.map((artifact) => artifact.path).filter(Boolean)
     : [];
 
-  const statusPath = path.join(root, 'docs', 'librarian', 'STATUS.md');
-  const gatesPath = path.join(root, 'docs', 'librarian', 'GATES.json');
+  const statusPath = path.join(root, 'docs', 'librainian', 'STATUS.md');
+  const gatesPath = path.join(root, 'docs', 'librainian', 'GATES.json');
   const implementationStatusPath = path.join(
     root,
     'docs',
-    'librarian',
+    'librainian',
     'specs',
     'IMPLEMENTATION_STATUS.md',
   );

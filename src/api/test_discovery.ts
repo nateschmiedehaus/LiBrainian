@@ -4,8 +4,8 @@
  * This module enhances test file discovery by searching for class references
  * in test files, not just path-based naming conventions.
  *
- * For queries like "tests for SqliteLibrarianStorage", this module:
- * 1. Finds test files by naming convention (e.g., SqliteLibrarianStorage.test.ts)
+ * For queries like "tests for SqliteLiBrainianStorage", this module:
+ * 1. Finds test files by naming convention (e.g., SqliteLiBrainianStorage.test.ts)
  * 2. Greps all test files for references to the class name
  * 3. Returns both convention-matched and reference-matched test files
  */
@@ -104,13 +104,13 @@ export interface TestQueryDetection {
  * Each pattern should capture the target in group 1.
  */
 const TEST_QUERY_PATTERNS: RegExp[] = [
-  // "tests for SqliteLibrarianStorage" -> "SqliteLibrarianStorage"
+  // "tests for SqliteLiBrainianStorage" -> "SqliteLiBrainianStorage"
   /tests?\s+(?:for|of|covering)\s+(\w+)/i,
-  // "SqliteLibrarianStorage tests" -> "SqliteLibrarianStorage"
+  // "SqliteLiBrainianStorage tests" -> "SqliteLiBrainianStorage"
   /(\w+)\s+tests?$/i,
-  // "test files for SqliteLibrarianStorage" -> "SqliteLibrarianStorage"
+  // "test files for SqliteLiBrainianStorage" -> "SqliteLiBrainianStorage"
   /test\s+(?:files?|coverage)\s+(?:for|of)\s+(\w+)/i,
-  // "unit tests for SqliteLibrarianStorage" -> "SqliteLibrarianStorage"
+  // "unit tests for SqliteLiBrainianStorage" -> "SqliteLiBrainianStorage"
   /unit\s+tests?\s+(?:for|in)\s+(\w+)/i,
   // "integration tests for SymbolTable" -> "SymbolTable"
   /integration\s+tests?\s+(?:for|of)\s+(\w+)/i,

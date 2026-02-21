@@ -3,7 +3,7 @@
  *
  * Validates that llmEvidence field is correctly stored and retrieved
  * for file and directory knowledge records. This implements Phase 6
- * of the librarian TDD plan.
+ * of the librainian TDD plan.
  *
  * Per Understanding Layer mandate: all LLM-generated content must have
  * evidence trace with provider, modelId, promptDigest, and timestamp.
@@ -14,11 +14,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { FileKnowledge, DirectoryKnowledge, LLMEvidence } from '../types.js';
 
 describe('LLM Evidence Persistence', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let testDir: string;
   let dbPath: string;
 

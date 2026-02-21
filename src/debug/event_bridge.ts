@@ -1,20 +1,20 @@
 /**
- * @fileoverview Bridge between Librarian events and the tracing system
+ * @fileoverview Bridge between LiBrainian events and the tracing system
  *
- * This module automatically creates trace spans from librarian events,
+ * This module automatically creates trace spans from librainian events,
  * providing unified debugging without modifying existing code paths.
  */
 
-import type { LibrarianEvent, LibrarianEventHandler } from '../events.js';
+import type { LiBrainianEvent, LiBrainianEventHandler } from '../events.js';
 import { globalEventBus } from '../events.js';
-import { globalTracer, type LibrarianTracer } from './tracer.js';
+import { globalTracer, type LiBrainianTracer } from './tracer.js';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 export interface TracingBridgeOptions {
-  tracer?: LibrarianTracer;
+  tracer?: LiBrainianTracer;
   enabled?: boolean;
 }
 
@@ -26,9 +26,9 @@ export interface TracingBridgeOptions {
 const activeSpans = new Map<string, string>();
 
 /**
- * Handle librarian events and create corresponding trace spans.
+ * Handle librainian events and create corresponding trace spans.
  */
-const bridgeHandler: LibrarianEventHandler = (event: LibrarianEvent): void => {
+const bridgeHandler: LiBrainianEventHandler = (event: LiBrainianEvent): void => {
   const tracer = globalTracer;
   if (!tracer.isEnabled()) return;
 
@@ -37,7 +37,7 @@ const bridgeHandler: LibrarianEventHandler = (event: LibrarianEvent): void => {
     case 'query_received': {
       const data = event.data as { queryId?: string; intent?: string; depth?: string };
       if (data.queryId) {
-        const spanId = tracer.startSpan('queryLibrarian', {
+        const spanId = tracer.startSpan('queryLiBrainian', {
           attributes: {
             queryId: data.queryId,
             intent: data.intent,
@@ -301,7 +301,7 @@ let unsubscribe: (() => void) | null = null;
 
 /**
  * Enable the tracing bridge.
- * This subscribes to all librarian events and creates corresponding trace spans.
+ * This subscribes to all librainian events and creates corresponding trace spans.
  */
 export function enableTracingBridge(options?: TracingBridgeOptions): void {
   if (unsubscribe) {

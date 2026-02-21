@@ -61,10 +61,10 @@ describe('workspace path portability', () => {
   });
 
   it('rebinds legacy absolute workspace references when index is opened from a new workspace root', async () => {
-    const workspaceA = await makeTemp('librarian-portability-a-');
-    const workspaceB = await makeTemp('librarian-portability-b-');
+    const workspaceA = await makeTemp('librainian-portability-a-');
+    const workspaceB = await makeTemp('librainian-portability-b-');
 
-    const aDbPath = path.join(workspaceA, '.librarian', 'librarian.sqlite');
+    const aDbPath = path.join(workspaceA, '.librainian', 'librainian.sqlite');
     await fs.mkdir(path.dirname(aDbPath), { recursive: true });
 
     const storageA = createSqliteStorage(aDbPath, workspaceA);
@@ -80,7 +80,7 @@ describe('workspace path portability', () => {
     await storageA.close();
 
     const db = new Database(aDbPath);
-    db.prepare('UPDATE librarian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ?').run(
+    db.prepare('UPDATE librainian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ?').run(
       JSON.stringify([absolutePathA]),
       JSON.stringify([
         {
@@ -94,18 +94,18 @@ describe('workspace path portability', () => {
       JSON.stringify([absolutePathA]),
     );
 
-    const metadataRow = db.prepare('SELECT value FROM librarian_metadata WHERE key = ?').get('metadata') as
+    const metadataRow = db.prepare('SELECT value FROM librainian_metadata WHERE key = ?').get('metadata') as
       | { value: string }
       | undefined;
     const metadata = metadataRow ? (JSON.parse(metadataRow.value) as Record<string, unknown>) : {};
     metadata.workspace = workspaceA;
-    db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)').run(
+    db.prepare('INSERT OR REPLACE INTO librainian_metadata (key, value) VALUES (?, ?)').run(
       'metadata',
       JSON.stringify(metadata),
     );
     db.close();
 
-    const bDbPath = path.join(workspaceB, '.librarian', 'librarian.sqlite');
+    const bDbPath = path.join(workspaceB, '.librainian', 'librainian.sqlite');
     await fs.mkdir(path.dirname(bDbPath), { recursive: true });
     await fs.copyFile(aDbPath, bDbPath);
 

@@ -15,8 +15,8 @@
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianEventBus } from '../events.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianEventBus } from '../events.js';
 import {
   TriggerWiring,
   createTriggerWiring,
@@ -49,9 +49,9 @@ import { getErrorMessage } from '../utils/errors.js';
  */
 export interface HomeostasisDaemonConfig {
   /** Storage for accessing entities */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Event bus for trigger wiring */
-  eventBus: LibrarianEventBus;
+  eventBus: LiBrainianEventBus;
   /** Trigger configuration overrides */
   triggerConfig?: Partial<TriggerConfig>;
   /** Maximum concurrent recovery actions */
@@ -176,8 +176,8 @@ const DEFAULT_CONFIG = {
  * Monitors system health and triggers recovery when needed.
  */
 export class HomeostasisDaemon {
-  private readonly storage: LibrarianStorage;
-  private readonly eventBus: LibrarianEventBus;
+  private readonly storage: LiBrainianStorage;
+  private readonly eventBus: LiBrainianEventBus;
   private readonly config: typeof DEFAULT_CONFIG;
   private readonly learner: RecoveryLearner;
   private triggerWiring: TriggerWiring | null = null;

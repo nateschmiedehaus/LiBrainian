@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createSqliteStorage } from '../sqlite_storage.js';
 import type { ContextPack, FunctionKnowledge } from '../../types.js';
-import type { LibrarianStorage } from '../types.js';
+import type { LiBrainianStorage } from '../types.js';
 
 function normalize(values: number[]): Float32Array {
   const vector = new Float32Array(values);
@@ -71,12 +71,12 @@ function buildPack(packId: string, targetId: string, relatedFile: string): Conte
 
 describe('search filter pushdown', () => {
   let tempDir = '';
-  let storage: LibrarianStorage | null = null;
+  let storage: LiBrainianStorage | null = null;
   let apiFile = '';
   let webFile = '';
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-search-filter-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-search-filter-'));
     apiFile = path.join(tempDir, 'packages', 'api', 'src', 'auth.ts');
     webFile = path.join(tempDir, 'packages', 'web', 'src', 'auth.ts');
     await fs.mkdir(path.dirname(apiFile), { recursive: true });
@@ -84,7 +84,7 @@ describe('search filter pushdown', () => {
     await fs.writeFile(apiFile, 'export function apiAuth() { return true; }\n', 'utf8');
     await fs.writeFile(webFile, 'export function webAuth() { return true; }\n', 'utf8');
 
-    const dbPath = path.join(tempDir, 'librarian.sqlite');
+    const dbPath = path.join(tempDir, 'librainian.sqlite');
     storage = createSqliteStorage(dbPath, tempDir);
     await storage.initialize();
 

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createHypothesisTester } from '../hypothesis_tester.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type {
   Problem,
   Hypothesis,
@@ -55,13 +55,13 @@ describe('HypothesisTester', () => {
 
     it('isReady returns true after initialization', async () => {
       const tester = createHypothesisTester();
-      await tester.initialize({} as LibrarianStorage);
+      await tester.initialize({} as LiBrainianStorage);
       expect(tester.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const tester = createHypothesisTester();
-      await tester.initialize({} as LibrarianStorage);
+      await tester.initialize({} as LiBrainianStorage);
       await tester.shutdown();
       expect(tester.isReady()).toBe(false);
     });
@@ -70,7 +70,7 @@ describe('HypothesisTester', () => {
   describe('CommandRunner integration', () => {
     it('setCommandRunner stores the runner', async () => {
       const tester = createHypothesisTester();
-      await tester.initialize({} as LibrarianStorage);
+      await tester.initialize({} as LiBrainianStorage);
 
       const mockRunner: CommandRunner = vi.fn();
       tester.setCommandRunner(mockRunner);
@@ -80,7 +80,7 @@ describe('HypothesisTester', () => {
 
     it('getCommandRunner returns null when not set', async () => {
       const tester = createHypothesisTester();
-      await tester.initialize({} as LibrarianStorage);
+      await tester.initialize({} as LiBrainianStorage);
 
       expect(tester.getCommandRunner()).toBeNull();
     });
@@ -101,7 +101,7 @@ describe('HypothesisTester', () => {
 
     beforeEach(async () => {
       tester = createHypothesisTester();
-      await tester.initialize({} as LibrarianStorage);
+      await tester.initialize({} as LiBrainianStorage);
     });
 
     describe('HypothesisTestResult structure', () => {

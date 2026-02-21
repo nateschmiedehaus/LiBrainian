@@ -8,9 +8,9 @@ import {
   saveTechniquePrimitive,
 } from '../../state/technique_primitives.js';
 import { createTechniquePrimitive } from '../../strategic/techniques.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -32,7 +32,7 @@ describe('technique library seeding', () => {
   });
 
   it('seeds defaults when store is empty', async () => {
-    const seeded = await ensureTechniquePrimitives(storage as unknown as LibrarianStorage);
+    const seeded = await ensureTechniquePrimitives(storage as unknown as LiBrainianStorage);
     expect(seeded.length).toBe(DEFAULT_TECHNIQUE_PRIMITIVES.length);
     expect(seeded.map((item) => item.id)).toEqual(
       expect.arrayContaining([DEFAULT_TECHNIQUE_PRIMITIVES[0]!.id])
@@ -45,9 +45,9 @@ describe('technique library seeding', () => {
       name: 'Custom technique',
       intent: 'Custom intent',
     });
-    await saveTechniquePrimitive(storage as unknown as LibrarianStorage, custom);
+    await saveTechniquePrimitive(storage as unknown as LiBrainianStorage, custom);
 
-    const seeded = await ensureTechniquePrimitives(storage as unknown as LibrarianStorage);
+    const seeded = await ensureTechniquePrimitives(storage as unknown as LiBrainianStorage);
     const ids = seeded.map((item) => item.id);
 
     expect(ids).toEqual(expect.arrayContaining(['tp-custom']));
@@ -60,9 +60,9 @@ describe('technique library seeding', () => {
       name: 'Custom technique',
       intent: 'Custom intent',
     });
-    await saveTechniquePrimitive(storage as unknown as LibrarianStorage, custom);
+    await saveTechniquePrimitive(storage as unknown as LiBrainianStorage, custom);
 
-    const seeded = await ensureTechniquePrimitives(storage as unknown as LibrarianStorage, { overwrite: true });
+    const seeded = await ensureTechniquePrimitives(storage as unknown as LiBrainianStorage, { overwrite: true });
     const ids = seeded.map((item) => item.id);
 
     expect(ids).not.toContain('tp-custom');
@@ -70,9 +70,9 @@ describe('technique library seeding', () => {
   });
 
   it('returns stored primitives when nothing changes', async () => {
-    await ensureTechniquePrimitives(storage as unknown as LibrarianStorage);
-    const list = await listTechniquePrimitives(storage as unknown as LibrarianStorage);
-    const seeded = await ensureTechniquePrimitives(storage as unknown as LibrarianStorage);
+    await ensureTechniquePrimitives(storage as unknown as LiBrainianStorage);
+    const list = await listTechniquePrimitives(storage as unknown as LiBrainianStorage);
+    const seeded = await ensureTechniquePrimitives(storage as unknown as LiBrainianStorage);
     expect(seeded).toEqual(list);
   });
 

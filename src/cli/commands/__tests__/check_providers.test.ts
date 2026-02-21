@@ -16,10 +16,12 @@ vi.mock('../../../api/provider_gate.js', () => ({
 describe('checkProvidersCommand', () => {
   const workspace = '/test/workspace';
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     vi.mocked(checkAllProviders).mockResolvedValue({
       llm: { available: true, provider: 'claude', model: 'test-model', latencyMs: 120 },
       embedding: { available: true, provider: 'xenova', model: 'test-embed', latencyMs: 50 },
@@ -37,12 +39,19 @@ describe('checkProvidersCommand', () => {
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+    stdoutWriteSpy.mockRestore();
   });
 
   it('emits JSON when format is json', async () => {
     await checkProvidersCommand({ workspace, format: 'json' });
 
-    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const outputChunk = stdoutWriteSpy.mock.calls[0]?.[0];
+    const output =
+      outputChunk == null
+        ? undefined
+        : typeof outputChunk === 'string'
+          ? outputChunk
+          : Buffer.from(outputChunk as Uint8Array).toString('utf8');
     expect(typeof output).toBe('string');
     const parsed = JSON.parse(output ?? '{}') as { workspace?: string; gate?: { ready?: boolean } };
     expect(parsed.workspace).toBe(workspace);

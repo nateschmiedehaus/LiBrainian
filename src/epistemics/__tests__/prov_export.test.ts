@@ -97,7 +97,7 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
       expect(doc.prefix.prov).toBe('http://www.w3.org/ns/prov#');
       expect(doc.prefix.xsd).toBe('http://www.w3.org/2001/XMLSchema#');
-      expect(doc.prefix.librarian).toBe('urn:librarian:evidence:');
+      expect(doc.prefix.librainian).toBe('urn:librainian:evidence:');
     });
 
     it('should create entities for each evidence entry', () => {
@@ -120,8 +120,8 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const doc = exportToPROV(chain);
 
       expect(Object.keys(doc.entity)).toHaveLength(2);
-      expect(doc.entity['librarian:ev_entity1']).toBeDefined();
-      expect(doc.entity['librarian:ev_entity2']).toBeDefined();
+      expect(doc.entity['librainian:ev_entity1']).toBeDefined();
+      expect(doc.entity['librainian:ev_entity2']).toBeDefined();
     });
 
     it('should include confidence in entities by default', () => {
@@ -136,8 +136,8 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      const entity = doc.entity['librarian:ev_conf'];
-      expect(entity['librarian:confidence']).toBe(1);
+      const entity = doc.entity['librainian:ev_conf'];
+      expect(entity['librainian:confidence']).toBe(1);
     });
 
     it('should handle bounded confidence', () => {
@@ -154,9 +154,9 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      const entity = doc.entity['librarian:ev_bounded'];
-      expect(entity['librarian:confidenceLow']).toBe(0.6);
-      expect(entity['librarian:confidenceHigh']).toBe(0.9);
+      const entity = doc.entity['librainian:ev_bounded'];
+      expect(entity['librainian:confidenceLow']).toBe(0.6);
+      expect(entity['librainian:confidenceHigh']).toBe(0.9);
     });
 
     it('should handle absent confidence', () => {
@@ -172,8 +172,8 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      const entity = doc.entity['librarian:ev_absent'];
-      expect(entity['librarian:confidenceAbsent']).toBe('uncalibrated');
+      const entity = doc.entity['librainian:ev_absent'];
+      expect(entity['librainian:confidenceAbsent']).toBe('uncalibrated');
     });
 
     it('should create activities for each entry', () => {
@@ -187,9 +187,9 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      const activity = doc.activity['librarian:activity_ev_act'];
+      const activity = doc.activity['librainian:activity_ev_act'];
       expect(activity).toBeDefined();
-      expect(activity['prov:type']).toBe('librarian:extraction_activity');
+      expect(activity['prov:type']).toBe('librainian:extraction_activity');
       expect(activity['prov:label']).toContain('typescript_parser');
     });
 
@@ -219,8 +219,8 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
       const agent = doc.agent[agentKeys[0]];
       expect(agent['prov:type']).toBe('prov:SoftwareAgent');
-      expect(agent['librarian:agentIdentifier']).toBe('claude-3-sonnet');
-      expect(agent['librarian:agentVersion']).toBe('2024-01');
+      expect(agent['librainian:agentIdentifier']).toBe('claude-3-sonnet');
+      expect(agent['librainian:agentVersion']).toBe('2024-01');
     });
 
     it('should create wasGeneratedBy relations', () => {
@@ -234,10 +234,10 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      const genRel = doc.wasGeneratedBy['librarian:gen_ev_gen'];
+      const genRel = doc.wasGeneratedBy['librainian:gen_ev_gen'];
       expect(genRel).toBeDefined();
-      expect(genRel['prov:entity']).toBe('librarian:ev_gen');
-      expect(genRel['prov:activity']).toBe('librarian:activity_ev_gen');
+      expect(genRel['prov:entity']).toBe('librainian:ev_gen');
+      expect(genRel['prov:activity']).toBe('librainian:activity_ev_gen');
       expect(genRel['prov:time']).toBe('2026-01-28T00:00:00.000Z');
     });
 
@@ -280,9 +280,9 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       expect(derivRels.length).toBe(1);
 
       const [, rel] = derivRels[0];
-      expect(rel['prov:generatedEntity']).toBe('librarian:ev_derived');
-      expect(rel['prov:usedEntity']).toBe('librarian:ev_source');
-      expect(rel['librarian:relationType']).toBe('derived_from');
+      expect(rel['prov:generatedEntity']).toBe('librainian:ev_derived');
+      expect(rel['prov:usedEntity']).toBe('librainian:ev_source');
+      expect(rel['librainian:relationType']).toBe('derived_from');
     });
 
     it('should create wasAttributedTo relations', () => {
@@ -296,9 +296,9 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      const attrRel = doc.wasAttributedTo['librarian:attr_ev_attr'];
+      const attrRel = doc.wasAttributedTo['librainian:attr_ev_attr'];
       expect(attrRel).toBeDefined();
-      expect(attrRel['prov:entity']).toBe('librarian:ev_attr');
+      expect(attrRel['prov:entity']).toBe('librainian:ev_attr');
       expect(attrRel['prov:agent']).toBeDefined();
     });
 
@@ -333,11 +333,11 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
       // Without payloads (default)
       const docNoPayload = exportToPROV(chain, { includePayloads: false });
-      expect(docNoPayload.entity['librarian:ev_payload']['librarian:payload']).toBeUndefined();
+      expect(docNoPayload.entity['librainian:ev_payload']['librainian:payload']).toBeUndefined();
 
       // With payloads
       const docWithPayload = exportToPROV(chain, { includePayloads: true });
-      expect(docWithPayload.entity['librarian:ev_payload']['librarian:payload']).toEqual(payload);
+      expect(docWithPayload.entity['librainian:ev_payload']['librainian:payload']).toEqual(payload);
     });
 
     it('should exclude confidence when requested', () => {
@@ -351,7 +351,7 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain, { includeConfidence: false });
 
-      expect(doc.entity['librarian:ev_noconf']['librarian:confidence']).toBeUndefined();
+      expect(doc.entity['librainian:ev_noconf']['librainian:confidence']).toBeUndefined();
     });
   });
 
@@ -419,14 +419,14 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
     it('should detect missing entity references in wasGeneratedBy', () => {
       const doc: PROVDocument = {
-        prefix: { librarian: 'urn:librarian:', prov: 'http://www.w3.org/ns/prov#' },
+        prefix: { librainian: 'urn:librainian:', prov: 'http://www.w3.org/ns/prov#' },
         entity: {},
-        activity: { 'librarian:act1': { 'prov:type': 'test' } },
+        activity: { 'librainian:act1': { 'prov:type': 'test' } },
         agent: {},
         wasGeneratedBy: {
-          'librarian:gen1': {
-            'prov:entity': 'librarian:missing_entity',
-            'prov:activity': 'librarian:act1',
+          'librainian:gen1': {
+            'prov:entity': 'librainian:missing_entity',
+            'prov:activity': 'librainian:act1',
           },
         },
         wasDerivedFrom: {},
@@ -437,20 +437,20 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
-        'wasGeneratedBy librarian:gen1: references unknown entity librarian:missing_entity'
+        'wasGeneratedBy librainian:gen1: references unknown entity librainian:missing_entity'
       );
     });
 
     it('should detect missing activity references in wasGeneratedBy', () => {
       const doc: PROVDocument = {
-        prefix: { librarian: 'urn:librarian:', prov: 'http://www.w3.org/ns/prov#' },
-        entity: { 'librarian:ent1': { 'prov:type': 'test' } },
+        prefix: { librainian: 'urn:librainian:', prov: 'http://www.w3.org/ns/prov#' },
+        entity: { 'librainian:ent1': { 'prov:type': 'test' } },
         activity: {},
         agent: {},
         wasGeneratedBy: {
-          'librarian:gen1': {
-            'prov:entity': 'librarian:ent1',
-            'prov:activity': 'librarian:missing_activity',
+          'librainian:gen1': {
+            'prov:entity': 'librainian:ent1',
+            'prov:activity': 'librainian:missing_activity',
           },
         },
         wasDerivedFrom: {},
@@ -461,21 +461,21 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
-        'wasGeneratedBy librarian:gen1: references unknown activity librarian:missing_activity'
+        'wasGeneratedBy librainian:gen1: references unknown activity librainian:missing_activity'
       );
     });
 
     it('should detect missing entity references in wasDerivedFrom', () => {
       const doc: PROVDocument = {
-        prefix: { librarian: 'urn:librarian:', prov: 'http://www.w3.org/ns/prov#' },
-        entity: { 'librarian:ent1': { 'prov:type': 'test' } },
+        prefix: { librainian: 'urn:librainian:', prov: 'http://www.w3.org/ns/prov#' },
+        entity: { 'librainian:ent1': { 'prov:type': 'test' } },
         activity: {},
         agent: {},
         wasGeneratedBy: {},
         wasDerivedFrom: {
-          'librarian:deriv1': {
-            'prov:generatedEntity': 'librarian:ent1',
-            'prov:usedEntity': 'librarian:missing_used',
+          'librainian:deriv1': {
+            'prov:generatedEntity': 'librainian:ent1',
+            'prov:usedEntity': 'librainian:missing_used',
           },
         },
         wasAttributedTo: {},
@@ -489,16 +489,16 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
 
     it('should detect missing agent references in wasAttributedTo', () => {
       const doc: PROVDocument = {
-        prefix: { librarian: 'urn:librarian:', prov: 'http://www.w3.org/ns/prov#' },
-        entity: { 'librarian:ent1': { 'prov:type': 'test' } },
+        prefix: { librainian: 'urn:librainian:', prov: 'http://www.w3.org/ns/prov#' },
+        entity: { 'librainian:ent1': { 'prov:type': 'test' } },
         activity: {},
         agent: {},
         wasGeneratedBy: {},
         wasDerivedFrom: {},
         wasAttributedTo: {
-          'librarian:attr1': {
-            'prov:entity': 'librarian:ent1',
-            'prov:agent': 'librarian:missing_agent',
+          'librainian:attr1': {
+            'prov:entity': 'librainian:ent1',
+            'prov:agent': 'librainian:missing_agent',
           },
         },
       };
@@ -522,7 +522,7 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      expect(doc.entity['librarian:ev_label_ext']['prov:label']).toContain('calculateSum');
+      expect(doc.entity['librainian:ev_label_ext']['prov:label']).toContain('calculateSum');
     });
 
     it('should generate meaningful labels for claims', () => {
@@ -538,16 +538,16 @@ describe('W3C PROV Export (WU-THIMPL-203)', () => {
       const chain = createChain([entry]);
       const doc = exportToPROV(chain);
 
-      expect(doc.entity['librarian:ev_label_claim']['prov:label']).toContain('Function handles');
+      expect(doc.entity['librainian:ev_label_claim']['prov:label']).toContain('Function handles');
     });
   });
 
   describe('Default Options', () => {
     it('should have sensible defaults', () => {
-      expect(DEFAULT_PROV_EXPORT_OPTIONS.baseUri).toBe('urn:librarian:evidence:');
+      expect(DEFAULT_PROV_EXPORT_OPTIONS.baseUri).toBe('urn:librainian:evidence:');
       expect(DEFAULT_PROV_EXPORT_OPTIONS.includePayloads).toBe(false);
       expect(DEFAULT_PROV_EXPORT_OPTIONS.includeConfidence).toBe(true);
-      expect(DEFAULT_PROV_EXPORT_OPTIONS.namespacePrefix).toBe('librarian');
+      expect(DEFAULT_PROV_EXPORT_OPTIONS.namespacePrefix).toBe('librainian');
     });
   });
 });

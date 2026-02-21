@@ -190,7 +190,7 @@ function createMeasuredMetric(
 
 /**
  * Simulate retrieval for a ground truth query
- * In production, this would call the actual Librarian retrieval system
+ * In production, this would call the actual LiBrainian retrieval system
  */
 function simulateRetrieval(
   query: StructuralGroundTruthQuery,
@@ -225,7 +225,7 @@ function simulateRetrieval(
 
 /**
  * Generate a synthesized answer for a query
- * In production, this would be the actual Librarian response
+ * In production, this would be the actual LiBrainian response
  */
 function generateSynthesizedAnswer(query: StructuralGroundTruthQuery, facts: ASTFact[]): string {
   const { expectedAnswer } = query;
@@ -536,7 +536,7 @@ describe('RAGAS-Style Metrics Measurement', () => {
 
           // Verify citations in synthesized answer
           const repoPath = corpus.repoPath;
-          const citationReport = await verifier.verifyLibrarianOutput(
+          const citationReport = await verifier.verifyLiBrainianOutput(
             result.synthesizedAnswer,
             repoPath
           );

@@ -2,7 +2,7 @@
  * @fileoverview E2E Retrieval Pipeline Integration Test
  *
  * WU-1201: End-to-end integration test that runs REAL queries through
- * the Librarian pipeline using external repos.
+ * the LiBrainian pipeline using external repos.
  *
  * This is VALIDATION - we measure actual performance, not mocked behavior.
  *
@@ -40,7 +40,7 @@ const TYPEDRIVER_REPO = path.join(EXTERNAL_REPO_BASE, 'typedriver-ts');
 
 // E2E test thresholds (conservative for real retrieval)
 // Note: Using simple term-matching retriever without embeddings
-// A full Librarian pipeline with embeddings should achieve higher recall
+// A full LiBrainian pipeline with embeddings should achieve higher recall
 const RECALL_AT_5_THRESHOLD = 0.10; // 10% minimum - baseline for simple term-matching
 const LATENCY_P50_THRESHOLD_MS = 5000; // 5 seconds max for p50
 
@@ -278,7 +278,7 @@ E2E Retrieval Metrics (typedriver-ts):
 
       // Assert thresholds
       // Note: This is a simple term-matching retriever without embeddings
-      // The full Librarian pipeline with embeddings should achieve higher recall
+      // The full LiBrainian pipeline with embeddings should achieve higher recall
       // This test validates the E2E testing infrastructure works
       expect(avgRecall).toBeGreaterThanOrEqual(RECALL_AT_5_THRESHOLD);
     });

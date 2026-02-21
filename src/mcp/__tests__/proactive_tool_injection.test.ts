@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { estimateTokens } from '../../api/token_budget.js';
-import { createLibrarianMCPServer, type LibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer, type LiBrainianMCPServer } from '../server.js';
 
 function makeStorageMock(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
@@ -27,7 +27,7 @@ describe('MCP proactive tool injection', () => {
   });
 
   it('is opt-in and returns null by default', async () => {
-    const server = await createLibrarianMCPServer();
+    const server = await createLiBrainianMCPServer();
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
       indexState: 'ready',
@@ -44,7 +44,7 @@ describe('MCP proactive tool injection', () => {
 
   it('injects read_file context when enabled and coverage is at least 50%', async () => {
     const filePath = path.join(workspace, 'src/auth/login.ts');
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       proactiveInjection: {
         enabled: true,
         maxTokens: 2000,
@@ -90,7 +90,7 @@ describe('MCP proactive tool injection', () => {
 
   it('skips injection when coverage is below threshold', async () => {
     const filePath = path.join(workspace, 'src/auth/login.ts');
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       proactiveInjection: {
         enabled: true,
         maxTokens: 2000,
@@ -132,7 +132,7 @@ describe('MCP proactive tool injection', () => {
   it('adds refactor safety summary for write/edit tool calls', async () => {
     const filePath = path.join(workspace, 'src/auth/login.ts');
     const callerPath = path.join(workspace, 'src/http/routes.ts');
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       proactiveInjection: {
         enabled: true,
         maxTokens: 2000,
@@ -182,7 +182,7 @@ describe('MCP proactive tool injection', () => {
       JSON.stringify({ librainian: { proactiveInjection: true } }, null, 2),
       'utf8',
     );
-    const server = await createLibrarianMCPServer();
+    const server = await createLiBrainianMCPServer();
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
       indexState: 'ready',

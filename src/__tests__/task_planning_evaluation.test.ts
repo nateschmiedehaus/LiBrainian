@@ -18,7 +18,7 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import { planTask, type TaskPlan } from '../api/task_planning.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage, ModuleRecord, FunctionRecord } from '../storage/types.js';
+import type { LiBrainianStorage, ModuleRecord, FunctionRecord } from '../storage/types.js';
 
 // ============================================================================
 // TEST CONFIGURATION
@@ -26,7 +26,7 @@ import type { LibrarianStorage, ModuleRecord, FunctionRecord } from '../storage/
 
 const WORKSPACE = path.join(
   os.tmpdir(),
-  `librarian-task-planning-eval-${process.pid}-${Date.now()}`
+  `librainian-task-planning-eval-${process.pid}-${Date.now()}`
 );
 
 // Test task descriptions - real-world scenarios
@@ -298,14 +298,14 @@ function evaluatePlan(task: string, plan: TaskPlan): PlanEvaluation {
 // MOCK DATA FOR REALISTIC TESTING
 // ============================================================================
 
-// Simulate real functions from the librarian codebase
+// Simulate real functions from the librainian codebase
 const MOCK_FUNCTIONS: FunctionRecord[] = [
   {
     id: 'fn-query-1',
     filePath: path.join(WORKSPACE, 'src/api/query.ts'),
-    name: 'queryLibrarian',
-    purpose: 'Main query function that handles all librarian queries',
-    signature: 'async function queryLibrarian(query: LibrarianQuery, storage: LibrarianStorage): Promise<LibrarianResponse>',
+    name: 'queryLiBrainian',
+    purpose: 'Main query function that handles all librainian queries',
+    signature: 'async function queryLiBrainian(query: LiBrainianQuery, storage: LiBrainianStorage): Promise<LiBrainianResponse>',
     startLine: 100,
     endLine: 200,
     confidence: 0.9,
@@ -318,8 +318,8 @@ const MOCK_FUNCTIONS: FunctionRecord[] = [
     id: 'fn-storage-1',
     filePath: path.join(WORKSPACE, 'src/storage/sqlite_storage.ts'),
     name: 'createSqliteStorage',
-    purpose: 'Creates a SQLite storage backend for the librarian',
-    signature: 'function createSqliteStorage(dbPath: string, workspace: string): LibrarianStorage',
+    purpose: 'Creates a SQLite storage backend for the librainian',
+    signature: 'function createSqliteStorage(dbPath: string, workspace: string): LiBrainianStorage',
     startLine: 50,
     endLine: 100,
     confidence: 0.95,
@@ -372,10 +372,10 @@ const MOCK_FUNCTIONS: FunctionRecord[] = [
   },
   {
     id: 'fn-api-1',
-    filePath: path.join(WORKSPACE, 'src/api/librarian.ts'),
+    filePath: path.join(WORKSPACE, 'src/api/librainian.ts'),
     name: 'query',
-    purpose: 'API endpoint handler for librarian queries',
-    signature: 'async query(query: LibrarianQuery): Promise<LibrarianResponse>',
+    purpose: 'API endpoint handler for librainian queries',
+    signature: 'async query(query: LiBrainianQuery): Promise<LiBrainianResponse>',
     startLine: 500,
     endLine: 550,
     confidence: 0.9,
@@ -390,15 +390,15 @@ const MOCK_MODULES: ModuleRecord[] = [
   {
     id: 'mod-api-1',
     path: path.join(WORKSPACE, 'src/api/query.ts'),
-    purpose: 'Query API module - handles all librarian queries and context assembly',
-    exports: ['queryLibrarian', 'createFunctionQuery', 'createFileQuery'],
+    purpose: 'Query API module - handles all librainian queries and context assembly',
+    exports: ['queryLiBrainian', 'createFunctionQuery', 'createFileQuery'],
     dependencies: ['../storage/types.js', '../types.js', './embeddings.js'],
     confidence: 0.9,
   },
   {
     id: 'mod-storage-1',
     path: path.join(WORKSPACE, 'src/storage/sqlite_storage.ts'),
-    purpose: 'SQLite storage implementation for librarian data persistence',
+    purpose: 'SQLite storage implementation for librainian data persistence',
     exports: ['createSqliteStorage', 'SqliteStorage'],
     dependencies: ['better-sqlite3', '../types.js', './types.js'],
     confidence: 0.95,
@@ -434,7 +434,7 @@ const MOCK_MODULES: ModuleRecord[] = [
 // ============================================================================
 
 describe('Task Planning Quality Evaluation', () => {
-  let storage: LibrarianStorage | null = null;
+  let storage: LiBrainianStorage | null = null;
   let tempDbPath: string | null = null;
   const evaluations: PlanEvaluation[] = [];
 
@@ -442,7 +442,7 @@ describe('Task Planning Quality Evaluation', () => {
     await fs.mkdir(WORKSPACE, { recursive: true });
 
     // Create a temporary database for testing
-    tempDbPath = path.join(os.tmpdir(), `librarian-test-${Date.now()}.sqlite`);
+    tempDbPath = path.join(os.tmpdir(), `librainian-test-${Date.now()}.sqlite`);
 
     storage = createSqliteStorage(tempDbPath, WORKSPACE);
     await storage.initialize();
@@ -598,7 +598,7 @@ describe('Task Planning Quality Evaluation', () => {
 
   it('should handle empty/new projects gracefully', async () => {
     // Create a storage with no data
-    const emptyDbPath = path.join(os.tmpdir(), `librarian-empty-${Date.now()}.sqlite`);
+    const emptyDbPath = path.join(os.tmpdir(), `librainian-empty-${Date.now()}.sqlite`);
     const emptyStorage = createSqliteStorage(emptyDbPath, WORKSPACE);
     await emptyStorage.initialize();
 

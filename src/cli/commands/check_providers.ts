@@ -128,6 +128,6 @@ export async function checkProvidersCommand(options: CheckProvidersCommandOption
     }
     console.log();
   } else {
-    console.log('All providers are ready. You can run `librarian bootstrap` to initialize.');
+    console.log('All providers are ready. You can run `librainian bootstrap` to initialize.');
   }
 }

@@ -1,7 +1,7 @@
 /**
  * @fileoverview Tests for Query Edge Filtering Feature
  *
- * Tests the edgeTypes filter in LibrarianQuery which enables:
+ * Tests the edgeTypes filter in LiBrainianQuery which enables:
  * - "Show me what supports this decision" → filter to 'supports' edges
  * - "Show me contradicting alternatives" → filter to 'contradicts' edges
  * - "Show me the decision chain" → filter to 'supersedes', 'depends_on_decision'
@@ -11,12 +11,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { validateQueryEdgeTypes, hasArgumentEdgeFilter } from '../argument_edges.js';
-import type { LibrarianQuery, EdgeQueryResult, EdgeInfo } from '../../types.js';
+import type { LiBrainianQuery, EdgeQueryResult, EdgeInfo } from '../../types.js';
 
 describe('Query Edge Filtering', () => {
-  describe('LibrarianQuery.edgeTypes', () => {
+  describe('LiBrainianQuery.edgeTypes', () => {
     it('should accept argument edge types', () => {
-      const query: LibrarianQuery = {
+      const query: LiBrainianQuery = {
         intent: 'What supports ADR-001?',
         depth: 'L2',
         edgeTypes: ['supports', 'warrants'],
@@ -28,7 +28,7 @@ describe('Query Edge Filtering', () => {
     });
 
     it('should accept knowledge edge types', () => {
-      const query: LibrarianQuery = {
+      const query: LiBrainianQuery = {
         intent: 'What imports this module?',
         depth: 'L2',
         edgeTypes: ['imports', 'calls'],
@@ -40,7 +40,7 @@ describe('Query Edge Filtering', () => {
     });
 
     it('should accept mixed edge types', () => {
-      const query: LibrarianQuery = {
+      const query: LiBrainianQuery = {
         intent: 'Show relationships for this entity',
         depth: 'L2',
         edgeTypes: ['supports', 'calls', 'contradicts', 'imports'],
@@ -163,7 +163,7 @@ describe('Query Edge Filtering', () => {
   describe('Use Case Queries', () => {
     describe('"What supports this decision?" query', () => {
       it('should use supports and warrants edge types', () => {
-        const query: LibrarianQuery = {
+        const query: LiBrainianQuery = {
           intent: 'What supports ADR-001?',
           depth: 'L2',
           edgeTypes: ['supports', 'warrants'],
@@ -177,7 +177,7 @@ describe('Query Edge Filtering', () => {
 
     describe('"What contradicts this approach?" query', () => {
       it('should use conflict edge types', () => {
-        const query: LibrarianQuery = {
+        const query: LiBrainianQuery = {
           intent: 'What contradicts this approach?',
           depth: 'L2',
           edgeTypes: ['contradicts', 'undermines', 'rebuts'],
@@ -193,7 +193,7 @@ describe('Query Edge Filtering', () => {
 
     describe('"Show me the decision chain" query', () => {
       it('should use decision chain edge types', () => {
-        const query: LibrarianQuery = {
+        const query: LiBrainianQuery = {
           intent: 'Show me the decision chain for ADR-015',
           depth: 'L2',
           edgeTypes: ['supersedes', 'depends_on_decision'],
@@ -206,7 +206,7 @@ describe('Query Edge Filtering', () => {
 
     describe('"What imports this module?" query', () => {
       it('should use imports knowledge edge type', () => {
-        const query: LibrarianQuery = {
+        const query: LiBrainianQuery = {
           intent: 'What imports utils.ts?',
           depth: 'L2',
           edgeTypes: ['imports'],

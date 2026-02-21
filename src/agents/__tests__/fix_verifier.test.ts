@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFixVerifier } from '../fix_verifier.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type {
   Problem,
   Fix,
@@ -61,13 +61,13 @@ describe('FixVerifier', () => {
 
     it('isReady returns true after initialization', async () => {
       const verifier = createFixVerifier();
-      await verifier.initialize({} as LibrarianStorage);
+      await verifier.initialize({} as LiBrainianStorage);
       expect(verifier.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const verifier = createFixVerifier();
-      await verifier.initialize({} as LibrarianStorage);
+      await verifier.initialize({} as LiBrainianStorage);
       await verifier.shutdown();
       expect(verifier.isReady()).toBe(false);
     });
@@ -88,7 +88,7 @@ describe('FixVerifier', () => {
 
     it('rejects fix when no CommandRunner is set', async () => {
       const verifier = createFixVerifier();
-      await verifier.initialize({} as LibrarianStorage);
+      await verifier.initialize({} as LiBrainianStorage);
 
       const input: FixVerifierInput = {
         fix: createMockFix(),
@@ -110,7 +110,7 @@ describe('FixVerifier', () => {
 
     beforeEach(async () => {
       verifier = createFixVerifier();
-      await verifier.initialize({} as LibrarianStorage);
+      await verifier.initialize({} as LiBrainianStorage);
 
       commandResults = new Map();
       mockRunner = vi.fn(async (check: TestFailureCheck): Promise<CommandResult> => {
@@ -602,7 +602,7 @@ describe('FixVerifier', () => {
         const customVerifier = createFixVerifier({
           testSuiteCommand: 'yarn test',
         });
-        await customVerifier.initialize({} as LibrarianStorage);
+        await customVerifier.initialize({} as LiBrainianStorage);
         customVerifier.setCommandRunner(mockRunner);
 
         const input: FixVerifierInput = {
@@ -623,7 +623,7 @@ describe('FixVerifier', () => {
         const customVerifier = createFixVerifier({
           typeCheckCommand: 'yarn tsc',
         });
-        await customVerifier.initialize({} as LibrarianStorage);
+        await customVerifier.initialize({} as LiBrainianStorage);
         customVerifier.setCommandRunner(mockRunner);
 
         const input: FixVerifierInput = {
@@ -644,7 +644,7 @@ describe('FixVerifier', () => {
         const customVerifier = createFixVerifier({
           commandTimeoutMs: 30000,
         });
-        await customVerifier.initialize({} as LibrarianStorage);
+        await customVerifier.initialize({} as LiBrainianStorage);
         customVerifier.setCommandRunner(mockRunner);
 
         const input: FixVerifierInput = {

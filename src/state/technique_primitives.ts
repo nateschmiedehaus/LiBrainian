@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { TechniquePrimitive } from '../strategic/techniques.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
 
@@ -25,7 +25,7 @@ const PRIMITIVES_KEY = 'librarian.technique_primitives.v1';
 const INVALID_PRIMITIVES_KEY = 'librarian.technique_primitives.invalid.v1';
 
 export async function listTechniquePrimitives(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { allowInvalid?: boolean } = {}
 ): Promise<TechniquePrimitive[]> {
   const items = await loadPrimitiveState(storage);
@@ -35,7 +35,7 @@ export async function listTechniquePrimitives(
 }
 
 export async function listTechniquePrimitiveIds(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: { allowInvalid?: boolean } = {}
 ): Promise<string[]> {
   const primitives = await listTechniquePrimitives(storage, options);
@@ -43,7 +43,7 @@ export async function listTechniquePrimitiveIds(
 }
 
 export async function getTechniquePrimitive(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string,
   options: { allowInvalid?: boolean } = {}
 ): Promise<TechniquePrimitive | null> {
@@ -56,7 +56,7 @@ export async function getTechniquePrimitive(
 }
 
 export async function saveTechniquePrimitive(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   primitive: TechniquePrimitive
 ): Promise<void> {
   const primitives = await loadPrimitiveState(storage);
@@ -67,7 +67,7 @@ export async function saveTechniquePrimitive(
 }
 
 export async function deleteTechniquePrimitive(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string
 ): Promise<boolean> {
   const primitives = await loadPrimitiveState(storage);
@@ -79,17 +79,17 @@ export async function deleteTechniquePrimitive(
 }
 
 export async function listInvalidTechniquePrimitives(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<InvalidTechniquePrimitiveRecord[]> {
   return loadInvalidState(storage);
 }
 
-export async function clearInvalidTechniquePrimitives(storage: LibrarianStorage): Promise<void> {
+export async function clearInvalidTechniquePrimitives(storage: LiBrainianStorage): Promise<void> {
   await writeInvalidState(storage, []);
 }
 
 export async function recordInvalidTechniquePrimitive(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   record: InvalidTechniquePrimitiveRecord
 ): Promise<void> {
   const records = await loadInvalidState(storage);
@@ -98,7 +98,7 @@ export async function recordInvalidTechniquePrimitive(
   await writeInvalidState(storage, filtered);
 }
 
-async function loadPrimitiveState(storage: LibrarianStorage): Promise<TechniquePrimitive[]> {
+async function loadPrimitiveState(storage: LiBrainianStorage): Promise<TechniquePrimitive[]> {
   const raw = await storage.getState(PRIMITIVES_KEY);
   if (!raw) return [];
   const parsed = safeJsonParseSimple<TechniquePrimitiveState>(raw);
@@ -106,7 +106,7 @@ async function loadPrimitiveState(storage: LibrarianStorage): Promise<TechniqueP
   return parsed.items.map((item) => ({ ...item }));
 }
 
-async function writePrimitiveState(storage: LibrarianStorage, items: TechniquePrimitive[]): Promise<void> {
+async function writePrimitiveState(storage: LiBrainianStorage, items: TechniquePrimitive[]): Promise<void> {
   const payload: TechniquePrimitiveState = {
     schema_version: 1,
     updatedAt: new Date().toISOString(),
@@ -115,7 +115,7 @@ async function writePrimitiveState(storage: LibrarianStorage, items: TechniquePr
   await storage.setState(PRIMITIVES_KEY, JSON.stringify(payload));
 }
 
-async function loadInvalidState(storage: LibrarianStorage): Promise<InvalidTechniquePrimitiveRecord[]> {
+async function loadInvalidState(storage: LiBrainianStorage): Promise<InvalidTechniquePrimitiveRecord[]> {
   const raw = await storage.getState(INVALID_PRIMITIVES_KEY);
   if (!raw) return [];
   const parsed = safeJsonParseSimple<InvalidPrimitiveState>(raw);
@@ -124,7 +124,7 @@ async function loadInvalidState(storage: LibrarianStorage): Promise<InvalidTechn
 }
 
 async function writeInvalidState(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   items: InvalidTechniquePrimitiveRecord[]
 ): Promise<void> {
   const payload: InvalidPrimitiveState = {
@@ -135,7 +135,7 @@ async function writeInvalidState(
   await storage.setState(INVALID_PRIMITIVES_KEY, JSON.stringify(payload));
 }
 
-async function removeInvalidPrimitive(storage: LibrarianStorage, id: string): Promise<void> {
+async function removeInvalidPrimitive(storage: LiBrainianStorage, id: string): Promise<void> {
   const records = await loadInvalidState(storage);
   const next = records.filter((record) => record.id !== id);
   if (next.length === records.length) return;

@@ -30,7 +30,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 // Use real files from the codebase
@@ -800,7 +800,7 @@ describe('RepoGraph - Cross-file Relationships', () => {
 // ============================================================================
 
 describe('RepoGraph - Real Codebase', () => {
-  it('should be compatible with librarian repo structure', () => {
+  it('should be compatible with librainian repo structure', () => {
     const graph = createRepoGraph();
 
     // Add real file structure

@@ -15,7 +15,7 @@ function tryFindPackageRoot(startDir: string): string | null {
   return null;
 }
 
-export function getLibrarianPackageRoot(): string | null {
+export function getLiBrainianPackageRoot(): string | null {
   const here = path.dirname(fileURLToPath(import.meta.url));
   return tryFindPackageRoot(here);
 }
@@ -23,7 +23,7 @@ export function getLibrarianPackageRoot(): string | null {
 export function getGrammarCacheRoot(): string {
   const env = String(process.env.LIBRARIAN_GRAMMAR_CACHE_DIR ?? '').trim();
   if (env.length > 0) return path.resolve(env);
-  return path.join(os.homedir(), '.librarian', 'grammars');
+  return path.join(os.homedir(), '.librainian', 'grammars');
 }
 
 export function getGrammarRequirePaths(): string[] {

@@ -12,7 +12,7 @@ vi.mock('../provider_check.js', () => ({
 
 describe('technique execution: evidence ledger wiring', () => {
   it('records primitive execution tool_call evidence when a ledger is provided', async () => {
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-ledger-primitive-'));
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-ledger-primitive-'));
     const ledgerPath = path.join(tmpRoot, 'evidence.sqlite');
     const ledger = createEvidenceLedger(ledgerPath);
     await ledger.initialize();
@@ -49,7 +49,7 @@ describe('technique execution: evidence ledger wiring', () => {
   });
 
   it('records operator events as tool_call evidence during composition execution', async () => {
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-ledger-operator-'));
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-ledger-operator-'));
     const ledgerPath = path.join(tmpRoot, 'evidence.sqlite');
     const ledger = createEvidenceLedger(ledgerPath);
     await ledger.initialize();

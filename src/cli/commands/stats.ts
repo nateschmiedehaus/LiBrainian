@@ -25,7 +25,7 @@ interface DailySummary {
 }
 
 interface StatsReport {
-  kind: 'LibrarianStats.v1';
+  kind: 'LiBrainianStats.v1';
   generatedAt: string;
   workspace: string;
   windowDays: number;
@@ -65,7 +65,7 @@ export async function statsCommand(options: StatsCommandOptions): Promise<void> 
   } catch {
     const message = `Evidence ledger not found at ${ledgerPath}. Run MCP-backed flows first to collect stats.`;
     if (values.json) {
-      console.log(JSON.stringify({ kind: 'LibrarianStats.v1', error: message }, null, 2));
+      console.log(JSON.stringify({ kind: 'LiBrainianStats.v1', error: message }, null, 2));
       return;
     }
     console.log(message);
@@ -139,7 +139,7 @@ export async function statsCommand(options: StatsCommandOptions): Promise<void> 
     const calls = Math.max(0, Number(totalsRow.calls ?? 0));
     const cacheHits = Math.max(0, Number(totalsRow.cache_hits ?? 0));
     const report: StatsReport = {
-      kind: 'LibrarianStats.v1',
+      kind: 'LiBrainianStats.v1',
       generatedAt: new Date().toISOString(),
       workspace: workspacePath,
       windowDays,
@@ -181,7 +181,7 @@ export async function statsCommand(options: StatsCommandOptions): Promise<void> 
       return;
     }
 
-    console.log('Librarian Stats');
+    console.log('LiBrainian Stats');
     console.log('==============\n');
     console.log(`Workspace: ${report.workspace}`);
     console.log(`Window: last ${report.windowDays} day(s)`);
@@ -220,14 +220,14 @@ function buildRecommendations(input: {
 }): string[] {
   const recommendations: string[] = [];
   if (input.calls === 0) {
-    recommendations.push('No tool-call telemetry yet. Run MCP flows and re-check `librarian stats`.');
+    recommendations.push('No tool-call telemetry yet. Run MCP flows and re-check `librainian stats`.');
     return recommendations;
   }
   if (input.totalCostUsd >= 1) {
     recommendations.push(`Last-window spend is $${input.totalCostUsd.toFixed(2)}; inspect top tools for optimization opportunities.`);
   }
   if (input.avgDurationMs > 1200) {
-    recommendations.push('Average tool duration exceeds 1.2s; run `librarian doctor --json` and check storage/provider health.');
+    recommendations.push('Average tool duration exceeds 1.2s; run `librainian doctor --json` and check storage/provider health.');
   }
   const topTool = input.topExpensiveTools[0];
   if (topTool && topTool.totalCostUsd > 0) {

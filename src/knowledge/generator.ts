@@ -15,7 +15,7 @@
 
 import { createHash } from 'crypto';
 import * as fs from 'fs/promises';
-import type { LibrarianStorage, UniversalKnowledgeRecord } from '../storage/types.js';
+import type { LiBrainianStorage, UniversalKnowledgeRecord } from '../storage/types.js';
 import type { FunctionKnowledge, ModuleKnowledge, GraphEdge } from '../types.js';
 import {
   type UniversalKnowledge,
@@ -24,7 +24,7 @@ import {
   type CallReference,
   createEmptyKnowledge,
 } from './universal_types.js';
-import { LibrarianEvent, LibrarianEventType } from '../types.js';
+import { LiBrainianEvent, LiBrainianEventType } from '../types.js';
 import { extractQuality } from './extractors/quality_extractor.js';
 import {
   extractSemanticsWithLLM,
@@ -49,7 +49,7 @@ import { withTimeout } from '../utils/async.js';
 
 export interface KnowledgeGeneratorConfig {
   /** Storage instance for persisting knowledge */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
 
   /** Workspace root path */
   workspace: string;
@@ -67,7 +67,7 @@ export interface KnowledgeGeneratorConfig {
   timeoutMs?: number;
 
   /** Event callback for progress reporting */
-  onEvent?: (event: LibrarianEvent) => void;
+  onEvent?: (event: LiBrainianEvent) => void;
 
   /** Skip expensive LLM calls (for testing) */
   skipLlm?: boolean;
@@ -538,7 +538,7 @@ export class UniversalKnowledgeGenerator {
       // Phase 9: Finalize meta and confidence
       knowledge.meta.confidence.overall = Math.max(0, Math.min(1, fn.confidence || 0.5));
       knowledge.meta.generatedAt = new Date().toISOString();
-      knowledge.meta.generatedBy = 'librarian-generator';
+      knowledge.meta.generatedBy = 'librainian-generator';
 
       if (errors.length > 0) {
         knowledge.meta.confidence.bySection = {
@@ -931,7 +931,7 @@ export class UniversalKnowledgeGenerator {
         ownership: extractionResults.ownership,
         rationale: extractionResults.rationale,
         traceability: extractionResults.traceability,
-        generatedBy: 'librarian-generator-v2',
+        generatedBy: 'librainian-generator-v2',
       };
       const evidenceResult = collectEvidence(evidenceInput);
       knowledge.meta = evidenceResult.meta;
@@ -1269,7 +1269,7 @@ export class UniversalKnowledgeGenerator {
             rationale: knowledge.rationale,
             confidence: knowledge.meta.confidence.bySection.rationale ?? 0,
           },
-          generatedBy: 'librarian-generator-v2',
+          generatedBy: 'librainian-generator-v2',
         };
         const evidenceResult = collectEvidence(evidenceInput);
         knowledge.meta = evidenceResult.meta;
@@ -1504,7 +1504,7 @@ export class UniversalKnowledgeGenerator {
   private emit(type: string, data: Record<string, unknown>): void {
     if (this.config.onEvent) {
       this.config.onEvent({
-        type: type as LibrarianEventType,
+        type: type as LiBrainianEventType,
         timestamp: new Date(),
         data,
       });

@@ -1,4 +1,4 @@
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { IEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import type { ConstructionError } from './base/construction_base.js';
@@ -158,14 +158,14 @@ export function toCanonicalConstructionId(id: string): ConstructionId | undefine
  * Base dependency requirements for constructions.
  */
 export interface ConstructionRequirements {
-  readonly librarian: Librarian;
+  readonly librainian: LiBrainian;
 }
 
 /**
  * Default dependency context for canonical constructions.
  */
-export interface LibrarianContext extends ConstructionRequirements {
-  readonly librarian: Librarian;
+export interface LiBrainianContext extends ConstructionRequirements {
+  readonly librainian: LiBrainian;
   readonly calibrationTracker?: ConstructionCalibrationTracker;
   readonly evidenceLedger?: IEvidenceLedger;
 }
@@ -173,7 +173,7 @@ export interface LibrarianContext extends ConstructionRequirements {
 /**
  * Call-time execution context for canonical constructions.
  */
-export interface Context<R = LibrarianContext> {
+export interface Context<R = LiBrainianContext> {
   deps: R;
   signal: AbortSignal;
   sessionId: string;
@@ -268,7 +268,7 @@ export interface Construction<
   I,
   O,
   E extends ConstructionError = ConstructionError,
-  R = LibrarianContext,
+  R = LiBrainianContext,
 > {
   readonly id: string;
   readonly name: string;
@@ -286,7 +286,7 @@ export interface SelectiveConstruction<
   I,
   O,
   E extends ConstructionError = ConstructionError,
-  R = LibrarianContext,
+  R = LiBrainianContext,
 > extends Construction<I, O, E, R> {
   possiblePaths(): ConstructionPath[];
   maxCost(): CostSemiring;

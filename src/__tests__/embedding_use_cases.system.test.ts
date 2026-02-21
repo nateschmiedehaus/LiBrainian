@@ -90,7 +90,7 @@ import { type EmbeddingModelId } from '../api/embedding_providers/real_embedding
 import { EnhancedRetrieval } from '../api/embedding_providers/enhanced_retrieval.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const librarianRoot = path.resolve(__dirname, '..');
+const librainianRoot = path.resolve(__dirname, '..');
 
 // ============================================================================
 // USE CASE TEST SCENARIOS
@@ -274,7 +274,7 @@ async function loadFileCorpus(): Promise<Map<string, string>> {
     }
   };
 
-  await walkDir(librarianRoot);
+  await walkDir(librainianRoot);
   return corpus;
 }
 
@@ -295,7 +295,7 @@ describe('Embedding Use Case Validation (System)', () => {
 
     // Load file corpus
     corpus = await loadFileCorpus();
-    console.log(`Loaded ${corpus.size} files from librarian module`);
+    console.log(`Loaded ${corpus.size} files from librainian module`);
 
     // Index documents with metadata enrichment
     retrieval = new EnhancedRetrieval(MODEL);

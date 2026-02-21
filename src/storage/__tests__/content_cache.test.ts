@@ -399,14 +399,14 @@ describe('SqliteContentCache', () => {
   describe('table creation', () => {
     it('creates table on initialization', () => {
       const tables = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librarian_content_cache'")
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librainian_content_cache'")
         .all();
       expect(tables).toHaveLength(1);
     });
 
     it('creates indexes', () => {
       const indexes = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='librarian_content_cache'")
+        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='librainian_content_cache'")
         .all();
       expect(indexes.length).toBeGreaterThanOrEqual(2);
     });
@@ -569,7 +569,7 @@ describe('SqliteContentCache', () => {
 
       // Check access count in database
       const row = db
-        .prepare('SELECT access_count FROM librarian_content_cache WHERE hash = ?')
+        .prepare('SELECT access_count FROM librainian_content_cache WHERE hash = ?')
         .get(hash) as { access_count: number } | undefined;
 
       expect(row?.access_count).toBe(3);
@@ -794,7 +794,7 @@ describe('SqliteContentCache', () => {
 
       // Manually insert corrupted data
       db.prepare(`
-        INSERT INTO librarian_content_cache (hash, version, result, created_at, access_count, last_accessed, size_bytes)
+        INSERT INTO librainian_content_cache (hash, version, result, created_at, access_count, last_accessed, size_bytes)
         VALUES (?, ?, ?, ?, 0, ?, ?)
       `).run(hash, '1.0.0', Buffer.from('not valid json'), Date.now(), Date.now(), 15);
 
@@ -804,7 +804,7 @@ describe('SqliteContentCache', () => {
 
       // Corrupted entry should be deleted
       const row = db
-        .prepare('SELECT 1 FROM librarian_content_cache WHERE hash = ?')
+        .prepare('SELECT 1 FROM librainian_content_cache WHERE hash = ?')
         .get(hash);
       expect(row).toBeUndefined();
     });

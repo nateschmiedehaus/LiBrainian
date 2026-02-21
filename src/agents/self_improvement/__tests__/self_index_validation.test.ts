@@ -1,7 +1,7 @@
 /**
  * @fileoverview Tests for Self-Index Validator (WU-META-002)
  *
- * Validates that Librarian's self-index provides accurate and relevant
+ * Validates that LiBrainian's self-index provides accurate and relevant
  * results when queried about its own codebase.
  */
 
@@ -23,7 +23,7 @@ import type { QueryInterface, SearchResult } from '../../../api/query_interface.
 // ============================================================================
 
 /**
- * Standard validation queries covering key Librarian components.
+ * Standard validation queries covering key LiBrainian components.
  */
 const validationQueries: QuerySpec[] = [
   {
@@ -162,11 +162,11 @@ function createWellIndexedMockQueryInterface(): QueryInterface {
         ['src/api/query_interface.ts']
       ),
     ],
-    'indexlibrarian': [
+    'indexlibrainian': [
       createMockSearchResult(
         'pack-index-1',
-        'IndexLibrarian indexes files and extracts function symbols',
-        ['src/agents/index_librarian.ts']
+        'IndexLiBrainian indexes files and extracts function symbols',
+        ['src/agents/index_librainian.ts']
       ),
     ],
     'epistemics module': [
@@ -578,7 +578,7 @@ describe('SelfIndexValidator', () => {
   });
 
   describe('DEFAULT_VALIDATION_QUERIES', () => {
-    it('contains queries for all key Librarian components', () => {
+    it('contains queries for all key LiBrainian components', () => {
       const categories = DEFAULT_VALIDATION_QUERIES.map((q) => q.category);
       const uniqueCategories = new Set(categories);
 

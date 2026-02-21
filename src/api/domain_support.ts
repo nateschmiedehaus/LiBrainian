@@ -1,6 +1,6 @@
 import { createTechniqueComposition, type TechniqueComposition, type TechniqueOperator } from '../strategic/techniques.js';
 import { requireProviders } from './provider_check.js';
-import { resolveLibrarianModelConfigWithDiscovery, type LibrarianLlmProvider } from './llm_env.js';
+import { resolveLiBrainianModelConfigWithDiscovery, type LiBrainianLlmProvider } from './llm_env.js';
 import { resolveLlmServiceAdapter, type LlmServiceAdapter } from '../adapters/llm_service.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 import { withTimeout } from '../utils/async.js';
@@ -50,7 +50,7 @@ export interface DomainCompositionValidation {
 
 export interface DomainLlmDecompositionOptions {
   workspaceRoot?: string;
-  provider?: LibrarianLlmProvider;
+  provider?: LiBrainianLlmProvider;
   modelId?: string;
   llmService?: LlmServiceAdapter;
   timeoutMs?: number;
@@ -186,7 +186,7 @@ export async function decomposeDomainWithLlm(
 ): Promise<DomainAspectDecomposition> {
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
   await requireProviders({ llm: true, embedding: false }, { workspaceRoot });
-  const llmConfig = await resolveLibrarianModelConfigWithDiscovery();
+  const llmConfig = await resolveLiBrainianModelConfigWithDiscovery();
   const llmService = resolveLlmServiceAdapter(options.llmService ?? null);
   const prompt = [
     'You are classifying software domains into fundamental aspects.',

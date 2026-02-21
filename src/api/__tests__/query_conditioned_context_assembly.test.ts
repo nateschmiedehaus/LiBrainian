@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { ContextPack, LibrarianResponse, LibrarianVersion } from '../../types.js';
+import type { ContextPack, LiBrainianResponse, LiBrainianVersion } from '../../types.js';
 import { assembleContextFromResponse } from '../context_assembly.js';
 import {
   assembleIntentConditionedPacks,
@@ -10,7 +10,7 @@ import {
   listContextTemplates,
 } from '../query_conditioned_assembly.js';
 
-const VERSION: LibrarianVersion = {
+const VERSION: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -42,7 +42,7 @@ function makePack(overrides: Partial<ContextPack>): ContextPack {
   };
 }
 
-function makeResponse(intent: string, packs: ContextPack[]): LibrarianResponse {
+function makeResponse(intent: string, packs: ContextPack[]): LiBrainianResponse {
   return {
     query: { intent, depth: 'L1' },
     packs,

@@ -52,7 +52,7 @@ const DEPENDENCY_FIELDS = [
   'optionalDependencies',
   'peerDependencies',
 ] as const;
-const PACKAGE_NAMES = ['librainian', 'librarian'] as const;
+const PACKAGE_NAMES = ['librainian', 'librainian'] as const;
 
 function toPosixRelative(workspace: string, value: string): string {
   const absolute = path.isAbsolute(value) ? value : path.join(workspace, value);
@@ -252,7 +252,7 @@ export async function uninstallCommand(options: UninstallCommandOptions): Promis
     directoryTargets = await detectInstallDirectories(workspace);
   }
   if (keepIndex) {
-    directoryTargets = directoryTargets.filter((entry) => entry !== '.librarian');
+    directoryTargets = directoryTargets.filter((entry) => entry !== '.librainian');
   }
 
   for (const relative of Array.from(new Set(directoryTargets)).sort()) {

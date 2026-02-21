@@ -1,24 +1,24 @@
 /**
- * @fileoverview Tests for Unified Librarian Orchestrator
+ * @fileoverview Tests for Unified LiBrainian Orchestrator
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  initializeLibrarian,
+  initializeLiBrainian,
   hasSession,
   getSession,
   shutdownAllSessions,
   getActiveSessionCount,
-  type LibrarianSession,
+  type LiBrainianSession,
   type TaskResult,
   type HealthReport,
 } from '../unified_init.js';
 
 // Mock dependencies
 vi.mock('../../integration/first_run_gate.js', () => ({
-  ensureLibrarianReady: vi.fn().mockResolvedValue({
+  ensureLiBrainianReady: vi.fn().mockResolvedValue({
     success: true,
-    librarian: {
+    librainian: {
       query: vi.fn().mockResolvedValue({
         packs: [],
         summary: 'Test summary',
@@ -30,14 +30,14 @@ vi.mock('../../integration/first_run_gate.js', () => ({
     wasUpgraded: false,
     durationMs: 100,
   }),
-  getLibrarian: vi.fn().mockReturnValue({
+  getLiBrainian: vi.fn().mockReturnValue({
     query: vi.fn().mockResolvedValue({
       packs: [],
       summary: 'Test summary',
     }),
     reindexFiles: vi.fn().mockResolvedValue(undefined),
   }),
-  isLibrarianReady: vi.fn().mockReturnValue(true),
+  isLiBrainianReady: vi.fn().mockReturnValue(true),
   resetGate: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -66,7 +66,7 @@ vi.mock('../../integration/file_watcher.js', () => ({
 
 vi.mock('../../measurement/observability.js', () => ({
   generateStateReport: vi.fn().mockResolvedValue({
-    kind: 'LibrarianStateReport.v1',
+    kind: 'LiBrainianStateReport.v1',
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     codeGraphHealth: {
@@ -175,7 +175,7 @@ vi.mock('../../telemetry/logger.js', () => ({
   logError: vi.fn(),
 }));
 
-describe('Unified Librarian Orchestrator', () => {
+describe('Unified LiBrainian Orchestrator', () => {
   const testWorkspace = '/test/workspace';
 
   beforeEach(() => {
@@ -186,9 +186,9 @@ describe('Unified Librarian Orchestrator', () => {
     await shutdownAllSessions();
   });
 
-  describe('initializeLibrarian', () => {
+  describe('initializeLiBrainian', () => {
     it('should initialize and return a session', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
 
       expect(session).toBeDefined();
       expect(session.workspace).toBe(testWorkspace);
@@ -200,8 +200,8 @@ describe('Unified Librarian Orchestrator', () => {
     });
 
     it('should reuse existing session for same workspace', async () => {
-      const session1 = await initializeLibrarian(testWorkspace, { silent: true });
-      const session2 = await initializeLibrarian(testWorkspace, { silent: true });
+      const session1 = await initializeLiBrainian(testWorkspace, { silent: true });
+      const session2 = await initializeLiBrainian(testWorkspace, { silent: true });
 
       expect(session1.workspace).toBe(session2.workspace);
       expect(getActiveSessionCount()).toBe(1);
@@ -211,7 +211,7 @@ describe('Unified Librarian Orchestrator', () => {
       expect(getActiveSessionCount()).toBe(0);
       expect(hasSession(testWorkspace)).toBe(false);
 
-      await initializeLibrarian(testWorkspace, { silent: true });
+      await initializeLiBrainian(testWorkspace, { silent: true });
 
       expect(getActiveSessionCount()).toBe(1);
       expect(hasSession(testWorkspace)).toBe(true);
@@ -220,7 +220,7 @@ describe('Unified Librarian Orchestrator', () => {
     it('should support silent mode', async () => {
       const { logInfo } = await import('../../telemetry/logger.js');
 
-      await initializeLibrarian(testWorkspace, { silent: true });
+      await initializeLiBrainian(testWorkspace, { silent: true });
 
       // In silent mode, progress logging should be minimal
       // (the actual test depends on implementation)
@@ -231,9 +231,9 @@ describe('Unified Librarian Orchestrator', () => {
     });
   });
 
-  describe('LibrarianSession.query', () => {
+  describe('LiBrainianSession.query', () => {
     it('should query and return context with packIds', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
       const context = await session.query('How does authentication work?');
 
       expect(context).toBeDefined();
@@ -242,7 +242,7 @@ describe('Unified Librarian Orchestrator', () => {
     });
 
     it('should support query options', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
       const context = await session.query('Test query', {
         taskType: 'implementation',
         ucRequirements: ['UC-001'],
@@ -252,9 +252,9 @@ describe('Unified Librarian Orchestrator', () => {
     });
   });
 
-  describe('LibrarianSession.getContext', () => {
+  describe('LiBrainianSession.getContext', () => {
     it('should get context for specific files', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
       const context = await session.getContext(['src/auth.ts', 'src/session.ts']);
 
       expect(context).toBeDefined();
@@ -262,10 +262,10 @@ describe('Unified Librarian Orchestrator', () => {
     });
   });
 
-  describe('LibrarianSession.recordOutcome', () => {
+  describe('LiBrainianSession.recordOutcome', () => {
     it('should record task outcome', async () => {
       const { recordTaskOutcome } = await import('../../integration/wave0_integration.js');
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
 
       const result: TaskResult = {
         success: true,
@@ -284,7 +284,7 @@ describe('Unified Librarian Orchestrator', () => {
 
     it('should handle failure outcomes', async () => {
       const { recordTaskOutcome } = await import('../../integration/wave0_integration.js');
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
 
       const result: TaskResult = {
         success: false,
@@ -303,9 +303,9 @@ describe('Unified Librarian Orchestrator', () => {
     });
   });
 
-  describe('LibrarianSession.health', () => {
+  describe('LiBrainianSession.health', () => {
     it('should return health report', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
       const health = session.health();
 
       expect(health).toBeDefined();
@@ -318,7 +318,7 @@ describe('Unified Librarian Orchestrator', () => {
     });
 
     it('should show background processes status', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
       const health = session.health();
 
       expect(health.backgroundProcesses.fileWatcher).toBe(true);
@@ -326,7 +326,7 @@ describe('Unified Librarian Orchestrator', () => {
     });
 
     it('should track uptime', async () => {
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
 
       // Wait a bit
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -336,10 +336,10 @@ describe('Unified Librarian Orchestrator', () => {
     });
   });
 
-  describe('LibrarianSession.shutdown', () => {
+  describe('LiBrainianSession.shutdown', () => {
     it('should clean up resources on shutdown', async () => {
       const { resetGate } = await import('../../integration/first_run_gate.js');
-      const session = await initializeLibrarian(testWorkspace, { silent: true });
+      const session = await initializeLiBrainian(testWorkspace, { silent: true });
 
       expect(hasSession(testWorkspace)).toBe(true);
 
@@ -352,7 +352,7 @@ describe('Unified Librarian Orchestrator', () => {
 
   describe('Session management', () => {
     it('should get existing session', async () => {
-      await initializeLibrarian(testWorkspace, { silent: true });
+      await initializeLiBrainian(testWorkspace, { silent: true });
 
       const session = getSession(testWorkspace);
 
@@ -366,8 +366,8 @@ describe('Unified Librarian Orchestrator', () => {
     });
 
     it('should shutdown all sessions', async () => {
-      await initializeLibrarian(testWorkspace, { silent: true });
-      await initializeLibrarian('/another/workspace', { silent: true });
+      await initializeLiBrainian(testWorkspace, { silent: true });
+      await initializeLiBrainian('/another/workspace', { silent: true });
 
       expect(getActiveSessionCount()).toBe(2);
 
@@ -379,7 +379,7 @@ describe('Unified Librarian Orchestrator', () => {
 
   describe('Options', () => {
     it('should respect skipWatcher option', async () => {
-      const session = await initializeLibrarian(testWorkspace, {
+      const session = await initializeLiBrainian(testWorkspace, {
         silent: true,
         skipWatcher: true,
       });
@@ -389,7 +389,7 @@ describe('Unified Librarian Orchestrator', () => {
     });
 
     it('should respect skipHealing option', async () => {
-      const session = await initializeLibrarian(testWorkspace, {
+      const session = await initializeLiBrainian(testWorkspace, {
         silent: true,
         skipHealing: true,
       });
@@ -405,7 +405,7 @@ describe('Type exports', () => {
     // These imports should work without errors
     const types = await import('../unified_init.js');
 
-    expect(types.initializeLibrarian).toBeDefined();
+    expect(types.initializeLiBrainian).toBeDefined();
     expect(types.hasSession).toBeDefined();
     expect(types.getSession).toBeDefined();
     expect(types.shutdownAllSessions).toBeDefined();

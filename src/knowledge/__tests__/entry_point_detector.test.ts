@@ -33,7 +33,7 @@ describe('Entry Point Detector', () => {
     });
 
     it('should detect factory function queries', () => {
-      expect(isEntryPointQuery('Where is createLibrarian?')).toBe(true);
+      expect(isEntryPointQuery('Where is createLiBrainian?')).toBe(true);
       expect(isEntryPointQuery('How to use createApp?')).toBe(true);
       expect(isEntryPointQuery('What does makeStore do?')).toBe(true);
     });
@@ -45,7 +45,7 @@ describe('Entry Point Detector', () => {
     });
 
     it('should not match unrelated queries', () => {
-      expect(isEntryPointQuery('What does queryLibrarian do?')).toBe(false);
+      expect(isEntryPointQuery('What does queryLiBrainian do?')).toBe(false);
       expect(isEntryPointQuery('How does the parser work?')).toBe(false);
       expect(isEntryPointQuery('Fix the bug in storage')).toBe(false);
     });
@@ -58,7 +58,7 @@ describe('Entry Point Detector', () => {
           id: 'mod1',
           path: '/workspace/src/index.ts',
           purpose: 'Main entry',
-          exports: ['createLibrarian', 'queryLibrarian'],
+          exports: ['createLiBrainian', 'queryLiBrainian'],
           dependencies: [],
           confidence: 0.9,
         },
@@ -68,9 +68,9 @@ describe('Entry Point Detector', () => {
         {
           id: 'fn1',
           filePath: '/workspace/src/index.ts',
-          name: 'createLibrarian',
-          signature: 'createLibrarian(config: Config): Librarian',
-          purpose: 'Creates a new Librarian instance',
+          name: 'createLiBrainian',
+          signature: 'createLiBrainian(config: Config): LiBrainian',
+          purpose: 'Creates a new LiBrainian instance',
           startLine: 10,
           endLine: 50,
           confidence: 0.9,
@@ -105,10 +105,10 @@ describe('Entry Point Detector', () => {
 
       const result = await detectEntryPoints(options);
 
-      // Should detect createLibrarian as a factory function
+      // Should detect createLiBrainian as a factory function
       const factoryEntries = result.entryPoints.filter(ep => ep.kind === 'factory_function');
       expect(factoryEntries.length).toBeGreaterThan(0);
-      expect(factoryEntries[0].name).toBe('createLibrarian');
+      expect(factoryEntries[0].name).toBe('createLiBrainian');
 
       // Should detect index.ts as an index module
       const indexEntries = result.entryPoints.filter(ep => ep.kind === 'index_module');
@@ -159,16 +159,16 @@ describe('Entry Point Detector', () => {
         kind: 'factory_function' as const,
         path: '/workspace/src/index.ts',
         relativePath: 'src/index.ts',
-        name: 'createLibrarian',
-        description: 'Creates a new Librarian instance',
-        exports: ['createLibrarian'],
+        name: 'createLiBrainian',
+        description: 'Creates a new LiBrainian instance',
+        exports: ['createLiBrainian'],
         confidence: 0.8,
         dependentCount: 0,
         source: 'pattern_detection' as const,
       };
 
       // Should boost when query mentions the function name
-      const score1 = scoreEntryPointForQuery(entryPoint, 'createLibrarian');
+      const score1 = scoreEntryPointForQuery(entryPoint, 'createLiBrainian');
       expect(score1).toBeGreaterThan(entryPoint.confidence);
 
       // Should boost when query mentions "factory"
@@ -186,7 +186,7 @@ describe('Entry Point Detector', () => {
         kind: 'cli_entry' as const,
         path: '/workspace/bin/cli.ts',
         relativePath: 'bin/cli.ts',
-        name: 'librarian',
+        name: 'librainian',
         description: 'CLI binary',
         exports: [],
         confidence: 0.85,

@@ -274,20 +274,24 @@ describe('HNSWIndex', () => {
       for (let i = 0; i < 240; i++) {
         perfIndex.insert(`module_${i}`, randomVector(128), 'module');
       }
+      const functionVectors: Float32Array[] = [];
       for (let i = 0; i < 24; i++) {
-        perfIndex.insert(`function_${i}`, randomVector(128), 'function');
+        const functionVector = randomVector(128);
+        functionVectors.push(functionVector);
+        perfIndex.insert(`function_${i}`, functionVector, 'function');
       }
+      const queryVector = similarVector(functionVectors[0]!, 0.05);
 
       const cosineSpy = vi.spyOn(
         perfIndex as unknown as { cosineDistance: (a: Float32Array, b: Float32Array) => number },
         'cosineDistance'
       );
 
-      perfIndex.search(randomVector(128), 10);
+      perfIndex.search(queryVector, 10);
       const unfilteredDistanceCalls = cosineSpy.mock.calls.length;
       cosineSpy.mockClear();
 
-      const filtered = perfIndex.search(randomVector(128), 10, ['function']);
+      const filtered = perfIndex.search(queryVector, 10, ['function']);
       const filteredDistanceCalls = cosineSpy.mock.calls.length;
       cosineSpy.mockRestore();
 

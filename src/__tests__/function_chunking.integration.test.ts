@@ -22,7 +22,7 @@ import {
 } from '../api/embedding_providers/function_chunking.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const librarianRoot = path.resolve(__dirname, '..');
+const librainianRoot = path.resolve(__dirname, '..');
 
 // ============================================================================
 // TEST DATA
@@ -200,9 +200,9 @@ describe('Function Chunking', () => {
   });
 
   describe('Real file parsing', () => {
-    it('should parse a real librarian file', async (ctx) => {
+    it('should parse a real librainian file', async (ctx) => {
       const filePath = 'engines/relevance_engine.ts';
-      const fullPath = path.resolve(librarianRoot, filePath);
+      const fullPath = path.resolve(librainianRoot, filePath);
 
       let content: string;
       try {

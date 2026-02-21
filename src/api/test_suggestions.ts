@@ -19,7 +19,7 @@
  * ```
  */
 
-import type { LibrarianStorage, GraphEdge } from '../storage/types.js';
+import type { LiBrainianStorage, GraphEdge } from '../storage/types.js';
 import type { FunctionKnowledge } from '../types.js';
 
 // ============================================================================
@@ -194,14 +194,14 @@ export function classifyTestSuggestionQuery(intent: string): TestSuggestionQuery
 /**
  * Generates test suggestions for a file or specific function.
  *
- * @param storage - Librarian storage instance
+ * @param storage - LiBrainian storage instance
  * @param targetPath - Path to the file to analyze
  * @param targetFunction - Optional specific function name
  * @param options - Configuration options
  * @returns Array of test suggestions sorted by priority
  */
 export async function suggestTests(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetPath: string,
   targetFunction?: string,
   options: TestSuggestionOptions = {}
@@ -238,7 +238,7 @@ export async function suggestTests(
  * Generates a test suggestion for a single function.
  */
 async function generateTestSuggestion(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   func: FunctionKnowledge,
   maxScenarios: number
 ): Promise<TestSuggestion> {
@@ -369,7 +369,7 @@ function generateParameterEdgeCases(
  * Identifies dependencies that should be mocked.
  */
 async function identifyMockRequirements(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   func: FunctionKnowledge
 ): Promise<MockRequirement[]> {
   const mocks: MockRequirement[] = [];
@@ -760,16 +760,16 @@ export interface TestSuggestionStageOptions {
   intent: string;
   /** Files affected by the query */
   affectedFiles?: string[];
-  /** Librarian storage */
-  storage: LibrarianStorage;
+  /** LiBrainian storage */
+  storage: LiBrainianStorage;
   /** Workspace root for file resolution */
   workspaceRoot: string;
-  /** Librarian version for pack creation */
-  version: LibrarianVersion;
+  /** LiBrainian version for pack creation */
+  version: LiBrainianVersion;
 }
 
-// Import ContextPack and LibrarianVersion for stage integration
-import type { ContextPack, LibrarianVersion } from '../types.js';
+// Import ContextPack and LiBrainianVersion for stage integration
+import type { ContextPack, LiBrainianVersion } from '../types.js';
 
 /**
  * Runs the test suggestion stage of the query pipeline.
@@ -863,7 +863,7 @@ export async function runTestSuggestionStage(
  * Resolves a target string to a file path.
  */
 async function resolveTargetPath(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   target: string,
   workspaceRoot: string
 ): Promise<string | null> {
@@ -899,7 +899,7 @@ async function resolveTargetPath(
 function createTestSuggestionPacks(
   suggestions: TestSuggestion[],
   targetFiles: string[],
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack[] {
   const packs: ContextPack[] = [];
 

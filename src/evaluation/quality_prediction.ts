@@ -1,7 +1,7 @@
 /**
  * @fileoverview Quality Prediction Model
  *
- * Predicts Librarian's expected accuracy for a given codebase profile.
+ * Predicts LiBrainian's expected accuracy for a given codebase profile.
  * Enables honest quality disclosure to users about what accuracy they can expect.
  *
  * Features:
@@ -101,7 +101,7 @@ const QUERY_TYPE_MODIFIERS: Record<string, number> = {
 // ============================================================================
 
 /**
- * Predicts Librarian's expected accuracy for a given codebase profile
+ * Predicts LiBrainian's expected accuracy for a given codebase profile
  */
 export class QualityPredictionModel {
   /**

@@ -42,7 +42,7 @@ describe('Evidence Graph Storage', () => {
 
   beforeEach(async () => {
     // Use a unique directory per test to avoid cross-worker collisions (SQLite WAL files, cleanup races).
-    testDir = mkdtempSync(join(tmpdir(), 'librarian-test-'));
+    testDir = mkdtempSync(join(tmpdir(), 'librainian-test-'));
     if (!existsSync(testDir)) mkdirSync(testDir, { recursive: true });
     dbPath = join(testDir, `test-${randomUUID()}.db`);
     storage = createEvidenceGraphStorage(dbPath, workspace);

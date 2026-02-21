@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -86,7 +86,7 @@ export interface TechnicalDebtAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new TechnicalDebtConstruction(librarian);
+ * const construction = new TechnicalDebtConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['src/**'],
  *   paydownBudgetHours: 40,
@@ -98,11 +98,11 @@ export class TechnicalDebtConstruction implements CalibratedConstruction {
   static readonly CONSTRUCTION_ID = 'TechnicalDebtConstruction';
   readonly CONSTRUCTION_ID = TechnicalDebtConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -153,13 +153,13 @@ export class TechnicalDebtConstruction implements CalibratedConstruction {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand code context
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand code context
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze code for technical debt including complexity, duplication, outdated dependencies, missing tests, and code smells',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:debt_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:debt_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Detect debt items
     const debtItems = await this.detectDebtItems(input.files, queryResult);
@@ -274,7 +274,7 @@ export class TechnicalDebtConstruction implements CalibratedConstruction {
    */
   private async detectDebtItems(
     files: string[],
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): Promise<technicalDebt.TechnicalDebtItem[]> {
     const items: technicalDebt.TechnicalDebtItem[] = [];
     const packs = queryResult.packs || [];
@@ -379,7 +379,7 @@ export class TechnicalDebtConstruction implements CalibratedConstruction {
    * Extract code metrics from query result.
    */
   private extractCodeMetrics(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     files: string[]
   ): technicalDebt.CodeMetrics {
     const packs = queryResult.packs || [];
@@ -431,7 +431,7 @@ export class TechnicalDebtConstruction implements CalibratedConstruction {
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number; violations: technicalDebt.ComplexityViolation[] }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -456,11 +456,11 @@ export class TechnicalDebtConstruction implements CalibratedConstruction {
 /**
  * Create a new technical debt construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new TechnicalDebtConstruction
  */
 export function createTechnicalDebtConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): TechnicalDebtConstruction {
-  return new TechnicalDebtConstruction(librarian);
+  return new TechnicalDebtConstruction(librainian);
 }

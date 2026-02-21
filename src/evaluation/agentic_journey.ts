@@ -2,7 +2,7 @@ import { readFile, readdir, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
 import { safeJsonParse } from '../utils/safe_json.js';
-import { ensureLibrarianReady } from '../integration/first_run_gate.js';
+import { ensureLiBrainianReady } from '../integration/first_run_gate.js';
 import { runProviderReadinessGate, type ProviderGateResult } from '../api/provider_gate.js';
 import { ConstraintEngine } from '../engines/constraint_engine.js';
 import type { LlmRequirement } from '../types.js';
@@ -76,7 +76,7 @@ const SOURCE_EXTENSIONS = new Set([
 const SKIP_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
+  '.librainian',
   'dist',
   'build',
   'coverage',
@@ -335,7 +335,7 @@ export async function runAgenticJourney(options: {
       steps: [],
       errors: [],
     };
-    let librarianForCleanup: { shutdown(): Promise<void> } | null = null;
+    let librainianForCleanup: { shutdown(): Promise<void> } | null = null;
     let providerSnapshotSummary: Record<string, unknown> | null = null;
     const queryArtifacts: Array<{
       intent: string;
@@ -393,19 +393,19 @@ export async function runAgenticJourney(options: {
         })
         : async (): Promise<ProviderGateResult> => providerSnapshot;
 
-      const gateResult = await ensureLibrarianReady(resolvedWorkspace, {
+      const gateResult = await ensureLiBrainianReady(resolvedWorkspace, {
         allowDegradedEmbeddings: false,
         requireCompleteParserCoverage: strictObjective,
         providerGate,
         throwOnFailure: true,
       });
 
-      if (!gateResult.librarian) {
-        result.errors.push('unverified_by_trace(initialization_failed): librarian unavailable');
+      if (!gateResult.librainian) {
+        result.errors.push('unverified_by_trace(initialization_failed): librainian unavailable');
         results.push(result);
         continue;
       }
-      librarianForCleanup = gateResult.librarian;
+      librainianForCleanup = gateResult.librainian;
 
       const baseQueryDefaults = {
         depth: 'L1' as const,
@@ -422,7 +422,7 @@ export async function runAgenticJourney(options: {
         llmRequirement: (llmMode === 'disabled' ? 'disabled' : 'required') as LlmRequirement,
       };
 
-      const overview = await gateResult.librarian.queryOptional({
+      const overview = await gateResult.librainian.queryOptional({
         intent: queries[0] ?? DEFAULT_QUERIES[0]!,
         ...retrievalQueryDefaults,
       });
@@ -433,7 +433,7 @@ export async function runAgenticJourney(options: {
       result.overviewOk = isResponseUseful(overview);
       result.steps.push({ intent: queries[0] ?? DEFAULT_QUERIES[0]!, packs: overview.packs.length, useful: result.overviewOk });
 
-      const modules = await gateResult.librarian.queryOptional({
+      const modules = await gateResult.librainian.queryOptional({
         intent: queries[1] ?? DEFAULT_QUERIES[1]!,
         ...retrievalQueryDefaults,
       });
@@ -444,7 +444,7 @@ export async function runAgenticJourney(options: {
       result.moduleOk = isResponseUseful(modules);
       result.steps.push({ intent: queries[1] ?? DEFAULT_QUERIES[1]!, packs: modules.packs.length, useful: result.moduleOk });
 
-      const onboarding = await gateResult.librarian.queryOptional({
+      const onboarding = await gateResult.librainian.queryOptional({
         intent: queries[2] ?? DEFAULT_QUERIES[2]!,
         ...synthesisQueryDefaults,
       });
@@ -475,7 +475,7 @@ export async function runAgenticJourney(options: {
 
       if (contextFile) {
         result.contextFile = contextFile;
-        const fileContext = await gateResult.librarian.queryOptional({
+        const fileContext = await gateResult.librainian.queryOptional({
           intent: FILE_CONTEXT_INTENT,
           affectedFiles: [contextFile],
           ...retrievalQueryDefaults,
@@ -494,13 +494,13 @@ export async function runAgenticJourney(options: {
         ?? modules.packs.find((pack) => Boolean(pack.targetId))
         ?? onboarding.packs.find((pack) => Boolean(pack.targetId));
       if (packWithTarget?.targetId) {
-        const glance = await gateResult.librarian.getGlanceCard(packWithTarget.targetId);
+        const glance = await gateResult.librainian.getGlanceCard(packWithTarget.targetId);
         result.glanceOk = Boolean(glance?.oneLiner && glance.oneLiner.trim().length > 0);
       }
 
       if (result.contextFile) {
         try {
-          const recs = await gateResult.librarian.getRecommendations(result.contextFile, 'all');
+          const recs = await gateResult.librainian.getRecommendations(result.contextFile, 'all');
           result.recommendations = recs.length;
         } catch {
           result.recommendations = 0;
@@ -518,7 +518,7 @@ export async function runAgenticJourney(options: {
         };
       };
 
-      const storage = gateResult.librarian.getStorage();
+      const storage = gateResult.librainian.getStorage();
       if (storage && result.contextFile) {
         try {
           const absoluteFile = path.join(resolvedWorkspace, result.contextFile);
@@ -557,8 +557,8 @@ export async function runAgenticJourney(options: {
     } catch (error) {
       result.errors.push(error instanceof Error ? error.message : String(error));
     } finally {
-      if (librarianForCleanup) {
-        await librarianForCleanup.shutdown().catch(() => {});
+      if (librainianForCleanup) {
+        await librainianForCleanup.shutdown().catch(() => {});
       }
     }
     results.push(result);

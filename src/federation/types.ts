@@ -1,7 +1,7 @@
 /**
  * @fileoverview Cross-Repo Federation Types
  *
- * Per docs/librarian/STATUS.md gap #8: Cross-repo federation protocol.
+ * Per docs/librainian/STATUS.md gap #8: Cross-repo federation protocol.
  * This module defines the types for federated queries across multiple repositories.
  *
  * Key requirements:
@@ -244,5 +244,5 @@ export const DEFAULT_FEDERATION_CONFIG: FederationConfig = {
   maxParallelRepos: 4,
   repoTimeoutMs: 30000,
   includeUntrustedByDefault: false,
-  statePath: '.librarian/federation.json',
+  statePath: '.librainian/federation.json',
 };

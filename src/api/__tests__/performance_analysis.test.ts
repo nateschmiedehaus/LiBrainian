@@ -19,7 +19,7 @@ import {
   type PerformanceAnalysis,
   type PerformanceIssue,
 } from '../performance_analysis.js';
-import type { LibrarianStorage, FunctionKnowledge } from '../../storage/types.js';
+import type { LiBrainianStorage, FunctionKnowledge } from '../../storage/types.js';
 
 // ============================================================================
 // TEST UTILITIES
@@ -35,7 +35,7 @@ async function createTestFile(name: string, content: string): Promise<string> {
   return filePath;
 }
 
-function createMockStorage(functions?: FunctionKnowledge[]): LibrarianStorage {
+function createMockStorage(functions?: FunctionKnowledge[]): LiBrainianStorage {
   return {
     getFunctionsByPath: vi.fn(async (path: string) => functions?.filter(f => f.filePath === path) ?? []),
     // Minimal implementation for other methods
@@ -48,7 +48,7 @@ function createMockStorage(functions?: FunctionKnowledge[]): LibrarianStorage {
       optional: { graphMetrics: false, multiVectors: false, embeddings: false, episodes: false, verificationPlans: false },
       versions: { schema: 1, api: 1 },
     })),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 beforeEach(async () => {

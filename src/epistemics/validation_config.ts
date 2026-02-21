@@ -2,12 +2,12 @@
  * @fileoverview Epistemic Validation Configuration
  *
  * Provides configuration resolution for epistemic task validation,
- * supporting CLI flags, environment variables, and .librarian.json settings.
+ * supporting CLI flags, environment variables, and .librainian.json settings.
  *
  * Priority order (highest to lowest):
  * 1. CLI flags
  * 2. Environment variables
- * 3. .librarian.json configuration
+ * 3. .librainian.json configuration
  * 4. Default preset
  *
  * @packageDocumentation
@@ -28,7 +28,7 @@ type MutableCriteria = {
 export type EpistemicPreset = 'strict' | 'standard' | 'relaxed' | 'disabled';
 
 /**
- * Configuration for epistemic validation from .librarian.json.
+ * Configuration for epistemic validation from .librainian.json.
  */
 export interface EpistemicValidationConfig {
   /** Whether epistemic validation is enabled */
@@ -129,7 +129,7 @@ export function getEnvConfig(): Partial<EpistemicValidationConfig> {
  * Resolve epistemic validation configuration from all sources.
  *
  * @param cliFlags - CLI flag overrides (highest priority)
- * @param fileConfig - Configuration from .librarian.json
+ * @param fileConfig - Configuration from .librainian.json
  * @returns Resolved configuration
  */
 export function resolveEpistemicConfig(

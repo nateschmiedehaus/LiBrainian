@@ -101,7 +101,7 @@ function scoreActionability(topFiles: string[], evidenceSnippets: string[], conf
 function scoreAccuracy(topFiles: string[], confidenceValues: number[]): number {
   let score = 1;
   if (topFiles.length === 0) score -= 0.4;
-  if (topFiles.some((file) => normalizePath(file).includes('/.librarian/'))) score -= 0.3;
+  if (topFiles.some((file) => normalizePath(file).includes('/.librainian/'))) score -= 0.3;
   if (confidenceValues.some((value) => !Number.isFinite(value) || value < 0 || value > 1)) score -= 0.2;
   return clamp01(score);
 }

@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ContextPack, ConfidenceCalibrationSummary, UncertaintyMetrics } from '../types.js';
 import { clamp01 } from '../utils/math.js';
 import { configurable, resolveQuantifiedValue } from '../epistemics/quantification.js';
@@ -32,10 +32,10 @@ const DEFAULT_TTL_MS = configurable(5 * 60 * 1000, [60_000, 3_600_000], 'Cache T
 const DEFAULT_MIN_SAMPLES = configurable(20, [1, 1_000], 'Sample floor before fully weighting calibration.');
 
 type CalibrationCacheEntry = { report: CalibrationReport; expiresAt: number };
-const calibrationCache = new WeakMap<LibrarianStorage, Map<string, CalibrationCacheEntry>>();
+const calibrationCache = new WeakMap<LiBrainianStorage, Map<string, CalibrationCacheEntry>>();
 
 export async function getConfidenceCalibration(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: CalibrationOptions = {}
 ): Promise<CalibrationReport> {
   const bucketCount = Math.max(
@@ -92,7 +92,7 @@ export function computeUncertaintyMetrics(confidence: number): UncertaintyMetric
   return { confidence: clamped, entropy, variance };
 }
 
-function getCache(storage: LibrarianStorage): Map<string, CalibrationCacheEntry> {
+function getCache(storage: LiBrainianStorage): Map<string, CalibrationCacheEntry> {
   const existing = calibrationCache.get(storage);
   if (existing) return existing;
   const fresh = new Map<string, CalibrationCacheEntry>();
@@ -100,7 +100,7 @@ function getCache(storage: LibrarianStorage): Map<string, CalibrationCacheEntry>
   return fresh;
 }
 
-async function computeCalibrationReport(storage: LibrarianStorage, bucketCount: number): Promise<CalibrationReport> {
+async function computeCalibrationReport(storage: LiBrainianStorage, bucketCount: number): Promise<CalibrationReport> {
   const packs = await storage.getContextPacks({ includeInvalidated: false });
   const bucketSize = 1 / bucketCount;
   const accumulators = Array.from({ length: bucketCount }, (_, index) => ({

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import { execa } from 'execa';
 import { getLanguageFromPath } from '../utils/language.js';
-import { getGrammarCacheRoot, getGrammarRequirePaths, getLibrarianPackageRoot } from '../utils/grammar_cache.js';
+import { getGrammarCacheRoot, getGrammarRequirePaths, getLiBrainianPackageRoot } from '../utils/grammar_cache.js';
 import { getTreeSitterLanguageConfigs } from '../agents/parsers/tree_sitter_parser.js';
 import { getFileCategory, isExcluded } from '../universal_patterns.js';
 import { detectPackageManager } from '../api/supply_chain_template.js';
@@ -246,16 +246,16 @@ export async function installMissingGrammars(
   }
 
   // IMPORTANT: Do not mutate the target workspace's dependencies.
-  // Install grammars into a Librarian-managed cache instead.
+  // Install grammars into a LiBrainian-managed cache instead.
   void workspace;
   const cacheRoot = getGrammarCacheRoot();
   if (!fs.existsSync(cacheRoot)) {
     fs.mkdirSync(cacheRoot, { recursive: true });
   }
 
-  // Prefer the versions pinned by the Librarian package (when available).
+  // Prefer the versions pinned by the LiBrainian package (when available).
   const pinned: Record<string, string> = {};
-  const pkgRoot = getLibrarianPackageRoot();
+  const pkgRoot = getLiBrainianPackageRoot();
   if (pkgRoot) {
     try {
       const raw = fs.readFileSync(path.join(pkgRoot, 'package.json'), 'utf8');

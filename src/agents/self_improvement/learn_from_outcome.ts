@@ -1,7 +1,7 @@
 /**
  * @fileoverview Learn From Outcome Primitive (tp_learn_from_outcome)
  *
- * Update Librarian knowledge based on outcome feedback.
+ * Update LiBrainian knowledge based on outcome feedback.
  * Adjusts calibration, extracts patterns, and updates confidence.
  *
  * Based on self-improvement-primitives.md specification.

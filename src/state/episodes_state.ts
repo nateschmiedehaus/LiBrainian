@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { Episode, EpisodeEvent } from '../strategic/building_blocks.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
 
@@ -16,7 +16,7 @@ type EpisodeState = {
 const EPISODES_KEY = 'librarian.episodes.v1';
 
 export async function recordEpisode(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   episode: Episode,
   options: { maxEpisodes?: number } = {}
 ): Promise<void> {
@@ -31,12 +31,12 @@ export async function recordEpisode(
   await writeEpisodeRecords(storage, trimmed);
 }
 
-export async function listEpisodes(storage: LibrarianStorage): Promise<Episode[]> {
+export async function listEpisodes(storage: LiBrainianStorage): Promise<Episode[]> {
   const records = await loadEpisodeRecords(storage);
   return records.map((record) => hydrateEpisode(record));
 }
 
-export async function getEpisode(storage: LibrarianStorage, id: string): Promise<Episode | null> {
+export async function getEpisode(storage: LiBrainianStorage, id: string): Promise<Episode | null> {
   const records = await loadEpisodeRecords(storage);
   const record = records.find((item) => item.id === id);
   return record ? hydrateEpisode(record) : null;
@@ -64,7 +64,7 @@ function hydrateEpisode(record: EpisodeRecord): Episode {
   };
 }
 
-async function loadEpisodeRecords(storage: LibrarianStorage): Promise<EpisodeRecord[]> {
+async function loadEpisodeRecords(storage: LiBrainianStorage): Promise<EpisodeRecord[]> {
   const raw = await storage.getState(EPISODES_KEY);
   if (!raw) return [];
   const parsed = safeJsonParseSimple<EpisodeState>(raw);
@@ -72,7 +72,7 @@ async function loadEpisodeRecords(storage: LibrarianStorage): Promise<EpisodeRec
   return parsed.items.map((item) => ({ ...item }));
 }
 
-async function writeEpisodeRecords(storage: LibrarianStorage, items: EpisodeRecord[]): Promise<void> {
+async function writeEpisodeRecords(storage: LiBrainianStorage, items: EpisodeRecord[]): Promise<void> {
   const payload: EpisodeState = {
     schema_version: 1,
     updatedAt: new Date().toISOString(),

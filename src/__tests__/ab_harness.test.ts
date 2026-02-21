@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   computeAbLiftSummary,
-  refineLibrarianContextFiles,
+  refineLiBrainianContextFiles,
   runAbExperiment,
   runAbTask,
   type AbGroupStats,
@@ -26,8 +26,8 @@ async function createRepoFixture(): Promise<string> {
 }
 
 describe('ab harness runner', () => {
-  it('limits refined Librarian context to compact target-focused set by default', () => {
-    const refined = refineLibrarianContextFiles(
+  it('limits refined LiBrainian context to compact target-focused set by default', () => {
+    const refined = refineLiBrainianContextFiles(
       [
         'src/services/Orchestrator.ts',
         'src/utils/dependencyParser.ts',
@@ -41,7 +41,7 @@ describe('ab harness runner', () => {
   });
 
   it('still retains target file when refiner receives noisy candidates', () => {
-    const refined = refineLibrarianContextFiles(
+    const refined = refineLiBrainianContextFiles(
       [
         'README.md',
         'src/utils/random.ts',
@@ -245,7 +245,7 @@ describe('ab harness runner', () => {
     expect(promptContents).toContain('Context Excerpts');
   });
 
-  it('injects librarian context into treatment prompt artifacts', async () => {
+  it('injects librainian context into treatment prompt artifacts', async () => {
     const repoRoot = await createRepoFixture();
     await writeFile(
       path.join(repoRoot, 'scripts', 'agent-treatment.cjs'),
@@ -254,7 +254,7 @@ describe('ab harness runner', () => {
         'const context = JSON.parse(fs.readFileSync(process.env.AB_HARNESS_CONTEXT_FILE, "utf8"));',
         'if (!context.extraContextFiles.includes("src/feature.ts")) process.exit(4);',
         'const prompt = fs.readFileSync(process.env.AB_HARNESS_PROMPT_FILE, "utf8");',
-        'if (!prompt.includes("Librarian Context")) process.exit(5);',
+        'if (!prompt.includes("LiBrainian Context")) process.exit(5);',
         'if (!prompt.includes("src/feature.ts")) process.exit(6);',
         'const source = fs.readFileSync("src/feature.ts", "utf8");',
         'fs.writeFileSync("src/feature.ts", source.replace(\'"hello"\', \'"agent treatment"\'));',
@@ -559,19 +559,19 @@ describe('ab harness runner', () => {
     });
 
     expect(providerResult.success).toBe(false);
-    expect(providerResult.failureReason).toBe('librarian_provider_unavailable');
-    expect(providerResult.librarianError?.reason).toBe('librarian_provider_unavailable');
-    expect(providerResult.librarianError?.message).toContain('provider_unavailable');
+    expect(providerResult.failureReason).toBe('librainian_provider_unavailable');
+    expect(providerResult.librainianError?.reason).toBe('librainian_provider_unavailable');
+    expect(providerResult.librainianError?.message).toContain('provider_unavailable');
 
     const emptyStorageResult = await runAbTask(providerTask, repoRoot, {
       workerType: 'treatment',
       resolveExtraContext: async () => {
-        throw new Error('unverified_by_trace(empty_storage): Cannot query librarian - no functions or modules indexed. Bootstrap may have failed silently or was not run. Run bootstrapProject() first with valid LLM/embedding providers configured.');
+        throw new Error('unverified_by_trace(empty_storage): Cannot query librainian - no functions or modules indexed. Bootstrap may have failed silently or was not run. Run bootstrapProject() first with valid LLM/embedding providers configured.');
       },
     });
 
     expect(emptyStorageResult.success).toBe(false);
-    expect(emptyStorageResult.failureReason).toBe('librarian_context_unavailable');
+    expect(emptyStorageResult.failureReason).toBe('librainian_context_unavailable');
 
     const usageLimitTask: AbTaskDefinition = {
       id: 'task-6-usage-limit',
@@ -1085,9 +1085,9 @@ describe('computeAbLiftSummary', () => {
         'fs.writeFileSync(p, "export function greet() { return \\"critique ok\\"; }\\n");',
         'console.log("AB_AGENT_CRITIQUE_JSON_START");',
         'console.log(JSON.stringify({',
-        '  summary: "Used Librarian hints to localize quickly and verified final diff.",',
+        '  summary: "Used LiBrainian hints to localize quickly and verified final diff.",',
         '  workOutcome: "successful",',
-        '  librarianEffectiveness: "good",',
+        '  librainianEffectiveness: "good",',
         '  confidence: 0.9,',
         '  issues: [',
         '    {',

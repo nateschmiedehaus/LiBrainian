@@ -1,5 +1,5 @@
 import { runProviderReadinessGate, type ProviderGateResult, type ProviderGateStatus } from './provider_gate.js';
-import { resolveLibrarianModelId } from './llm_env.js';
+import { resolveLiBrainianModelId } from './llm_env.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 
 export interface ProviderStatus {
@@ -149,13 +149,13 @@ function resolveModelId(provider: string, kind: 'llm' | 'embedding'): string {
   }
 
   if (provider === 'claude') {
-    return resolveLibrarianModelId('claude') ?? 'unknown';
+    return resolveLiBrainianModelId('claude') ?? 'unknown';
   }
   if (provider === 'codex') {
-    return resolveLibrarianModelId('codex') ?? 'unknown';
+    return resolveLiBrainianModelId('codex') ?? 'unknown';
   }
   return (
-    resolveLibrarianModelId() ??
+    resolveLiBrainianModelId() ??
     'unknown'
   );
 }

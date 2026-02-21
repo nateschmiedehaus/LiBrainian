@@ -3,16 +3,16 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { getCurrentVersion } from '../versioning.js';
 
 const workspaceRoot = process.cwd();
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-watch-freshness-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-watch-freshness-${randomUUID()}.db`);
 }
 
-async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: string): Promise<void> {
+async function seedStorageForQuery(storage: LiBrainianStorage, relatedFile: string): Promise<void> {
   await storage.upsertFunction({
     id: 'fn-watch-1',
     filePath: path.join(workspaceRoot, relatedFile),
@@ -47,7 +47,7 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
 }
 
 describe('watch freshness disclosures', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
 
   afterEach(async () => {
     vi.useRealTimers();
@@ -55,7 +55,7 @@ describe('watch freshness disclosures', () => {
   });
 
   it('adds disclosures when watcher is unhealthy or stale', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     vi.useFakeTimers();
     const now = new Date('2026-01-26T01:00:00.000Z');
     vi.setSystemTime(now);
@@ -65,7 +65,7 @@ describe('watch freshness disclosures', () => {
     await seedStorageForQuery(storage, 'src/auth.ts');
 
     const staleReconcileAt = new Date(now.getTime() - 120_000).toISOString();
-    await storage.setState('librarian.watch_state.v1', JSON.stringify({
+    await storage.setState('librainian.watch_state.v1', JSON.stringify({
       schema_version: 1,
       workspace_root: workspaceRoot,
       watch_last_heartbeat_at: now.toISOString(),
@@ -75,7 +75,7 @@ describe('watch freshness disclosures', () => {
       cursor: { kind: 'fs', lastReconcileCompletedAt: staleReconcileAt },
     }));
 
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: 'watch freshness', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
       storage
     );
@@ -85,12 +85,12 @@ describe('watch freshness disclosures', () => {
   });
 
   it('uses non-strict disclosures when watch state is unavailable', async () => {
-    const { queryLibrarian } = await import('../query.js');
+    const { queryLiBrainian } = await import('../query.js');
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
     await seedStorageForQuery(storage, 'src/auth.ts');
 
-    const result = await queryLibrarian(
+    const result = await queryLiBrainian(
       { intent: 'watch state', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
       storage
     );

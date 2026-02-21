@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { bounded } from '../confidence.js';
 import {
   computeCalibrationCurve,
@@ -16,7 +16,7 @@ import {
 } from '../calibration.js';
 import { createClaimOutcomeTracker } from '../outcomes.js';
 
-class MockStorage implements Pick<LibrarianStorage, 'getState' | 'setState'> {
+class MockStorage implements Pick<LiBrainianStorage, 'getState' | 'setState'> {
   private state = new Map<string, string>();
 
   async getState(key: string): Promise<string | null> {
@@ -69,7 +69,7 @@ describe('calibration curves', () => {
 
   it('computes and stores calibration reports from claim outcomes', async () => {
     const storage = new MockStorage();
-    const tracker = createClaimOutcomeTracker(storage as unknown as LibrarianStorage);
+    const tracker = createClaimOutcomeTracker(storage as unknown as LiBrainianStorage);
 
     const { record: claimA } = await tracker.recordClaim({
       claim: 'endpoint returns 200',

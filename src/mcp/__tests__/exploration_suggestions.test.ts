@@ -2,15 +2,15 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP get_exploration_suggestions tool', () => {
   it('returns ranked exploration suggestions', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-exploration-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-exploration-'));
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
 

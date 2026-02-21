@@ -14,9 +14,9 @@ describe('sqlite lock recovery on initialize', () => {
   });
 
   it('recovers stale lock directories before re-trying lock acquisition', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-sqlite-lock-'));
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = `${dbPath}.lock`;
 
     await fs.writeFile(dbPath, '');
@@ -34,9 +34,9 @@ describe('sqlite lock recovery on initialize', () => {
   });
 
   it('uses a PID lock file instead of a heartbeat lock directory', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-sqlite-lock-'));
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = `${dbPath}.lock`;
 
     const storage = createSqliteStorage(dbPath, dir);
@@ -56,9 +56,9 @@ describe('sqlite lock recovery on initialize', () => {
   });
 
   it('fails with explicit indexing-in-progress details when lock owner is active', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-sqlite-lock-'));
     tempDirs.push(dir);
-    const dbPath = path.join(dir, 'librarian.sqlite');
+    const dbPath = path.join(dir, 'librainian.sqlite');
     const lockPath = `${dbPath}.lock`;
 
     await fs.writeFile(
@@ -76,7 +76,7 @@ describe('sqlite lock recovery on initialize', () => {
   });
 
   it('allows concurrent :memory: storages without lock contention', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-sqlite-lock-'));
     tempDirs.push(dir);
 
     const storageA = createSqliteStorage(':memory:', dir);

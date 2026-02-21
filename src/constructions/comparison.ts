@@ -30,7 +30,7 @@
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ContextPack, FunctionKnowledge, ModuleKnowledge, FileKnowledge } from '../types.js';
 import type { UniversalKnowledgeRecord } from '../storage/types.js';
 import * as path from 'node:path';
@@ -334,12 +334,12 @@ export function shouldUseComparisonMode(query: string): boolean {
  * Find and analyze an entity by name from storage.
  *
  * @param entityName - Name of the entity to find
- * @param storage - Librarian storage instance
+ * @param storage - LiBrainian storage instance
  * @returns Analyzed entity or null if not found
  */
 export async function findAndAnalyzeEntity(
   entityName: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<AnalyzedEntity | null> {
   const lowerName = entityName.toLowerCase();
 
@@ -534,12 +534,12 @@ function extractReturnType(signature?: string): string | undefined {
  * Compare two entities and generate a structured comparison result.
  *
  * @param intent - The comparison intent with entity names
- * @param storage - Librarian storage instance
+ * @param storage - LiBrainian storage instance
  * @returns Comparison result or null if entities not found
  */
 export async function compareEntities(
   intent: ComparisonIntent,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<ComparisonResult | null> {
   if (!intent.isComparison || !intent.entityA || !intent.entityB) {
     return null;
@@ -615,7 +615,7 @@ function findSimilarities(entityA: AnalyzedEntity, entityB: AnalyzedEntity): Sim
 
   // Similar return types
   if (entityA.returnType && entityB.returnType) {
-    // Check if return types are related (e.g., both return LibrarianStorage)
+    // Check if return types are related (e.g., both return LiBrainianStorage)
     const returnA = entityA.returnType.toLowerCase();
     const returnB = entityB.returnType.toLowerCase();
     if (returnA.includes(returnB) || returnB.includes(returnA) || returnA === returnB) {
@@ -1385,7 +1385,7 @@ export interface ModuleComparison {
  * - Unique exports (only in one module)
  * - Changed signatures (same name, different signature)
  *
- * @param storage - Librarian storage instance
+ * @param storage - LiBrainian storage instance
  * @param moduleA - Path to the first module
  * @param moduleB - Path to the second module
  * @returns ModuleComparison with detailed analysis
@@ -1402,7 +1402,7 @@ export interface ModuleComparison {
  * ```
  */
 export async function compareModules(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   moduleA: string,
   moduleB: string
 ): Promise<ModuleComparison> {

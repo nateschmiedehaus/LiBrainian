@@ -42,7 +42,7 @@ async function listFilesRecursively(dir) {
 }
 
 async function resolvePackageRoot(root) {
-  const packaged = path.join(root, 'packages', 'librarian');
+  const packaged = path.join(root, 'packages', 'librainian');
   if (await fileExists(path.join(packaged, 'package.json'))) return packaged;
   return root;
 }
@@ -69,15 +69,15 @@ async function main() {
     }
 
     if (pkg) {
-      if (pkg.name !== 'librarian') failures.push(`package_name_expected:librarian got:${String(pkg.name)}`);
+      if (pkg.name !== 'librainian') failures.push(`package_name_expected:librainian got:${String(pkg.name)}`);
       if (pkg.type !== 'module') failures.push(`package_type_expected:module got:${String(pkg.type)}`);
       if (!pkg.exports || typeof pkg.exports !== 'object') failures.push('package_exports_missing');
-      if (!pkg.bin || typeof pkg.bin !== 'object' || !pkg.bin.librarian) failures.push('package_bin_missing:librarian');
+      if (!pkg.bin || typeof pkg.bin !== 'object' || !pkg.bin.librainian) failures.push('package_bin_missing:librainian');
       if (!Array.isArray(pkg.files) || !pkg.files.includes('dist')) failures.push('package_files_missing:dist');
     }
   }
 
-  // Static boundary check: Librarian package must not import Wave0 internals.
+  // Static boundary check: LiBrainian package must not import Wave0 internals.
   if (await fileExists(srcRoot)) {
     const files = (await listFilesRecursively(srcRoot)).filter((p) => p.endsWith('.ts') || p.endsWith('.js'));
     for (const f of files) {
@@ -95,15 +95,15 @@ async function main() {
   }
 
   if (failures.length > 0) {
-    process.stderr.write('[librarian_extraction_prereqs] FAIL\n');
+    process.stderr.write('[librainian_extraction_prereqs] FAIL\n');
     for (const item of failures) process.stderr.write(`- ${item}\n`);
     process.exit(1);
   }
 
-  process.stdout.write('[librarian_extraction_prereqs] OK\n');
+  process.stdout.write('[librainian_extraction_prereqs] OK\n');
 }
 
 main().catch((err) => {
-  process.stderr.write(`[librarian_extraction_prereqs] ERROR ${err?.message ?? String(err)}\n`);
+  process.stderr.write(`[librainian_extraction_prereqs] ERROR ${err?.message ?? String(err)}\n`);
   process.exit(1);
 });

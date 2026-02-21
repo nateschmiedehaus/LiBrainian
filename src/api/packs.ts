@@ -8,14 +8,14 @@ import {
 } from '../adapters/llm_service.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
-import type { LibrarianStorage, EvolutionOutcome } from '../storage/types.js';
+import type { LiBrainianStorage, EvolutionOutcome } from '../storage/types.js';
 import type {
   ContextPack,
   ContextPackType,
   FunctionKnowledge,
   ModuleKnowledge,
   CodeSnippet,
-  LibrarianVersion,
+  LiBrainianVersion,
 } from '../types.js';
 import { LIBRARIAN_VERSION } from '../index.js';
 import { getLanguageFromPath } from '../utils/language.js';
@@ -39,7 +39,7 @@ export interface PackGenerationOptions {
   includeFunctionPacks?: boolean; includeModulePacks?: boolean;
   includeSupplemental?: boolean;
   force?: boolean;
-  version?: LibrarianVersion;
+  version?: LiBrainianVersion;
 }
 
 export interface PackRankingInput {
@@ -82,7 +82,7 @@ const REVIEW_KEYWORDS = ['review', 'audit', 'risk', 'deprecated', 'anti-pattern'
 const TEST_PATH_HINTS = ['__tests__', '/tests/', '/test/', '.test.', '.spec.'];
 
 export async function generateContextPacks(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: PackGenerationOptions = {}
 ): Promise<number> {
   options.governorContext?.checkBudget();
@@ -182,8 +182,8 @@ function isEvalCorpusPath(filePath: string | undefined): boolean {
 function isInternalArtifactPath(filePath: string | undefined): boolean {
   if (!filePath) return false;
   const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
-  return normalizedPath.startsWith('.librarian/')
-    || normalizedPath.includes('/.librarian/')
+  return normalizedPath.startsWith('.librainian/')
+    || normalizedPath.includes('/.librainian/')
     || normalizedPath.startsWith('.librainian/')
     || normalizedPath.includes('/.librainian/')
     || normalizedPath.includes('/.ab-harness-artifacts/')
@@ -371,7 +371,7 @@ interface FunctionGraphContext {
 
 async function getFunctionGraphContext(
   fn: FunctionKnowledge,
-  storage: LibrarianStorage | null
+  storage: LiBrainianStorage | null
 ): Promise<FunctionGraphContext> {
   const result: FunctionGraphContext = { callers: [], callees: [] };
   if (!storage) return result;
@@ -449,7 +449,7 @@ function extractReturnType(signature: string): string | null {
 async function buildFunctionPack(
   fn: FunctionKnowledge,
   summarizer: PackSummarizer,
-  storage: LibrarianStorage | null = null
+  storage: LiBrainianStorage | null = null
 ): Promise<ContextPack> {
   const snippetResult = await loadFunctionSnippet(fn);
   const snippet = snippetResult?.snippet ?? null;
@@ -541,7 +541,7 @@ interface ModuleGraphContext {
 
 async function getModuleGraphContext(
   mod: ModuleKnowledge,
-  storage: LibrarianStorage | null
+  storage: LiBrainianStorage | null
 ): Promise<ModuleGraphContext> {
   const result: ModuleGraphContext = { importedByCount: 0, importsCount: mod.dependencies.length };
   if (!storage) return result;
@@ -598,7 +598,7 @@ async function buildModulePack(
   mod: ModuleKnowledge,
   functions: FunctionKnowledge[],
   summarizer: PackSummarizer,
-  storage: LibrarianStorage | null = null
+  storage: LiBrainianStorage | null = null
 ): Promise<ContextPack> {
   const moduleArtifacts = await loadModuleContextArtifacts(mod.path);
   const snippet = moduleArtifacts.snippet;
@@ -696,7 +696,7 @@ async function buildChangeImpactPack(
   mod: ModuleKnowledge,
   functions: FunctionKnowledge[],
   summarizer: PackSummarizer,
-  storage: LibrarianStorage | null = null
+  storage: LiBrainianStorage | null = null
 ): Promise<ContextPack> {
   const relatedFiles = collectRelatedFiles(mod);
   const summaryFallback = `Changing ${path.basename(mod.path)} may affect ${relatedFiles.slice(0, 3).join(', ') || 'dependent modules'}`;
@@ -1213,7 +1213,7 @@ function emptyPatternFacts(): PatternFacts {
   return { patternsByFile: new Map(), antiPatternsByFile: new Map() };
 }
 
-async function collectPatternFacts(storage: LibrarianStorage): Promise<PatternFacts> {
+async function collectPatternFacts(storage: LiBrainianStorage): Promise<PatternFacts> {
   const facts = emptyPatternFacts();
   const patterns = new PatternKnowledge(storage);
   const queries: Array<{ type: 'design_patterns' | 'error_handling' | 'async_patterns' | 'testing_patterns'; minOccurrences?: number }> = [
@@ -1244,7 +1244,7 @@ async function collectPatternFacts(storage: LibrarianStorage): Promise<PatternFa
   return facts;
 }
 
-async function collectDecisionFacts(storage: LibrarianStorage, workspaceRoot: string | null): Promise<Map<string, string[]>> {
+async function collectDecisionFacts(storage: LiBrainianStorage, workspaceRoot: string | null): Promise<Map<string, string[]>> {
   const decisions = new Map<string, string[]>();
   const items = await storage.getIngestionItems({ sourceType: 'adr', limit: 200 });
   for (const item of items) {
@@ -1261,7 +1261,7 @@ async function collectDecisionFacts(storage: LibrarianStorage, workspaceRoot: st
   return decisions;
 }
 
-async function collectSimilarTaskFacts(storage: LibrarianStorage, workspaceRoot: string | null): Promise<Map<string, string[]>> {
+async function collectSimilarTaskFacts(storage: LiBrainianStorage, workspaceRoot: string | null): Promise<Map<string, string[]>> {
   const tasks = new Map<string, string[]>();
   const outcomes = await storage.getEvolutionOutcomes({ limit: 200, orderBy: 'timestamp', orderDirection: 'desc' });
   for (const outcome of outcomes) {
@@ -1276,7 +1276,7 @@ async function collectSimilarTaskFacts(storage: LibrarianStorage, workspaceRoot:
   return tasks;
 }
 
-async function resolveWorkspaceRoot(storage: LibrarianStorage): Promise<string | null> {
+async function resolveWorkspaceRoot(storage: LiBrainianStorage): Promise<string | null> {
   try {
     const metadata = await storage.getMetadata();
     if (metadata?.workspace) return metadata.workspace;
@@ -1464,7 +1464,7 @@ function getLanguage(filePath: string): string {
   return language === 'text' ? fallback : language;
 }
 
-function getCurrentVersion(): LibrarianVersion {
+function getCurrentVersion(): LiBrainianVersion {
   return {
     major: LIBRARIAN_VERSION.major,
     minor: LIBRARIAN_VERSION.minor,

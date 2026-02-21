@@ -1,8 +1,8 @@
 /**
  * @fileoverview Provider Module Exports
  *
- * LLM, embedding, reranker, and auth providers for Librarian.
- * All providers are optional - Librarian works in minimal mode without them.
+ * LLM, embedding, reranker, and auth providers for LiBrainian.
+ * All providers are optional - LiBrainian works in minimal mode without them.
  *
  * @packageDocumentation
  */

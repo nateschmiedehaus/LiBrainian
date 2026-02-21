@@ -8,7 +8,7 @@
  * - How risky is this change?
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { computeGraphMetrics } from '../graphs/metrics.js';
 import { buildModuleGraphs, resolveTargetModule } from './module_graph.js';
 import { calculateModuleComplexity } from './quality_metrics.js';
@@ -72,7 +72,7 @@ export interface RiskFactor {
 // ============================================================================
 
 export class ImpactKnowledge {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   async query(q: ImpactQuery): Promise<ImpactResult> {
     switch (q.type) {

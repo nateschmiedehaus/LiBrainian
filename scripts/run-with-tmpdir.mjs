@@ -49,9 +49,9 @@ function parseArgs(argv) {
 
 const { tmpdir: explicitTmpdir, sets, cmd, cmdArgs } = parseArgs(process.argv.slice(2));
 
-const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librarian');
-const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librarian');
-const osTmpdir = path.resolve(os.tmpdir(), 'librarian');
+const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librainian');
+const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librainian');
+const osTmpdir = path.resolve(os.tmpdir(), 'librainian');
 const configuredTmpdir =
   (explicitTmpdir && explicitTmpdir.trim().length > 0 ? explicitTmpdir : undefined) ??
   (process.env.LIBRARIAN_TMPDIR && process.env.LIBRARIAN_TMPDIR.trim().length > 0

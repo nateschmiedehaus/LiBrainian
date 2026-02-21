@@ -5,7 +5,7 @@
  *
  * The Adversarial Pattern Library collects and catalogs patterns that commonly
  * cause hallucinations or errors in code understanding systems. These patterns
- * are used to stress-test Librarian.
+ * are used to stress-test LiBrainian.
  *
  * @packageDocumentation
  */
@@ -308,8 +308,8 @@ describe('AdversarialPatternLibrary - importFromRepo', () => {
   });
 
   it('should detect similar function names in a repo', async () => {
-    // Use the librarian repo itself as test subject
-    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian';
+    // Use the librainian repo itself as test subject
+    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian';
     const patterns = await library.importFromRepo(repoPath);
 
     // Should return an array (may be empty if no patterns detected)
@@ -317,7 +317,7 @@ describe('AdversarialPatternLibrary - importFromRepo', () => {
   });
 
   it('should assign unique IDs to imported patterns', async () => {
-    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian';
+    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian';
     const patterns = await library.importFromRepo(repoPath);
 
     if (patterns.length > 0) {
@@ -328,7 +328,7 @@ describe('AdversarialPatternLibrary - importFromRepo', () => {
   });
 
   it('should return patterns with correct structure', async () => {
-    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian';
+    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian';
     const patterns = await library.importFromRepo(repoPath);
 
     patterns.forEach((pattern) => {
@@ -348,7 +348,7 @@ describe('AdversarialPatternLibrary - importFromRepo', () => {
   });
 
   it('should detect dead code patterns', async () => {
-    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian';
+    const repoPath = '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian';
     const patterns = await library.importFromRepo(repoPath);
 
     // May or may not find dead code, but should not crash
@@ -1007,9 +1007,9 @@ describe('AdversarialPatternLibrary - Edge Cases', () => {
 
   it('should handle concurrent calls', async () => {
     const promises = [
-      library.importFromRepo('/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian'),
-      library.importFromRepo('/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian'),
-      library.importFromRepo('/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian'),
+      library.importFromRepo('/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian'),
+      library.importFromRepo('/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian'),
+      library.importFromRepo('/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librainian'),
     ];
 
     const results = await Promise.all(promises);

@@ -1,27 +1,27 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 describe('MCP system contract tool', () => {
   it('returns system contract for workspace', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
       },
     });
 
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-system-contract-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-system-contract-'));
     const contract = { sentinel: true };
-    const mockLibrarian: any = {
+    const mockLiBrainian: any = {
       getSystemContract: vi.fn().mockResolvedValue(contract),
     };
 
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
-      librarian: mockLibrarian,
+      librainian: mockLiBrainian,
       indexState: 'ready',
     });
 

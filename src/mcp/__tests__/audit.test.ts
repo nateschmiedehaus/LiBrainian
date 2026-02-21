@@ -192,7 +192,7 @@ describe('MCP Audit Logger', () => {
 
     it('should log resource access', () => {
       const event = logger.logResourceAccess({
-        operation: 'librarian://workspace/symbols',
+        operation: 'librainian://workspace/symbols',
         status: 'success',
         durationMs: 50,
       });

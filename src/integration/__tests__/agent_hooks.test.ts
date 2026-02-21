@@ -18,7 +18,7 @@ import {
   createPreTaskHook,
   createPostTaskHook,
   createAgentHooks,
-  isLibrarianAvailable,
+  isLiBrainianAvailable,
   detectWorkspace,
   type TaskContext,
   type TaskContextRequest,
@@ -44,7 +44,7 @@ vi.mock('../../orchestrator/unified_init.js', () => {
       packIds: ['pack-1', 'pack-2'],
     }),
     recordOutcome: vi.fn().mockResolvedValue(undefined),
-    librarian: {
+    librainian: {
       getStorage: vi.fn().mockReturnValue({
         getContextPack: vi.fn().mockResolvedValue({ packId: 'pack-1', confidence: 0.5 }),
         upsertContextPack: vi.fn().mockResolvedValue(undefined),
@@ -55,7 +55,7 @@ vi.mock('../../orchestrator/unified_init.js', () => {
     },
   };
   return {
-    initializeLibrarian: vi.fn().mockResolvedValue(mockSession),
+    initializeLiBrainian: vi.fn().mockResolvedValue(mockSession),
     getSession: vi.fn().mockReturnValue(mockSession),
     hasSession: vi.fn().mockReturnValue(true),
   };
@@ -63,7 +63,7 @@ vi.mock('../../orchestrator/unified_init.js', () => {
 
 // Mock the dependencies
 vi.mock('../wave0_integration.js', () => ({
-  formatLibrarianContext: vi.fn().mockReturnValue('## Librarian Context\n\nTest formatted context'),
+  formatLiBrainianContext: vi.fn().mockReturnValue('## LiBrainian Context\n\nTest formatted context'),
 }));
 
 vi.mock('../agent_feedback.js', () => ({
@@ -131,12 +131,12 @@ describe('agent_hooks', () => {
 
       expect(context).toBeDefined();
       expect(context.taskId).toBeDefined();
-      expect(context.formatted).toContain('Librarian Context');
+      expect(context.formatted).toContain('LiBrainian Context');
       expect(context.structured).toBeDefined();
       expect(context.structured.keyFacts).toContain('Fact 1');
       expect(context.packIds).toEqual(['pack-1', 'pack-2']);
       expect(context.confidence).toBe(0.8);
-      expect(context.librarianAvailable).toBe(true);
+      expect(context.librainianAvailable).toBe(true);
     });
 
     it('should use provided taskId', async () => {
@@ -150,10 +150,10 @@ describe('agent_hooks', () => {
       expect(context.taskId).toBe('custom-task-123');
     });
 
-    it('should return fallback context when Librarian fails', async () => {
-      const { initializeLibrarian, hasSession } = await import('../../orchestrator/unified_init.js');
+    it('should return fallback context when LiBrainian fails', async () => {
+      const { initializeLiBrainian, hasSession } = await import('../../orchestrator/unified_init.js');
       vi.mocked(hasSession).mockReturnValueOnce(false);
-      vi.mocked(initializeLibrarian).mockRejectedValueOnce(new Error('Initialization failed'));
+      vi.mocked(initializeLiBrainian).mockRejectedValueOnce(new Error('Initialization failed'));
 
       const request: TaskContextRequest = {
         intent: 'Test intent',
@@ -161,7 +161,7 @@ describe('agent_hooks', () => {
 
       const context = await getTaskContext(request, { workspace: testDir });
 
-      expect(context.librarianAvailable).toBe(false);
+      expect(context.librainianAvailable).toBe(false);
       expect(context.confidence).toBe(0);
       expect(context.formatted).toBe('');
     });
@@ -260,7 +260,7 @@ describe('agent_hooks', () => {
         structured: { intent: 'test-intent' } as TaskContext['structured'],
         packIds: ['pack-a', 'pack-b'],
         confidence: 0.9,
-        librarianAvailable: true,
+        librainianAvailable: true,
         drillDownHints: [],
         methodHints: [],
       };
@@ -373,7 +373,7 @@ describe('agent_hooks', () => {
       const result = await executeWithContext(
         { intent: 'Complete task', affectedFiles: [] },
         async (context) => {
-          expect(context.formatted).toContain('Librarian Context');
+          expect(context.formatted).toContain('LiBrainian Context');
           return { success: true, data: 'completed' };
         },
         { workspace: testDir }
@@ -437,28 +437,28 @@ describe('agent_hooks', () => {
     });
   });
 
-  describe('isLibrarianAvailable', () => {
-    it('should return true when Librarian is ready', async () => {
-      const available = await isLibrarianAvailable(testDir);
+  describe('isLiBrainianAvailable', () => {
+    it('should return true when LiBrainian is ready', async () => {
+      const available = await isLiBrainianAvailable(testDir);
 
       expect(available).toBe(true);
     });
 
-    it('should return false when Librarian is not ready', async () => {
+    it('should return false when LiBrainian is not ready', async () => {
       const { hasSession } = await import('../../orchestrator/unified_init.js');
       vi.mocked(hasSession).mockReturnValueOnce(false);
 
-      const available = await isLibrarianAvailable(testDir);
+      const available = await isLiBrainianAvailable(testDir);
 
       expect(available).toBe(false);
     });
   });
 
   describe('detectWorkspace', () => {
-    it('should detect workspace from .librarian directory', async () => {
-      // Create .librarian directory
-      const librarianDir = path.join(testDir, '.librarian');
-      await fs.mkdir(librarianDir, { recursive: true });
+    it('should detect workspace from .librainian directory', async () => {
+      // Create .librainian directory
+      const librainianDir = path.join(testDir, '.librainian');
+      await fs.mkdir(librainianDir, { recursive: true });
 
       // Mock process.cwd to return testDir
       const originalCwd = process.cwd;
@@ -472,7 +472,7 @@ describe('agent_hooks', () => {
       }
     });
 
-    it('should return null when no .librarian directory exists', async () => {
+    it('should return null when no .librainian directory exists', async () => {
       // Create a new empty directory
       const emptyDir = path.join(testDir, 'empty');
       await fs.mkdir(emptyDir, { recursive: true });
@@ -483,7 +483,7 @@ describe('agent_hooks', () => {
 
       try {
         const workspace = await detectWorkspace();
-        // Should return null since no .librarian exists
+        // Should return null since no .librainian exists
         expect(workspace).toBeNull();
       } finally {
         process.cwd = originalCwd;
@@ -491,9 +491,9 @@ describe('agent_hooks', () => {
     });
 
     it('should use LIBRARIAN_WORKSPACE environment variable', async () => {
-      // Create .librarian directory in testDir
-      const librarianDir = path.join(testDir, '.librarian');
-      await fs.mkdir(librarianDir, { recursive: true });
+      // Create .librainian directory in testDir
+      const librainianDir = path.join(testDir, '.librainian');
+      await fs.mkdir(librainianDir, { recursive: true });
 
       // Set environment variable
       const originalEnv = process.env.LIBRARIAN_WORKSPACE;

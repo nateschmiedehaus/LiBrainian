@@ -25,8 +25,8 @@ vi.mock('../../../utils/workspace_resolver.js', () => ({
 }));
 
 describe('embedCommand', () => {
-  const workspace = '/tmp/librarian-embed-workspace';
-  const dbPath = '/tmp/librarian-embed-workspace/.librarian/librarian.sqlite';
+  const workspace = '/tmp/librainian-embed-workspace';
+  const dbPath = '/tmp/librainian-embed-workspace/.librainian/librainian.sqlite';
   const storage = {
     initialize: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),

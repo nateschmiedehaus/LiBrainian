@@ -336,7 +336,7 @@ describe('formatErrorWithHints', () => {
     expect(formatted).toContain('ENOINDEX');
     expect(formatted).toContain('Index not found');
     expect(formatted).toContain('Next:');
-    expect(formatted).toContain('librarian bootstrap');
+    expect(formatted).toContain('librainian bootstrap');
     expect(formatted).not.toContain('\n');
   });
 

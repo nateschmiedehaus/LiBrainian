@@ -1,5 +1,5 @@
 /**
- * @fileoverview Core types for the Librarian system
+ * @fileoverview Core types for the LiBrainian system
  */
 
 import type { EmbeddingProvider, EmbeddingService } from './api/embeddings.js';
@@ -20,7 +20,7 @@ import type {
 // VERSION TYPES
 // ============================================================================
 
-export interface LibrarianVersion {
+export interface LiBrainianVersion {
   major: number;
   minor: number;
   patch: number;
@@ -34,8 +34,8 @@ export interface LibrarianVersion {
 export type QualityTier = 'mvp' | 'enhanced' | 'full';
 
 export interface VersionComparison {
-  current: LibrarianVersion | null;
-  target: LibrarianVersion;
+  current: LiBrainianVersion | null;
+  target: LiBrainianVersion;
   upgradeRequired: boolean;
   upgradeType: 'none' | 'patch' | 'minor' | 'major' | 'quality_tier';
   reason: string;
@@ -193,7 +193,7 @@ export interface DirectoryKnowledge {
 
 /**
  * Document-level knowledge - understanding of documentation files.
- * Used for meta-queries like "How should an agent use Librarian?"
+ * Used for meta-queries like "How should an agent use LiBrainian?"
  * Documents have high relevance for conceptual/how-to queries.
  */
 export interface DocumentKnowledge {
@@ -266,7 +266,7 @@ export interface ContextPack {
   lastOutcome: 'success' | 'failure' | 'unknown';
   successCount: number;
   failureCount: number;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   invalidationTriggers: string[]; // File paths that invalidate this pack
 
   /**
@@ -345,7 +345,7 @@ export interface IndexingResult {
   modulesIndexed: number;
   contextPacksCreated: number;
   errors: IndexingError[];
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
 }
 
 export interface IndexingError {
@@ -509,7 +509,7 @@ export const BOOTSTRAP_PHASES: readonly BootstrapPhase[] = [
 ] as const;
 
 /**
- * Capabilities available after bootstrap - shows what the librarian can do
+ * Capabilities available after bootstrap - shows what the librainian can do
  */
 export interface BootstrapCapabilities {
   /** Whether semantic vector search is available (requires embeddings) */
@@ -547,7 +547,7 @@ export interface BootstrapCompositionSuggestionConfig {
   enabled?: boolean;
   minConfidence?: number;
   maxSuggestions?: number;
-  queryDepth?: LibrarianQuery['depth'];
+  queryDepth?: LiBrainianQuery['depth'];
   queryTimeoutMs?: number;
 }
 
@@ -584,7 +584,7 @@ export interface BootstrapReport {
   totalFilesProcessed: number;
   totalFunctionsIndexed: number;
   totalContextPacksCreated: number;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   success: boolean;
   error?: string;
   /** What capabilities are available after bootstrap */
@@ -606,7 +606,7 @@ export interface BootstrapReport {
     frameworks: string[];
     languages: string[];
   };
-  /** Bootstrap-time repository orientation persisted to .librarian/CODEBASE_BRIEFING.md */
+  /** Bootstrap-time repository orientation persisted to .librainian/CODEBASE_BRIEFING.md */
   codebaseBriefing?: BootstrapBriefingSummary;
 }
 
@@ -737,7 +737,7 @@ export interface TokenBudget {
 
 /**
  * Result of token budget enforcement.
- * Returned in LibrarianResponse to inform agents about truncation.
+ * Returned in LiBrainianResponse to inform agents about truncation.
  */
 export interface TokenBudgetResult {
   /** Whether the response was truncated to fit the budget */
@@ -942,7 +942,7 @@ export interface SearchFilter {
   maxFileSizeBytes?: number;
 }
 
-export interface LibrarianQuery {
+export interface LiBrainianQuery {
   intent: string;
   /**
    * Optional typed intent contract for callers that want deterministic output shapes.
@@ -1091,7 +1091,7 @@ export interface LibrarianQuery {
    * for refactoring scenarios where missing even one dependent can cause breakage.
    *
    * Use cases:
-   * - "What depends on SqliteLibrarianStorage" -> Returns ALL 208 files, not 6
+   * - "What depends on SqliteLiBrainianStorage" -> Returns ALL 208 files, not 6
    * - "Everything that imports src/storage/types.ts" -> Complete list
    * - Impact analysis for breaking changes
    *
@@ -1236,7 +1236,7 @@ export type RetrievalStatus = 'sufficient' | 'partial' | 'insufficient';
  * generic string hints that require interpretation.
  */
 export interface FollowUpQuery {
-  /** The query intent to execute (can be passed directly to librarian) */
+  /** The query intent to execute (can be passed directly to librainian) */
   intent: string;
   /** Why this follow-up is relevant based on current results */
   reason: string;
@@ -1257,8 +1257,8 @@ export interface QueryDiagnostics {
 
 export type SynthesisMode = 'llm' | 'heuristic' | 'cache';
 
-export interface LibrarianResponse {
-  query: LibrarianQuery;
+export interface LiBrainianResponse {
+  query: LiBrainianQuery;
   intentType?: QueryIntentType;
   contract?: QueryResultContract;
   packs: ContextPack[];
@@ -1276,7 +1276,7 @@ export interface LibrarianResponse {
   suggestedClarifyingQuestions?: string[];
   cacheHit: boolean;
   latencyMs: number;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
   llmRequirement?: LlmRequirement;
   llmAvailable?: boolean;
   synthesisMode?: SynthesisMode;
@@ -1299,7 +1299,7 @@ export interface LibrarianResponse {
    */
   epistemicsDebug?: string[];
   evidenceByPack?: Record<string, EvidenceRef[]>;
-  engines?: LibrarianEngineResults;
+  engines?: LiBrainianEngineResults;
   stages?: StageReport[];
   coverage?: CoverageAssessment;
 
@@ -1343,7 +1343,7 @@ export interface LibrarianResponse {
    * Unlike semantic search which returns top-k ranked matches, exhaustive mode
    * uses graph traversal to find ALL dependents. Critical for refactoring.
    *
-   * Example: "What depends on SqliteLibrarianStorage" returns 208 files, not 6.
+   * Example: "What depends on SqliteLiBrainianStorage" returns 208 files, not 6.
    */
   exhaustiveResult?: ExhaustiveQuerySummary;
 
@@ -1481,7 +1481,7 @@ function sanitizeTraceId(traceId: string | undefined, debug: string[]): string |
   return parsed.userMessage || traceId;
 }
 
-export function sanitizeLibrarianResponse(response: LibrarianResponse): LibrarianResponse {
+export function sanitizeLiBrainianResponse(response: LiBrainianResponse): LiBrainianResponse {
   const debug = Array.isArray(response.epistemicsDebug)
     ? response.epistemicsDebug.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     : [];
@@ -1525,7 +1525,7 @@ export function sanitizeLibrarianResponse(response: LibrarianResponse): Libraria
   return sanitized;
 }
 
-export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResponse & OutputEnvelope {
+export function ensureOutputEnvelope(response: LiBrainianResponse): LiBrainianResponse & OutputEnvelope {
   const disclosures = new Set(response.disclosures ?? []);
   const epistemicsDebug = Array.isArray(response.epistemicsDebug)
     ? response.epistemicsDebug.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -1554,14 +1554,14 @@ export function ensureOutputEnvelope(response: LibrarianResponse): LibrarianResp
     epistemicsDebug.push('unverified_by_trace(verification_plan_missing)');
   }
 
-  return sanitizeLibrarianResponse({
+  return sanitizeLiBrainianResponse({
     ...response,
     constructionPlan,
     adequacy,
     verificationPlan,
     disclosures: Array.from(disclosures),
     epistemicsDebug,
-  }) as LibrarianResponse & OutputEnvelope;
+  }) as LiBrainianResponse & OutputEnvelope;
 }
 
 /**
@@ -1591,7 +1591,7 @@ export interface SynthesizedResponse {
   uncertainties: string[];
 }
 
-export interface LibrarianEngineResults {
+export interface LiBrainianEngineResults {
   relevance?: RelevanceResult;
   constraints?: EngineConstraintSummary;
   meta?: {
@@ -1613,7 +1613,7 @@ export interface EngineConstraintSummary {
 
 /**
  * Task types for specialized analysis modes.
- * Use these with LibrarianQuery.taskType for targeted analysis.
+ * Use these with LiBrainianQuery.taskType for targeted analysis.
  */
 export type AnalysisTaskType =
   | 'premortem'           // Anticipate failures before they occur
@@ -1839,8 +1839,8 @@ export interface RecoveryStrategy {
 // STORAGE TYPES
 // ============================================================================
 
-export interface LibrarianMetadata {
-  version: LibrarianVersion;
+export interface LiBrainianMetadata {
+  version: LiBrainianVersion;
   workspace: string;
   lastBootstrap: Date | null;
   lastIndexing: Date | null;
@@ -1854,7 +1854,7 @@ export interface LibrarianMetadata {
 // EVENT TYPES
 // ============================================================================
 
-export type LibrarianEventType =
+export type LiBrainianEventType =
   | 'bootstrap_started'
   | 'bootstrap_phase_complete'
   | 'bootstrap_complete'
@@ -1901,8 +1901,8 @@ export type LibrarianEventType =
   | 'context_packs_invalidated'
   | 'threshold_alert';
 
-export interface LibrarianEvent {
-  type: LibrarianEventType;
+export interface LiBrainianEvent {
+  type: LiBrainianEventType;
   timestamp: Date;
   data: Record<string, unknown>;
   /** Correlation ID for multi-agent coordination (session/run) */

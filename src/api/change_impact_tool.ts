@@ -1,6 +1,6 @@
 import { buildModuleGraphs, resolveTargetModule } from '../knowledge/module_graph.js';
 import { ImpactKnowledge } from '../knowledge/impact.js';
-import type { LibrarianStorage, KnowledgeGraphEdge, ModuleKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, KnowledgeGraphEdge, ModuleKnowledge } from '../storage/types.js';
 
 export interface ChangeImpactToolInput {
   target: string;
@@ -46,7 +46,7 @@ const MAX_DEPTH = 8;
 const DEFAULT_MAX_RESULTS = 200;
 
 export async function computeChangeImpactReport(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   input: ChangeImpactToolInput
 ): Promise<ChangeImpactReport> {
   const started = Date.now();
@@ -209,7 +209,7 @@ function computeDependentDepths(
 }
 
 async function loadCoChangeWeights(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetPath: string
 ): Promise<Map<string, number>> {
   const weights = new Map<string, number>();

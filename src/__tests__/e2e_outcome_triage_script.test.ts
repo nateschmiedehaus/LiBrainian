@@ -13,7 +13,7 @@ async function writeJson(filePath: string, value: JsonRecord): Promise<void> {
 
 describe('e2e outcome triage script', () => {
   it('escalates critical reliability regressions as immediate actions', async () => {
-    const workspace = await mkdtemp(path.join(tmpdir(), 'librarian-e2e-triage-'));
+    const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-e2e-triage-'));
     const reportPath = path.join(workspace, 'outcome-report.json');
     const artifactPath = path.join(workspace, 'outcome-triage.json');
     const markdownPath = path.join(workspace, 'outcome-triage.md');
@@ -67,7 +67,7 @@ describe('e2e outcome triage script', () => {
   });
 
   it('emits issue candidates for non-critical freshness failures', async () => {
-    const workspace = await mkdtemp(path.join(tmpdir(), 'librarian-e2e-triage-freshness-'));
+    const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-e2e-triage-freshness-'));
     const reportPath = path.join(workspace, 'outcome-report.json');
     const artifactPath = path.join(workspace, 'outcome-triage.json');
     await writeJson(reportPath, {

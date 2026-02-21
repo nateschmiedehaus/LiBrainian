@@ -7,9 +7,9 @@ import {
   estimateSynthesisTokens,
   __testing,
 } from '../token_budget.js';
-import type { ContextPack, TokenBudget, SynthesizedResponse, LibrarianVersion } from '../../types.js';
+import type { ContextPack, TokenBudget, SynthesizedResponse, LiBrainianVersion } from '../../types.js';
 
-const baseVersion: LibrarianVersion = {
+const baseVersion: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,

@@ -92,7 +92,7 @@ export interface PROVRelation {
   /** Time of the relation */
   'prov:time'?: string;
   /** Custom attributes */
-  [key: `librarian:${string}`]: unknown;
+  [key: `librainian:${string}`]: unknown;
 }
 
 /**
@@ -131,13 +131,13 @@ export interface PROVDocument {
  * Options for PROV export.
  */
 export interface PROVExportOptions {
-  /** Base URI for entity identifiers (default: 'urn:librarian:evidence:') */
+  /** Base URI for entity identifiers (default: 'urn:librainian:evidence:') */
   baseUri?: string;
   /** Whether to include detailed payloads in entities (default: false for size) */
   includePayloads?: boolean;
   /** Whether to include confidence values (default: true) */
   includeConfidence?: boolean;
-  /** Custom namespace prefix (default: 'librarian') */
+  /** Custom namespace prefix (default: 'librainian') */
   namespacePrefix?: string;
 }
 
@@ -145,10 +145,10 @@ export interface PROVExportOptions {
  * Default export options.
  */
 export const DEFAULT_PROV_EXPORT_OPTIONS: Required<PROVExportOptions> = {
-  baseUri: 'urn:librarian:evidence:',
+  baseUri: 'urn:librainian:evidence:',
   includePayloads: false,
   includeConfidence: true,
-  namespacePrefix: 'librarian',
+  namespacePrefix: 'librainian',
 };
 
 // ============================================================================
@@ -175,15 +175,15 @@ export const DEFAULT_PROV_EXPORT_OPTIONS: Required<PROVExportOptions> = {
  * ```json
  * {
  *   "prefix": {
- *     "librarian": "urn:librarian:evidence:",
+ *     "librainian": "urn:librainian:evidence:",
  *     "prov": "http://www.w3.org/ns/prov#"
  *   },
  *   "entity": {
- *     "librarian:ev_123": {
+ *     "librainian:ev_123": {
  *       "prov:type": "extraction",
  *       "prov:label": "Function extraction: myFunc",
- *       "librarian:kind": "extraction",
- *       "librarian:confidence": 0.95
+ *       "librainian:kind": "extraction",
+ *       "librainian:confidence": 0.95
  *     }
  *   },
  *   "activity": { ... },

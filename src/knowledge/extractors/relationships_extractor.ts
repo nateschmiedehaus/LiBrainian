@@ -16,7 +16,7 @@ import type {
   SimilarEntity,
   Reference,
 } from '../universal_types.js';
-import type { LibrarianStorage, CochangeQueryOptions } from '../../storage/types.js';
+import type { LiBrainianStorage, CochangeQueryOptions } from '../../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -33,7 +33,7 @@ export interface RelationshipsInput {
   entityId: string;
   entityName: string;
   embedding?: Float32Array;
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
 }
 
 export interface SimilarityConfig {
@@ -120,7 +120,7 @@ export async function extractRelationships(
 async function findSimilarByEmbedding(
   entityId: string,
   embedding: Float32Array,
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   topK: number,
   minSimilarity: number
 ): Promise<SimilarEntity[]> {

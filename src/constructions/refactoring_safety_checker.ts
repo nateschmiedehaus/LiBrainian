@@ -1,7 +1,7 @@
 /**
  * @fileoverview Refactoring Safety Checker Construction
  *
- * A composed construction that combines librarian primitives to provide
+ * A composed construction that combines librainian primitives to provide
  * safe refactoring analysis with confidence tracking.
  *
  * Composes:
@@ -17,10 +17,10 @@ import * as path from 'path';
 import * as os from 'os';
 import * as ts from 'typescript';
 import { glob } from 'glob';
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ConfidenceValue, MeasuredConfidence, BoundedConfidence, AbsentConfidence } from '../epistemics/confidence.js';
 import type { ContextPack } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type {
   ConstructionCalibrationTracker,
   CalibratedConstruction,
@@ -469,14 +469,14 @@ export interface RefactoringSafetyReport {
 // ============================================================================
 
 export class RefactoringSafetyChecker implements CalibratedConstruction {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private usageCache: Map<string, Usage[]> = new Map();
   private calibrationTracker?: ConstructionCalibrationTracker;
 
   static readonly CONSTRUCTION_ID = 'RefactoringSafetyChecker';
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -613,11 +613,11 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
    */
   private async analyzeGraphImpact(entityId: string): Promise<GraphImpactAnalysis | null> {
     // Safely check if getStorage is available (may not be in mock or minimal implementations)
-    if (typeof this.librarian.getStorage !== 'function') {
+    if (typeof this.librainian.getStorage !== 'function') {
       return null;
     }
 
-    const storage = this.librarian.getStorage();
+    const storage = this.librainian.getStorage();
     if (!storage) {
       return null;
     }
@@ -731,13 +731,13 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
     let coverageWarning: string | null = null;
 
     // Prefer exhaustive graph traversal so refactoring impact is never top-k truncated.
-    const maybeGetStorage = (this.librarian as { getStorage?: () => unknown }).getStorage;
+    const maybeGetStorage = (this.librainian as { getStorage?: () => unknown }).getStorage;
     const storage =
-      typeof maybeGetStorage === 'function' ? maybeGetStorage.call(this.librarian) : undefined;
+      typeof maybeGetStorage === 'function' ? maybeGetStorage.call(this.librainian) : undefined;
     if (storage) {
       try {
         const intent = parseStructuralQueryIntent(`What depends on ${entityId}?`);
-        const exhaustive = await executeExhaustiveDependencyQuery(storage as LibrarianStorage, intent, {
+        const exhaustive = await executeExhaustiveDependencyQuery(storage as LiBrainianStorage, intent, {
           includeTransitive: true,
           maxDepth: 20,
         });
@@ -750,14 +750,14 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
             usageType: mapEdgeTypeToUsageType(hit.edgeType),
           });
         }
-        coverageWarning = await this.buildCallerCoverageWarning(storage as LibrarianStorage, entityId, usages.length);
+        coverageWarning = await this.buildCallerCoverageWarning(storage as LiBrainianStorage, entityId, usages.length);
       } catch {
         coverageWarning = 'Exhaustive caller traversal failed; no semantic fallback was used to avoid top-k truncation.';
       }
     }
 
     if (usages.length === 0 && !storage) {
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.librainian.queryOptional({
         intent: `Find all usages of ${entityId}`,
         depth: 'L2',
         taskType: 'understand',
@@ -780,7 +780,7 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
   }
 
   private async buildCallerCoverageWarning(
-    storage: LibrarianStorage,
+    storage: LiBrainianStorage,
     entityId: string,
     usageCount: number
   ): Promise<string | null> {
@@ -790,7 +790,7 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
       const [workspaceFiles, indexedFiles] = await Promise.all([
         glob(['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py', '**/*.go'], {
           cwd: workspaceRoot,
-          ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.librarian/**'],
+          ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.librainian/**'],
           nodir: true,
           absolute: false,
         }),
@@ -810,9 +810,9 @@ export class RefactoringSafetyChecker implements CalibratedConstruction {
   }
 
   private resolveWorkspaceRootForCoverage(): string | null {
-    const fromLibrarian = (this.librarian as { workspaceRoot?: unknown }).workspaceRoot;
-    if (typeof fromLibrarian === 'string' && fromLibrarian.trim().length > 0) {
-      return path.resolve(fromLibrarian.trim());
+    const fromLiBrainian = (this.librainian as { workspaceRoot?: unknown }).workspaceRoot;
+    if (typeof fromLiBrainian === 'string' && fromLiBrainian.trim().length > 0) {
+      return path.resolve(fromLiBrainian.trim());
     }
     return process.cwd();
   }
@@ -1397,6 +1397,6 @@ export function findCorrespondingTestFile(
 // FACTORY
 // ============================================================================
 
-export function createRefactoringSafetyChecker(librarian: Librarian): RefactoringSafetyChecker {
-  return new RefactoringSafetyChecker(librarian);
+export function createRefactoringSafetyChecker(librainian: LiBrainian): RefactoringSafetyChecker {
+  return new RefactoringSafetyChecker(librainian);
 }

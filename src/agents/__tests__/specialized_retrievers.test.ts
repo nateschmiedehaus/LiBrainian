@@ -4,7 +4,7 @@ import {
   createVectorRetriever,
   createLSPRetriever,
 } from '../specialized_retrievers.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type {
   RetrieverAgent,
   GraphRetriever,
@@ -53,13 +53,13 @@ describe('GraphRetriever', () => {
 
     it('isReady returns true after initialization', async () => {
       const retriever = createGraphRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
       expect(retriever.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const retriever = createGraphRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
       await retriever.shutdown();
       expect(retriever.isReady()).toBe(false);
     });
@@ -70,7 +70,7 @@ describe('GraphRetriever', () => {
 
     beforeEach(async () => {
       retriever = createGraphRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns array of RetrievalResult', async () => {
@@ -108,7 +108,7 @@ describe('GraphRetriever', () => {
 
     beforeEach(async () => {
       retriever = createGraphRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns results for valid node ID', async () => {
@@ -134,7 +134,7 @@ describe('GraphRetriever', () => {
 
     beforeEach(async () => {
       retriever = createGraphRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns results for symbol name', async () => {
@@ -188,13 +188,13 @@ describe('VectorRetriever', () => {
 
     it('isReady returns true after initialization', async () => {
       const retriever = createVectorRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
       expect(retriever.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const retriever = createVectorRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
       await retriever.shutdown();
       expect(retriever.isReady()).toBe(false);
     });
@@ -205,7 +205,7 @@ describe('VectorRetriever', () => {
 
     beforeEach(async () => {
       retriever = createVectorRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns array of RetrievalResult', async () => {
@@ -246,7 +246,7 @@ describe('VectorRetriever', () => {
 
     beforeEach(async () => {
       retriever = createVectorRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns results for embedding vector', async () => {
@@ -275,7 +275,7 @@ describe('VectorRetriever', () => {
 
     beforeEach(async () => {
       retriever = createVectorRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns results for example code', async () => {
@@ -336,13 +336,13 @@ describe('LSPRetriever', () => {
 
     it('isReady returns true after initialization', async () => {
       const retriever = createLSPRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
       expect(retriever.isReady()).toBe(true);
     });
 
     it('isReady returns false after shutdown', async () => {
       const retriever = createLSPRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
       await retriever.shutdown();
       expect(retriever.isReady()).toBe(false);
     });
@@ -353,7 +353,7 @@ describe('LSPRetriever', () => {
 
     beforeEach(async () => {
       retriever = createLSPRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns array of RetrievalResult', async () => {
@@ -391,7 +391,7 @@ describe('LSPRetriever', () => {
 
     beforeEach(async () => {
       retriever = createLSPRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns results for valid symbol and file', async () => {
@@ -417,7 +417,7 @@ describe('LSPRetriever', () => {
 
     beforeEach(async () => {
       retriever = createLSPRetriever();
-      await retriever.initialize({} as LibrarianStorage);
+      await retriever.initialize({} as LiBrainianStorage);
     });
 
     it('returns results for valid symbol and file', async () => {
@@ -497,9 +497,9 @@ describe('Specialized Retrievers Integration', () => {
       const lspRetriever = createLSPRetriever();
 
       await Promise.all([
-        graphRetriever.initialize({} as LibrarianStorage),
-        vectorRetriever.initialize({} as LibrarianStorage),
-        lspRetriever.initialize({} as LibrarianStorage),
+        graphRetriever.initialize({} as LiBrainianStorage),
+        vectorRetriever.initialize({} as LiBrainianStorage),
+        lspRetriever.initialize({} as LiBrainianStorage),
       ]);
 
       const [graphResults, vectorResults, lspResults] = await Promise.all([

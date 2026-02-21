@@ -1,5 +1,5 @@
 /**
- * @fileoverview Evaluation Module for Librarian
+ * @fileoverview Evaluation Module for LiBrainian
  *
  * Provides systematic evaluation capabilities:
  * - Retrieval quality metrics (precision, recall, F1, nDCG, MRR, MAP)
@@ -665,7 +665,7 @@ export {
 
 export {
   // Types
-  type LibrarianEvalCase,
+  type LiBrainianEvalCase,
   type RetrievalClaimVerdict,
   type FaithfulnessSplitResult,
   type AnswerRelevancySplitResult,

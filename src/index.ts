@@ -1,23 +1,23 @@
 /**
- * @fileoverview Librarian Agent Swarm - Packageable Knowledge Indexing System
+ * @fileoverview LiBrainian Agent Swarm - Packageable Knowledge Indexing System
  *
- * This module provides a complete, self-contained librarian system that:
+ * This module provides a complete, self-contained librainian system that:
  * 1. MUST run to completion before any agent work in new projects
- * 2. Detects and upgrades older librarian work automatically
+ * 2. Detects and upgrades older librainian work automatically
  * 3. Is designed as a standalone API for use in any project
  *
  * ## Quick Start
  *
  * ```typescript
- * import { createLibrarian } from 'librainian';
+ * import { createLiBrainian } from 'librainian';
  *
- * // Initialize librarian (blocks until ready)
- * const librarian = await createLibrarian({
+ * // Initialize librainian (blocks until ready)
+ * const librainian = await createLiBrainian({
  *   workspace: '/path/to/project',
  * });
  *
  * // Query for context
- * const context = await librarian.query({
+ * const context = await librainian.query({
  *   intent: 'How does authentication work?',
  *   depth: 'L1',
  * });
@@ -32,7 +32,7 @@
  * await preOrchestrationHook(workspace);
  *
  * // When assembling task context:
- * const librarianContext = await enrichTaskContext(workspace, {
+ * const librainianContext = await enrichTaskContext(workspace, {
  *   intent: task.description,
  *   affectedFiles: task.fileHints,
  * });
@@ -49,11 +49,11 @@
 // PRIMARY ENTRY POINT - USE THIS
 // ============================================================================
 //
-// The recommended way to use Librarian is through the unified orchestrator:
+// The recommended way to use LiBrainian is through the unified orchestrator:
 //
-//   import { initializeLibrarian } from 'librainian';
+//   import { initializeLiBrainian } from 'librainian';
 //
-//   const session = await initializeLibrarian(workspace);
+//   const session = await initializeLiBrainian(workspace);
 //   const context = await session.query('How does auth work?');
 //   await session.recordOutcome({ success: true, packIds: context.packIds });
 //
@@ -65,14 +65,14 @@
 // - Simple session interface
 //
 export {
-  initializeLibrarian,
+  initializeLiBrainian,
   hasSession,
   getSession,
   shutdownAllSessions,
   getActiveSessionCount,
 } from './orchestrator/index.js';
 export type {
-  LibrarianSession,
+  LiBrainianSession,
   TaskResult,
   HealthReport,
   Context,
@@ -84,14 +84,14 @@ export type {
 // LOWER-LEVEL APIs (for advanced use cases)
 // ============================================================================
 
-// Core librarian interface
-export { Librarian, createLibrarian, createLibrarianSync } from './api/librarian.js';
-export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './api/librarian.js';
+// Core librainian interface
+export { LiBrainian, createLiBrainian, createLiBrainianSync } from './api/librainian.js';
+export type { LiBrainianConfig, LiBrainianStatus, LiBrainianDependencyOverrides } from './api/librainian.js';
 
 // Query interface
 export {
-  queryLibrarian,
-  queryLibrarianWithObserver,
+  queryLiBrainian,
+  queryLiBrainianWithObserver,
   getQueryPipelineDefinition,
   getQueryPipelineStages,
   createFunctionQuery,
@@ -204,7 +204,7 @@ export {
 
 // Version and upgrade interface
 export {
-  detectLibrarianVersion,
+  detectLiBrainianVersion,
   upgradeRequired,
   runUpgrade,
   compareVersions,
@@ -214,7 +214,7 @@ export {
 export type { UpgradeReport } from './api/versioning.js';
 
 // Storage interface (for custom backends)
-export type { LibrarianStorage, StorageBackend, StorageCapabilities, StorageStats } from './storage/types.js';
+export type { LiBrainianStorage, StorageBackend, StorageCapabilities, StorageStats } from './storage/types.js';
 export { createSqliteStorage, createStorageFromBackend } from './storage/sqlite_storage.js';
 
 // Tiered Bootstrap (progressive initialization for fast startup)
@@ -237,11 +237,11 @@ export type {
 
 // Extension points
 export type {
-  LibrarianAgent as IndexingLibrarianAgent,
+  LiBrainianAgent as IndexingLiBrainianAgent,
   AgentCapability,
   IndexingAgent,
 } from './agents/types.js';
-export { IndexLibrarian, createIndexLibrarian } from './agents/index_librarian.js';
+export { IndexLiBrainian, createIndexLiBrainian } from './agents/index_librainian.js';
 export {
   clearDefaultLlmServiceFactory,
   createDefaultLlmServiceAdapter,
@@ -264,12 +264,12 @@ export { clearModelPolicyProvider, registerModelPolicyProvider } from './adapter
 export type { ModelPolicyProvider, RegisterModelPolicyProviderOptions } from './adapters/model_policy.js';
 
 // Events
-export type { LibrarianEvent, LibrarianEventHandler } from './events.js';
+export type { LiBrainianEvent, LiBrainianEventHandler } from './events.js';
 export {
-  LibrarianEventBus,
+  LiBrainianEventBus,
   globalEventBus,
-  onLibrarianEvent,
-  onceLibrarianEvent,
+  onLiBrainianEvent,
+  onceLiBrainianEvent,
   // Event factory functions
   createBootstrapStartedEvent,
   createBootstrapPhaseCompleteEvent,
@@ -290,12 +290,12 @@ export {
 
 // Integration (Wave0 + standalone)
 export {
-  ensureLibrarianReady,
-  isLibrarianReady,
-  getLibrarian,
+  ensureLiBrainianReady,
+  isLiBrainianReady,
+  getLiBrainian,
   resetGate,
-  createLibrarianPreTaskHook,
-  withLibrarian,
+  createLiBrainianPreTaskHook,
+  withLiBrainian,
 } from './integration/first_run_gate.js';
 export type { FirstRunGateOptions, FirstRunGateResult } from './integration/first_run_gate.js';
 
@@ -303,12 +303,12 @@ export {
   preOrchestrationHook,
   postOrchestrationHook,
   enrichTaskContext,
-  formatLibrarianContext,
+  formatLiBrainianContext,
   recordTaskOutcome,
   notifyFileChange,
   notifyFileChanges,
 } from './integration/wave0_integration.js';
-export type { LibrarianContext } from './integration/wave0_integration.js';
+export type { LiBrainianContext } from './integration/wave0_integration.js';
 export { startFileWatcher, stopFileWatcher } from './integration/file_watcher.js';
 export type { FileWatcherHandle, FileWatcherOptions } from './integration/file_watcher.js';
 export {
@@ -582,7 +582,7 @@ export {
   resetRecoveryState,
   generateStateReport,
   exportPrometheusMetrics,
-  isLibrarianStateReport,
+  isLiBrainianStateReport,
   SLO_THRESHOLDS,
 } from './measurement/index.js';
 export type {
@@ -608,8 +608,8 @@ export type {
   ConfidenceState,
   QueryPerformance,
   RecoveryState,
-  LibrarianStateReport,
-  LibrarianHealth,
+  LiBrainianStateReport,
+  LiBrainianHealth,
 } from './measurement/index.js';
 
 // Integration Layer (CONTROL_LOOP.md)
@@ -702,14 +702,14 @@ export type {
 
 // Engine toolkit
 export {
-  LibrarianEngineToolkit,
-  createLibrarianEngineToolkit,
+  LiBrainianEngineToolkit,
+  createLiBrainianEngineToolkit,
   RelevanceEngine,
   ConstraintEngine,
   MetaKnowledgeEngine,
 } from './engines/index.js';
 export type {
-  LibrarianAgent,
+  LiBrainianAgent,
   AgentQuestion,
   AgentAction,
   AgentAnswer,
@@ -740,7 +740,7 @@ export type { FullModeAnalysisConfig, FullModeTddConfig } from './config/index.j
 // Types (re-export from types.ts)
 // Note: QualityTier is defined in this file based on QUALITY_TIERS constant
 export type {
-  LibrarianVersion,
+  LiBrainianVersion,
   FunctionKnowledge,
   ModuleKnowledge,
   ContextPack,
@@ -753,15 +753,15 @@ export type {
   BootstrapConfig,
   BootstrapPhase,
   BootstrapReport,
-  LibrarianQuery,
+  LiBrainianQuery,
   QueryIntentType,
   QueryResultContract,
   UnderstandQueryResultContract,
   ImpactQueryResultContract,
   QueryRelevantFile,
-  LibrarianResponse,
-  LibrarianMetadata,
-  LibrarianEventType,
+  LiBrainianResponse,
+  LiBrainianMetadata,
+  LiBrainianEventType,
   UncertaintyMetrics,
   LlmRequirement,
   LlmRequired,
@@ -801,7 +801,7 @@ export {
 // ============================================================================
 
 /**
- * Current librarian schema version.
+ * Current librainian schema version.
  * Increment MAJOR for breaking changes requiring full re-index.
  * Increment MINOR for backward-compatible additions.
  * Increment PATCH for bug fixes.
@@ -859,7 +859,7 @@ export const VERSION_HISTORY = [
 // ============================================================================
 
 /**
- * Quality tiers for librarian output.
+ * Quality tiers for librainian output.
  * Higher tiers automatically supersede lower tiers.
  */
 export const QUALITY_TIERS = {

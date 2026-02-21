@@ -12,14 +12,14 @@
  */
 
 import type { Defeater, DefeaterType, KnowledgeMeta } from './universal_types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 export interface DefeaterCheckContext {
   entityId: string;
   filePath?: string;
   currentContentHash?: string;
   storedContentHash?: string;
-  storage?: LibrarianStorage;
+  storage?: LiBrainianStorage;
   workspaceRoot?: string;
 }
 

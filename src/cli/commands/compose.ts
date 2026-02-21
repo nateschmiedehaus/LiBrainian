@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { LiBrainian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librainian.js';
 import { createError } from '../errors.js';
 import { composeConstructions } from '../../constructions/lego_pipeline.js';
 
@@ -54,7 +54,7 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
 
   const intent = positionals.join(' ');
   if (!intent) {
-    throw createError('INVALID_ARGUMENT', 'Compose intent is required. Usage: librarian compose "<intent>"');
+    throw createError('INVALID_ARGUMENT', 'Compose intent is required. Usage: librainian compose "<intent>"');
   }
 
   const includePrimitives = values['include-primitives'] as boolean;
@@ -81,7 +81,7 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
   const timeoutMs = parsedTimeoutMs;
   const verbose = values.verbose as boolean;
 
-  const librarian = new LiBrainian({
+  const librainian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
@@ -99,7 +99,7 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
     if (verbose) {
       console.error('[compose] init:start');
     }
-    await withTimeout(librarian.initialize(), timeoutMs, 'initialization');
+    await withTimeout(librainian.initialize(), timeoutMs, 'initialization');
     if (verbose) {
       console.error('[compose] init:done');
     }
@@ -110,12 +110,12 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
     }
 
     const outputPayload = mode === 'constructions'
-      ? await withTimeout(composeConstructions(librarian, intent), timeoutMs, 'compose execution')
+      ? await withTimeout(composeConstructions(librainian, intent), timeoutMs, 'compose execution')
       : {
           mode: 'techniques',
           intent,
           bundles: await withTimeout(
-            librarian.compileTechniqueBundlesFromIntent(intent, {
+            librainian.compileTechniqueBundlesFromIntent(intent, {
               limit,
               includePrimitives,
             }),
@@ -134,7 +134,7 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
   } finally {
     clearInterval(progressHandle);
     try {
-      await librarian.shutdown();
+      await librainian.shutdown();
       if (verbose) {
         console.error('[compose] shutdown:done');
       }

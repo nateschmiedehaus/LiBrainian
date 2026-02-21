@@ -3,10 +3,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { generateContextPacks } from '../packs.js';
-import type { ContextPack, FunctionKnowledge, LibrarianVersion } from '../../types.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { ContextPack, FunctionKnowledge, LiBrainianVersion } from '../../types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
-const baseVersion: LibrarianVersion = {
+const baseVersion: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -69,7 +69,7 @@ describe('function pack parent context', () => {
       upsertContextPack: async (pack: ContextPack) => {
         capturedPacks.push(pack);
       },
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const created = await generateContextPacks(storage, {
       functions: [fn],

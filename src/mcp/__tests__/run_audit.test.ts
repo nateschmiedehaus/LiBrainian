@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 describe('MCP run_audit implementation', () => {
   it('returns actionable security findings for hardcoded secret patterns', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -34,7 +34,7 @@ describe('MCP run_audit implementation', () => {
   });
 
   it('reports skipped-file coverage gaps from last indexing result', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
@@ -63,11 +63,11 @@ describe('MCP run_audit implementation', () => {
   });
 
   it('identifies file-level freshness drift when files changed after indexing', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-run-audit-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-run-audit-'));
     const changedFile = path.join(workspace, 'changed.ts');
     await fs.writeFile(changedFile, 'export const changed = true;\n', 'utf8');
 
@@ -94,10 +94,10 @@ describe('MCP run_audit implementation', () => {
   });
 
   it('includes stale evidence metrics and emits EVIDENCE.md when report generation is requested', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-run-audit-evidence-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-run-audit-evidence-'));
     try {
       server.registerWorkspace(workspace);
       server.updateWorkspaceState(workspace, { indexState: 'ready' });
@@ -112,7 +112,7 @@ describe('MCP run_audit implementation', () => {
           oldestUnverifiedAt: '2026-02-18T12:00:00.000Z',
           verifiedAt: '2026-02-19T12:00:00.000Z',
         }),
-        exportEvidenceMarkdown: vi.fn().mockResolvedValue(path.join(workspace, 'state', 'audits', 'librarian', 'EVIDENCE.md')),
+        exportEvidenceMarkdown: vi.fn().mockResolvedValue(path.join(workspace, 'state', 'audits', 'librainian', 'EVIDENCE.md')),
       });
 
       const result = await (server as any).executeRunAudit({

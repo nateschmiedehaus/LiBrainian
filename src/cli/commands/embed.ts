@@ -1,7 +1,7 @@
 /**
  * @fileoverview Embed command - backfill semantic embeddings.
  *
- * Usage: librarian embed --fix [--json]
+ * Usage: librainian embed --fix [--json]
  */
 
 import { parseArgs } from 'node:util';
@@ -42,7 +42,7 @@ export async function embedCommand(options: EmbedCommandOptions): Promise<void> 
   if (!fix) {
     throw createError(
       'INVALID_ARGUMENT',
-      'Embed command requires --fix. Run `librarian embed --fix` to backfill embeddings.'
+      'Embed command requires --fix. Run `librainian embed --fix` to backfill embeddings.'
     );
   }
 
@@ -62,7 +62,7 @@ export async function embedCommand(options: EmbedCommandOptions): Promise<void> 
   if (!providers.embedding.available) {
     throw createError(
       'PROVIDER_UNAVAILABLE',
-      `Embedding provider unavailable: ${providers.embedding.error ?? 'unknown error'}. Run \`librarian check-providers\`.`,
+      `Embedding provider unavailable: ${providers.embedding.error ?? 'unknown error'}. Run \`librainian check-providers\`.`,
       {
         embeddingProvider: providers.embedding.provider,
       }

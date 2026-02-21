@@ -1,5 +1,5 @@
 /**
- * @fileoverview Librarian Configuration Presets
+ * @fileoverview LiBrainian Configuration Presets
  *
  * Configuration presets for different use cases:
  * - `full_mode`: Maximum capability, all features enabled

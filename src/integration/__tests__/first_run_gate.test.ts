@@ -9,8 +9,8 @@ import { tmpdir } from 'os';
 
 let capturedConfig: Record<string, unknown> | null = null;
 
-vi.mock('../../api/librarian.js', () => ({
-  createLibrarian: vi.fn(async (config: Record<string, unknown>) => {
+vi.mock('../../api/librainian.js', () => ({
+  createLiBrainian: vi.fn(async (config: Record<string, unknown>) => {
     capturedConfig = config;
     return {
       isReady: () => true,
@@ -18,7 +18,7 @@ vi.mock('../../api/librarian.js', () => ({
       shutdown: async () => undefined,
     };
   }),
-  Librarian: class {},
+  LiBrainian: class {},
 }));
 
 vi.mock('../../api/provider_gate.js', () => ({
@@ -46,16 +46,16 @@ vi.mock('../workspace_lock.js', () => ({
 
 vi.mock('../../api/reporting.js', () => ({
   createKnowledgeCoverageReport: vi.fn(() => ({})),
-  createLibrarianRunReport: vi.fn(() => ({})),
+  createLiBrainianRunReport: vi.fn(() => ({})),
   readLatestGovernorBudgetReport: vi.fn(() => null),
   writeKnowledgeCoverageReport: vi.fn(async () => undefined),
-  writeLibrarianRunReport: vi.fn(async () => undefined),
+  writeLiBrainianRunReport: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../observability/librarian_traces.js', () => ({
-  createLibrarianTraceContext: vi.fn(() => ({ traceId: 'trace-1' })),
-  getLibrarianTraceRefs: vi.fn(() => []),
-  recordLibrarianTrace: vi.fn(),
+vi.mock('../../observability/librainian_traces.js', () => ({
+  createLiBrainianTraceContext: vi.fn(() => ({ traceId: 'trace-1' })),
+  getLiBrainianTraceRefs: vi.fn(() => []),
+  recordLiBrainianTrace: vi.fn(),
 }));
 
 vi.mock('../../events.js', () => ({
@@ -115,7 +115,7 @@ describe('first_run_gate degraded mode', () => {
       packageManager: 'npm',
       packages: ['tree-sitter-kotlin'],
     });
-    workspace = path.join(tmpdir(), `librarian-gate-test-${Date.now()}`);
+    workspace = path.join(tmpdir(), `librainian-gate-test-${Date.now()}`);
     await fs.mkdir(workspace, { recursive: true });
   });
 
@@ -128,8 +128,8 @@ describe('first_run_gate degraded mode', () => {
   });
 
   it('continues when LLM unavailable but embeddings are ready', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
-    const result = await ensureLibrarianReady(workspace, { throwOnFailure: true });
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
+    const result = await ensureLiBrainianReady(workspace, { throwOnFailure: true });
 
     expect(result.success).toBe(true);
     expect(capturedConfig).toBeTruthy();
@@ -138,7 +138,7 @@ describe('first_run_gate degraded mode', () => {
   });
 
   it('forces skipLlm when requested even if providers are available', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
 
     const providerGate = async () => ({
       ready: true,
@@ -160,7 +160,7 @@ describe('first_run_gate degraded mode', () => {
       bypassed: false,
     });
 
-    const result = await ensureLibrarianReady(workspace, {
+    const result = await ensureLiBrainianReady(workspace, {
       throwOnFailure: true,
       providerGate,
       skipLlm: true,
@@ -173,7 +173,7 @@ describe('first_run_gate degraded mode', () => {
   });
 
   it('continues when embeddings are unavailable if degraded mode is allowed', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
 
     const providerGate = async () => ({
       ready: false,
@@ -196,7 +196,7 @@ describe('first_run_gate degraded mode', () => {
       bypassed: false,
     });
 
-    const result = await ensureLibrarianReady(workspace, {
+    const result = await ensureLiBrainianReady(workspace, {
       throwOnFailure: true,
       allowDegradedEmbeddings: true,
       providerGate,
@@ -208,7 +208,7 @@ describe('first_run_gate degraded mode', () => {
   });
 
   it('defaults to degraded mode when embeddings are unavailable', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
 
     const providerGate = async () => ({
       ready: false,
@@ -231,7 +231,7 @@ describe('first_run_gate degraded mode', () => {
       bypassed: false,
     });
 
-    const result = await ensureLibrarianReady(workspace, {
+    const result = await ensureLiBrainianReady(workspace, {
       throwOnFailure: true,
       providerGate,
     });
@@ -242,7 +242,7 @@ describe('first_run_gate degraded mode', () => {
   });
 
   it('auto-detects workspace root when invoked from a subdirectory', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
     const rootMarker = path.join(workspace, 'package.json');
     await fs.writeFile(rootMarker, '{}');
     await fs.mkdir(path.join(workspace, 'src'), { recursive: true });
@@ -250,7 +250,7 @@ describe('first_run_gate degraded mode', () => {
     const subdir = path.join(workspace, 'docs');
     await fs.mkdir(subdir, { recursive: true });
 
-    const result = await ensureLibrarianReady(subdir, { throwOnFailure: true });
+    const result = await ensureLiBrainianReady(subdir, { throwOnFailure: true });
 
     expect(result.success).toBe(true);
     expect(capturedConfig).toBeTruthy();
@@ -258,8 +258,8 @@ describe('first_run_gate degraded mode', () => {
   });
 
   it('auto-installs missing grammars when enabled', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
-    const result = await ensureLibrarianReady(workspace, { throwOnFailure: true, autoInstallGrammars: true });
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
+    const result = await ensureLiBrainianReady(workspace, { throwOnFailure: true, autoInstallGrammars: true });
 
     expect(result.success).toBe(true);
     expect(installMissingGrammarsMock).toHaveBeenCalled();
@@ -273,18 +273,18 @@ describe('first_run_gate degraded mode', () => {
       packages: ['tree-sitter-kotlin'],
       error: 'network failure',
     });
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
 
-    await expect(ensureLibrarianReady(workspace, {
+    await expect(ensureLiBrainianReady(workspace, {
       throwOnFailure: true,
       autoInstallGrammars: true,
       requireCompleteParserCoverage: true,
     })).rejects.toThrow(/parser_coverage_incomplete/);
   });
 
-  it('re-initializes when cached librarian instance is no longer ready', async () => {
-    const { ensureLibrarianReady } = await import('../first_run_gate.js');
-    const { createLibrarian } = await import('../../api/librarian.js');
+  it('re-initializes when cached librainian instance is no longer ready', async () => {
+    const { ensureLiBrainianReady } = await import('../first_run_gate.js');
+    const { createLiBrainian } = await import('../../api/librainian.js');
 
     let firstReady = true;
     const firstInstance = {
@@ -298,20 +298,20 @@ describe('first_run_gate degraded mode', () => {
       shutdown: async () => undefined,
     };
 
-    vi.mocked(createLibrarian)
+    vi.mocked(createLiBrainian)
       .mockReset()
       .mockResolvedValueOnce(firstInstance as any)
       .mockResolvedValueOnce(secondInstance as any);
 
-    const first = await ensureLibrarianReady(workspace, { throwOnFailure: true });
+    const first = await ensureLiBrainianReady(workspace, { throwOnFailure: true });
     expect(first.success).toBe(true);
-    expect(first.librarian).toBeTruthy();
+    expect(first.librainian).toBeTruthy();
 
-    await first.librarian?.shutdown();
+    await first.librainian?.shutdown();
 
-    const second = await ensureLibrarianReady(workspace, { throwOnFailure: true });
+    const second = await ensureLiBrainianReady(workspace, { throwOnFailure: true });
     expect(second.success).toBe(true);
-    expect(second.librarian).toBe(secondInstance);
-    expect(createLibrarian).toHaveBeenCalledTimes(2);
+    expect(second.librainian).toBe(secondInstance);
+    expect(createLiBrainian).toHaveBeenCalledTimes(2);
   });
 });

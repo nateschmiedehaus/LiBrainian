@@ -1,15 +1,15 @@
 /**
- * @fileoverview Unified Librarian Orchestrator Module
+ * @fileoverview Unified LiBrainian Orchestrator Module
  *
- * This module provides the PRIMARY entry point for AI agents to use Librarian.
+ * This module provides the PRIMARY entry point for AI agents to use LiBrainian.
  * A single function call sets up everything needed for optimal codebase understanding.
  *
  * @example
  * ```typescript
- * import { initializeLibrarian } from 'librarian/orchestrator';
+ * import { initializeLiBrainian } from 'librainian/orchestrator';
  *
  * // One function call does everything
- * const session = await initializeLibrarian('/path/to/workspace');
+ * const session = await initializeLiBrainian('/path/to/workspace');
  *
  * // Query the codebase
  * const context = await session.query('How does authentication work?');
@@ -26,7 +26,7 @@
 
 export {
   // Main entry point
-  initializeLibrarian,
+  initializeLiBrainian,
 
   // Session management
   hasSession,
@@ -35,7 +35,7 @@ export {
   getActiveSessionCount,
 
   // Types
-  type LibrarianSession,
+  type LiBrainianSession,
   type TaskResult,
   type HealthReport,
   type Context,

@@ -8,7 +8,7 @@ import { TAXONOMY_ITEMS, type TaxonomyItem, type TaxonomySource } from './taxono
 import { noResult } from './empty_values.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 import type { BootstrapReport, OnboardingBaseline } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { checkProviderSnapshot } from './provider_check.js';
 import { generateStateReport } from '../measurement/observability.js';
 import { createSymbolStorage } from '../storage/symbol_storage.js';
@@ -16,11 +16,11 @@ import { getErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
 export type ProviderName = 'claude' | 'codex';
 export interface ProviderStatusReportV1 { kind: 'ProviderStatusReport.v1'; schema_version: 1; created_at: string; canon: Awaited<ReturnType<typeof computeCanonRef>>; environment: ReturnType<typeof computeEnvironmentRef>; workspace: string; ready: boolean; reason?: string; providers: ProviderGateStatus[]; embedding?: EmbeddingGateStatus; llm_ready?: boolean; embedding_ready?: boolean; remediation_steps: string[]; fallback_chain: ProviderName[]; selected_provider: ProviderName | null; last_successful_provider: ProviderName | null; bypassed: boolean; guidance?: string[]; trace_refs: string[]; }
-export interface LibrarianRunReportV1 { kind: 'LibrarianRunReport.v1'; schema_version: 1; run_id: string; started_at: string; completed_at: string; outcome: 'success' | 'failure'; files_processed: number; functions_indexed: number; packs_created: number; governor_budget_used: number; governor_budget_limit: number; errors: Array<{ file: string; error: string }>; trace_refs: string[]; }
+export interface LiBrainianRunReportV1 { kind: 'LiBrainianRunReport.v1'; schema_version: 1; run_id: string; started_at: string; completed_at: string; outcome: 'success' | 'failure'; files_processed: number; functions_indexed: number; packs_created: number; governor_budget_used: number; governor_budget_limit: number; errors: Array<{ file: string; error: string }>; trace_refs: string[]; }
 export interface KnowledgeCoverageReportV1 { kind: 'KnowledgeCoverageReport.v1'; schema_version: 1; created_at: string; workspace: string; items_covered: number; items_by_source: Record<TaxonomySource, number>; coverage_percentage: number; gaps: TaxonomyItem[]; trace_refs: string[]; }
 export interface TrajectoryAnalysisReportV1 { kind: 'TrajectoryAnalysisReport.v1'; schema_version: 1; created_at: string; workspace: string; task_id: string; violations: GuessViolation[]; recommendations: string[]; trace_refs: string[]; }
-const resolveLibrarianAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librarian');
-const resolveProviderAuditDir = (workspaceRoot: string): string => path.join(resolveLibrarianAuditDir(workspaceRoot), 'provider');
+const resolveLiBrainianAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librainian');
+const resolveProviderAuditDir = (workspaceRoot: string): string => path.join(resolveLiBrainianAuditDir(workspaceRoot), 'provider');
 const resolveLastSuccessPath = (workspaceRoot: string): string => path.join(resolveProviderAuditDir(workspaceRoot), 'last_successful_provider.json');
 export async function readLastSuccessfulProvider(workspaceRoot: string): Promise<ProviderName | null> {
   try {
@@ -75,7 +75,7 @@ export async function writeProviderStatusReport(workspaceRoot: string, report: P
   return reportPath;
 }
 export async function readLatestGovernorBudgetReport(workspaceRoot: string): Promise<GovernorBudgetReportV1 | null> {
-  const base = path.join(resolveLibrarianAuditDir(workspaceRoot), 'governor');
+  const base = path.join(resolveLiBrainianAuditDir(workspaceRoot), 'governor');
   try {
     const entries = await fs.readdir(base, { withFileTypes: true });
     const dirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
@@ -88,7 +88,7 @@ export async function readLatestGovernorBudgetReport(workspaceRoot: string): Pro
     return noResult();
   }
 }
-export function createLibrarianRunReport(input: {
+export function createLiBrainianRunReport(input: {
   runId: string;
   startedAt: Date;
   completedAt: Date;
@@ -100,9 +100,9 @@ export function createLibrarianRunReport(input: {
   governorBudgetLimit: number;
   errors: Array<{ file: string; error: string }>;
   traceRefs: string[];
-}): LibrarianRunReportV1 {
+}): LiBrainianRunReportV1 {
   return {
-    kind: 'LibrarianRunReport.v1',
+    kind: 'LiBrainianRunReport.v1',
     schema_version: 1,
     run_id: input.runId,
     started_at: input.startedAt.toISOString(),
@@ -117,11 +117,11 @@ export function createLibrarianRunReport(input: {
     trace_refs: input.traceRefs,
   };
 }
-export async function writeLibrarianRunReport(workspaceRoot: string, report: LibrarianRunReportV1): Promise<string> {
+export async function writeLiBrainianRunReport(workspaceRoot: string, report: LiBrainianRunReportV1): Promise<string> {
   const timestamp = report.completed_at.replace(/[:.]/g, '-');
-  const dir = path.join(resolveLibrarianAuditDir(workspaceRoot), 'runs', timestamp);
+  const dir = path.join(resolveLiBrainianAuditDir(workspaceRoot), 'runs', timestamp);
   await fs.mkdir(dir, { recursive: true });
-  const reportPath = path.join(dir, 'LibrarianRunReport.v1.json');
+  const reportPath = path.join(dir, 'LiBrainianRunReport.v1.json');
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
   return reportPath;
 }
@@ -153,7 +153,7 @@ export function createKnowledgeCoverageReport(input: {
 }
 export async function writeKnowledgeCoverageReport(workspaceRoot: string, report: KnowledgeCoverageReportV1): Promise<string> {
   const timestamp = report.created_at.replace(/[:.]/g, '-');
-  const dir = path.join(resolveLibrarianAuditDir(workspaceRoot), 'coverage', timestamp);
+  const dir = path.join(resolveLiBrainianAuditDir(workspaceRoot), 'coverage', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'KnowledgeCoverageReport.v1.json');
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
@@ -163,7 +163,7 @@ export function createTrajectoryAnalysisReport(input: { workspace: string; taskI
   return { kind: 'TrajectoryAnalysisReport.v1', schema_version: 1, created_at: new Date().toISOString(), workspace: input.workspace, task_id: input.taskId, violations: input.violations, recommendations: input.recommendations, trace_refs: input.traceRefs ?? [] };
 }
 export async function writeTrajectoryAnalysisReport(workspaceRoot: string, report: TrajectoryAnalysisReportV1): Promise<string> {
-  const timestamp = report.created_at.replace(/[:.]/g, '-'); const dir = path.join(resolveLibrarianAuditDir(workspaceRoot), 'trajectory', timestamp);
+  const timestamp = report.created_at.replace(/[:.]/g, '-'); const dir = path.join(resolveLiBrainianAuditDir(workspaceRoot), 'trajectory', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'TrajectoryAnalysisReport.v1.json'); await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8'); return reportPath;
 }
@@ -184,7 +184,7 @@ async function resolveClassCount(workspaceRoot: string): Promise<number> {
     await storage.close();
     return stats.byKind.class ?? 0;
   } catch (error) {
-    logWarning('[librarian] Failed to load symbol storage stats', {
+    logWarning('[librainian] Failed to load symbol storage stats', {
       workspace: workspaceRoot,
       error: getErrorMessage(error),
     });
@@ -192,7 +192,7 @@ async function resolveClassCount(workspaceRoot: string): Promise<number> {
   }
 }
 
-async function resolveOwnershipGaps(storage: LibrarianStorage, filesIndexed: number): Promise<number> {
+async function resolveOwnershipGaps(storage: LiBrainianStorage, filesIndexed: number): Promise<number> {
   try {
     const ownerships = await storage.getOwnerships();
     const ownedFiles = new Set(ownerships.map((ownership) => ownership.filePath));
@@ -205,7 +205,7 @@ async function resolveOwnershipGaps(storage: LibrarianStorage, filesIndexed: num
 export async function createOnboardingBaseline(input: {
   workspaceRoot: string;
   report: BootstrapReport;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
 }): Promise<OnboardingBaseline> {
   const capturedAt = new Date().toISOString();
   const completedAt = input.report.completedAt ?? new Date();
@@ -264,7 +264,7 @@ export async function createOnboardingBaseline(input: {
 
 export async function writeOnboardingBaseline(workspaceRoot: string, baseline: OnboardingBaseline): Promise<string> {
   const timestamp = baseline.capturedAt.replace(/[:.]/g, '-');
-  const dir = path.join(resolveLibrarianAuditDir(workspaceRoot), 'baselines', timestamp);
+  const dir = path.join(resolveLiBrainianAuditDir(workspaceRoot), 'baselines', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'OnboardingBaseline.v1.json');
   await fs.writeFile(reportPath, JSON.stringify(baseline, null, 2) + '\n', 'utf8');

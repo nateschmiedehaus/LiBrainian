@@ -75,7 +75,7 @@ export function computeGraphMetrics(
 
 export async function writeGraphMetricsReport(workspaceRoot: string, report: GraphMetricsReportV1): Promise<string> {
   const timestamp = report.computed_at.replace(/[:.]/g, '-');
-  const dir = path.join(workspaceRoot, 'state', 'audits', 'librarian', 'graphs', timestamp);
+  const dir = path.join(workspaceRoot, 'state', 'audits', 'librainian', 'graphs', timestamp);
   await fs.mkdir(dir, { recursive: true });
   const reportPath = path.join(dir, 'GraphMetricsReport.v1.json');
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');

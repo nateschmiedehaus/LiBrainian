@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 
 describe('benchmark-memory-per-kloc script', () => {
   it('counts LOC for non-TypeScript files and emits benchmark counters', async () => {
-    const workspace = await mkdtemp(path.join(tmpdir(), 'librarian-benchmark-script-'));
+    const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-benchmark-script-'));
     const srcDir = path.join(workspace, 'src');
     await mkdir(srcDir, { recursive: true });
     await writeFile(path.join(srcDir, 'main.ts'), 'const a = 1;\nexport const b = a + 1;', 'utf8');

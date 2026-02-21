@@ -4,7 +4,7 @@
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
  * The Package Existence Verifier validates that npm/PyPI/crates.io package
- * citations in Librarian output actually exist in their respective registries.
+ * citations in LiBrainian output actually exist in their respective registries.
  * This prevents hallucinated package recommendations.
  *
  * @packageDocumentation

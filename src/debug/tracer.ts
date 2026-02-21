@@ -1,7 +1,7 @@
 /**
- * @fileoverview Unified Debugging/Tracing for the Librarian system (G10)
+ * @fileoverview Unified Debugging/Tracing for the LiBrainian system (G10)
  *
- * Provides distributed tracing capabilities for debugging librarian operations.
+ * Provides distributed tracing capabilities for debugging librainian operations.
  * Spans can be nested to track hierarchical operations like:
  * - Query execution with sub-spans for embedding, search, ranking
  * - Bootstrap phases with sub-spans for each indexing step
@@ -61,19 +61,19 @@ export interface ExportedTrace {
 // ============================================================================
 
 /**
- * LibrarianTracer provides distributed tracing for debugging librarian operations.
+ * LiBrainianTracer provides distributed tracing for debugging librainian operations.
  *
  * Usage:
  * ```typescript
- * const tracer = new LibrarianTracer();
- * const spanId = tracer.startSpan('queryLibrarian');
+ * const tracer = new LiBrainianTracer();
+ * const spanId = tracer.startSpan('queryLiBrainian');
  * tracer.addEvent(spanId, 'embedding_generated', { tokens: 128 });
  * // ... do work ...
  * tracer.endSpan(spanId);
  * const traces = tracer.exportTraces();
  * ```
  */
-export class LibrarianTracer {
+export class LiBrainianTracer {
   private spans: Map<string, TraceSpan> = new Map();
   private activeSpanId: string | null = null;
   private enabled: boolean = true;
@@ -328,17 +328,17 @@ export interface TraceTree {
 // ============================================================================
 
 /**
- * Global tracer instance for the librarian system.
- * Use this for consistent tracing across all librarian operations.
+ * Global tracer instance for the librainian system.
+ * Use this for consistent tracing across all librainian operations.
  */
-export const globalTracer = new LibrarianTracer();
+export const globalTracer = new LiBrainianTracer();
 
 /**
  * Create a new tracer instance.
  * Useful for isolated testing or custom tracing scenarios.
  */
-export function createTracer(): LibrarianTracer {
-  return new LibrarianTracer();
+export function createTracer(): LiBrainianTracer {
+  return new LiBrainianTracer();
 }
 
 // ============================================================================
@@ -357,7 +357,7 @@ export function createTracer(): LibrarianTracer {
 export async function traceAsync<T>(
   name: string,
   fn: (spanId: string) => Promise<T>,
-  options?: { tracer?: LibrarianTracer; parentId?: string; attributes?: Record<string, unknown> }
+  options?: { tracer?: LiBrainianTracer; parentId?: string; attributes?: Record<string, unknown> }
 ): Promise<T> {
   const tracer = options?.tracer ?? globalTracer;
   const spanId = tracer.startSpan(name, {
@@ -391,7 +391,7 @@ export async function traceAsync<T>(
 export function traceSync<T>(
   name: string,
   fn: (spanId: string) => T,
-  options?: { tracer?: LibrarianTracer; parentId?: string; attributes?: Record<string, unknown> }
+  options?: { tracer?: LiBrainianTracer; parentId?: string; attributes?: Record<string, unknown> }
 ): T {
   const tracer = options?.tracer ?? globalTracer;
   const spanId = tracer.startSpan(name, {

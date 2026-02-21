@@ -7,7 +7,7 @@
  * Based on self-improvement-primitives.md specification (WU-SELF-205).
  */
 
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 import type { ConfidenceValue } from '../types.js';
 import {
   selfRefresh,
@@ -84,7 +84,7 @@ export interface AppliedFix {
 
 export interface FixApplicationContext {
   rootDir: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   verbose: boolean;
 }
 
@@ -143,7 +143,7 @@ export interface ContinuousImprovementOptions {
   /** Root directory of the codebase */
   rootDir: string;
   /** Storage instance */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Maximum cycles to run (0 = single cycle) */
   maxCycles?: number;
   /** Automatically apply fixes */
@@ -151,7 +151,7 @@ export interface ContinuousImprovementOptions {
   /**
    * Applies a planned fix.
    *
-   * If `autoApplyFixes` is enabled but `fixApplier` is not provided, Librarian
+   * If `autoApplyFixes` is enabled but `fixApplier` is not provided, LiBrainian
    * will fail closed and mark the apply phase as failed.
    */
   fixApplier?: FixApplier;
@@ -996,7 +996,7 @@ export async function runContinuousImprovement(
  */
 export function createContinuousImprovement(
   defaultOptions: Partial<ContinuousImprovementOptions>
-): (options: Partial<ContinuousImprovementOptions> & { rootDir: string; storage: LibrarianStorage }) => Promise<ContinuousImprovementResult> {
+): (options: Partial<ContinuousImprovementOptions> & { rootDir: string; storage: LiBrainianStorage }) => Promise<ContinuousImprovementResult> {
   return async (options) => {
     return runContinuousImprovement({
       ...defaultOptions,

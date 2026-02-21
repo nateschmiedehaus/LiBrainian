@@ -3,7 +3,7 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Quality Prediction Model predicts Librarian's expected accuracy for a given
+ * The Quality Prediction Model predicts LiBrainian's expected accuracy for a given
  * codebase profile, enabling honest quality disclosure to users.
  */
 
@@ -25,7 +25,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture
+// LiBrainian repo as the main test fixture
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 // External repos from eval-corpus for diverse testing
@@ -664,11 +664,11 @@ describe('QualityPredictionModel - Integration with CodebaseProfiler', () => {
     expect(prediction.factors.length).toBeGreaterThan(0);
   });
 
-  it('should produce reasonable predictions for Librarian', async () => {
+  it('should produce reasonable predictions for LiBrainian', async () => {
     const profile = await profiler.profile(LIBRARIAN_ROOT);
     const prediction = model.predict(profile);
 
-    // Librarian is a high-quality TypeScript project with tests, CI, etc.
+    // LiBrainian is a high-quality TypeScript project with tests, CI, etc.
     expect(prediction.retrievalAccuracy).toBeGreaterThan(0.6);
     expect(prediction.hallucinationRisk).toBeLessThan(0.5);
   });

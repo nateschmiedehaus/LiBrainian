@@ -1,4 +1,4 @@
-import type { LibrarianQuery, LibrarianResponse, ContextPack } from '../types.js';
+import type { LiBrainianQuery, LiBrainianResponse, ContextPack } from '../types.js';
 import type { EmbeddableEntityType } from '../storage/types.js';
 
 export interface SimilarMatch {
@@ -20,15 +20,15 @@ export interface SearchOptions {
 }
 
 export interface QueryInterface {
-  queryIntent(intent: string): Promise<LibrarianResponse>;
-  queryFile(path: string): Promise<LibrarianResponse>;
-  queryFunction(name: string, file: string): Promise<LibrarianResponse>;
+  queryIntent(intent: string): Promise<LiBrainianResponse>;
+  queryFile(path: string): Promise<LiBrainianResponse>;
+  queryFunction(name: string, file: string): Promise<LiBrainianResponse>;
   querySimilar(snippet: string, limit?: number): Promise<SimilarMatch[]>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
 }
 
 export interface QueryRunner {
-  query: (query: LibrarianQuery) => Promise<LibrarianResponse>;
+  query: (query: LiBrainianQuery) => Promise<LiBrainianResponse>;
   searchSimilar?: (snippet: string, limit?: number) => Promise<SimilarMatch[]>;
 }
 

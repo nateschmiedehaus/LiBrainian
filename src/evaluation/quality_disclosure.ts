@@ -1,7 +1,7 @@
 /**
  * @fileoverview Quality Disclosure System
  *
- * Ensures Librarian's responses include honest quality disclosures.
+ * Ensures LiBrainian's responses include honest quality disclosures.
  * This is the user-facing component that communicates uncertainty.
  *
  * Features:
@@ -205,7 +205,7 @@ const LOW_CONFIDENCE_TEMPLATES = {
 // ============================================================================
 
 /**
- * Generates quality disclosures for Librarian responses
+ * Generates quality disclosures for LiBrainian responses
  */
 export class QualityDisclosureGenerator {
   private config: DisclosureConfig;

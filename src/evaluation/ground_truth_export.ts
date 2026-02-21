@@ -61,7 +61,7 @@ export function exportStructuralGroundTruth(input: {
   const repoRoot = path.resolve(corpus.repoPath);
   const version = input.version ?? '1.0.0';
   const lastVerified = normalizeDate(input.lastVerified ?? corpus.generatedAt);
-  const verifiedBy = input.verifiedBy ?? 'librarian:ground_truth_generator';
+  const verifiedBy = input.verifiedBy ?? 'librainian:ground_truth_generator';
 
   const manifest: RepoManifest = {
     repoId: repoMeta.repoId,

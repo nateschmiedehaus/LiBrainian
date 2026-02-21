@@ -41,8 +41,8 @@ describe('Bootstrap Checkpoint Recovery', () => {
   let workspace: string;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-cp-'));
-    await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-cp-'));
+    await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
   });
 
   afterEach(async () => {
@@ -52,7 +52,7 @@ describe('Bootstrap Checkpoint Recovery', () => {
   describe('bootstrapCheckpointPath', () => {
     it('returns correct path', () => {
       const result = bootstrapCheckpointPath('/test/workspace');
-      expect(result).toBe('/test/workspace/.librarian/bootstrap-checkpoint.json');
+      expect(result).toBe('/test/workspace/.librainian/bootstrap-checkpoint.json');
     });
   });
 
@@ -142,8 +142,8 @@ describe('bootstrapWithRecovery', () => {
   let indexErrors: Map<string, number>;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-bwr-'));
-    await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-bwr-'));
+    await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
 
     indexedFiles = [];
     indexErrors = new Map();
@@ -345,8 +345,8 @@ describe('bootstrapSafe', () => {
   let mockStorage: any;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-bs-'));
-    await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-bs-'));
+    await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
 
     mockStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
@@ -364,7 +364,7 @@ describe('bootstrapSafe', () => {
   afterEach(async () => {
     // Clean up lock file if it exists
     try {
-      await fs.unlink(path.join(workspace, '.librarian', 'bootstrap.lock'));
+      await fs.unlink(path.join(workspace, '.librainian', 'bootstrap.lock'));
     } catch {
       // Ignore
     }
@@ -381,13 +381,13 @@ describe('bootstrapSafe', () => {
     expect(result.success).toBe(true);
 
     // Lock should be released after completion
-    const lockPath = path.join(workspace, '.librarian', 'bootstrap.lock');
+    const lockPath = path.join(workspace, '.librainian', 'bootstrap.lock');
     await expect(fs.access(lockPath)).rejects.toThrow();
   });
 
   it('fails if lock cannot be acquired', async () => {
     // Create a lock file manually
-    const lockPath = path.join(workspace, '.librarian', 'bootstrap.lock');
+    const lockPath = path.join(workspace, '.librainian', 'bootstrap.lock');
     const lockState = { pid: process.pid + 1, startedAt: new Date().toISOString() };
     await fs.writeFile(lockPath, JSON.stringify(lockState), 'utf8');
 
@@ -412,7 +412,7 @@ describe('bootstrapSafe', () => {
   });
 
   it('releases lock on error', async () => {
-    const lockPath = path.join(workspace, '.librarian', 'bootstrap.lock');
+    const lockPath = path.join(workspace, '.librainian', 'bootstrap.lock');
 
     try {
       await bootstrapSafe(workspace, mockStorage, {

@@ -31,8 +31,8 @@ import {
   type DecisionContext,
   type Precedent,
 } from '../decision_support.js';
-import type { LibrarianStorage } from '../../storage/types.js';
-import type { FunctionKnowledge, ModuleKnowledge, LibrarianVersion } from '../../types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import type { FunctionKnowledge, ModuleKnowledge, LiBrainianVersion } from '../../types.js';
 
 // ============================================================================
 // MOCK STORAGE
@@ -41,17 +41,17 @@ import type { FunctionKnowledge, ModuleKnowledge, LibrarianVersion } from '../..
 function createMockStorage(options: {
   functions?: FunctionKnowledge[];
   modules?: ModuleKnowledge[];
-} = {}): LibrarianStorage {
+} = {}): LiBrainianStorage {
   const { functions = [], modules = [] } = options;
 
   return {
     getFunctions: vi.fn().mockResolvedValue(functions),
     getModules: vi.fn().mockResolvedValue(modules),
     getGraphEdges: vi.fn().mockResolvedValue([]),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
-const mockVersion: LibrarianVersion = {
+const mockVersion: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -354,7 +354,7 @@ describe('findPrecedents', () => {
 // ============================================================================
 
 describe('identifyConstraints', () => {
-  // Use the actual librarian project as test workspace
+  // Use the actual librainian project as test workspace
   const workspaceRoot = process.cwd();
   const storage = createMockStorage();
 
@@ -763,7 +763,7 @@ describe('runDecisionSupportStage', () => {
     const brokenStorage = {
       getFunctions: vi.fn().mockRejectedValue(new Error('DB error')),
       getModules: vi.fn().mockRejectedValue(new Error('DB error')),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await runDecisionSupportStage({
       storage: brokenStorage,

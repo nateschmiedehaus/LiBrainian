@@ -2,18 +2,18 @@
  * @fileoverview Agent Feedback Loop Integration
  *
  * PHILOSOPHICAL ALIGNMENT (CONTROL_LOOP.md §Feedback Loop Integration):
- * The agent provides feedback to improve librarian accuracy.
+ * The agent provides feedback to improve librainian accuracy.
  *
  * FEEDBACK FLOW:
  * 1. Agent receives query results with context packs
  * 2. Agent evaluates relevance during task execution
  * 3. Agent reports relevance ratings and missing context
- * 4. Librarian adjusts confidence and logs retrieval gaps
+ * 4. LiBrainian adjusts confidence and logs retrieval gaps
  *
  * This creates a closed loop where agent experience improves retrieval quality.
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // TYPES (per CONTROL_LOOP.md)
@@ -90,7 +90,7 @@ export interface ConfidenceAdjustment {
 // ============================================================================
 
 /**
- * Process agent feedback to improve librarian accuracy.
+ * Process agent feedback to improve librainian accuracy.
  *
  * Per CONTROL_LOOP.md:
  * - Decrease confidence for irrelevant results (-0.1)
@@ -99,7 +99,7 @@ export interface ConfidenceAdjustment {
  */
 export async function processAgentFeedback(
   feedback: AgentFeedback,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<FeedbackProcessingResult> {
   const adjustments: ConfidenceAdjustment[] = [];
   const gaps: RetrievalGap[] = [];
@@ -189,7 +189,7 @@ export interface FeedbackProcessingResult {
  */
 export async function logRetrievalGap(
   gap: RetrievalGap,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<void> {
   // Store gap in state for analysis
   const existingGaps = await getRetrievalGaps(storage);
@@ -205,7 +205,7 @@ export async function logRetrievalGap(
  * Get logged retrieval gaps.
  */
 export async function getRetrievalGaps(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<RetrievalGap[]> {
   const gapsJson = await storage.getState('retrievalGaps');
   if (!gapsJson) return [];
@@ -223,7 +223,7 @@ export async function getRetrievalGaps(
 export async function addressRetrievalGap(
   queryId: string,
   resolution: string,
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<boolean> {
   const gaps = await getRetrievalGaps(storage);
   const gapIndex = gaps.findIndex(g => g.queryId === queryId && !g.addressed);
@@ -248,7 +248,7 @@ export async function addressRetrievalGap(
  * Analyze feedback trends to identify systemic issues.
  */
 export async function analyzeFeedbackTrends(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<FeedbackAnalysis> {
   const gaps = await getRetrievalGaps(storage);
 

@@ -25,7 +25,7 @@ async function createCorpusFixture(
   fixture: FixtureQueryInput
 ): Promise<string> {
   const corpusRoot = join(baseRoot, corpusName);
-  const evalRoot = join(corpusRoot, 'repos', fixture.repoId, '.librarian-eval');
+  const evalRoot = join(corpusRoot, 'repos', fixture.repoId, '.librainian-eval');
   await mkdir(evalRoot, { recursive: true });
 
   await writeJson(join(evalRoot, 'manifest.json'), {

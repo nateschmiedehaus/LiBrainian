@@ -4,7 +4,7 @@
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
  * The Comprehensive Consistency Checker integrates all Phase 11 verification mechanisms
- * to perform a complete quality check on Librarian's responses:
+ * to perform a complete quality check on LiBrainian's responses:
  * - CitationValidationPipeline (WU-1107)
  * - EntailmentChecker (WU-1110)
  * - TestBasedVerifier (WU-1111)

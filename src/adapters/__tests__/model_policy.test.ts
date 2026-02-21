@@ -18,7 +18,7 @@ describe('model policy fallback selection', () => {
     process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
     process.env.LIBRARIAN_LLM_MODEL = 'gpt-5-codex-low';
 
-    const selection = await ensureDailyModelSelection('/tmp/librarian-test');
+    const selection = await ensureDailyModelSelection('/tmp/librainian-test');
 
     expect(selection).toBeTruthy();
     expect(selection?.providers.codex?.model_id).toBe('gpt-5-codex-low');

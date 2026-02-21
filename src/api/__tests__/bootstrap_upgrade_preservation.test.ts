@@ -13,10 +13,10 @@ describe('bootstrap upgrade preservation', () => {
   let storage: ReturnType<typeof createSqliteStorage>;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-bootstrap-upgrade-preserve-'));
-    await fs.writeFile(path.join(workspace, 'CODEOWNERS'), '* @team/librarian\n', 'utf8');
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-bootstrap-upgrade-preserve-'));
+    await fs.writeFile(path.join(workspace, 'CODEOWNERS'), '* @team/librainian\n', 'utf8');
 
-    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    const dbPath = path.join(workspace, '.librainian', 'librainian.sqlite');
     storage = createSqliteStorage(dbPath, workspace);
     await storage.initialize();
   });

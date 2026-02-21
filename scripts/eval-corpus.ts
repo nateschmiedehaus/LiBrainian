@@ -6,8 +6,8 @@ import path from 'node:path';
 const IGNORED_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
-  '.librarian-eval',
+  '.librainian',
+  '.librainian-eval',
   'dist',
   'build',
   'coverage',

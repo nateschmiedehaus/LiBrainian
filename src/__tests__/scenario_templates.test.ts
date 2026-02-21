@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveScenarioGuidance } from '../integration/scenario_templates.js';
-import { formatLibrarianContext, type LibrarianContext } from '../integration/wave0_integration.js';
+import { formatLiBrainianContext, type LiBrainianContext } from '../integration/wave0_integration.js';
 
 describe('Scenario templates', () => {
   it('classifies security review intents', () => {
@@ -13,7 +13,7 @@ describe('Scenario templates', () => {
     expect(guidance.checklist.length).toBeGreaterThan(0);
   });
 
-  it('formats scenario playbook into librarian context', () => {
+  it('formats scenario playbook into librainian context', () => {
     const guidance = resolveScenarioGuidance({
       intent: 'Investigate login latency regression',
       taskType: 'review',
@@ -21,7 +21,7 @@ describe('Scenario templates', () => {
       coverageGaps: ['No profiling data available'],
     });
 
-    const context: LibrarianContext = {
+    const context: LiBrainianContext = {
       intent: 'Investigate login latency regression',
       taskType: 'review',
       summary: 'Login flow shows elevated latency.',
@@ -37,7 +37,7 @@ describe('Scenario templates', () => {
       scenario: guidance,
     };
 
-    const formatted = formatLibrarianContext(context);
+    const formatted = formatLiBrainianContext(context);
     expect(formatted).toContain('Scenario Playbook');
     expect(formatted).toContain(guidance.label);
     expect(formatted).toContain('Evidence Focus:');

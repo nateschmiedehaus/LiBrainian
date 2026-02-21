@@ -298,7 +298,7 @@ function buildIssueBody(finding, context = {}) {
     lines.push('- [ ] Error messages are single-line, human-readable summaries (no raw subprocess stderr)');
     lines.push('- [ ] Provider health state does not persist incorrectly between invocations');
   } else if (finding.category === 'query') {
-    lines.push('- [ ] Query results only include actual project files (not .librarian/state/*, not internal audit files)');
+    lines.push('- [ ] Query results only include actual project files (not .librainian/state/*, not internal audit files)');
     lines.push('- [ ] Workspace root in results matches the actual workspace path');
     lines.push('- [ ] Confidence scores correlate with actual result quality');
     lines.push('- [ ] Internal warnings are logged to debug output, not mixed into query results');

@@ -168,7 +168,7 @@ type GraphAccumulator = {
 // INDEX LIBRARIAN IMPLEMENTATION
 
 export class IndexLiBrainian implements IndexingAgent {
-  readonly agentType = 'index_librarian';
+  readonly agentType = 'index_librainian';
   readonly name = 'Index LiBrainian';
   readonly capabilities: readonly AgentCapability[] = ['indexing'];
   readonly version = '1.0.0';
@@ -209,7 +209,7 @@ export class IndexLiBrainian implements IndexingAgent {
     // AST indexing is required for LiBrainian. LLM usage is optional.
     const useAstIndexer = this.config.useAstIndexer ?? true;
     if (!useAstIndexer) {
-      throw new Error('unverified_by_trace(indexer_mode_invalid): AST indexing is required for librarian');
+      throw new Error('unverified_by_trace(indexer_mode_invalid): AST indexing is required for librainian');
     }
     this.useAstIndexer = useAstIndexer;
     this.embeddingService = this.config.generateEmbeddings
@@ -1399,7 +1399,7 @@ export class IndexLiBrainian implements IndexingAgent {
     if (!this.config.generateEmbeddings) return;
     this.config.generateEmbeddings = false;
     this.embeddingService = null;
-    logWarning('[index_librarian] Embeddings disabled for remainder of run', { reason });
+    logWarning('[index_librainian] Embeddings disabled for remainder of run', { reason });
   }
 
   private isBinarySuspiciousByte(byte: number): boolean {
@@ -1527,7 +1527,7 @@ export class IndexLiBrainian implements IndexingAgent {
   ): Promise<MultiVectorRecord | null> {
     if (!this.storage) return null;
     const existing = await this.storage.getMultiVector(module.id, 'module').catch((err) => {
-      logWarning('[index_librarian] Failed to fetch existing multi-vector record', { moduleId: module.id, error: getErrorMessage(err) });
+      logWarning('[index_librainian] Failed to fetch existing multi-vector record', { moduleId: module.id, error: getErrorMessage(err) });
       return null;
     });
     if (existing && !needsModuleEmbedding) return null;
@@ -1915,12 +1915,4 @@ export function createIndexLiBrainian(
   config?: Partial<IndexLiBrainianConfig>
 ): IndexLiBrainian {
   return new IndexLiBrainian(config);
-}
-
-// Backward-compatible alias for legacy imports that still reference IndexLibrarian.
-export { IndexLiBrainian as IndexLibrarian };
-export function createIndexLibrarian(
-  config?: Partial<IndexLiBrainianConfig>
-): IndexLiBrainian {
-  return createIndexLiBrainian(config);
 }

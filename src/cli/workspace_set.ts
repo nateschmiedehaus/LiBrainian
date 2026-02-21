@@ -193,7 +193,7 @@ export async function loadWorkspaceSetConfig(configPath: string, cwd?: string): 
   const sharedDbInput = parsed.shared?.sharedDb?.trim();
   const crossPackageGraph = parsed.shared?.crossPackageGraph !== false;
   const sharedDb = crossPackageGraph
-    ? path.resolve(root, sharedDbInput && sharedDbInput.length > 0 ? sharedDbInput : '.librarian/cross_package.db')
+    ? path.resolve(root, sharedDbInput && sharedDbInput.length > 0 ? sharedDbInput : '.librainian/cross_package.db')
     : undefined;
 
   for (const pkg of packages) {
@@ -314,7 +314,7 @@ export async function persistWorkspaceSetGraphDb(
 }
 
 function workspaceSetStatePath(root: string): string {
-  return path.join(root, '.librarian', 'workspace_set_state.json');
+  return path.join(root, '.librainian', 'workspace_set_state.json');
 }
 
 function isWorkspaceSetState(value: unknown): value is WorkspaceSetState {

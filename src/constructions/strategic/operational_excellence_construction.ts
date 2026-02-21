@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
 import type { CalibratedConstruction, ConstructionCalibrationTracker, VerificationMethod } from '../calibration_tracker.js';
@@ -80,7 +80,7 @@ export interface OperationalExcellenceAssessmentOutput {
  *
  * @example
  * ```typescript
- * const construction = new OperationalExcellenceConstruction(librarian);
+ * const construction = new OperationalExcellenceConstruction(librainian);
  * const result = await construction.assess({
  *   files: ['docker-compose.yml', 'k8s/**', 'monitoring/**'],
  *   focus: ['observability', 'reliability'],
@@ -92,11 +92,11 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
   static readonly CONSTRUCTION_ID = 'OperationalExcellenceConstruction';
   readonly CONSTRUCTION_ID = OperationalExcellenceConstruction.CONSTRUCTION_ID;
 
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -147,13 +147,13 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Use librarian to understand operational context
-    const queryResult = await this.librarian.queryOptional({
+    // Use librainian to understand operational context
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze operational practices including observability, reliability, deployment pipelines, and security operations',
       affectedFiles: input.files,
       depth: options?.depth === 'deep' ? 'L3' : 'L2',
     });
-    evidenceRefs.push(`librarian:opex_analysis:${queryResult.packs?.length || 0}_packs`);
+    evidenceRefs.push(`librainian:opex_analysis:${queryResult.packs?.length || 0}_packs`);
 
     // Select configuration
     const config = input.config || this.getStandard();
@@ -267,7 +267,7 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
    */
   private generateRunbooks(
     config: opEx.OperationalExcellenceConfig,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): opEx.RunbookTemplate[] {
     const runbooks: opEx.RunbookTemplate[] = [];
     const serviceName = config.metadata?.name || 'service';
@@ -294,7 +294,7 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
    */
   private computeObservabilityScore(
     config: opEx.OperationalExcellenceConfig,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): number {
     let score = 50; // Baseline
 
@@ -322,7 +322,7 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
    */
   private computeReliabilityScore(
     config: opEx.OperationalExcellenceConfig,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): number {
     let score = 50;
 
@@ -349,7 +349,7 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
    */
   private computeDeploymentScore(
     config: opEx.OperationalExcellenceConfig,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): number {
     let score = 50;
 
@@ -378,7 +378,7 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
    */
   private computeSecurityScore(
     config: opEx.OperationalExcellenceConfig,
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>
   ): number {
     let score = 50;
 
@@ -404,7 +404,7 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
    * Compute confidence based on query results and assessment data.
    */
   private computeConfidence(
-    queryResult: Awaited<ReturnType<Librarian['queryOptional']>>,
+    queryResult: Awaited<ReturnType<LiBrainian['queryOptional']>>,
     data: { score: number }
   ): ConfidenceValue {
     const packCount = queryResult.packs?.length || 0;
@@ -427,11 +427,11 @@ export class OperationalExcellenceConstruction implements CalibratedConstruction
 /**
  * Create a new operational excellence construction.
  *
- * @param librarian - The librarian instance
+ * @param librainian - The librainian instance
  * @returns A new OperationalExcellenceConstruction
  */
 export function createOperationalExcellenceConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): OperationalExcellenceConstruction {
-  return new OperationalExcellenceConstruction(librarian);
+  return new OperationalExcellenceConstruction(librainian);
 }

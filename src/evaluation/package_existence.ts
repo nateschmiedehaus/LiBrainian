@@ -1,7 +1,7 @@
 /**
  * @fileoverview Package Existence Verifier (WU-HALU-005)
  *
- * Verifies that npm/PyPI/crates.io package citations in Librarian output
+ * Verifies that npm/PyPI/crates.io package citations in LiBrainian output
  * actually exist in their respective registries. This prevents hallucinated
  * package recommendations.
  *
@@ -223,7 +223,7 @@ class PackageVerifierImpl implements PackageVerifier {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'librarian-package-verifier/1.0',
+          'User-Agent': 'librainian-package-verifier/1.0',
         },
       });
       return response;

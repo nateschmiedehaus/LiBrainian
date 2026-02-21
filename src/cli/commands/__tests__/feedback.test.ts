@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../db_path.js', () => ({
-  resolveDbPath: vi.fn().mockResolvedValue('/tmp/librarian.sqlite'),
+  resolveDbPath: vi.fn().mockResolvedValue('/tmp/librainian.sqlite'),
 }));
 
 const initialize = vi.fn().mockResolvedValue(undefined);

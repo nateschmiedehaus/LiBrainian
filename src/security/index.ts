@@ -1,5 +1,5 @@
 /**
- * @fileoverview Security Module for Librarian
+ * @fileoverview Security Module for LiBrainian
  *
  * Provides comprehensive security capabilities:
  * - Input sanitization and validation
@@ -12,7 +12,7 @@
 
 import { sanitizePath, sanitizeQuery } from './sanitization.js';
 import { type CompositeRateLimiter } from './rate_limiter.js';
-import { ERROR_CODES, type LibrarianError } from './error_boundary.js';
+import { ERROR_CODES, type LiBrainianError } from './error_boundary.js';
 
 // Sanitization
 export {
@@ -81,7 +81,7 @@ export {
   // Types
   type ErrorSeverity,
   type ErrorCategory,
-  type LibrarianError,
+  type LiBrainianError,
   type ErrorHandlerOptions,
   type ErrorBoundaryContext,
 
@@ -89,7 +89,7 @@ export {
   ERROR_CODES,
 
   // Classes
-  LibrarianErrorBase,
+  LiBrainianErrorBase,
   ValidationError,
   AuthenticationError,
   AuthorizationError,
@@ -218,7 +218,7 @@ export function createSecureConfig(
 export interface SecurityCheckResult {
   allowed: boolean;
   reason?: string;
-  error?: LibrarianError;
+  error?: LiBrainianError;
 }
 
 /**

@@ -2,13 +2,13 @@ import {
   discoverLlmProvider,
   getAllProviderStatus,
   llmProviderRegistry,
-  type LibrarianLlmProvider,
+  type LiBrainianLlmProvider,
 } from './llm_provider_discovery.js';
 
-export type { LibrarianLlmProvider };
+export type { LiBrainianLlmProvider };
 export { llmProviderRegistry };
 
-export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
+export function resolveLiBrainianProvider(): LiBrainianLlmProvider | undefined {
   const raw =
     process.env.LIBRARIAN_LLM_PROVIDER ??
     process.env.WAVE0_LLM_PROVIDER ??
@@ -16,7 +16,7 @@ export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
   return raw === 'claude' || raw === 'codex' ? raw : undefined;
 }
 
-export function resolveLibrarianModelId(provider?: LibrarianLlmProvider): string | undefined {
+export function resolveLiBrainianModelId(provider?: LiBrainianLlmProvider): string | undefined {
   if (process.env.LIBRARIAN_LLM_MODEL) return process.env.LIBRARIAN_LLM_MODEL;
   if (provider === 'claude') {
     return process.env.CLAUDE_MODEL ?? process.env.WAVE0_LLM_MODEL;
@@ -27,18 +27,18 @@ export function resolveLibrarianModelId(provider?: LibrarianLlmProvider): string
   return process.env.CLAUDE_MODEL ?? process.env.CODEX_MODEL ?? process.env.WAVE0_LLM_MODEL;
 }
 
-export function resolveLibrarianModelConfig(): { provider?: LibrarianLlmProvider; modelId?: string } {
-  const provider = resolveLibrarianProvider();
-  const modelId = resolveLibrarianModelId(provider);
+export function resolveLiBrainianModelConfig(): { provider?: LiBrainianLlmProvider; modelId?: string } {
+  const provider = resolveLiBrainianProvider();
+  const modelId = resolveLiBrainianModelId(provider);
   return { provider, modelId };
 }
 
-export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
-  provider: LibrarianLlmProvider;
+export async function resolveLiBrainianModelConfigWithDiscovery(): Promise<{
+  provider: LiBrainianLlmProvider;
   modelId: string;
 }> {
   const discoveryErrors: string[] = [];
-  const envConfig = resolveLibrarianModelConfig();
+  const envConfig = resolveLiBrainianModelConfig();
   if (envConfig.provider && envConfig.modelId) {
     return { provider: envConfig.provider, modelId: envConfig.modelId };
   }

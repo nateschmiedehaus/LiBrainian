@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { Librarian } from '../librarian.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { LiBrainian } from '../librainian.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getMetadata' | 'setMetadata'>;
+type StorageStub = Pick<LiBrainianStorage, 'getMetadata' | 'setMetadata'>;
 
 class MockStorage implements StorageStub {
   private metadata: Record<string, unknown> | null = null;
@@ -16,17 +16,17 @@ class MockStorage implements StorageStub {
   }
 }
 
-describe('Librarian storage slices', () => {
+describe('LiBrainian storage slices', () => {
   it('exposes storage slices when initialized', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp/workspace',
       autoBootstrap: false,
       autoWatch: false,
     });
     const storage = new MockStorage();
-    (librarian as unknown as { storage: LibrarianStorage }).storage = storage as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage = storage as unknown as LiBrainianStorage;
 
-    const slices = librarian.getStorageSlices({ strict: false });
+    const slices = librainian.getStorageSlices({ strict: false });
     await slices.metadata.setMetadata({ version: 'test' });
 
     const stored = await slices.metadata.getMetadata();

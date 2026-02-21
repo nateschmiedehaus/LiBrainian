@@ -1,15 +1,15 @@
 /**
- * @fileoverview Storage interface for Librarian
+ * @fileoverview Storage interface for LiBrainian
  *
- * This abstraction allows the librarian to use different storage backends:
+ * This abstraction allows the librainian to use different storage backends:
  * - SQLite (default, embedded)
  * - PostgreSQL (for larger deployments)
  * - In-memory (for testing)
  */
 
 import type {
-  LibrarianVersion,
-  LibrarianMetadata,
+  LiBrainianVersion,
+  LiBrainianMetadata,
   FunctionKnowledge,
   ModuleKnowledge,
   FileKnowledge,
@@ -70,10 +70,10 @@ export interface EvidenceVerificationSummary {
 }
 
 /**
- * Abstract storage interface for librarian data.
+ * Abstract storage interface for librainian data.
  * Implementations must be transactional and handle concurrent access.
  */
-export interface LibrarianStorage {
+export interface LiBrainianStorage {
   // Lifecycle
   initialize(): Promise<void>;
   close(): Promise<void>;
@@ -81,14 +81,14 @@ export interface LibrarianStorage {
   getCapabilities(): StorageCapabilities;
 
   // Metadata
-  getMetadata(): Promise<LibrarianMetadata | null>;
-  setMetadata(metadata: LibrarianMetadata): Promise<void>;
+  getMetadata(): Promise<LiBrainianMetadata | null>;
+  setMetadata(metadata: LiBrainianMetadata): Promise<void>;
   getState(key: string): Promise<string | null>;
   setState(key: string, value: string): Promise<void>;
 
   // Version management
-  getVersion(): Promise<LibrarianVersion | null>;
-  setVersion(version: LibrarianVersion): Promise<void>;
+  getVersion(): Promise<LiBrainianVersion | null>;
+  setVersion(version: LiBrainianVersion): Promise<void>;
 
   // Function knowledge
   getFunctions(options?: QueryOptions): Promise<FunctionKnowledge[]>;
@@ -284,10 +284,10 @@ export interface LibrarianStorage {
   deleteTestMappingsByTestPath(testPath: string): Promise<number>;
 
   // Commits (git history with semantic categorization)
-  getCommit(id: string): Promise<LibrarianCommit | null>;
-  getCommitBySha(sha: string): Promise<LibrarianCommit | null>;
-  getCommits(options?: CommitQueryOptions): Promise<LibrarianCommit[]>;
-  upsertCommit(commit: Omit<LibrarianCommit, 'id' | 'createdAt'>): Promise<LibrarianCommit>;
+  getCommit(id: string): Promise<LiBrainianCommit | null>;
+  getCommitBySha(sha: string): Promise<LiBrainianCommit | null>;
+  getCommits(options?: CommitQueryOptions): Promise<LiBrainianCommit[]>;
+  upsertCommit(commit: Omit<LiBrainianCommit, 'id' | 'createdAt'>): Promise<LiBrainianCommit>;
   deleteCommit(id: string): Promise<void>;
   deleteCommitBySha(sha: string): Promise<void>;
 
@@ -416,15 +416,15 @@ export interface LibrarianStorage {
 // STORAGE SLICE INTERFACES
 // ============================================================================
 
-export type StorageLifecycle = Pick<LibrarianStorage, 'initialize' | 'close' | 'isInitialized' | 'getCapabilities'>;
+export type StorageLifecycle = Pick<LiBrainianStorage, 'initialize' | 'close' | 'isInitialized' | 'getCapabilities'>;
 
 export type MetadataStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getMetadata' | 'setMetadata' | 'getState' | 'setState' | 'getVersion' | 'setVersion'
 >;
 
 export type KnowledgeStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getFunctions'
   | 'getFunction'
   | 'getFunctionByPath'
@@ -464,27 +464,27 @@ export type KnowledgeStorage = Pick<
 >;
 
 export type ChecksumStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getFileChecksum' | 'setFileChecksum' | 'deleteFileChecksum'
 >;
 
 export type EmbeddingStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getEmbedding' | 'setEmbedding' | 'findSimilarByEmbedding' | 'getMultiVector' | 'getMultiVectors' | 'upsertMultiVector' | 'clearMismatchedEmbeddings' | 'getEmbeddingStats'
 >;
 
 export type QueryCacheStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getQueryCacheEntry' | 'upsertQueryCacheEntry' | 'recordQueryCacheAccess' | 'pruneQueryCache'
 >;
 
 export type GraphCacheStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getGraphCacheEntry' | 'upsertGraphCacheEntry' | 'pruneExpiredGraphCache'
 >;
 
 export type EvolutionStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'recordEvolutionOutcome'
   | 'getEvolutionOutcomes'
   | 'recordLearnedMissing'
@@ -495,12 +495,12 @@ export type EvolutionStorage = Pick<
 >;
 
 export type EvidenceStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'setEvidence' | 'getEvidenceForTarget' | 'deleteEvidence' | 'getEvidenceVerificationSummary' | 'exportEvidenceMarkdown'
 >;
 
 export type ConfidenceStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'updateConfidence'
   | 'applyTimeDecay'
   | 'getConfidenceEvents'
@@ -512,7 +512,7 @@ export type ConfidenceStorage = Pick<
 >;
 
 export type GraphStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'upsertGraphEdges'
   | 'deleteGraphEdgesForSource'
   | 'getGraphEdges'
@@ -541,7 +541,7 @@ export type GraphStorage = Pick<
 >;
 
 export type IngestionStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getIngestionItem'
   | 'getIngestionItems'
   | 'upsertIngestionItem'
@@ -553,7 +553,7 @@ export type IngestionStorage = Pick<
 >;
 
 export type TestMappingStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getTestMapping'
   | 'getTestMappings'
   | 'getTestMappingsByTestPath'
@@ -564,7 +564,7 @@ export type TestMappingStorage = Pick<
 >;
 
 export type CommitStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getCommit'
   | 'getCommitBySha'
   | 'getCommits'
@@ -574,7 +574,7 @@ export type CommitStorage = Pick<
 >;
 
 export type OwnershipStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getOwnership'
   | 'getOwnershipByFilePath'
   | 'getOwnershipByAuthor'
@@ -585,7 +585,7 @@ export type OwnershipStorage = Pick<
 >;
 
 export type UniversalKnowledgeStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getUniversalKnowledge'
   | 'getUniversalKnowledgeByFile'
   | 'getUniversalKnowledgeByKind'
@@ -598,7 +598,7 @@ export type UniversalKnowledgeStorage = Pick<
 >;
 
 export type AssessmentStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getAssessment'
   | 'getAssessmentByPath'
   | 'getAssessments'
@@ -609,7 +609,7 @@ export type AssessmentStorage = Pick<
 >;
 
 export type GitAnalysisStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getBlameEntries'
   | 'getBlameForFile'
   | 'getBlameStats'
@@ -625,12 +625,12 @@ export type GitAnalysisStorage = Pick<
 >;
 
 export type CloneStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getCloneEntries' | 'getClonesByEntity' | 'getCloneClusters' | 'upsertCloneEntries' | 'deleteCloneEntries'
 >;
 
 export type DebtStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   | 'getDebtMetrics'
   | 'getDebtForEntity'
   | 'getDebtHotspots'
@@ -639,11 +639,11 @@ export type DebtStorage = Pick<
 >;
 
 export type FaultLocalizationStorage = Pick<
-  LibrarianStorage,
+  LiBrainianStorage,
   'getFaultLocalizations' | 'upsertFaultLocalization' | 'deleteFaultLocalization'
 >;
 
-export type MaintenanceStorage = Pick<LibrarianStorage, 'transaction' | 'getStats' | 'vacuum'>;
+export type MaintenanceStorage = Pick<LiBrainianStorage, 'transaction' | 'getStats' | 'vacuum'>;
 
 export interface StorageSlices {
   lifecycle: StorageLifecycle;
@@ -668,7 +668,7 @@ export interface StorageSlices {
   debt: DebtStorage;
   faults: FaultLocalizationStorage;
   maintenance: MaintenanceStorage;
-  raw: LibrarianStorage;
+  raw: LiBrainianStorage;
 }
 
 // ============================================================================
@@ -868,7 +868,7 @@ export interface TransactionContext {
   upsertContextPack(pack: ContextPack): Promise<void>;
   upsertIngestionItem(item: IngestionItem): Promise<void>;
   upsertTestMapping(mapping: Omit<TestMapping, 'id' | 'createdAt' | 'updatedAt'>): Promise<TestMapping>;
-  upsertCommit(commit: Omit<LibrarianCommit, 'id' | 'createdAt'>): Promise<LibrarianCommit>;
+  upsertCommit(commit: Omit<LiBrainianCommit, 'id' | 'createdAt'>): Promise<LiBrainianCommit>;
   upsertOwnership(ownership: Omit<FileOwnership, 'id' | 'createdAt'>): Promise<FileOwnership>;
   setEmbedding(entityId: string, embedding: Float32Array, metadata: EmbeddingMetadata): Promise<void>;
   upsertMultiVector(record: MultiVectorRecord): Promise<void>;
@@ -1040,7 +1040,7 @@ export interface EvolutionOutcome {
   testsAdded: number;
   testsPass: boolean;
   context: {
-    librarianContextUsed: boolean;
+    librainianContextUsed: boolean;
     contextPackCount: number;
     decomposed: boolean;
   };
@@ -1112,7 +1112,7 @@ export interface TestMappingQueryOptions {
  * Git commit with semantic categorization.
  * Used for understanding project history and change patterns.
  */
-export interface LibrarianCommit {
+export interface LiBrainianCommit {
   id: string;
   sha: string;
   message: string;
@@ -1217,7 +1217,7 @@ export interface StorageBackend {
 /**
  * Factory function type for creating storage instances.
  */
-export type StorageFactory = (backend: StorageBackend) => Promise<LibrarianStorage>;
+export type StorageFactory = (backend: StorageBackend) => Promise<LiBrainianStorage>;
 
 // ============================================================================
 // UNIVERSAL KNOWLEDGE STORAGE

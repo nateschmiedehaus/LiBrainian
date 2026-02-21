@@ -9,7 +9,7 @@
  * - Export structure
  */
 
-import type { LibrarianStorage, ModuleKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge } from '../storage/types.js';
 import { computeGraphMetrics } from '../graphs/metrics.js';
 import { buildModuleGraphs } from './module_graph.js';
 
@@ -85,7 +85,7 @@ export interface FileTypeBreakdown {
 // ============================================================================
 
 export class StructureKnowledge {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   async query(q: StructureQuery): Promise<StructureResult> {
     switch (q.type) {

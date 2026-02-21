@@ -7,7 +7,7 @@ import { createSelfIndexGateConstruction } from '../self_index_gate.js';
 const tempRoots: string[] = [];
 
 async function createFixture(files: Record<string, string>): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-self-index-gate-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-self-index-gate-'));
   tempRoots.push(root);
   for (const [relativePath, content] of Object.entries(files)) {
     const absolutePath = path.join(root, relativePath);

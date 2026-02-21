@@ -39,7 +39,7 @@ const REQUIRED_BOUNDARY_GATES = [
 const REPO_EXTRACTION_GATE = 'layer1.repoExtraction';
 
 const GATE_CANDIDATES = [
-  path.join('docs', 'librarian', 'GATES.json'),
+  path.join('docs', 'librainian', 'GATES.json'),
   path.join('docs', 'GATES.json'),
   'GATES.json',
 ];
@@ -190,7 +190,7 @@ async function appendExtractionGateEvidence(
         method: 'extraction_gate',
         agent: {
           type: 'tool',
-          identifier: 'librarian',
+          identifier: 'librainian',
         },
         inputHash,
       },

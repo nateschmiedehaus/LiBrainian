@@ -1,9 +1,9 @@
 /**
- * Transaction boundary tests for IndexLibrarian removeFile.
+ * Transaction boundary tests for IndexLiBrainian removeFile.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IndexLibrarian } from '../index_librarian.js';
+import { IndexLiBrainian } from '../index_librainian.js';
 import { globalEventBus } from '../../events.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 
@@ -11,7 +11,7 @@ import { checkAllProviders } from '../../api/provider_check.js';
 const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && !process.env.LIBRARIAN_TIER0);
 const describeWithProviders = IS_UNIT_MODE ? describe.skip : describe;
 import type { FileKnowledge, FunctionKnowledge, ModuleKnowledge } from '../../types.js';
-import type { LibrarianStorage, TransactionContext, UniversalKnowledgeRecord } from '../../storage/types.js';
+import type { LiBrainianStorage, TransactionContext, UniversalKnowledgeRecord } from '../../storage/types.js';
 import os from 'os';
 import path from 'path';
 
@@ -97,7 +97,7 @@ function buildKnowledge(filePath: string): UniversalKnowledgeRecord {
 }
 
 function createMockStorage(options: { failOnDelete?: boolean; invalidated?: number } = {}): {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   tx: TransactionContext;
 } {
   const { failOnDelete = false, invalidated = 0 } = options;
@@ -135,7 +135,7 @@ function createMockStorage(options: { failOnDelete?: boolean; invalidated?: numb
     getModuleByPath: vi.fn(async () => null),
     getUniversalKnowledgeByFile: vi.fn(async () => []),
     transaction: vi.fn(async (fn: (ctx: TransactionContext) => Promise<unknown>) => fn(tx)),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 
   return { storage, tx };
 }
@@ -144,7 +144,7 @@ async function flushEvents(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-describeWithProviders('IndexLibrarian removeFile transaction boundaries', () => {
+describeWithProviders('IndexLiBrainian removeFile transaction boundaries', () => {
   beforeAll(async () => {
     const status = await checkAllProviders({ workspaceRoot: process.cwd(), forceProbe: false });
     if (!status.embedding.available) {
@@ -175,12 +175,12 @@ describeWithProviders('IndexLibrarian removeFile transaction boundaries', () => 
     storage.getModuleByPath = vi.fn(async () => module);
     storage.getUniversalKnowledgeByFile = vi.fn(async () => knowledgeRecords);
 
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       llmProvider: 'claude',
       llmModelId: 'claude-sonnet-4-20250514',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
     const events: string[] = [];
     const off = globalEventBus.on('*', (event) => {
@@ -194,7 +194,7 @@ describeWithProviders('IndexLibrarian removeFile transaction boundaries', () => 
       }
     });
 
-    await expect(librarian.removeFile(filePath)).rejects.toThrow('transaction_failed');
+    await expect(librainian.removeFile(filePath)).rejects.toThrow('transaction_failed');
     await flushEvents();
     off();
 
@@ -214,12 +214,12 @@ describeWithProviders('IndexLibrarian removeFile transaction boundaries', () => 
     storage.getModuleByPath = vi.fn(async () => module);
     storage.getUniversalKnowledgeByFile = vi.fn(async () => knowledgeRecords);
 
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       llmProvider: 'claude',
       llmModelId: 'claude-sonnet-4-20250514',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
     const events: Array<{ type: string; data: Record<string, unknown> }> = [];
     const off = globalEventBus.on('*', (event) => {
@@ -233,7 +233,7 @@ describeWithProviders('IndexLibrarian removeFile transaction boundaries', () => 
       }
     });
 
-    await librarian.removeFile(filePath);
+    await librainian.removeFile(filePath);
     await flushEvents();
     off();
 

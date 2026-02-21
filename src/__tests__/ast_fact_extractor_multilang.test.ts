@@ -6,7 +6,7 @@ import { ASTFactExtractor } from '../evaluation/ast_fact_extractor.js';
 
 describe('ASTFactExtractor multi-language', () => {
   it('extracts Java facts via tree-sitter', async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ast-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-ast-'));
     const filePath = path.join(tmpDir, 'Calculator.java');
     await fs.writeFile(
       filePath,

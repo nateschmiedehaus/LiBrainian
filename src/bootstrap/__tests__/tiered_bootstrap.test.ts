@@ -22,7 +22,7 @@ import {
   type TieredBootstrapOptions,
   type TierStats,
 } from '../tiered_bootstrap.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // TEST HELPERS
@@ -31,7 +31,7 @@ import type { LibrarianStorage } from '../../storage/types.js';
 /**
  * Create a minimal mock storage for testing.
  */
-function createMockStorage(): LibrarianStorage {
+function createMockStorage(): LiBrainianStorage {
   const files = new Map<string, unknown>();
   const directories = new Map<string, unknown>();
 
@@ -277,7 +277,7 @@ function createMockStorage(): LibrarianStorage {
     getFaultLocalizations: vi.fn().mockResolvedValue([]),
     upsertFaultLocalization: vi.fn().mockResolvedValue(undefined),
     deleteFaultLocalization: vi.fn().mockResolvedValue(undefined),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 /**
@@ -459,7 +459,7 @@ async function cleanupTestWorkspace(tempDir: string): Promise<void> {
 
 describe('TieredBootstrap', () => {
   let tempDir: string;
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(async () => {
     tempDir = await createTestWorkspace();

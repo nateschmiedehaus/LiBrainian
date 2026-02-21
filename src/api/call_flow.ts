@@ -1,7 +1,7 @@
 /**
  * @fileoverview Call Flow Handler
  *
- * Provides call flow tracing for queries like "call flow for queryLibrarian"
+ * Provides call flow tracing for queries like "call flow for queryLiBrainian"
  * or "what happens when I call X". Returns proper execution sequences
  * instead of disconnected fragments.
  *
@@ -9,13 +9,13 @@
  * unordered results instead of the actual execution sequence.
  *
  * Example queries:
- * - "call flow for queryLibrarian"
+ * - "call flow for queryLiBrainian"
  * - "execution path for handleQuery"
  * - "what happens when I call runTests"
  * - "trace execution of bootstrap"
  */
 
-import type { LibrarianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
+import type { LiBrainianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
 import type { FunctionKnowledge, GraphEdge } from '../types.js';
 
 // ============================================================================
@@ -140,8 +140,8 @@ const CALL_FLOW_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
  *
  * @example
  * ```typescript
- * const detection = detectCallFlowQuery("call flow for queryLibrarian");
- * // { isCallFlow: true, entry: "queryLibrarian", confidence: 0.9 }
+ * const detection = detectCallFlowQuery("call flow for queryLiBrainian");
+ * // { isCallFlow: true, entry: "queryLiBrainian", confidence: 0.9 }
  *
  * const detection = detectCallFlowQuery("what is the purpose of foo");
  * // { isCallFlow: false, confidence: 0 }
@@ -214,13 +214,13 @@ function cleanEntryPoint(entry: string): string {
  *
  * @example
  * ```typescript
- * const result = await traceCallFlow(storage, "queryLibrarian", 5);
+ * const result = await traceCallFlow(storage, "queryLiBrainian", 5);
  * console.log(result.summary);
- * // "queryLibrarian -> classifyQueryIntent -> runSymbolLookupStage -> ..."
+ * // "queryLiBrainian -> classifyQueryIntent -> runSymbolLookupStage -> ..."
  * ```
  */
 export async function traceCallFlow(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entryPoint: string,
   maxDepth: number = 5,
   maxBreadth: number = 5
@@ -313,7 +313,7 @@ export async function traceCallFlow(
  * Resolve a function by name, trying multiple strategies.
  */
 async function resolveFunctionByName(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   name: string
 ): Promise<FunctionKnowledge | null> {
   // Try direct name lookup first
@@ -322,7 +322,7 @@ async function resolveFunctionByName(
     return byName[0];
   }
 
-  // Try partial match (for cases like "queryLibrarian" matching "src/api/query.ts:queryLibrarian")
+  // Try partial match (for cases like "queryLiBrainian" matching "src/api/query.ts:queryLiBrainian")
   const functions = await storage.getFunctions({ limit: 500 });
   for (const func of functions) {
     if (func.name === name || func.name.toLowerCase() === name.toLowerCase()) {
@@ -434,14 +434,14 @@ export function toCallChain(result: CallFlowResult, maxItems: number = 10): stri
  *
  * @example
  * ```typescript
- * const result = await handleCallFlowQuery(storage, "call flow for queryLibrarian");
+ * const result = await handleCallFlowQuery(storage, "call flow for queryLiBrainian");
  * if (result) {
  *   console.log(result.summary);
  * }
  * ```
  */
 export async function handleCallFlowQuery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intent: string
 ): Promise<CallFlowResult | null> {
   const detection = detectCallFlowQuery(intent);

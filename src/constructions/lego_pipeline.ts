@@ -1,4 +1,4 @@
-import type { Librarian } from '../api/librarian.js';
+import type { LiBrainian } from '../api/librainian.js';
 import type { ContextPack } from '../types.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import { absent, bounded, getNumericValue } from '../epistemics/confidence.js';
@@ -66,11 +66,11 @@ export interface ComposeConstructionsOptions {
 class KnowledgeBrick implements LegoPipelineBrick<void> {
   readonly id = 'knowledge';
   private readonly advisor: FeatureLocationAdvisor;
-  private readonly librarian: Librarian;
+  private readonly librainian: LiBrainian;
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
-    this.advisor = new FeatureLocationAdvisor(librarian);
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
+    this.advisor = new FeatureLocationAdvisor(librainian);
   }
 
   async run(_input: void, context: SharedAgentContext): Promise<ConstructionOutput> {
@@ -81,7 +81,7 @@ class KnowledgeBrick implements LegoPipelineBrick<void> {
         ? { maxTokens: context.tokenBudget }
         : undefined,
     };
-    const response = await this.librarian.queryOptional(query);
+    const response = await this.librainian.queryOptional(query);
     const packs = response.packs ?? [];
     const report = await this.advisor.locate({ description: context.intent });
     const findings: ConstructionFinding[] = report.locations.slice(0, 8).map((location, index) => ({
@@ -121,8 +121,8 @@ class RefactoringBrick implements LegoPipelineBrick<void> {
   readonly id = 'refactoring';
   private readonly checker: RefactoringSafetyChecker;
 
-  constructor(librarian: Librarian) {
-    this.checker = new RefactoringSafetyChecker(librarian);
+  constructor(librainian: LiBrainian) {
+    this.checker = new RefactoringSafetyChecker(librainian);
   }
 
   async run(_input: void, context: SharedAgentContext): Promise<ConstructionOutput> {
@@ -179,8 +179,8 @@ class SecurityBrick implements LegoPipelineBrick<void> {
   readonly id = 'security';
   private readonly helper: SecurityAuditHelper;
 
-  constructor(librarian: Librarian) {
-    this.helper = new SecurityAuditHelper(librarian);
+  constructor(librainian: LiBrainian) {
+    this.helper = new SecurityAuditHelper(librainian);
   }
 
   async run(_input: void, context: SharedAgentContext): Promise<ConstructionOutput> {
@@ -247,15 +247,15 @@ function aggregateConfidence(outputs: ConstructionOutput[]): ConfidenceValue {
 }
 
 export async function composeConstructions(
-  librarian: Librarian,
+  librainian: LiBrainian,
   intent: string,
   options: ComposeConstructionsOptions = {}
 ): Promise<ComposedConstructionReport> {
   const selected = options.include ?? ['knowledge', 'refactoring', 'security'];
   const bricks: LegoPipelineBrick[] = [];
-  if (selected.includes('knowledge')) bricks.push(new KnowledgeBrick(librarian));
-  if (selected.includes('refactoring')) bricks.push(new RefactoringBrick(librarian));
-  if (selected.includes('security')) bricks.push(new SecurityBrick(librarian));
+  if (selected.includes('knowledge')) bricks.push(new KnowledgeBrick(librainian));
+  if (selected.includes('refactoring')) bricks.push(new RefactoringBrick(librainian));
+  if (selected.includes('security')) bricks.push(new SecurityBrick(librainian));
 
   let context: SharedAgentContext = {
     intent,

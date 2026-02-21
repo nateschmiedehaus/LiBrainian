@@ -20,7 +20,7 @@ import {
   type BlameChunk,
 } from '../blame_indexer.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 describe('Blame Indexer', () => {
   describe('parseBlameLineHeader', () => {
@@ -269,7 +269,7 @@ filename test.ts
   });
 
   describe('Integration with Storage', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
     let dbPath: string;
     const testDir = join(tmpdir(), 'blame-indexer-test-' + Date.now());
 

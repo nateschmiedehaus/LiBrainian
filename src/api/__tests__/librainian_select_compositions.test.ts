@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Librarian } from '../librarian.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { LiBrainian } from '../librainian.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // Mock provider checks to fail fast instead of timing out
 vi.mock('../provider_check.js', () => ({
@@ -25,14 +25,14 @@ vi.mock('../provider_check.js', () => ({
 
 // Mock LLM env to avoid provider discovery
 vi.mock('../llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
+  resolveLiBrainianModelConfigWithDiscovery: vi.fn().mockResolvedValue({
     provider: 'claude',
     modelId: 'claude-sonnet-4-20250514',
   }),
-  resolveLibrarianModelId: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
+  resolveLiBrainianModelId: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
 }));
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -46,16 +46,16 @@ class MockStorage implements StorageStub {
   }
 }
 
-describe('Librarian composition selection', () => {
+describe('LiBrainian composition selection', () => {
   it('selects technique compositions from storage', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp',
       autoBootstrap: false,
     });
-    (librarian as unknown as { storage: LibrarianStorage }).storage =
-      new MockStorage() as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage =
+      new MockStorage() as unknown as LiBrainianStorage;
 
-    const selections = await librarian.selectTechniqueCompositions('Prepare a release plan');
+    const selections = await librainian.selectTechniqueCompositions('Prepare a release plan');
     expect(selections.map((item) => item.id)).toContain('tc_release_readiness');
   });
 });

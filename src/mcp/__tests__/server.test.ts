@@ -4,14 +4,14 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  LibrarianMCPServer,
-  createLibrarianMCPServer,
+  LiBrainianMCPServer,
+  createLiBrainianMCPServer,
   type ServerState,
   type AuditLogEntry,
 } from '../server.js';
 import {
   DEFAULT_MCP_SERVER_CONFIG,
-  type LibrarianMCPServerConfig,
+  type LiBrainianMCPServerConfig,
 } from '../types.js';
 
 // ============================================================================
@@ -19,10 +19,10 @@ import {
 // ============================================================================
 
 describe('MCP Server', () => {
-  let server: LibrarianMCPServer;
+  let server: LiBrainianMCPServer;
 
   beforeEach(async () => {
-    server = await createLibrarianMCPServer({
+    server = await createLiBrainianMCPServer({
       name: 'test-server',
       version: '1.0.0-test',
       authorization: {
@@ -42,7 +42,7 @@ describe('MCP Server', () => {
 
   describe('server creation', () => {
     it('should create server with default config', async () => {
-      const defaultServer = await createLibrarianMCPServer();
+      const defaultServer = await createLiBrainianMCPServer();
       const info = defaultServer.getServerInfo();
 
       expect(info.name).toBe(DEFAULT_MCP_SERVER_CONFIG.name);
@@ -50,7 +50,7 @@ describe('MCP Server', () => {
     });
 
     it('should create server with custom config', async () => {
-      const customServer = await createLibrarianMCPServer({
+      const customServer = await createLiBrainianMCPServer({
         name: 'custom-server',
         version: '2.0.0',
       });
@@ -471,7 +471,7 @@ describe('MCP Server', () => {
         workspace,
       }, {});
 
-      expect(result.error).toContain('librarian embed --fix');
+      expect(result.error).toContain('librainian embed --fix');
       expect(result.embeddingCoverage?.coverage_pct).toBe(20);
       expect(result.embeddingCoverage?.needs_embedding_count).toBe(80);
       expect(executeQuerySpy).not.toHaveBeenCalled();
@@ -794,7 +794,7 @@ describe('MCP Server', () => {
 
   describe('configuration', () => {
     it('should merge custom config with defaults', async () => {
-      const customServer = await createLibrarianMCPServer({
+      const customServer = await createLiBrainianMCPServer({
         name: 'merged-server',
         // Other fields should come from defaults
       });
@@ -804,7 +804,7 @@ describe('MCP Server', () => {
     });
 
     it('should support different authorization scopes', async () => {
-      const readOnlyServer = await createLibrarianMCPServer({
+      const readOnlyServer = await createLiBrainianMCPServer({
         authorization: {
           enabledScopes: ['read'],
           requireConsent: true,
@@ -817,7 +817,7 @@ describe('MCP Server', () => {
     });
 
     it('should support all authorization scopes', async () => {
-      const fullAccessServer = await createLibrarianMCPServer({
+      const fullAccessServer = await createLiBrainianMCPServer({
         authorization: {
           enabledScopes: ['read', 'write', 'execute', 'network', 'admin'],
           requireConsent: false,
@@ -835,10 +835,10 @@ describe('MCP Server', () => {
 // ============================================================================
 
 describe('MCP Server Authentication', () => {
-  let server: LibrarianMCPServer;
+  let server: LiBrainianMCPServer;
 
   beforeEach(async () => {
-    server = await createLibrarianMCPServer({
+    server = await createLiBrainianMCPServer({
       name: 'auth-test-server',
       authorization: {
         enabledScopes: ['read', 'write'],

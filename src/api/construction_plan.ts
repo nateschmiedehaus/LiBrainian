@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ConstructionPlan, LibrarianQuery } from '../types.js';
+import type { ConstructionPlan, LiBrainianQuery } from '../types.js';
 import {
   DOMAIN_TO_TEMPLATES,
   getDefaultTemplateRegistry,
@@ -90,7 +90,7 @@ export async function loadUcDomainMap(workspaceRoot: string): Promise<Map<string
   const cached = ucDomainCache.get(root);
   if (cached) return cached;
 
-  const matrixPath = path.join(root, 'docs', 'librarian', 'USE_CASE_MATRIX.md');
+  const matrixPath = path.join(root, 'docs', 'librainian', 'USE_CASE_MATRIX.md');
   const markdown = await fs.readFile(matrixPath, 'utf8');
   const rows = parseUseCaseRows(markdown);
   const map = new Map<string, string>();
@@ -106,7 +106,7 @@ export async function loadDomainTemplateMap(workspaceRoot: string): Promise<Map<
   const cached = domainTemplateCache.get(root);
   if (cached) return cached;
 
-  const specPath = path.join(root, 'docs', 'librarian', 'specs', 'core', 'construction-templates.md');
+  const specPath = path.join(root, 'docs', 'librainian', 'specs', 'core', 'construction-templates.md');
   const markdown = await fs.readFile(specPath, 'utf8');
   const map = parseDomainTemplateMap(markdown);
   domainTemplateCache.set(root, map);
@@ -114,7 +114,7 @@ export async function loadDomainTemplateMap(workspaceRoot: string): Promise<Map<
 }
 
 export async function buildConstructionPlan(
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   workspaceRoot: string
 ): Promise<{ plan: ConstructionPlan; disclosures: string[] }> {
   const disclosures: string[] = [];
@@ -126,7 +126,7 @@ export async function buildConstructionPlan(
   const rankedCandidates: RankedCandidate[] = [];
   const ucDomains = new Set<string>();
 
-  const resolveDepthHint = (depth: LibrarianQuery['depth']): IntentHints['depth'] => {
+  const resolveDepthHint = (depth: LiBrainianQuery['depth']): IntentHints['depth'] => {
     if (!depth) return undefined;
     if (depth === 'L0' || depth === 'L1') return 'shallow';
     if (depth === 'L2') return 'medium';

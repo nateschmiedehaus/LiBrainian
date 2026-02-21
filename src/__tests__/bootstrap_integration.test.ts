@@ -1,14 +1,14 @@
 /**
  * @fileoverview Bootstrap Integration Tests
  *
- * Tests that validate the librarian can index itself and wave0 codebase.
- * These tests serve as both validation and dogfooding - the librarian
+ * Tests that validate the librainian can index itself and wave0 codebase.
+ * These tests serve as both validation and dogfooding - the librainian
  * should understand its own code to help improve itself.
  *
  * Test Tiers:
  * - Tier 0: Unit tests for new components (fast, no I/O)
- * - Tier 1: Self-index ~100 files from librarian
- * - Tier 2: Partial wave0 index (orchestrator + librarian)
+ * - Tier 1: Self-index ~100 files from librainian
+ * - Tier 2: Partial wave0 index (orchestrator + librainian)
  * - Tier 3: Full wave0 index (entire src/)
  */
 
@@ -33,12 +33,12 @@ import {
 } from '../core/result.js';
 
 import {
-  LibrarianError,
+  LiBrainianError,
   StorageError,
   ProviderError,
   ValidationError,
   Errors,
-  isLibrarianError,
+  isLiBrainianError,
   isRetryableError,
 } from '../core/errors.js';
 
@@ -221,12 +221,12 @@ describe('Tier 0: Core Components Unit Tests', () => {
       expect(error.retryable).toBe(false);
     });
 
-    it('should identify librarian errors', () => {
+    it('should identify librainian errors', () => {
       const libError = Errors.storage('write', 'test');
       const normalError = new Error('normal');
 
-      expect(isLibrarianError(libError)).toBe(true);
-      expect(isLibrarianError(normalError)).toBe(false);
+      expect(isLiBrainianError(libError)).toBe(true);
+      expect(isLiBrainianError(normalError)).toBe(false);
     });
 
     it('should identify retryable errors', () => {
@@ -659,23 +659,23 @@ describe('Tier 0: Core Components Unit Tests', () => {
 // TIER 1: LIBRARIAN SELF-INDEX
 // ============================================================================
 
-describeSelf('Tier 1: Librarian Self-Index', () => {
-  let librarianFiles: string[] = [];
+describeSelf('Tier 1: LiBrainian Self-Index', () => {
+  let librainianFiles: string[] = [];
 
   beforeAll(async () => {
-    librarianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 5000);
+    librainianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 5000);
   });
 
-  it('should find librarian source files', () => {
-    expect(librarianFiles.length).toBeGreaterThan(20);
-    expect(librarianFiles.some(f => f.includes('core/result.ts'))).toBe(true);
+  it('should find librainian source files', () => {
+    expect(librainianFiles.length).toBeGreaterThan(20);
+    expect(librainianFiles.some(f => f.includes('core/result.ts'))).toBe(true);
   });
 
-  it('should classify all librarian files', () => {
+  it('should classify all librainian files', () => {
     const registry = new EntityRegistry();
     const classifications: Map<string, string[]> = new Map();
 
-    for (const file of librarianFiles) {
+    for (const file of librainianFiles) {
       const info = filePathToFileInfo(file);
       const types = registry.classifyFile(info);
 
@@ -691,27 +691,27 @@ describeSelf('Tier 1: Librarian Self-Index', () => {
     expect(classifications.get('test')!.length).toBeGreaterThan(0);
   });
 
-  it('should validate known librarian structure', () => {
-    // Validate expected directories exist - check dirs that exist in librarian
+  it('should validate known librainian structure', () => {
+    // Validate expected directories exist - check dirs that exist in librainian
     const expectedDirs = ['__tests__', 'agents', 'api'];
 
     for (const dir of expectedDirs) {
-      const hasDir = librarianFiles.some(f => f.includes(`/librarian/${dir}/`));
+      const hasDir = librainianFiles.some(f => f.includes(`/librainian/${dir}/`));
       expect(hasDir).toBe(true);
     }
 
     // Also verify we have some files
-    expect(librarianFiles.length).toBeGreaterThan(5);
+    expect(librainianFiles.length).toBeGreaterThan(5);
   });
 
-  it('should discover entity patterns from librarian code', () => {
+  it('should discover entity patterns from librainian code', () => {
     const registry = new EntityRegistry();
-    const fileInfos = librarianFiles.map(filePathToFileInfo);
+    const fileInfos = librainianFiles.map(filePathToFileInfo);
 
     const discovered = registry.discoverEntityTypes(fileInfos);
 
     // Might discover indexer, extractor, etc. patterns
-    // This depends on file naming in librarian
+    // This depends on file naming in librainian
     expect(discovered).toBeDefined();
   });
 
@@ -721,7 +721,7 @@ describeSelf('Tier 1: Librarian Self-Index', () => {
     let successCount = 0;
     let errorCount = 0;
 
-    for (const file of librarianFiles.slice(0, 50)) {
+    for (const file of librainianFiles.slice(0, 50)) {
       const startTime = Date.now();
 
       try {
@@ -756,9 +756,9 @@ describeWave0('Tier 2: Wave0 Partial Index', () => {
     const orchestratorRoot = path.join(SRC_ROOT, 'orchestrator');
     orchestratorFiles = await collectTypeScriptFiles(orchestratorRoot, 100);
 
-    // Combine with librarian files
-    const librarianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 100);
-    combinedFiles = [...orchestratorFiles, ...librarianFiles];
+    // Combine with librainian files
+    const librainianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 100);
+    combinedFiles = [...orchestratorFiles, ...librainianFiles];
   });
 
   it('should find orchestrator files', () => {
@@ -766,11 +766,11 @@ describeWave0('Tier 2: Wave0 Partial Index', () => {
   });
 
   it('should handle cross-module relationships', () => {
-    // Files should come from both librarian and orchestrator
-    const librarianCount = combinedFiles.filter(f => f.includes('/librarian/')).length;
+    // Files should come from both librainian and orchestrator
+    const librainianCount = combinedFiles.filter(f => f.includes('/librainian/')).length;
     const orchestratorCount = combinedFiles.filter(f => f.includes('/orchestrator/')).length;
 
-    expect(librarianCount).toBeGreaterThan(0);
+    expect(librainianCount).toBeGreaterThan(0);
     expect(orchestratorCount).toBeGreaterThan(0);
   });
 
@@ -837,12 +837,12 @@ describeWave0('Tier 2: Wave0 Partial Index', () => {
 // DOGFOODING TESTS: LIBRARIAN UNDERSTANDING ITSELF
 // ============================================================================
 
-describeSelf('Dogfooding: Librarian Self-Understanding', () => {
-  it('should identify core librarian components', async () => {
+describeSelf('Dogfooding: LiBrainian Self-Understanding', () => {
+  it('should identify core librainian components', async () => {
     const scorer = new MultiSignalScorer();
-    const librarianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 50);
+    const librainianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 50);
 
-    const entities: EntityData[] = librarianFiles.map(file => ({
+    const entities: EntityData[] = librainianFiles.map(file => ({
       id: createEntityId('file', file),
       type: 'file',
       path: file,
@@ -869,9 +869,9 @@ describeSelf('Dogfooding: Librarian Self-Understanding', () => {
 
   it('should understand registry pattern', async () => {
     const scorer = new MultiSignalScorer();
-    const librarianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 50);
+    const librainianFiles = await collectTypeScriptFiles(LIBRARIAN_ROOT, 50);
 
-    const entities: EntityData[] = librarianFiles.map(file => ({
+    const entities: EntityData[] = librainianFiles.map(file => ({
       id: createEntityId('file', file),
       type: 'file',
       path: file,

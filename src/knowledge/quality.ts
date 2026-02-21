@@ -10,7 +10,7 @@
  * - Test coverage gaps
  */
 
-import type { LibrarianStorage, ModuleKnowledge } from '../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge } from '../storage/types.js';
 import { computeGraphMetrics } from '../graphs/metrics.js';
 import { buildModuleGraphs } from './module_graph.js';
 import {
@@ -127,7 +127,7 @@ export interface QualityScore {
 // ============================================================================
 
 export class QualityKnowledge {
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   async query(q: QualityQuery): Promise<QualityResult> {
     switch (q.type) {

@@ -17,7 +17,7 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import type { FileKnowledge } from '../../types.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 import { computeFileChecksum } from '../../utils/checksums.js';
 import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 
@@ -477,7 +477,7 @@ Respond in this exact JSON format:
   ];
 
   const modelId = config.llmModelId
-    || resolveLibrarianModelId(config.llmProvider ?? 'claude')
+    || resolveLiBrainianModelId(config.llmProvider ?? 'claude')
     || 'claude-haiku-4-5-20241022';
 
   // Build LLM evidence before the call

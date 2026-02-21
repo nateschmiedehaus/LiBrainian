@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Librarian } from '../librarian.js';
+import { LiBrainian } from '../librainian.js';
 import { createVerificationPlan } from '../../strategic/verification_plan.js';
 import { createEpisode } from '../../strategic/episodes.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -18,15 +18,15 @@ class MockStorage implements StorageStub {
   }
 }
 
-describe('Librarian memory helpers', () => {
+describe('LiBrainian memory helpers', () => {
   it('stores and lists verification plans', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp/workspace',
       autoBootstrap: false,
       autoWatch: false,
     });
     const storage = new MockStorage();
-    (librarian as unknown as { storage: LibrarianStorage }).storage = storage as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage = storage as unknown as LiBrainianStorage;
 
     const plan = createVerificationPlan({
       id: 'vp-1',
@@ -35,19 +35,19 @@ describe('Librarian memory helpers', () => {
       expectedObservations: [],
     });
 
-    await librarian.saveVerificationPlan(plan);
-    const list = await librarian.listVerificationPlans();
+    await librainian.saveVerificationPlan(plan);
+    const list = await librainian.listVerificationPlans();
     expect(list).toHaveLength(1);
   });
 
   it('records and lists episodes', async () => {
-    const librarian = new Librarian({
+    const librainian = new LiBrainian({
       workspace: '/tmp/workspace',
       autoBootstrap: false,
       autoWatch: false,
     });
     const storage = new MockStorage();
-    (librarian as unknown as { storage: LibrarianStorage }).storage = storage as unknown as LibrarianStorage;
+    (librainian as unknown as { storage: LiBrainianStorage }).storage = storage as unknown as LiBrainianStorage;
 
     const episode = createEpisode({
       id: 'ep-1',
@@ -56,8 +56,8 @@ describe('Librarian memory helpers', () => {
       outcome: { success: true, duration: 5 },
     });
 
-    await librarian.recordEpisode(episode);
-    const list = await librarian.listEpisodes();
+    await librainian.recordEpisode(episode);
+    const list = await librainian.listEpisodes();
     expect(list).toHaveLength(1);
   });
 });

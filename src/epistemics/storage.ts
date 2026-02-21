@@ -115,7 +115,7 @@ export interface TraversalResult {
 
 /**
  * Evidence graph storage interface.
- * Extends the base librarian storage with graph operations.
+ * Extends the base librainian storage with graph operations.
  */
 export interface EvidenceGraphStorage {
   // Lifecycle

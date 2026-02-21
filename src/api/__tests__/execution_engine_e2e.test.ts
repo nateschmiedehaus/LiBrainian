@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianQuery } from '../../types.js';
+import type { LiBrainianQuery } from '../../types.js';
 import { createEvidenceLedger, createSessionId, resolveReplaySessionId } from '../../epistemics/evidence_ledger.js';
 import { executeQueryPipeline } from '../execution_pipeline.js';
 import { listExecutionTraces } from '../../state/execution_traces.js';
@@ -14,7 +14,7 @@ import { saveTechniqueComposition } from '../../state/technique_compositions.js'
 
 describe('execution pipeline e2e (tier-0)', () => {
   it('executes query → plan → composition deterministically without providers', async () => {
-    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-e2e-'));
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-e2e-'));
     const ledgerPath = path.join(workspaceRoot, 'evidence.sqlite');
     const ledger = createEvidenceLedger(ledgerPath);
     await ledger.initialize();
@@ -100,7 +100,7 @@ describe('execution pipeline e2e (tier-0)', () => {
       });
       await saveTechniqueComposition(storage, composition);
 
-      const query: LibrarianQuery = {
+      const query: LiBrainianQuery = {
         intent: 'e2e execution',
         depth: 'L0',
         affectedFiles: ['src/app.ts'],
@@ -148,7 +148,7 @@ describe('execution pipeline e2e (tier-0)', () => {
       const resolved = resolveReplaySessionId(result.response.traceId);
       expect(resolved).toBe(sessionId);
       const entries = await ledger.query({ sessionId });
-      const hasQueryStage = entries.some((entry) => (entry.payload as any)?.toolName === 'librarian_query_stage');
+      const hasQueryStage = entries.some((entry) => (entry.payload as any)?.toolName === 'librainian_query_stage');
       const hasOperatorEvent = entries.some((entry) => (entry.payload as any)?.toolName === 'technique.operatorEvent');
       expect(hasQueryStage).toBe(true);
       expect(hasOperatorEvent).toBe(true);

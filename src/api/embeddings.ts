@@ -378,7 +378,7 @@ export class EmbeddingService {
     // Validate dimension matches real embedding model
     if (this.embeddingDimension !== REAL_EMBEDDING_DIMENSION) {
       console.warn(
-        `[librarian] Warning: embeddingDimension (${this.embeddingDimension}) differs from ` +
+        `[librainian] Warning: embeddingDimension (${this.embeddingDimension}) differs from ` +
         `REAL_EMBEDDING_DIMENSION (${REAL_EMBEDDING_DIMENSION}). Using real model dimension.`
       );
     }
@@ -540,7 +540,7 @@ export class EmbeddingService {
           governorContext?.recordRetry();
           const backoffMs = computeRetryDelayMs(attempt + 1, this.retryConfig);
           console.warn(
-            `[librarian] Embedding generation failed (attempt ${attempt + 1}/${maxAttempts}), ` +
+            `[librainian] Embedding generation failed (attempt ${attempt + 1}/${maxAttempts}), ` +
             `retrying in ${backoffMs}ms: ${message}`
           );
           await delay(backoffMs);

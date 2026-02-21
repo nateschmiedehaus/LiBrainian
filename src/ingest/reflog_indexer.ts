@@ -13,7 +13,7 @@
 import { execSync, exec } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';
-import type { LibrarianStorage, ReflogEntry } from '../storage/types.js';
+import type { LiBrainianStorage, ReflogEntry } from '../storage/types.js';
 
 // ============================================================================
 // TYPES
@@ -21,7 +21,7 @@ import type { LibrarianStorage, ReflogEntry } from '../storage/types.js';
 
 export interface ReflogIndexerOptions {
   workspace: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   refs?: string[];            // Specific refs to track (default: HEAD)
   maxEntries?: number;        // Limit entries per ref (default: 500)
   sinceDate?: string;         // Only entries after this date
@@ -307,7 +307,7 @@ export async function indexReflog(options: ReflogIndexerOptions): Promise<Reflog
  * Get recent reverts in the repository.
  */
 export async function getRecentReverts(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 20
 ): Promise<ReflogEntry[]> {
   return storage.getReflogEntries({
@@ -322,7 +322,7 @@ export async function getRecentReverts(
  * Get recent resets (potential rollbacks).
  */
 export async function getRecentResets(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 20
 ): Promise<ReflogEntry[]> {
   return storage.getReflogEntries({
@@ -337,7 +337,7 @@ export async function getRecentResets(
  * Get merge history.
  */
 export async function getMergeHistory(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 50
 ): Promise<ReflogEntry[]> {
   return storage.getReflogEntries({
@@ -352,7 +352,7 @@ export async function getMergeHistory(
  * Get rebase history (potential conflict points).
  */
 export async function getRebaseHistory(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   limit: number = 50
 ): Promise<ReflogEntry[]> {
   return storage.getReflogEntries({
@@ -367,7 +367,7 @@ export async function getRebaseHistory(
  * Analyze development workflow patterns.
  */
 export async function analyzeWorkflowPatterns(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<{
   commitCount: number;
   mergeCount: number;
@@ -418,7 +418,7 @@ export async function analyzeWorkflowPatterns(
  * Find potentially problematic patterns (many reverts, resets).
  */
 export async function findProblematicPatterns(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   sinceTimestamp?: string
 ): Promise<{
   revertFrequency: number;  // reverts per 100 commits

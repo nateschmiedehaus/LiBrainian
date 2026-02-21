@@ -259,16 +259,16 @@ export class ConstructionRegistry {
 
 export const CONSTRUCTION_REGISTRY = new ConstructionRegistry();
 
-function ensureLibrarianContext(
+function ensureLiBrainianContext(
   context: Context<unknown> | undefined,
   constructionId: ConstructionId,
-): { librarian: { [key: string]: unknown } } {
+): { librainian: { [key: string]: unknown } } {
   const deps = context?.deps as Record<string, unknown> | undefined;
-  const librarian = deps?.librarian as { [key: string]: unknown } | undefined;
-  if (!librarian) {
-    throw new ConstructionCapabilityError('librarian', constructionId);
+  const librainian = deps?.librainian as { [key: string]: unknown } | undefined;
+  if (!librainian) {
+    throw new ConstructionCapabilityError('librainian', constructionId);
   }
-  return { librarian };
+  return { librainian };
 }
 
 function seedRegistryWithDefaults(): void {
@@ -340,11 +340,11 @@ function activateCoreConstructions(): void {
         required: ['safe', 'riskScore', 'confidence'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'impact-analysis'],
+      requiredCapabilities: ['librainian', 'impact-analysis'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:refactoring-safety-checker');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:refactoring-safety-checker');
         const { createRefactoringSafetyChecker } = await import('./refactoring_safety_checker.js');
-        return createRefactoringSafetyChecker(librarian as any).check(input as any);
+        return createRefactoringSafetyChecker(librainian as any).check(input as any);
       },
     },
     {
@@ -368,11 +368,11 @@ function activateCoreConstructions(): void {
         required: ['hypotheses', 'confidence'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'debug-analysis'],
+      requiredCapabilities: ['librainian', 'debug-analysis'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:bug-investigation-assistant');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:bug-investigation-assistant');
         const { createBugInvestigationAssistant } = await import('./bug_investigation_assistant.js');
-        return createBugInvestigationAssistant(librarian as any).investigate(input as any);
+        return createBugInvestigationAssistant(librainian as any).investigate(input as any);
       },
     },
     {
@@ -396,11 +396,11 @@ function activateCoreConstructions(): void {
         required: ['locations', 'confidence'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'symbol-search'],
+      requiredCapabilities: ['librainian', 'symbol-search'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:feature-location-advisor');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:feature-location-advisor');
         const { createFeatureLocationAdvisor } = await import('./feature_location_advisor.js');
-        return createFeatureLocationAdvisor(librarian as any).locate(input as any);
+        return createFeatureLocationAdvisor(librainian as any).locate(input as any);
       },
     },
     {
@@ -424,11 +424,11 @@ function activateCoreConstructions(): void {
         required: ['issues', 'metrics', 'confidence'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'quality-analysis'],
+      requiredCapabilities: ['librainian', 'quality-analysis'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:code-quality-reporter');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:code-quality-reporter');
         const { createCodeQualityReporter } = await import('./code_quality_reporter.js');
-        return createCodeQualityReporter(librarian as any).analyze(input as any);
+        return createCodeQualityReporter(librainian as any).analyze(input as any);
       },
     },
     {
@@ -451,11 +451,11 @@ function activateCoreConstructions(): void {
         required: ['violations', 'confidence'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'architecture-analysis'],
+      requiredCapabilities: ['librainian', 'architecture-analysis'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:architecture-verifier');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:architecture-verifier');
         const { createArchitectureVerifier } = await import('./architecture_verifier.js');
-        return createArchitectureVerifier(librarian as any).verify(input as any);
+        return createArchitectureVerifier(librainian as any).verify(input as any);
       },
     },
     {
@@ -479,11 +479,11 @@ function activateCoreConstructions(): void {
         required: ['findings', 'confidence'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'security-analysis'],
+      requiredCapabilities: ['librainian', 'security-analysis'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:security-audit-helper');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:security-audit-helper');
         const { createSecurityAuditHelper } = await import('./security_audit_helper.js');
-        return createSecurityAuditHelper(librarian as any).audit(input as any);
+        return createSecurityAuditHelper(librainian as any).audit(input as any);
       },
     },
     {
@@ -538,11 +538,11 @@ function activateCoreConstructions(): void {
         required: ['overallScore', 'confidence', 'issues'],
         additionalProperties: true,
       },
-      requiredCapabilities: ['librarian', 'quality-analysis', 'security-analysis', 'architecture-analysis'],
+      requiredCapabilities: ['librainian', 'quality-analysis', 'security-analysis', 'architecture-analysis'],
       execute: async (input, context) => {
-        const { librarian } = ensureLibrarianContext(context, 'librainian:comprehensive-quality-construction');
+        const { librainian } = ensureLiBrainianContext(context, 'librainian:comprehensive-quality-construction');
         const { createComprehensiveQualityConstruction } = await import('./comprehensive_quality_construction.js');
-        return createComprehensiveQualityConstruction(librarian as any).assess(input as any);
+        return createComprehensiveQualityConstruction(librainian as any).assess(input as any);
       },
     },
   ];

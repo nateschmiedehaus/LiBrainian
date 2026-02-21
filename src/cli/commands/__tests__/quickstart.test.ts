@@ -18,9 +18,9 @@ vi.mock('../../../api/onboarding_recovery.js', () => ({
 }));
 
 describe('quickstartCommand', () => {
-  const workspace = '/tmp/librarian-quickstart';
-  const resolvedWorkspace = '/tmp/librarian-quickstart/root';
-  const dbPath = '/tmp/librarian.sqlite';
+  const workspace = '/tmp/librainian-quickstart';
+  const resolvedWorkspace = '/tmp/librainian-quickstart/root';
+  const dbPath = '/tmp/librainian.sqlite';
   const originalHome = process.env.HOME;
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;

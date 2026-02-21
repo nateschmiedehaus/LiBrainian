@@ -3,8 +3,8 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Test-Based Verifier uses existing tests in a codebase to verify Librarian's claims.
- * If Librarian claims "function X does Y", we can check if there's a test that demonstrates
+ * The Test-Based Verifier uses existing tests in a codebase to verify LiBrainian's claims.
+ * If LiBrainian claims "function X does Y", we can check if there's a test that demonstrates
  * this behavior, providing additional verification beyond AST analysis.
  *
  * @packageDocumentation
@@ -894,7 +894,7 @@ describe('TestBasedVerifier - Integration', () => {
     verifier = createTestBasedVerifier();
   });
 
-  it('should verify claims from actual Librarian test files', async () => {
+  it('should verify claims from actual LiBrainian test files', async () => {
     const response = `
       The CitationVerifier class is defined in citation_verifier.ts.
       It has a method called verifyCitation that takes a citation and facts.

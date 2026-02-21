@@ -117,7 +117,7 @@ export interface EvidenceRecord {
   /** The agent responsible for this record */
   wasAttributedTo: Agent;
 
-  // Librarian-specific
+  // LiBrainian-specific
   /** Type of evidence */
   evidenceType: EvidenceType;
   /** The actual content being recorded */
@@ -156,7 +156,7 @@ export interface RecordMetadata {
 export interface ProvEntity {
   'prov:type'?: string | string[];
   'prov:label'?: string;
-  [key: `librarian:${string}`]: unknown;
+  [key: `librainian:${string}`]: unknown;
 }
 
 /**
@@ -167,7 +167,7 @@ export interface ProvActivity {
   'prov:endTime'?: string;
   'prov:type'?: string | string[];
   'prov:label'?: string;
-  [key: `librarian:${string}`]: unknown;
+  [key: `librainian:${string}`]: unknown;
 }
 
 /**
@@ -176,7 +176,7 @@ export interface ProvActivity {
 export interface ProvAgent {
   'prov:type'?: string | string[];
   'prov:label'?: string;
-  [key: `librarian:${string}`]: unknown;
+  [key: `librainian:${string}`]: unknown;
 }
 
 /**
@@ -189,7 +189,7 @@ export interface ProvRelation {
   'prov:usedEntity'?: string;
   'prov:generatedEntity'?: string;
   'prov:time'?: string;
-  [key: `librarian:${string}`]: unknown;
+  [key: `librainian:${string}`]: unknown;
 }
 
 /**
@@ -364,7 +364,7 @@ export function exportToProv(records: EvidenceRecord[]): ProvDocument {
     prefix: {
       prov: 'http://www.w3.org/ns/prov#',
       xsd: 'http://www.w3.org/2001/XMLSchema#',
-      librarian: 'urn:librarian:evidence:',
+      librainian: 'urn:librainian:evidence:',
     },
     entity: {},
     activity: {},
@@ -380,9 +380,9 @@ export function exportToProv(records: EvidenceRecord[]): ProvDocument {
   const agentIds = new Set<string>();
 
   for (const record of records) {
-    const entityId = `librarian:${record.id}`;
-    const activityId = `librarian:${record.wasGeneratedBy.id}`;
-    const agentId = `librarian:${record.wasAttributedTo.id}`;
+    const entityId = `librainian:${record.id}`;
+    const activityId = `librainian:${record.wasGeneratedBy.id}`;
+    const agentId = `librainian:${record.wasAttributedTo.id}`;
 
     // Create Entity
     doc.entity[entityId] = createProvEntity(record);
@@ -397,21 +397,21 @@ export function exportToProv(records: EvidenceRecord[]): ProvDocument {
     }
 
     // wasGeneratedBy relation
-    doc.wasGeneratedBy[`librarian:gen_${record.id}`] = {
+    doc.wasGeneratedBy[`librainian:gen_${record.id}`] = {
       'prov:entity': entityId,
       'prov:activity': activityId,
       'prov:time': record.generatedAtTime.toISOString(),
     };
 
     // wasAttributedTo relation
-    doc.wasAttributedTo[`librarian:attr_${record.id}`] = {
+    doc.wasAttributedTo[`librainian:attr_${record.id}`] = {
       'prov:entity': entityId,
       'prov:agent': agentId,
     };
 
     // wasAssociatedWith relation
     if (doc.wasAssociatedWith) {
-      doc.wasAssociatedWith[`librarian:assoc_${record.id}`] = {
+      doc.wasAssociatedWith[`librainian:assoc_${record.id}`] = {
         'prov:activity': activityId,
         'prov:agent': agentId,
       };
@@ -421,8 +421,8 @@ export function exportToProv(records: EvidenceRecord[]): ProvDocument {
     if (record.wasDerivedFrom) {
       for (let i = 0; i < record.wasDerivedFrom.length; i++) {
         const sourceRecord = record.wasDerivedFrom[i];
-        const sourceEntityId = `librarian:${sourceRecord.id}`;
-        const derivationId = `librarian:deriv_${record.id}_${i}`;
+        const sourceEntityId = `librainian:${sourceRecord.id}`;
+        const derivationId = `librainian:deriv_${record.id}_${i}`;
 
         doc.wasDerivedFrom[derivationId] = {
           'prov:generatedEntity': entityId,
@@ -431,7 +431,7 @@ export function exportToProv(records: EvidenceRecord[]): ProvDocument {
 
         // used relation
         if (doc.used) {
-          doc.used[`librarian:used_${record.id}_${i}`] = {
+          doc.used[`librainian:used_${record.id}_${i}`] = {
             'prov:activity': activityId,
             'prov:entity': sourceEntityId,
           };
@@ -452,28 +452,28 @@ export function exportToProv(records: EvidenceRecord[]): ProvDocument {
  */
 function createProvEntity(record: EvidenceRecord): ProvEntity {
   const entity: ProvEntity = {
-    'prov:type': `librarian:${record.evidenceType}`,
+    'prov:type': `librainian:${record.evidenceType}`,
     'prov:label': `Evidence: ${record.evidenceType}`,
-    'librarian:evidenceType': record.evidenceType,
-    'librarian:contentHash': record.contentHash,
-    'librarian:timestamp': record.generatedAtTime.toISOString(),
+    'librainian:evidenceType': record.evidenceType,
+    'librainian:contentHash': record.contentHash,
+    'librainian:timestamp': record.generatedAtTime.toISOString(),
   };
 
   // Include confidence information
   if (record.confidence.type === 'deterministic' ||
       record.confidence.type === 'derived' ||
       record.confidence.type === 'measured') {
-    entity['librarian:confidence'] = (record.confidence as { value: number }).value;
+    entity['librainian:confidence'] = (record.confidence as { value: number }).value;
   } else if (record.confidence.type === 'bounded') {
     const bounded = record.confidence as { low: number; high: number };
-    entity['librarian:confidenceLow'] = bounded.low;
-    entity['librarian:confidenceHigh'] = bounded.high;
+    entity['librainian:confidenceLow'] = bounded.low;
+    entity['librainian:confidenceHigh'] = bounded.high;
   } else {
-    entity['librarian:confidenceAbsent'] = (record.confidence as { reason: string }).reason;
+    entity['librainian:confidenceAbsent'] = (record.confidence as { reason: string }).reason;
   }
 
   if (record.signature) {
-    entity['librarian:signature'] = record.signature;
+    entity['librainian:signature'] = record.signature;
   }
 
   return entity;
@@ -484,10 +484,10 @@ function createProvEntity(record: EvidenceRecord): ProvEntity {
  */
 function createProvActivity(activity: Activity): ProvActivity {
   const provActivity: ProvActivity = {
-    'prov:type': `librarian:${activity.type}_activity`,
+    'prov:type': `librainian:${activity.type}_activity`,
     'prov:label': `${activity.type} activity`,
     'prov:startTime': activity.startedAtTime.toISOString(),
-    'librarian:activityType': activity.type,
+    'librainian:activityType': activity.type,
   };
 
   if (activity.endedAtTime) {
@@ -495,7 +495,7 @@ function createProvActivity(activity: Activity): ProvActivity {
   }
 
   if (activity.usedInputs.length > 0) {
-    provActivity['librarian:usedInputs'] = activity.usedInputs;
+    provActivity['librainian:usedInputs'] = activity.usedInputs;
   }
 
   return provActivity;
@@ -508,12 +508,12 @@ function createProvAgent(agent: Agent): ProvAgent {
   const provAgent: ProvAgent = {
     'prov:type': mapAgentTypeToProvType(agent.type),
     'prov:label': agent.name,
-    'librarian:agentType': agent.type,
-    'librarian:agentName': agent.name,
+    'librainian:agentType': agent.type,
+    'librainian:agentName': agent.name,
   };
 
   if (agent.version) {
-    provAgent['librarian:agentVersion'] = agent.version;
+    provAgent['librainian:agentVersion'] = agent.version;
   }
 
   return provAgent;

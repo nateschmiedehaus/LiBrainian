@@ -588,10 +588,10 @@ describe('GroundTruthGenerator - Integration', () => {
   });
 
   it('should work end-to-end with a real repository', async () => {
-    const corpus = await generator.generateForRepo(AGENTS_DIR, 'librarian-agents');
+    const corpus = await generator.generateForRepo(AGENTS_DIR, 'librainian-agents');
 
     // Verify corpus structure
-    expect(corpus.repoName).toBe('librarian-agents');
+    expect(corpus.repoName).toBe('librainian-agents');
     expect(corpus.queries.length).toBeGreaterThanOrEqual(50);
     expect(corpus.factCount).toBeGreaterThan(0);
 

@@ -6,7 +6,7 @@ import { appendPrivacyAuditEvent, generatePrivacyReport, resolvePrivacyAuditLogP
 
 describe('privacy_audit', () => {
   it('records events and summarizes compliance signals', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-privacy-audit-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-privacy-audit-'));
     try {
       await appendPrivacyAuditEvent(workspace, {
         ts: '2026-02-20T00:00:00.000Z',
@@ -50,7 +50,7 @@ describe('privacy_audit', () => {
   });
 
   it('applies since filtering to report generation', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-privacy-since-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-privacy-since-'));
     try {
       await appendPrivacyAuditEvent(workspace, {
         ts: '2026-02-01T00:00:00.000Z',

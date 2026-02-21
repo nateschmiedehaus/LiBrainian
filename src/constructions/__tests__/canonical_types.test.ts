@@ -27,7 +27,7 @@ describe('canonical construction interface bridge', () => {
     expect(adapted.name).toBe('Example Construction');
 
     const context: Context = {
-      deps: { librarian: {} as any },
+      deps: { librainian: {} as any },
       signal: new AbortController().signal,
       sessionId: 'sess-test',
     };
@@ -77,7 +77,7 @@ describe('canonical construction interface bridge', () => {
     );
 
     const result = await chain.execute(7, {
-      deps: { librarian: {} as any },
+      deps: { librainian: {} as any },
       signal: new AbortController().signal,
       sessionId: 'sess-op',
     });

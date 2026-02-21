@@ -2,11 +2,11 @@
  * @fileoverview Tests for Dependency Invalidation Storage Methods
  *
  * Tests for invalidateCache, invalidateEmbeddings, and getReverseDependencies
- * methods on SqliteLibrarianStorage.
+ * methods on SqliteLiBrainianStorage.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SqliteLibrarianStorage } from '../sqlite_storage.js';
+import { SqliteLiBrainianStorage } from '../sqlite_storage.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
@@ -16,12 +16,12 @@ import * as os from 'os';
 // ============================================================================
 
 let testDir: string;
-let storage: SqliteLibrarianStorage;
+let storage: SqliteLiBrainianStorage;
 
-async function createTestStorage(): Promise<SqliteLibrarianStorage> {
-  testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-dep-inv-test-'));
+async function createTestStorage(): Promise<SqliteLiBrainianStorage> {
+  testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-dep-inv-test-'));
   const dbPath = path.join(testDir, 'test.db');
-  const testStorage = new SqliteLibrarianStorage(dbPath);
+  const testStorage = new SqliteLiBrainianStorage(dbPath);
   await testStorage.initialize();
   return testStorage;
 }
@@ -39,7 +39,7 @@ async function cleanupTestStorage(): Promise<void> {
 // TESTS
 // ============================================================================
 
-describe('SqliteLibrarianStorage dependency invalidation', () => {
+describe('SqliteLiBrainianStorage dependency invalidation', () => {
   beforeEach(async () => {
     storage = await createTestStorage();
   });
@@ -138,7 +138,7 @@ describe('SqliteLibrarianStorage dependency invalidation', () => {
         id: 'mod1',
         path: 'src/storage/types.ts',
         purpose: 'Storage types',
-        exports: ['LibrarianStorage'],
+        exports: ['LiBrainianStorage'],
         dependencies: [],
         complexity: 10,
         confidence: 0.9,
@@ -232,12 +232,12 @@ describe('SqliteLibrarianStorage dependency invalidation', () => {
           computedAt: new Date(),
         },
         {
-          fromId: 'src/api/librarian.ts',
+          fromId: 'src/api/librainian.ts',
           fromType: 'file',
           toId: 'src/types.ts',
           toType: 'file',
           edgeType: 'imports',
-          sourceFile: 'src/api/librarian.ts',
+          sourceFile: 'src/api/librainian.ts',
           sourceLine: 1,
           confidence: 1.0,
           computedAt: new Date(),
@@ -260,7 +260,7 @@ describe('SqliteLibrarianStorage dependency invalidation', () => {
 
       expect(deps).toHaveLength(2);
       expect(deps).toContain('src/api/query.ts');
-      expect(deps).toContain('src/api/librarian.ts');
+      expect(deps).toContain('src/api/librainian.ts');
     });
 
     it('returns empty array when no importers exist', async () => {

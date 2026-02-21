@@ -6,11 +6,11 @@
  *   is parseable, and has expected invariants (IDs, counts, dependency refs).
  *
  * What this test is NOT:
- * - A “coverage %” test proving Librarian solves the use cases. That requires
+ * - A “coverage %” test proving LiBrainian solves the use cases. That requires
  *   Tier‑2 live-provider suites and audited artifacts (no theater).
  *
  * Canonical source:
- * - docs/librarian/USE_CASE_MATRIX.md
+ * - docs/librainian/USE_CASE_MATRIX.md
  */
 
 import { describe, expect, it } from 'vitest';
@@ -41,12 +41,12 @@ function repoRoot(): string {
 }
 
 function loadUseCaseMatrix(): string {
-  const matrixPath = path.join(repoRoot(), 'docs/librarian/USE_CASE_MATRIX.md');
+  const matrixPath = path.join(repoRoot(), 'docs/librainian/USE_CASE_MATRIX.md');
   return fs.readFileSync(matrixPath, 'utf-8');
 }
 
 function loadConstructionTemplatesSpec(): string {
-  const specPath = path.join(repoRoot(), 'docs/librarian/specs/core/construction-templates.md');
+  const specPath = path.join(repoRoot(), 'docs/librainian/specs/core/construction-templates.md');
   return fs.readFileSync(specPath, 'utf-8');
 }
 

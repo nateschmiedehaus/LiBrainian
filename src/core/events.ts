@@ -6,7 +6,7 @@
  * - Two-Level Evaluation: Events enable trajectory inspection (Layer 2)
  *
  * CONTROL THEORY MODEL:
- * - Librarian = Perception (emits events about what it observes)
+ * - LiBrainian = Perception (emits events about what it observes)
  * - Agent = Controller (subscribes to events, emits actions)
  * - Events are the signals between them
  *
@@ -123,8 +123,8 @@ export interface KnowledgeUpdatedEvent extends Event<'knowledge.updated'> {
   };
 }
 
-/** Union of all librarian events */
-export type LibrarianEvent =
+/** Union of all librainian events */
+export type LiBrainianEvent =
   | FileIndexedEvent
   | QueryExecutedEvent
   | ExtractionCompletedEvent

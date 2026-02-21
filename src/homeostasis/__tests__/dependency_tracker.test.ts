@@ -11,13 +11,13 @@ import {
   onFileChanged,
   type InvalidationResult,
 } from '../dependency_tracker.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 
 // ============================================================================
 // TEST UTILITIES
 // ============================================================================
 
-function createMockStorage(): LibrarianStorage {
+function createMockStorage(): LiBrainianStorage {
   return {
     initialize: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
@@ -26,7 +26,7 @@ function createMockStorage(): LibrarianStorage {
     invalidateCache: vi.fn().mockResolvedValue(1),
     invalidateEmbeddings: vi.fn().mockResolvedValue(1),
     getReverseDependencies: vi.fn().mockResolvedValue([]),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -62,13 +62,13 @@ describe('DependencyTracker', () => {
 
     it('handles multiple files importing the same dependency', () => {
       tracker.recordImport('src/api/query.ts', 'src/types.ts');
-      tracker.recordImport('src/api/librarian.ts', 'src/types.ts');
+      tracker.recordImport('src/api/librainian.ts', 'src/types.ts');
       tracker.recordImport('src/api/bootstrap.ts', 'src/types.ts');
 
       const importers = tracker.getDirectImporters('src/types.ts');
       expect(importers.size).toBe(3);
       expect(importers.has('src/api/query.ts')).toBe(true);
-      expect(importers.has('src/api/librarian.ts')).toBe(true);
+      expect(importers.has('src/api/librainian.ts')).toBe(true);
       expect(importers.has('src/api/bootstrap.ts')).toBe(true);
     });
 
@@ -105,12 +105,12 @@ describe('DependencyTracker', () => {
 
     it('returns direct dependents', () => {
       tracker.recordImport('src/api/query.ts', 'src/types.ts');
-      tracker.recordImport('src/api/librarian.ts', 'src/types.ts');
+      tracker.recordImport('src/api/librainian.ts', 'src/types.ts');
 
       const toInvalidate = tracker.getFilesToInvalidate('src/types.ts');
       expect(toInvalidate).toHaveLength(2);
       expect(toInvalidate).toContain('src/api/query.ts');
-      expect(toInvalidate).toContain('src/api/librarian.ts');
+      expect(toInvalidate).toContain('src/api/librainian.ts');
     });
 
     it('returns transitive dependents (cascading invalidation)', () => {
@@ -211,12 +211,12 @@ describe('DependencyTracker', () => {
 
     it('preserves other files dependencies', () => {
       tracker.recordImport('src/query.ts', 'src/types.ts');
-      tracker.recordImport('src/librarian.ts', 'src/types.ts');
+      tracker.recordImport('src/librainian.ts', 'src/types.ts');
 
       tracker.clearFile('src/query.ts');
 
-      // librarian.ts should still show as importing types.ts
-      expect(tracker.getDirectImporters('src/types.ts').has('src/librarian.ts')).toBe(true);
+      // librainian.ts should still show as importing types.ts
+      expect(tracker.getDirectImporters('src/types.ts').has('src/librainian.ts')).toBe(true);
     });
   });
 
@@ -301,12 +301,12 @@ describe('DependencyTracker hydration', () => {
         computedAt: new Date(),
       },
       {
-        fromId: 'src/librarian.ts',
+        fromId: 'src/librainian.ts',
         fromType: 'module',
         toId: 'src/types.ts',
         toType: 'module',
         edgeType: 'imports',
-        sourceFile: 'src/librarian.ts',
+        sourceFile: 'src/librainian.ts',
         sourceLine: 1,
         confidence: 1.0,
         computedAt: new Date(),
@@ -327,7 +327,7 @@ describe('DependencyTracker hydration', () => {
 
 describe('onFileChanged', () => {
   let tracker: DependencyTracker;
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
 
   beforeEach(() => {
     tracker = createDependencyTracker();
@@ -335,7 +335,7 @@ describe('onFileChanged', () => {
 
     // Set up dependency graph
     tracker.recordImport('src/query.ts', 'src/types.ts');
-    tracker.recordImport('src/librarian.ts', 'src/types.ts');
+    tracker.recordImport('src/librainian.ts', 'src/types.ts');
     tracker.recordImport('src/cli.ts', 'src/query.ts');
   });
 
@@ -344,7 +344,7 @@ describe('onFileChanged', () => {
 
     expect(result.changedFile).toBe('src/types.ts');
     expect(result.invalidatedFiles).toContain('src/query.ts');
-    expect(result.invalidatedFiles).toContain('src/librarian.ts');
+    expect(result.invalidatedFiles).toContain('src/librainian.ts');
     expect(result.invalidatedFiles).toContain('src/cli.ts');
   });
 
@@ -352,7 +352,7 @@ describe('onFileChanged', () => {
     await onFileChanged(mockStorage, tracker, 'src/types.ts', { invalidateCache: true });
 
     expect(mockStorage.invalidateCache).toHaveBeenCalledWith('src/query.ts');
-    expect(mockStorage.invalidateCache).toHaveBeenCalledWith('src/librarian.ts');
+    expect(mockStorage.invalidateCache).toHaveBeenCalledWith('src/librainian.ts');
     expect(mockStorage.invalidateCache).toHaveBeenCalledWith('src/cli.ts');
   });
 
@@ -360,7 +360,7 @@ describe('onFileChanged', () => {
     await onFileChanged(mockStorage, tracker, 'src/types.ts', { invalidateEmbeddings: true });
 
     expect(mockStorage.invalidateEmbeddings).toHaveBeenCalledWith('src/query.ts');
-    expect(mockStorage.invalidateEmbeddings).toHaveBeenCalledWith('src/librarian.ts');
+    expect(mockStorage.invalidateEmbeddings).toHaveBeenCalledWith('src/librainian.ts');
     expect(mockStorage.invalidateEmbeddings).toHaveBeenCalledWith('src/cli.ts');
   });
 
@@ -379,10 +379,10 @@ describe('onFileChanged', () => {
   it('respects maxDepth option', async () => {
     const result = await onFileChanged(mockStorage, tracker, 'src/types.ts', { maxDepth: 1 });
 
-    // Only direct dependents should be included (query.ts, librarian.ts)
+    // Only direct dependents should be included (query.ts, librainian.ts)
     // cli.ts depends on query.ts which depends on types.ts, so at depth 1 it shouldn't be included
     expect(result.invalidatedFiles).toContain('src/query.ts');
-    expect(result.invalidatedFiles).toContain('src/librarian.ts');
+    expect(result.invalidatedFiles).toContain('src/librainian.ts');
     expect(result.invalidatedFiles).not.toContain('src/cli.ts');
   });
 

@@ -20,7 +20,7 @@ import {
   type ParsedDiff,
 } from '../diff_indexer.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, DiffRecord } from '../../storage/types.js';
+import type { LiBrainianStorage, DiffRecord } from '../../storage/types.js';
 
 describe('Diff Indexer', () => {
   describe('categorizeChange', () => {
@@ -323,13 +323,13 @@ index abc123..0000000
   });
 
   describe('Integration with Storage', () => {
-    let storage: LibrarianStorage;
+    let storage: LiBrainianStorage;
     let testDir: string;
     let dbPath: string;
 
     beforeEach(async () => {
       testDir = mkdtempSync(join(tmpdir(), 'diff-indexer-test-'));
-      dbPath = join(testDir, 'librarian.sqlite');
+      dbPath = join(testDir, 'librainian.sqlite');
       storage = createSqliteStorage(dbPath, testDir);
       await storage.initialize();
     });

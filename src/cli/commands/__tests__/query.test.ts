@@ -8,7 +8,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 vi.mock('../../../api/query.js', () => ({
-  queryLibrarian: vi.fn().mockResolvedValue({
+  queryLiBrainian: vi.fn().mockResolvedValue({
     intent: 'test',
     depth: 'L1',
     totalConfidence: 0.5,
@@ -30,11 +30,11 @@ vi.mock('../../../api/bootstrap.js', () => ({
 }));
 
 vi.mock('../../../api/versioning.js', () => ({
-  detectLibrarianVersion: vi.fn().mockResolvedValue({ qualityTier: 'full' }),
+  detectLiBrainianVersion: vi.fn().mockResolvedValue({ qualityTier: 'full' }),
 }));
 
 vi.mock('../../db_path.js', () => ({
-  resolveDbPath: vi.fn().mockResolvedValue('/tmp/librarian.sqlite'),
+  resolveDbPath: vi.fn().mockResolvedValue('/tmp/librainian.sqlite'),
 }));
 
 vi.mock('../../../storage/sqlite_storage.js', () => ({
@@ -69,7 +69,7 @@ vi.mock('../../progress.js', () => ({
 }));
 
 vi.mock('../../../api/llm_env.js', () => ({
-  resolveLibrarianModelConfigWithDiscovery: vi.fn().mockRejectedValue(new Error('no providers')),
+  resolveLiBrainianModelConfigWithDiscovery: vi.fn().mockRejectedValue(new Error('no providers')),
 }));
 
 vi.mock('../../../api/provider_check.js', () => ({
@@ -82,23 +82,37 @@ vi.mock('../../../api/provider_check.js', () => ({
 describe('queryCommand LLM resolution', () => {
   const prevEnv = { ...process.env };
   let logSpy: ReturnType<typeof vi.spyOn> | null = null;
+  let stdoutSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+  const getJsonOutput = (): string | undefined => {
+    const fromStdout = stdoutSpy?.mock.calls
+      .map((call) => String(call[0]))
+      .find((text) => text.trim().startsWith('{'));
+    if (fromStdout) return fromStdout;
+    return logSpy?.mock.calls
+      .map((call) => String(call[0]))
+      .find((line) => line.trim().startsWith('{'));
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as any);
     delete process.env.LIBRARIAN_LLM_PROVIDER;
     delete process.env.LIBRARIAN_LLM_MODEL;
   });
 
   afterEach(() => {
     logSpy?.mockRestore();
+    stdoutSpy?.mockRestore();
     logSpy = null;
+    stdoutSpy = null;
     process.env = { ...prevEnv };
   });
 
   it('disables synthesis when no LLM config is available', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
     await queryCommand({
       workspace: '/tmp/workspace',
@@ -106,7 +120,7 @@ describe('queryCommand LLM resolution', () => {
       rawArgs: ['query', 'hello world', '--json'],
     });
 
-    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    const call = vi.mocked(queryLiBrainian).mock.calls[0]?.[0];
     expect(call?.llmRequirement).toBe('disabled');
     expect(process.env.LIBRARIAN_LLM_PROVIDER).toBeUndefined();
   });
@@ -146,7 +160,7 @@ describe('queryCommand LLM resolution', () => {
 
   it('parses intent from command args when raw argv includes pre-command globals', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
     await queryCommand({
       workspace: '/tmp/workspace',
@@ -154,13 +168,13 @@ describe('queryCommand LLM resolution', () => {
       rawArgs: ['--workspace', '/tmp/workspace', 'query', 'hello world', '--json'],
     });
 
-    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    const call = vi.mocked(queryLiBrainian).mock.calls[0]?.[0];
     expect(call?.intent).toBe('hello world');
   });
 
   it('maps --strategy heuristic to disabled embeddings and synthesis', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
     await queryCommand({
       workspace: '/tmp/workspace',
@@ -168,7 +182,7 @@ describe('queryCommand LLM resolution', () => {
       rawArgs: ['query', 'hello world', '--strategy', 'heuristic', '--json'],
     });
 
-    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    const call = vi.mocked(queryLiBrainian).mock.calls[0]?.[0];
     expect(call?.embeddingRequirement).toBe('disabled');
     expect(call?.llmRequirement).toBe('disabled');
   });
@@ -196,9 +210,9 @@ describe('queryCommand LLM resolution', () => {
 
   it('applies --limit to JSON output packs', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
-    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+    vi.mocked(queryLiBrainian).mockResolvedValueOnce({
       query: { intent: 'hello world', depth: 'L1' },
       totalConfidence: 0.5,
       cacheHit: false,
@@ -218,7 +232,7 @@ describe('queryCommand LLM resolution', () => {
       rawArgs: ['query', 'hello world', '--limit', '1', '--json'],
     });
 
-    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.startsWith('{'));
+    const jsonOutput = getJsonOutput();
     expect(jsonOutput).toBeDefined();
     const parsed = JSON.parse(jsonOutput ?? '{}');
     expect(parsed.packs).toHaveLength(1);
@@ -226,7 +240,7 @@ describe('queryCommand LLM resolution', () => {
 
   it('writes JSON output to --out path', async () => {
     const { queryCommand } = await import('../query.js');
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-out-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-query-out-'));
     const outPath = path.join(tmpDir, 'query.json');
 
     try {
@@ -246,9 +260,9 @@ describe('queryCommand LLM resolution', () => {
 
   it('sanitizes unverified trace markers in JSON output fields', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
-    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+    vi.mocked(queryLiBrainian).mockResolvedValueOnce({
       query: { intent: 'hello world', depth: 'L1' },
       totalConfidence: 0.5,
       cacheHit: false,
@@ -282,7 +296,7 @@ describe('queryCommand LLM resolution', () => {
       rawArgs: ['query', 'hello world', '--json'],
     });
 
-    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+    const jsonOutput = getJsonOutput();
     expect(jsonOutput).toBeDefined();
     const parsed = JSON.parse(jsonOutput ?? '{}');
 
@@ -307,7 +321,7 @@ describe('queryCommand LLM resolution', () => {
 
   it('starts a persistent session with --session new', async () => {
     const { queryCommand } = await import('../query.js');
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-query-session-'));
 
     try {
       await queryCommand({
@@ -316,13 +330,13 @@ describe('queryCommand LLM resolution', () => {
         rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
       });
 
-      const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const jsonOutput = getJsonOutput();
       expect(jsonOutput).toBeDefined();
       const parsed = JSON.parse(jsonOutput ?? '{}') as { mode?: string; sessionId?: string };
       expect(parsed.mode).toBe('start');
       expect(parsed.sessionId).toMatch(/^sess_/);
 
-      const sessionPath = path.join(workspace, '.librarian', 'query_sessions', `${parsed.sessionId}.json`);
+      const sessionPath = path.join(workspace, '.librainian', 'query_sessions', `${parsed.sessionId}.json`);
       const stored = JSON.parse(await fs.readFile(sessionPath, 'utf8')) as { session?: { sessionId?: string } };
       expect(stored.session?.sessionId).toBe(parsed.sessionId);
     } finally {
@@ -332,8 +346,8 @@ describe('queryCommand LLM resolution', () => {
 
   it('continues a persisted session with follow-up intent', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+    const { queryLiBrainian } = await import('../../../api/query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-query-session-'));
 
     try {
       await queryCommand({
@@ -341,22 +355,23 @@ describe('queryCommand LLM resolution', () => {
         args: [],
         rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
       });
-      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const startOutput = getJsonOutput();
       const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
       expect(started.sessionId).toBeTruthy();
 
       logSpy?.mockClear();
+      stdoutSpy?.mockClear();
       await queryCommand({
         workspace,
         args: [],
         rawArgs: ['query', 'token refresh details', '--session', started.sessionId!, '--json'],
       });
-      const followUpOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const followUpOutput = getJsonOutput();
       const followUp = JSON.parse(followUpOutput ?? '{}') as { mode?: string; sessionId?: string };
       expect(followUp.mode).toBe('follow_up');
       expect(followUp.sessionId).toBe(started.sessionId);
 
-      const intents = vi.mocked(queryLibrarian).mock.calls.map((call) => call[0]?.intent);
+      const intents = vi.mocked(queryLiBrainian).mock.calls.map((call) => call[0]?.intent);
       expect(intents).toContain('token refresh details');
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
@@ -365,8 +380,8 @@ describe('queryCommand LLM resolution', () => {
 
   it('supports drill-down in persisted sessions without requiring intent text', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-'));
+    const { queryLiBrainian } = await import('../../../api/query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-query-session-'));
 
     try {
       await queryCommand({
@@ -374,21 +389,22 @@ describe('queryCommand LLM resolution', () => {
         args: [],
         rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
       });
-      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const startOutput = getJsonOutput();
       const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
       expect(started.sessionId).toBeTruthy();
 
       logSpy?.mockClear();
+      stdoutSpy?.mockClear();
       await queryCommand({
         workspace,
         args: [],
         rawArgs: ['query', '--session', started.sessionId!, '--drill-down', 'src/auth/session.ts', '--json'],
       });
-      const drillOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const drillOutput = getJsonOutput();
       const drill = JSON.parse(drillOutput ?? '{}') as { mode?: string };
       expect(drill.mode).toBe('drill_down');
 
-      const intents = vi.mocked(queryLibrarian).mock.calls.map((call) => call[0]?.intent);
+      const intents = vi.mocked(queryLiBrainian).mock.calls.map((call) => call[0]?.intent);
       expect(intents).toContain('Drill down: src/auth/session.ts');
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
@@ -397,9 +413,9 @@ describe('queryCommand LLM resolution', () => {
 
   it('surfaces critical storage and synthesis warnings before coverage gaps', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
-    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+    vi.mocked(queryLiBrainian).mockResolvedValueOnce({
       query: { intent: 'hello world', depth: 'L1' },
       totalConfidence: 0.5,
       cacheHit: false,
@@ -409,7 +425,7 @@ describe('queryCommand LLM resolution', () => {
         'unverified_by_trace(storage_write_degraded): Session degraded: results were returned but could not be persisted.',
       ],
       drillDownHints: [
-        'Session degraded: results were returned but could not be persisted (storage lock compromised). Run `librarian doctor --heal` to recover.',
+        'Session degraded: results were returned but could not be persisted (storage lock compromised). Run `librainian doctor --heal` to recover.',
       ],
       coverageGaps: [
         'Synthesis failed: Claude CLI error',
@@ -440,9 +456,9 @@ describe('queryCommand LLM resolution', () => {
 
   it('surfaces partial-index and low-confidence quality warnings at top', async () => {
     const { queryCommand } = await import('../query.js');
-    const { queryLibrarian } = await import('../../../api/query.js');
+    const { queryLiBrainian } = await import('../../../api/query.js');
 
-    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+    vi.mocked(queryLiBrainian).mockResolvedValueOnce({
       query: { intent: 'hello world', depth: 'L1' },
       totalConfidence: 0.094,
       cacheHit: false,

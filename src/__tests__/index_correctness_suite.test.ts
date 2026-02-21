@@ -6,9 +6,9 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { bootstrapProject } from '../api/bootstrap.js';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import { createLibrarianMCPServer } from '../mcp/server.js';
+import { createLiBrainianMCPServer } from '../mcp/server.js';
 import type { EmbeddingRequest, EmbeddingResult } from '../api/embeddings.js';
-import type { GraphEdge, LibrarianStorage } from '../storage/types.js';
+import type { GraphEdge, LiBrainianStorage } from '../storage/types.js';
 import type { FunctionKnowledge } from '../types.js';
 
 const FIXTURE_PATH = path.resolve(__dirname, '../../tests/fixtures/index-correctness-fixture');
@@ -130,7 +130,7 @@ function embeddingBuckets(text: string): Float32Array {
 }
 
 describe('Index correctness verification suite (issue #467)', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let workspace = '';
   let dbPath = '';
   let baseline: Baseline;
@@ -149,12 +149,12 @@ describe('Index correctness verification suite (issue #467)', () => {
     }
 
     baseline = JSON.parse(await fs.readFile(BASELINE_PATH, 'utf8')) as Baseline;
-    workspace = path.join(os.tmpdir(), `librarian-index-correctness-${randomUUID()}`);
+    workspace = path.join(os.tmpdir(), `librainian-index-correctness-${randomUUID()}`);
     await fs.cp(FIXTURE_PATH, workspace, { recursive: true });
-    await fs.rm(path.join(workspace, '.librarian'), { recursive: true, force: true });
+    await fs.rm(path.join(workspace, '.librainian'), { recursive: true, force: true });
     await fs.rm(path.join(workspace, 'state'), { recursive: true, force: true });
 
-    dbPath = path.join(os.tmpdir(), `librarian-index-correctness-${randomUUID()}.db`);
+    dbPath = path.join(os.tmpdir(), `librainian-index-correctness-${randomUUID()}.db`);
     storage = createSqliteStorage(dbPath, workspace);
     await storage.initialize();
 
@@ -331,7 +331,7 @@ describe('Index correctness verification suite (issue #467)', () => {
       expect(hasTarget(fn)).toBe(false);
     }
 
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: {
         enabledScopes: ['read'],
         requireConsent: false,
@@ -339,7 +339,7 @@ describe('Index correctness verification suite (issue #467)', () => {
     });
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, { indexState: 'ready' });
-    (server as unknown as { getOrCreateStorage: () => Promise<LibrarianStorage> }).getOrCreateStorage = vi
+    (server as unknown as { getOrCreateStorage: () => Promise<LiBrainianStorage> }).getOrCreateStorage = vi
       .fn()
       .mockResolvedValue(storage);
 

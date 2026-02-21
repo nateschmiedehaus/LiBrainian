@@ -4,7 +4,7 @@ import path from 'node:path';
 import { sanitizePath } from '../security/sanitization.js';
 import { safeJsonParse } from '../utils/safe_json.js';
 
-const POLICY_DIR = '.librarian';
+const POLICY_DIR = '.librainian';
 const POLICY_FILENAME = 'epistemic_policy.json';
 const BLOCKED_PATH_PATTERNS = [
   /\.\./,

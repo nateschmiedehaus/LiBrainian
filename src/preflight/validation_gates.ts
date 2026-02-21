@@ -11,7 +11,7 @@
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { BootstrapConfig, BootstrapPhaseName, BootstrapPhaseResult } from '../types.js';
 import { glob } from 'glob';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
@@ -19,7 +19,7 @@ import { checkAllProviders } from '../api/provider_check.js';
 import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
 import { getParserType } from '../universal_patterns.js';
 
-const MINIMAL_EXCLUDES = ['**/.git/**', '**/.librarian/**'];
+const MINIMAL_EXCLUDES = ['**/.git/**', '**/.librainian/**'];
 
 // ============================================================================
 // TYPES
@@ -52,7 +52,7 @@ export interface ValidationGateResult {
  */
 export interface ValidationGateContext {
   workspace: string;
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   config: BootstrapConfig;
   phaseResult?: BootstrapPhaseResult;
 }
@@ -69,7 +69,7 @@ type ValidationGateFn = (ctx: ValidationGateContext) => Promise<ValidationGateRe
 /**
  * Get file count from storage
  */
-async function getFileCount(storage: LibrarianStorage): Promise<number> {
+async function getFileCount(storage: LiBrainianStorage): Promise<number> {
   try {
     const files = await storage.getFiles({ limit: 1 });
     // If we can get files, get full count
@@ -733,7 +733,7 @@ const gateSemanticIndexingZeroFilesCheck: ValidationGateFn = async (ctx) => {
           phase: 'semantic_indexing',
           type: 'postcondition',
           message: `Include patterns match ${astCandidates.length} AST-eligible files but 0 were indexed. Check parser availability and provider configuration.`,
-          suggestedFix: 'Confirm that AST parsers are available for detected languages and embedding providers are ready. Re-run with `librarian doctor` and check logs for parser_unavailable.',
+          suggestedFix: 'Confirm that AST parsers are available for detected languages and embedding providers are ready. Re-run with `librainian doctor` and check logs for parser_unavailable.',
           fatal: true,
           metrics: {
             matchedFiles: discovered.length,

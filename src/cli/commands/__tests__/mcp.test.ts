@@ -31,7 +31,7 @@ describe('mcpCommand', () => {
 
     expect(startStdioServer).not.toHaveBeenCalled();
     const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as Record<string, any>;
-    expect(payload.claude.snippet.mcpServers.librarian.args).toEqual(['mcp', '--stdio']);
+    expect(payload.claude.snippet.mcpServers.librainian.args).toEqual(['mcp', '--stdio']);
     expect(payload.cursor.configPath).toContain('.cursor');
   });
 

@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import {
   sequenceConfidence,
@@ -201,7 +201,7 @@ export class ConstructionLLMError extends ConstructionError {
 /**
  * Abstract base class for all constructions.
  *
- * Constructions are composed primitives that combine librarian capabilities
+ * Constructions are composed primitives that combine librainian capabilities
  * to solve higher-level problems while maintaining epistemic properties.
  *
  * Type Parameters:
@@ -244,8 +244,8 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    */
   abstract readonly CONSTRUCTION_ID: string;
 
-  /** Librarian instance for querying the codebase */
-  protected librarian: Librarian;
+  /** LiBrainian instance for querying the codebase */
+  protected librainian: LiBrainian;
 
   /** Optional calibration tracker for recording predictions */
   protected calibrationTracker?: ConstructionCalibrationTracker;
@@ -253,10 +253,10 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
   /**
    * Create a new construction instance.
    *
-   * @param librarian - The librarian instance for codebase queries
+   * @param librainian - The librainian instance for codebase queries
    */
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**

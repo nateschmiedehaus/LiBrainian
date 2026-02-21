@@ -35,10 +35,10 @@ function hasLlmConfiguration(): boolean {
 
 export async function collectFeatureRegistry(workspaceRoot: string): Promise<FeatureEntry[]> {
   const workspace = path.resolve(workspaceRoot);
-  const librarianDir = path.join(workspace, '.librarian');
-  const hasIndex = await exists(path.join(librarianDir, 'librarian.sqlite'));
-  const hasHnsw = await exists(path.join(librarianDir, 'hnsw.bin'));
-  const hasMemoryDb = await exists(path.join(librarianDir, 'memory.db'));
+  const librainianDir = path.join(workspace, '.librainian');
+  const hasIndex = await exists(path.join(librainianDir, 'librainian.sqlite'));
+  const hasHnsw = await exists(path.join(librainianDir, 'hnsw.bin'));
+  const hasMemoryDb = await exists(path.join(librainianDir, 'memory.db'));
   const llmConfigured = hasLlmConfiguration();
 
   return [
@@ -49,8 +49,8 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       status: hasIndex ? 'active' : 'inactive',
       description: 'Structural indexing without requiring remote LLM providers.',
       requiresConfig: !hasIndex,
-      configHint: hasIndex ? undefined : 'Run `librarian bootstrap` to initialize the index.',
-      docs: 'docs/librarian/README.md',
+      configHint: hasIndex ? undefined : 'Run `librainian bootstrap` to initialize the index.',
+      docs: 'docs/librainian/README.md',
     },
     {
       id: 'bootstrap_tier_2_3',
@@ -60,7 +60,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'LLM enrichment and synthesis-aware context-pack generation.',
       requiresConfig: !llmConfigured,
       configHint: llmConfigured ? undefined : 'Set LIBRARIAN_LLM_PROVIDER/LIBRARIAN_LLM_MODEL and provider API keys.',
-      docs: 'docs/librarian/query-guide.md',
+      docs: 'docs/librainian/query-guide.md',
     },
     {
       id: 'knowledge_graph',
@@ -70,7 +70,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'Call/import/usage graph and symbol relationship traversal.',
       requiresConfig: !hasIndex,
       configHint: hasIndex ? undefined : 'Requires bootstrap to materialize graph data.',
-      docs: 'docs/librarian/SYSTEM_ARCHITECTURE.md',
+      docs: 'docs/librainian/SYSTEM_ARCHITECTURE.md',
     },
     {
       id: 'semantic_search',
@@ -79,8 +79,8 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       status: hasHnsw ? 'active' : hasIndex ? 'limited' : 'inactive',
       description: 'Embedding-assisted retrieval and ranking for intent-driven questions.',
       requiresConfig: !hasHnsw,
-      configHint: hasHnsw ? undefined : 'Run `librarian embed --fix` after bootstrap to maximize vector coverage.',
-      docs: 'docs/librarian/query-guide.md',
+      configHint: hasHnsw ? undefined : 'Run `librainian embed --fix` after bootstrap to maximize vector coverage.',
+      docs: 'docs/librainian/query-guide.md',
     },
     {
       id: 'lexical_search',
@@ -90,7 +90,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'Keyword/BM25-style retrieval fallback for deterministic lookups.',
       requiresConfig: !hasIndex,
       configHint: hasIndex ? undefined : 'Requires bootstrap to build lexical corpus.',
-      docs: 'docs/librarian/query-guide.md',
+      docs: 'docs/librainian/query-guide.md',
     },
     {
       id: 'mcp_server',
@@ -99,7 +99,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       status: 'active',
       description: 'Model Context Protocol tool surface for coding-agent integration.',
       requiresConfig: false,
-      docs: 'docs/librarian/README.md',
+      docs: 'docs/librainian/README.md',
     },
     {
       id: 'agent_docs_injection',
@@ -127,7 +127,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       status: hasMemoryDb ? 'experimental' : 'inactive',
       description: 'Cross-session semantic fact store with dedupe-aware updates.',
       requiresConfig: !hasMemoryDb,
-      configHint: hasMemoryDb ? undefined : 'Use `memory_add` (MCP) or `librarian memory-bridge add ...` to initialize memory.',
+      configHint: hasMemoryDb ? undefined : 'Use `memory_add` (MCP) or `librainian memory-bridge add ...` to initialize memory.',
       docs: 'src/memory/fact_store.ts',
     },
     {

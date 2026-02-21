@@ -1,8 +1,8 @@
 import type {
   CompositionSuggestion,
   ContextPack,
-  LibrarianQuery,
-  LibrarianResponse,
+  LiBrainianQuery,
+  LiBrainianResponse,
   LlmOptional,
   OperatorRecommendation,
 } from '../types.js';
@@ -22,7 +22,7 @@ export interface CodebaseFeature {
 export interface CodebaseAdvisorOptions {
   minConfidence?: number;
   maxSuggestions?: number;
-  queryDepth?: LibrarianQuery['depth'];
+  queryDepth?: LiBrainianQuery['depth'];
   queryTimeoutMs?: number;
 }
 
@@ -30,7 +30,7 @@ export interface CodebaseAdvisorOptions {
  * Narrow interface for dependency injection/testing. Only requires queryOptional.
  */
 export interface CodebaseAdvisorClient {
-  queryOptional(query: LibrarianQuery): Promise<LlmOptional<LibrarianResponse>>;
+  queryOptional(query: LiBrainianQuery): Promise<LlmOptional<LiBrainianResponse>>;
 }
 
 type DomainQuery = {
@@ -53,18 +53,18 @@ const DEFAULT_QUERIES: DomainQuery[] = [
 ];
 
 const DEFAULT_MIN_CONFIDENCE = 0.4;
-const DEFAULT_QUERY_DEPTH: LibrarianQuery['depth'] = 'L1';
+const DEFAULT_QUERY_DEPTH: LiBrainianQuery['depth'] = 'L1';
 const DEFAULT_QUERY_TIMEOUT_MS = 15_000;
 const MAX_EVIDENCE_ITEMS = 3;
 const MAX_DESCRIPTION_LENGTH = 500;
 const CONTROL_CHAR_PATTERN = /[\u0000-\u001f\u007f]/g;
 
 export class CodebaseCompositionAdvisor {
-  private librarian: CodebaseAdvisorClient;
+  private librainian: CodebaseAdvisorClient;
   private options: Required<CodebaseAdvisorOptions>;
 
-  constructor(librarian: CodebaseAdvisorClient, options: CodebaseAdvisorOptions = {}) {
-    this.librarian = librarian;
+  constructor(librainian: CodebaseAdvisorClient, options: CodebaseAdvisorOptions = {}) {
+    this.librainian = librainian;
     this.options = {
       minConfidence: coerceMinConfidence(options.minConfidence),
       maxSuggestions: coerceMaxSuggestions(options.maxSuggestions),
@@ -103,10 +103,10 @@ export class CodebaseCompositionAdvisor {
     return features;
   }
 
-  private async safeQuery(intent: string): Promise<LlmOptional<LibrarianResponse> | null> {
+  private async safeQuery(intent: string): Promise<LlmOptional<LiBrainianResponse> | null> {
     try {
       const response = await withTimeout(
-        this.librarian.queryOptional({
+        this.librainian.queryOptional({
           intent,
           depth: this.options.queryDepth,
           minConfidence: this.options.minConfidence,

@@ -9,7 +9,7 @@ describe('scanCommand', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-scan-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-scan-'));
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
@@ -23,7 +23,7 @@ describe('scanCommand', () => {
       workspace,
       'state',
       'audits',
-      'librarian',
+      'librainian',
       'redaction',
       '2026-02-20T12-00-00-000Z'
     );

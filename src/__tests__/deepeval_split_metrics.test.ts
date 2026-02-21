@@ -4,7 +4,7 @@ import {
   DeepEvalSplitMetrics,
   diagnoseSplitFailure,
   evaluateDagMetric,
-  type LibrarianEvalCase,
+  type LiBrainianEvalCase,
 } from '../evaluation/deepeval_split_metrics.js';
 
 function buildPack(packId: string, summary: string, keyFacts: string[]): ContextPack {
@@ -39,7 +39,7 @@ function buildPack(packId: string, summary: string, keyFacts: string[]): Context
 describe('DeepEvalSplitMetrics', () => {
   it('splits ground truth and retrieval context for faithfulness diagnostics', () => {
     const metrics = new DeepEvalSplitMetrics();
-    const evalCase: LibrarianEvalCase = {
+    const evalCase: LiBrainianEvalCase = {
       query: 'How does auth session creation work?',
       groundTruthFacts: [
         'authenticateUser validates password credentials',

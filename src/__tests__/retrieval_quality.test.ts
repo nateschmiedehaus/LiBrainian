@@ -7,15 +7,15 @@
  * - Precision@5: >= 40%
  * - nDCG@10: >= 0.6
  *
- * Uses ground-truth benchmark queries specific to the librarian codebase.
+ * Uses ground-truth benchmark queries specific to the librainian codebase.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'path';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import { queryLibrarian } from '../api/query.js';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { LibrarianQuery, ContextPack } from '../types.js';
+import { queryLiBrainian } from '../api/query.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { LiBrainianQuery, ContextPack } from '../types.js';
 
 // Benchmark query definition
 interface BenchmarkQuery {
@@ -28,7 +28,7 @@ interface BenchmarkQuery {
   relevanceGrades?: Record<string, number>;
 }
 
-// Ground-truth benchmarks for the librarian codebase
+// Ground-truth benchmarks for the librainian codebase
 const BENCHMARKS: BenchmarkQuery[] = [
   // Fix-localization queries
   {
@@ -60,7 +60,7 @@ const BENCHMARKS: BenchmarkQuery[] = [
     groundTruth: ['src/agents/edge_confidence.ts'],
     relevanceGrades: {
       'src/agents/edge_confidence.ts': 3,
-      'src/agents/index_librarian.ts': 2,
+      'src/agents/index_librainian.ts': 2,
     },
   },
   {
@@ -88,7 +88,7 @@ const BENCHMARKS: BenchmarkQuery[] = [
   // Change-impact queries
   {
     name: 'impact-storage-types',
-    query: 'What depends on LibrarianStorage interface?',
+    query: 'What depends on LiBrainianStorage interface?',
     type: 'change-impact',
     groundTruth: ['src/storage/types.ts', 'src/storage/sqlite_storage.ts', 'src/api/query.ts'],
     relevanceGrades: {
@@ -118,9 +118,9 @@ const BENCHMARKS: BenchmarkQuery[] = [
     // Natural language - tracks test discovery quality
     query: 'What tests cover the query functionality?',
     type: 'test-coverage',
-    groundTruth: ['src/__tests__/librarian.test.ts'],
+    groundTruth: ['src/__tests__/librainian.test.ts'],
     relevanceGrades: {
-      'src/__tests__/librarian.test.ts': 3,
+      'src/__tests__/librainian.test.ts': 3,
       'src/__tests__/retrieval_quality.test.ts': 2, // related test
     },
   },
@@ -211,9 +211,9 @@ function computeNDCG(results: string[], relevanceGrades: Record<string, number>,
 // Normalize path for comparison - strip absolute prefix, standardize extension
 function normalizePath(p: string): string {
   // Strip absolute path prefix
-  let normalized = p.replace(/^\/.*\/packages\/librarian\//, '');
+  let normalized = p.replace(/^\/.*\/packages\/librainian\//, '');
   // Also handle Windows-style paths
-  normalized = normalized.replace(/^.*\\packages\\librarian\\/, '');
+  normalized = normalized.replace(/^.*\\packages\\librainian\\/, '');
   // Normalize .js to .ts for comparison
   normalized = normalized.replace(/\.js$/, '.ts');
   return normalized;
@@ -250,10 +250,10 @@ function extractFilePaths(packs: ContextPack[]): string[] {
 }
 
 describe('Retrieval Quality Benchmarks', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let hasIndex = false;
   const workspaceRoot = path.resolve(__dirname, '../../');
-  const dbPath = path.join(workspaceRoot, '.librarian', 'librarian.db');
+  const dbPath = path.join(workspaceRoot, '.librainian', 'librainian.db');
 
   beforeAll(async () => {
     storage = createSqliteStorage(dbPath, workspaceRoot);
@@ -279,12 +279,12 @@ describe('Retrieval Quality Benchmarks', () => {
         process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS = '1';
 
         try {
-          const query: LibrarianQuery = {
+          const query: LiBrainianQuery = {
             intent: benchmark.query,
             depth: 'L2',
           };
 
-          const result = await queryLibrarian(query, storage);
+          const result = await queryLiBrainian(query, storage);
           const filePaths = extractFilePaths(result.packs);
 
           // Log results for debugging
@@ -344,7 +344,7 @@ describe('Retrieval Quality Benchmarks', () => {
 
       try {
         for (const benchmark of fixBenchmarks) {
-          const result = await queryLibrarian(
+          const result = await queryLiBrainian(
             { intent: benchmark.query, depth: 'L2' },
             storage
           );
@@ -381,7 +381,7 @@ describe('Retrieval Quality Benchmarks', () => {
 
       try {
         for (const benchmark of BENCHMARKS) {
-          const result = await queryLibrarian(
+          const result = await queryLiBrainian(
             { intent: benchmark.query, depth: 'L2' },
             storage
           );
@@ -418,7 +418,7 @@ describe('Retrieval Quality Benchmarks', () => {
 
       try {
         for (const benchmark of benchmarksWithGrades) {
-          const result = await queryLibrarian(
+          const result = await queryLiBrainian(
             { intent: benchmark.query, depth: 'L2' },
             storage
           );

@@ -6,7 +6,7 @@ import { capabilitiesCommand } from '../capabilities.js';
 
 describe('capabilitiesCommand', () => {
   it('emits a versioned capability inventory with required fields', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-capabilities-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-capabilities-'));
     const outPath = path.join(workspace, 'capabilities.json');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {

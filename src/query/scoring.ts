@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { LibrarianStorage } from '../storage/types.js';
-import type { GraphEntityType, LibrarianQuery, ContextPack, Perspective } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
+import type { GraphEntityType, LiBrainianQuery, ContextPack, Perspective } from '../types.js';
 import type { FileKnowledge, FunctionKnowledge, ModuleKnowledge, UniversalKnowledgeRecord } from '../storage/types.js';
 import { EmbeddingService } from '../api/embeddings.js';
 import { safeJsonParse } from '../utils/safe_json.js';
@@ -24,7 +24,7 @@ import {
   getPerspectiveConfig,
 } from '../api/perspective.js';
 
-const MULTI_SIGNAL_STATE_KEY = 'librarian.multi_signal_scorer.v1';
+const MULTI_SIGNAL_STATE_KEY = 'librainian.multi_signal_scorer.v1';
 const DEFAULT_TARGET_TYPES = ['function', 'module'];
 
 type ScoringCandidate = {
@@ -38,7 +38,7 @@ type UniversalKnowledgeLookup = Map<string, UniversalKnowledgeRecord>;
 let loadedWorkspace: string | null = null;
 let loadPromise: Promise<void> | null = null;
 
-export async function ensureMultiSignalState(storage: LibrarianStorage): Promise<void> {
+export async function ensureMultiSignalState(storage: LiBrainianStorage): Promise<void> {
   const workspaceRoot = await resolveWorkspaceRoot(storage);
   if (workspaceRoot && loadedWorkspace === workspaceRoot) return;
   if (loadPromise) return loadPromise;
@@ -50,7 +50,7 @@ export async function ensureMultiSignalState(storage: LibrarianStorage): Promise
         try {
           multiSignalScorer.fromJSON(parsed.value as { weights?: Record<string, SignalWeight>; recentFeedback?: FeedbackRecord[] });
         } catch (error) {
-          logWarning('[librarian] Failed to restore multi-signal scorer state', {
+          logWarning('[librainian] Failed to restore multi-signal scorer state', {
             error: error instanceof Error ? error.message : String(error),
           });
         }
@@ -65,13 +65,13 @@ export async function ensureMultiSignalState(storage: LibrarianStorage): Promise
   }
 }
 
-export async function persistMultiSignalState(storage: LibrarianStorage): Promise<void> {
+export async function persistMultiSignalState(storage: LiBrainianStorage): Promise<void> {
   const payload = JSON.stringify(multiSignalScorer.toJSON());
   await storage.setState(MULTI_SIGNAL_STATE_KEY, payload);
 }
 
 export function buildQueryContext(
-  query: Pick<LibrarianQuery, 'intent' | 'affectedFiles' | 'taskType' | 'perspective'>,
+  query: Pick<LiBrainianQuery, 'intent' | 'affectedFiles' | 'taskType' | 'perspective'>,
   queryEmbedding?: Float32Array | null,
   options: { currentUser?: string; currentTeam?: string } = {}
 ): QueryContext {
@@ -110,9 +110,9 @@ export function buildQueryContext(
 }
 
 export async function scoreCandidatesWithMultiSignals(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   candidates: ScoringCandidate[],
-  query: LibrarianQuery,
+  query: LiBrainianQuery,
   queryEmbedding?: Float32Array | null
 ): Promise<Map<string, ScoredEntity>> {
   if (!candidates.length) return new Map();
@@ -175,7 +175,7 @@ export async function scoreCandidatesWithMultiSignals(
 }
 
 export async function recordMultiSignalFeedback(options: {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   embeddingService?: EmbeddingService | null;
   intent: string;
   packs: ContextPack[];
@@ -191,7 +191,7 @@ export async function recordMultiSignalFeedback(options: {
       const embedding = await embeddingService.generateEmbedding({ text: intent, kind: 'query' });
       queryEmbedding = embedding.embedding;
     } catch (error) {
-      logWarning('[librarian] Feedback embedding failed', {
+      logWarning('[librainian] Feedback embedding failed', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -217,7 +217,7 @@ export async function recordMultiSignalFeedback(options: {
 }
 
 async function buildEntityData(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   candidates: ScoringCandidate[],
   workspaceRoot: string | null
 ): Promise<EntityData[]> {
@@ -301,7 +301,7 @@ function buildContent(
   return content || undefined;
 }
 
-async function loadFunctions(storage: LibrarianStorage, ids: string[]): Promise<FunctionKnowledge[]> {
+async function loadFunctions(storage: LiBrainianStorage, ids: string[]): Promise<FunctionKnowledge[]> {
   const results = await Promise.all(ids.map((id) => storage.getFunction(id).catch((err) => {
     logWarning('[scoring] getFunction failed', { operation: 'getFunction', error: getErrorMessage(err), id });
     return null;
@@ -309,7 +309,7 @@ async function loadFunctions(storage: LibrarianStorage, ids: string[]): Promise<
   return results.filter((value): value is FunctionKnowledge => Boolean(value));
 }
 
-async function loadModules(storage: LibrarianStorage, ids: string[]): Promise<ModuleKnowledge[]> {
+async function loadModules(storage: LiBrainianStorage, ids: string[]): Promise<ModuleKnowledge[]> {
   const results = await Promise.all(ids.map((id) => storage.getModule(id).catch((err) => {
     logWarning('[scoring] getModule failed', { operation: 'getModule', error: getErrorMessage(err), id });
     return null;
@@ -318,7 +318,7 @@ async function loadModules(storage: LibrarianStorage, ids: string[]): Promise<Mo
 }
 
 async function loadFileKnowledge(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePaths: Set<string>
 ): Promise<Map<string, FileKnowledge>> {
   const entries = await Promise.all(
@@ -339,7 +339,7 @@ async function loadFileKnowledge(
 }
 
 async function loadOwnership(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePaths: Set<string>
 ): Promise<Map<string, string[]>> {
   const entries = await Promise.all(
@@ -365,7 +365,7 @@ async function loadOwnership(
 }
 
 async function loadUniversalKnowledge(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePaths: Set<string>
 ): Promise<UniversalKnowledgeLookup> {
   const map: UniversalKnowledgeLookup = new Map();
@@ -392,7 +392,7 @@ async function loadUniversalKnowledge(
 }
 
 async function loadEmbeddings(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityIds: string[]
 ): Promise<Map<string, Float32Array>> {
   const entries = await Promise.all(
@@ -413,7 +413,7 @@ async function loadEmbeddings(
 }
 
 async function buildModuleGraph(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   modules: ModuleKnowledge[],
   moduleById: Map<string, ModuleKnowledge>
 ): Promise<{ dependencies: Map<string, string[]>; dependents: Map<string, string[]> }> {
@@ -465,7 +465,7 @@ async function buildModuleGraph(
 }
 
 async function computeChangeFrequency(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   filePaths: Set<string>,
   workspaceRoot: string | null
 ): Promise<Map<string, number>> {
@@ -576,7 +576,7 @@ function computeKeywordBoost(
   return bestBoost;
 }
 
-async function resolveWorkspaceRoot(storage: LibrarianStorage): Promise<string | null> {
+async function resolveWorkspaceRoot(storage: LiBrainianStorage): Promise<string | null> {
   try {
     const metadata = await storage.getMetadata();
     return metadata?.workspace ?? null;

@@ -1,5 +1,5 @@
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   RetrievalStrategyReward,
   RetrievalStrategySelection,
 } from '../storage/types.js';
@@ -107,7 +107,7 @@ export function selectRetrievalStrategyArm(
 }
 
 export async function selectAndRecordRetrievalStrategy(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   queryId: string,
   intentType: string,
   createdAt: string,
@@ -132,7 +132,7 @@ export async function selectAndRecordRetrievalStrategy(
 }
 
 export async function applyRetrievalStrategyFeedbackForQuery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   queryId: string,
   wasHelpful: boolean,
   outcome: 'success' | 'failure' | 'partial'
@@ -142,7 +142,7 @@ export async function applyRetrievalStrategyFeedbackForQuery(
 }
 
 export async function selectRetrievalStrategyForIntent(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   intentType: string,
   rng: () => number = Math.random
 ): Promise<RetrievalStrategySelectionResult> {

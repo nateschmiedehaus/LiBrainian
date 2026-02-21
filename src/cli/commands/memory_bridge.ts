@@ -43,7 +43,7 @@ function toAction(value: string | undefined): MemoryBridgeAction {
   if (value === 'update') return value;
   if (value === 'delete') return value;
   throw new CliError(
-    `Unknown or missing action: ${value ?? '<none>'}. Usage: librarian memory-bridge <status|remember|add|search|update|delete> [...]`,
+    `Unknown or missing action: ${value ?? '<none>'}. Usage: librainian memory-bridge <status|remember|add|search|update|delete> [...]`,
     'INVALID_ARGUMENT',
   );
 }
@@ -139,7 +139,7 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
     const value = rawValueParts.join(' ').trim();
     if (!key || !value) {
       throw new CliError(
-        'Usage: librarian memory-bridge remember <key> <value>',
+        'Usage: librainian memory-bridge remember <key> <value>',
         'INVALID_ARGUMENT',
       );
     }
@@ -166,7 +166,7 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
   if (action === 'add') {
     const content = (positionals.slice(1).join(' ') || options.args.slice(1).join(' ')).trim();
     if (!content) {
-      throw new CliError('Usage: librarian memory-bridge add <content> [--scope codebase|module|function] [--scope-key <id>]', 'INVALID_ARGUMENT');
+      throw new CliError('Usage: librainian memory-bridge add <content> [--scope codebase|module|function] [--scope-key <id>]', 'INVALID_ARGUMENT');
     }
     const sourceRaw = typeof values.source === 'string' ? values.source.trim() : '';
     const source = sourceRaw === 'agent' || sourceRaw === 'analysis' || sourceRaw === 'user'
@@ -204,7 +204,7 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
   if (action === 'search') {
     const query = (positionals.slice(1).join(' ') || options.args.slice(1).join(' ')).trim();
     if (!query) {
-      throw new CliError('Usage: librarian memory-bridge search <query> [--limit <n>]', 'INVALID_ARGUMENT');
+      throw new CliError('Usage: librainian memory-bridge search <query> [--limit <n>]', 'INVALID_ARGUMENT');
     }
     const limitRaw = typeof values.limit === 'string' ? Number.parseInt(values.limit, 10) : undefined;
     const limit = Number.isFinite(limitRaw ?? NaN) ? limitRaw : undefined;
@@ -236,7 +236,7 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
     const id = (positionals[1] ?? options.args[1] ?? '').trim();
     const content = (positionals.slice(2).join(' ') || options.args.slice(2).join(' ')).trim();
     if (!id || !content) {
-      throw new CliError('Usage: librarian memory-bridge update <id> <content>', 'INVALID_ARGUMENT');
+      throw new CliError('Usage: librainian memory-bridge update <id> <content>', 'INVALID_ARGUMENT');
     }
     const fact = await updateMemoryFact(options.workspace, id, content);
     const payload = { success: true, action: 'update' as const, fact };
@@ -253,7 +253,7 @@ export async function memoryBridgeCommand(options: MemoryBridgeCommandOptions): 
   if (action === 'delete') {
     const id = (positionals[1] ?? options.args[1] ?? '').trim();
     if (!id) {
-      throw new CliError('Usage: librarian memory-bridge delete <id>', 'INVALID_ARGUMENT');
+      throw new CliError('Usage: librainian memory-bridge delete <id>', 'INVALID_ARGUMENT');
     }
     const deleted = await deleteMemoryFact(options.workspace, id);
     const payload = { success: true, action: 'delete' as const, id, deleted };

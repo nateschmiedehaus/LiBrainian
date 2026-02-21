@@ -1,7 +1,7 @@
 /**
- * @fileoverview MCP Module - Model Context Protocol Server for Librarian
+ * @fileoverview MCP Module - Model Context Protocol Server for LiBrainian
  *
- * This module provides the MCP server implementation for Librarian:
+ * This module provides the MCP server implementation for LiBrainian:
  * - Resources: file tree, symbols, knowledge maps, method packs, audits, provenance, identity
  * - Tools: bootstrap, status, system_contract, diagnose_self, query, find_symbol, verify_claim, run_audit, diff_runs, export_index, get_context_pack_bundle, list_*, compile_*
  * - Authorization and consent hooks
@@ -15,7 +15,7 @@ export {
   MCP_SCHEMA_VERSION,
 
   // Resource types
-  type LibrarianResource,
+  type LiBrainianResource,
   type ResourceProvenance,
   type FileTreeResource,
   type FileTreeNode,
@@ -83,7 +83,7 @@ export {
   TOOL_AUTHORIZATION,
 
   // Server config
-  type LibrarianMCPServerConfig,
+  type LiBrainianMCPServerConfig,
   DEFAULT_MCP_SERVER_CONFIG,
 
   // Type guards
@@ -103,7 +103,7 @@ export {
   isDiffRunsToolInput,
   isExportIndexToolInput,
   isGetContextPackBundleToolInput,
-  isLibrarianResource,
+  isLiBrainianResource,
 } from './types.js';
 
 // Schema and validation
@@ -161,8 +161,8 @@ export {
 
 // Server
 export {
-  LibrarianMCPServer,
-  createLibrarianMCPServer,
+  LiBrainianMCPServer,
+  createLiBrainianMCPServer,
   startStdioServer,
   main as startMCPServer,
   type ServerState,

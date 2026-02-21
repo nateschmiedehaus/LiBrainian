@@ -2,7 +2,7 @@ import { readFile, readdir, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { resolveWorkspaceRoot } from '../utils/workspace_resolver.js';
 import { safeJsonParse } from '../utils/safe_json.js';
-import { ensureLibrarianReady } from '../integration/first_run_gate.js';
+import { ensureLiBrainianReady } from '../integration/first_run_gate.js';
 import { runProviderReadinessGate, type ProviderGateResult } from '../api/provider_gate.js';
 import { TimeoutError, withTimeout } from '../utils/async.js';
 import { EXCLUDE_PATTERNS } from '../universal_patterns.js';
@@ -52,7 +52,7 @@ const SOURCE_EXTENSIONS = new Set([
 const SKIP_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
+  '.librainian',
   'dist',
   'build',
   'coverage',
@@ -420,7 +420,7 @@ export async function runExternalRepoSmoke(options: {
       errors: [],
     };
     const repoTimeoutMs = await resolveRepoTimeoutMs(repoRoot, configuredRepoTimeoutMs);
-    let librarianForCleanup: { shutdown(): Promise<void> } | null = null;
+    let librainianForCleanup: { shutdown(): Promise<void> } | null = null;
     let providerSnapshotSummary: Record<string, unknown> | null = null;
     const queryArtifacts: Array<{
       intent: string;
@@ -458,7 +458,7 @@ export async function runExternalRepoSmoke(options: {
           };
         };
 
-        const gateResult = await ensureLibrarianReady(resolvedWorkspace, {
+        const gateResult = await ensureLiBrainianReady(resolvedWorkspace, {
           allowDegradedEmbeddings: false,
           requireCompleteParserCoverage: true,
           autoInstallGrammars: true,
@@ -468,11 +468,11 @@ export async function runExternalRepoSmoke(options: {
           throwOnFailure: true,
         });
 
-        if (!gateResult.librarian) {
-          result.errors.push('unverified_by_trace(initialization_failed): librarian unavailable');
+        if (!gateResult.librainian) {
+          result.errors.push('unverified_by_trace(initialization_failed): librainian unavailable');
           return;
         }
-        librarianForCleanup = gateResult.librarian;
+        librainianForCleanup = gateResult.librainian;
         const strictWarnings = collectStrictBootstrapWarnings(gateResult.report);
         if (strictWarnings.length > 0) {
           result.errors.push(
@@ -481,7 +481,7 @@ export async function runExternalRepoSmoke(options: {
           return;
         }
 
-        const overview = await gateResult.librarian.queryOptional({
+        const overview = await gateResult.librainian.queryOptional({
           intent: queries[0] ?? DEFAULT_QUERIES[0]!,
           depth: 'L1',
           llmRequirement: 'disabled',
@@ -496,7 +496,7 @@ export async function runExternalRepoSmoke(options: {
 
         const contextFile = await pickRepresentativeFile(resolvedWorkspace);
         if (contextFile) {
-          const fileContext = await gateResult.librarian.queryOptional({
+          const fileContext = await gateResult.librainian.queryOptional({
             intent: queries[1] ?? DEFAULT_QUERIES[1]!,
             affectedFiles: [contextFile],
             depth: 'L1',
@@ -514,8 +514,8 @@ export async function runExternalRepoSmoke(options: {
           result.errors.push('no_candidate_file');
         }
       } finally {
-        if (librarianForCleanup) {
-          await librarianForCleanup.shutdown().catch(() => {});
+        if (librainianForCleanup) {
+          await librainianForCleanup.shutdown().catch(() => {});
         }
       }
     };

@@ -2,7 +2,7 @@
  * @fileoverview Credal Sets for Imprecise Probability
  *
  * Implements credal sets and interval arithmetic for principled uncertainty
- * representation in Librarian's epistemic system.
+ * representation in LiBrainian's epistemic system.
  *
  * ## Mathematical Background
  *
@@ -25,7 +25,7 @@
  * - Interval arithmetic for combining uncertainty
  * - Marginalization and conditioning operations
  *
- * @see docs/librarian/specs/research/mathematical-foundations.md (Section 1.2)
+ * @see docs/librainian/specs/research/mathematical-foundations.md (Section 1.2)
  * @packageDocumentation
  */
 

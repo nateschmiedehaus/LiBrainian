@@ -12,7 +12,7 @@ describe('agents public surface', () => {
   });
 
   it('retains core agent exports', () => {
-    expect(typeof agentsApi.createIndexLibrarian).toBe('function');
+    expect(typeof agentsApi.createIndexLiBrainian).toBe('function');
     expect(typeof agentsApi.createHierarchicalOrchestrator).toBe('function');
   });
 });

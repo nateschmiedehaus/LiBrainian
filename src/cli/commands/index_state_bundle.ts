@@ -9,14 +9,14 @@ import { LIBRARIAN_VERSION } from '../../index.js';
 import { CliError } from '../errors.js';
 import { emitJsonOutput } from '../json_output.js';
 
-const INDEX_BUNDLE_FILES = ['librarian.sqlite', 'knowledge.db', 'evidence_ledger.db', 'hnsw.bin'] as const;
+const INDEX_BUNDLE_FILES = ['librainian.sqlite', 'knowledge.db', 'evidence_ledger.db', 'hnsw.bin'] as const;
 const SQL_PLACEHOLDER = '<workspace>';
 const BUNDLE_SCHEMA_VERSION = 1;
 
 interface IndexBundleManifestV1 {
   schemaVersion: 1;
   exportedAt: string;
-  librarianVersion: string;
+  librainianVersion: string;
   workspacePlaceholder: string;
   gitHeadSha: string | null;
   files: string[];
@@ -136,7 +136,7 @@ function createManifest(input: {
   return {
     schemaVersion: BUNDLE_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    librarianVersion: LIBRARIAN_VERSION.string,
+    librainianVersion: LIBRARIAN_VERSION.string,
     workspacePlaceholder: input.workspacePlaceholder,
     gitHeadSha: input.gitHeadSha,
     files: [...input.files].sort(),
@@ -229,20 +229,20 @@ async function readManifest(stagingDir: string): Promise<IndexBundleManifestV1> 
   if (typeof parsed.workspacePlaceholder !== 'string' || parsed.workspacePlaceholder.length === 0) {
     throw new CliError('Invalid bundle manifest: missing workspace placeholder.', 'INVALID_ARGUMENT');
   }
-  if (typeof parsed.librarianVersion !== 'string' || parsed.librarianVersion.length === 0) {
-    throw new CliError('Invalid bundle manifest: missing Librarian version.', 'INVALID_ARGUMENT');
+  if (typeof parsed.librainianVersion !== 'string' || parsed.librainianVersion.length === 0) {
+    throw new CliError('Invalid bundle manifest: missing LiBrainian version.', 'INVALID_ARGUMENT');
   }
-  const major = parseMajorVersion(parsed.librarianVersion);
+  const major = parseMajorVersion(parsed.librainianVersion);
   if (major !== null && major !== LIBRARIAN_VERSION.major) {
     throw new CliError(
-      `Bundle major version ${parsed.librarianVersion} is incompatible with current Librarian ${LIBRARIAN_VERSION.string}.`,
+      `Bundle major version ${parsed.librainianVersion} is incompatible with current LiBrainian ${LIBRARIAN_VERSION.string}.`,
       'INVALID_ARGUMENT',
     );
   }
   return {
     schemaVersion: parsed.schemaVersion,
     exportedAt: String(parsed.exportedAt ?? ''),
-    librarianVersion: parsed.librarianVersion,
+    librainianVersion: parsed.librainianVersion,
     workspacePlaceholder: parsed.workspacePlaceholder,
     gitHeadSha: typeof parsed.gitHeadSha === 'string' ? parsed.gitHeadSha : null,
     files: parsed.files,
@@ -270,26 +270,26 @@ export async function exportIndexStateCommand(options: IndexStateBundleCommandOp
       ? values.output
       : (typeof positionalOutput === 'string' && positionalOutput.length > 0)
         ? positionalOutput
-        : path.join(workspaceRoot, '.librarian', 'exports', 'librarian-index.tar.gz')
+        : path.join(workspaceRoot, '.librainian', 'exports', 'librainian-index.tar.gz')
   );
   const json = Boolean(values.json);
   const out = typeof values.out === 'string' ? values.out : undefined;
 
-  const librarianDir = path.join(workspaceRoot, '.librarian');
-  const entries = await fs.readdir(librarianDir).catch(() => {
+  const librainianDir = path.join(workspaceRoot, '.librainian');
+  const entries = await fs.readdir(librainianDir).catch(() => {
     throw new CliError(
-      `Index directory not found at ${librarianDir}. Run "librarian bootstrap" before export.`,
+      `Index directory not found at ${librainianDir}. Run "librainian bootstrap" before export.`,
       'NOT_BOOTSTRAPPED',
     );
   });
-  if (!entries.includes('librarian.sqlite')) {
+  if (!entries.includes('librainian.sqlite')) {
     throw new CliError(
-      `Missing ${path.join('.librarian', 'librarian.sqlite')}. Run "librarian bootstrap" before export.`,
+      `Missing ${path.join('.librainian', 'librainian.sqlite')}. Run "librainian bootstrap" before export.`,
       'NOT_BOOTSTRAPPED',
     );
   }
 
-  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-index-export-'));
+  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-index-export-'));
   try {
     const filesToBundle: string[] = [];
     const checksums: Record<string, string> = {};
@@ -297,7 +297,7 @@ export async function exportIndexStateCommand(options: IndexStateBundleCommandOp
     const portableWorkspace = getPortableWorkspaceValue(workspaceRoot);
 
     for (const file of INDEX_BUNDLE_FILES) {
-      const source = path.join(librarianDir, file);
+      const source = path.join(librainianDir, file);
       const exists = await fs.access(source).then(() => true).catch(() => false);
       if (!exists) continue;
 
@@ -341,7 +341,7 @@ export async function exportIndexStateCommand(options: IndexStateBundleCommandOp
       workspace: workspaceRoot,
       outputPath,
       files: manifest.files,
-      librarianVersion: LIBRARIAN_VERSION.string,
+      librainianVersion: LIBRARIAN_VERSION.string,
       workspacePlaceholder: manifest.workspacePlaceholder,
       gitHeadSha: manifest.gitHeadSha,
       portableWorkspaceRoot: portableWorkspace,
@@ -394,7 +394,7 @@ export async function importIndexStateCommand(options: IndexStateBundleCommandOp
   const json = Boolean(values.json);
   const out = typeof values.out === 'string' ? values.out : undefined;
 
-  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-index-import-'));
+  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-index-import-'));
   try {
     await extractTarball(inputPath, stagingDir);
     const manifest = await readManifest(stagingDir);
@@ -418,7 +418,7 @@ export async function importIndexStateCommand(options: IndexStateBundleCommandOp
       }
     }
 
-    const targetDir = path.join(workspaceRoot, '.librarian');
+    const targetDir = path.join(workspaceRoot, '.librainian');
     await fs.mkdir(targetDir, { recursive: true });
 
     const workspacePortable = getPortableWorkspaceValue(workspaceRoot);
@@ -449,7 +449,7 @@ export async function importIndexStateCommand(options: IndexStateBundleCommandOp
       gitHeadMatches: headShaMatches,
       sqlitePathRewrites: sqliteRewrites,
       warning: headShaMatches === false
-        ? `Bundle was exported at ${manifest.gitHeadSha}; current workspace is ${currentHeadSha}. Run "librarian update --since ${manifest.gitHeadSha}" to apply incremental changes.`
+        ? `Bundle was exported at ${manifest.gitHeadSha}; current workspace is ${currentHeadSha}. Run "librainian update --since ${manifest.gitHeadSha}" to apply incremental changes.`
         : undefined,
     };
 
@@ -465,7 +465,7 @@ export async function importIndexStateCommand(options: IndexStateBundleCommandOp
     console.log(`Imported files: ${manifest.files.join(', ')}`);
     if (headShaMatches === false && manifest.gitHeadSha && currentHeadSha) {
       console.log(`Warning: bundle git SHA (${manifest.gitHeadSha}) != current git SHA (${currentHeadSha}).`);
-      console.log(`Run: librarian update --since ${manifest.gitHeadSha}`);
+      console.log(`Run: librainian update --since ${manifest.gitHeadSha}`);
     }
     console.log();
   } finally {

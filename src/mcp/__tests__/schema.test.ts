@@ -820,40 +820,40 @@ describe('MCP Schema', () => {
 
   describe('Symbol Lookup Tool Schemas', () => {
     it('validates explain_function input and type guard', () => {
-      const result = validateToolInput('explain_function', { name: 'queryLibrarian' });
+      const result = validateToolInput('explain_function', { name: 'queryLiBrainian' });
       expect(result.valid).toBe(true);
-      expect(isExplainFunctionToolInput({ name: 'queryLibrarian' })).toBe(true);
+      expect(isExplainFunctionToolInput({ name: 'queryLiBrainian' })).toBe(true);
       expect(isExplainFunctionToolInput({})).toBe(false);
       expect(ExplainFunctionToolInputSchema).toBeDefined();
     });
 
     it('validates find_callers input and type guard', () => {
       const result = validateToolInput('find_callers', {
-        functionId: 'createLibrarian',
+        functionId: 'createLiBrainian',
         transitive: true,
         maxDepth: 2,
       });
       expect(result.valid).toBe(true);
-      expect(isFindCallersToolInput({ functionId: 'createLibrarian' })).toBe(true);
-      expect(isFindCallersToolInput({ functionId: 'createLibrarian', maxDepth: 0 })).toBe(false);
+      expect(isFindCallersToolInput({ functionId: 'createLiBrainian' })).toBe(true);
+      expect(isFindCallersToolInput({ functionId: 'createLiBrainian', maxDepth: 0 })).toBe(false);
       expect(FindCallersToolInputSchema).toBeDefined();
     });
 
     it('validates find_callees input and type guard', () => {
       const result = validateToolInput('find_callees', {
-        functionId: 'queryLibrarian',
+        functionId: 'queryLiBrainian',
         limit: 15,
       });
       expect(result.valid).toBe(true);
-      expect(isFindCalleesToolInput({ functionId: 'queryLibrarian' })).toBe(true);
-      expect(isFindCalleesToolInput({ functionId: 'queryLibrarian', limit: 0 })).toBe(false);
+      expect(isFindCalleesToolInput({ functionId: 'queryLiBrainian' })).toBe(true);
+      expect(isFindCalleesToolInput({ functionId: 'queryLiBrainian', limit: 0 })).toBe(false);
       expect(FindCalleesToolInputSchema).toBeDefined();
     });
 
     it('validates find_usages input and type guard', () => {
-      const result = validateToolInput('find_usages', { symbol: 'createLibrarian', limit: 10 });
+      const result = validateToolInput('find_usages', { symbol: 'createLiBrainian', limit: 10 });
       expect(result.valid).toBe(true);
-      expect(isFindUsagesToolInput({ symbol: 'createLibrarian' })).toBe(true);
+      expect(isFindUsagesToolInput({ symbol: 'createLiBrainian' })).toBe(true);
       expect(isFindUsagesToolInput({})).toBe(false);
       expect(FindUsagesToolInputSchema).toBeDefined();
     });
@@ -997,7 +997,7 @@ describe('MCP Schema', () => {
     it('validates list_constructions input and type guard', () => {
       const result = validateToolInput('list_constructions', {
         tags: ['security'],
-        requires: ['librarian'],
+        requires: ['librainian'],
         language: 'typescript',
         trustTier: 'official',
         availableOnly: true,

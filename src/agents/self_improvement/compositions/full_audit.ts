@@ -1,7 +1,7 @@
 /**
  * @fileoverview Full Self-Audit Composition (tc_self_audit_full)
  *
- * Complete audit of Librarian health, theoretical soundness, and consistency.
+ * Complete audit of LiBrainian health, theoretical soundness, and consistency.
  * Orchestrates multiple primitives to provide a comprehensive health assessment.
  *
  * Based on self-improvement-primitives.md specification.
@@ -11,7 +11,7 @@
  * verifyCalibration -> generateRecommendations -> AUDIT_REPORT
  */
 
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 import type { Recommendation, ConfidenceValue } from '../types.js';
 import { selfBootstrap, type SelfBootstrapResult } from '../self_bootstrap.js';
 import { analyzeArchitecture, type ArchitectureAnalysisResult } from '../analyze_architecture.js';
@@ -74,7 +74,7 @@ export interface FullAuditOptions {
   /** Root directory of the codebase to audit */
   rootDir: string;
   /** Storage instance to use */
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   /** Skip bootstrap if already done recently */
   skipBootstrap?: boolean;
   /** Focus analysis on specific areas */
@@ -240,7 +240,7 @@ function generateSummary(
  * @example
  * ```typescript
  * const result = await fullSelfAudit({
- *   rootDir: '/path/to/librarian',
+ *   rootDir: '/path/to/librainian',
  *   storage: myStorage,
  * });
  * console.log(`Health: ${result.overallHealth.overall * 100}%`);

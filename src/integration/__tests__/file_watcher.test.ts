@@ -51,7 +51,7 @@ const waitForCondition = async (
 };
 
 const createTempWorkspace = async (): Promise<string> => {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-file-watcher-'));
+  return fs.mkdtemp(path.join(os.tmpdir(), 'librainian-file-watcher-'));
 };
 
 describe('file_watcher', () => {
@@ -88,10 +88,10 @@ describe('file_watcher', () => {
       },
     };
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
     const handle = startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       watch: (_root, _options, _callback) => {
@@ -132,11 +132,11 @@ describe('file_watcher', () => {
       },
     };
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
     let captured: ((event: string, filename: any) => void) | null = null;
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       watch: (root, options, callback) => {
@@ -151,7 +151,7 @@ describe('file_watcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
     await flushPromises();
 
-    expect(librarian.reindexFiles).not.toHaveBeenCalled();
+    expect(librainian.reindexFiles).not.toHaveBeenCalled();
     stopFileWatcher(workspaceRoot);
   });
 
@@ -174,11 +174,11 @@ describe('file_watcher', () => {
       },
     };
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
     let captured: ((event: string, filename: any) => void) | null = null;
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       watch: (root, options, callback) => {
@@ -193,8 +193,8 @@ describe('file_watcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
     await flushPromises();
 
-    expect(librarian.reindexFiles).toHaveBeenCalledTimes(1);
-    expect(librarian.reindexFiles).toHaveBeenCalledWith([filePath]);
+    expect(librainian.reindexFiles).toHaveBeenCalledTimes(1);
+    expect(librainian.reindexFiles).toHaveBeenCalledWith([filePath]);
     stopFileWatcher(workspaceRoot);
   });
 
@@ -227,14 +227,14 @@ describe('file_watcher', () => {
     };
 
     const reindexFiles = vi.fn(async (_paths: string[]) => {});
-    const librarian = { reindexFiles } as unknown as {
+    const librainian = { reindexFiles } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
     let captured: ((event: string, filename: any) => void) | null = null;
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       batchWindowMs: 50,
@@ -254,7 +254,7 @@ describe('file_watcher', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(librarian.reindexFiles).toHaveBeenCalledTimes(1);
+    expect(librainian.reindexFiles).toHaveBeenCalledTimes(1);
     const call = reindexFiles.mock.calls[0]?.[0] ?? [];
     expect(new Set(call)).toEqual(new Set([fileA, fileB]));
 
@@ -292,14 +292,14 @@ describe('file_watcher', () => {
       },
     };
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
     let captured: ((event: string, filename: any) => void) | null = null;
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       batchWindowMs: 50,
@@ -318,8 +318,8 @@ describe('file_watcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     await flushPromises();
 
-    expect(librarian.reindexFiles).not.toHaveBeenCalled();
-    const watchStateRaw = states.get('librarian.watch_state.v1');
+    expect(librainian.reindexFiles).not.toHaveBeenCalled();
+    const watchStateRaw = states.get('librainian.watch_state.v1');
     expect(watchStateRaw).toBeDefined();
     const watchState = JSON.parse(watchStateRaw ?? '{}') as { last_error?: string };
     expect(watchState.last_error).toBe('watch_event_storm');
@@ -352,14 +352,14 @@ describe('file_watcher', () => {
     };
 
     const warnSpy = vi.spyOn(logger, 'logWarning');
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
     let captured: ((event: string, filename: any) => void) | null = null;
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       batchWindowMs: 50,
@@ -411,14 +411,14 @@ describe('file_watcher', () => {
     };
 
     const warnSpy = vi.spyOn(logger, 'logWarning');
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
     let captured: ((event: string, filename: any) => void) | null = null;
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       cascadeReindex: true,
@@ -470,14 +470,14 @@ describe('file_watcher', () => {
       },
     };
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
     let captured: ((event: string, filename: any) => void) | null = null;
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       watch: (_root, _options, callback) => {
@@ -492,7 +492,7 @@ describe('file_watcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 120));
     await flushPromises();
 
-    const watchStateRaw = states.get('librarian.watch_state.v1');
+    const watchStateRaw = states.get('librainian.watch_state.v1');
     expect(watchStateRaw).toBeDefined();
     const watchState = JSON.parse(watchStateRaw ?? '{}') as { cursor?: { kind?: string; lastIndexedCommitSha?: string } };
     expect(watchState.cursor?.kind).toBe('git');
@@ -541,7 +541,7 @@ describe('file_watcher', () => {
       };
 
       const reindexCalls: string[][] = [];
-      const librarian = {
+      const librainian = {
         reindexFiles: vi.fn(async (paths: string[]) => {
           reindexCalls.push([...paths]);
         }),
@@ -550,7 +550,7 @@ describe('file_watcher', () => {
       let captured: ((event: string, filename: any) => void) | null = null;
       startFileWatcher({
         workspaceRoot,
-        librarian: librarian as any,
+        librainian: librainian as any,
         storage: storage as any,
         debounceMs: 10,
         cascadeReindex: true,
@@ -612,7 +612,7 @@ describe('file_watcher', () => {
       };
 
       const reindexCalls: string[][] = [];
-      const librarian = {
+      const librainian = {
         reindexFiles: vi.fn(async (paths: string[]) => {
           reindexCalls.push([...paths]);
         }),
@@ -621,7 +621,7 @@ describe('file_watcher', () => {
       let captured: ((event: string, filename: any) => void) | null = null;
       startFileWatcher({
         workspaceRoot,
-        librarian: librarian as any,
+        librainian: librainian as any,
         storage: storage as any,
         debounceMs: 10,
         cascadeReindex: false, // Disabled
@@ -676,7 +676,7 @@ describe('file_watcher', () => {
       };
 
       const reindexCalls: string[][] = [];
-      const librarian = {
+      const librainian = {
         reindexFiles: vi.fn(async (paths: string[]) => {
           reindexCalls.push([...paths]);
         }),
@@ -685,7 +685,7 @@ describe('file_watcher', () => {
       let captured: ((event: string, filename: any) => void) | null = null;
       startFileWatcher({
         workspaceRoot,
-        librarian: librarian as any,
+        librainian: librainian as any,
         storage: storage as any,
         debounceMs: 10,
         cascadeReindex: true,
@@ -733,13 +733,13 @@ describe('file_watcher', () => {
       },
     };
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       watch: (_root, _options, _callback) => {
@@ -750,10 +750,10 @@ describe('file_watcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     await flushPromises();
 
-    expect(librarian.reindexFiles).toHaveBeenCalled();
-    expect(librarian.reindexFiles).toHaveBeenCalledWith([filePath]);
+    expect(librainian.reindexFiles).toHaveBeenCalled();
+    expect(librainian.reindexFiles).toHaveBeenCalledWith([filePath]);
 
-    const watchStateRaw = states.get('librarian.watch_state.v1');
+    const watchStateRaw = states.get('librainian.watch_state.v1');
     expect(watchStateRaw).toBeDefined();
     const watchState = JSON.parse(watchStateRaw ?? '{}') as { needs_catchup?: boolean };
     expect(watchState.needs_catchup).toBe(false);
@@ -768,7 +768,7 @@ describe('file_watcher', () => {
     await fs.writeFile(filePath, 'export const git = true;\n', 'utf8');
 
     const states = new Map<string, string>();
-    states.set('librarian.watch_state.v1', JSON.stringify({
+    states.set('librainian.watch_state.v1', JSON.stringify({
       schema_version: 1,
       workspace_root: workspaceRoot,
       cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
@@ -803,13 +803,13 @@ describe('file_watcher', () => {
     });
     vi.mocked(getCurrentGitSha).mockResolvedValue('def456');
 
-    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
+    const librainian = { reindexFiles: vi.fn(async () => {}) } as unknown as {
       reindexFiles: (paths: string[]) => Promise<void>;
     };
 
     startFileWatcher({
       workspaceRoot,
-      librarian: librarian as any,
+      librainian: librainian as any,
       storage: storage as any,
       debounceMs: 10,
       watch: (_root, _options, _callback) => {
@@ -820,9 +820,9 @@ describe('file_watcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     await flushPromises();
 
-    expect(librarian.reindexFiles).toHaveBeenCalledWith([filePath]);
+    expect(librainian.reindexFiles).toHaveBeenCalledWith([filePath]);
 
-    const watchStateRaw = states.get('librarian.watch_state.v1');
+    const watchStateRaw = states.get('librainian.watch_state.v1');
     expect(watchStateRaw).toBeDefined();
     const watchState = JSON.parse(watchStateRaw ?? '{}') as { cursor?: { kind?: string; lastIndexedCommitSha?: string } };
     expect(watchState.cursor?.kind).toBe('git');

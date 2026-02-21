@@ -52,7 +52,7 @@ This principle applies at two levels:
 
 ## LiBrainian Release Evidence Rule
 
-- `REAL_AGENT_REAL_LIBRARIAN_ONLY`: release and launch validation must use real agents running against the real LiBrainian repository.
+- `REAL_AGENT_REAL_LIBRAINIAN_ONLY`: release and launch validation must use real agents running against the real LiBrainian repository.
 - `NO_SYNTHETIC_OR_REFERENCE_FOR_RELEASE`: reference harnesses, mocks, and synthetic fixtures are allowed for pipeline diagnostics only and must never be used as publish evidence.
 - `NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE`: retry, fallback, degraded, unavailable, or unverified release evidence states are hard failures.
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: release qualification is binary and requires 100% strict-pass evidence.

@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { contractCommand } from '../contract.js';
-import { Librarian } from '../../../api/librarian.js';
+import { LiBrainian } from '../../../api/librainian.js';
 
-vi.mock('../../../api/librarian.js');
+vi.mock('../../../api/librainian.js');
 
 describe('contractCommand', () => {
   const mockWorkspace = '/test/workspace';
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let mockLibrarian: {
+  let mockLiBrainian: {
     initialize: Mock;
     getSystemContract: Mock;
     shutdown: Mock;
@@ -18,13 +18,13 @@ describe('contractCommand', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    mockLibrarian = {
+    mockLiBrainian = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getSystemContract: vi.fn().mockResolvedValue({ sentinel: true }),
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
 
-    (Librarian as unknown as Mock).mockImplementation(() => mockLibrarian);
+    (LiBrainian as unknown as Mock).mockImplementation(() => mockLiBrainian);
   });
 
   afterEach(() => {
@@ -34,9 +34,9 @@ describe('contractCommand', () => {
   it('prints the system contract as JSON', async () => {
     await contractCommand({ workspace: mockWorkspace });
 
-    expect(mockLibrarian.getSystemContract).toHaveBeenCalled();
+    expect(mockLiBrainian.getSystemContract).toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"sentinel":true'));
-    expect(mockLibrarian.shutdown).toHaveBeenCalled();
+    expect(mockLiBrainian.shutdown).toHaveBeenCalled();
   });
 
   it('prints pretty JSON when requested', async () => {

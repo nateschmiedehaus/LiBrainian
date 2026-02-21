@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { LibrarianQuery } from '../../types.js';
+import type { LiBrainianQuery } from '../../types.js';
 
-function makeQuery(intent: string): LibrarianQuery {
+function makeQuery(intent: string): LiBrainianQuery {
   return {
     intent,
     depth: 'L1',

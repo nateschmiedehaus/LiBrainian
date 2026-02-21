@@ -15,7 +15,7 @@
  * IMPORTANT: These tests require real providers and should be skipped in unit test mode.
  * Run with LIBRARIAN_TEST_MODE=integration to execute these tests.
  *
- * @see docs/librarian/IMPLEMENTATION-PLAN.md for context on why these tests exist
+ * @see docs/librainian/IMPLEMENTATION-PLAN.md for context on why these tests exist
  */
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
@@ -29,7 +29,7 @@ import {
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import { bootstrapProject, createBootstrapConfig } from '../api/bootstrap.js';
 import { EmbeddingService } from '../api/embeddings.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { BootstrapConfig } from '../types.js';
 
 // ============================================================================
@@ -175,7 +175,7 @@ const skipInUnitMode = LIBRARIAN_TEST_MODE === 'unit';
 
 describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
   let workspace: string;
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
 
   beforeEach(async () => {
     workspace = await createTempWorkspace('bootstrap-real-test-');
@@ -202,7 +202,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       await createTestFile(workspace, 'src/index.ts', SAMPLE_TS_INDEX);
 
       // Initialize storage
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -234,7 +234,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       await createTestFile(workspace, 'src/math.ts', SAMPLE_TS_MATH);
 
       // Initialize storage
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -260,7 +260,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
 
     it('handles empty workspace gracefully', async () => {
       // Empty workspace - no files
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -283,7 +283,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       await createTestFile(workspace, 'src/included.ts', SAMPLE_TS_MATH);
       await createTestFile(workspace, 'lib/excluded.ts', SAMPLE_TS_MATH);
 
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -317,7 +317,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
         test('add works', () => expect(add(1, 2)).toBe(3));
       `);
 
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -340,13 +340,13 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       expect(filePaths.some((p) => p.includes('.test.ts'))).toBe(false);
     });
 
-    it('librarian scope patterns match actual source directories', async () => {
-      // This test verifies that the 'librarian' scope patterns are correct
-      // by checking they would match files in typical librarian source structure
+    it('librainian scope patterns match actual source directories', async () => {
+      // This test verifies that the 'librainian' scope patterns are correct
+      // by checking they would match files in typical librainian source structure
       const { resolveScopeOverrides } = await import('../cli/commands/bootstrap.js');
 
       // Note: resolveScopeOverrides is not exported, so we test indirectly
-      // by creating a workspace that mimics librarian structure
+      // by creating a workspace that mimics librainian structure
 
       await createTestFile(workspace, 'src/api/query.ts', 'export function query() {}');
       await createTestFile(workspace, 'src/cli/index.ts', 'export function main() {}');
@@ -354,11 +354,11 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       await createTestFile(workspace, 'src/types.ts', 'export interface Config {}');
       await createTestFile(workspace, 'AGENTS.md', '# Agents');
 
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
-      // Use patterns that mimic the fixed librarian scope
+      // Use patterns that mimic the fixed librainian scope
       const config = createTestBootstrapConfig(workspace, {
         include: [
           'src/api/**/*.ts',
@@ -378,7 +378,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       const files = await storage.getFiles({});
       const filePaths = files.map((f) => f.path);
 
-      // Should find files from librarian-like structure
+      // Should find files from librainian-like structure
       expect(filePaths.some((p) => p.includes('api/query.ts'))).toBe(true);
       expect(filePaths.some((p) => p.includes('cli/index.ts'))).toBe(true);
       expect(filePaths.some((p) => p.includes('storage/sqlite.ts'))).toBe(true);
@@ -391,7 +391,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       await createTestFile(workspace, 'src/math.ts', SAMPLE_TS_MATH);
       await createTestFile(workspace, 'src/user-service.ts', SAMPLE_TS_CLASS);
 
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -428,7 +428,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
           // Missing closing paren and body
       `);
 
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 
@@ -449,7 +449,7 @@ describe.skipIf(skipInUnitMode)('Real Bootstrap Integration Tests', () => {
       await createTestFile(workspace, 'src/code.py', '# Python file');
       await createTestFile(workspace, 'lib/data.json', '{}');
 
-      const dbPath = path.join(workspace, '.librarian', 'index.sqlite');
+      const dbPath = path.join(workspace, '.librainian', 'index.sqlite');
       storage = createSqliteStorage(dbPath, workspace);
       await storage.initialize();
 

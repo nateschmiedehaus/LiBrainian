@@ -1,7 +1,7 @@
 /**
  * @fileoverview Learning Module
  *
- * Provides learning capabilities for the Librarian system:
+ * Provides learning capabilities for the LiBrainian system:
  * - Recovery strategy learning using Thompson Sampling
  * - Anti-pattern detection and avoidance
  * - Outcome tracking and persistence

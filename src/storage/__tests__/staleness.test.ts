@@ -10,14 +10,14 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StalenessTracker, createStalenessTracker } from '../staleness.js';
-import type { LibrarianStorage, FileKnowledge, IndexingResult } from '../types.js';
+import type { LiBrainianStorage, FileKnowledge, IndexingResult } from '../types.js';
 import { computeFileChecksum } from '../../utils/checksums.js';
 
 // ============================================================================
 // MOCK STORAGE
 // ============================================================================
 
-class MockStorage implements Partial<LibrarianStorage> {
+class MockStorage implements Partial<LiBrainianStorage> {
   private checksums = new Map<string, string>();
   private files = new Map<string, FileKnowledge>();
   private lastIndexingResult: IndexingResult | null = null;
@@ -93,7 +93,7 @@ describe('StalenessTracker', () => {
     // Create temp directory for test files
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'staleness-test-'));
     mockStorage = new MockStorage();
-    tracker = createStalenessTracker(mockStorage as unknown as LibrarianStorage);
+    tracker = createStalenessTracker(mockStorage as unknown as LiBrainianStorage);
   });
 
   afterEach(() => {
@@ -312,7 +312,7 @@ describe('StalenessTracker', () => {
 
   describe('factory', () => {
     it('createStalenessTracker creates tracker instance', () => {
-      const tracker = createStalenessTracker(mockStorage as unknown as LibrarianStorage);
+      const tracker = createStalenessTracker(mockStorage as unknown as LiBrainianStorage);
       expect(tracker).toBeInstanceOf(StalenessTracker);
     });
   });

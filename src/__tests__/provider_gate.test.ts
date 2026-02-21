@@ -516,7 +516,7 @@ describe('runProviderReadinessGate', () => {
   });
 
   it('treats recent provider failures as unavailable', async () => {
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-'));
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librainian-provider-gate-'));
     try {
       await recordProviderFailure(workspaceRoot, {
         provider: 'claude',
@@ -571,7 +571,7 @@ describe('runProviderReadinessGate', () => {
   });
 
   it('does not hard-disable provider selection for non-sticky recent failures', async () => {
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-'));
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librainian-provider-gate-'));
     try {
       await recordProviderFailure(workspaceRoot, {
         provider: 'claude',
@@ -670,7 +670,7 @@ describe('Provider Resilience Gate', () => {
   });
 
   it('survives provider failures with single-line errors and recovers on the next run', async () => {
-    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-resilience-'));
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librainian-provider-resilience-'));
     try {
       const authChecker = {
         checkAll: async () =>

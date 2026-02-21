@@ -3,7 +3,7 @@
  */
 
 export type {
-  LibrarianStorage,
+  LiBrainianStorage,
   StorageCapabilities,
   StorageSlices,
   StorageLifecycle,
@@ -71,7 +71,7 @@ export {
 } from './types.js';
 
 export {
-  SqliteLibrarianStorage,
+  SqliteLiBrainianStorage,
   createSqliteStorage,
   createStorageFromBackend,
 } from './sqlite_storage.js';

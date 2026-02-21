@@ -1,5 +1,5 @@
 /**
- * @fileoverview Unified Debugging/Tracing module for the Librarian system (G10)
+ * @fileoverview Unified Debugging/Tracing module for the LiBrainian system (G10)
  *
  * This module provides comprehensive debugging and tracing capabilities:
  *
@@ -22,7 +22,7 @@
  *   globalTracer,
  *   traceAsync,
  *   createInspector,
- * } from 'librarian/debug';
+ * } from 'librainian/debug';
  *
  * // Tracing an operation
  * const result = await traceAsync('myOperation', async (spanId) => {
@@ -42,7 +42,7 @@
 
 // Tracer exports
 export {
-  LibrarianTracer,
+  LiBrainianTracer,
   globalTracer,
   createTracer,
   traceAsync,
@@ -60,7 +60,7 @@ export type {
 
 // Inspector exports
 export {
-  LibrarianInspector,
+  LiBrainianInspector,
   createInspector,
 } from './inspector.js';
 

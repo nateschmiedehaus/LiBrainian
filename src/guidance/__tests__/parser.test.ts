@@ -353,14 +353,14 @@ npm run build
       const content = `## Integrations
 
 - MCP: filesystem server for file access
-- Librarian: semantic search enabled
+- LiBrainian: semantic search enabled
 `;
 
       const result = parseGuidanceFile(content, createSource());
 
       expect(result.pack.integrations?.mcp?.enabled).toBe(true);
-      expect(result.pack.integrations?.librarian).toBeDefined();
-      expect(result.pack.integrations?.librarian?.enabled).toBe(true);
+      expect(result.pack.integrations?.librainian).toBeDefined();
+      expect(result.pack.integrations?.librainian?.enabled).toBe(true);
     });
 
     it('should parse tool integrations', () => {
@@ -673,7 +673,7 @@ Coverage: 80% minimum
 ## Integrations
 
 - MCP: filesystem for file access
-- Librarian: semantic search
+- LiBrainian: semantic search
 `;
 
       const result = parseGuidanceFile(content, createSource());
@@ -685,7 +685,7 @@ Coverage: 80% minimum
       expect(result.pack.rules?.commitFormat).toBeDefined();
       expect(result.pack.safety.forbidden.length).toBe(2);
       expect(result.pack.testing?.tiers?.length).toBeGreaterThanOrEqual(1);
-      expect(result.pack.integrations?.librarian).toBeDefined();
+      expect(result.pack.integrations?.librainian).toBeDefined();
     });
   });
 });

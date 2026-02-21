@@ -25,12 +25,12 @@ function toAgentAnswer(tddAnswer: TddAnswer): AgentAnswer {
   };
 }
 
-export interface LibrarianAgent {
+export interface LiBrainianAgent {
   ask(question: AgentQuestion): Promise<AgentAnswer>;
   trigger(action: AgentAction): Promise<ActionResult>;
 }
 
-export class LibrarianAgentImpl implements LibrarianAgent {
+export class LiBrainianAgentImpl implements LiBrainianAgent {
   constructor(
     private readonly relevance: RelevanceEngine,
     private readonly constraint: ConstraintEngine,
@@ -239,7 +239,7 @@ export class LibrarianAgentImpl implements LibrarianAgent {
       answer: null,
       confidence: 0,
       reasoning: 'TDD engine not initialized',
-      caveats: ['Initialize librarian with TDD support to use TDD features'],
+      caveats: ['Initialize librainian with TDD support to use TDD features'],
     };
   }
 

@@ -3,9 +3,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const repoRoot = process.cwd();
-const insightsPath = resolve(repoRoot, 'docs/librarian/CONVERSATION_INSIGHTS.md');
-const statusPath = resolve(repoRoot, 'docs/librarian/STATUS.md');
-const readmePath = resolve(repoRoot, 'docs/librarian/README.md');
+const insightsPath = resolve(repoRoot, 'docs/librainian/CONVERSATION_INSIGHTS.md');
+const statusPath = resolve(repoRoot, 'docs/librainian/STATUS.md');
+const readmePath = resolve(repoRoot, 'docs/librainian/README.md');
 
 const requiredHeadings = [
   '## Context Snapshot',
@@ -61,7 +61,7 @@ describe('conversation insights doc', () => {
   it('is cross-linked from docs README and STATUS', () => {
     const readme = readFileSync(readmePath, 'utf8');
     const status = readFileSync(statusPath, 'utf8');
-    const normalizedLinkPattern = /docs\/librarian\/CONVERSATION_INSIGHTS\.md/i;
+    const normalizedLinkPattern = /docs\/librainian\/CONVERSATION_INSIGHTS\.md/i;
     expect(normalizedLinkPattern.test(readme)).toBe(true);
     expect(normalizedLinkPattern.test(status)).toBe(true);
   });

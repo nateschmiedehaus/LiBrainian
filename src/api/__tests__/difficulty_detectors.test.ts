@@ -55,7 +55,7 @@ describe('difficulty detectors', () => {
   });
 
   it('scans repository signals from filesystem markers', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-detectors-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-detectors-'));
     fs.mkdirSync(path.join(tmpDir, 'tests'));
     fs.mkdirSync(path.join(tmpDir, '.github', 'workflows'), { recursive: true });
     fs.mkdirSync(path.join(tmpDir, 'docs'), { recursive: true });

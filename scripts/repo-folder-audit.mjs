@@ -25,7 +25,7 @@ const IGNORE_LOCAL_DIRS = new Set([
   'node_modules',
   'dist',
   '.tmp',
-  '.librarian',
+  '.librainian',
 ]);
 
 function collectLocalFiles(directory) {
@@ -275,8 +275,8 @@ function main() {
   const localEvalArtifacts = countLocalDirectories(path.join(workspaceRoot, 'eval-corpus'), new Set([
     '.git',
     'node_modules',
-    '.librarian',
-    '.librarian-eval',
+    '.librainian',
+    '.librainian-eval',
     '.ab-harness-artifacts',
     'state',
   ]));
@@ -316,7 +316,7 @@ function main() {
     workspaceRoot,
     'state',
     'audits',
-    'librarian',
+    'librainian',
     'repo',
     'RepoFolderAudit.v1.json'
   );

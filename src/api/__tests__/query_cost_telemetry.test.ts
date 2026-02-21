@@ -9,7 +9,7 @@ const tmpDirs: string[] = [];
 async function createWorkspace(prefix: string): Promise<string> {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   tmpDirs.push(workspace);
-  await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
+  await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
   return workspace;
 }
 
@@ -23,7 +23,7 @@ async function seedLedger(workspace: string, rows: Array<{
   payload: Record<string, unknown>;
 }>): Promise<void> {
   const BetterSqlite3 = (await import('better-sqlite3')).default;
-  const dbPath = path.join(workspace, '.librarian', 'evidence_ledger.db');
+  const dbPath = path.join(workspace, '.librainian', 'evidence_ledger.db');
   const db = new BetterSqlite3(dbPath);
   try {
     db.exec(`
@@ -77,13 +77,13 @@ describe('readQueryCostTelemetry', () => {
   });
 
   it('returns null when the evidence ledger is missing', async () => {
-    const workspace = await createWorkspace('librarian-costs-missing-');
+    const workspace = await createWorkspace('librainian-costs-missing-');
     const report = await readQueryCostTelemetry({ workspaceRoot: workspace });
     expect(report).toBeNull();
   });
 
   it('summarizes query tool telemetry with budget alerts', async () => {
-    const workspace = await createWorkspace('librarian-costs-report-');
+    const workspace = await createWorkspace('librainian-costs-report-');
     const now = new Date();
     await seedLedger(workspace, [
       {
@@ -132,7 +132,7 @@ describe('readQueryCostTelemetry', () => {
         durationMs: 140,
         cacheHit: 0,
         payload: {
-          toolName: 'librarian_query_complete',
+          toolName: 'librainian_query_complete',
           queryId: 'qry_fallback',
         },
       },
@@ -156,7 +156,7 @@ describe('readQueryCostTelemetry', () => {
   });
 
   it('falls back to query completion evidence when no query tool rows exist', async () => {
-    const workspace = await createWorkspace('librarian-costs-fallback-');
+    const workspace = await createWorkspace('librainian-costs-fallback-');
     const now = new Date();
     await seedLedger(workspace, [
       {
@@ -167,7 +167,7 @@ describe('readQueryCostTelemetry', () => {
         durationMs: null,
         cacheHit: 0,
         payload: {
-          toolName: 'librarian_query_complete',
+          toolName: 'librainian_query_complete',
           queryId: 'qry_1',
           latencyMs: 123,
           cacheHit: false,

@@ -40,7 +40,7 @@ const SOURCE_EXTENSIONS = new Set([
 const SKIP_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
+  '.librainian',
   'dist',
   'build',
   'out',

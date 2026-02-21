@@ -6,7 +6,7 @@ import * as path from 'node:path';
 
 describe('analyzeCommand JSON hygiene', () => {
   it('emits pure JSON when --format json is set (no leading status lines)', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-analyze-json-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-analyze-json-'));
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     try {

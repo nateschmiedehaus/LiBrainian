@@ -4,14 +4,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 vi.mock('../../integration/first_run_gate.js', () => ({
-  ensureLibrarianReady: vi.fn(),
+  ensureLiBrainianReady: vi.fn(),
 }));
 
-import { ensureLibrarianReady } from '../../integration/first_run_gate.js';
+import { ensureLiBrainianReady } from '../../integration/first_run_gate.js';
 import { runExternalRepoSmoke } from '../external_repo_smoke.js';
 
 async function createSmokeFixture(repoName = 'repo-a'): Promise<{ root: string; repoRoot: string }> {
-  const root = await mkdtemp(path.join(tmpdir(), 'librarian-external-smoke-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'librainian-external-smoke-'));
   const reposRoot = path.join(root, 'external-repos');
   const repoRoot = path.join(reposRoot, repoName);
   await mkdir(repoRoot, { recursive: true });
@@ -40,7 +40,7 @@ describe('runExternalRepoSmoke', () => {
     const fixture = await createSmokeFixture();
     fixtureRoot = fixture.root;
 
-    vi.mocked(ensureLibrarianReady).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(ensureLiBrainianReady).mockImplementation(() => new Promise(() => {}));
 
     const report = await runExternalRepoSmoke({
       reposRoot: fixture.root,
@@ -60,8 +60,8 @@ describe('runExternalRepoSmoke', () => {
       packs: [{ summary: 'Useful context', keyFacts: [], codeSnippets: [] }],
     });
     const shutdown = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(ensureLibrarianReady).mockResolvedValue({
-      librarian: {
+    vi.mocked(ensureLiBrainianReady).mockResolvedValue({
+      librainian: {
         queryOptional,
         shutdown,
       },
@@ -99,8 +99,8 @@ describe('runExternalRepoSmoke', () => {
       packs: [{ summary: 'Useful context', keyFacts: [], codeSnippets: [] }],
     });
     const shutdown = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(ensureLibrarianReady).mockResolvedValue({
-      librarian: {
+    vi.mocked(ensureLiBrainianReady).mockResolvedValue({
+      librainian: {
         queryOptional,
         shutdown,
       },
@@ -112,7 +112,7 @@ describe('runExternalRepoSmoke', () => {
       repoTimeoutMs: 1000,
     });
 
-    expect(ensureLibrarianReady).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+    expect(ensureLiBrainianReady).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
       allowDegradedEmbeddings: false,
       requireCompleteParserCoverage: true,
       throwOnFailure: true,
@@ -133,8 +133,8 @@ describe('runExternalRepoSmoke', () => {
       packs: [{ summary: 'Useful context', keyFacts: [], codeSnippets: [] }],
     });
     const shutdown = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(ensureLibrarianReady).mockResolvedValue({
-      librarian: {
+    vi.mocked(ensureLiBrainianReady).mockResolvedValue({
+      librainian: {
         queryOptional,
         shutdown,
       },
@@ -159,8 +159,8 @@ describe('runExternalRepoSmoke', () => {
       packs: [{ summary: 'Useful context', keyFacts: [], codeSnippets: [] }],
     });
     const shutdown = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(ensureLibrarianReady).mockResolvedValue({
-      librarian: {
+    vi.mocked(ensureLiBrainianReady).mockResolvedValue({
+      librainian: {
         queryOptional,
         shutdown,
       },

@@ -6,7 +6,7 @@
  * traverses the entire dependency graph to find ALL dependents.
  *
  * Use cases:
- * - "What depends on SqliteLibrarianStorage" -> Returns ALL 208 files
+ * - "What depends on SqliteLiBrainianStorage" -> Returns ALL 208 files
  * - "Everything that imports src/storage/types.ts" -> Complete list
  * - "Transitive dependents of the auth module" -> Full dependency tree
  *
@@ -14,7 +14,7 @@
  * ```typescript
  * const result = await queryExhaustiveDependents(storage, {
  *   targetId: 'src/storage/types.ts',
- *   targetName: 'SqliteLibrarianStorage',
+ *   targetName: 'SqliteLiBrainianStorage',
  *   includeTransitive: true,
  *   edgeTypes: ['imports', 'calls'],
  * });
@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { LibrarianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
+import type { LiBrainianStorage, GraphEdgeQueryOptions } from '../storage/types.js';
 import type { GraphEdge, GraphEdgeType, GraphEntityType } from '../types.js';
 
 // ============================================================================
@@ -42,7 +42,7 @@ export interface ExhaustiveQueryOptions {
   /**
    * Optional target name for symbol-level queries.
    * When specified, filters edges to only those referencing this symbol.
-   * Example: 'SqliteLibrarianStorage' within 'src/storage/sqlite_storage.ts'
+   * Example: 'SqliteLiBrainianStorage' within 'src/storage/sqlite_storage.ts'
    */
   targetName?: string;
 
@@ -197,7 +197,7 @@ const MAX_ENTITIES_LIMIT = 10000; // Safety limit to prevent OOM
  * @returns Complete list of dependent entities with metadata
  */
 export async function queryExhaustiveDependents(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: ExhaustiveQueryOptions
 ): Promise<ExhaustiveQueryResult> {
   const startTime = Date.now();
@@ -370,7 +370,7 @@ export async function queryExhaustiveDependents(
  * Get edges for a given direction (dependents = who imports this, dependencies = what this imports).
  */
 async function getEdgesForDirection(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityId: string,
   direction: 'dependents' | 'dependencies',
   options: { edgeTypes?: GraphEdgeType[]; targetName?: string }
@@ -429,7 +429,7 @@ async function getEdgesForDirection(
  * Find the specific edge connecting source and target.
  */
 async function findEdgeForEntity(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetId: string,
   entityId: string,
   direction: 'dependents' | 'dependencies',
@@ -496,7 +496,7 @@ function extractDirectory(filePath: string): string {
  * ```
  */
 export async function findAllImporters(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetPath: string,
   options?: { includeTransitive?: boolean; maxDepth?: number }
 ): Promise<ExhaustiveQueryResult> {
@@ -514,12 +514,12 @@ export async function findAllImporters(
  *
  * @example
  * ```typescript
- * const callers = await findAllCallers(storage, 'src/api/query.ts', 'queryLibrarian');
- * console.log(`${callers.length} files call queryLibrarian`);
+ * const callers = await findAllCallers(storage, 'src/api/query.ts', 'queryLiBrainian');
+ * console.log(`${callers.length} files call queryLiBrainian`);
  * ```
  */
 export async function findAllCallers(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetPath: string,
   functionName?: string,
   options?: { includeTransitive?: boolean; maxDepth?: number }
@@ -539,12 +539,12 @@ export async function findAllCallers(
  *
  * @example
  * ```typescript
- * const deps = await findAllDependencies(storage, 'src/api/librarian.ts');
- * console.log(`librarian.ts depends on ${deps.length} other files`);
+ * const deps = await findAllDependencies(storage, 'src/api/librainian.ts');
+ * console.log(`librainian.ts depends on ${deps.length} other files`);
  * ```
  */
 export async function findAllDependencies(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   sourcePath: string,
   options?: { includeTransitive?: boolean; maxDepth?: number }
 ): Promise<ExhaustiveQueryResult> {
@@ -568,7 +568,7 @@ export async function findAllDependencies(
  * ```
  */
 export async function getTransitiveClosure(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   targetPath: string,
   options?: { maxDepth?: number; edgeTypes?: GraphEdgeType[] }
 ): Promise<ExhaustiveQueryResult> {
@@ -641,8 +641,8 @@ export function detectExhaustiveIntent(intent: string): boolean {
  *
  * @example
  * ```typescript
- * const target = extractTargetFromIntent('What depends on SqliteLibrarianStorage');
- * // Returns: { name: 'SqliteLibrarianStorage', type: 'symbol' }
+ * const target = extractTargetFromIntent('What depends on SqliteLiBrainianStorage');
+ * // Returns: { name: 'SqliteLiBrainianStorage', type: 'symbol' }
  * ```
  */
 export function extractTargetFromIntent(intent: string): {

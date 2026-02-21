@@ -13,7 +13,7 @@ import { GovernorContext, createGovernorRunState } from '../api/governor_context
 import { DEFAULT_GOVERNOR_CONFIG } from '../api/governors.js';
 
 // Test fixture paths
-const FIXTURE_PATH = '/tmp/librarian-test-governor';
+const FIXTURE_PATH = '/tmp/librainian-test-governor';
 
 describe('Governor Context Propagation', () => {
   describe('Structural Verification (No Live Providers)', () => {

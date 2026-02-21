@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LibrarianStateReport } from '../../measurement/observability.js';
+import type { LiBrainianStateReport } from '../../measurement/observability.js';
 import type { RetrievalQualityReport } from '../../measurement/retrieval_quality.js';
 import type { StageResult } from '../types.js';
 import { computeFitnessReport } from '../fitness.js';
@@ -65,9 +65,9 @@ function createStages(): {
   };
 }
 
-function createStateReport(queryCount: number): LibrarianStateReport {
+function createStateReport(queryCount: number): LiBrainianStateReport {
   return {
-    kind: 'LibrarianStateReport.v1',
+    kind: 'LiBrainianStateReport.v1',
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     codeGraphHealth: {
@@ -153,7 +153,7 @@ function createRetrievalReport(queryCount: number): RetrievalQualityReport {
 }
 
 const scope = {
-  repository: 'librarian',
+  repository: 'librainian',
   subsystem: 'evolution',
   commitHash: 'test',
 };

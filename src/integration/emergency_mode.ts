@@ -26,7 +26,7 @@ const normalize = (value: string): string =>
   value.includes(TAG) ? value : `${TAG}: ${value}`;
 
 const reportDir = (workspace: string): string =>
-  path.join(workspace, 'state', 'audits', 'librarian', 'emergency');
+  path.join(workspace, 'state', 'audits', 'librainian', 'emergency');
 
 interface EmergencyModeReport {
   kind: 'EmergencyModeReport.v1';

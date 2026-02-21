@@ -4,7 +4,7 @@ import { resolveDbPath } from '../../db_path.js';
 import { createSqliteStorage } from '../../../storage/sqlite_storage.js';
 import { generateStateReport } from '../../../measurement/observability.js';
 import { isBootstrapRequired } from '../../../api/bootstrap.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../storage/types.js';
 
 vi.mock('../../db_path.js', () => ({
   resolveDbPath: vi.fn(),
@@ -16,29 +16,29 @@ vi.mock('../../../storage/sqlite_storage.js', () => ({
 
 vi.mock('../../../measurement/observability.js', () => ({
   generateStateReport: vi.fn(),
-  exportPrometheusMetrics: vi.fn(() => 'librarian_metric 1'),
+  exportPrometheusMetrics: vi.fn(() => 'librainian_metric 1'),
 }));
 
 vi.mock('../../../metrics/index_completeness.js', () => ({
   calculateIndexCompleteness: vi.fn(),
   formatCompletenessReport: vi.fn(() => 'completeness'),
-  exportPrometheusMetrics: vi.fn(() => 'librarian_completeness 1'),
+  exportPrometheusMetrics: vi.fn(() => 'librainian_completeness 1'),
 }));
 
 vi.mock('../../../api/bootstrap.js', () => ({
   isBootstrapRequired: vi.fn(),
 }));
 
-function createStorageStub(): LibrarianStorage {
+function createStorageStub(): LiBrainianStorage {
   return {
     initialize: vi.fn().mockResolvedValue(undefined) as Mock,
     close: vi.fn().mockResolvedValue(undefined) as Mock,
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 describe('healthCommand', () => {
-  const workspace = '/tmp/librarian-health-workspace';
-  const dbPath = '/tmp/librarian-health.sqlite';
+  const workspace = '/tmp/librainian-health-workspace';
+  const dbPath = '/tmp/librainian-health.sqlite';
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -101,7 +101,7 @@ describe('healthCommand', () => {
     vi.mocked(createSqliteStorage).mockImplementation(() => ({
       initialize: vi.fn().mockRejectedValue(new Error('SQLITE_CANTOPEN')) as Mock,
       close: vi.fn().mockResolvedValue(undefined) as Mock,
-    } as unknown as LibrarianStorage));
+    } as unknown as LiBrainianStorage));
 
     await expect(healthCommand({ workspace, format: 'json' })).resolves.toBeUndefined();
 

@@ -40,7 +40,7 @@ function toSingleLineText(text: string): string {
 function resolvePreferredProviderFromEnv(): ProviderName | undefined {
   const resolver =
     (llmEnv as { resolveLiBrainianProvider?: () => ProviderName | undefined }).resolveLiBrainianProvider
-    ?? (llmEnv as { resolveLibrarianProvider?: () => ProviderName | undefined }).resolveLibrarianProvider;
+    ?? (llmEnv as { resolveLiBrainianProvider?: () => ProviderName | undefined }).resolveLiBrainianProvider;
   return resolver?.();
 }
 
@@ -411,7 +411,7 @@ async function appendProviderGateEvidence(
         method: 'provider_gate',
         agent: {
           type: 'tool',
-          identifier: 'librarian',
+          identifier: 'librainian',
         },
         inputHash,
       },

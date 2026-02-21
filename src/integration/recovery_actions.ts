@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ContextPack, FunctionKnowledge, ModuleKnowledge } from '../types.js';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
 
@@ -77,7 +77,7 @@ const snapshots = new Map<string, RecoverySnapshot>();
  * Create a snapshot before executing an action.
  */
 async function createSnapshot(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   entityIds: string[],
   entityType: 'context_pack' | 'function' | 'module'
 ): Promise<string> {
@@ -137,7 +137,7 @@ async function createSnapshot(
  * Rollback to a snapshot.
  */
 export async function rollbackToSnapshot(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   snapshotId: string
 ): Promise<{ restored: number; errors: string[] }> {
   const snapshot = snapshots.get(snapshotId);
@@ -178,7 +178,7 @@ export async function rollbackToSnapshot(
  * Compute current fitness from storage metrics.
  * Simplified fitness based on confidence distribution and coverage.
  */
-async function computeCurrentFitness(storage: LibrarianStorage): Promise<number> {
+async function computeCurrentFitness(storage: LiBrainianStorage): Promise<number> {
   try {
     // Get sample of entities to compute fitness
     const packs = await storage.getContextPacks({ limit: 100 });
@@ -292,7 +292,7 @@ export function setRecoveryLearner(learner: IRecoveryLearner): void {
  * Actually recomputes confidence based on structural signals.
  */
 export async function executeTargetedReembedding(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: {
     entityIds?: string[];
     reason?: string;
@@ -427,7 +427,7 @@ export async function executeTargetedReembedding(
  * Actually updates file records and refreshes embeddings.
  */
 export async function executeIncrementalReindex(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: {
     files?: string[];
     maxFiles?: number;
@@ -502,7 +502,7 @@ export async function executeIncrementalReindex(
  * Processes and resolves confidence-reducing defeaters.
  */
 export async function executeDefeaterResolution(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: {
     maxDefeaters?: number;
   } = {}
@@ -516,7 +516,7 @@ export async function executeDefeaterResolution(
   try {
     // Get defeaters from storage (optional method)
     // Cast storage to allow optional method access
-    const storageWithDefeaters = storage as LibrarianStorage & {
+    const storageWithDefeaters = storage as LiBrainianStorage & {
       getDefeaters?: (options: { limit: number }) => Promise<Array<{ id: string; type: string }>>;
       resolveDefeater?: (id: string, resolution: string) => Promise<void>;
     };
@@ -582,7 +582,7 @@ export async function executeDefeaterResolution(
  * Pre-populates query cache with common queries.
  */
 export async function executeCacheWarmup(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: {
     queryCount?: number;
   } = {}
@@ -660,7 +660,7 @@ export async function executeCacheWarmup(
  * Triggers discovery of new files and entities.
  */
 export async function executeFullRescan(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   options: {
     maxFiles?: number;
   } = {}
@@ -723,7 +723,7 @@ export async function executeFullRescan(
  * Execute a recovery action by type.
  */
 export async function executeAction(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   actionType: string,
   options: Record<string, unknown> = {}
 ): Promise<RecoveryOutcome> {

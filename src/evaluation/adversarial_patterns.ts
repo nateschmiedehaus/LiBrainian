@@ -2,7 +2,7 @@
  * @fileoverview Adversarial Pattern Library (WU-806)
  *
  * Collects and catalogs patterns that commonly cause hallucinations or errors
- * in code understanding systems. These patterns are used to stress-test Librarian.
+ * in code understanding systems. These patterns are used to stress-test LiBrainian.
  *
  * @packageDocumentation
  */

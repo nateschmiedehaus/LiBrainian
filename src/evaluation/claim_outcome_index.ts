@@ -29,7 +29,7 @@ export interface IndexedClaim {
   claimType: string;
   /** When the claim was created */
   createdAt: Date;
-  /** Source of the claim (e.g., 'librarian', 'user') */
+  /** Source of the claim (e.g., 'librainian', 'user') */
   source: string;
   /** Tags for categorization */
   tags: string[];

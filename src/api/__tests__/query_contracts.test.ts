@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ContextPack, LibrarianQuery, LibrarianVersion } from '../../types.js';
+import type { ContextPack, LiBrainianQuery, LiBrainianVersion } from '../../types.js';
 import {
   ImpactResponseSchema,
   QueryResultContractSchema,
@@ -9,7 +9,7 @@ import {
   resolveQueryIntentType,
 } from '../query_contracts.js';
 
-const baseVersion: LibrarianVersion = {
+const baseVersion: LiBrainianVersion = {
   major: 1,
   minor: 0,
   patch: 0,
@@ -40,7 +40,7 @@ const basePack: ContextPack = {
 
 describe('query contracts', () => {
   it('resolves explicit intentType over taskType inference', () => {
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'show impact',
       intentType: 'understand',
       taskType: 'impact_analysis',
@@ -50,7 +50,7 @@ describe('query contracts', () => {
   });
 
   it('normalizes intentType and infers taskType when missing', () => {
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'what would this change impact?',
       intentType: 'impact',
       depth: 'L1',

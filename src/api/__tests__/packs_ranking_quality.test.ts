@@ -35,9 +35,9 @@ describe('context pack ranking quality', () => {
   it('drops internal artifact-only packs from ranking output', () => {
     const internalPack = createPack({
       packId: 'internal',
-      targetId: '.librarian/state/retrieval_confidence_log.jsonl',
+      targetId: '.librainian/state/retrieval_confidence_log.jsonl',
       summary: 'internal log',
-      relatedFiles: ['.librarian/state/retrieval_confidence_log.jsonl'],
+      relatedFiles: ['.librainian/state/retrieval_confidence_log.jsonl'],
       keyFacts: ['Purpose: Internal state'],
       confidence: 0.99,
     });

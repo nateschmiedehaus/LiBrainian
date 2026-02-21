@@ -37,10 +37,10 @@ describe('Event ledger bridge (W3 correlation)', () => {
     const toolNamesA = entriesA.map((entry) => (entry.payload as ToolCallEvidence).toolName);
     const toolNamesB = entriesB.map((entry) => (entry.payload as ToolCallEvidence).toolName);
 
-    expect(toolNamesA).toContain('librarian_event:task_received');
-    expect(toolNamesB).toContain('librarian_event:task_received');
-    expect(toolNamesA).toContain('librarian_event_conflict');
-    expect(toolNamesB).toContain('librarian_event_conflict');
+    expect(toolNamesA).toContain('librainian_event:task_received');
+    expect(toolNamesB).toContain('librainian_event:task_received');
+    expect(toolNamesA).toContain('librainian_event_conflict');
+    expect(toolNamesB).toContain('librainian_event_conflict');
     expect(entriesA.every((entry) => entry.sessionId === sessionA)).toBe(true);
     expect(entriesB.every((entry) => entry.sessionId === sessionB)).toBe(true);
 

@@ -81,7 +81,7 @@ const SECTION_PATTERNS = {
   agentSpecific: /^(?:agent[- ]?specific|claude(?:[- ]?specific)?|codex(?:[- ]?(?:specific|agent))?|gemini(?:[- ]?specific)?|copilot(?:[- ]?specific)?)\b/i,
   codeQuality: /^(?:code[- ]?quality|anti[- ]?slop)\b/i,  // Don't match plain "quality" or "style"
   testing: /^(?:testing|tests|test[- ]?requirements)\b/i,
-  integrations: /^(?:integrations|tools)\b/i,  // Don't match plain "mcp" or "librarian"
+  integrations: /^(?:integrations|tools)\b/i,  // Don't match plain "mcp" or "librainian"
 };
 
 /** Code block pattern */
@@ -994,8 +994,8 @@ function parseIntegrationsSection(section: InternalSection): IntegrationsSection
           enabled: true,
           allowedTools: [],
         };
-      } else if (/librarian/i.test(item)) {
-        result.librarian = {
+      } else if (/librainian/i.test(item)) {
+        result.librainian = {
           enabled: true,
         };
       } else {

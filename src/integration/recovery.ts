@@ -16,12 +16,12 @@
  * - cooldownAfterRecovery: 15 minutes
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { ContextPack, FunctionKnowledge, ModuleKnowledge } from '../types.js';
 import {
   type RecoveryState,
-  type LibrarianHealth,
-  type LibrarianStateReport,
+  type LiBrainianHealth,
+  type LiBrainianStateReport,
   getRecoveryState,
   transitionRecoveryState,
   resetRecoveryState,
@@ -173,7 +173,7 @@ export interface DegradationDiagnosis {
  * Diagnose degradation from state report.
  */
 export function diagnoseDegradation(
-  report: LibrarianStateReport
+  report: LiBrainianStateReport
 ): DegradationDiagnosis[] {
   const diagnoses: DegradationDiagnosis[] = [];
 
@@ -414,7 +414,7 @@ function computeStructuralConfidence(entity: {
  * Actually computes real confidence instead of using defaults.
  */
 async function executeActionTargetedReembedding(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   budget: RecoveryBudget
 ): Promise<{ updated: number; errors: string[] }> {
   const errors: string[] = [];
@@ -507,7 +507,7 @@ async function executeActionTargetedReembedding(
  * Execute incremental reindex for stale files.
  */
 async function executeActionIncrementalReindex(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   budget: RecoveryBudget
 ): Promise<{ reindexed: number; errors: string[] }> {
   const errors: string[] = [];
@@ -530,7 +530,7 @@ async function executeActionIncrementalReindex(
  * Execute defeater resolution.
  */
 async function executeActionDefeaterResolution(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<{ resolved: number; errors: string[] }> {
   const errors: string[] = [];
   let resolved = 0;
@@ -545,7 +545,7 @@ async function executeActionDefeaterResolution(
  * Execute cache warmup.
  */
 async function executeActionCacheWarmup(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<{ warmed: number; errors: string[] }> {
   const errors: string[] = [];
   let warmed = 0;
@@ -560,7 +560,7 @@ async function executeActionCacheWarmup(
  * Execute full rescan.
  */
 async function executeActionFullRescan(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   budget: RecoveryBudget
 ): Promise<{ scanned: number; errors: string[] }> {
   const errors: string[] = [];
@@ -591,7 +591,7 @@ export interface RecoveryResult {
  * Execute recovery based on current state.
  */
 export async function executeRecovery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   budget: RecoveryBudget = DEFAULT_RECOVERY_BUDGET
 ): Promise<RecoveryResult> {
   const startTime = Date.now();

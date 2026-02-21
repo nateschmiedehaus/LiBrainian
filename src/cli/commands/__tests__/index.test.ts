@@ -13,13 +13,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { indexCommand, type IndexCommandOptions } from '../index.js';
-import { LiBrainian } from '../../../api/librarian.js';
+import { LiBrainian } from '../../../api/librainian.js';
 import { CliError } from '../../errors.js';
 import { globalEventBus } from '../../../events.js';
 import { getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 
 vi.mock('node:fs');
-vi.mock('../../../api/librarian.js');
+vi.mock('../../../api/librainian.js');
 vi.mock('../../../events.js', async () => {
   const actual = await vi.importActual('../../../events.js');
   return {
@@ -391,7 +391,7 @@ describe('indexCommand', () => {
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
       await expect(indexCommand(options)).rejects.toThrow('LiBrainian not bootstrapped');
-      await expect(indexCommand(options)).rejects.toThrow('Run "librarian bootstrap" first');
+      await expect(indexCommand(options)).rejects.toThrow('Run "librainian bootstrap" first');
       await expect(indexCommand(options)).rejects.toMatchObject({
         code: 'NOT_BOOTSTRAPPED',
       });
@@ -442,7 +442,7 @@ describe('indexCommand', () => {
   });
 
   describe('LiBrainian Initialization', () => {
-    it('should initialize librarian with correct workspace', async () => {
+    it('should initialize librainian with correct workspace', async () => {
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
         files: [mockFile1],
@@ -552,7 +552,7 @@ describe('indexCommand', () => {
       };
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
-      await expect(indexCommand(options)).rejects.toThrow('Failed to initialize librarian');
+      await expect(indexCommand(options)).rejects.toThrow('Failed to initialize librainian');
     });
   });
 
@@ -640,7 +640,7 @@ describe('indexCommand', () => {
       });
     });
 
-    it('should ensure librarian.shutdown is called even on failure', async () => {
+    it('should ensure librainian.shutdown is called even on failure', async () => {
       const error = new Error('Indexing failed');
       mockLiBrainian.reindexFiles.mockRejectedValue(error);
 

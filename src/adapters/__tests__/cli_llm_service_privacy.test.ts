@@ -17,7 +17,7 @@ describe('CliLlmService privacy mode', () => {
   });
 
   it('blocks remote LLM calls when strict privacy mode is enabled and writes an audit event', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-privacy-llm-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-privacy-llm-'));
     process.env.LIBRARIAN_PRIVACY_MODE = 'strict';
     process.env.LIBRARIAN_WORKSPACE_ROOT = workspace;
     const service = new CliLlmService();

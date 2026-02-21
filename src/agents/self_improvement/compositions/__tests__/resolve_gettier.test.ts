@@ -9,10 +9,10 @@ import {
   type GettierResolutionOptions,
 } from '../resolve_gettier.js';
 import type { Claim } from '../../verify_claim.js';
-import type { LibrarianStorage } from '../../../../storage/types.js';
+import type { LiBrainianStorage } from '../../../../storage/types.js';
 
 describe('resolveGettierCase', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let testClaim: Claim;
 
   beforeEach(() => {
@@ -82,7 +82,7 @@ describe('resolveGettierCase', () => {
       getEvolutionOutcomes: vi.fn().mockResolvedValue([]),
       getBayesianConfidences: vi.fn().mockResolvedValue([]),
       getConfidenceEvents: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     testClaim = {
       id: 'claim-1',
@@ -96,7 +96,7 @@ describe('resolveGettierCase', () => {
   it('requires storage parameter', async () => {
     await expect(
       resolveGettierCase(testClaim, {
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });
@@ -248,7 +248,7 @@ describe('resolveGettierCase', () => {
           purpose: 'DEPRECATED: Old architecture analysis - use new module instead',
         },
       ]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await resolveGettierCase(testClaim, {
       storage: storageWithCounterEvidence,
@@ -291,7 +291,7 @@ describe('resolveGettierCase', () => {
       getFunctions: vi.fn().mockImplementation(() => {
         throw new Error('Database error');
       }),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const result = await resolveGettierCase(testClaim, {
       storage: failingStorage,

@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { TechniqueComposition } from '../strategic/techniques.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
 
@@ -11,7 +11,7 @@ type TechniqueCompositionState = {
 const COMPOSITIONS_KEY = 'librarian.technique_compositions.v1';
 
 export async function listTechniqueCompositions(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<TechniqueComposition[]> {
   const raw = await storage.getState(COMPOSITIONS_KEY);
   if (!raw) return [];
@@ -21,7 +21,7 @@ export async function listTechniqueCompositions(
 }
 
 export async function listTechniqueCompositionSummaries(
-  storage: LibrarianStorage
+  storage: LiBrainianStorage
 ): Promise<Array<{ id: string; primitiveIds: string[] }>> {
   const items = await listTechniqueCompositions(storage);
   return items.map((composition) => ({
@@ -31,7 +31,7 @@ export async function listTechniqueCompositionSummaries(
 }
 
 export async function getTechniqueComposition(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string
 ): Promise<TechniqueComposition | null> {
   const compositions = await listTechniqueCompositions(storage);
@@ -39,7 +39,7 @@ export async function getTechniqueComposition(
 }
 
 export async function saveTechniqueComposition(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   composition: TechniqueComposition
 ): Promise<void> {
   const compositions = await listTechniqueCompositions(storage);
@@ -49,7 +49,7 @@ export async function saveTechniqueComposition(
 }
 
 export async function deleteTechniqueComposition(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   id: string
 ): Promise<boolean> {
   const compositions = await listTechniqueCompositions(storage);
@@ -60,7 +60,7 @@ export async function deleteTechniqueComposition(
 }
 
 async function writeCompositionState(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   items: TechniqueComposition[]
 ): Promise<void> {
   const payload: TechniqueCompositionState = {

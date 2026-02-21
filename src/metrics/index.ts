@@ -1,7 +1,7 @@
 /**
  * @fileoverview Metrics module exports
  *
- * Provides observability and monitoring for the Librarian system.
+ * Provides observability and monitoring for the LiBrainian system.
  */
 
 // Staleness Metrics and SLA Tracking

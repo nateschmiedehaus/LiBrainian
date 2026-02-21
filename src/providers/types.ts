@@ -1,5 +1,5 @@
 /**
- * @fileoverview Universal Provider Types for Librarian
+ * @fileoverview Universal Provider Types for LiBrainian
  *
  * Comprehensive provider system supporting all major AI providers:
  * - Anthropic Claude (claude-3, claude-4 models)
@@ -14,7 +14,7 @@
  * - Azure OpenAI
  * - AWS Bedrock
  *
- * Librarian works WITHOUT providers in minimal mode, but providers
+ * LiBrainian works WITHOUT providers in minimal mode, but providers
  * enable LLM-backed understanding, semantic embeddings, and reranking.
  *
  * @packageDocumentation

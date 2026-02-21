@@ -20,8 +20,8 @@
 
 import { execSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { AdrRecord } from '../ingest/adr_indexer.js';
 import type { ContextPack } from '../types.js';
 import type { ConfidenceValue, DerivedConfidence } from '../epistemics/confidence.js';
@@ -435,7 +435,7 @@ export class RationaleIndex {
   private topicIndex = new Map<string, RationaleEntry[]>();
 
   constructor(
-    private storage: LibrarianStorage,
+    private storage: LiBrainianStorage,
     private workspace?: string
   ) {}
 
@@ -941,15 +941,15 @@ export class RationaleConstruction extends BaseConstruction<RationaleInput, Rati
   private index: RationaleIndex;
   private initialized = false;
 
-  constructor(librarian: Librarian) {
-    super(librarian);
-    // Get storage and workspace from librarian (type assertion since we know the internal structure)
-    const librarianInternal = librarian as unknown as {
-      storage: LibrarianStorage;
+  constructor(librainian: LiBrainian) {
+    super(librainian);
+    // Get storage and workspace from librainian (type assertion since we know the internal structure)
+    const librainianInternal = librainian as unknown as {
+      storage: LiBrainianStorage;
       config: { workspace: string };
     };
-    const storage = librarianInternal.storage;
-    const workspace = librarianInternal.config?.workspace;
+    const storage = librainianInternal.storage;
+    const workspace = librainianInternal.config?.workspace;
     this.index = new RationaleIndex(storage, workspace);
   }
 
@@ -1026,6 +1026,6 @@ export class RationaleConstruction extends BaseConstruction<RationaleInput, Rati
 /**
  * Factory function to create a RationaleConstruction.
  */
-export function createRationaleConstruction(librarian: Librarian): RationaleConstruction {
-  return new RationaleConstruction(librarian);
+export function createRationaleConstruction(librainian: LiBrainian): RationaleConstruction {
+  return new RationaleConstruction(librainian);
 }

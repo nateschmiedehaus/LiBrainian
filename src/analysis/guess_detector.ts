@@ -3,7 +3,7 @@ import type { KnowledgeGap } from '../api/context_assembly.js';
 import { emptyArray } from '../api/empty_values.js';
 
 export interface TrajectoryLocation { line: number; column?: number; }
-export type GuessViolation = { type: 'uncited_claim'; claim: string; location: TrajectoryLocation } | { type: 'read_without_query'; file: string; librarianHadKnowledge: boolean } | { type: 'ignored_gap'; gap: KnowledgeGap; proceeded: boolean } | { type: 'assumption_cascade'; chainLength: number; rootAssumption: string };
+export type GuessViolation = { type: 'uncited_claim'; claim: string; location: TrajectoryLocation } | { type: 'read_without_query'; file: string; librainianHadKnowledge: boolean } | { type: 'ignored_gap'; gap: KnowledgeGap; proceeded: boolean } | { type: 'assumption_cascade'; chainLength: number; rootAssumption: string };
 export interface GuessDetectionInput { outputText?: string; readLogs?: FileReadLogEntry[]; gaps?: KnowledgeGap[]; }
 const CITATION_REGEX = /\[[^\]]+:\d+(?:-\d+)?\]/;
 
@@ -23,7 +23,7 @@ function detectReadWithoutQuery(readLogs: FileReadLogEntry[] = []): GuessViolati
     violations.push({
       type: 'read_without_query',
       file: entry.request.filePath,
-      librarianHadKnowledge: reason === 'must_query_librarian',
+      librainianHadKnowledge: reason === 'must_query_librainian',
     });
   }
   return violations;

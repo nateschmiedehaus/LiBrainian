@@ -4,10 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { analyzeArchitecture, createAnalyzeArchitecture } from '../analyze_architecture.js';
-import type { LibrarianStorage, ModuleKnowledge } from '../../../storage/types.js';
+import type { LiBrainianStorage, ModuleKnowledge } from '../../../storage/types.js';
 
 describe('analyzeArchitecture', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let mockModules: ModuleKnowledge[];
 
   beforeEach(() => {
@@ -69,7 +69,7 @@ describe('analyzeArchitecture', () => {
       isInitialized: vi.fn().mockReturnValue(true),
       getModules: vi.fn().mockResolvedValue(mockModules),
       getGraphEdges: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
   });
 
   it('requires rootDir parameter', async () => {
@@ -85,7 +85,7 @@ describe('analyzeArchitecture', () => {
     await expect(
       analyzeArchitecture({
         rootDir: '/test',
-        storage: undefined as unknown as LibrarianStorage,
+        storage: undefined as unknown as LiBrainianStorage,
       })
     ).rejects.toThrow('storage is required');
   });

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Feedback API for Librarian
+ * @fileoverview Feedback API for LiBrainian
  *
  * Provides endpoints for agents to submit feedback on query results.
  * This feedback improves pack confidence and identifies retrieval gaps.
@@ -8,7 +8,7 @@
  * ```typescript
  * import { submitQueryFeedback } from './feedback.js';
  *
- * // After a task using librarian results:
+ * // After a task using librainian results:
  * await submitQueryFeedback(storage, {
  *   queryId: synthesisResult.queryId,
  *   packIds: result.citations.map(c => c.packId),
@@ -19,7 +19,7 @@
  * ```
  */
 
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import {
   processAgentFeedback,
   createTaskOutcomeFeedback,
@@ -76,7 +76,7 @@ export interface DetailedFeedbackInput {
  * per-pack relevance ratings.
  */
 export async function submitQueryFeedback(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   input: QueryFeedbackInput
 ): Promise<FeedbackProcessingResult> {
   const feedback = createTaskOutcomeFeedback(
@@ -98,7 +98,7 @@ export async function submitQueryFeedback(
  * Use this when you can evaluate each pack's usefulness individually.
  */
 export async function submitDetailedFeedback(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   input: DetailedFeedbackInput
 ): Promise<FeedbackProcessingResult> {
   const feedback: AgentFeedback = {

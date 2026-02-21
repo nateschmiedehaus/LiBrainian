@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import type { LibrarianEventBus, LibrarianEvent } from '../events.js';
+import type { LiBrainianEventBus, LiBrainianEvent } from '../events.js';
 
 // ============================================================================
 // TYPES
@@ -90,7 +90,7 @@ export const DEFAULT_TRIGGER_CONFIG: TriggerConfig = {
     '.git',
     'dist',
     'build',
-    '.librarian',
+    '.librainian',
     '.next',
     'coverage',
   ],
@@ -140,7 +140,7 @@ export class TriggerWiring {
   /**
    * Wire up all triggers to an event bus.
    */
-  wire(eventBus: LibrarianEventBus): void {
+  wire(eventBus: LiBrainianEventBus): void {
     // File modification trigger
     this.unsubscribers.push(
       eventBus.on('file_modified', (event) => {
@@ -228,7 +228,7 @@ export class TriggerWiring {
   // FILE CHANGE HANDLING
   // ============================================================================
 
-  private onFileModified(event: LibrarianEvent): void {
+  private onFileModified(event: LiBrainianEvent): void {
     const filePath = event.data.filePath as string | undefined;
     if (!filePath) return;
 
@@ -248,7 +248,7 @@ export class TriggerWiring {
     }, this.config.fileChangeDebounceMs);
   }
 
-  private onFileDeleted(event: LibrarianEvent): void {
+  private onFileDeleted(event: LiBrainianEvent): void {
     const filePath = event.data.filePath as string | undefined;
     if (!filePath) return;
 
@@ -301,7 +301,7 @@ export class TriggerWiring {
   // QUERY FAILURE HANDLING
   // ============================================================================
 
-  private onQueryError(event: LibrarianEvent): void {
+  private onQueryError(event: LiBrainianEvent): void {
     const queryId = event.data.queryId as string | undefined;
     const error = event.data.error as string | undefined;
 
@@ -342,7 +342,7 @@ export class TriggerWiring {
   // THRESHOLD ALERT HANDLING
   // ============================================================================
 
-  private onThresholdAlert(event: LibrarianEvent): void {
+  private onThresholdAlert(event: LiBrainianEvent): void {
     const metric = event.data.metric as string | undefined;
     const current = event.data.current as number | undefined;
     const threshold = event.data.threshold as number | undefined;
@@ -435,7 +435,7 @@ function generateTriggerId(): string {
  * Create and wire up trigger system.
  */
 export function createTriggerWiring(
-  eventBus: LibrarianEventBus,
+  eventBus: LiBrainianEventBus,
   config?: Partial<TriggerConfig>
 ): TriggerWiring {
   const wiring = new TriggerWiring(config);

@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import type { FileKnowledge, DirectoryKnowledge, ContextPack } from '../types.js';
 
 // ============================================================================
@@ -182,12 +182,12 @@ function checkDirectoryKnowledgeCompleteness(dir: DirectoryKnowledge): Understan
 // ============================================================================
 
 describe('Understanding Layer Validation', () => {
-  let storage: LibrarianStorage;
+  let storage: LiBrainianStorage;
   let storageInitialized = false;
 
   beforeAll(async () => {
     const workspaceRoot = process.cwd();
-    const dbPath = path.join(workspaceRoot, 'state', 'librarian.db');
+    const dbPath = path.join(workspaceRoot, 'state', 'librainian.db');
 
     try {
       storage = createSqliteStorage(dbPath, workspaceRoot);
@@ -196,7 +196,7 @@ describe('Understanding Layer Validation', () => {
 
       const version = await storage.getVersion();
       if (!version) {
-        console.warn('Librarian not bootstrapped - validation will skip');
+        console.warn('LiBrainian not bootstrapped - validation will skip');
         storageInitialized = false;
       }
     } catch (error) {
@@ -212,7 +212,7 @@ describe('Understanding Layer Validation', () => {
   describe('Context Pack Completeness', () => {
     it('all context packs have required fields', async (ctx) => {
       if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librarian DB');
+        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librainian DB');
         return;
       }
 
@@ -258,7 +258,7 @@ describe('Understanding Layer Validation', () => {
 
     it('all packs have valid confidence scores', async (ctx) => {
       if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librarian DB');
+        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librainian DB');
         return;
       }
 
@@ -276,7 +276,7 @@ describe('Understanding Layer Validation', () => {
 
     it('packs have non-empty summaries', async (ctx) => {
       if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librarian DB');
+        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librainian DB');
         return;
       }
 
@@ -300,7 +300,7 @@ describe('Understanding Layer Validation', () => {
   describe('File Knowledge Completeness', () => {
     it('file records have LLM evidence when LLM-generated', async (ctx) => {
       if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librarian DB');
+        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librainian DB');
         return;
       }
 
@@ -426,7 +426,7 @@ describe('Understanding Layer Validation', () => {
   describe('Evidence Trace Validation', () => {
     it('no packs have untraced semantic claims', async (ctx) => {
       if (!storageInitialized) {
-        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librarian DB');
+        ctx.skip(true, 'unverified_by_trace(test_fixture_missing): Understanding validation requires a bootstrapped librainian DB');
         return;
       }
 

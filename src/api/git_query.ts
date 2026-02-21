@@ -11,7 +11,7 @@
  */
 
 import path from 'node:path';
-import type { ContextPack, LibrarianVersion } from '../types.js';
+import type { ContextPack, LiBrainianVersion } from '../types.js';
 import { getRecentCommits, getFileHistory, isGitRepo, type GitCommit } from '../utils/git.js';
 
 /**
@@ -241,12 +241,12 @@ export function queryGitHistory(
  * Create a context pack from git history results.
  *
  * @param result - The git query result
- * @param version - The librarian version
+ * @param version - The librainian version
  * @returns A context pack containing git history information
  */
 export function createGitHistoryPack(
   result: GitQueryResult,
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): ContextPack {
   const keyFacts: string[] = [];
 
@@ -301,7 +301,7 @@ export function createGitHistoryPack(
 export interface GitQueryStageOptions {
   intent: string;
   workspace: string;
-  version: LibrarianVersion;
+  version: LiBrainianVersion;
 }
 
 export interface GitQueryStageResult {

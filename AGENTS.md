@@ -12,10 +12,10 @@
 ### Programmatic Usage (Recommended)
 
 ```typescript
-import { initializeLibrarian } from 'librainian';
+import { initializeLiBrainian } from 'librainian';
 
 // All you need - LiBrainian handles everything else
-const lib = await initializeLibrarian(workspace);
+const lib = await initializeLiBrainian(workspace);
 const context = await lib.query(intent);
 ```
 
@@ -59,7 +59,7 @@ When you call `lib.query(intent)`, you receive:
 
 These rules override any softer guidance elsewhere in this file for qualification and publish work:
 
-1. **REAL_AGENT_REAL_LIBRARIAN_ONLY**
+1. **REAL_AGENT_REAL_LIBRAINIAN_ONLY**
    - Qualification and release evidence must come from real agent sessions operating on the real LiBrainian repository.
    - Synthetic fixtures, mocks, and reference harness workers are diagnostic-only and cannot satisfy release gates.
 2. **NO_RETRY_NO_FALLBACK_NO_DEGRADED_FOR_RELEASE**

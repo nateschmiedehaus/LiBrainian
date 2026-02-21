@@ -202,7 +202,7 @@ export interface WorkspaceState {
   storage?: LiBrainianStorage;
 
   /** LiBrainian instance (for autoWatch support) */
-  librarian?: LiBrainian;
+  librainian?: LiBrainian;
 
   /** Evidence ledger for epistemic/audit trace (lazy) */
   evidenceLedger?: SqliteEvidenceLedger;
@@ -514,16 +514,16 @@ const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const LOW_CONFIDENCE_THRESHOLD = 0.35;
 const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
 const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence tiers: definitive/high -> proceed with reasonable trust; medium -> review before write operations; low/uncertain -> verify manually or call request_human_review.';
-const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
+const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librainian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
-const SESSION_EPISODES_STATE_KEY = 'librarian.mcp.session_episodes.v1';
+const SESSION_EPISODES_STATE_KEY = 'librainian.mcp.session_episodes.v1';
 const SESSION_EPISODES_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_SESSION_EPISODES = 5000;
 const SESSION_EPISODE_RECENCY_HALF_LIFE_HOURS = 0.5;
 const DEFAULT_RECENCY_WEIGHT = 0.3;
 const RECENCY_SEMANTIC_FLOOR = 0.2;
-const CONFORMAL_CALIBRATION_STATE_KEY = 'librarian.mcp.conformal_calibration.v1';
+const CONFORMAL_CALIBRATION_STATE_KEY = 'librainian.mcp.conformal_calibration.v1';
 const DEFAULT_CONFORMAL_ALPHA = 0.1;
 const DEFAULT_CONFORMAL_TAU_BY_ALPHA: Record<string, number> = {
   '0.05': 0.32,
@@ -608,7 +608,7 @@ function inferFormatHint(parameterPath: string[], schema: MutableToolSchemaNode)
 function inferExampleValue(parameterPath: string[], schema: MutableToolSchemaNode): string {
   const leaf = parameterPath[parameterPath.length - 1] ?? '';
   if (leaf === 'workspace') return '"/workspace"';
-  if (leaf === 'outputFile') return '"/workspace/.librarian/reports/page-0.json"';
+  if (leaf === 'outputFile') return '"/workspace/.librainian/reports/page-0.json"';
   if (leaf.toLowerCase().includes('path') || leaf.toLowerCase().includes('file')) return '"/workspace/src/example.ts"';
   if (leaf.toLowerCase().includes('id')) return '"id_123"';
   if (leaf === 'scope') return '["src/**/*.ts", "docs/**/*.md"]';
@@ -846,23 +846,23 @@ function buildQueryFixCommands(code: string | undefined, workspace: string | und
   const workspaceArg = workspace?.trim() ? workspace.trim() : '<workspace>';
   switch (code) {
     case 'workspace_unavailable':
-      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` to register and index this workspace.`];
+      return [`Run \`librainian bootstrap --workspace ${workspaceArg}\` to register and index this workspace.`];
     case 'bootstrap_required':
-      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` before running query.`];
+      return [`Run \`librainian bootstrap --workspace ${workspaceArg}\` before running query.`];
     case 'provider_unavailable':
-      return ['Run `librarian check-providers` to diagnose provider setup and authentication.'];
+      return ['Run `librainian check-providers` to diagnose provider setup and authentication.'];
     case 'insufficient_embedding_coverage':
       return [
-        'Run `librarian embed --fix` to backfill missing embeddings.',
-        'Run `librarian status --format json` to confirm embedding coverage is at least 80%.',
+        'Run `librainian embed --fix` to backfill missing embeddings.',
+        'Run `librainian status --format json` to confirm embedding coverage is at least 80%.',
       ];
     case 'query_failed':
       return [
-        'Run `librarian doctor` to diagnose storage/workspace issues.',
+        'Run `librainian doctor` to diagnose storage/workspace issues.',
         'Retry with a narrower intent after confirming providers are healthy.',
       ];
     default:
-      return ['Run `librarian doctor` to diagnose this query failure.'];
+      return ['Run `librainian doctor` to diagnose this query failure.'];
   }
 }
 
@@ -984,7 +984,7 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
     case 'embedding_unavailable':
       return {
         nextSteps: [
-          'Run `librarian check-providers --format json` and confirm embedding provider availability.',
+          'Run `librainian check-providers --format json` and confirm embedding provider availability.',
           `Retry ${toolName} after provider configuration is restored.`,
         ],
       };
@@ -1008,7 +1008,7 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
       return {
         nextSteps: [
           'Retry the tool call once to rule out transient errors.',
-          'If the error persists, run `librarian doctor --json` and apply suggested fixes.',
+          'If the error persists, run `librainian doctor --json` and apply suggested fixes.',
         ],
       };
   }
@@ -2287,37 +2287,37 @@ export class LiBrainianMCPServer {
       if (workspace.indexState === 'ready') {
         resources.push(
           {
-            uri: `librarian://${path}/file-tree`,
+            uri: `librainian://${path}/file-tree`,
             name: 'File Tree',
             description: `File tree for ${path}`,
             mimeType: 'application/json',
           },
           {
-            uri: `librarian://${path}/symbols`,
+            uri: `librainian://${path}/symbols`,
             name: 'Symbols',
             description: `Code symbols for ${path}`,
             mimeType: 'application/json',
           },
           {
-            uri: `librarian://${path}/knowledge-maps`,
+            uri: `librainian://${path}/knowledge-maps`,
             name: 'Knowledge Maps',
             description: `Knowledge maps for ${path}`,
             mimeType: 'application/json',
           },
           {
-            uri: `librarian://${path}/method-packs`,
+            uri: `librainian://${path}/method-packs`,
             name: 'Method Packs',
             description: `Method packs for ${path}`,
             mimeType: 'application/json',
           },
           {
-            uri: `librarian://${path}/provenance`,
+            uri: `librainian://${path}/provenance`,
             name: 'Provenance',
             description: `Index provenance for ${path}`,
             mimeType: 'application/json',
           },
           {
-            uri: `librarian://${path}/identity`,
+            uri: `librainian://${path}/identity`,
             name: 'Repository Identity',
             description: `Repository identity for ${path}`,
             mimeType: 'application/json',
@@ -2328,7 +2328,7 @@ export class LiBrainianMCPServer {
 
     // Add global resources
     resources.push({
-      uri: 'librarian://audits',
+      uri: 'librainian://audits',
       name: 'Audits',
       description: 'Recent audit results',
       mimeType: 'application/json',
@@ -2725,11 +2725,11 @@ export class LiBrainianMCPServer {
     }
 
     try {
-      const librarianRoot = path.join(resolvedWorkspace, '.librarian');
-      await fs.mkdir(librarianRoot, { recursive: true });
+      const librainianRoot = path.join(resolvedWorkspace, '.librainian');
+      await fs.mkdir(librainianRoot, { recursive: true });
 
       if (!workspace.evidenceLedger) {
-        const ledgerPath = path.join(librarianRoot, 'evidence_ledger.db');
+        const ledgerPath = path.join(librainianRoot, 'evidence_ledger.db');
         const ledger = new SqliteEvidenceLedger(ledgerPath);
         await ledger.initialize();
         workspace.evidenceLedger = ledger;
@@ -3663,11 +3663,11 @@ export class LiBrainianMCPServer {
     const workspace = this.state.workspaces.get(resolvedWorkspace);
 
     // First, try to get storage from existing LiBrainian instance
-    if (workspace?.librarian) {
-      const librarianStorage = workspace.librarian.getStorage();
-      if (librarianStorage) {
-        workspace.storage = librarianStorage;
-        return librarianStorage;
+    if (workspace?.librainian) {
+      const librainianStorage = workspace.librainian.getStorage();
+      if (librainianStorage) {
+        workspace.storage = librainianStorage;
+        return librainianStorage;
       }
     }
 
@@ -3677,18 +3677,18 @@ export class LiBrainianMCPServer {
     }
 
     // Setup paths
-    const librarianRoot = path.join(resolvedWorkspace, '.librarian');
-    const sqlitePath = path.join(librarianRoot, 'librarian.sqlite');
-    const legacyDbPath = path.join(librarianRoot, 'librarian.db');
+    const librainianRoot = path.join(resolvedWorkspace, '.librainian');
+    const sqlitePath = path.join(librainianRoot, 'librainian.sqlite');
+    const legacyDbPath = path.join(librainianRoot, 'librainian.db');
 
     // Validate path doesn't escape workspace (security check)
-    const dbPathRel = path.relative(librarianRoot, sqlitePath);
+    const dbPathRel = path.relative(librainianRoot, sqlitePath);
     if (dbPathRel.startsWith('..') || path.isAbsolute(dbPathRel)) {
-      throw new Error('Security: database path must be within workspace/.librarian');
+      throw new Error('Security: database path must be within workspace/.librainian');
     }
 
     // Ensure directory exists
-    await fs.mkdir(librarianRoot, { recursive: true });
+    await fs.mkdir(librainianRoot, { recursive: true });
 
     // Determine which database file to use (migration logic)
     let dbPath = sqlitePath;
@@ -4117,9 +4117,9 @@ export class LiBrainianMCPServer {
 
       // Check if we already have a LiBrainian instance for this workspace
       const existingWorkspace = this.state.workspaces.get(workspacePath);
-      if (existingWorkspace?.librarian && !input.force) {
-        // Check if bootstrap is required via existing librarian
-        const status = await existingWorkspace.librarian.getStatus();
+      if (existingWorkspace?.librainian && !input.force) {
+        // Check if bootstrap is required via existing librainian
+        const status = await existingWorkspace.librainian.getStatus();
         if (status.bootstrapped) {
           return {
             success: true,
@@ -4146,7 +4146,7 @@ export class LiBrainianMCPServer {
       const autoWatchEnabled = this.config.autoWatch?.enabled ?? true;
       const debounceMs = this.config.autoWatch?.debounceMs ?? 200;
 
-      const librarian = await createLiBrainian({
+      const librainian = await createLiBrainian({
         workspace: workspacePath,
         autoBootstrap: true,
         autoWatch: autoWatchEnabled,
@@ -4164,24 +4164,24 @@ export class LiBrainianMCPServer {
       });
 
       // Get status after bootstrap
-      const status = await librarian.getStatus();
-      const storage = librarian.getStorage() ?? undefined;
+      const status = await librainian.getStatus();
+      const storage = librainian.getStorage() ?? undefined;
       const storageStats = storage ? await storage.getStats().catch(() => null) : null;
 
       // Validate autoWatch is actually running if enabled
-      const actuallyWatching = librarian.isWatching();
+      const actuallyWatching = librainian.isWatching();
       const watcherStatus = autoWatchEnabled
         ? actuallyWatching
           ? 'active'
           : 'failed_to_start'
         : 'disabled';
 
-      // Update workspace state with librarian instance
+      // Update workspace state with librainian instance
       this.updateWorkspaceState(workspacePath, {
         indexState: status.bootstrapped ? 'ready' : 'stale',
         indexedAt: status.lastBootstrap?.toISOString(),
         lastBootstrapRunId: runId,
-        librarian,
+        librainian,
         storage,
         watching: actuallyWatching,
       });
@@ -4289,11 +4289,11 @@ export class LiBrainianMCPServer {
         };
       }
 
-      // Get librarian status if available
-      let librarianStatus = null;
-      if (workspace.librarian) {
-        const status = await workspace.librarian.getStatus();
-        librarianStatus = {
+      // Get librainian status if available
+      let librainianStatus = null;
+      if (workspace.librainian) {
+        const status = await workspace.librainian.getStatus();
+        librainianStatus = {
           initialized: status.initialized,
           bootstrapped: status.bootstrapped,
           version: status.version,
@@ -4303,12 +4303,12 @@ export class LiBrainianMCPServer {
       }
 
       // Get watcher status
-      const isWatching = workspace.librarian?.isWatching() ?? false;
+      const isWatching = workspace.librainian?.isWatching() ?? false;
       let watchStatus: { active: boolean; storageAttached: boolean; state: unknown; health?: unknown } | null = null;
       let watchStatusError: string | null = null;
-      if (workspace.librarian) {
+      if (workspace.librainian) {
         try {
-          const result = await workspace.librarian.getWatchStatus();
+          const result = await workspace.librainian.getWatchStatus();
           watchStatus = result ? {
             active: result.active,
             storageAttached: result.storageAttached,
@@ -4358,7 +4358,7 @@ export class LiBrainianMCPServer {
         indexedAt: workspace.indexedAt,
         lastBootstrapRunId: workspace.lastBootstrapRunId,
         hasStorage: !!workspace.storage,
-        hasLiBrainian: !!workspace.librarian,
+        hasLiBrainian: !!workspace.librainian,
         autoWatch: {
           configured: workspace.watching ?? false,
           active: watchActive,
@@ -4369,7 +4369,7 @@ export class LiBrainianMCPServer {
           health: watchStatus?.health ?? null,
           error: watchStatusError ?? undefined,
         },
-        librarian: librarianStatus,
+        librainian: librainianStatus,
         serverConfig: {
           autoWatchEnabled: this.config.autoWatch?.enabled ?? true,
           autoWatchDebounceMs: this.config.autoWatch?.debounceMs ?? 200,
@@ -4489,7 +4489,7 @@ export class LiBrainianMCPServer {
           ? {
             indexState: workspace.indexState,
             indexedAt: workspace.indexedAt,
-            hasLiBrainian: !!workspace.librarian,
+            hasLiBrainian: !!workspace.librainian,
             hasStorage: !!workspace.storage,
             watching: workspace.watching ?? false,
             lastBootstrapRunId: workspace.lastBootstrapRunId,
@@ -4546,7 +4546,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4555,7 +4555,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const contract = await workspace.librarian.getSystemContract();
+      const contract = await workspace.librainian.getSystemContract();
       return {
         success: true,
         workspace: workspacePath,
@@ -4588,7 +4588,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4597,7 +4597,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const diagnosis = await workspace.librarian.diagnoseSelf();
+      const diagnosis = await workspace.librainian.diagnoseSelf();
       return {
         success: true,
         workspace: workspacePath,
@@ -4630,7 +4630,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4639,7 +4639,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const plans = await workspace.librarian.listVerificationPlans();
+      const plans = await workspace.librainian.listVerificationPlans();
       const { items: pagedPlans, pagination } = this.paginateItems(plans, input);
 
       if (input.outputFile) {
@@ -4699,7 +4699,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4708,7 +4708,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const episodes = await workspace.librarian.listEpisodes();
+      const episodes = await workspace.librainian.listEpisodes();
       const { items: pagedEpisodes, pagination } = this.paginateItems(episodes, input);
 
       if (input.outputFile) {
@@ -4768,7 +4768,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4777,7 +4777,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const primitives = await workspace.librarian.listTechniquePrimitives();
+      const primitives = await workspace.librainian.listTechniquePrimitives();
       const { items: pagedPrimitives, pagination } = this.paginateItems(primitives, input);
 
       if (input.outputFile) {
@@ -4837,7 +4837,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4846,7 +4846,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const compositions = await workspace.librarian.listTechniqueCompositions();
+      const compositions = await workspace.librainian.listTechniqueCompositions();
       const { items: pagedCompositions, pagination } = this.paginateItems(compositions, input);
 
       if (input.outputFile) {
@@ -4910,7 +4910,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -4919,7 +4919,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const compositions = await workspace.librarian.ensureTechniqueCompositions();
+      const compositions = await workspace.librainian.ensureTechniqueCompositions();
       const selections = selectTechniqueCompositions(input.intent, compositions);
       const limit = input.limit && input.limit > 0 ? input.limit : undefined;
       const trimmed = limit ? selections.slice(0, limit) : selections;
@@ -4994,7 +4994,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -5003,7 +5003,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const storage = workspace.librarian.getStorage();
+      const storage = workspace.librainian.getStorage();
       if (!storage) {
         return {
           success: false,
@@ -5147,7 +5147,7 @@ export class LiBrainianMCPServer {
       }
 
       const workspace = this.state.workspaces.get(workspacePath);
-      if (!workspace?.librarian) {
+      if (!workspace?.librainian) {
         return {
           success: false,
           error: `Workspace not registered: ${workspacePath}`,
@@ -5156,7 +5156,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const storage = workspace.librarian.getStorage();
+      const storage = workspace.librainian.getStorage();
       if (!storage) {
         return {
           success: false,
@@ -6028,7 +6028,7 @@ export class LiBrainianMCPServer {
         workspace: workspacePath,
         error: `Semantic search blocked: embedding coverage is ${embeddingCoverage.coverage_pct.toFixed(1)}%. `
           + `Minimum required coverage is ${SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT}%. `
-          + 'Run `librarian embed --fix` and retry.',
+          + 'Run `librainian embed --fix` and retry.',
         embeddingCoverage,
         embedding_coverage: embeddingCoverage,
         fix: buildQueryFixCommands('insufficient_embedding_coverage', workspacePath ?? input.workspace),
@@ -6838,7 +6838,7 @@ export class LiBrainianMCPServer {
         `Unknown Construction ID: ${input.constructionId}. Use list_constructions to discover IDs.`,
       );
     }
-    const requiresLiBrainian = manifest.requiredCapabilities.includes('librarian');
+    const requiresLiBrainian = manifest.requiredCapabilities.includes('librainian');
     let resolvedWorkspace: string | undefined;
     let deps: Record<string, unknown> = {};
 
@@ -6862,15 +6862,15 @@ export class LiBrainianMCPServer {
 
       let workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
 
-      if (!workspaceState.librarian) {
-        const librarian = await createLiBrainian({
+      if (!workspaceState.librainian) {
+        const librainian = await createLiBrainian({
           workspace: resolvedWorkspace,
           autoBootstrap: true,
           autoWatch: false,
         });
-        const status = await librarian.getStatus().catch(() => null);
+        const status = await librainian.getStatus().catch(() => null);
         this.updateWorkspaceState(resolvedWorkspace, {
-          librarian,
+          librainian,
           indexState: status?.bootstrapped ? 'ready' : 'stale',
           indexedAt: status?.lastBootstrap ? status.lastBootstrap.toISOString() : undefined,
           watching: false,
@@ -6878,11 +6878,11 @@ export class LiBrainianMCPServer {
         workspaceState = this.state.workspaces.get(resolvedWorkspace)!;
       }
 
-      const librarian = workspaceState.librarian;
-      if (!librarian) {
+      const librainian = workspaceState.librainian;
+      if (!librainian) {
         throw new Error(`Failed to initialize LiBrainian runtime for workspace: ${resolvedWorkspace}`);
       }
-      deps = { librarian };
+      deps = { librainian };
     }
 
     const controller = new AbortController();
@@ -7060,7 +7060,7 @@ export class LiBrainianMCPServer {
       'const result = await manifest.construction.execute(',
       `  ${exampleInput},`,
       '  {',
-      '    deps: { librarian },',
+      '    deps: { librainian },',
       '    signal: AbortSignal.timeout(30_000),',
       "    sessionId: 'session-id',",
       '  }',
@@ -8880,8 +8880,8 @@ export class LiBrainianMCPServer {
 
       if (includeKind('composition')) {
         let compositions: Array<{ id: string; name?: string; description?: string; primitiveIds?: string[] }> = [];
-        if (workspace.librarian && typeof (workspace.librarian as unknown as { listTechniqueCompositions?: () => Promise<unknown> }).listTechniqueCompositions === 'function') {
-          const listed = await (workspace.librarian as unknown as { listTechniqueCompositions: () => Promise<unknown> }).listTechniqueCompositions().catch(() => []);
+        if (workspace.librainian && typeof (workspace.librainian as unknown as { listTechniqueCompositions?: () => Promise<unknown> }).listTechniqueCompositions === 'function') {
+          const listed = await (workspace.librainian as unknown as { listTechniqueCompositions: () => Promise<unknown> }).listTechniqueCompositions().catch(() => []);
           if (Array.isArray(listed)) {
             compositions = listed as Array<{ id: string; name?: string; description?: string; primitiveIds?: string[] }>;
           }
@@ -8998,7 +8998,7 @@ export class LiBrainianMCPServer {
           confidence: number;
         }>,
         generatedAt: pack.createdAt.toISOString(),
-        generatedBy: 'librarian',
+        generatedBy: 'librainian',
         defeaters: [STANDARD_DEFEATERS.codeChange, STANDARD_DEFEATERS.testFailure],
       };
 
@@ -9058,7 +9058,7 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const storage = workspace.librarian?.getStorage() ?? workspace.storage;
+      const storage = workspace.librainian?.getStorage() ?? workspace.storage;
       if (!storage) {
         return {
           success: false,
@@ -10073,7 +10073,7 @@ export class LiBrainianMCPServer {
       }
       if (input.generateReport && storage.exportEvidenceMarkdown) {
         evidenceReportPath = await storage.exportEvidenceMarkdown(
-          path.join(workspace.path, 'state', 'audits', 'librarian', 'EVIDENCE.md')
+          path.join(workspace.path, 'state', 'audits', 'librainian', 'EVIDENCE.md')
         );
       }
 
@@ -10211,17 +10211,17 @@ export class LiBrainianMCPServer {
       const storage = await this.getOrCreateStorage(workspace.path);
       const outputPath = path.resolve(input.outputPath);
 
-      // Security: Validate output path is within workspace or its .librarian directory
+      // Security: Validate output path is within workspace or its .librainian directory
       const normalizedOutput = path.normalize(outputPath);
       const normalizedWorkspace = path.normalize(workspace.path);
-      const librarianDir = path.join(normalizedWorkspace, '.librarian');
+      const librainianDir = path.join(normalizedWorkspace, '.librainian');
 
       const isInWorkspace = normalizedOutput.startsWith(normalizedWorkspace + path.sep) ||
                             normalizedOutput === normalizedWorkspace;
-      const isInLiBrainianDir = normalizedOutput.startsWith(librarianDir + path.sep) ||
-                               normalizedOutput === librarianDir;
+      const isInLiBrainianDir = normalizedOutput.startsWith(librainianDir + path.sep) ||
+                               normalizedOutput === librainianDir;
 
-      // Allow exports only within workspace or .librarian/exports subdirectory
+      // Allow exports only within workspace or .librainian/exports subdirectory
       if (!isInWorkspace && !isInLiBrainianDir) {
         return {
           success: false,
@@ -10258,7 +10258,7 @@ export class LiBrainianMCPServer {
         }
         case 'sqlite': {
           // Copy the database file
-          const sourcePath = path.join(workspace.path, '.librarian', 'librarian.sqlite');
+          const sourcePath = path.join(workspace.path, '.librainian', 'librainian.sqlite');
           await fs.copyFile(sourcePath, outputPath);
           break;
         }
@@ -10535,11 +10535,11 @@ export class LiBrainianMCPServer {
 
   private parseResourceUri(uri: string): { workspace: string; resourceType: string } | null {
     // Handle global resources
-    if (uri === 'librarian://audits') {
+    if (uri === 'librainian://audits') {
       return { workspace: '', resourceType: 'audits' };
     }
 
-    const match = uri.match(/^librarian:\/\/(.+?)\/(.+)$/);
+    const match = uri.match(/^librainian:\/\/(.+?)\/(.+)$/);
     if (!match) return null;
     return { workspace: match[1], resourceType: match[2] };
   }
@@ -11178,7 +11178,7 @@ export class LiBrainianMCPServer {
   private async resolveContextPackFreshnessHalfLifeMs(workspacePath: string): Promise<number> {
     const configPaths = [
       path.join(workspacePath, 'librainian.config.json'),
-      path.join(workspacePath, '.librarian', 'config.json'),
+      path.join(workspacePath, '.librainian', 'config.json'),
       path.join(workspacePath, '.librainian.json'),
     ];
     for (const configPath of configPaths) {
@@ -11286,10 +11286,9 @@ export class LiBrainianMCPServer {
       if (!parsed || typeof parsed !== 'object') return null;
       const config = parsed as {
         proactiveInjection?: unknown;
-        librarian?: { proactiveInjection?: unknown };
         librainian?: { proactiveInjection?: unknown };
       };
-      const nested = config.librainian?.proactiveInjection ?? config.librarian?.proactiveInjection;
+      const nested = config.librainian?.proactiveInjection;
       if (typeof nested === 'boolean') return nested;
       if (typeof config.proactiveInjection === 'boolean') return config.proactiveInjection;
       return null;
@@ -11459,8 +11458,8 @@ export class LiBrainianMCPServer {
   async stop(): Promise<void> {
     // Stop file watchers for all workspaces
     for (const [, workspace] of this.state.workspaces) {
-      if (workspace.librarian && workspace.watching) {
-        workspace.librarian.stopWatching();
+      if (workspace.librainian && workspace.watching) {
+        workspace.librainian.stopWatching();
       }
     }
 

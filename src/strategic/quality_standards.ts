@@ -1026,7 +1026,7 @@ export interface MaintainabilityStandard {
 
 /**
  * Epistemic standards ensure AI-generated content is well-calibrated
- * and properly grounded in evidence. This is unique to librarian's
+ * and properly grounded in evidence. This is unique to librainian's
  * research-first philosophy.
  */
 export interface EpistemicStandard {
@@ -3333,14 +3333,14 @@ export function validateAdvancedCodeQuality(
 // LIBRARIAN-ENHANCED VALIDATION (Semantic Analysis)
 // ============================================================================
 
-import type { Librarian } from '../api/librarian.js';
-import type { LibrarianResponse, LlmOptional, ContextPack } from '../types.js';
+import type { LiBrainian } from '../api/librainian.js';
+import type { LiBrainianResponse, LlmOptional, ContextPack } from '../types.js';
 import type { EvidenceRef } from '../api/evidence.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
 import { bounded, absent, deriveSequentialConfidence, getNumericValue } from '../epistemics/confidence.js';
 
 /**
- * Semantic quality issue discovered through librarian analysis.
+ * Semantic quality issue discovered through librainian analysis.
  */
 export interface SemanticQualityIssue {
   /** Type of semantic issue */
@@ -3370,27 +3370,27 @@ export interface SemanticQualityIssue {
 }
 
 /**
- * Result of librarian-enhanced validation.
+ * Result of librainian-enhanced validation.
  * Combines static validation with semantic analysis.
  */
-export interface LibrarianEnhancedValidationResult extends ValidationResult {
-  /** Semantic issues found through librarian analysis */
+export interface LiBrainianEnhancedValidationResult extends ValidationResult {
+  /** Semantic issues found through librainian analysis */
   semanticIssues: SemanticQualityIssue[];
   /** Overall confidence in the validation result */
   confidence: ConfidenceValue;
   /** Evidence references for traceability */
   evidenceRefs: EvidenceRef[];
-  /** Whether librarian was available for semantic analysis */
-  librarianAvailable: boolean;
-  /** Librarian query trace ID */
+  /** Whether librainian was available for semantic analysis */
+  librainianAvailable: boolean;
+  /** LiBrainian query trace ID */
   traceId?: string;
 }
 
 /**
- * Extract semantic quality issues from librarian query results.
+ * Extract semantic quality issues from librainian query results.
  */
 function extractSemanticIssuesFromQuery(
-  queryResult: LlmOptional<LibrarianResponse> | null,
+  queryResult: LlmOptional<LiBrainianResponse> | null,
   standardName: string
 ): SemanticQualityIssue[] {
   const issues: SemanticQualityIssue[] = [];
@@ -3505,10 +3505,10 @@ function analyzeCodeSnippetForQuality(
 }
 
 /**
- * Build evidence references from librarian query results.
+ * Build evidence references from librainian query results.
  */
 function buildEvidenceRefsFromQuery(
-  queryResult: LlmOptional<LibrarianResponse> | null
+  queryResult: LlmOptional<LiBrainianResponse> | null
 ): EvidenceRef[] {
   const refs: EvidenceRef[] = [];
 
@@ -3545,7 +3545,7 @@ function buildEvidenceRefsFromQuery(
  * Derive confidence value from query result and static validation.
  */
 function deriveValidationConfidence(
-  queryResult: LlmOptional<LibrarianResponse> | null,
+  queryResult: LlmOptional<LiBrainianResponse> | null,
   staticResult: ValidationResult
 ): ConfidenceValue {
   // Static validation confidence is deterministic
@@ -3556,71 +3556,71 @@ function deriveValidationConfidence(
     'Static validation produces deterministic results with slight uncertainty from metric collection'
   );
 
-  // If no librarian result, return static confidence only
+  // If no librainian result, return static confidence only
   if (!queryResult || !queryResult.llmAvailable) {
     return staticConfidence;
   }
 
-  // Librarian confidence from query
-  const librarianConfidence = queryResult.totalConfidence > 0
+  // LiBrainian confidence from query
+  const librainianConfidence = queryResult.totalConfidence > 0
     ? bounded(
         queryResult.totalConfidence * 0.8,
         queryResult.totalConfidence,
         'literature',
-        'Librarian semantic analysis confidence based on retrieved context relevance'
+        'LiBrainian semantic analysis confidence based on retrieved context relevance'
       )
     : absent('insufficient_data');
 
   // Derive combined confidence
-  return deriveSequentialConfidence([staticConfidence, librarianConfidence]);
+  return deriveSequentialConfidence([staticConfidence, librainianConfidence]);
 }
 
 /**
- * Validate an artifact against a quality standard with librarian-enhanced semantic analysis.
+ * Validate an artifact against a quality standard with librainian-enhanced semantic analysis.
  *
  * This function combines traditional static validation with semantic code analysis
- * from the librarian. It queries the librarian for code quality issues, analyzes
+ * from the librainian. It queries the librainian for code quality issues, analyzes
  * patterns that static analysis might miss, and provides evidence-backed findings.
  *
  * @param artifact - The artifact to validate
  * @param standard - The quality standard to validate against
- * @param librarian - Librarian instance for semantic analysis
+ * @param librainian - LiBrainian instance for semantic analysis
  * @returns Enhanced validation result with semantic issues and confidence
  *
  * @example
  * ```typescript
- * const result = await validateWithLibrarian(myArtifact, WORLD_CLASS_STANDARDS, librarian);
+ * const result = await validateWithLiBrainian(myArtifact, WORLD_CLASS_STANDARDS, librainian);
  * console.log(result.semanticIssues); // Issues found through semantic analysis
  * console.log(result.confidence); // Overall confidence in the validation
  * ```
  */
-export async function validateWithLibrarian(
+export async function validateWithLiBrainian(
   artifact: ValidatableArtifact,
   standard: QualityStandard,
-  librarian: Librarian
-): Promise<LibrarianEnhancedValidationResult> {
+  librainian: LiBrainian
+): Promise<LiBrainianEnhancedValidationResult> {
   // Perform static validation first
   const staticResult = validateAgainstStandard(artifact, standard);
 
-  // Build librarian query for semantic analysis
-  let queryResult: LlmOptional<LibrarianResponse> | null = null;
-  let librarianAvailable = false;
+  // Build librainian query for semantic analysis
+  let queryResult: LlmOptional<LiBrainianResponse> | null = null;
+  let librainianAvailable = false;
 
   try {
-    queryResult = await librarian.queryOptional({
+    queryResult = await librainian.queryOptional({
       intent: `Find code quality issues and patterns that violate ${standard.name} quality standards. ` +
               `Look for: error handling gaps, validation issues, complexity smells, ` +
               `security concerns, maintainability problems, and test coverage gaps.`,
       depth: 'L2',
       taskType: 'understand',
     });
-    librarianAvailable = queryResult.llmAvailable ?? false;
+    librainianAvailable = queryResult.llmAvailable ?? false;
   } catch {
-    // Librarian query failed, proceed with static validation only
-    librarianAvailable = false;
+    // LiBrainian query failed, proceed with static validation only
+    librainianAvailable = false;
   }
 
-  // Extract semantic issues from librarian analysis
+  // Extract semantic issues from librainian analysis
   const semanticIssues = extractSemanticIssuesFromQuery(queryResult, standard.name);
 
   // Build evidence references
@@ -3647,7 +3647,7 @@ export async function validateWithLibrarian(
     semanticIssues,
     confidence,
     evidenceRefs,
-    librarianAvailable,
+    librainianAvailable,
     traceId: queryResult?.traceId,
   };
 }

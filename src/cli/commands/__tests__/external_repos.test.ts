@@ -22,7 +22,7 @@ describe('externalReposCommand', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-extrepos-'));
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-extrepos-'));
     reposRoot = path.join(workspace, 'external-repos');
     await fs.mkdir(reposRoot, { recursive: true });
     await fs.writeFile(

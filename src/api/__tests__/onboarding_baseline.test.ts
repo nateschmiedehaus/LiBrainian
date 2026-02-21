@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { BOOTSTRAP_PHASES, type BootstrapReport } from '../../types.js';
 import { getCurrentVersion } from '../versioning.js';
 import { createOnboardingBaseline, writeOnboardingBaseline } from '../reporting.js';
@@ -21,7 +21,7 @@ vi.mock('../provider_check.js', () => ({
 }));
 
 function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-onboarding-baseline-${randomUUID()}.db`);
+  return path.join(os.tmpdir(), `librainian-onboarding-baseline-${randomUUID()}.db`);
 }
 
 function getSemanticPhase() {
@@ -33,7 +33,7 @@ function getSemanticPhase() {
 }
 
 describe('onboarding baseline reporting', () => {
-  let storage: LibrarianStorage | null = null;
+  let storage: LiBrainianStorage | null = null;
   let workspaceRoot: string | null = null;
 
   afterEach(async () => {
@@ -48,7 +48,7 @@ describe('onboarding baseline reporting', () => {
   });
 
   it('creates onboarding baseline metrics from a bootstrap report', async () => {
-    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-onboard-'));
+    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-onboard-'));
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
 
@@ -112,7 +112,7 @@ describe('onboarding baseline reporting', () => {
   });
 
   it('writes onboarding baseline to the audits directory', async () => {
-    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-onboard-'));
+    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-onboard-'));
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
     await storage.initialize();
 

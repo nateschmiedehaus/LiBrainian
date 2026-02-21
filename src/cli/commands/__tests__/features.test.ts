@@ -6,10 +6,10 @@ import { featuresCommand } from '../features.js';
 
 describe('featuresCommand', () => {
   it('emits machine-readable JSON feature entries with required fields', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-features-json-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-features-json-'));
     try {
-      await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
-      await fs.writeFile(path.join(workspace, '.librarian', 'librarian.sqlite'), '');
+      await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
+      await fs.writeFile(path.join(workspace, '.librainian', 'librainian.sqlite'), '');
       const outPath = path.join(workspace, 'features.json');
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       try {
@@ -41,10 +41,10 @@ describe('featuresCommand', () => {
   });
 
   it('marks persistent session memory as experimental once memory.db exists', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-features-memory-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-features-memory-'));
     try {
-      await fs.mkdir(path.join(workspace, '.librarian'), { recursive: true });
-      await fs.writeFile(path.join(workspace, '.librarian', 'memory.db'), '');
+      await fs.mkdir(path.join(workspace, '.librainian'), { recursive: true });
+      await fs.writeFile(path.join(workspace, '.librainian', 'memory.db'), '');
       const outPath = path.join(workspace, 'features.json');
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       try {

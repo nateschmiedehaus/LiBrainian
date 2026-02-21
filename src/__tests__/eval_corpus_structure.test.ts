@@ -74,7 +74,7 @@ describe('eval corpus structure', () => {
 
     repoIds.forEach((repoId) => {
       const repoRoot = join(corpusRoot, 'repos', repoId);
-      const evalRoot = join(repoRoot, '.librarian-eval');
+      const evalRoot = join(repoRoot, '.librainian-eval');
       const manifestPath = join(evalRoot, 'manifest.json');
       const groundTruthPath = join(evalRoot, 'ground-truth.json');
 
@@ -93,7 +93,7 @@ describe('eval corpus structure', () => {
       corpusRoot,
       'repos',
       'small-typescript',
-      '.librarian-eval',
+      '.librainian-eval',
       'annotations'
     );
 
@@ -108,7 +108,7 @@ describe('eval corpus structure', () => {
       corpusRoot,
       'repos',
       'small-typescript',
-      '.librarian-eval',
+      '.librainian-eval',
       'ground-truth.json'
     );
 
@@ -125,14 +125,14 @@ describe('eval corpus structure', () => {
       corpusRoot,
       'repos',
       'medium-python',
-      '.librarian-eval',
+      '.librainian-eval',
       'ground-truth.json'
     );
     const mediumMixedPath = join(
       corpusRoot,
       'repos',
       'medium-mixed',
-      '.librarian-eval',
+      '.librainian-eval',
       'ground-truth.json'
     );
 
@@ -154,7 +154,7 @@ describe('eval corpus structure', () => {
       corpusRoot,
       'repos',
       'adversarial',
-      '.librarian-eval',
+      '.librainian-eval',
       'ground-truth.json'
     );
 
@@ -172,7 +172,7 @@ describe('eval corpus structure', () => {
         corpusRoot,
         'repos',
         repoId,
-        '.librarian-eval',
+        '.librainian-eval',
         'ground-truth.json'
       );
       const payload = JSON.parse(readFileSync(groundTruthPath, 'utf8')) as {

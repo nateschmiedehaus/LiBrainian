@@ -1,5 +1,5 @@
 /**
- * @fileoverview Entry Point Detection for Librarian
+ * @fileoverview Entry Point Detection for LiBrainian
  *
  * Identifies application entry points through multiple strategies:
  * 1. Package.json fields: main, bin, exports
@@ -106,7 +106,7 @@ export interface EntryPointDetectionOptions {
  * for programmatic API usage.
  */
 const FACTORY_PATTERNS = [
-  /^create[A-Z]/,      // createLibrarian, createStorage, createApp
+  /^create[A-Z]/,      // createLiBrainian, createStorage, createApp
   /^make[A-Z]/,        // makeStore, makeConfig
   /^build[A-Z]/,       // buildContext, buildQuery
   /^init[A-Z]/,        // initializeApp, initConfig
@@ -125,7 +125,7 @@ const WELL_KNOWN_FACTORIES = new Set([
   'createStore',
   'createRouter',
   'createContext',
-  'createLibrarian',
+  'createLiBrainian',
   'makeApp',
   'makeStore',
   'buildApp',

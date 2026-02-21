@@ -10,8 +10,8 @@ describe('bootstrap doc embeddings', () => {
   let tempLinkDir: string;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-bootstrap-doc-'));
-    tempLinkDir = path.join(os.tmpdir(), `librarian-bootstrap-doc-link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-bootstrap-doc-'));
+    tempLinkDir = path.join(os.tmpdir(), `librainian-bootstrap-doc-link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     await fs.mkdir(path.join(tempDir, 'src'), { recursive: true });
     await fs.writeFile(
       path.join(tempDir, 'src', 'index.ts'),
@@ -37,7 +37,7 @@ describe('bootstrap doc embeddings', () => {
   });
 
   it('generates embeddings for high-relevance documentation even without embeddingService passed', async () => {
-    const dbPath = path.join(tempDir, '.librarian', 'librarian.sqlite');
+    const dbPath = path.join(tempDir, '.librainian', 'librainian.sqlite');
     const storage = createSqliteStorage(dbPath, tempDir);
     await storage.initialize();
     try {
@@ -60,7 +60,7 @@ describe('bootstrap doc embeddings', () => {
   });
 
   it('bootstraps successfully when workspace path is a symlink', async () => {
-    const dbPath = path.join(tempLinkDir, '.librarian', 'librarian.sqlite');
+    const dbPath = path.join(tempLinkDir, '.librainian', 'librainian.sqlite');
     const storage = createSqliteStorage(dbPath, tempLinkDir);
     await storage.initialize();
     try {

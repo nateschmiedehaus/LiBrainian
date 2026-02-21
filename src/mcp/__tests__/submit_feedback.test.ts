@@ -2,16 +2,16 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP submit_feedback tool', () => {
   it('returns actionable failure for unknown feedback token', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-feedback-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-feedback-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
 
@@ -35,12 +35,12 @@ describe('MCP submit_feedback tool', () => {
   });
 
   it('maps feedback_retrieval_result to submit feedback flow', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-feedback-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-feedback-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
 
@@ -61,12 +61,12 @@ describe('MCP submit_feedback tool', () => {
   });
 
   it('returns retrieval stats summary', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-mcp-feedback-'));
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-mcp-feedback-'));
 
     try {
-      const server = await createLibrarianMCPServer({
+      const server = await createLiBrainianMCPServer({
         authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
-        audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+        audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
       });
       server.registerWorkspace(workspace);
 

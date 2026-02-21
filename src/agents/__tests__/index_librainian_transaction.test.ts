@@ -1,9 +1,9 @@
 /**
- * Transaction boundary tests for IndexLibrarian indexing.
+ * Transaction boundary tests for IndexLiBrainian indexing.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IndexLibrarian } from '../index_librarian.js';
+import { IndexLiBrainian } from '../index_librainian.js';
 import { globalEventBus } from '../../events.js';
 import { checkAllProviders } from '../../api/provider_check.js';
 
@@ -11,7 +11,7 @@ import { checkAllProviders } from '../../api/provider_check.js';
 const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && !process.env.LIBRARIAN_TIER0);
 const describeWithProviders = IS_UNIT_MODE ? describe.skip : describe;
 import type { FunctionKnowledge, ModuleKnowledge } from '../../types.js';
-import type { LibrarianStorage, TransactionContext } from '../../storage/types.js';
+import type { LiBrainianStorage, TransactionContext } from '../../storage/types.js';
 import type { ResolvedCallEdge } from '../ast_indexer.js';
 import * as fs from 'fs/promises';
 import os from 'os';
@@ -61,7 +61,7 @@ function buildModule(id: string, filePath: string): ModuleKnowledge {
 }
 
 async function createTempFile(contents: string): Promise<{ filePath: string; cleanup: () => Promise<void> }> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'index-librarian-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'index-librainian-'));
   const filePath = path.join(dir, 'sample.ts');
   await fs.writeFile(filePath, contents, 'utf8');
   return {
@@ -71,7 +71,7 @@ async function createTempFile(contents: string): Promise<{ filePath: string; cle
 }
 
 function createMockStorage(options: { failOnUpsert?: boolean } = {}): {
-  storage: LibrarianStorage;
+  storage: LiBrainianStorage;
   tx: TransactionContext;
 } {
   const { failOnUpsert = false } = options;
@@ -112,7 +112,7 @@ function createMockStorage(options: { failOnUpsert?: boolean } = {}): {
     getEmbedding: vi.fn(async () => null),
     getModules: vi.fn(async () => []),
     transaction: vi.fn(async (fn: (ctx: TransactionContext) => Promise<unknown>) => fn(tx)),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 
   return { storage, tx };
 }
@@ -121,7 +121,7 @@ function normalizePath(value: string): string {
   return path.normalize(path.resolve(value));
 }
 
-describeWithProviders('IndexLibrarian transaction boundaries', () => {
+describeWithProviders('IndexLiBrainian transaction boundaries', () => {
   beforeAll(async () => {
     const status = await checkAllProviders({ workspaceRoot: process.cwd(), forceProbe: false });
     if (!status.embedding.available) {
@@ -162,12 +162,12 @@ describeWithProviders('IndexLibrarian transaction boundaries', () => {
     };
 
     const { storage } = createMockStorage({ failOnUpsert: true });
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: true,
       llmProvider: 'claude',
       llmModelId: 'claude-sonnet-4-20250514',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
     const events: string[] = [];
     const off = globalEventBus.on('*', (event) => {
@@ -176,14 +176,14 @@ describeWithProviders('IndexLibrarian transaction boundaries', () => {
       }
     });
 
-    const result = await librarian.indexFile(filePath);
+    const result = await librainian.indexFile(filePath);
     off();
     await cleanup();
 
     expect(result.errors.some((message) => message.includes('Failed to persist index data'))).toBe(true);
     expect(events).toHaveLength(0);
 
-    const cache = (librarian as unknown as { moduleIdCache: Map<string, string> | null }).moduleIdCache;
+    const cache = (librainian as unknown as { moduleIdCache: Map<string, string> | null }).moduleIdCache;
     expect(cache?.has(normalizePath(filePath))).toBe(false);
   });
 
@@ -200,12 +200,12 @@ describeWithProviders('IndexLibrarian transaction boundaries', () => {
     };
 
     const { storage } = createMockStorage();
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       createContextPacks: false,
       llmProvider: 'claude',
       llmModelId: 'claude-sonnet-4-20250514',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
     const events: string[] = [];
     const off = globalEventBus.on('*', (event) => {
@@ -214,14 +214,14 @@ describeWithProviders('IndexLibrarian transaction boundaries', () => {
       }
     });
 
-    const result = await librarian.indexFile(filePath);
+    const result = await librainian.indexFile(filePath);
     off();
     await cleanup();
 
     expect(result.errors).toHaveLength(0);
     expect(events.length).toBeGreaterThan(0);
 
-    const cache = (librarian as unknown as { moduleIdCache: Map<string, string> | null }).moduleIdCache;
+    const cache = (librainian as unknown as { moduleIdCache: Map<string, string> | null }).moduleIdCache;
     expect(cache?.get(normalizePath(filePath))).toBe(module.id);
   });
 });

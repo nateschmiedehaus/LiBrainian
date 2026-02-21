@@ -15,8 +15,8 @@ const expectedBinPath = './dist/cli/index.js';
 if (packageJson.bin?.librainian !== expectedBinPath) {
   issues.push(`bin.librainian must be "${expectedBinPath}"`);
 }
-if (packageJson.bin?.librarian !== expectedBinPath) {
-  issues.push(`bin.librarian must be "${expectedBinPath}"`);
+if (packageJson.bin?.librainian !== expectedBinPath) {
+  issues.push(`bin.librainian must be "${expectedBinPath}"`);
 }
 
 if (issues.length > 0) {

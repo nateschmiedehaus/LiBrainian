@@ -6,8 +6,8 @@
  * and module dependencies when explicit architecture documentation is not available.
  */
 
-import type { ContextPack, LibrarianVersion, ContextPackType, DirectoryKnowledge, GraphEdge } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { ContextPack, LiBrainianVersion, ContextPackType, DirectoryKnowledge, GraphEdge } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 
 // ============================================================================
 // ARCHITECTURE QUERY DETECTION
@@ -124,7 +124,7 @@ const LAYER_TYPE_MAPPINGS: Record<string, { type: ArchitectureLayer['type']; pur
  * Infers architecture layers from directory structure and dependencies.
  */
 export async function inferArchitectureLayers(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string
 ): Promise<ArchitectureLayer[]> {
   // Get top-level directories (depth 1 = direct children of src/)
@@ -274,9 +274,9 @@ export interface ArchitectureOverviewOptions {
  * Generates a structured architecture overview context pack.
  */
 export async function generateArchitectureOverview(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
-  version: LibrarianVersion,
+  version: LiBrainianVersion,
   options: ArchitectureOverviewOptions = {}
 ): Promise<ContextPack> {
   const { includeDependencies = true, maxLayers = 10 } = options;
@@ -359,10 +359,10 @@ export async function generateArchitectureOverview(
  * Handles an architecture query by generating structured architecture information.
  */
 export async function handleArchitectureQuery(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
   existingPacks: ContextPack[],
-  version: LibrarianVersion
+  version: LiBrainianVersion
 ): Promise<ContextPack[]> {
   // Generate architecture overview
   const architecturePack = await generateArchitectureOverview(storage, workspaceRoot, version);

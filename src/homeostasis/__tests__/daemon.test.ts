@@ -15,14 +15,14 @@ import {
   TriggerWiring,
   type TriggeredHealthCheck,
 } from '../triggers.js';
-import { LibrarianEventBus } from '../../events.js';
-import type { LibrarianStorage, StorageStats } from '../../storage/types.js';
+import { LiBrainianEventBus } from '../../events.js';
+import type { LiBrainianStorage, StorageStats } from '../../storage/types.js';
 
 // ============================================================================
 // TEST UTILITIES
 // ============================================================================
 
-function createMockStorage(): LibrarianStorage {
+function createMockStorage(): LiBrainianStorage {
   const mockStats: StorageStats = {
     totalFunctions: 100,
     totalModules: 20,
@@ -42,11 +42,11 @@ function createMockStorage(): LibrarianStorage {
     getFunctions: vi.fn().mockResolvedValue([]),
     getModules: vi.fn().mockResolvedValue([]),
     getContextPacks: vi.fn().mockResolvedValue([]),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
-function createTestEventBus(): LibrarianEventBus {
-  return new LibrarianEventBus();
+function createTestEventBus(): LiBrainianEventBus {
+  return new LiBrainianEventBus();
 }
 
 // ============================================================================
@@ -54,7 +54,7 @@ function createTestEventBus(): LibrarianEventBus {
 // ============================================================================
 
 describe('TriggerWiring', () => {
-  let eventBus: LibrarianEventBus;
+  let eventBus: LiBrainianEventBus;
   let wiring: TriggerWiring;
   let triggers: TriggeredHealthCheck[];
 
@@ -248,8 +248,8 @@ describe('TriggerWiring', () => {
 
 describe('HomeostasisDaemon', () => {
   let daemon: HomeostasisDaemon;
-  let mockStorage: LibrarianStorage;
-  let eventBus: LibrarianEventBus;
+  let mockStorage: LiBrainianStorage;
+  let eventBus: LiBrainianEventBus;
 
   beforeEach(() => {
     mockStorage = createMockStorage();

@@ -19,14 +19,14 @@ import { ClosedLoopLearner } from '../learning_loop.js';
 import { DEFAULT_TECHNIQUE_COMPOSITIONS } from '../technique_compositions.js';
 import { SemanticCompositionSelector } from '../composition_selector.js';
 import { ProviderUnavailableError } from '../provider_check.js';
-import type { LibrarianStorage } from '../../storage/types.js';
-import type { ContextPack, LibrarianResponse, LibrarianVersion } from '../../types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
+import type { ContextPack, LiBrainianResponse, LiBrainianVersion } from '../../types.js';
 import type { AdequacyReport } from '../difficulty_detectors.js';
 import { createTechniqueComposition, createTechniquePrimitive } from '../../strategic/techniques.js';
 import { createEpisode } from '../../strategic/episodes.js';
 import { saveTechniqueComposition } from '../../state/technique_compositions.js';
 
-type StorageStub = Pick<LibrarianStorage, 'getState' | 'setState'>;
+type StorageStub = Pick<LiBrainianStorage, 'getState' | 'setState'>;
 
 class MockStorage implements StorageStub {
   private state = new Map<string, string>();
@@ -116,7 +116,7 @@ describe('plan compiler', () => {
     }]);
 
     const selections = await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'release prep',
       { selectionMode: 'semantic', useLearning: false }
     );
@@ -137,7 +137,7 @@ describe('plan compiler', () => {
     }]);
 
     await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'release prep',
       { selectionMode: 'semantic', learningSignals }
     );
@@ -157,7 +157,7 @@ describe('plan compiler', () => {
     }]);
 
     const selections = await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'Prepare a release plan',
       { selectionMode: 'hybrid', useLearning: false }
     );
@@ -177,7 +177,7 @@ describe('plan compiler', () => {
     );
 
     const selections = await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'release prep',
       { selectionMode: 'semantic', allowKeywordFallback: true, useLearning: false }
     );
@@ -189,7 +189,7 @@ describe('plan compiler', () => {
     vi.spyOn(SemanticCompositionSelector.prototype, 'select').mockResolvedValue([]);
 
     const selections = await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'Prepare a release plan',
       { selectionMode: 'semantic', allowKeywordFallback: true, useLearning: false }
     );
@@ -199,7 +199,7 @@ describe('plan compiler', () => {
   it('selects compositions from storage defaults', async () => {
     const storage = new MockStorage();
     const selections = await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'Prepare a release plan',
       { selectionMode: 'keyword' }
     );
@@ -214,13 +214,13 @@ describe('plan compiler', () => {
       description: 'Custom compliance plan',
       primitiveIds: ['tp_custom_one'],
     });
-    await saveTechniqueComposition(storage as unknown as LibrarianStorage, composition);
-    const learner = new ClosedLoopLearner(storage as unknown as LibrarianStorage);
+    await saveTechniqueComposition(storage as unknown as LiBrainianStorage, composition);
+    const learner = new ClosedLoopLearner(storage as unknown as LiBrainianStorage);
     const episode = createEpisode({
       id: 'ep_custom_1',
       type: 'learning',
       context: {
-        environment: 'librarian.test',
+        environment: 'librainian.test',
         state: { intent: 'compliance checks' },
       },
       outcome: {
@@ -236,7 +236,7 @@ describe('plan compiler', () => {
     });
 
     const selections = await selectTechniqueCompositionsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'compliance checks',
       { selectionMode: 'keyword' }
     );
@@ -279,7 +279,7 @@ describe('plan compiler', () => {
   it('compiles a stored composition into a work template', async () => {
     const storage = new MockStorage();
     const template = await compileTechniqueCompositionTemplateFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'tc_release_readiness'
     );
     expect(template?.id).toBe('wt_tc_release_readiness');
@@ -307,7 +307,7 @@ describe('plan compiler', () => {
 
   it('reports missing primitives when compiling from storage', async () => {
     const storage = new MockStorage();
-    await saveTechniqueComposition(storage as unknown as LibrarianStorage, createTechniqueComposition({
+    await saveTechniqueComposition(storage as unknown as LiBrainianStorage, createTechniqueComposition({
       id: 'tc-missing',
       name: 'Missing primitives',
       description: 'Uses missing primitive IDs',
@@ -315,7 +315,7 @@ describe('plan compiler', () => {
     }));
 
     const result = await compileTechniqueCompositionTemplateWithGapsFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'tc-missing'
     );
     expect(result.missingPrimitiveIds).toEqual(['tp_missing']);
@@ -345,7 +345,7 @@ describe('plan compiler', () => {
 
   it('bundles stored composition with primitives', async () => {
     const storage = new MockStorage();
-    await saveTechniqueComposition(storage as unknown as LibrarianStorage, createTechniqueComposition({
+    await saveTechniqueComposition(storage as unknown as LiBrainianStorage, createTechniqueComposition({
       id: 'tc-bundle',
       name: 'Bundle',
       description: 'Bundle template with primitives.',
@@ -353,7 +353,7 @@ describe('plan compiler', () => {
     }));
 
     const bundle = await compileTechniqueCompositionBundleFromStorage(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'tc-bundle'
     );
     expect(bundle.template?.id).toBe('wt_tc-bundle');
@@ -364,7 +364,7 @@ describe('plan compiler', () => {
   it('compiles bundles from intent', async () => {
     const storage = new MockStorage();
     const bundles = await compileTechniqueBundlesFromIntent(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'Prepare a release plan',
       { selectionMode: 'keyword' }
     );
@@ -1184,7 +1184,7 @@ describe('plan compiler', () => {
   it('plans work from intent using storage defaults', async () => {
     const storage = new MockStorage();
     const plans = await planWorkFromIntent(
-      storage as unknown as LibrarianStorage,
+      storage as unknown as LiBrainianStorage,
       'Prepare a release plan',
       { selectionMode: 'keyword' }
     );
@@ -1207,7 +1207,7 @@ describe('plan compiler', () => {
         outputs: ['coverage assessment'],
       }),
     ];
-    const version: LibrarianVersion = {
+    const version: LiBrainianVersion = {
       major: 0,
       minor: 0,
       patch: 0,
@@ -1242,7 +1242,7 @@ describe('plan compiler', () => {
       version,
       invalidationTriggers: [],
     };
-    const context: LibrarianResponse = {
+    const context: LiBrainianResponse = {
       query: { intent: 'review tests', depth: 'L1' },
       packs: [pack],
       disclosures: [],

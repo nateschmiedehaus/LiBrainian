@@ -2,9 +2,9 @@ import * as fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IndexLibrarian } from '../index_librarian.js';
+import { IndexLiBrainian } from '../index_librainian.js';
 import type { ResolvedCallEdge } from '../ast_indexer.js';
-import type { TransactionContext, LibrarianStorage } from '../../storage/types.js';
+import type { TransactionContext, LiBrainianStorage } from '../../storage/types.js';
 import type { FunctionKnowledge, ModuleKnowledge, GraphEdge } from '../../types.js';
 
 const mockIndexFile = vi.fn();
@@ -70,9 +70,9 @@ function buildTx(): TransactionContext {
 
 function buildStorage(
   tx: TransactionContext,
-  overrides: Partial<LibrarianStorage> = {}
-): LibrarianStorage {
-  const base: LibrarianStorage = {
+  overrides: Partial<LiBrainianStorage> = {}
+): LiBrainianStorage {
+  const base: LiBrainianStorage = {
     initialize: vi.fn(async () => undefined),
     isInitialized: vi.fn(() => true),
     transaction: vi.fn(async (run: (ctx: TransactionContext) => Promise<unknown>) => run(tx)),
@@ -85,13 +85,13 @@ function buildStorage(
     getModules: vi.fn(async () => []),
     getGraphEdges: vi.fn(async () => []),
     getFunctions: vi.fn(async () => []),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 
-  return { ...base, ...overrides } as LibrarianStorage;
+  return { ...base, ...overrides } as LiBrainianStorage;
 }
 
 async function createTempTsFile(content: string): Promise<{ filePath: string; cleanup: () => Promise<void> }> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'index-librarian-call-edges-'));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'index-librainian-call-edges-'));
   const filePath = path.join(tempDir, 'sample.ts');
   await fs.writeFile(filePath, content, 'utf8');
   return {
@@ -100,7 +100,7 @@ async function createTempTsFile(content: string): Promise<{ filePath: string; cl
   };
 }
 
-describe('IndexLibrarian call-edge persistence', () => {
+describe('IndexLiBrainian call-edge persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -134,15 +134,15 @@ describe('IndexLibrarian call-edge persistence', () => {
 
     const tx = buildTx();
     const storage = buildStorage(tx);
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       generateEmbeddings: false,
       createContextPacks: false,
       llmProvider: 'claude',
       llmModelId: 'claude-sonnet-4-20250514',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    const result = await librarian.indexFile(filePath);
+    const result = await librainian.indexFile(filePath);
     await cleanup();
 
     expect(result.errors).toEqual([]);
@@ -184,13 +184,13 @@ describe('IndexLibrarian call-edge persistence', () => {
       upsertGraphEdges: vi.fn(async () => undefined),
     });
 
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       generateEmbeddings: false,
       createContextPacks: false,
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    const result = await librarian.resolveExternalCallEdges();
+    const result = await librainian.resolveExternalCallEdges();
 
     expect(result).toEqual({ resolved: 1, total: 1 });
     expect(storage.upsertGraphEdges).toHaveBeenCalledTimes(1);
@@ -230,15 +230,15 @@ describe('IndexLibrarian call-edge persistence', () => {
 
     const tx = buildTx();
     const storage = buildStorage(tx);
-    const librarian = new IndexLibrarian({
+    const librainian = new IndexLiBrainian({
       generateEmbeddings: false,
       createContextPacks: false,
       llmProvider: 'claude',
       llmModelId: 'claude-sonnet-4-20250514',
     });
-    await librarian.initialize(storage);
+    await librainian.initialize(storage);
 
-    const result = await librarian.indexFile(filePath);
+    const result = await librainian.indexFile(filePath);
     await cleanup();
 
     expect(result.errors).toEqual([]);

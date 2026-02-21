@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { ContextPack, ModuleKnowledge } from '../../types.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { getCurrentVersion } from '../../api/versioning.js';
@@ -18,7 +18,7 @@ const IS_TIER0 = Boolean(process.env.LIBRARIAN_FAIL_OPEN_LOG_DIR);
 const agenticSuite = IS_TIER0 ? describe.skip : describe.sequential;
 
 let workspaceRoot: string;
-let storage: LibrarianStorage;
+let storage: LiBrainianStorage;
 let embeddingService: EmbeddingService;
 let serviceModule: ModuleKnowledge;
 let criticalModule: ModuleKnowledge;
@@ -27,7 +27,7 @@ let version = getCurrentVersion();
 const EMBEDDING_DIMENSION = resolveTestEmbeddingDimension();
 
 async function createWorkspace(): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-agentic-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-agentic-'));
   const dirs = [
     path.join(root, 'src', 'users'),
     path.join(root, 'src', 'db'),
@@ -54,7 +54,7 @@ async function createWorkspace(): Promise<string> {
     path.join(root, 'src', 'critical', 'thing.ts'),
     'export const critical = true;\n'
   );
-  // Required for librarian migrations
+  // Required for librainian migrations
   await fs.writeFile(
     path.join(root, 'config', 'canon.json'),
     JSON.stringify({ schema_version: 1 }, null, 2) + '\n'
@@ -95,7 +95,7 @@ function buildContextPack(packId: string, targetId: string, relatedFiles: string
   };
 }
 
-agenticSuite('Librarian Agentic Engine Feedback', () => {
+agenticSuite('LiBrainian Agentic Engine Feedback', () => {
   beforeAll(async () => {
     workspaceRoot = await createWorkspace();
     storage = createSqliteStorage(':memory:', workspaceRoot);

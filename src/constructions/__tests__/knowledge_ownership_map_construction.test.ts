@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Librarian } from '../../api/librarian.js';
-import type { KnowledgeGraphEdge, LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainian } from '../../api/librainian.js';
+import type { KnowledgeGraphEdge, LiBrainianStorage } from '../../storage/types.js';
 import { KnowledgeOwnershipMapConstruction } from '../knowledge_ownership_map_construction.js';
 
-function createLibrarianWithStorage(storage: LibrarianStorage | null): Librarian {
+function createLiBrainianWithStorage(storage: LiBrainianStorage | null): LiBrainian {
   return {
     getStorage: vi.fn(() => storage),
-  } as unknown as Librarian;
+  } as unknown as LiBrainian;
 }
 
 describe('KnowledgeOwnershipMapConstruction', () => {
@@ -41,10 +41,10 @@ describe('KnowledgeOwnershipMapConstruction', () => {
     const storage = {
       getKnowledgeEdges: vi.fn().mockResolvedValue(edges),
       getOwnerships: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const construction = new KnowledgeOwnershipMapConstruction(
-      createLibrarianWithStorage(storage)
+      createLiBrainianWithStorage(storage)
     );
 
     const result = await construction.construct();
@@ -106,10 +106,10 @@ describe('KnowledgeOwnershipMapConstruction', () => {
     const storage = {
       getKnowledgeEdges: vi.fn().mockResolvedValue(edges),
       getOwnerships: vi.fn().mockResolvedValue([]),
-    } as unknown as LibrarianStorage;
+    } as unknown as LiBrainianStorage;
 
     const construction = new KnowledgeOwnershipMapConstruction(
-      createLibrarianWithStorage(storage)
+      createLiBrainianWithStorage(storage)
     );
 
     const result = await construction.construct({
@@ -134,7 +134,7 @@ describe('KnowledgeOwnershipMapConstruction', () => {
 
   it('returns an empty map when storage is unavailable', async () => {
     const construction = new KnowledgeOwnershipMapConstruction(
-      createLibrarianWithStorage(null)
+      createLiBrainianWithStorage(null)
     );
 
     const result = await construction.construct();

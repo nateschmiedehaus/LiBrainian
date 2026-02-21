@@ -1,7 +1,7 @@
 /**
  * @fileoverview Federation Module Exports
  *
- * Cross-repo federation protocol for Librarian.
+ * Cross-repo federation protocol for LiBrainian.
  * Enables querying knowledge across multiple repositories with:
  * - Safe provenance tracking
  * - Trust level boundaries

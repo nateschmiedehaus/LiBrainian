@@ -4,32 +4,32 @@
 
 // First-run gate
 export {
-  ensureLibrarianReady,
-  isLibrarianReady,
-  getLibrarian,
+  ensureLiBrainianReady,
+  isLiBrainianReady,
+  getLiBrainian,
   getGateStatus,
   resetGate,
   shutdownAll,
-  createLibrarianPreTaskHook,
-  withLibrarian,
+  createLiBrainianPreTaskHook,
+  withLiBrainian,
 } from './first_run_gate.js';
 export type { FirstRunGateOptions, FirstRunGateResult } from './first_run_gate.js';
 
 // Orchestrator interface
-export { ensureLibrarianReadyForOrchestrator } from './orchestrator_interface.js';
-export type { OrchestratorLibrarianGateOptions } from './orchestrator_interface.js';
+export { ensureLiBrainianReadyForOrchestrator } from './orchestrator_interface.js';
+export type { OrchestratorLiBrainianGateOptions } from './orchestrator_interface.js';
 
 // Wave0 integration
 export {
   enrichTaskContext,
-  formatLibrarianContext,
+  formatLiBrainianContext,
   recordTaskOutcome,
   notifyFileChange,
   notifyFileChanges,
   preOrchestrationHook,
   postOrchestrationHook,
 } from './wave0_integration.js';
-export type { LibrarianContext } from './wave0_integration.js';
+export type { LiBrainianContext } from './wave0_integration.js';
 
 // Incremental indexing watcher
 export { startFileWatcher, stopFileWatcher } from './file_watcher.js';
@@ -136,7 +136,7 @@ export {
   createPostTaskHook,
   createAgentHooks,
   // Detection helpers
-  isLibrarianAvailable,
+  isLiBrainianAvailable,
   detectWorkspace,
 } from './agent_hooks.js';
 export type {

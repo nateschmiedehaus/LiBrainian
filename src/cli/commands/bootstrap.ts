@@ -17,7 +17,7 @@ import { createSpinner, formatDuration, printKeyValue } from '../progress.js';
 import type { BootstrapPhase } from '../../types.js';
 import { createBootstrapProgressReporter } from '../bootstrap_progress_reporter.js';
 import { ensureDailyModelSelection } from '../../adapters/model_policy.js';
-import { resolveLibrarianModelId } from '../../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../../api/llm_env.js';
 import { EXCLUDE_PATTERNS } from '../../universal_patterns.js';
 import { runPreflightChecks, printPreflightReport } from '../../preflight/index.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
@@ -103,10 +103,10 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     throw createError('INVALID_ARGUMENT', 'Use either --force or --force-resume (not both).');
   }
   if (timeoutMs > 0) {
-    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librarian bootstrap');
+    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librainian bootstrap');
   }
 
-  console.log('Librarian Bootstrap');
+  console.log('LiBrainian Bootstrap');
   console.log('===================\n');
   if (scope !== 'full') {
     console.log(`Scope: ${scope}`);
@@ -196,7 +196,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       if (coverageWarnings.length > 0) {
         console.log(`⚠️  Parser coverage incomplete: ${coverageWarnings.join('; ')}`);
         if (!installGrammars && missingGrammarPackages.length > 0) {
-          console.log('   Run `librarian bootstrap --install-grammars` to install missing grammar packages.');
+          console.log('   Run `librainian bootstrap --install-grammars` to install missing grammar packages.');
         }
       }
     }
@@ -277,7 +277,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
           : 'unknown';
       llmModelId = selectedModel
         ?? (providerStatusModel !== 'unknown' ? providerStatusModel : undefined)
-        ?? resolveLibrarianModelId(llmProvider)
+        ?? resolveLiBrainianModelId(llmProvider)
         ?? (llmProvider === 'codex' ? 'gpt-5.1-codex-mini' : 'claude-haiku-4-5-20241022');
     }
 
@@ -407,9 +407,9 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
 
       if (!report.success) {
         console.log('\nBootstrap completed with errors. Some features may be limited.');
-        console.log('Run `librarian status` for more details.');
+        console.log('Run `librainian status` for more details.');
       } else {
-        console.log('\nLibrarian is ready! Run `librarian query "<intent>"` to search the knowledge base.');
+        console.log('\nLiBrainian is ready! Run `librainian query "<intent>"` to search the knowledge base.');
       }
     } finally {
       progressReporter.complete();
@@ -525,10 +525,10 @@ function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {
   if (!scope || scope === 'full') {
     return {};
   }
-  if (scope === 'librarian') {
+  if (scope === 'librainian') {
     return {
       include: [
-        // Actual Librarian source directories
+        // Actual LiBrainian source directories
         'src/api/**/*.ts',
         'src/agents/**/*.ts',
         'src/cli/**/*.ts',
@@ -582,5 +582,5 @@ function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {
       exclude: [...EXCLUDE_PATTERNS],
     };
   }
-  throw createError('INVALID_ARGUMENT', `Unknown scope \"${scope}\" (use \"full\" or \"librarian\")`);
+  throw createError('INVALID_ARGUMENT', `Unknown scope \"${scope}\" (use \"full\" or \"librainian\")`);
 }

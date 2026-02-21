@@ -1,10 +1,10 @@
 /**
  * @fileoverview Doctor Command - Health Diagnostic Tool
  *
- * Provides comprehensive health diagnostics for the Librarian system.
+ * Provides comprehensive health diagnostics for the LiBrainian system.
  * Checks database, embeddings, packs, vector index, graph edges, and bootstrap status.
  *
- * Usage: librarian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency]
+ * Usage: librainian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency]
  *
  * @packageDocumentation
  */
@@ -28,7 +28,7 @@ import {
   getMissingGrammarPackages,
   installMissingGrammars,
 } from '../grammar_support.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import { getSessionState } from '../../memory/session_store.js';
@@ -90,109 +90,109 @@ interface ActionTemplate {
 
 const ACTION_BY_CHECK: Record<string, ActionTemplate> = {
   'Database Path Resolution': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: '.librarian/librarian.db',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: '.librainian/librainian.db',
   },
   'Database Access': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Bootstrap Status': {
-    command: 'librarian quickstart --mode full',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian quickstart --mode full',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Watch Freshness': {
-    command: 'librarian watch',
-    expectedArtifact: '.librarian/watch-state.json',
+    command: 'librainian watch',
+    expectedArtifact: '.librainian/watch-state.json',
   },
   'Index Freshness': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Lock File Staleness': {
-    command: 'librarian doctor --heal',
-    expectedArtifact: '.librarian/locks',
+    command: 'librainian doctor --heal',
+    expectedArtifact: '.librainian/locks',
   },
   'Functions/Embeddings Correlation': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Cross-DB Consistency': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: '.librarian/librarian.sqlite',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: '.librainian/librainian.sqlite',
   },
   'Cross-DB Referential Integrity': {
-    command: 'librarian doctor --check-consistency --json',
-    expectedArtifact: '.librarian/librarian.sqlite',
+    command: 'librainian doctor --check-consistency --json',
+    expectedArtifact: '.librainian/librainian.sqlite',
   },
   Modules: {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Modules Indexed': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Context Packs Health': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Context Pack References': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Vector Index': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Embedding Integrity': {
-    command: 'librarian doctor --fix',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian doctor --fix',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Graph Edges': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Knowledge Confidence': {
-    command: 'librarian bootstrap --mode full',
-    expectedArtifact: 'state/audits/librarian/calibration',
+    command: 'librainian bootstrap --mode full',
+    expectedArtifact: 'state/audits/librainian/calibration',
   },
   'Embedding Provider': {
-    command: 'librarian check-providers --format json',
+    command: 'librainian check-providers --format json',
     expectedArtifact: 'state/audits/providers',
   },
   'LLM Provider': {
-    command: 'librarian check-providers --format json',
+    command: 'librainian check-providers --format json',
     expectedArtifact: 'state/audits/providers',
   },
   'MCP Registration': {
-    command: 'librarian quickstart --mode full',
+    command: 'librainian quickstart --mode full',
     expectedArtifact: '.claude/settings.json',
   },
   'Install Footprint': {
     command: 'npm prune',
   },
   'Grammar Coverage': {
-    command: 'librarian doctor --install-grammars',
+    command: 'librainian doctor --install-grammars',
   },
   'Parser Coverage': {
-    command: 'librarian doctor --install-grammars',
+    command: 'librainian doctor --install-grammars',
   },
   'Configuration Auto-Heal': {
-    command: 'librarian config heal --risk-tolerance low',
-    expectedArtifact: '.librarian/governor.json',
+    command: 'librainian config heal --risk-tolerance low',
+    expectedArtifact: '.librainian/governor.json',
   },
   'Storage Recovery': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: '.librarian/librarian.db',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: '.librainian/librainian.db',
   },
   'Bootstrap Recovery': {
-    command: 'librarian bootstrap --force',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian bootstrap --force',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
   'Onboarding Recovery': {
-    command: 'librarian quickstart --mode full',
-    expectedArtifact: 'state/audits/librarian/bootstrap',
+    command: 'librainian quickstart --mode full',
+    expectedArtifact: 'state/audits/librainian/bootstrap',
   },
 };
 
@@ -204,24 +204,24 @@ function defaultActionForCheck(check: DiagnosticCheck): ActionTemplate {
   const lowerMessage = check.message.toLowerCase();
   if (lowerMessage.includes('provider')) {
     return {
-      command: 'librarian check-providers --format json',
+      command: 'librainian check-providers --format json',
       expectedArtifact: 'state/audits/providers',
     };
   }
   if (lowerMessage.includes('bootstrap') || lowerMessage.includes('index')) {
     return {
-      command: 'librarian bootstrap --force',
-      expectedArtifact: 'state/audits/librarian/bootstrap',
+      command: 'librainian bootstrap --force',
+      expectedArtifact: 'state/audits/librainian/bootstrap',
     };
   }
   if (lowerMessage.includes('watch')) {
     return {
-      command: 'librarian watch',
-      expectedArtifact: '.librarian/watch-state.json',
+      command: 'librainian watch',
+      expectedArtifact: '.librainian/watch-state.json',
     };
   }
   return {
-    command: 'librarian doctor --json',
+    command: 'librainian doctor --json',
   };
 }
 
@@ -256,7 +256,7 @@ const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
 const EMBEDDING_INTEGRITY_SAMPLE_LIMIT = 20;
 const EXCLUDED_SCAN_DIRS = new Set([
   '.git',
-  '.librarian',
+  '.librainian',
   'node_modules',
   'dist',
   'build',
@@ -273,7 +273,7 @@ const SOURCE_FILE_EXTENSIONS = new Set([
   '.swift', '.kt', '.kts', '.scala',
 ]);
 
-type EmbeddingIntegrityStorage = LibrarianStorage & {
+type EmbeddingIntegrityStorage = LiBrainianStorage & {
   inspectEmbeddingIntegrity?: (options?: { normTolerance?: number; sampleLimit?: number }) => Promise<{
     totalEmbeddings: number;
     invalidEmbeddings: number;
@@ -406,15 +406,15 @@ function normalizeSearchable(value: unknown): string {
   return '';
 }
 
-function hasLibrarianMcpRegistration(config: Record<string, unknown>): boolean {
+function hasLiBrainianMcpRegistration(config: Record<string, unknown>): boolean {
   const mcpServers = config.mcpServers;
   if (!mcpServers || typeof mcpServers !== 'object' || Array.isArray(mcpServers)) return false;
   for (const [name, spec] of Object.entries(mcpServers)) {
-    if (name.toLowerCase().includes('librarian') || name.toLowerCase().includes('librainian')) {
+    if (name.toLowerCase().includes('librainian') || name.toLowerCase().includes('librainian')) {
       return true;
     }
     const searchable = normalizeSearchable(spec);
-    if (searchable.includes('librarian') || searchable.includes('librainian')) {
+    if (searchable.includes('librainian') || searchable.includes('librainian')) {
       return true;
     }
   }
@@ -434,7 +434,7 @@ function resolveMcpConfigCandidates(): string[] {
 }
 
 function removeStaleBootstrapLock(workspace: string): { removed: boolean; path?: string; error?: string } {
-  const lockPath = path.join(workspace, '.librarian', 'bootstrap.lock');
+  const lockPath = path.join(workspace, '.librainian', 'bootstrap.lock');
   if (!fs.existsSync(lockPath)) return { removed: false };
   try {
     const raw = fs.readFileSync(lockPath, 'utf8');
@@ -480,7 +480,7 @@ async function checkDatabase(
     if (!fs.existsSync(dbPath)) {
       check.status = 'ERROR';
       check.message = 'Database file does not exist';
-      check.suggestion = 'Run `librarian bootstrap` to initialize the database';
+      check.suggestion = 'Run `librainian bootstrap` to initialize the database';
       return check;
     }
 
@@ -508,14 +508,14 @@ async function checkDatabase(
     } else {
       check.status = 'WARNING';
       check.message = 'Database exists but has no metadata';
-      check.suggestion = 'Run `librarian bootstrap` to initialize properly';
+      check.suggestion = 'Run `librainian bootstrap` to initialize properly';
     }
 
     return check;
   } catch (error) {
     check.status = 'ERROR';
     check.message = `Database error: ${error instanceof Error ? error.message : String(error)}`;
-    check.suggestion = 'Check file permissions or run `librarian bootstrap --force`';
+    check.suggestion = 'Check file permissions or run `librainian bootstrap --force`';
     return check;
   }
 }
@@ -550,14 +550,14 @@ async function checkFunctionsVsEmbeddings(
     if (totalFunctions === 0) {
       check.status = 'WARNING';
       check.message = 'No functions indexed';
-      check.suggestion = 'Run `librarian bootstrap` to index codebase';
+      check.suggestion = 'Run `librainian bootstrap` to index codebase';
       return check;
     }
 
     if (totalEmbeddings === 0) {
       check.status = 'ERROR';
       check.message = `${totalFunctions} functions but 0 embeddings`;
-      check.suggestion = 'Embedding model may have failed. Run `librarian bootstrap --force`';
+      check.suggestion = 'Embedding model may have failed. Run `librainian bootstrap --force`';
       return check;
     }
 
@@ -567,7 +567,7 @@ async function checkFunctionsVsEmbeddings(
     if (coverage < 20) {
       check.status = 'ERROR';
       check.message = `Critical embedding coverage: ${coverage.toFixed(1)}% (${totalEmbeddings}/${totalFunctions})`;
-      check.suggestion = 'Embedding generation likely failed. Run `librarian bootstrap --force` and verify provider health.';
+      check.suggestion = 'Embedding generation likely failed. Run `librainian bootstrap --force` and verify provider health.';
     } else if (coverage < 80) {
       check.status = 'WARNING';
       check.message = `Partial embedding coverage: ${coverage.toFixed(1)}% (${totalEmbeddings}/${totalFunctions})`;
@@ -623,7 +623,7 @@ async function checkPacksCorrelation(
     if (totalPacks === 0) {
       check.status = 'WARNING';
       check.message = 'No context packs generated';
-      check.suggestion = 'Run `librarian bootstrap` to generate context packs';
+      check.suggestion = 'Run `librainian bootstrap` to generate context packs';
       return check;
     }
 
@@ -701,7 +701,7 @@ async function checkContextPackReferences(
     if (missingCount > 0) {
       check.status = 'WARNING';
       check.message = `Broken context-pack references detected (${missingCount})`;
-      check.suggestion = 'Run `librarian bootstrap --force` to refresh context packs after file moves/deletes';
+      check.suggestion = 'Run `librainian bootstrap --force` to refresh context packs after file moves/deletes';
       return check;
     }
 
@@ -748,7 +748,7 @@ async function checkVectorIndex(
     if (totalEmbeddings === 0) {
       check.status = 'ERROR';
       check.message = 'Vector index is empty (no embeddings)';
-      check.suggestion = 'Run `librarian bootstrap` to generate embeddings';
+      check.suggestion = 'Run `librainian bootstrap` to generate embeddings';
       return check;
     }
 
@@ -807,7 +807,7 @@ async function checkEmbeddingIntegrity(
     if (integrity.invalidEmbeddings > 0) {
       check.status = 'WARNING';
       check.message = `Detected ${integrity.invalidEmbeddings} invalid embedding(s) (zero-norm or non-finite)`;
-      check.suggestion = 'Run `librarian doctor --fix` to purge and regenerate invalid embeddings';
+      check.suggestion = 'Run `librainian doctor --fix` to purge and regenerate invalid embeddings';
       return check;
     }
 
@@ -816,7 +816,7 @@ async function checkEmbeddingIntegrity(
   } catch (error) {
     check.status = 'ERROR';
     check.message = `Failed to check embedding integrity: ${error instanceof Error ? error.message : String(error)}`;
-    check.suggestion = 'Run `librarian bootstrap --force` to rebuild embeddings';
+    check.suggestion = 'Run `librainian bootstrap --force` to rebuild embeddings';
     return check;
   }
 }
@@ -923,21 +923,21 @@ async function checkBootstrapStatus(
     if (!lastBootstrap) {
       check.status = 'ERROR';
       check.message = 'Never bootstrapped';
-      check.suggestion = 'Run `librarian bootstrap` to initialize the index';
+      check.suggestion = 'Run `librainian bootstrap` to initialize the index';
       return check;
     }
 
     if (!lastBootstrap.success) {
       check.status = 'ERROR';
       check.message = `Last bootstrap failed: ${lastBootstrap.error || 'unknown error'}`;
-      check.suggestion = 'Run `librarian bootstrap --force` to retry';
+      check.suggestion = 'Run `librainian bootstrap --force` to retry';
       return check;
     }
 
     if (mvpCheck.required) {
       check.status = 'WARNING';
       check.message = `Bootstrap outdated: ${mvpCheck.reason}`;
-      check.suggestion = 'Run `librarian bootstrap` to refresh';
+      check.suggestion = 'Run `librainian bootstrap` to refresh';
       return check;
     }
 
@@ -995,7 +995,7 @@ async function checkIndexFreshness(
     if (lastIndexing === null || !Number.isFinite(lastIndexing)) {
       check.status = 'WARNING';
       check.message = 'Missing last-index timestamp';
-      check.suggestion = 'Run `librarian bootstrap --force` to create a fresh index baseline';
+      check.suggestion = 'Run `librainian bootstrap --force` to create a fresh index baseline';
       return check;
     }
 
@@ -1003,7 +1003,7 @@ async function checkIndexFreshness(
     if (lagMs > INDEX_STALE_THRESHOLD_MS) {
       check.status = 'WARNING';
       check.message = `Index stale by ${formatAge(lagMs)} relative to source changes`;
-      check.suggestion = 'Run `librarian bootstrap --force` to refresh stale index data';
+      check.suggestion = 'Run `librainian bootstrap --force` to refresh stale index data';
       return check;
     }
 
@@ -1030,11 +1030,11 @@ async function checkCrossDbConsistency(
   };
 
   try {
-    const librarianDir = path.join(workspace, '.librarian');
+    const librainianDir = path.join(workspace, '.librainian');
     const legacyCandidates = [
-      path.join(librarianDir, 'knowledge.db'),
-      path.join(librarianDir, 'evidence_ledger.db'),
-      path.join(librarianDir, 'librarian.db'),
+      path.join(librainianDir, 'knowledge.db'),
+      path.join(librainianDir, 'evidence_ledger.db'),
+      path.join(librainianDir, 'librainian.db'),
     ];
 
     const activeDb = path.resolve(dbPath);
@@ -1067,7 +1067,7 @@ async function checkCrossDbConsistency(
     if (newestLegacyMs > activeMtimeMs + 1_000) {
       check.status = 'ERROR';
       check.message = `Legacy DB files are newer than active store (${legacyFiles.length} files)`;
-      check.suggestion = 'Run `librarian bootstrap --force` to rebuild and converge into .librarian/librarian.sqlite';
+      check.suggestion = 'Run `librainian bootstrap --force` to rebuild and converge into .librainian/librainian.sqlite';
       return check;
     }
 
@@ -1115,31 +1115,31 @@ async function checkCrossDbReferentialIntegrity(
     if (!fs.existsSync(dbPath)) {
       check.status = 'WARNING';
       check.message = 'Consistency check skipped: active database not found';
-      check.suggestion = 'Run `librarian bootstrap --force` to create the active store';
+      check.suggestion = 'Run `librainian bootstrap --force` to create the active store';
       return check;
     }
 
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     try {
       const requiredTables = [
-        'librarian_embeddings',
-        'librarian_functions',
-        'librarian_modules',
-        'librarian_context_packs',
-        'librarian_confidence_events',
-        'librarian_evidence',
+        'librainian_embeddings',
+        'librainian_functions',
+        'librainian_modules',
+        'librainian_context_packs',
+        'librainian_confidence_events',
+        'librainian_evidence',
       ];
       const presentTables = requiredTables.filter((table) => tableExists(db, table));
       const missingTables = requiredTables.filter((table) => !presentTables.includes(table));
 
-      const orphanEmbeddingCount = presentTables.includes('librarian_embeddings')
-        && presentTables.includes('librarian_functions')
-        && presentTables.includes('librarian_modules')
+      const orphanEmbeddingCount = presentTables.includes('librainian_embeddings')
+        && presentTables.includes('librainian_functions')
+        && presentTables.includes('librainian_modules')
         ? Number((db.prepare(`
           SELECT COUNT(*) AS count
-          FROM librarian_embeddings e
-          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
-          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          FROM librainian_embeddings e
+          LEFT JOIN librainian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librainian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
           WHERE (e.entity_type = 'function' AND f.id IS NULL)
              OR (e.entity_type = 'module' AND m.id IS NULL)
         `).get() as { count?: number } | undefined)?.count ?? 0)
@@ -1148,24 +1148,24 @@ async function checkCrossDbReferentialIntegrity(
       const orphanEmbeddingSample = orphanEmbeddingCount && orphanEmbeddingCount > 0
         ? collectSample(db, `
           SELECT e.entity_type || ':' || e.entity_id AS ref
-          FROM librarian_embeddings e
-          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
-          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          FROM librainian_embeddings e
+          LEFT JOIN librainian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librainian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
           WHERE (e.entity_type = 'function' AND f.id IS NULL)
              OR (e.entity_type = 'module' AND m.id IS NULL)
         `)
         : [];
 
-      const orphanConfidenceCount = presentTables.includes('librarian_confidence_events')
-        && presentTables.includes('librarian_functions')
-        && presentTables.includes('librarian_modules')
-        && presentTables.includes('librarian_context_packs')
+      const orphanConfidenceCount = presentTables.includes('librainian_confidence_events')
+        && presentTables.includes('librainian_functions')
+        && presentTables.includes('librainian_modules')
+        && presentTables.includes('librainian_context_packs')
         ? Number((db.prepare(`
           SELECT COUNT(*) AS count
-          FROM librarian_confidence_events c
-          LEFT JOIN librarian_functions f ON c.entity_type = 'function' AND f.id = c.entity_id
-          LEFT JOIN librarian_modules m ON c.entity_type = 'module' AND m.id = c.entity_id
-          LEFT JOIN librarian_context_packs p ON c.entity_type = 'context_pack' AND p.pack_id = c.entity_id
+          FROM librainian_confidence_events c
+          LEFT JOIN librainian_functions f ON c.entity_type = 'function' AND f.id = c.entity_id
+          LEFT JOIN librainian_modules m ON c.entity_type = 'module' AND m.id = c.entity_id
+          LEFT JOIN librainian_context_packs p ON c.entity_type = 'context_pack' AND p.pack_id = c.entity_id
           WHERE (c.entity_type = 'function' AND f.id IS NULL)
              OR (c.entity_type = 'module' AND m.id IS NULL)
              OR (c.entity_type = 'context_pack' AND p.pack_id IS NULL)
@@ -1175,24 +1175,24 @@ async function checkCrossDbReferentialIntegrity(
       const orphanConfidenceSample = orphanConfidenceCount && orphanConfidenceCount > 0
         ? collectSample(db, `
           SELECT c.entity_type || ':' || c.entity_id AS ref
-          FROM librarian_confidence_events c
-          LEFT JOIN librarian_functions f ON c.entity_type = 'function' AND f.id = c.entity_id
-          LEFT JOIN librarian_modules m ON c.entity_type = 'module' AND m.id = c.entity_id
-          LEFT JOIN librarian_context_packs p ON c.entity_type = 'context_pack' AND p.pack_id = c.entity_id
+          FROM librainian_confidence_events c
+          LEFT JOIN librainian_functions f ON c.entity_type = 'function' AND f.id = c.entity_id
+          LEFT JOIN librainian_modules m ON c.entity_type = 'module' AND m.id = c.entity_id
+          LEFT JOIN librainian_context_packs p ON c.entity_type = 'context_pack' AND p.pack_id = c.entity_id
           WHERE (c.entity_type = 'function' AND f.id IS NULL)
              OR (c.entity_type = 'module' AND m.id IS NULL)
              OR (c.entity_type = 'context_pack' AND p.pack_id IS NULL)
         `)
         : [];
 
-      const orphanEvidenceCount = presentTables.includes('librarian_evidence')
-        && presentTables.includes('librarian_functions')
-        && presentTables.includes('librarian_modules')
+      const orphanEvidenceCount = presentTables.includes('librainian_evidence')
+        && presentTables.includes('librainian_functions')
+        && presentTables.includes('librainian_modules')
         ? Number((db.prepare(`
           SELECT COUNT(*) AS count
-          FROM librarian_evidence e
-          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
-          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          FROM librainian_evidence e
+          LEFT JOIN librainian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librainian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
           WHERE (e.entity_type = 'function' AND f.id IS NULL)
              OR (e.entity_type = 'module' AND m.id IS NULL)
         `).get() as { count?: number } | undefined)?.count ?? 0)
@@ -1201,9 +1201,9 @@ async function checkCrossDbReferentialIntegrity(
       const orphanEvidenceSample = orphanEvidenceCount && orphanEvidenceCount > 0
         ? collectSample(db, `
           SELECT e.entity_type || ':' || e.entity_id AS ref
-          FROM librarian_evidence e
-          LEFT JOIN librarian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
-          LEFT JOIN librarian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
+          FROM librainian_evidence e
+          LEFT JOIN librainian_functions f ON e.entity_type = 'function' AND f.id = e.entity_id
+          LEFT JOIN librainian_modules m ON e.entity_type = 'module' AND m.id = e.entity_id
           WHERE (e.entity_type = 'function' AND f.id IS NULL)
              OR (e.entity_type = 'module' AND m.id IS NULL)
         `)
@@ -1229,21 +1229,21 @@ async function checkCrossDbReferentialIntegrity(
       if (presentTables.length === 0) {
         check.status = 'WARNING';
         check.message = 'Consistency check skipped: core tables were not found in active DB';
-        check.suggestion = 'Run `librarian bootstrap --force` to initialize schema tables';
+        check.suggestion = 'Run `librainian bootstrap --force` to initialize schema tables';
         return check;
       }
 
       if (orphanTotal > 0) {
         check.status = 'ERROR';
         check.message = `Detected ${orphanTotal} orphan references across active consistency tables`;
-        check.suggestion = 'Run `librarian bootstrap --force` and re-run `librarian doctor --check-consistency --json`';
+        check.suggestion = 'Run `librainian bootstrap --force` and re-run `librainian doctor --check-consistency --json`';
         return check;
       }
 
       if (missingTables.length > 0) {
         check.status = 'WARNING';
         check.message = 'No orphan references detected in available tables, but some consistency tables are missing';
-        check.suggestion = 'Run `librarian bootstrap --force` to restore missing schema tables';
+        check.suggestion = 'Run `librainian bootstrap --force` to restore missing schema tables';
         return check;
       }
 
@@ -1255,7 +1255,7 @@ async function checkCrossDbReferentialIntegrity(
   } catch (error) {
     check.status = 'ERROR';
     check.message = `Failed to run strict consistency check: ${error instanceof Error ? error.message : String(error)}`;
-    check.suggestion = 'Run `librarian bootstrap --force` and retry `librarian doctor --check-consistency`';
+    check.suggestion = 'Run `librainian bootstrap --force` and retry `librainian doctor --check-consistency`';
     return check;
   }
 }
@@ -1275,7 +1275,7 @@ async function checkLockFileStaleness(
   try {
     const inspectedLocks = await inspectWorkspaceLocks(workspace);
     const stalePaths = [...inspectedLocks.stalePaths];
-    const bootstrapLockPath = path.join(workspace, '.librarian', 'bootstrap.lock');
+    const bootstrapLockPath = path.join(workspace, '.librainian', 'bootstrap.lock');
     let bootstrapLockPid: number | null = null;
     let bootstrapLockActive = false;
 
@@ -1312,14 +1312,14 @@ async function checkLockFileStaleness(
     if (stalePaths.length > 0) {
       check.status = 'WARNING';
       check.message = `Detected ${stalePaths.length} stale lock file(s)`;
-      check.suggestion = 'Run `librarian doctor --heal` to safely remove stale lock files';
+      check.suggestion = 'Run `librainian doctor --heal` to safely remove stale lock files';
       return check;
     }
 
     if (inspectedLocks.unknownFreshFiles > 0) {
       check.status = 'WARNING';
       check.message = `Found ${inspectedLocks.unknownFreshFiles} lock file(s) with unknown PID`;
-      check.suggestion = 'If indexing appears stuck, run `librarian doctor --heal`';
+      check.suggestion = 'If indexing appears stuck, run `librainian doctor --heal`';
       return check;
     }
 
@@ -1356,7 +1356,7 @@ async function checkEmbeddingProvider(
     if (!providers.embedding.available) {
       check.status = 'ERROR';
       check.message = `Embedding provider unavailable: ${providers.embedding.error || 'unknown'}`;
-      check.suggestion = 'Check embedding provider installation or run `librarian check-providers`';
+      check.suggestion = 'Check embedding provider installation or run `librainian check-providers`';
       return check;
     }
 
@@ -1427,7 +1427,7 @@ async function checkMcpRegistration(): Promise<DiagnosticCheck> {
     for (const configPath of existingConfigs) {
       const parsed = readJsonFile(configPath);
       if (!parsed) continue;
-      if (hasLibrarianMcpRegistration(parsed)) {
+      if (hasLiBrainianMcpRegistration(parsed)) {
         matchedConfigs.push(configPath);
       }
     }
@@ -1446,13 +1446,13 @@ async function checkMcpRegistration(): Promise<DiagnosticCheck> {
     if (existingConfigs.length === 0) {
       check.status = 'WARNING';
       check.message = 'No MCP client config files found';
-      check.suggestion = 'Add librarian to MCP client config (see docs/librarian/MCP_SERVER.md)';
+      check.suggestion = 'Add librainian to MCP client config (see docs/librainian/MCP_SERVER.md)';
       return check;
     }
 
     check.status = 'WARNING';
-    check.message = 'MCP config exists but librarian server is not registered';
-    check.suggestion = 'Add a `mcpServers.librarian` entry in ~/.claude/settings.json or cursor MCP config';
+    check.message = 'MCP config exists but librainian server is not registered';
+    check.suggestion = 'Add a `mcpServers.librainian` entry in ~/.claude/settings.json or cursor MCP config';
     return check;
   } catch (error) {
     check.status = 'WARNING';
@@ -1482,7 +1482,7 @@ async function checkInstallFootprint(
     const bloatCandidates = [
       'src/epistemics',
       'src/evaluation',
-      'docs/librarian/legacy',
+      'docs/librainian/legacy',
     ];
 
     const bloatedPaths: string[] = [];
@@ -1604,7 +1604,7 @@ async function checkGrammarCoverage(
       check.message = `Parser coverage incomplete: ${missingPieces.join('; ')}`;
       check.suggestion = installGrammars
         ? 'Add missing language configs to tree_sitter_parser or install remaining grammars.'
-        : 'Run `librarian doctor --install-grammars` to install missing grammars.';
+        : 'Run `librainian doctor --install-grammars` to install missing grammars.';
       return check;
     }
 
@@ -1652,7 +1652,7 @@ async function checkModules(
     if (stats.totalModules === 0) {
       check.status = 'WARNING';
       check.message = 'No modules indexed';
-      check.suggestion = 'Run `librarian bootstrap` to index codebase';
+      check.suggestion = 'Run `librainian bootstrap` to index codebase';
       return check;
     }
 
@@ -1771,7 +1771,7 @@ async function checkWatchFreshness(
     if (!state) {
       check.status = 'WARNING';
       check.message = 'No watch state recorded';
-      check.suggestion = 'Run `librarian watch` to keep the index fresh';
+      check.suggestion = 'Run `librainian watch` to keep the index fresh';
       return check;
     }
 
@@ -1786,7 +1786,7 @@ async function checkWatchFreshness(
     if (parts.length > 0) {
       check.status = 'WARNING';
       check.message = `Watch degraded: ${parts.join(', ')}`;
-      check.suggestion = 'Run `librarian watch` to restart indexing and catch up on changes';
+      check.suggestion = 'Run `librainian watch` to restart indexing and catch up on changes';
       return check;
     }
 
@@ -1795,7 +1795,7 @@ async function checkWatchFreshness(
   } catch (error) {
     check.status = 'WARNING';
     check.message = `Failed to check watch freshness: ${error instanceof Error ? error.message : String(error)}`;
-    check.suggestion = 'Run `librarian status` and `librarian watch` to restore freshness';
+    check.suggestion = 'Run `librainian status` and `librainian watch` to restore freshness';
     return check;
   }
 }
@@ -1833,7 +1833,7 @@ async function checkSessionMemory(workspace: string): Promise<DiagnosticCheck> {
   } catch (error) {
     check.status = 'WARNING';
     check.message = `Session memory unavailable: ${error instanceof Error ? error.message : String(error)}`;
-    check.suggestion = 'Run a query to initialize session memory and retry `librarian doctor --json`.';
+    check.suggestion = 'Run a query to initialize session memory and retry `librainian doctor --json`.';
   }
 
   return check;
@@ -1853,7 +1853,7 @@ async function runEmbeddingIntegrityFix(
         name: 'Embedding Integrity Remediation',
         status: 'WARNING',
         message: 'Embedding integrity remediation unavailable for this storage backend',
-        suggestion: 'Run `librarian bootstrap --force` to regenerate embeddings',
+        suggestion: 'Run `librainian bootstrap --force` to regenerate embeddings',
       });
       return checks;
     }
@@ -1911,14 +1911,14 @@ async function runEmbeddingIntegrityFix(
         totalFilesProcessed: bootstrap.totalFilesProcessed,
         totalFunctionsIndexed: bootstrap.totalFunctionsIndexed,
       },
-      suggestion: bootstrap.success ? undefined : 'Run `librarian bootstrap --force` to complete re-embedding',
+      suggestion: bootstrap.success ? undefined : 'Run `librainian bootstrap --force` to complete re-embedding',
     });
   } catch (error) {
     checks.push({
       name: 'Embedding Integrity Remediation',
       status: 'ERROR',
       message: `Failed to remediate invalid embeddings: ${error instanceof Error ? error.message : String(error)}`,
-      suggestion: 'Run `librarian bootstrap --force` to rebuild embeddings',
+      suggestion: 'Run `librainian bootstrap --force` to rebuild embeddings',
     });
   } finally {
     await storage.close();
@@ -2017,7 +2017,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
           status: 'ERROR',
           message: `Failed to remove stale bootstrap lock: ${staleBootstrapCleanup.error}`,
           details: { lockPath: staleBootstrapCleanup.path ?? null },
-          suggestion: 'Delete .librarian/bootstrap.lock manually if the process is no longer running',
+          suggestion: 'Delete .librainian/bootstrap.lock manually if the process is no longer running',
         });
       } else if (staleBootstrapCleanup.removed) {
         healChecks.push({
@@ -2050,7 +2050,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
             },
             suggestion: configHeal.success
               ? undefined
-              : 'Review configuration issues and rerun `librarian config heal --diagnose-only`',
+              : 'Review configuration issues and rerun `librainian config heal --diagnose-only`',
           });
         }
       }
@@ -2072,7 +2072,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
             : undefined,
           suggestion: storageRecovery.recovered
             ? undefined
-            : (storageRecovery.attempted ? 'Run `librarian bootstrap --force` to rebuild storage' : undefined),
+            : (storageRecovery.attempted ? 'Run `librainian bootstrap --force` to rebuild storage' : undefined),
         });
       }
 
@@ -2098,7 +2098,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
             },
             suggestion: bootstrap.success
               ? undefined
-              : 'Run `librarian bootstrap --force` for a full rebuild',
+              : 'Run `librainian bootstrap --force` for a full rebuild',
           });
         }
       }
@@ -2107,7 +2107,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
         name: 'Onboarding Recovery',
         status: 'ERROR',
         message: `Recovery failed: ${error instanceof Error ? error.message : String(error)}`,
-        suggestion: 'Run `librarian bootstrap --force` to recover',
+        suggestion: 'Run `librainian bootstrap --force` to recover',
       });
     }
   }
@@ -2191,7 +2191,7 @@ function outputTextReport(report: DoctorReport, verbose: boolean): void {
     ERROR: '[ERROR]',
   };
 
-  console.log('\nLibrarian Doctor - Health Diagnostic Report');
+  console.log('\nLiBrainian Doctor - Health Diagnostic Report');
   console.log('============================================\n');
 
   printKeyValue([
@@ -2255,11 +2255,11 @@ function outputTextReport(report: DoctorReport, verbose: boolean): void {
   console.log(`Overall Status: ${overallIcon} ${report.overallStatus}`);
 
   if (report.overallStatus === 'ERROR') {
-    console.log('\nAction Required: Address the errors above before using Librarian.');
+    console.log('\nAction Required: Address the errors above before using LiBrainian.');
   } else if (report.overallStatus === 'WARNING') {
-    console.log('\nNote: Librarian is functional but may have degraded performance.');
+    console.log('\nNote: LiBrainian is functional but may have degraded performance.');
   } else {
-    console.log('\nLibrarian is healthy and ready to use.');
+    console.log('\nLiBrainian is healthy and ready to use.');
   }
   console.log();
 }

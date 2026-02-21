@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { getCurrentVersion } from '../api/versioning.js';
 import { createVerificationPlan } from '../strategic/verification_plan.js';
 import type { AdequacyReport, RepositorySignals } from '../api/difficulty_detectors.js';
-import type { ConstructionPlan, LibrarianQuery, LibrarianResponse } from '../types.js';
+import type { ConstructionPlan, LiBrainianQuery, LiBrainianResponse } from '../types.js';
 import { ensureOutputEnvelope } from '../types.js';
 
-function createBaseResponse(overrides: Partial<LibrarianResponse> = {}): LibrarianResponse {
-  const query: LibrarianQuery = {
+function createBaseResponse(overrides: Partial<LiBrainianResponse> = {}): LiBrainianResponse {
+  const query: LiBrainianQuery = {
     intent: 'output envelope',
     depth: 'L0',
     llmRequirement: 'disabled',

@@ -11,7 +11,7 @@ Tests that verify the LiBrainian correctly represents the codebase.
 | Test File | What It Tests |
 |-----------|---------------|
 | `LiBrainian.test.ts` | Deterministic core (storage, migrations, utilities) |
-| `librarian_live.system.test.ts` | Live-provider indexing + API smoke |
+| `librainian_live.system.test.ts` | Live-provider indexing + API smoke |
 | `ingestion_framework.test.ts` | Entity extraction |
 | `embedding_pipeline.test.ts` | Embedding generation |
 
@@ -71,11 +71,11 @@ LIBRARIAN_TEST_MODE=system npm test -- --run
 ```
 
 **Tier-2 tests include:**
-- `librarian_live.system.test.ts` - Live-provider indexing + API smoke
+- `librainian_live.system.test.ts` - Live-provider indexing + API smoke
 - `embedding_validation_real.integration.test.ts` - Real semantic similarity (provider-optional; system runs it un-skipped)
 - `live_provider_integration.integration.test.ts` - Full provider integration (skips in integration mode)
 - `bootstrap_integration.test.ts` - Full bootstrap cycle (deterministic inputs; may require providers depending on mode)
-- `mvp_librarian.system.test.ts` - MVP acceptance suite
+- `mvp_librainian.system.test.ts` - MVP acceptance suite
 - `agentic/` - Agentic qualification tests
 
 ## Agentic Tests (`agentic/`)

@@ -12,7 +12,7 @@ import { isBootstrapRequired } from '../../api/bootstrap.js';
 import { getGitDiffNames, getGitStatusChanges, isGitRepo } from '../../utils/git.js';
 import { emitJsonOutput } from '../json_output.js';
 import { createError } from '../errors.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import type { FunctionKnowledge, GraphEdge } from '../../types.js';
 
 export interface CheckCommandOptions {
@@ -40,7 +40,7 @@ export interface LintCheck {
 }
 
 export interface LintResult {
-  kind: 'LibrarianCheck.v1';
+  kind: 'LiBrainianCheck.v1';
   status: CheckStatus | 'unchecked';
   diff: string;
   checks: LintCheck[];
@@ -120,7 +120,7 @@ function parseOptions(args: string[]): { diff: string; format: OutputFormat; out
 
 function createUncheckedResult(diff: string, message: string): LintResult {
   return {
-    kind: 'LibrarianCheck.v1',
+    kind: 'LiBrainianCheck.v1',
     status: 'unchecked',
     diff,
     checks: [],
@@ -141,7 +141,7 @@ function buildResult(diff: string, checks: LintCheck[]): LintResult {
       : 'pass';
 
   return {
-    kind: 'LibrarianCheck.v1',
+    kind: 'LiBrainianCheck.v1',
     status,
     diff,
     checks,
@@ -221,20 +221,20 @@ function renderJunit(report: LintResult): string {
     const files = check.files?.length ? ` files=${check.files.join(', ')}` : '';
 
     if (check.status === 'fail') {
-      return `    <testcase classname="librarian.check" name="${name}">\n      <failure message="${message}">${escapeXml(`${check.message}${files}`)}</failure>\n    </testcase>`;
+      return `    <testcase classname="librainian.check" name="${name}">\n      <failure message="${message}">${escapeXml(`${check.message}${files}`)}</failure>\n    </testcase>`;
     }
 
     if (check.status === 'warn') {
-      return `    <testcase classname="librarian.check" name="${name}">\n      <system-out>${escapeXml(`WARN: ${check.message}${files}`)}</system-out>\n    </testcase>`;
+      return `    <testcase classname="librainian.check" name="${name}">\n      <system-out>${escapeXml(`WARN: ${check.message}${files}`)}</system-out>\n    </testcase>`;
     }
 
-    return `    <testcase classname="librarian.check" name="${name}"/>`;
+    return `    <testcase classname="librainian.check" name="${name}"/>`;
   });
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<testsuites tests="${testCount}" failures="${failures}">`,
-    `  <testsuite name="librarian.check" tests="${testCount}" failures="${failures}">`,
+    `  <testsuite name="librainian.check" tests="${testCount}" failures="${failures}">`,
     ...cases,
     '  </testsuite>',
     '</testsuites>',
@@ -302,7 +302,7 @@ function parseNameStatusOutput(output: string): DiffChanges {
   return { added, modified, deleted };
 }
 
-async function runChecks(storage: LibrarianStorage, workspaceRoot: string, changes: DiffChanges): Promise<LintCheck[]> {
+async function runChecks(storage: LiBrainianStorage, workspaceRoot: string, changes: DiffChanges): Promise<LintCheck[]> {
   const changedExisting = uniq([
     ...changes.added.map((entry) => path.resolve(workspaceRoot, entry)),
     ...changes.modified.map((entry) => path.resolve(workspaceRoot, entry)),
@@ -318,7 +318,7 @@ async function runChecks(storage: LibrarianStorage, workspaceRoot: string, chang
   return [staleContext, brokenImports, orphanedClaims, coverageRegression, callGraphIntegrity];
 }
 
-async function checkStaleContext(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
+async function checkStaleContext(storage: LiBrainianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
   if (changedExisting.length === 0) {
     return {
       name: 'stale_context',
@@ -362,7 +362,7 @@ async function checkStaleContext(storage: LibrarianStorage, workspaceRoot: strin
   };
 }
 
-async function checkBrokenImports(storage: LibrarianStorage, workspaceRoot: string, deletedFiles: string[]): Promise<LintCheck> {
+async function checkBrokenImports(storage: LiBrainianStorage, workspaceRoot: string, deletedFiles: string[]): Promise<LintCheck> {
   if (deletedFiles.length === 0) {
     return {
       name: 'broken_imports',
@@ -406,7 +406,7 @@ async function checkBrokenImports(storage: LibrarianStorage, workspaceRoot: stri
   };
 }
 
-async function checkOrphanedClaims(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
+async function checkOrphanedClaims(storage: LiBrainianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
   if (changedExisting.length === 0) {
     return {
       name: 'orphaned_claims',
@@ -453,7 +453,7 @@ async function checkOrphanedClaims(storage: LibrarianStorage, workspaceRoot: str
   };
 }
 
-async function checkCoverageRegression(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
+async function checkCoverageRegression(storage: LiBrainianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
   if (changedExisting.length === 0) {
     return {
       name: 'coverage_regression',
@@ -495,7 +495,7 @@ async function checkCoverageRegression(storage: LibrarianStorage, workspaceRoot:
   };
 }
 
-async function checkCallGraphIntegrity(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
+async function checkCallGraphIntegrity(storage: LiBrainianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
   if (changedExisting.length === 0) {
     return {
       name: 'call_graph_integrity',

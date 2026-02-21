@@ -14,7 +14,7 @@
  * @packageDocumentation
  */
 
-import type { Librarian } from '../../api/librarian.js';
+import type { LiBrainian } from '../../api/librainian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import type { ContextPack } from '../../types.js';
 import type {
@@ -85,7 +85,7 @@ export interface ArchitectureValidationResult {
  *
  * Usage:
  * ```typescript
- * const construction = new ArchitectureValidationConstruction(librarian);
+ * const construction = new ArchitectureValidationConstruction(librainian);
  * const result = await construction.validate(['src/**'], {
  *   useCleanArchitecture: true,
  * });
@@ -94,13 +94,13 @@ export interface ArchitectureValidationResult {
  * ```
  */
 export class ArchitectureValidationConstruction implements CalibratedConstruction {
-  private librarian: Librarian;
+  private librainian: LiBrainian;
   private calibrationTracker?: ConstructionCalibrationTracker;
 
   static readonly CONSTRUCTION_ID = 'ArchitectureValidationConstruction';
 
-  constructor(librarian: Librarian) {
-    this.librarian = librarian;
+  constructor(librainian: LiBrainian) {
+    this.librainian = librainian;
   }
 
   /**
@@ -163,13 +163,13 @@ export class ArchitectureValidationConstruction implements CalibratedConstructio
     }
     evidenceRefs.push(`constraints:${constraints.length}`);
 
-    // Step 2: Query librarian for dependency information
-    const queryResult = await this.librarian.queryOptional({
+    // Step 2: Query librainian for dependency information
+    const queryResult = await this.librainian.queryOptional({
       intent: 'Analyze module dependencies and imports',
       affectedFiles: files,
       depth: 'L2',
     });
-    evidenceRefs.push('librarian_query:dependencies');
+    evidenceRefs.push('librainian_query:dependencies');
 
     // Step 3: Extract dependency map from packs
     const dependencyMap = this.extractDependencies(queryResult.packs, files);
@@ -342,11 +342,11 @@ export class ArchitectureValidationConstruction implements CalibratedConstructio
 /**
  * Create an Architecture Validation Construction.
  *
- * @param librarian - The librarian instance to use for queries
+ * @param librainian - The librainian instance to use for queries
  * @returns New construction instance
  */
 export function createArchitectureValidationConstruction(
-  librarian: Librarian
+  librainian: LiBrainian
 ): ArchitectureValidationConstruction {
-  return new ArchitectureValidationConstruction(librarian);
+  return new ArchitectureValidationConstruction(librainian);
 }

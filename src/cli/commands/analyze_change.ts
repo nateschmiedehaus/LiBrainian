@@ -1,19 +1,19 @@
 /**
  * @fileoverview Pre-Change Analysis Command
  *
- * Uses librarian to analyze its own codebase before making changes.
+ * Uses librainian to analyze its own codebase before making changes.
  * This is the "eat your own dogfood" capability that enables safe self-modification.
  *
  * Usage:
- *   librarian analyze-change "add BM25 lexical search to retrieval pipeline"
- *   librarian analyze-change --files src/api/query.ts,src/api/embeddings.ts
+ *   librainian analyze-change "add BM25 lexical search to retrieval pipeline"
+ *   librainian analyze-change --files src/api/query.ts,src/api/embeddings.ts
  */
 
 import { parseArgs } from 'node:util';
 import * as path from 'node:path';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import { queryLibrarian } from '../../api/query.js';
-import type { LibrarianStorage } from '../../storage/types.js';
+import { queryLiBrainian } from '../../api/query.js';
+import type { LiBrainianStorage } from '../../storage/types.js';
 import { createError } from '../errors.js';
 
 export interface AnalyzeChangeOptions {
@@ -82,7 +82,7 @@ export async function analyzeChangeCommand(options: AnalyzeChangeOptions): Promi
   console.log(`Change: "${changeDescription || 'Explicit files specified'}"\n`);
 
   // Initialize storage
-  const dbPath = path.join(workspaceRoot, '.librarian', 'librarian.db');
+  const dbPath = path.join(workspaceRoot, '.librainian', 'librainian.db');
   const storage = createSqliteStorage(dbPath, workspaceRoot);
 
   try {
@@ -108,7 +108,7 @@ export async function analyzeChangeCommand(options: AnalyzeChangeOptions): Promi
 }
 
 async function performImpactAnalysis(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   workspaceRoot: string,
   description: string,
   explicitFiles: string[],
@@ -119,12 +119,12 @@ async function performImpactAnalysis(
   const relatedTests: string[] = [];
   const risks: Risk[] = [];
 
-  // Query librarian for relevant modules based on description
+  // Query librainian for relevant modules based on description
   if (description) {
     // Synthesis disabled via environment for impact analysis (we only need retrieval)
     const origSynthesis = process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS;
     process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS = '1';
-    const queryResult = await queryLibrarian({
+    const queryResult = await queryLiBrainian({
       intent: description,
       depth,
     }, storage);

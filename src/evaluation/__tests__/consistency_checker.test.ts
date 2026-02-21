@@ -3,7 +3,7 @@
  *
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
- * The Consistency Checker detects when Librarian gives contradictory answers
+ * The Consistency Checker detects when LiBrainian gives contradictory answers
  * to semantically equivalent questions. This is a hallucination detection mechanism.
  *
  * @packageDocumentation

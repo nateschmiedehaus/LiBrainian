@@ -370,7 +370,7 @@ function globToRegex(pattern: string): RegExp {
   // Validate that pattern doesn't contain placeholder strings
   // which would be incorrectly expanded - THROW to prevent silent failures
   if (pattern.includes('__GLOBSTAR__') || pattern.includes('__STAR__') || pattern.includes('__QMARK__')) {
-    throw new Error(`[librarian] Pattern contains reserved placeholder (possible injection): ${pattern.slice(0, 50)}`);
+    throw new Error(`[librainian] Pattern contains reserved placeholder (possible injection): ${pattern.slice(0, 50)}`);
   }
   const withPlaceholders = pattern
     .replace(/\\/g, '/')
@@ -385,7 +385,7 @@ function globToRegex(pattern: string): RegExp {
   try {
     return new RegExp(`^${expanded}$`);
   } catch (error) {
-    console.warn(`[librarian] Failed to compile glob pattern: ${pattern.slice(0, 50)}, error: ${error}`);
+    console.warn(`[librainian] Failed to compile glob pattern: ${pattern.slice(0, 50)}, error: ${error}`);
     // Return a regex that matches nothing for malformed patterns
     return /(?!)/;
   }

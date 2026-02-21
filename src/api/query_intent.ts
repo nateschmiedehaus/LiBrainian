@@ -134,7 +134,7 @@ const EXPLANATION_QUERY_PATTERNS = [
 
 /**
  * Patterns for META queries - should use documentation.
- * Examples: "What is this project", "How do I use Librarian"
+ * Examples: "What is this project", "How do I use LiBrainian"
  */
 const META_QUERY_PATTERNS = [
   /\bwhat\s+(is|are)\s+(this|the)\s+(project|codebase|repository|repo|system)\b/i,
@@ -155,7 +155,7 @@ const META_QUERY_PATTERNS = [
   /\barchitecture\s+(overview|summary|description)\b/i,
   /\bhigh[- ]?level\s+(view|overview|summary)\b/i,
   /\bagent\b.*\b(use|integration|interface)\b/i,
-  /\blibrarian\b.*\b(use|query|api)\b/i,
+  /\blibrainian\b.*\b(use|query|api)\b/i,
 ];
 
 /**

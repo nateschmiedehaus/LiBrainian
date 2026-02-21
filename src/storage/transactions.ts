@@ -1,6 +1,6 @@
 import type {
   ConcurrencyContract,
-  LibrarianStorage,
+  LiBrainianStorage,
   TransactionConflictStrategy,
   TransactionContext,
 } from './types.js';
@@ -38,7 +38,7 @@ export type ConflictHandler = (args: {
 }) => TransactionConflictStrategy;
 
 export async function withinTransaction<T>(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   fn: (tx: TransactionContext) => Promise<T>,
   options: {
     contract?: Partial<ConcurrencyContract>;

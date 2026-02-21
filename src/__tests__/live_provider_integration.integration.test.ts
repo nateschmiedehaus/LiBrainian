@@ -39,7 +39,7 @@ import {
   entityRegistry,
   type FileInfo,
 } from '../knowledge/registry/entity_registry.js';
-import { resolveLibrarianModelId } from '../api/llm_env.js';
+import { resolveLiBrainianModelId } from '../api/llm_env.js';
 
 import {
   MultiSignalScorer,
@@ -105,7 +105,7 @@ async function requireLiveProviders(): Promise<AllProviderStatus> {
 }
 
 function resolveLlmModelId(provider: 'claude' | 'codex'): string {
-  const envModel = resolveLibrarianModelId(provider);
+  const envModel = resolveLiBrainianModelId(provider);
   if (envModel) return envModel;
   return provider === 'claude' ? DEFAULT_CLAUDE_MODEL_ID : DEFAULT_CODEX_MODEL_ID;
 }
@@ -303,19 +303,19 @@ describeLive('Live Provider: Embeddings', () => {
 // ============================================================================
 
 describeLive('Live Indexing: Real Codebase', () => {
-  let librarianFiles: string[] = [];
+  let librainianFiles: string[] = [];
   let config: AdaptiveProviderConfig;
 
   beforeAll(async () => {
-    librarianFiles = await collectFiles(LIBRARIAN_ROOT, 100);
+    librainianFiles = await collectFiles(LIBRARIAN_ROOT, 100);
     config = new AdaptiveProviderConfig();
   });
 
-  it('should index real librarian files with timing metrics', async () => {
+  it('should index real librainian files with timing metrics', async () => {
     const registry = new EntityRegistry();
     const indexedCount = { test: 0, service: 0, component: 0, other: 0 };
 
-    for (const file of librarianFiles) {
+    for (const file of librainianFiles) {
       const startTime = Date.now();
 
       const fileInfo: FileInfo = {
@@ -343,7 +343,7 @@ describeLive('Live Indexing: Real Codebase', () => {
     const stats = config.getStats('local');
 
     // Should have indexed all files
-    expect(stats.totalRequests).toBe(librarianFiles.length);
+    expect(stats.totalRequests).toBe(librainianFiles.length);
     expect(stats.successRate).toBe(1);
 
     // Should be fast for local operations
@@ -356,7 +356,7 @@ describeLive('Live Indexing: Real Codebase', () => {
   it('should score real files with multi-signal scorer', async () => {
     const scorer = new MultiSignalScorer();
 
-    const entities: EntityData[] = librarianFiles.slice(0, 30).map(file => ({
+    const entities: EntityData[] = librainianFiles.slice(0, 30).map(file => ({
       id: createEntityId('file', file),
       type: 'file',
       path: file,
@@ -369,7 +369,7 @@ describeLive('Live Indexing: Real Codebase', () => {
     const context: QueryContext = {
       queryText: 'error handling and result types',
       queryTerms: ['error', 'result', 'handling'],
-      currentFile: librarianFiles[0],
+      currentFile: librainianFiles[0],
     };
 
     const startTime = Date.now();
@@ -395,7 +395,7 @@ describeLive('Live Indexing: Real Codebase', () => {
   it('should discover patterns from real codebase', async () => {
     const registry = new EntityRegistry();
 
-    const fileInfos = librarianFiles.map(file => ({
+    const fileInfos = librainianFiles.map(file => ({
       path: file,
       name: path.basename(file),
       directory: path.dirname(file),
@@ -537,11 +537,11 @@ describeWave0('Live Wave0: Full Codebase Indexing', () => {
 
     // Should have variety of files
     const hasOrchestrator = wave0Files.some(f => f.includes('/orchestrator/'));
-    const hasLibrarian = wave0Files.some(f => f.includes('/librarian/'));
+    const hasLiBrainian = wave0Files.some(f => f.includes('/librainian/'));
     const hasSoma = wave0Files.some(f => f.includes('/soma/'));
 
     // At least some modules should exist
-    expect(hasOrchestrator || hasLibrarian || hasSoma).toBe(true);
+    expect(hasOrchestrator || hasLiBrainian || hasSoma).toBe(true);
   });
 
   it('should classify entire wave0 with performance tracking', async () => {
@@ -643,7 +643,7 @@ describeWave0('Live Wave0: Full Codebase Indexing', () => {
 // DOGFOODING: LIBRARIAN UNDERSTANDS ITSELF
 // ============================================================================
 
-describeLive('Dogfooding: Librarian Self-Analysis', () => {
+describeLive('Dogfooding: LiBrainian Self-Analysis', () => {
   it('should identify its own core components', async () => {
     const files = await collectFiles(LIBRARIAN_ROOT, 50);
     const scorer = new MultiSignalScorer();
@@ -679,7 +679,7 @@ describeLive('Dogfooding: Librarian Self-Analysis', () => {
     }
   });
 
-  it('should find dependencies between librarian modules', async () => {
+  it('should find dependencies between librainian modules', async () => {
     const files = await collectFiles(LIBRARIAN_ROOT, 50);
 
     // Group files by directory (module)
@@ -697,7 +697,7 @@ describeLive('Dogfooding: Librarian Self-Analysis', () => {
     // Should have multiple modules/directories
     expect(moduleFiles.size).toBeGreaterThan(0);
 
-    // Should have agents or api or __tests__ module (existing librarian structure)
+    // Should have agents or api or __tests__ module (existing librainian structure)
     const hasAgents = moduleFiles.has('agents');
     const hasApi = moduleFiles.has('api');
     const hasTests = moduleFiles.has('__tests__');

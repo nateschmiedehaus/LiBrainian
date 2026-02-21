@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { listToolSchemas } from '../schema.js';
-import { createLibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer } from '../server.js';
 
 describe('MCP tool registry consistency', () => {
   it('keeps server tool list in sync with schema registry', async () => {
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       authorization: { enabledScopes: ['read', 'write', 'execute', 'network', 'admin'], requireConsent: false },
-      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+      audit: { enabled: false, logPath: '.librainian/audit/mcp', retentionDays: 1 },
     });
 
     const toolEntries = (server as any).getAvailableTools() as Array<Record<string, any>>;

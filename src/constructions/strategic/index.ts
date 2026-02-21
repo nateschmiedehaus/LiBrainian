@@ -2,7 +2,7 @@
  * @fileoverview Strategic Constructions Module
  *
  * Construction wrappers for all strategic modules. Each construction provides:
- * - Intelligent analysis using the Librarian API
+ * - Intelligent analysis using the LiBrainian API
  * - Assessment against configurable standards/presets
  * - Confidence tracking and evidence collection
  * - Graded results with recommendations

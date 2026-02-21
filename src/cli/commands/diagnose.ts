@@ -1,4 +1,4 @@
-import { Librarian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librainian.js';
 
 export interface DiagnoseCommandOptions {
   workspace?: string;
@@ -23,7 +23,7 @@ export async function diagnoseCommand(options: DiagnoseCommandOptions): Promise<
   const llmModelId = typeof envModel === 'string' && envModel.trim().length > 0 ? envModel : undefined;
   const hasLlmConfig = Boolean(llmProvider && llmModelId);
 
-  const librarian = new Librarian({
+  const librainian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
@@ -31,13 +31,13 @@ export async function diagnoseCommand(options: DiagnoseCommandOptions): Promise<
     llmModelId: hasLlmConfig ? llmModelId : undefined,
   });
 
-  await librarian.initialize();
-  const diagnosis = await librarian.diagnoseSelf();
+  await librainian.initialize();
+  const diagnosis = await librainian.diagnoseSelf();
   let outputPayload: unknown = diagnosis;
 
   if (includeConfig) {
-    const configReport = await librarian.diagnoseConfig();
-    const healingResult = runHeal ? await librarian.healConfig({ riskTolerance }) : undefined;
+    const configReport = await librainian.diagnoseConfig();
+    const healingResult = runHeal ? await librainian.healConfig({ riskTolerance }) : undefined;
     outputPayload = {
       self: diagnosis,
       config: configReport,
@@ -70,5 +70,5 @@ export async function diagnoseCommand(options: DiagnoseCommandOptions): Promise<
     const output = JSON.stringify(outputPayload, null, pretty ? 2 : 0);
     console.log(output);
   }
-  await librarian.shutdown();
+  await librainian.shutdown();
 }

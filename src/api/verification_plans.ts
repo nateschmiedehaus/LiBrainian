@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { ContextPack, LibrarianQuery, SynthesizedResponse } from '../types.js';
+import type { ContextPack, LiBrainianQuery, SynthesizedResponse } from '../types.js';
 import type { VerificationPlan } from '../strategic/verification_plan.js';
 import type { VerificationMethod } from '../strategic/work_primitives.js';
 import { createVerificationPlan } from '../strategic/verification_plan.js';
 import type { AdequacyReport } from './difficulty_detectors.js';
 
 export interface QueryVerificationPlanInput {
-  query: LibrarianQuery;
+  query: LiBrainianQuery;
   packs: ContextPack[];
   coverageGaps?: string[];
   synthesis?: SynthesizedResponse;

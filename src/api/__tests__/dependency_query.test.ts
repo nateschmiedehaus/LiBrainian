@@ -14,7 +14,7 @@ import {
   type StructuralQueryIntent,
   type ResolvedDependency,
 } from '../dependency_query.js';
-import type { LibrarianStorage, GraphEdgeQueryOptions } from '../../storage/types.js';
+import type { LiBrainianStorage, GraphEdgeQueryOptions } from '../../storage/types.js';
 import type { GraphEdge, ModuleKnowledge, FunctionKnowledge } from '../../types.js';
 
 // ============================================================================
@@ -25,7 +25,7 @@ function createMockStorage(options: {
   modules?: ModuleKnowledge[];
   functions?: FunctionKnowledge[];
   edges?: GraphEdge[];
-} = {}): LibrarianStorage {
+} = {}): LiBrainianStorage {
   const {
     modules = [],
     functions = [],
@@ -66,7 +66,7 @@ function createMockStorage(options: {
 
       return Promise.resolve(filtered);
     }),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 // ============================================================================
@@ -92,20 +92,20 @@ describe('parseStructuralQueryIntent', () => {
       expect(result.edgeTypes).toContain('imports');
     });
 
-    it('parses "What depends on LibrarianStorage?"', () => {
-      const result = parseStructuralQueryIntent('What depends on LibrarianStorage?');
+    it('parses "What depends on LiBrainianStorage?"', () => {
+      const result = parseStructuralQueryIntent('What depends on LiBrainianStorage?');
       expect(result.isStructural).toBe(true);
       expect(result.direction).toBe('dependents');
-      expect(result.targetEntity).toBe('LibrarianStorage');
+      expect(result.targetEntity).toBe('LiBrainianStorage');
       expect(result.edgeTypes).toContain('imports');
       expect(result.edgeTypes).toContain('calls');
     });
 
-    it('parses "What calls the queryLibrarian function?"', () => {
-      const result = parseStructuralQueryIntent('What calls the queryLibrarian function?');
+    it('parses "What calls the queryLiBrainian function?"', () => {
+      const result = parseStructuralQueryIntent('What calls the queryLiBrainian function?');
       expect(result.isStructural).toBe(true);
       expect(result.direction).toBe('dependents');
-      expect(result.targetEntity).toBe('queryLibrarian function');
+      expect(result.targetEntity).toBe('queryLiBrainian function');
       expect(result.edgeTypes).toContain('calls');
     });
 
@@ -205,7 +205,7 @@ describe('parseStructuralQueryIntent', () => {
     });
 
     it('returns isStructural=false for implementation queries', () => {
-      const result = parseStructuralQueryIntent('Where is queryLibrarian defined?');
+      const result = parseStructuralQueryIntent('Where is queryLiBrainian defined?');
       expect(result.isStructural).toBe(false);
     });
 
@@ -243,7 +243,7 @@ describe('shouldUseGraphTraversal', () => {
   });
 
   it('returns true for "What depends on X?" queries', () => {
-    expect(shouldUseGraphTraversal('What depends on LibrarianStorage?')).toBe(true);
+    expect(shouldUseGraphTraversal('What depends on LiBrainianStorage?')).toBe(true);
   });
 
   it('returns false for semantic queries', () => {
@@ -251,7 +251,7 @@ describe('shouldUseGraphTraversal', () => {
   });
 
   it('returns false for implementation queries', () => {
-    expect(shouldUseGraphTraversal('Where is queryLibrarian defined?')).toBe(false);
+    expect(shouldUseGraphTraversal('Where is queryLiBrainian defined?')).toBe(false);
   });
 
   it('returns true for "Show dependents of X" queries', () => {

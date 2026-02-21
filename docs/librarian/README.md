@@ -30,7 +30,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Not a fake-embedding system or heuristic-only retrieval.
 
 ## Launch Evidence Rule
-- `REAL_AGENT_REAL_LIBRARIAN_ONLY`: launch and publish claims must come from real agents operating on the real LiBrainian repository.
+- `REAL_AGENT_REAL_LIBRAINIAN_ONLY`: launch and publish claims must come from real agents operating on the real LiBrainian repository.
 - `NO_SYNTHETIC_OR_REFERENCE_FOR_RELEASE`: mock, synthetic, or reference harness outputs are non-release evidence only.
 - `NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE`: any retry/fallback/degraded path in release artifacts is a release failure.
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: launch evidence is accepted only when strict gates pass with zero strict-failure markers.
@@ -59,7 +59,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Model selection policy -> `docs/librarian/MODEL_POLICY.md`
 - Validation and audits -> `docs/librarian/validation.md`, `docs/librarian/AUDIT.md`
 - Target vs reality -> `docs/librarian/STATUS.md`
-- Conversation intelligence tracker -> `docs/librarian/CONVERSATION_INSIGHTS.md`
+- Conversation intelligence tracker -> `docs/librainian/CONVERSATION_INSIGHTS.md`
 - Phase 6+ (super-brain roadmap; planned) -> `docs/librarian/SUPER_BRAIN_PLAN.md`
 - Super-brain implementation protocol -> `docs/librarian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`
 - Repo maturity audit -> `docs/librarian/REPO_FOLDER_REVIEW.md`
@@ -104,7 +104,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - `docs/librarian/STATUS.md` (target vs reality, evidence linked)
 - `docs/librarian/GATES.json` (machine-readable gate status, layers 0-7)
 - `docs/librarian/hazard_register.md` (failure modes + preventive controls)
-- `docs/librarian/CONVERSATION_INSIGHTS.md` (strategy signal tracker required at release checkpoints)
+- `docs/librainian/CONVERSATION_INSIGHTS.md` (strategy signal tracker required at release checkpoints)
 
 ### Research & Planning
 - `docs/librarian/SUPER_BRAIN_PLAN.md` (Phase 6+: super-brain roadmap; planned)

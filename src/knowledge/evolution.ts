@@ -9,7 +9,7 @@
  * - Pattern emergence detection
  */
 
-import type { LibrarianStorage, EvolutionOutcome } from '../storage/types.js';
+import type { LiBrainianStorage, EvolutionOutcome } from '../storage/types.js';
 import {
   buildPerformanceMetrics,
   buildTrendAnalysis,
@@ -105,7 +105,7 @@ export interface TaskOutcome {
   testsAdded: number;
   testsPass: boolean;
   context: {
-    librarianContextUsed: boolean;
+    librainianContextUsed: boolean;
     contextPackCount: number;
     decomposed: boolean;
   };
@@ -119,7 +119,7 @@ export interface TaskOutcome {
 export class EvolutionKnowledge {
   private outcomes: TaskOutcome[] = [];
 
-  constructor(private storage: LibrarianStorage) {}
+  constructor(private storage: LiBrainianStorage) {}
 
   /**
    * Record a task outcome for learning.
@@ -205,18 +205,18 @@ export class EvolutionKnowledge {
     const successfulOutcomes = outcomes.filter(o => o.success);
     const failedOutcomes = outcomes.filter(o => !o.success);
 
-    // Pattern: Tasks with librarian context
-    const withContext = successfulOutcomes.filter(o => o.context.librarianContextUsed);
-    const withoutContext = successfulOutcomes.filter(o => !o.context.librarianContextUsed);
+    // Pattern: Tasks with librainian context
+    const withContext = successfulOutcomes.filter(o => o.context.librainianContextUsed);
+    const withoutContext = successfulOutcomes.filter(o => !o.context.librainianContextUsed);
     if (withContext.length > withoutContext.length) {
       learnings.push({
         type: 'success_pattern',
-        description: 'Tasks using librarian context have higher success rate',
+        description: 'Tasks using librainian context have higher success rate',
         confidence: withContext.length / (withContext.length + withoutContext.length),
         occurrences: withContext.length,
         lastSeen: new Date(),
         actionable: true,
-        recommendation: 'Always include librarian context for tasks',
+        recommendation: 'Always include librainian context for tasks',
       });
     }
 
@@ -250,7 +250,7 @@ export class EvolutionKnowledge {
 
     // Failure patterns
     if (failedOutcomes.length > 0) {
-      const noContext = failedOutcomes.filter(o => !o.context.librarianContextUsed);
+      const noContext = failedOutcomes.filter(o => !o.context.librainianContextUsed);
       if (noContext.length > failedOutcomes.length * 0.4) {
         learnings.push({
           type: 'failure_pattern',
@@ -281,7 +281,7 @@ export class EvolutionKnowledge {
     const outcomes = await this.getOutcomes(query.timeRange);
 
     // Context assembly optimization
-    const contextUsage = outcomes.filter(o => o.context.librarianContextUsed).length / (outcomes.length || 1);
+    const contextUsage = outcomes.filter(o => o.context.librainianContextUsed).length / (outcomes.length || 1);
     if (contextUsage < 0.8) {
       optimizations.push({
         target: 'context_usage',
@@ -289,7 +289,7 @@ export class EvolutionKnowledge {
         potentialValue: 0.95,
         effort: 'low',
         impact: 'high',
-        description: 'Increase librarian context usage',
+        description: 'Increase librainian context usage',
         steps: [
           'Enable context assembly by default',
           'Include relevant file context',
@@ -399,7 +399,7 @@ export class EvolutionKnowledge {
     }
 
     // Analyze common failure characteristics
-    const noContextFailures = failed.filter(o => !o.context.librarianContextUsed);
+    const noContextFailures = failed.filter(o => !o.context.librainianContextUsed);
     if (noContextFailures.length > failed.length * 0.3) {
       learnings.push({
         type: 'failure_pattern',

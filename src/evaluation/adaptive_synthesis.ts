@@ -1,7 +1,7 @@
 /**
  * @fileoverview Adaptive Synthesis System
  *
- * Adjusts Librarian's response generation strategy based on quality prediction.
+ * Adjusts LiBrainian's response generation strategy based on quality prediction.
  * When quality is expected to be low, uses more conservative synthesis with
  * more hedging and disclaimers.
  *

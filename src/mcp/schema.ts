@@ -872,7 +872,7 @@ export interface JSONSchemaProperty {
 /** Bootstrap tool JSON Schema */
 export const bootstrapToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/bootstrap-tool-input',
+  $id: 'librainian://schemas/bootstrap-tool-input',
   title: 'BootstrapToolInput',
   description: 'Input for the bootstrap tool - indexes a workspace',
   type: 'object',
@@ -894,7 +894,7 @@ export const bootstrapToolJsonSchema: JSONSchema = {
 /** get_session_briefing tool JSON Schema */
 export const getSessionBriefingToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/get-session-briefing-tool-input',
+  $id: 'librainian://schemas/get-session-briefing-tool-input',
   title: 'GetSessionBriefingToolInput',
   description: 'Input for get_session_briefing - return high-signal session/workspace orientation to reduce startup token overhead',
   type: 'object',
@@ -910,7 +910,7 @@ export const getSessionBriefingToolJsonSchema: JSONSchema = {
 /** Query tool JSON Schema */
 export const queryToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/query-tool-input',
+  $id: 'librainian://schemas/query-tool-input',
   title: 'QueryToolInput',
   description: `Input for semantic, cross-file retrieval and impact-aware context generation. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
   type: 'object',
@@ -980,7 +980,7 @@ export const queryToolJsonSchema: JSONSchema = {
 /** librainian_get_uncertainty tool JSON Schema */
 export const librainianGetUncertaintyToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/librainian-get-uncertainty-tool-input',
+  $id: 'librainian://schemas/librainian-get-uncertainty-tool-input',
   title: 'LibrainianGetUncertaintyToolInput',
   description: 'Input for librainian_get_uncertainty - returns retrieval confidence/entropy diagnostics for a query',
   type: 'object',
@@ -998,7 +998,7 @@ export const librainianGetUncertaintyToolJsonSchema: JSONSchema = {
 /** semantic_search tool JSON Schema */
 export const semanticSearchToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/semantic-search-tool-input',
+  $id: 'librainian://schemas/semantic-search-tool-input',
   title: 'SemanticSearchToolInput',
   description: `Input for semantic_search - primary semantic code localization. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
   type: 'object',
@@ -1033,7 +1033,7 @@ export const semanticSearchToolJsonSchema: JSONSchema = {
 /** get_context_pack tool JSON Schema */
 export const getContextPackToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/get-context-pack-tool-input',
+  $id: 'librainian://schemas/get-context-pack-tool-input',
   title: 'GetContextPackToolInput',
   description: 'Input for get_context_pack - token-budgeted context pack assembly for a task intent',
   type: 'object',
@@ -1051,7 +1051,7 @@ export const getContextPackToolJsonSchema: JSONSchema = {
 /** estimate_budget tool JSON Schema */
 export const estimateBudgetToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/estimate-budget-tool-input',
+  $id: 'librainian://schemas/estimate-budget-tool-input',
   title: 'EstimateBudgetToolInput',
   description: 'Input for estimate_budget - pre-task token feasibility estimation and safer fallback recommendations',
   type: 'object',
@@ -1069,7 +1069,7 @@ export const estimateBudgetToolJsonSchema: JSONSchema = {
 /** estimate_task_complexity tool JSON Schema */
 export const estimateTaskComplexityToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/estimate-task-complexity-tool-input',
+  $id: 'librainian://schemas/estimate-task-complexity-tool-input',
   title: 'EstimateTaskComplexityToolInput',
   description: 'Input for estimate_task_complexity - pre-dispatch routing estimate for complexity, model tier, and confidence',
   type: 'object',
@@ -1087,7 +1087,7 @@ export const estimateTaskComplexityToolJsonSchema: JSONSchema = {
 /** get_change_impact tool JSON Schema */
 export const getChangeImpactToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/get-change-impact-tool-input',
+  $id: 'librainian://schemas/get-change-impact-tool-input',
   title: 'GetChangeImpactToolInput',
   description: 'Input for get_change_impact - ranked blast-radius and risk analysis for a proposed change',
   type: 'object',
@@ -1105,7 +1105,7 @@ export const getChangeImpactToolJsonSchema: JSONSchema = {
 /** blast_radius tool JSON Schema */
 export const blastRadiusToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/blast-radius-tool-input',
+  $id: 'librainian://schemas/blast-radius-tool-input',
   title: 'BlastRadiusToolInput',
   description: 'Input for blast_radius - pre-edit transitive impact analysis (alias for get_change_impact)',
   type: 'object',
@@ -1123,7 +1123,7 @@ export const blastRadiusToolJsonSchema: JSONSchema = {
 /** pre_commit_check tool JSON Schema */
 export const preCommitCheckToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/pre-commit-check-tool-input',
+  $id: 'librainian://schemas/pre-commit-check-tool-input',
   title: 'PreCommitCheckToolInput',
   description: 'Input for pre_commit_check - semantic gate for changed files before submit',
   type: 'object',
@@ -1140,7 +1140,7 @@ export const preCommitCheckToolJsonSchema: JSONSchema = {
 /** claim_work_scope tool JSON Schema */
 export const claimWorkScopeToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/claim-work-scope-tool-input',
+  $id: 'librainian://schemas/claim-work-scope-tool-input',
   title: 'ClaimWorkScopeToolInput',
   description: 'Input for claim_work_scope - semantic coordination primitive for parallel agents',
   type: 'object',
@@ -1159,7 +1159,7 @@ export const claimWorkScopeToolJsonSchema: JSONSchema = {
 /** append_claim tool JSON Schema */
 export const appendClaimToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/append-claim-tool-input',
+  $id: 'librainian://schemas/append-claim-tool-input',
   title: 'AppendClaimToolInput',
   description: 'Input for append_claim - persist session knowledge claims for later retrieval and harvest',
   type: 'object',
@@ -1179,7 +1179,7 @@ export const appendClaimToolJsonSchema: JSONSchema = {
 /** query_claims tool JSON Schema */
 export const queryClaimsToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/query-claims-tool-input',
+  $id: 'librainian://schemas/query-claims-tool-input',
   title: 'QueryClaimsToolInput',
   description: 'Input for query_claims - filter and retrieve previously appended knowledge claims',
   type: 'object',
@@ -1198,7 +1198,7 @@ export const queryClaimsToolJsonSchema: JSONSchema = {
 /** harvest_session_knowledge tool JSON Schema */
 export const harvestSessionKnowledgeToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/harvest-session-knowledge-tool-input',
+  $id: 'librainian://schemas/harvest-session-knowledge-tool-input',
   title: 'HarvestSessionKnowledgeToolInput',
   description: 'Input for harvest_session_knowledge - summarize high-confidence claims for a session/workspace',
   type: 'object',
@@ -1220,7 +1220,7 @@ export const harvestSessionKnowledgeToolJsonSchema: JSONSchema = {
 /** memory_add tool JSON Schema */
 export const memoryAddToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/memory-add-tool-input',
+  $id: 'librainian://schemas/memory-add-tool-input',
   title: 'MemoryAddToolInput',
   description: 'Input for memory_add - persist a semantic memory fact',
   type: 'object',
@@ -1240,7 +1240,7 @@ export const memoryAddToolJsonSchema: JSONSchema = {
 /** memory_search tool JSON Schema */
 export const memorySearchToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/memory-search-tool-input',
+  $id: 'librainian://schemas/memory-search-tool-input',
   title: 'MemorySearchToolInput',
   description: 'Input for memory_search - retrieve semantically relevant memory facts',
   type: 'object',
@@ -1258,7 +1258,7 @@ export const memorySearchToolJsonSchema: JSONSchema = {
 /** memory_update tool JSON Schema */
 export const memoryUpdateToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/memory-update-tool-input',
+  $id: 'librainian://schemas/memory-update-tool-input',
   title: 'MemoryUpdateToolInput',
   description: 'Input for memory_update - update an existing memory fact',
   type: 'object',
@@ -1274,7 +1274,7 @@ export const memoryUpdateToolJsonSchema: JSONSchema = {
 /** memory_delete tool JSON Schema */
 export const memoryDeleteToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/memory-delete-tool-input',
+  $id: 'librainian://schemas/memory-delete-tool-input',
   title: 'MemoryDeleteToolInput',
   description: 'Input for memory_delete - delete a memory fact',
   type: 'object',
@@ -1289,7 +1289,7 @@ export const memoryDeleteToolJsonSchema: JSONSchema = {
 /** Submit feedback tool JSON Schema */
 export const submitFeedbackToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/submit-feedback-tool-input',
+  $id: 'librainian://schemas/submit-feedback-tool-input',
   title: 'SubmitFeedbackToolInput',
   description: 'Input for the submit_feedback tool - records agent feedback for a query',
   type: 'object',
@@ -1308,7 +1308,7 @@ export const submitFeedbackToolJsonSchema: JSONSchema = {
 /** feedback_retrieval_result tool JSON Schema */
 export const feedbackRetrievalResultToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/feedback-retrieval-result-tool-input',
+  $id: 'librainian://schemas/feedback-retrieval-result-tool-input',
   title: 'FeedbackRetrievalResultToolInput',
   description: 'Input for feedback_retrieval_result - submit retrieval helpfulness outcome from a query feedback token',
   type: 'object',
@@ -1326,7 +1326,7 @@ export const feedbackRetrievalResultToolJsonSchema: JSONSchema = {
 /** get_retrieval_stats tool JSON Schema */
 export const getRetrievalStatsToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/get-retrieval-stats-tool-input',
+  $id: 'librainian://schemas/get-retrieval-stats-tool-input',
   title: 'GetRetrievalStatsToolInput',
   description: 'Input for get_retrieval_stats - summarize retrieval strategy routing outcomes and rewards',
   type: 'object',
@@ -1342,7 +1342,7 @@ export const getRetrievalStatsToolJsonSchema: JSONSchema = {
 /** get_exploration_suggestions tool JSON Schema */
 export const getExplorationSuggestionsToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/get-exploration-suggestions-tool-input',
+  $id: 'librainian://schemas/get-exploration-suggestions-tool-input',
   title: 'GetExplorationSuggestionsToolInput',
   description: 'Input for get_exploration_suggestions - surface high-centrality low-query dark zones for exploration',
   type: 'object',
@@ -1358,7 +1358,7 @@ export const getExplorationSuggestionsToolJsonSchema: JSONSchema = {
 /** Explain function tool JSON Schema */
 export const explainFunctionToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/explain-function-tool-input',
+  $id: 'librainian://schemas/explain-function-tool-input',
   title: 'ExplainFunctionToolInput',
   description: 'Input for explain_function - return focused symbol-level context for a function',
   type: 'object',
@@ -1374,7 +1374,7 @@ export const explainFunctionToolJsonSchema: JSONSchema = {
 /** Find callers tool JSON Schema */
 export const findCallersToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/find-callers-tool-input',
+  $id: 'librainian://schemas/find-callers-tool-input',
   title: 'FindCallersToolInput',
   description: 'Input for find_callers - return direct or transitive caller callsites for a function',
   type: 'object',
@@ -1392,7 +1392,7 @@ export const findCallersToolJsonSchema: JSONSchema = {
 /** Find callees tool JSON Schema */
 export const findCalleesToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/find-callees-tool-input',
+  $id: 'librainian://schemas/find-callees-tool-input',
   title: 'FindCalleesToolInput',
   description: 'Input for find_callees - return direct callees for a function',
   type: 'object',
@@ -1408,7 +1408,7 @@ export const findCalleesToolJsonSchema: JSONSchema = {
 /** Find usages tool JSON Schema */
 export const findUsagesToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/find-usages-tool-input',
+  $id: 'librainian://schemas/find-usages-tool-input',
   title: 'FindUsagesToolInput',
   description: 'Input for find_usages - return symbol callsites and usage files',
   type: 'object',
@@ -1424,7 +1424,7 @@ export const findUsagesToolJsonSchema: JSONSchema = {
 /** Trace imports tool JSON Schema */
 export const traceImportsToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/trace-imports-tool-input',
+  $id: 'librainian://schemas/trace-imports-tool-input',
   title: 'TraceImportsToolInput',
   description: 'Input for trace_imports - walk import and importedBy relationships for a file',
   type: 'object',
@@ -1441,7 +1441,7 @@ export const traceImportsToolJsonSchema: JSONSchema = {
 /** Trace control flow tool JSON Schema */
 export const traceControlFlowToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/trace-control-flow-tool-input',
+  $id: 'librainian://schemas/trace-control-flow-tool-input',
   title: 'TraceControlFlowToolInput',
   description: 'Input for trace_control_flow - return CFG/basic-block sequence for a function',
   type: 'object',
@@ -1457,7 +1457,7 @@ export const traceControlFlowToolJsonSchema: JSONSchema = {
 /** Trace data flow tool JSON Schema */
 export const traceDataFlowToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/trace-data-flow-tool-input',
+  $id: 'librainian://schemas/trace-data-flow-tool-input',
   title: 'TraceDataFlowToolInput',
   description: 'Input for trace_data_flow - return source-to-sink data flow evidence',
   type: 'object',
@@ -1474,7 +1474,7 @@ export const traceDataFlowToolJsonSchema: JSONSchema = {
 /** Reset session state tool JSON Schema */
 export const resetSessionStateToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/reset-session-state-tool-input',
+  $id: 'librainian://schemas/reset-session-state-tool-input',
   title: 'ResetSessionStateToolInput',
   description: 'Input for reset_session_state - clears session-scoped query loop detection history',
   type: 'object',
@@ -1489,7 +1489,7 @@ export const resetSessionStateToolJsonSchema: JSONSchema = {
 /** Synthesize plan tool JSON Schema */
 export const synthesizePlanToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/synthesize-plan-tool-input',
+  $id: 'librainian://schemas/synthesize-plan-tool-input',
   title: 'SynthesizePlanToolInput',
   description: 'Input for synthesize_plan - persist an explicit task plan grounded in retrieved context packs',
   type: 'object',
@@ -1506,7 +1506,7 @@ export const synthesizePlanToolJsonSchema: JSONSchema = {
 /** Request human review tool JSON Schema */
 export const requestHumanReviewToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/request-human-review-tool-input',
+  $id: 'librainian://schemas/request-human-review-tool-input',
   title: 'RequestHumanReviewToolInput',
   description: 'Input for request_human_review - structured human escalation for uncertain or risky agent actions',
   type: 'object',
@@ -1525,7 +1525,7 @@ export const requestHumanReviewToolJsonSchema: JSONSchema = {
 /** List constructions tool JSON Schema */
 export const listConstructionsToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/list-constructions-tool-input',
+  $id: 'librainian://schemas/list-constructions-tool-input',
   title: 'ListConstructionsToolInput',
   description: 'Input for list_constructions - discover registered constructions and their manifests',
   type: 'object',
@@ -1543,7 +1543,7 @@ export const listConstructionsToolJsonSchema: JSONSchema = {
 
 /** List capabilities tool JSON Schema */
 export const listCapabilitiesToolJsonSchema: JSONSchema = {
-  $id: 'librarian://schemas/list-capabilities-tool-input',
+  $id: 'librainian://schemas/list-capabilities-tool-input',
   type: 'object',
   description: 'Input for list_capabilities - return a versioned capability inventory for MCP tools, constructions, and compositions',
   properties: {
@@ -1556,7 +1556,7 @@ export const listCapabilitiesToolJsonSchema: JSONSchema = {
 /** Invoke construction tool JSON Schema */
 export const invokeConstructionToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/invoke-construction-tool-input',
+  $id: 'librainian://schemas/invoke-construction-tool-input',
   title: 'InvokeConstructionToolInput',
   description: 'Input for invoke_construction - execute a registered construction by ID',
   type: 'object',
@@ -1572,7 +1572,7 @@ export const invokeConstructionToolJsonSchema: JSONSchema = {
 /** Describe construction tool JSON Schema */
 export const describeConstructionToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/describe-construction-tool-input',
+  $id: 'librainian://schemas/describe-construction-tool-input',
   title: 'DescribeConstructionToolInput',
   description: 'Input for describe_construction - retrieve detailed construction metadata and usage guidance',
   type: 'object',
@@ -1588,7 +1588,7 @@ export const describeConstructionToolJsonSchema: JSONSchema = {
 /** Explain operator tool JSON Schema */
 export const explainOperatorToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/explain-operator-tool-input',
+  $id: 'librainian://schemas/explain-operator-tool-input',
   title: 'ExplainOperatorToolInput',
   description: 'Input for explain_operator - explain or recommend construction operators',
   type: 'object',
@@ -1603,7 +1603,7 @@ export const explainOperatorToolJsonSchema: JSONSchema = {
 /** Check construction types tool JSON Schema */
 export const checkConstructionTypesToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/check-construction-types-tool-input',
+  $id: 'librainian://schemas/check-construction-types-tool-input',
   title: 'CheckConstructionTypesToolInput',
   description: 'Input for check_construction_types - verify composition compatibility for two constructions',
   type: 'object',
@@ -1619,7 +1619,7 @@ export const checkConstructionTypesToolJsonSchema: JSONSchema = {
 /** Find symbol tool JSON Schema */
 export const findSymbolToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/find-symbol-tool-input',
+  $id: 'librainian://schemas/find-symbol-tool-input',
   title: 'FindSymbolToolInput',
   description: 'Input for find_symbol - discover opaque IDs for downstream MCP tools',
   type: 'object',
@@ -1636,7 +1636,7 @@ export const findSymbolToolJsonSchema: JSONSchema = {
 /** get_repo_map tool JSON Schema */
 export const getRepoMapToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/get-repo-map-tool-input',
+  $id: 'librainian://schemas/get-repo-map-tool-input',
   title: 'GetRepoMapToolInput',
   description: 'Input for get_repo_map - compact PageRank-ranked repository map for fast orientation',
   type: 'object',

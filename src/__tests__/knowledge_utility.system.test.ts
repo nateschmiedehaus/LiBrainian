@@ -1,7 +1,7 @@
 /**
  * @fileoverview Knowledge Utility Tests - REAL PROVIDER INTEGRATION (SYSTEM)
  *
- * Tests that verify the librarian provides ACTUAL KNOWLEDGE UTILITY.
+ * Tests that verify the librainian provides ACTUAL KNOWLEDGE UTILITY.
  * These tests use the REAL providers (Xenova embeddings, Claude/Codex LLM)
  * configured via Claude Code (`claude setup-token` or run `claude`) and Codex CLI (`codex login`).
  *
@@ -21,12 +21,12 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as fsSync from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { Librarian, type LibrarianConfig } from '../api/librarian.js';
+import { LiBrainian, type LiBrainianConfig } from '../api/librainian.js';
 import { EmbeddingService } from '../api/embeddings.js';
 import { runProviderReadinessGate } from '../api/provider_gate.js';
-import { queryLibrarian, assembleContext, createFunctionQuery, createFileQuery, createRelatedQuery } from '../api/query.js';
-import type { LibrarianQuery, ContextPack, GraphEdge } from '../types.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import { queryLiBrainian, assembleContext, createFunctionQuery, createFileQuery, createRelatedQuery } from '../api/query.js';
+import type { LiBrainianQuery, ContextPack, GraphEdge } from '../types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { clearDefaultLlmServiceFactory, setDefaultLlmServiceFactory } from '../adapters/llm_service.js';
 
 // ============================================================================
@@ -40,9 +40,9 @@ const LIBRARIAN_ROOT = path.resolve(import.meta.dirname, '..');
 // Must use repo root for canon.json, but scope indexing via include patterns
 const TEST_WORKSPACE = REPO_ROOT;
 
-// Use the MAIN librarian database - we're testing with REAL indexed data
+// Use the MAIN librainian database - we're testing with REAL indexed data
 // This tests actual knowledge utility with pre-existing bootstrap
-const TEST_DB_PATH = path.join(TEST_WORKSPACE, '.librarian', 'librarian.sqlite');
+const TEST_DB_PATH = path.join(TEST_WORKSPACE, '.librainian', 'librainian.sqlite');
 const LLM_SERVICE_PATH_CANDIDATES = [
   path.join(REPO_ROOT, 'src', 'soma', 'providers', 'llm_service.ts'),
   path.join(REPO_ROOT, 'src', 'soma', 'providers', 'llm_service.js'),
@@ -58,21 +58,21 @@ const BOOTSTRAP_TIMEOUT = 300_000;
 const QUERY_TIMEOUT = 0;
 
 // ============================================================================
-// SHARED STATE - Single librarian instance for all tests
+// SHARED STATE - Single librainian instance for all tests
 // ============================================================================
 
-let sharedLibrarian: Librarian | null = null;
+let sharedLiBrainian: LiBrainian | null = null;
 let sharedEmbeddingService: EmbeddingService | null = null;
-let sharedStorage: LibrarianStorage | null = null;
+let sharedStorage: LiBrainianStorage | null = null;
 let bootstrapStats: { functions: number; modules: number; packs: number } | null = null;
 
-async function getSharedLibrarian(): Promise<Librarian> {
-  if (sharedLibrarian) return sharedLibrarian;
+async function getSharedLiBrainian(): Promise<LiBrainian> {
+  if (sharedLiBrainian) return sharedLiBrainian;
 
-  // Using main librarian database - no cleanup needed
+  // Using main librainian database - no cleanup needed
   sharedEmbeddingService = new EmbeddingService();
 
-  const config: LibrarianConfig = {
+  const config: LiBrainianConfig = {
     workspace: TEST_WORKSPACE,
     dbPath: TEST_DB_PATH,
     // Enable autoBootstrap - should detect existing data and skip
@@ -88,22 +88,22 @@ async function getSharedLibrarian(): Promise<Librarian> {
     },
   };
 
-  sharedLibrarian = new Librarian(config);
-  await sharedLibrarian.initialize();
+  sharedLiBrainian = new LiBrainian(config);
+  await sharedLiBrainian.initialize();
 
-  sharedStorage = sharedLibrarian.getStorage();
+  sharedStorage = sharedLiBrainian.getStorage();
 
   // Get bootstrap stats
-  const status = await sharedLibrarian.getStatus();
+  const status = await sharedLiBrainian.getStatus();
   bootstrapStats = {
     functions: status.stats.totalFunctions,
     modules: status.stats.totalModules,
     packs: status.stats.totalContextPacks,
   };
 
-  console.log('Shared librarian initialized with stats:', bootstrapStats);
+  console.log('Shared librainian initialized with stats:', bootstrapStats);
 
-  return sharedLibrarian;
+  return sharedLiBrainian;
 }
 
 async function getSharedEmbeddingService(): Promise<EmbeddingService> {
@@ -122,18 +122,18 @@ beforeAll(async () => {
     const module = await import(pathToFileURL(WAVE0_LLM_SERVICE_PATH).href);
     setDefaultLlmServiceFactory(async () => new module.LLMService(), { force: true });
   }
-  // Pre-initialize shared librarian to avoid race conditions
-  await getSharedLibrarian();
+  // Pre-initialize shared librainian to avoid race conditions
+  await getSharedLiBrainian();
 }, BOOTSTRAP_TIMEOUT);
 
 afterAll(async () => {
   if (IS_TIER0) return;
-  if (sharedLibrarian) {
-    await sharedLibrarian.shutdown();
-    sharedLibrarian = null;
+  if (sharedLiBrainian) {
+    await sharedLiBrainian.shutdown();
+    sharedLiBrainian = null;
   }
   clearDefaultLlmServiceFactory();
-  // NOTE: Not deleting database - using main librarian data
+  // NOTE: Not deleting database - using main librainian data
 }, 30_000);
 
 // ============================================================================
@@ -190,13 +190,13 @@ describeWave0('Provider Readiness', () => {
 // LIBRARIAN BOOTSTRAP TESTS
 // ============================================================================
 
-describeWave0('Librarian Bootstrap', () => {
+describeWave0('LiBrainian Bootstrap', () => {
   it('should bootstrap on wave0 codebase', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
-    expect(librarian.isReady()).toBe(true);
+    expect(librainian.isReady()).toBe(true);
 
-    const status = await librarian.getStatus();
+    const status = await librainian.getStatus();
     expect(status.initialized).toBe(true);
     expect(status.bootstrapped).toBe(true);
 
@@ -218,8 +218,8 @@ describeWave0('Librarian Bootstrap', () => {
 
 describeWave0('Storage Object Types', () => {
   it('should store and retrieve modules', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) {
       console.log('Storage not available');
       return;
@@ -240,13 +240,13 @@ describeWave0('Storage Object Types', () => {
   }, 30_000);
 
   it('should store and retrieve functions', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Query functions by module
     const modules = await storage.getModules();
-    const targetModule = modules.find(m => m.path.includes('librarian.ts'));
+    const targetModule = modules.find(m => m.path.includes('librainian.ts'));
 
     if (targetModule) {
       const allFunctions = await storage.getFunctions();
@@ -263,8 +263,8 @@ describeWave0('Storage Object Types', () => {
   }, 30_000);
 
   it('should store and retrieve context packs', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Try to get any context pack
@@ -292,8 +292,8 @@ describeWave0('Storage Object Types', () => {
   }, 30_000);
 
   it('should store and retrieve graph edges', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Get import edges
@@ -314,8 +314,8 @@ describeWave0('Storage Object Types', () => {
   }, 30_000);
 
   it('should store and retrieve embeddings', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Get modules and check for embeddings
@@ -340,8 +340,8 @@ describeWave0('Storage Object Types', () => {
 
 describeWave0('Graph Relationship Types', () => {
   it('should track import relationships', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     const edges = await storage.getGraphEdges({ edgeTypes: ['imports'] });
@@ -355,18 +355,18 @@ describeWave0('Graph Relationship Types', () => {
       expect(edge.toType).toBeDefined();
     }
 
-    // Find a specific import (librarian.ts imports embeddings.ts)
-    const librarianImports = edges.filter(e =>
+    // Find a specific import (librainian.ts imports embeddings.ts)
+    const librainianImports = edges.filter(e =>
       e.fromType === 'module' &&
       e.edgeType === 'imports'
     );
 
-    console.log(`Import relationships: ${librarianImports.length}`);
+    console.log(`Import relationships: ${librainianImports.length}`);
   }, 30_000);
 
   it('should track call relationships', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     const edges = await storage.getGraphEdges({ edgeTypes: ['calls'] });
@@ -379,8 +379,8 @@ describeWave0('Graph Relationship Types', () => {
   }, 30_000);
 
   it('should track call relationships', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     const edges = await storage.getGraphEdges({ edgeTypes: ['calls'] });
@@ -394,8 +394,8 @@ describeWave0('Graph Relationship Types', () => {
   }, 30_000);
 
   it('should support bidirectional graph traversal', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     const modules = await storage.getModules();
@@ -425,21 +425,21 @@ describeWave0('Graph Relationship Types', () => {
 // ============================================================================
 
 describeWave0('Knowledge Query Accuracy', () => {
-  it('should find librarian query API when asked about querying', async () => {
-    const librarian = await getSharedLibrarian();
+  it('should find librainian query API when asked about querying', async () => {
+    const librainian = await getSharedLiBrainian();
 
-    const query: LibrarianQuery = {
-      intent: 'How do I query the librarian for context packs?',
+    const query: LiBrainianQuery = {
+      intent: 'How do I query the librainian for context packs?',
       depth: 'L1',
     };
 
-    const response = await librarian.query(query);
+    const response = await librainian.query(query);
 
     expect(response.packs.length).toBeGreaterThanOrEqual(0);
 
     // Log what was found
     const allFiles = response.packs.flatMap(p => p.relatedFiles);
-    console.log('Query results for "querying librarian":', {
+    console.log('Query results for "querying librainian":', {
       packCount: response.packs.length,
       confidence: response.totalConfidence.toFixed(2),
       relatedFiles: allFiles.slice(0, 5),
@@ -447,14 +447,14 @@ describeWave0('Knowledge Query Accuracy', () => {
   }, QUERY_TIMEOUT);
 
   it('should find embedding service when asked about embeddings', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
-    const query: LibrarianQuery = {
-      intent: 'How are embeddings generated in the librarian?',
+    const query: LiBrainianQuery = {
+      intent: 'How are embeddings generated in the librainian?',
       depth: 'L1',
     };
 
-    const response = await librarian.query(query);
+    const response = await librainian.query(query);
 
     const allFiles = response.packs.flatMap(p => p.relatedFiles);
     console.log('Query results for "embeddings":', {
@@ -465,14 +465,14 @@ describeWave0('Knowledge Query Accuracy', () => {
   }, QUERY_TIMEOUT);
 
   it('should find orchestrator when asked about agent coordination', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
-    const query: LibrarianQuery = {
+    const query: LiBrainianQuery = {
       intent: 'How does the orchestrator coordinate agents?',
       depth: 'L1',
     };
 
-    const response = await librarian.query(query);
+    const response = await librainian.query(query);
 
     const allFiles = response.packs.flatMap(p => p.relatedFiles);
     console.log('Query results for "orchestrator":', {
@@ -483,10 +483,10 @@ describeWave0('Knowledge Query Accuracy', () => {
   }, QUERY_TIMEOUT);
 
   it('should handle file-specific queries', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
-    const query = createFileQuery('src/librarian/api/librarian.ts');
-    const response = await librarian.query(query);
+    const query = createFileQuery('src/librainian/api/librainian.ts');
+    const response = await librainian.query(query);
 
     console.log('File query results:', {
       packCount: response.packs.length,
@@ -495,10 +495,10 @@ describeWave0('Knowledge Query Accuracy', () => {
   }, QUERY_TIMEOUT);
 
   it('should handle function-specific queries', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
-    const query = createFunctionQuery('initialize', 'src/librarian/api/librarian.ts');
-    const response = await librarian.query(query);
+    const query = createFunctionQuery('initialize', 'src/librainian/api/librainian.ts');
+    const response = await librainian.query(query);
 
     console.log('Function query results:', {
       packCount: response.packs.length,
@@ -507,11 +507,11 @@ describeWave0('Knowledge Query Accuracy', () => {
   }, QUERY_TIMEOUT);
 
   it('should handle related queries', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     // createRelatedQuery takes (concept, context?: string[])
-    const query = createRelatedQuery('imports', ['src/librarian/api/librarian.ts']);
-    const response = await librarian.query(query);
+    const query = createRelatedQuery('imports', ['src/librainian/api/librainian.ts']);
+    const response = await librainian.query(query);
 
     console.log('Related query results:', {
       packCount: response.packs.length,
@@ -525,11 +525,11 @@ describeWave0('Knowledge Query Accuracy', () => {
 // ============================================================================
 
 describeWave0('Knowledge Domain Coverage', () => {
-  // Test that librarian captures knowledge from multiple domains
+  // Test that librainian captures knowledge from multiple domains
 
   it('should capture code structure knowledge', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Check for modules (any type - could be .ts, .json, etc.)
@@ -539,8 +539,8 @@ describeWave0('Knowledge Domain Coverage', () => {
   }, 30_000);
 
   it('should capture dependency knowledge', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Check for import graph
@@ -549,8 +549,8 @@ describeWave0('Knowledge Domain Coverage', () => {
   }, 30_000);
 
   it('should capture test mapping knowledge', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Check for test files
@@ -563,8 +563,8 @@ describeWave0('Knowledge Domain Coverage', () => {
   }, 30_000);
 
   it('should capture API surface knowledge', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Look for exported functions
@@ -702,8 +702,8 @@ describeWave0('Semantic Similarity Accuracy', () => {
 
 describeWave0('Context Assembly', () => {
   it('should assemble agent knowledge context', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     const embeddingService = await getSharedEmbeddingService();
 
     if (!storage) {
@@ -711,8 +711,8 @@ describeWave0('Context Assembly', () => {
       return;
     }
 
-    const query: LibrarianQuery = {
-      intent: 'Implement a new indexer for the librarian',
+    const query: LiBrainianQuery = {
+      intent: 'Implement a new indexer for the librainian',
       depth: 'L2',
     };
 
@@ -730,15 +730,15 @@ describeWave0('Context Assembly', () => {
   }, QUERY_TIMEOUT);
 
   it('should include graph information in context', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     const embeddingService = await getSharedEmbeddingService();
 
     if (!storage) return;
 
-    const query: LibrarianQuery = {
-      intent: 'What imports the librarian?',
-      affectedFiles: ['src/librarian/api/librarian.ts'],
+    const query: LiBrainianQuery = {
+      intent: 'What imports the librainian?',
+      affectedFiles: ['src/librainian/api/librainian.ts'],
       depth: 'L2',
     };
 
@@ -761,8 +761,8 @@ describeWave0('Context Assembly', () => {
 
 describeWave0('Engine Integration', () => {
   it('should have relevance engine available', async () => {
-    const librarian = await getSharedLibrarian();
-    const engines = librarian.getEngines();
+    const librainian = await getSharedLiBrainian();
+    const engines = librainian.getEngines();
 
     expect(engines).toBeDefined();
     expect(engines.relevance).toBeDefined();
@@ -783,14 +783,14 @@ describeWave0('Engine Integration', () => {
   }, 30_000);
 
   it('should have constraint engine available', async () => {
-    const librarian = await getSharedLibrarian();
-    const engines = librarian.getEngines();
+    const librainian = await getSharedLiBrainian();
+    const engines = librainian.getEngines();
 
     expect(engines.constraint).toBeDefined();
 
     // Get applicable constraints
     const constraints = await engines.constraint.getApplicableConstraints([
-      'src/librarian/api/librarian.ts',
+      'src/librainian/api/librainian.ts',
     ]);
 
     console.log('Constraint engine:', {
@@ -799,14 +799,14 @@ describeWave0('Engine Integration', () => {
   }, 30_000);
 
   it('should have meta engine available', async () => {
-    const librarian = await getSharedLibrarian();
-    const engines = librarian.getEngines();
+    const librainian = await getSharedLiBrainian();
+    const engines = librainian.getEngines();
 
     expect(engines.meta).toBeDefined();
 
     // Check confidence
     const confidence = await engines.meta.getConfidence([
-      'src/librarian/api/librarian.ts',
+      'src/librainian/api/librainian.ts',
     ]);
 
     console.log('Meta engine:', {
@@ -821,8 +821,8 @@ describeWave0('Engine Integration', () => {
 
 describeWave0('Universal Knowledge', () => {
   it('should store universal knowledge records', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Query for universal knowledge
@@ -844,15 +844,15 @@ describeWave0('Universal Knowledge', () => {
   }, 30_000);
 
   it('should support knowledge queries', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     try {
-      const knowledge = librarian.getKnowledge();
+      const knowledge = librainian.getKnowledge();
 
       // Use proper KnowledgeQuery format with category discriminant
       const result = await knowledge.query({
         category: 'architecture',
-        query: { type: 'dependencies', target: 'src/librarian', depth: 2 },
+        query: { type: 'dependencies', target: 'src/librainian', depth: 2 },
       });
 
       // Type narrow to ArchitectureResult
@@ -873,8 +873,8 @@ describeWave0('Universal Knowledge', () => {
 
 describeWave0('Persona Views', () => {
   it('should generate programmer view', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     // Get a module to view
@@ -883,7 +883,7 @@ describeWave0('Persona Views', () => {
     if (!targetModule) return;
 
     try {
-      const view = await librarian.getPersonaView(targetModule.id, 'programmer');
+      const view = await librainian.getPersonaView(targetModule.id, 'programmer');
 
       if (view) {
         console.log('Programmer view:', {
@@ -900,8 +900,8 @@ describeWave0('Persona Views', () => {
   }, 30_000);
 
   it('should generate glance card', async () => {
-    const librarian = await getSharedLibrarian();
-    const storage = librarian.getStorage();
+    const librainian = await getSharedLiBrainian();
+    const storage = librainian.getStorage();
     if (!storage) return;
 
     const modules = await storage.getModules();
@@ -909,7 +909,7 @@ describeWave0('Persona Views', () => {
     if (!targetModule) return;
 
     try {
-      const card = await librarian.getGlanceCard(targetModule.id);
+      const card = await librainian.getGlanceCard(targetModule.id);
 
       if (card) {
         console.log('Glance card:', {
@@ -931,10 +931,10 @@ describeWave0('Persona Views', () => {
 
 describeWave0('Visualization', () => {
   it('should generate ASCII tree', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     try {
-      const result = await librarian.visualizeASCII('tree', 'src/librarian');
+      const result = await librainian.visualizeASCII('tree', 'src/librainian');
 
       if (result.content) {
         console.log('ASCII tree preview:', result.content.substring(0, 200));
@@ -945,10 +945,10 @@ describeWave0('Visualization', () => {
   }, 30_000);
 
   it('should generate health summary', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     try {
-      const result = await librarian.visualizeASCII('health_summary');
+      const result = await librainian.visualizeASCII('health_summary');
 
       if (result.content) {
         console.log('Health summary preview:', result.content.substring(0, 200));
@@ -965,10 +965,10 @@ describeWave0('Visualization', () => {
 
 describeWave0('Recommendations', () => {
   it('should generate refactoring recommendations', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     try {
-      const recs = await librarian.getRecommendations('src/librarian', 'refactoring');
+      const recs = await librainian.getRecommendations('src/librainian', 'refactoring');
 
       console.log('Refactoring recommendations:', {
         count: recs.length,
@@ -986,7 +986,7 @@ describeWave0('Recommendations', () => {
 
 describeWave0('Knowledge Regression Tests', () => {
   it('should not return empty results for valid queries', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     const validQueries = [
       'How does error handling work?',
@@ -995,7 +995,7 @@ describeWave0('Knowledge Regression Tests', () => {
     ];
 
     for (const intent of validQueries) {
-      const response = await librarian.query({
+      const response = await librainian.query({
         intent,
         depth: 'L1',
       });
@@ -1005,11 +1005,11 @@ describeWave0('Knowledge Regression Tests', () => {
   }, QUERY_TIMEOUT * 3);
 
   it('should handle edge case queries gracefully', async () => {
-    const librarian = await getSharedLibrarian();
+    const librainian = await getSharedLiBrainian();
 
     // Empty intent
     try {
-      const response = await librarian.query({
+      const response = await librainian.query({
         intent: '',
         depth: 'L1',
       });
@@ -1021,7 +1021,7 @@ describeWave0('Knowledge Regression Tests', () => {
     // Very long intent
     const longIntent = 'a'.repeat(10000);
     try {
-      const response = await librarian.query({
+      const response = await librainian.query({
         intent: longIntent,
         depth: 'L1',
       });
@@ -1031,7 +1031,7 @@ describeWave0('Knowledge Regression Tests', () => {
     }
 
     // Non-existent file
-    const response = await librarian.query({
+    const response = await librainian.query({
       intent: 'What is in nonexistent.ts?',
       affectedFiles: ['nonexistent.ts'],
       depth: 'L1',

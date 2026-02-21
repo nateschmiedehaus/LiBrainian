@@ -4,7 +4,7 @@
  * Tests are written FIRST (TDD). Implementation comes AFTER these tests fail.
  *
  * The Codebase Profiler analyzes a repository and produces a quality profile
- * used by other components to adapt Librarian's behavior.
+ * used by other components to adapt LiBrainian's behavior.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -19,7 +19,7 @@ import {
 // TEST FIXTURES
 // ============================================================================
 
-// Librarian repo as the main test fixture (a real TypeScript monorepo)
+// LiBrainian repo as the main test fixture (a real TypeScript monorepo)
 const LIBRARIAN_ROOT = path.resolve(__dirname, '../../..');
 
 // External repos from eval-corpus for diverse testing
@@ -234,7 +234,7 @@ describe('CodebaseProfiler - detectLanguages', () => {
   it('should detect multiple languages when present', async () => {
     const languages = await profiler.detectLanguages(LIBRARIAN_ROOT);
 
-    // Librarian has TypeScript, JSON, Markdown, etc.
+    // LiBrainian has TypeScript, JSON, Markdown, etc.
     const languageCount = Object.keys(languages).length;
     expect(languageCount).toBeGreaterThan(1);
   });
@@ -294,7 +294,7 @@ describe('CodebaseProfiler - analyzeComplexity', () => {
   it('should handle repos with classes', async () => {
     const complexity = await profiler.analyzeComplexity(LIBRARIAN_ROOT);
 
-    // Librarian has classes
+    // LiBrainian has classes
     expect(complexity.averageClassesPerFile).toBeGreaterThanOrEqual(0);
   });
 });
@@ -340,7 +340,7 @@ describe('CodebaseProfiler - assessQuality', () => {
     expect(quality.hasCI).toBe(true);
   });
 
-  it('should detect tests in Librarian', async () => {
+  it('should detect tests in LiBrainian', async () => {
     const quality = await profiler.assessQuality(LIBRARIAN_ROOT);
 
     expect(quality.hasTests).toBe(true);
@@ -396,7 +396,7 @@ describe('CodebaseProfiler - analyzeStructure', () => {
   });
 
   it('should detect workspaces in monorepo', async () => {
-    // Librarian might have workspaces; test that detection works
+    // LiBrainian might have workspaces; test that detection works
     const structure = await profiler.analyzeStructure(LIBRARIAN_ROOT);
 
     // Just verify the fields exist and are booleans
@@ -496,7 +496,7 @@ describe('CodebaseProfiler - Quality Tier', () => {
   it('should assign high quality tier to well-maintained repos', async () => {
     const profile = await profiler.profile(LIBRARIAN_ROOT);
 
-    // Librarian has tests, TypeScript, linting, CI, docs - should be high
+    // LiBrainian has tests, TypeScript, linting, CI, docs - should be high
     // At minimum, verify the tier is one of the valid values
     expect(['high', 'medium', 'low']).toContain(profile.qualityTier);
   });
@@ -636,7 +636,7 @@ describe('CodebaseProfiler - Performance', () => {
     expect(elapsed).toBeLessThan(5000);
   });
 
-  it('should profile Librarian root in under 60 seconds', async () => {
+  it('should profile LiBrainian root in under 60 seconds', async () => {
     const start = Date.now();
     await profiler.profile(LIBRARIAN_ROOT);
     const elapsed = Date.now() - start;

@@ -21,7 +21,7 @@ import {
   type FreshnessReport,
   DEFAULT_FRESHNESS_CONFIG,
 } from '../freshness_detector.js';
-import type { LibrarianStorage, FileKnowledge } from '../../../storage/types.js';
+import type { LiBrainianStorage, FileKnowledge } from '../../../storage/types.js';
 import type { IEvidenceLedger, EvidenceEntry, EvidenceId } from '../../../epistemics/evidence_ledger.js';
 
 // ============================================================================
@@ -47,7 +47,7 @@ vi.mock('node:fs', () => ({
 // Import fs after mocking
 import * as fs from 'node:fs';
 
-function createMockStorage(files: FileKnowledge[] = []): LibrarianStorage {
+function createMockStorage(files: FileKnowledge[] = []): LiBrainianStorage {
   return {
     isInitialized: vi.fn().mockReturnValue(true),
     getFiles: vi.fn().mockResolvedValue(files),
@@ -55,7 +55,7 @@ function createMockStorage(files: FileKnowledge[] = []): LibrarianStorage {
       return Promise.resolve(files.find((f) => f.path === filePath) ?? null);
     }),
     getFileChecksum: vi.fn().mockResolvedValue(null),
-  } as unknown as LibrarianStorage;
+  } as unknown as LiBrainianStorage;
 }
 
 function createMockLedger(): IEvidenceLedger {
@@ -185,7 +185,7 @@ describe('computeFreshness', () => {
 // ============================================================================
 
 describe('FreshnessDetector', () => {
-  let mockStorage: LibrarianStorage;
+  let mockStorage: LiBrainianStorage;
   let mockLedger: IEvidenceLedger;
   let detector: FreshnessDetector;
 

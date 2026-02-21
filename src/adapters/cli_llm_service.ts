@@ -428,7 +428,7 @@ export class CliLlmService {
       let outputPath: string | null = null;
       try {
         if (options.outputSchema) {
-          tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'librarian-codex-'));
+          tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'librainian-codex-'));
           const schemaPath = path.join(tempDir, 'output_schema.json');
           outputPath = path.join(tempDir, 'last_message.txt');
           await fs.promises.writeFile(schemaPath, options.outputSchema, 'utf8');

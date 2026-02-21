@@ -3,8 +3,8 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { safeJsonParse } from '../utils/safe_json.js';
-import { initializeLibrarian } from '../orchestrator/unified_init.js';
-import type { LibrarianResponse } from '../types.js';
+import { initializeLiBrainian } from '../orchestrator/unified_init.js';
+import type { LiBrainianResponse } from '../types.js';
 import { checkProviderSnapshot, type ProviderGateSnapshot } from '../api/provider_check.js';
 import {
   classifyGateReasons,
@@ -108,7 +108,7 @@ export interface AbTaskRunResult {
     reason?: string;
     critique?: AbAgentCritique;
   };
-  librarianError?: {
+  librainianError?: {
     reason: string;
     message: string;
   };
@@ -130,7 +130,7 @@ export interface AbTaskRunResult {
   };
 }
 
-type InitializedLibrarianSession = Awaited<ReturnType<typeof initializeLibrarian>>;
+type InitializedLiBrainianSession = Awaited<ReturnType<typeof initializeLiBrainian>>;
 
 export interface AbContextRequest {
   task: AbTaskDefinition;
@@ -310,7 +310,7 @@ export interface AbAgentCritiqueIssue {
 export interface AbAgentCritique {
   summary: string;
   workOutcome: 'failed' | 'partial' | 'successful';
-  librarianEffectiveness: 'poor' | 'mixed' | 'good' | 'excellent';
+  librainianEffectiveness: 'poor' | 'mixed' | 'good' | 'excellent';
   confidence: number;
   issues: AbAgentCritiqueIssue[];
   suggestions: string[];
@@ -329,7 +329,7 @@ const DEFAULT_AGENT_PROMPT_TEMPLATE = [
   'Base Context Files:',
   '{{BASE_CONTEXT_FILES}}',
   '',
-  'Librarian Context:',
+  'LiBrainian Context:',
   '{{LIBRARIAN_CONTEXT_FILES}}',
   '',
   'Context Excerpts:',
@@ -337,13 +337,13 @@ const DEFAULT_AGENT_PROMPT_TEMPLATE = [
   '',
   'Required report contract (must be included in agent stdout):',
   `${AB_AGENT_CRITIQUE_JSON_START}`,
-  '{"summary":"...", "workOutcome":"failed|partial|successful", "librarianEffectiveness":"poor|mixed|good|excellent", "confidence":0.0, "issues":[{"perspective":"correctness|relevance|context|tooling|reliability|productivity|other","severity":"low|medium|high|critical","title":"...","diagnosis":"...","recommendation":"..."}], "suggestions":["..."]}',
+  '{"summary":"...", "workOutcome":"failed|partial|successful", "librainianEffectiveness":"poor|mixed|good|excellent", "confidence":0.0, "issues":[{"perspective":"correctness|relevance|context|tooling|reliability|productivity|other","severity":"low|medium|high|critical","title":"...","diagnosis":"...","recommendation":"..."}], "suggestions":["..."]}',
   `${AB_AGENT_CRITIQUE_JSON_END}`,
 ].join('\n');
 const SKIP_DIRS = new Set([
   '.git',
   'node_modules',
-  '.librarian',
+  '.librainian',
   '.ab-harness-artifacts',
   'dist',
   'build',
@@ -387,7 +387,7 @@ function shouldDropJavaScriptTwin(candidate: string, allCandidates: Set<string>,
   return !targetFiles.has(candidate);
 }
 
-export function refineLibrarianContextFiles(
+export function refineLiBrainianContextFiles(
   candidates: string[],
   targetFiles: string[],
   maxFiles = AB_MAX_LIBRARIAN_CONTEXT_FILES
@@ -547,7 +547,7 @@ async function buildContextFiles(task: AbTaskDefinition, repoRoot: string, level
   return normalizePaths(base);
 }
 
-function extractFilesFromResponse(response: LibrarianResponse | null | undefined, repoRoot: string): string[] {
+function extractFilesFromResponse(response: LiBrainianResponse | null | undefined, repoRoot: string): string[] {
   if (!response) return [];
   const files = new Set<string>();
   for (const pack of response.packs ?? []) {
@@ -570,8 +570,8 @@ function extractFilesFromResponse(response: LibrarianResponse | null | undefined
   return normalized;
 }
 
-async function queryLibrarianContext(task: AbTaskDefinition, repoRoot: string): Promise<string[]> {
-  const session = await initializeLibrarian(repoRoot, {
+async function queryLiBrainianContext(task: AbTaskDefinition, repoRoot: string): Promise<string[]> {
+  const session = await initializeLiBrainian(repoRoot, {
     silent: true,
     skipWatcher: true,
     skipHealing: true,
@@ -580,7 +580,7 @@ async function queryLibrarianContext(task: AbTaskDefinition, repoRoot: string): 
     allowDegradedEmbeddings: false,
   });
   try {
-    const response = await session.librarian.queryOptional({
+    const response = await session.librainian.queryOptional({
       intent: task.description,
       depth: 'L1',
       llmRequirement: 'disabled',
@@ -588,18 +588,18 @@ async function queryLibrarianContext(task: AbTaskDefinition, repoRoot: string): 
       includeEngines: false,
       deterministic: true,
     });
-    return refineLibrarianContextFiles(extractFilesFromResponse(response, repoRoot), task.targetFiles);
+    return refineLiBrainianContextFiles(extractFilesFromResponse(response, repoRoot), task.targetFiles);
   } finally {
     await session.shutdown();
   }
 }
 
-async function queryLibrarianContextWithSession(
+async function queryLiBrainianContextWithSession(
   task: AbTaskDefinition,
   repoRoot: string,
-  session: InitializedLibrarianSession
+  session: InitializedLiBrainianSession
 ): Promise<string[]> {
-  const response = await session.librarian.queryOptional({
+  const response = await session.librainian.queryOptional({
     intent: task.description,
     depth: 'L1',
     llmRequirement: 'disabled',
@@ -607,7 +607,7 @@ async function queryLibrarianContextWithSession(
     includeEngines: false,
     deterministic: true,
   });
-  return refineLibrarianContextFiles(extractFilesFromResponse(response, repoRoot), task.targetFiles);
+  return refineLiBrainianContextFiles(extractFilesFromResponse(response, repoRoot), task.targetFiles);
 }
 
 function includesAllTargets(contextFiles: string[], targetFiles: string[]): boolean {
@@ -617,7 +617,7 @@ function includesAllTargets(contextFiles: string[], targetFiles: string[]): bool
 
 interface AbContextArtifactFile {
   file: string;
-  source: 'base' | 'librarian';
+  source: 'base' | 'librainian';
   exists: boolean;
   excerpt?: string;
   error?: string;
@@ -705,8 +705,8 @@ function normalizeAgentCritique(value: unknown): AbAgentCritique | null {
   const critique = value as Record<string, unknown>;
   const summary = typeof critique.summary === 'string' ? critique.summary.trim() : '';
   const workOutcome = typeof critique.workOutcome === 'string' ? critique.workOutcome.trim().toLowerCase() : '';
-  const librarianEffectiveness = typeof critique.librarianEffectiveness === 'string'
-    ? critique.librarianEffectiveness.trim().toLowerCase()
+  const librainianEffectiveness = typeof critique.librainianEffectiveness === 'string'
+    ? critique.librainianEffectiveness.trim().toLowerCase()
     : '';
   const confidence = Number(critique.confidence);
   const issues = Array.isArray(critique.issues)
@@ -724,10 +724,10 @@ function normalizeAgentCritique(value: unknown): AbAgentCritique | null {
   if (summary.length < 16) return null;
   if (workOutcome !== 'failed' && workOutcome !== 'partial' && workOutcome !== 'successful') return null;
   if (
-    librarianEffectiveness !== 'poor'
-    && librarianEffectiveness !== 'mixed'
-    && librarianEffectiveness !== 'good'
-    && librarianEffectiveness !== 'excellent'
+    librainianEffectiveness !== 'poor'
+    && librainianEffectiveness !== 'mixed'
+    && librainianEffectiveness !== 'good'
+    && librainianEffectiveness !== 'excellent'
   ) {
     return null;
   }
@@ -738,7 +738,7 @@ function normalizeAgentCritique(value: unknown): AbAgentCritique | null {
   return {
     summary,
     workOutcome,
-    librarianEffectiveness,
+    librainianEffectiveness,
     confidence,
     issues,
     suggestions,
@@ -795,7 +795,7 @@ function formatPromptContextExcerpts(
     const lower = normalizedFile.toLowerCase();
     let score = 0;
     if (normalizedTargets.has(normalizedFile)) score += 300;
-    if (entry.source === 'librarian') score += workerType === 'treatment' ? 140 : 20;
+    if (entry.source === 'librainian') score += workerType === 'treatment' ? 140 : 20;
     if (entry.source === 'base') score += workerType === 'control' ? 20 : 0;
     if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.sql')) {
       score += 20;
@@ -853,15 +853,15 @@ function resolveAgentCommandTemplate(agentExecution: AbAgentExecution | undefine
   return defaultTemplate && defaultTemplate.length > 0 ? defaultTemplate : null;
 }
 
-function classifyLibrarianError(error: unknown): 'librarian_provider_unavailable' | 'librarian_context_unavailable' {
+function classifyLiBrainianError(error: unknown): 'librainian_provider_unavailable' | 'librainian_context_unavailable' {
   const message = error instanceof Error ? error.message : String(error ?? '');
   const normalized = message.toLowerCase();
   if (
     normalized.includes('empty_storage')
     || normalized.includes('no functions or modules indexed')
-    || normalized.includes('cannot query librarian')
+    || normalized.includes('cannot query librainian')
   ) {
-    return 'librarian_context_unavailable';
+    return 'librainian_context_unavailable';
   }
   if (
     normalized.includes('provider_unavailable')
@@ -869,9 +869,9 @@ function classifyLibrarianError(error: unknown): 'librarian_provider_unavailable
     || normalized.includes('llm provider')
     || normalized.includes('api key')
   ) {
-    return 'librarian_provider_unavailable';
+    return 'librainian_provider_unavailable';
   }
-  return 'librarian_context_unavailable';
+  return 'librainian_context_unavailable';
 }
 
 function summarizeProviderPreflight(snapshot: ProviderGateSnapshot): AbProviderPreflightSummary {
@@ -1008,7 +1008,7 @@ async function buildContextArtifact(
     if (!(await fileExists(absolutePath))) {
       files.push({
         file: relativePath,
-        source: extraSet.has(relativePath) ? 'librarian' : 'base',
+        source: extraSet.has(relativePath) ? 'librainian' : 'base',
         exists: false,
         error: 'file_not_found',
       });
@@ -1018,14 +1018,14 @@ async function buildContextArtifact(
       const contents = await readFile(absolutePath, 'utf8');
       files.push({
         file: relativePath,
-        source: extraSet.has(relativePath) ? 'librarian' : 'base',
+        source: extraSet.has(relativePath) ? 'librainian' : 'base',
         exists: true,
         excerpt: truncateText(contents, CONTEXT_SNIPPET_LIMIT),
       });
     } catch (error) {
       files.push({
         file: relativePath,
-        source: extraSet.has(relativePath) ? 'librarian' : 'base',
+        source: extraSet.has(relativePath) ? 'librainian' : 'base',
         exists: false,
         error: error instanceof Error ? error.message : 'read_failed',
       });
@@ -1204,7 +1204,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
     await buildContextFiles(task, repoRoot, contextLevel)
   );
   const extraContextFiles: string[] = [];
-  let librarianError:
+  let librainianError:
     | {
       reason: string;
       message: string;
@@ -1262,7 +1262,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       reason?: string;
       critique?: AbAgentCritique;
     };
-    librarianError?: {
+    librainianError?: {
       reason: string;
       message: string;
     };
@@ -1300,7 +1300,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
       modifiedFiles: payload.modifiedFiles,
       agentCommand: payload.agentCommand,
       agentCritique: payload.agentCritique,
-      librarianError: payload.librarianError ?? librarianError,
+      librainianError: payload.librainianError ?? librainianError,
       verification: payload.verification,
       verificationPolicy,
     };
@@ -1406,30 +1406,30 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
   }
 
   if (options.workerType === 'treatment') {
-    const resolver = options.resolveExtraContext ?? (async (request: AbContextRequest) => queryLibrarianContext(request.task, request.repoRoot));
+    const resolver = options.resolveExtraContext ?? (async (request: AbContextRequest) => queryLiBrainianContext(request.task, request.repoRoot));
     try {
       const extra = await resolver({ task, repoRoot, contextLevel, contextFiles });
       const resolvedExtra = await resolveRepoPathsCaseAware(repoRoot, normalizePaths(extra ?? []));
       extraContextFiles.push(...resolvedExtra);
       const recoveredTargets = await resolveMissingTargetContext(repoRoot, targetFiles, contextFiles, extraContextFiles);
       extraContextFiles.push(...recoveredTargets);
-      const refinedExtra = refineLibrarianContextFiles(extraContextFiles, targetFiles);
+      const refinedExtra = refineLiBrainianContextFiles(extraContextFiles, targetFiles);
       extraContextFiles.splice(0, extraContextFiles.length, ...refinedExtra);
     } catch (error) {
-      librarianError = {
-        reason: classifyLibrarianError(error),
+      librainianError = {
+        reason: classifyLiBrainianError(error),
         message: error instanceof Error ? error.message : String(error),
       };
-      await writeArtifactJson(artifactState, 'librarian_error', {
-        reason: librarianError.reason,
-        message: librarianError.message,
+      await writeArtifactJson(artifactState, 'librainian_error', {
+        reason: librainianError.reason,
+        message: librainianError.message,
       });
       return finalize({
         success: false,
-        failureReason: classifyLibrarianError(error),
+        failureReason: classifyLiBrainianError(error),
         modifiedFiles: [],
         verification: { setup: setupResult, baseline: baselineResult },
-        librarianError,
+        librainianError,
       });
     }
   }
@@ -1442,7 +1442,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
   ) {
     return finalize({
       success: false,
-      failureReason: 'librarian_context_unavailable',
+      failureReason: 'librainian_context_unavailable',
       modifiedFiles: [],
       verification: { setup: setupResult, baseline: baselineResult },
     });
@@ -1456,7 +1456,7 @@ export async function runAbTask(task: AbTaskDefinition, repoRoot: string, option
   if (options.workerType === 'treatment' && !includesAllTargets(combinedContext, targetFiles)) {
     return finalize({
       success: false,
-      failureReason: 'missing_context_after_librarian',
+      failureReason: 'missing_context_after_librainian',
       modifiedFiles: [],
       verification: { setup: setupResult, baseline: baselineResult },
     });
@@ -2268,7 +2268,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
 
   const results: AbTaskRunResult[] = [];
   const contextCache = new Map<string, string[]>();
-  const librarianSessionCache = new Map<string, InitializedLibrarianSession>();
+  const librainianSessionCache = new Map<string, InitializedLiBrainianSession>();
   let providerPreflight: AbProviderPreflightSummary | null = null;
   const totalRuns = tasks.length * workerTypes.length;
   let runIndex = 0;
@@ -2314,10 +2314,10 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
     }
   }
 
-  const getLibrarianSession = async (repoRoot: string): Promise<InitializedLibrarianSession> => {
-    const cached = librarianSessionCache.get(repoRoot);
+  const getLiBrainianSession = async (repoRoot: string): Promise<InitializedLiBrainianSession> => {
+    const cached = librainianSessionCache.get(repoRoot);
     if (cached) return cached;
-    const session = await initializeLibrarian(repoRoot, {
+    const session = await initializeLiBrainian(repoRoot, {
       silent: true,
       skipWatcher: true,
       skipHealing: true,
@@ -2325,7 +2325,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
       reuseExistingSession: false,
       allowDegradedEmbeddings: false,
     });
-    librarianSessionCache.set(repoRoot, session);
+    librainianSessionCache.set(repoRoot, session);
     return session;
   };
 
@@ -2353,7 +2353,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
               if (cached) return cached;
               const extra = options.resolveExtraContext
                 ? await options.resolveExtraContext(request)
-                : await queryLibrarianContextWithSession(task, repoRoot, await getLibrarianSession(repoRoot));
+                : await queryLiBrainianContextWithSession(task, repoRoot, await getLiBrainianSession(repoRoot));
               const normalizedExtra = normalizePaths(extra ?? []);
               contextCache.set(key, normalizedExtra);
               return normalizedExtra;
@@ -2381,7 +2381,7 @@ export async function runAbExperiment(options: AbHarnessOptions): Promise<AbExpe
       }
     }
   } finally {
-    for (const session of librarianSessionCache.values()) {
+    for (const session of librainianSessionCache.values()) {
       try {
         await session.shutdown();
       } catch {
