@@ -1,0 +1,23 @@
+{
+  "schema": "PatrolFindingCorpus.v1",
+  "findings": [
+    {
+      "issueNumber": 593,
+      "title": "CLI error envelope formatting",
+      "description": "Non-debug CLI errors should be single-line and actionable, while --debug should include verbose diagnostics and stack traces.",
+      "preFixRef": "7cbb473"
+    },
+    {
+      "issueNumber": 598,
+      "title": "Capability inventory discovery",
+      "description": "Agents need machine-readable capability discovery covering tools, constructions, and compositions via CLI and MCP.",
+      "preFixRef": "8e7b6d6"
+    },
+    {
+      "issueNumber": 601,
+      "title": "ResultQualityJudge",
+      "description": "Agentic evaluation needs relevance, completeness, actionability, and accuracy scoring with calibrated thresholds.",
+      "preFixRef": "3c34b48"
+    }
+  ]
+}
