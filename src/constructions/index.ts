@@ -1,5 +1,5 @@
 /**
- * @fileoverview Librarian Constructions Module
+ * @fileoverview LiBrainian Constructions Module
  *
  * Composed primitives for common agent tasks. Each construction combines
  * multiple librarian primitives (query, confidence, evidence) to solve
@@ -33,7 +33,7 @@ export type {
   FixpointTerminationReason,
   LegacyConstructionClassId,
   LegacyConstructionId,
-  LibrarianContext,
+  LiBrainianContext,
   Layer,
   NamespacedOfficialConstructionId,
   OfficialConstructionSlug,
@@ -246,6 +246,53 @@ export {
   createPreFlightChecker,
   type PreFlightSummary,
 } from './preflight_checker.js';
+
+export {
+  AgenticProcess,
+  createSandboxLifecycleConstruction,
+  createAgentDispatchConstruction,
+  createObservationExtractionConstruction,
+  createImplicitSignalConstruction,
+  createCostControlConstruction,
+  createAggregationConstruction,
+  createReportConstruction,
+  createPatrolProcessConstruction,
+  createCodeReviewPipelineConstruction,
+  createMigrationAssistantConstruction,
+  createDocumentationGeneratorConstruction,
+  createRegressionDetectorConstruction,
+  createOnboardingAssistantConstruction,
+  createReleaseQualificationConstruction,
+  createDependencyAuditorConstruction,
+  UnitPatrolConstruction,
+  createFixtureSmokeUnitPatrolConstruction,
+  UNIT_PATROL_DEFAULT_SCENARIO,
+  UNIT_PATROL_DEFAULT_EVALUATION,
+  PATROL_PROCESS_DESCRIPTION,
+  PATROL_PROCESS_EXAMPLE_INPUT,
+  type ProcessBudget,
+  type ProcessInput,
+  type ProcessOutput,
+  type ProcessEvent,
+  type ProcessExitReason,
+  type ConstructionPipeline,
+  type PipelineStage,
+  type PipelineTask,
+  type PatrolInput,
+  type PatrolOutput,
+  type PresetProcessInput,
+  type PresetProcessOutput,
+  type UnitPatrolOperationKind,
+  type UnitPatrolQueryConfig,
+  type UnitPatrolOperation,
+  type UnitPatrolScenario,
+  type UnitPatrolEvaluationCriteria,
+  type UnitPatrolInput,
+  type UnitPatrolOperationResult,
+  type UnitPatrolFinding,
+  type UnitPatrolQualityScores,
+  type UnitPatrolResult,
+} from './processes/index.js';
 
 // Strategic Constructions - wrapping strategic modules
 export {
