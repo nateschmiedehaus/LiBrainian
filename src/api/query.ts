@@ -37,6 +37,7 @@ import type {
 } from '../types.js';
 import { isProjectUnderstandingQuery, PROJECT_UNDERSTANDING_PATTERNS, handleProjectUnderstandingQuery } from './project_understanding.js';
 import { isArchitectureQuery, ARCHITECTURE_QUERY_PATTERNS, handleArchitectureQuery } from './architecture_overview.js';
+import { buildArchitectureNarrative } from './architecture_narrator.js';
 import { runEntryPointQueryStage } from './entry_point_query.js';
 import { createDeterministicContext, stableSort } from '../types.js';
 import type { CommitRecord } from '../ingest/commit_indexer.js';
@@ -3063,6 +3064,35 @@ export async function queryLibrarian(
     llmError = llmProviderError;
   }
   synthesis = applyAdequacyToSynthesis(synthesis, adequacyReport);
+  if (queryClassification?.isArchitectureOverviewQuery) {
+    try {
+      const architectureNarrative = await buildArchitectureNarrative({
+        query,
+        storage,
+        workspaceRoot,
+        packs: finalPacks,
+      });
+      synthesis = architectureNarrative.synthesis;
+      synthesisMode = 'heuristic';
+      explanationParts.push(
+        `Architecture narrator generated a ${architectureNarrative.diagramType} diagram at ${architectureNarrative.zoomLevel} zoom.`,
+      );
+      if (architectureNarrative.interestingFindings.length > 0) {
+        drillDownHints.push(
+          `Architecture findings: ${architectureNarrative.interestingFindings.slice(0, 2).join(' | ')}`,
+        );
+      }
+    } catch (architectureNarrationError) {
+      const message = architectureNarrationError instanceof Error
+        ? architectureNarrationError.message
+        : String(architectureNarrationError);
+      recordCoverageGap(
+        'synthesis',
+        `Architecture narrator unavailable: ${stripTracePrefix(message)}`,
+        'minor',
+      );
+    }
+  }
   if (!synthesisMode && synthesis) synthesisMode = 'llm';
   if (!synthesisMode && finalPacks.length > 0) synthesisMode = 'heuristic';
 
@@ -4021,7 +4051,11 @@ async function runSemanticRetrievalStage(options: {
   } = options;
   let queryEmbedding: Float32Array | null = null;
   let candidates: Candidate[] = [];
-  let queryClassification: QueryClassification | undefined;
+  const queryClassification = applyIntentTypeRoutingOverrides(
+    classifyQueryIntent(query.intent ?? ''),
+    query.intentType,
+    query.affectedFiles
+  );
 
   // Track diagnostic state for zero-result explanation
   const diagnostics = {
@@ -4057,14 +4091,6 @@ async function runSemanticRetrievalStage(options: {
       const minSimilarity = version.qualityTier === 'mvp'
         ? MIN_SIMILARITY_MVP
         : MIN_SIMILARITY_FULL;
-
-      // Classify query to determine entity type routing.
-      // Explicit intentType overrides heuristic text classification.
-      queryClassification = applyIntentTypeRoutingOverrides(
-        classifyQueryIntent(query.intent ?? ''),
-        query.intentType,
-        query.affectedFiles
-      );
 
       const searchLimit = queryClassification.isMetaQuery ? 20 : 14;
       const searchMinSimilarity = queryClassification.isMetaQuery ? minSimilarity * 0.9 : minSimilarity;

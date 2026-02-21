@@ -19,6 +19,7 @@ import type { LibrarianStorage } from '../storage/types.js';
  * Examples: "architecture layers", "module structure", "system dependencies"
  */
 export const ARCHITECTURE_QUERY_PATTERNS = [
+  /\bhow\s+does\s+(?:this|the)\s+(?:project|codebase|system)\s+work\b/i,
   /\barchitecture\s+(layers?|structure|overview|diagram|map)\b/i,
   /\bmain\s+layers?\s+of\b/i,
   /\bsystem\s+architecture\b/i,

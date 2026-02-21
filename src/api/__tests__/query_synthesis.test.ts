@@ -128,4 +128,31 @@ describe('synthesizeQueryAnswer', () => {
     }
     expect(chatMock).toHaveBeenCalledTimes(2);
   });
+
+  it('injects architecture-specific synthesis requirements for architecture intents', async () => {
+    chatMock.mockReset();
+    chatMock.mockResolvedValueOnce({
+      content: JSON.stringify({
+        answer: 'Architecture response',
+        keyInsights: ['System has clear layering'],
+        citations: [{ packId: 'pack-1', content: 'Example module summary.', relevance: 0.9 }],
+        uncertainties: [],
+        confidence: 0.86,
+      }),
+    });
+
+    const result = await synthesizeQueryAnswer({
+      query: { intent: 'How does the system architecture work?', depth: 'L1' },
+      packs: [samplePack],
+      storage: {} as never,
+      workspace: process.cwd(),
+    });
+
+    expect(result.synthesized).toBe(true);
+    const firstCall = chatMock.mock.calls[0]?.[0] as { messages?: Array<{ role: string; content: string }> } | undefined;
+    const prompt = firstCall?.messages?.find((message) => message.role === 'user')?.content ?? '';
+    expect(prompt).toContain('ARCHITECTURE RESPONSE REQUIREMENTS:');
+    expect(prompt).toContain('load-bearing modules');
+    expect(prompt).toContain('architectural smells');
+  });
 });

@@ -307,12 +307,24 @@ function buildSynthesisPrompt(
   knowledge: ExtractedKnowledge
 ): string {
   const parts: string[] = [];
+  const architectureMode = /\b(architecture|layer|system\s+design|module\s+structure|data\s+flow|high[- ]level)\b/i.test(
+    query.intent ?? '',
+  );
 
   parts.push(`QUERY: ${query.intent}`);
   parts.push('');
 
   if (query.taskType) {
     parts.push(`TASK CONTEXT: ${query.taskType}`);
+    parts.push('');
+  }
+
+  if (architectureMode) {
+    parts.push('ARCHITECTURE RESPONSE REQUIREMENTS:');
+    parts.push('- Explain top-down system layers and dependency flow.');
+    parts.push('- Identify load-bearing modules and explain why they are central.');
+    parts.push('- Call out architectural smells or boundary violations if evidence supports it.');
+    parts.push('- Include at least one concrete architectural insight, not just file listings.');
     parts.push('');
   }
 

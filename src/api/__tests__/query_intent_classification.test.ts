@@ -342,6 +342,12 @@ describe('classifyQueryIntent', () => {
   });
 
   describe('architecture overview query detection', () => {
+    it('classifies "how does this project work" as architecture overview query', () => {
+      const result = classifyQueryIntent('how does this project work?');
+      expect(result.isArchitectureOverviewQuery).toBe(true);
+      expect(result.isProjectUnderstandingQuery).toBe(false);
+    });
+
     it('classifies "architecture layers" as architecture overview query', () => {
       const result = classifyQueryIntent('architecture layers');
       expect(result.isArchitectureOverviewQuery).toBe(true);
