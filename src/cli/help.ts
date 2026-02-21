@@ -778,7 +778,7 @@ OPTIONS:
     --json              Output results as JSON
 
 DESCRIPTION:
-    Runs a full onboarding recovery flow to get Librarian operational:
+    Runs a full onboarding recovery flow to get LiBrainian operational:
     - Auto-detects workspace root
     - Heals configuration issues
     - Recovers storage (stale locks/WAL)
@@ -986,6 +986,8 @@ OPTIONS:
     --limit <n>         Limit number of bundles returned
     --include-primitives  Include primitive definitions in output
     --pretty            Pretty-print JSON output
+    --timeout <ms>      Timeout in milliseconds (default: 300000)
+    --verbose           Emit stage-level compose progress logs
 
 DESCRIPTION:
     constructions mode:
@@ -1002,6 +1004,7 @@ EXAMPLES:
     librarian compose "Prepare a release plan" --mode techniques
     librarian compose "Performance regression triage" --mode techniques --limit 2
     librarian compose "Release readiness" --mode techniques --include-primitives --pretty
+    librarian compose "Release readiness" --timeout 120000 --verbose
 `,
 
   constructions: `
@@ -1183,7 +1186,7 @@ EXAMPLES:
 `,
 
   health: `
-librarian health - Show current Librarian health status
+librarian health - Show current LiBrainian health status
 
 USAGE:
     librarian health [options]
@@ -1193,7 +1196,7 @@ OPTIONS:
     --format <fmt>      Output format: text | json | prometheus (default: text)
 
 DESCRIPTION:
-    Shows the current health status of the Librarian system, including:
+    Shows the current health status of the LiBrainian system, including:
     - Overall health score
     - Individual health dimensions
     - Active issues and warnings
@@ -1249,7 +1252,7 @@ OPTIONS:
     --dry-run           Show what would be healed without making changes
 
 DESCRIPTION:
-    Runs automated healing to restore Librarian health, including:
+    Runs automated healing to restore LiBrainian health, including:
     - Fixing stale or invalid data
     - Rebuilding broken relationships
     - Refreshing embeddings
@@ -1274,7 +1277,7 @@ OPTIONS:
     --format <fmt>      Output format: text | json (default: text)
 
 DESCRIPTION:
-    Runs evolutionary improvement to enhance Librarian quality, including:
+    Runs evolutionary improvement to enhance LiBrainian quality, including:
     - Generating improvement candidates
     - Evaluating candidates against fitness criteria
     - Selecting and applying best improvements
@@ -1299,7 +1302,7 @@ OPTIONS:
     --format <fmt>      Output format: text | json (default: text)
 
 DESCRIPTION:
-    Evaluates the current Librarian state and produces a fitness report:
+    Evaluates the current LiBrainian state and produces a fitness report:
     - Stage 0: Basic structural checks
     - Stage 1: Semantic quality metrics
     - Stage 2: Relationship integrity
@@ -1551,7 +1554,7 @@ OPTIONS:
     --risk-tolerance    Max risk for config fixes (safe|low|medium)
 
 DESCRIPTION:
-    Runs comprehensive health diagnostics on the Librarian system to identify
+    Runs comprehensive health diagnostics on the LiBrainian system to identify
     potential issues and provide actionable suggestions. Checks include:
 
     DATABASE ACCESS:
@@ -1650,7 +1653,7 @@ EXAMPLES:
 	    --json                emit JSON report to stdout
 
 	DESCRIPTION:
-	    Evaluates whether Librarian is publish-ready using evidence-backed artifacts.
+	    Evaluates whether LiBrainian is publish-ready using evidence-backed artifacts.
 	    Broad profile is backlog-complete and blocks on all status drift.
 	    Release profile is publish-focused: live-fire, strict A/B, strict use-case
 	    review, and external smoke evidence must be fresh and passing; smoke must

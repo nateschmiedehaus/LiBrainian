@@ -283,6 +283,7 @@ describe('getExitCode', () => {
     expect(getExitCode(createErrorEnvelope('ENOINDEX', 'Test'))).toBe(10);
     expect(getExitCode(createErrorEnvelope('EPROVIDER_UNAVAILABLE', 'Test'))).toBe(30);
     expect(getExitCode(createErrorEnvelope('EINVALID_ARGUMENT', 'Test'))).toBe(50);
+    expect(getExitCode(createErrorEnvelope('ETIMEOUT', 'Test'))).toBe(124);
   });
 
   it('should return 1 for unknown error codes', () => {

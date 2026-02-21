@@ -330,7 +330,7 @@ export const ExitCodes: Partial<Record<ErrorCode, number>> = {
   // General errors: 1 (default)
   EUNKNOWN: 1,
   EINTERNAL: 2,
-  ETIMEOUT: 3,
+  ETIMEOUT: 124,
 };
 
 // ============================================================================
@@ -618,7 +618,7 @@ export function formatError(error: unknown): string {
     }
 
     if (message.includes('not bootstrapped') || message.includes('No existing librarian data')) {
-      return `Error [ENOINDEX]: Librarian not initialized.\n\nSuggestion: ${ERROR_SUGGESTIONS.NOT_BOOTSTRAPPED}`;
+      return `Error [ENOINDEX]: LiBrainian not initialized.\n\nSuggestion: ${ERROR_SUGGESTIONS.NOT_BOOTSTRAPPED}`;
     }
 
     if (message.includes('ENOENT')) {

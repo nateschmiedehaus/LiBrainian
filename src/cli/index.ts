@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @fileoverview Librarian CLI - Developer Experience Interface
+ * @fileoverview LiBrainian CLI - Developer Experience Interface
  *
  * Commands:
  *   librarian status              - Show current librarian status
@@ -30,7 +30,7 @@
  *   librarian watch               - Watch for file changes and auto-reindex
  *   librarian scan --secrets      - Show secret redaction scan totals
  *   librarian contract            - Show system contract and provenance
- *   librarian diagnose            - Diagnose Librarian self-knowledge drift
+ *   librarian diagnose            - Diagnose LiBrainian self-knowledge drift
  *   librarian health              - Show health status (EvolutionOps)
  *   librarian check               - Run diff-aware CI integrity checks
  *   librarian heal                - Run homeostatic healing loop
@@ -243,7 +243,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian live-fire [--profile <name>|--profiles <a,b>] [--matrix] [--profiles-file <path>] [--repos-root <path>] [--rounds N] [--llm-modes disabled,optional] [--strict-objective] [--include-smoke] [--json]',
   },
   'health': {
-    description: 'Show current Librarian health status',
+    description: 'Show current LiBrainian health status',
     usage: 'librarian health [--verbose] [--completeness] [--format text|json|prometheus]',
   },
   'check': {
@@ -275,12 +275,12 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     usage: 'librarian contract [--pretty]',
   },
   'diagnose': {
-    description: 'Diagnose Librarian self-knowledge drift',
+    description: 'Diagnose LiBrainian self-knowledge drift',
     usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
   },
   'compose': {
     description: 'Compose construction pipelines or technique bundles from intent',
-    usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty]',
+    usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty] [--timeout <ms>] [--verbose]',
   },
   'constructions': {
     description: 'List/search/describe/install/run/validate constructions',
