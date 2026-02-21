@@ -384,14 +384,14 @@ function computeNextActions(options: {
   }
 
   if (mode === 'full' && fitnessReport && fitnessReport.fitness.overall < 0.7) {
-    actions.push('Run `librarian eval --save-baseline` and inspect stage failures');
-    actions.push('Run `librarian evolve --cycles 3 --candidates 4` (when providers available)');
+      actions.push('Run `librarian eval --save-baseline` and inspect stage failures');
+      actions.push('Run `librarian evolve --cycles 3 --candidates 4` (when providers available)');
   }
 
   if (objective === 'worldclass' && fitnessReport) {
     const strictFailures = getWorldclassStrictFailures(fitnessReport);
     if (strictFailures.length > 0) {
-      actions.push('Run `librarian eval --stages 0-4 --save-baseline` and resolve strict worldclass gate failures');
+      actions.push('Run `librarian eval --stages 0-5 --save-baseline` and resolve strict worldclass gate failures');
       actions.push(`Resolve strict failures: ${strictFailures.join('; ')}`);
     }
   }
@@ -412,6 +412,7 @@ function getWorldclassStrictFailures(fitnessReport: FitnessReport): string[] {
     ['stage2_tier1', fitnessReport.stages.stage2_tier1],
     ['stage3_tier2', fitnessReport.stages.stage3_tier2],
     ['stage4_adversarial', fitnessReport.stages.stage4_adversarial],
+    ['stage5_agentic_utility', fitnessReport.stages.stage5_agentic_utility],
   ];
 
   for (const [name, stage] of stageEntries) {
@@ -439,6 +440,9 @@ function getWorldclassStrictFailures(fitnessReport: FitnessReport): string[] {
   }
   if (!completeness.operationalQuality.measured) {
     failures.push(`operational_quality_unmeasured:${completeness.operationalQuality.reason ?? 'unknown'}`);
+  }
+  if (!completeness.agenticUtility.measured) {
+    failures.push(`agentic_utility_unmeasured:${completeness.agenticUtility.reason ?? 'unknown'}`);
   }
 
   return failures;

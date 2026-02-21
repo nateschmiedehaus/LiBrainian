@@ -26,6 +26,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import type { LibrarianContext } from './wave0_integration.js';
 import { formatLibrarianContext } from './wave0_integration.js';
 import { processAgentFeedback, type AgentFeedback } from './agent_feedback.js';
+import { recordAgenticTaskOutcome } from './agentic_metrics_store.js';
 import type { LibrarianStorage } from '../storage/types.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
@@ -107,6 +108,14 @@ export interface TaskOutcome {
   contextUsefulness?: number;
   /** Missing context that would have helped */
   missingContext?: string;
+  /** Optional explicit duration override in milliseconds */
+  durationMs?: number;
+  /** Optional proxy score for output quality (0-1) */
+  codeQualityScore?: number;
+  /** Optional explicit correctness of agent decision for this task */
+  decisionCorrect?: boolean;
+  /** Override whether the task was context-assisted */
+  contextProvided?: boolean;
 }
 
 /**
@@ -149,6 +158,7 @@ interface FileSnapshot {
 
 const activeTrackers = new Map<string, FileChangeTracker>();
 const taskContextCache = new Map<string, { context: TaskContext; expiresAt: number }>();
+const taskStartTimes = new Map<string, number>();
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
 // ============================================================================
@@ -184,6 +194,7 @@ export async function getTaskContext(
   config: AgentHookConfig = {}
 ): Promise<TaskContext> {
   const taskId = request.taskId ?? randomUUID();
+  taskStartTimes.set(taskId, Date.now());
   const workspace = await resolveWorkspace(config.workspace);
 
   // Check cache first
@@ -316,10 +327,18 @@ export async function reportTaskOutcome(
   const packIds = typeof taskIdOrContext === 'object' ? taskIdOrContext.packIds : [];
   const intent = typeof taskIdOrContext === 'object' ? taskIdOrContext.structured.intent : undefined;
   const workspace = await resolveWorkspace(config.workspace);
+  const endedAtMs = Date.now();
+  const startedAtMs = taskStartTimes.get(taskId);
+  const durationMs = typeof outcome.durationMs === 'number'
+    ? outcome.durationMs
+    : typeof startedAtMs === 'number'
+      ? Math.max(0, endedAtMs - startedAtMs)
+      : undefined;
 
   try {
     // Try to use session's recordOutcome if available
     const session = getSession(workspace);
+    const storage = session?.librarian?.getStorage?.();
     if (session) {
       // Use the unified session's recordOutcome method
       await session.recordOutcome({
@@ -339,10 +358,27 @@ export async function reportTaskOutcome(
       });
     }
 
+    if (storage) {
+      await recordAgenticTaskOutcome(storage, {
+        taskId,
+        timestamp: new Date(endedAtMs).toISOString(),
+        success: outcome.success,
+        contextProvided: typeof outcome.contextProvided === 'boolean'
+          ? outcome.contextProvided
+          : packIds.length > 0,
+        durationMs,
+        contextUsefulness: outcome.contextUsefulness,
+        codeQualityScore: outcome.codeQualityScore,
+        decisionCorrect: outcome.decisionCorrect,
+        missingContext: Boolean(outcome.missingContext),
+        failureType: outcome.failureType,
+        filesModifiedCount: outcome.filesModified?.length ?? 0,
+        agentId: config.agentId,
+      });
+    }
+
     // If context usefulness was provided, submit detailed feedback
     if (outcome.contextUsefulness !== undefined || outcome.missingContext) {
-      const sessionForFeedback = getSession(workspace);
-      const storage = sessionForFeedback?.librarian?.getStorage?.();
       if (storage) {
         await submitDetailedFeedback(taskId, packIds, outcome, storage, config.agentId);
       }
@@ -366,6 +402,8 @@ export async function reportTaskOutcome(
       taskId,
       error: getErrorMessage(error),
     });
+  } finally {
+    taskStartTimes.delete(taskId);
   }
 }
 

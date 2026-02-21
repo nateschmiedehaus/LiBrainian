@@ -14,6 +14,7 @@
  */
 
 import type { LibrarianStorage } from '../storage/types.js';
+import { recordAgenticFeedbackEvent } from './agentic_metrics_store.js';
 
 // ============================================================================
 // TYPES (per CONTROL_LOOP.md)
@@ -159,6 +160,33 @@ export async function processAgentFeedback(
 
     // Store gap for future analysis
     await logRetrievalGap(gap, storage);
+  }
+
+  // Persist compact feedback telemetry for agentic utility scoring.
+  const totalRatings = feedback.relevanceRatings.length;
+  const irrelevantRatings = feedback.relevanceRatings.filter((rating) => !rating.relevant).length;
+  const usefulnessMean = totalRatings > 0
+    ? feedback.relevanceRatings.reduce((sum, rating) => {
+      const score = typeof rating.usefulness === 'number'
+        ? rating.usefulness
+        : rating.relevant
+          ? 1
+          : 0;
+      return sum + score;
+    }, 0) / totalRatings
+    : 0;
+  try {
+    await recordAgenticFeedbackEvent(storage, {
+      queryId: feedback.queryId,
+      timestamp: now,
+      usefulnessMean,
+      totalRatings,
+      irrelevantRatings,
+      missingContext: Boolean(feedback.missingContext),
+      agentId: feedback.agentId,
+    });
+  } catch {
+    // Feedback telemetry is best-effort and must not block normal feedback processing.
   }
 
   return {

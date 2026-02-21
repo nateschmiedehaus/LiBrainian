@@ -52,6 +52,7 @@ export {
   Stage2Tier1Evaluator,
   Stage3Tier2Evaluator,
   Stage4AdversarialEvaluator,
+  Stage5AgenticUtilityEvaluator,
   runStagedEvaluation,
 } from './staged_evaluators.js';
 

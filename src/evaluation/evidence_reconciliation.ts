@@ -12,6 +12,7 @@ export type EvidenceManifestSummary = {
     hallucinationRate: MetricSummary;
     faithfulness: MetricSummary;
     answerRelevancy: MetricSummary;
+    agenticUtility?: MetricSummary;
   };
   ab: {
     lift: number;
@@ -135,6 +136,14 @@ export function renderStatusBlock(summary: EvidenceSummary): string {
     ['Faithfulness', metrics.faithfulness.target, metrics.faithfulness.mean, metrics.faithfulness.met],
     ['Answer Relevancy', metrics.answerRelevancy.target, metrics.answerRelevancy.mean, metrics.answerRelevancy.met],
   ];
+  if (metrics.agenticUtility) {
+    rows.push([
+      'Agentic Utility',
+      metrics.agenticUtility.target,
+      metrics.agenticUtility.mean,
+      metrics.agenticUtility.met,
+    ]);
+  }
 
   const metricLines = rows
     .map(([name, target, measured, met]) => {
@@ -187,6 +196,9 @@ export function renderImplementationStatusBlock(summary: EvidenceSummary): strin
     `Hallucination Rate: ${round(summary.metrics.hallucinationRate.mean, 3)} (target ${summary.metrics.hallucinationRate.target})`,
     `Faithfulness: ${round(summary.metrics.faithfulness.mean, 2)} (target ${summary.metrics.faithfulness.target})`,
     `Answer Relevancy: ${round(summary.metrics.answerRelevancy.mean, 2)} (target ${summary.metrics.answerRelevancy.target})`,
+    ...(summary.metrics.agenticUtility
+      ? [`Agentic Utility: ${round(summary.metrics.agenticUtility.mean, 2)} (target ${summary.metrics.agenticUtility.target})`]
+      : []),
     '',
     `A/B Lift: ${round(summary.ab.lift, 4)} (target ${summary.ab.targetLift}, p-value ${round(summary.ab.pValue, 4)}) → ${liftStatus}`,
     `Memory per 1K LOC: ${round(summary.performance.memoryPerKLOC, 2)} MB (target ${summary.performance.targetMemoryPerKLOC} MB) → ${memoryStatus}`,
@@ -251,6 +263,15 @@ export function reconcileGates(
       measured: `${summary.metrics.answerRelevancy.mean}`,
       status: summary.metrics.answerRelevancy.met ? 'MET' : 'NOT MET',
     },
+    ...(summary.metrics.agenticUtility
+      ? {
+          'Agentic Utility': {
+            target: `>=${summary.metrics.agenticUtility.target}`,
+            measured: `${summary.metrics.agenticUtility.mean}`,
+            status: summary.metrics.agenticUtility.met ? 'MET' : 'NOT MET',
+          },
+        }
+      : {}),
     'A/B Lift': {
       target: `>=${summary.ab.targetLift}`,
       measured: `${summary.ab.lift} (p=${summary.ab.pValue})`,

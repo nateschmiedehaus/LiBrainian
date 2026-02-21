@@ -157,11 +157,13 @@ describe('ralphCommand', () => {
           stage2_tier1: { status: 'passed' },
           stage3_tier2: { status: 'passed' },
           stage4_adversarial: { status: 'passed' },
+          stage5_agentic_utility: { status: 'passed' },
         },
         measurementCompleteness: {
           retrievalQuality: { measured: false, reason: 'missing_or_budget_skipped' },
           epistemicQuality: { measured: true },
           operationalQuality: { measured: true },
+          agenticUtility: { measured: true },
         },
       },
     } as any);

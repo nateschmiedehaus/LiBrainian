@@ -69,6 +69,8 @@ Scenario Families: 30/30 (100%)
   - unverified (evidence_manifest_missing): `npm test -- --run` -> **9283 passed, 0 failed, 102 skipped**.
   - unverified (evidence_manifest_missing): `npm run test:agentic:strict:quick` -> failed at A/B gate (`t3_plus_ceiling_time_reduction_below_threshold:-0.199<0.050`) with `agentCommandShare=1`, `agentVerifiedExecutionShare=1`, `artifactIntegrityShare=1`, `verificationFallbackShare=0`.
 - unverified (evidence_manifest_missing): Conversation intelligence tracker for launch strategy and release checklist: `docs/librarian/CONVERSATION_INSIGHTS.md`
+- unverified (evidence_manifest_missing): 2026-02-21 agentic utility fitness integration added (`src/evolution/fitness.ts`, `src/evolution/staged_evaluators.ts`, `src/integration/agentic_metrics_store.ts`) with Stage 5 evaluator and task/feedback telemetry pipeline.
+- unverified (evidence_manifest_missing): 2026-02-21 STATUS dashboard renderer supports optional `Agentic Utility` metric row (`src/evaluation/evidence_reconciliation.ts`) when manifest summaries include that dimension.
 
 ### Validation (See Autogen Block Above) unverified (evidence_manifest_missing)
 unverified (evidence_manifest_missing): Narrative below is historical context; treat the autogen block + evidence manifest as the source of truth.

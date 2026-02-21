@@ -11,6 +11,7 @@ function createStages(): {
   stage2: StageResult;
   stage3: StageResult;
   stage4: StageResult;
+  stage5: StageResult;
 } {
   return {
     stage0: {
@@ -58,6 +59,21 @@ function createStages(): {
         injection_resistance: 1,
         provenance_labeling: 1,
         fail_closed: true,
+      },
+      durationMs: 10,
+      artifacts: [],
+    },
+    stage5: {
+      status: 'passed',
+      metrics: {
+        task_completion_lift: 0.6,
+        time_to_solution_reduction: 0.5,
+        context_usage_rate: 0.8,
+        code_quality_lift: 0.55,
+        decision_accuracy: 0.9,
+        agent_satisfaction_score: 0.85,
+        missing_context_rate: 0.1,
+        irrelevant_context_rate: 0.15,
       },
       durationMs: 10,
       artifacts: [],

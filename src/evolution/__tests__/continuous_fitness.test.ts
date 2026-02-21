@@ -80,6 +80,16 @@ function createTestFitnessVector(overrides: Partial<FitnessVector> = {}): Fitnes
       providerCalls: 5,
       recoveryBudgetCompliance: true,
     },
+    agenticUtility: {
+      taskCompletionLift: 0.5,
+      timeToSolutionReduction: 0.5,
+      contextUsageRate: 0.5,
+      codeQualityLift: 0.5,
+      decisionAccuracy: 0.5,
+      agentSatisfactionScore: 0.5,
+      missingContextRate: 0.2,
+      irrelevantContextRate: 0.2,
+    },
     overall: 0,
     ...overrides,
   };

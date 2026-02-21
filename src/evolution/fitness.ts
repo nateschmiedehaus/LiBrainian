@@ -42,6 +42,7 @@ export function computeFitnessReport(
     stage2: StageResult;
     stage3: StageResult;
     stage4: StageResult;
+    stage5: StageResult;
   },
   retrievalReport?: RetrievalReportLike,
   stateReport?: LibrarianStateReport,
@@ -51,7 +52,7 @@ export function computeFitnessReport(
   const fitness = computeFitnessVector(stages, retrievalReport, stateReport);
   const descriptors = computeBehaviorDescriptors(fitness, stateReport);
   const delta = baseline ? computeFitnessDelta(fitness, baseline.fitness, baseline.variantId ?? 'baseline') : undefined;
-  const measurementCompleteness = computeMeasurementCompleteness(retrievalReport, stateReport);
+  const measurementCompleteness = computeMeasurementCompleteness(retrievalReport, stateReport, stages.stage5);
   const scoringIntegrity = computeScoringIntegrity(measurementCompleteness);
 
   return {
@@ -66,6 +67,7 @@ export function computeFitnessReport(
       stage2_tier1: stages.stage2,
       stage3_tier2: stages.stage3,
       stage4_adversarial: stages.stage4,
+      stage5_agentic_utility: stages.stage5,
     },
     fitness,
     behaviorDescriptors: descriptors,
@@ -86,6 +88,7 @@ export function computeFitnessVector(
     stage2: StageResult;
     stage3: StageResult;
     stage4: StageResult;
+    stage5: StageResult;
   },
   retrievalReport?: RetrievalReportLike,
   stateReport?: LibrarianStateReport
@@ -114,6 +117,9 @@ export function computeFitnessVector(
   // Cost efficiency from stages
   const costEfficiency = extractCostEfficiency(stages);
 
+  // Agentic utility from stage 5
+  const agenticUtility = extractAgenticUtility(stages.stage5);
+
   // Compute overall score (geometric mean of normalized scores)
   const overall = computeOverallScore({
     correctness,
@@ -122,6 +128,7 @@ export function computeFitnessVector(
     operationalQuality,
     securityRobustness,
     costEfficiency,
+    agenticUtility,
   });
 
   return {
@@ -131,6 +138,7 @@ export function computeFitnessVector(
     operationalQuality,
     securityRobustness,
     costEfficiency,
+    agenticUtility,
     overall,
   };
 }
@@ -363,12 +371,14 @@ function extractOperationalQuality(stateReport?: LibrarianStateReport): FitnessV
 
 function computeMeasurementCompleteness(
   retrievalReport?: RetrievalReportLike,
-  stateReport?: LibrarianStateReport
+  stateReport?: LibrarianStateReport,
+  stage5?: StageResult
 ): MeasurementCompleteness {
   return {
     retrievalQuality: getRetrievalMeasurementCompleteness(retrievalReport),
     epistemicQuality: getEpistemicMeasurementCompleteness(stateReport),
     operationalQuality: getOperationalMeasurementCompleteness(stateReport),
+    agenticUtility: getAgenticMeasurementCompleteness(stage5),
   };
 }
 
@@ -377,7 +387,7 @@ function computeScoringIntegrity(
 ): FitnessScoringIntegrity {
   const reasons: string[] = [];
   let measuredFamilies = 0;
-  const totalFamilies = 3;
+  const totalFamilies = 4;
 
   if (completeness.retrievalQuality.measured) {
     measuredFamilies += 1;
@@ -395,6 +405,12 @@ function computeScoringIntegrity(
     measuredFamilies += 1;
   } else {
     reasons.push(`operational_quality_unmeasured:${completeness.operationalQuality.reason ?? 'unknown'}`);
+  }
+
+  if (completeness.agenticUtility.measured) {
+    measuredFamilies += 1;
+  } else {
+    reasons.push(`agentic_utility_unmeasured:${completeness.agenticUtility.reason ?? 'unknown'}`);
   }
 
   return {
@@ -458,6 +474,36 @@ function getRetrievalMeasurementCompleteness(
   }
 
   return { measured: true, queryCount };
+}
+
+function getAgenticMeasurementCompleteness(
+  stage5?: StageResult
+): MeasurementCompleteness['agenticUtility'] {
+  if (!stage5) {
+    return { measured: false, reason: 'missing_or_budget_skipped' };
+  }
+  if (stage5.status === 'skipped') {
+    return { measured: false, reason: 'missing_or_budget_skipped' };
+  }
+
+  const requiredMetricNames = [
+    'task_completion_lift',
+    'time_to_solution_reduction',
+    'context_usage_rate',
+    'code_quality_lift',
+    'decision_accuracy',
+    'agent_satisfaction_score',
+    'missing_context_rate',
+    'irrelevant_context_rate',
+  ];
+  const hasAllMetrics = requiredMetricNames.every((name) => {
+    const value = stage5.metrics[name];
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  });
+  if (!hasAllMetrics) {
+    return { measured: false, reason: 'missing_metrics' };
+  }
+  return { measured: true };
 }
 
 function getEpistemicMeasurementCompleteness(
@@ -546,18 +592,37 @@ function extractCostEfficiency(stages: Record<string, StageResult>): FitnessVect
   };
 }
 
+function extractAgenticUtility(stage5: StageResult): FitnessVector['agenticUtility'] {
+  const readNumber = (name: string): number => {
+    const value = stage5.metrics[name];
+    return typeof value === 'number' && Number.isFinite(value) ? value : -1;
+  };
+  return {
+    taskCompletionLift: readNumber('task_completion_lift'),
+    timeToSolutionReduction: readNumber('time_to_solution_reduction'),
+    contextUsageRate: readNumber('context_usage_rate'),
+    codeQualityLift: readNumber('code_quality_lift'),
+    decisionAccuracy: readNumber('decision_accuracy'),
+    agentSatisfactionScore: readNumber('agent_satisfaction_score'),
+    missingContextRate: readNumber('missing_context_rate'),
+    irrelevantContextRate: readNumber('irrelevant_context_rate'),
+  };
+}
+
 function computeOverallScore(fitness: Omit<FitnessVector, 'overall'>): number {
-  // Use continuous fitness computation with harmonic mean and floors.
-  // This prevents zero collapse and provides gradient signal even for broken systems.
-  //
-  // The old geometric mean approach had a critical flaw: any 0 factor = 0 overall.
-  // The new harmonic mean with floors ensures fitness is always in [floor, 1.0].
+  // Structural score from existing harmonic-fitness dimensions.
   const fitnessWithOverall = {
     ...fitness,
     overall: 0, // Will be computed by computeContinuousOverallScore
   } as FitnessVector;
+  const structuralScore = computeContinuousOverallScore(fitnessWithOverall);
 
-  return computeContinuousOverallScore(fitnessWithOverall);
+  // Agentic utility must have major influence on total fitness in M0.
+  const agenticScore = normalizeAgenticUtilityScore(fitness.agenticUtility);
+  if (agenticScore < 0) return structuralScore;
+
+  const AGENTIC_WEIGHT = 0.30;
+  return ((1 - AGENTIC_WEIGHT) * structuralScore) + (AGENTIC_WEIGHT * agenticScore);
 }
 
 function normalizeLatency(latencyMs: number): number {
@@ -568,6 +633,31 @@ function normalizeLatency(latencyMs: number): number {
 function normalizeTokenUsage(tokens: number): number {
   // Target: <10k = 1.0, 100k = 0.1
   return Math.min(1.0, 10000 / Math.max(1, tokens));
+}
+
+function normalizeAgenticUtilityScore(agentic: FitnessVector['agenticUtility']): number {
+  const values: number[] = [];
+  const normalizeLift = (value: number): number => clamp01(value);
+  const normalizeRate = (value: number): number => clamp01(value);
+
+  if (agentic.taskCompletionLift >= 0) values.push(normalizeLift(agentic.taskCompletionLift));
+  if (agentic.timeToSolutionReduction >= 0) values.push(normalizeRate(agentic.timeToSolutionReduction));
+  if (agentic.contextUsageRate >= 0) values.push(normalizeRate(agentic.contextUsageRate));
+  if (agentic.codeQualityLift >= 0) values.push(normalizeLift(agentic.codeQualityLift));
+  if (agentic.decisionAccuracy >= 0) values.push(normalizeRate(agentic.decisionAccuracy));
+  if (agentic.agentSatisfactionScore >= 0) values.push(normalizeRate(agentic.agentSatisfactionScore));
+  if (agentic.missingContextRate >= 0) values.push(1 - normalizeRate(agentic.missingContextRate));
+  if (agentic.irrelevantContextRate >= 0) values.push(1 - normalizeRate(agentic.irrelevantContextRate));
+
+  if (values.length === 0) return -1;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
 }
 
 function compareMetric(

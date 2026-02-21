@@ -7,6 +7,7 @@
  * - Stage 2: Tier-1 integration (controlled provider)
  * - Stage 3: Tier-2 live provider tests
  * - Stage 4: Adversarial/stress suite
+ * - Stage 5: Agentic utility validation
  *
  * @packageDocumentation
  */
@@ -25,6 +26,7 @@ import type {
 import { computeFitnessReport } from './fitness.js';
 import type { LibrarianStateReport } from '../measurement/observability.js';
 import type { EvalOptions, EvalReport } from '../evaluation/runner.js';
+import { computeAgenticUtilitySnapshot } from '../integration/agentic_metrics_store.js';
 
 // ============================================================================
 // STAGE 0: STATIC SANITY
@@ -407,6 +409,73 @@ export class Stage4AdversarialEvaluator implements StagedEvaluator {
 }
 
 // ============================================================================
+// STAGE 5: AGENTIC UTILITY VALIDATION
+// ============================================================================
+
+export class Stage5AgenticUtilityEvaluator implements StagedEvaluator {
+  stage = 5 as const;
+  name = 'Agentic Utility Validation';
+  estimatedCost = { tokens: 0, embeddings: 0, providerCalls: 0 };
+
+  async run(_variant: Variant, context: EvaluationContext): Promise<StageResult> {
+    const startTime = Date.now();
+    const metrics: Record<string, number | boolean | string> = {};
+    const artifacts: string[] = [];
+
+    const { createSqliteStorage } = await import('../storage/sqlite_storage.js');
+    const dbPath = context.dbPath ?? await resolveDbPathForWorkspace(context.workspaceRoot);
+    const storage = createSqliteStorage(dbPath, context.workspaceRoot);
+
+    try {
+      await storage.initialize();
+      const snapshot = await computeAgenticUtilitySnapshot(storage);
+
+      metrics['task_count'] = snapshot.taskCount;
+      metrics['feedback_count'] = snapshot.feedbackCount;
+      metrics['rating_count'] = snapshot.ratingCount;
+      metrics['with_context_count'] = snapshot.withContextCount;
+      metrics['without_context_count'] = snapshot.withoutContextCount;
+      metrics['task_completion_lift'] = snapshot.taskCompletionLift;
+      metrics['time_to_solution_reduction'] = snapshot.timeToSolutionReduction;
+      metrics['context_usage_rate'] = snapshot.contextUsageRate;
+      metrics['code_quality_lift'] = snapshot.codeQualityLift;
+      metrics['decision_accuracy'] = snapshot.decisionAccuracy;
+      metrics['agent_satisfaction_score'] = snapshot.agentSatisfactionScore;
+      metrics['missing_context_rate'] = snapshot.missingContextRate;
+      metrics['irrelevant_context_rate'] = snapshot.irrelevantContextRate;
+
+      if (!snapshot.measured) {
+        return {
+          status: 'unverified_by_trace',
+          reason: `agentic_utility_unmeasured: ${snapshot.reason ?? 'unknown'}`,
+          metrics,
+          durationMs: Date.now() - startTime,
+          artifacts,
+        };
+      }
+
+      return {
+        status: 'passed',
+        metrics,
+        durationMs: Date.now() - startTime,
+        artifacts,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        status: 'unverified_by_trace',
+        reason: `agentic_utility_unmeasured: ${message.slice(0, 180)}`,
+        metrics,
+        durationMs: Date.now() - startTime,
+        artifacts,
+      };
+    } finally {
+      await storage.close().catch(() => {});
+    }
+  }
+}
+
+// ============================================================================
 // STAGED PIPELINE
 // ============================================================================
 
@@ -425,6 +494,7 @@ export async function runStagedEvaluation(
     stage2: StageResult;
     stage3: StageResult;
     stage4: StageResult;
+    stage5: StageResult;
   };
   fitnessReport: FitnessReport;
   resourceUsage: ResourceUsage;
@@ -435,6 +505,7 @@ export async function runStagedEvaluation(
     new Stage2Tier1Evaluator(),
     new Stage3Tier2Evaluator(),
     new Stage4AdversarialEvaluator(),
+    new Stage5AgenticUtilityEvaluator(),
   ];
 
   const stages: Record<string, StageResult> = {};
@@ -473,7 +544,7 @@ export async function runStagedEvaluation(
     // Stop on failure if configured
     if (options.stopOnFailure && result.status === 'failed') {
       // Skip remaining stages
-      for (let i = evaluator.stage + 1; i <= 4; i++) {
+      for (let i = evaluator.stage + 1; i <= 5; i++) {
         stages[`stage${i}`] = {
           status: 'skipped',
           reason: `Skipped due to stage ${evaluator.stage} failure`,
@@ -554,6 +625,7 @@ export async function runStagedEvaluation(
       stage2: stages['stage2'],
       stage3: stages['stage3'],
       stage4: stages['stage4'],
+      stage5: stages['stage5'],
     },
     retrievalReport,
     stateReport,
@@ -568,6 +640,7 @@ export async function runStagedEvaluation(
       stage2: stages['stage2'],
       stage3: stages['stage3'],
       stage4: stages['stage4'],
+      stage5: stages['stage5'],
     },
     fitnessReport,
     resourceUsage,

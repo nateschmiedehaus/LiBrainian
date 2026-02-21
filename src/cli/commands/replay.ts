@@ -186,6 +186,7 @@ function replayVariant(
       { name: 'Stage 2', result: report.stages.stage2_tier1 },
       { name: 'Stage 3', result: report.stages.stage3_tier2 },
       { name: 'Stage 4', result: report.stages.stage4_adversarial },
+      { name: 'Stage 5', result: report.stages.stage5_agentic_utility },
     ];
 
     for (const stage of stages) {
@@ -209,6 +210,7 @@ function replayVariant(
       console.log(`    Recall@5: ${(report.fitness.retrievalQuality.recallAt5 * 100).toFixed(1)}%`);
       console.log(`    Evidence Coverage: ${(report.fitness.epistemicQuality.evidenceCoverage * 100).toFixed(1)}%`);
       console.log(`    Cache Hit Rate: ${(report.fitness.operationalQuality.cacheHitRate * 100).toFixed(1)}%`);
+      console.log(`    Agent Satisfaction: ${(report.fitness.agenticUtility.agentSatisfactionScore * 100).toFixed(1)}%`);
       console.log();
 
       console.log('  Behavior Descriptors:');

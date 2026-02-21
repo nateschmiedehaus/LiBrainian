@@ -40,6 +40,7 @@ export interface FitnessReport {
     stage2_tier1: StageResult;
     stage3_tier2: StageResult;
     stage4_adversarial: StageResult;
+    stage5_agentic_utility: StageResult;
   };
 
   /** Multi-objective fitness vector */
@@ -74,6 +75,7 @@ export interface MeasurementCompleteness {
   retrievalQuality: DimensionMeasurementCompleteness;
   epistemicQuality: DimensionMeasurementCompleteness;
   operationalQuality: DimensionMeasurementCompleteness;
+  agenticUtility: DimensionMeasurementCompleteness;
 }
 
 /**
@@ -150,6 +152,18 @@ export interface FitnessVector {
     recoveryBudgetCompliance: boolean;
   };
 
+  /** Agentic utility: does LiBrainian improve real agent outcomes */
+  agenticUtility: {
+    taskCompletionLift: number;
+    timeToSolutionReduction: number;
+    contextUsageRate: number;
+    codeQualityLift: number;
+    decisionAccuracy: number;
+    agentSatisfactionScore: number;
+    missingContextRate: number;
+    irrelevantContextRate: number;
+  };
+
   /** Overall score (Pareto-weighted) */
   overall: number;
 }
@@ -207,7 +221,7 @@ export interface StageResult {
  * Staged evaluator interface.
  */
 export interface StagedEvaluator {
-  stage: 0 | 1 | 2 | 3 | 4;
+  stage: 0 | 1 | 2 | 3 | 4 | 5;
   name: string;
   run(variant: Variant, context: EvaluationContext): Promise<StageResult>;
   estimatedCost: {

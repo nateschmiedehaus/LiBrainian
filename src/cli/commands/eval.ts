@@ -171,10 +171,11 @@ export async function evalCommand(options: EvalOptions): Promise<void> {
 function parseStageRange(stages: string): [number, number] {
   if (stages.includes('-')) {
     const [min, max] = stages.split('-').map(Number);
-    return [Math.max(0, min), Math.min(4, max)];
+    return [Math.max(0, min), Math.min(5, max)];
   }
   const stage = Number(stages);
-  return [stage, stage];
+  const clamped = Math.max(0, Math.min(5, stage));
+  return [clamped, clamped];
 }
 
 function printFitnessReport(report: FitnessReport, verbose: boolean): void {
@@ -198,6 +199,7 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
     { name: 'Stage 2 (Tier-1)', result: report.stages.stage2_tier1 },
     { name: 'Stage 3 (Tier-2)', result: report.stages.stage3_tier2 },
     { name: 'Stage 4 (Adversarial)', result: report.stages.stage4_adversarial },
+    { name: 'Stage 5 (Agentic Utility)', result: report.stages.stage5_agentic_utility },
   ];
 
   for (const stage of stages) {
@@ -222,6 +224,7 @@ function printFitnessReport(report: FitnessReport, verbose: boolean): void {
   console.log(`  Retrieval Recall@5: ${formatPercentOrUnmeasured(report.fitness.retrievalQuality.recallAt5)}`);
   console.log(`  Epistemic (Evidence Coverage): ${formatPercentOrUnmeasured(report.fitness.epistemicQuality.evidenceCoverage)}`);
   console.log(`  Operational (Cache Hit Rate): ${formatPercentOrUnmeasured(report.fitness.operationalQuality.cacheHitRate)}`);
+  console.log(`  Agentic Utility (Satisfaction): ${formatPercentOrUnmeasured(report.fitness.agenticUtility.agentSatisfactionScore)}`);
   console.log();
 
   // Behavior descriptors

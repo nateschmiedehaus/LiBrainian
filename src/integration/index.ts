@@ -60,6 +60,20 @@ export type {
   FeedbackAnalysis,
 } from './agent_feedback.js';
 
+// Agentic utility telemetry storage (feeds evolution fitness stage 5)
+export {
+  recordAgenticTaskOutcome,
+  listAgenticTaskOutcomes,
+  recordAgenticFeedbackEvent,
+  listAgenticFeedbackEvents,
+  computeAgenticUtilitySnapshot,
+} from './agentic_metrics_store.js';
+export type {
+  AgenticTaskOutcomeRecord,
+  AgenticFeedbackEventRecord,
+  AgenticUtilitySnapshot,
+} from './agentic_metrics_store.js';
+
 // Agent feedback submission (easy API for agents)
 export {
   submitQueryFeedback,
