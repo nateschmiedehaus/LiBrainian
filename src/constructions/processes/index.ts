@@ -84,6 +84,16 @@ export {
 } from './bootstrap_quality_gate.js';
 
 export {
+  createQueryRelevanceGateConstruction,
+  type QueryRelevancePair,
+  type QueryRelevanceFixture,
+  type QueryRelevanceGateInput,
+  type QueryRelevancePairResult,
+  type QueryRelevanceFixtureResult,
+  type QueryRelevanceGateOutput,
+} from './query_relevance_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,
