@@ -1,5 +1,5 @@
 /**
- * @fileoverview SQLite storage implementation for Librarian
+ * @fileoverview SQLite storage implementation for LiBrainian
  *
  * Uses better-sqlite3 for synchronous, fast operations.
  * Embeddings stored as BLOBs; similarity search via brute-force cosine
@@ -12,7 +12,7 @@ import * as fsSync from 'node:fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type {
-  LibrarianStorage,
+  LiBrainianStorage,
   StorageCapabilities,
   QueryOptions,
   ContextPackQueryOptions,
@@ -44,7 +44,7 @@ import type {
   QualityScoreHistory,
   TestMapping,
   TestMappingQueryOptions,
-  LibrarianCommit,
+  LiBrainianCommit,
   CommitQueryOptions,
   FileOwnership,
   OwnershipQueryOptions,
@@ -105,8 +105,8 @@ import type { GraphMetricsEntry } from '../graphs/metrics.js';
 import type { CochangeEdge } from '../graphs/temporal_graph.js';
 import type { EvidenceEntry, EvidenceRef } from '../api/evidence.js';
 import type {
-  LibrarianVersion,
-  LibrarianMetadata,
+  LiBrainianVersion,
+  LiBrainianMetadata,
   FunctionKnowledge,
   ModuleKnowledge,
   FileKnowledge,
@@ -305,6 +305,34 @@ function normalizeSqlPath(value: string): string {
   return value.replace(/\\/g, '/');
 }
 
+function quoteIdentifier(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
+function isAbsolutePathLike(value: string): boolean {
+  const normalized = normalizeSqlPath(value.trim());
+  if (!normalized) return false;
+  return path.isAbsolute(normalized) || /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//');
+}
+
+function maybeRebaseLegacyAbsolutePath(value: string, legacyWorkspaceRoot: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  const normalized = normalizeSqlPath(trimmed);
+  if (!isAbsolutePathLike(normalized)) return normalized;
+
+  const normalizedLegacyRoot = normalizeSqlPath(path.resolve(legacyWorkspaceRoot)).replace(/\/+$/, '');
+  const lowerValue = normalized.toLowerCase();
+  const lowerLegacyRoot = normalizedLegacyRoot.toLowerCase();
+
+  if (lowerValue === lowerLegacyRoot) return normalized;
+  const prefix = `${lowerLegacyRoot}/`;
+  if (!lowerValue.startsWith(prefix)) return normalized;
+
+  const relative = normalized.slice(normalizedLegacyRoot.length + 1).replace(/^\.\/+/, '');
+  return relative.length > 0 ? relative : normalized;
+}
+
 function normalizeFilterPathPrefix(prefix: string | undefined, workspaceRoot?: string): string[] {
   if (!prefix || prefix.trim().length === 0) return [];
   const candidates = new Set<string>();
@@ -436,7 +464,7 @@ function validateTableName(table: unknown): string {
 // SQLITE STORAGE IMPLEMENTATION
 // ============================================================================
 
-export class SqliteLibrarianStorage implements LibrarianStorage {
+export class SqliteLiBrainianStorage implements LiBrainianStorage {
   private db: Database.Database | null = null;
   private readonly dbPath: string;
   private readonly lockPath: string;
@@ -603,6 +631,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       this.ensureAssessmentTable();
       this.ensureAdvancedAnalysisTables();
       this.ensureAdvancedLibraryFeaturesTables();
+      this.rebindWorkspacePathsIfNeeded();
 
       this.initialized = true;
     } catch (error) {
@@ -667,6 +696,209 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
       throw new Error('Storage not initialized. Call initialize() first.');
     }
     return this.db;
+  }
+
+  private hasTable(tableName: string): boolean {
+    if (!this.db) return false;
+    const row = this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName);
+    return Boolean(row);
+  }
+
+  private rebindWorkspacePathsIfNeeded(): void {
+    if (!this.db || !this.workspaceRoot || !this.hasTable('librarian_metadata')) return;
+    const db = this.db;
+    const currentWorkspace = path.resolve(this.workspaceRoot);
+
+    const metadataRow = db
+      .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+      .get('metadata') as { value?: string } | undefined;
+    if (!metadataRow?.value) return;
+
+    const metadata = parseJsonOrNull<Record<string, unknown>>(metadataRow.value);
+    const previousWorkspaceRaw = typeof metadata?.workspace === 'string' ? metadata.workspace.trim() : '';
+    if (!previousWorkspaceRaw) return;
+
+    const previousWorkspace = path.resolve(previousWorkspaceRaw);
+    const previousNormalized = normalizeSqlPath(previousWorkspace).replace(/\/+$/, '');
+    const currentNormalized = normalizeSqlPath(currentWorkspace).replace(/\/+$/, '');
+    if (previousNormalized === currentNormalized) return;
+
+    let columnUpdates = 0;
+    let contextPackUpdates = 0;
+    let parseWarnings = 0;
+    let watchStateUpdated = false;
+    let bootstrapWorkspaceRows = 0;
+
+    const rebindPathColumn = (table: string, column: string): number => {
+      if (!this.hasTable(table)) return 0;
+      const tableId = quoteIdentifier(table);
+      const columnId = quoteIdentifier(column);
+      const rows = db
+        .prepare(`SELECT rowid as rowid, ${columnId} as value FROM ${tableId}`)
+        .all() as Array<{ rowid: number; value: unknown }>;
+      const update = db.prepare(`UPDATE ${tableId} SET ${columnId} = ? WHERE rowid = ?`);
+      let changed = 0;
+      for (const row of rows) {
+        if (typeof row.value !== 'string' || row.value.length === 0) continue;
+        const rebased = maybeRebaseLegacyAbsolutePath(row.value, previousWorkspace);
+        if (rebased !== row.value) {
+          update.run(rebased, row.rowid);
+          changed += 1;
+        }
+      }
+      return changed;
+    };
+
+    const transactional = db.transaction(() => {
+      const pathColumns: Array<{ table: string; column: string }> = [
+        { table: 'librarian_functions', column: 'file_path' },
+        { table: 'librarian_modules', column: 'path' },
+        { table: 'librarian_files', column: 'path' },
+        { table: 'librarian_files', column: 'relative_path' },
+        { table: 'librarian_files', column: 'directory' },
+        { table: 'librarian_file_checksums', column: 'file_path' },
+        { table: 'librarian_graph_edges', column: 'source_file' },
+        { table: 'librarian_test_mapping', column: 'test_path' },
+        { table: 'librarian_test_mapping', column: 'source_path' },
+        { table: 'librarian_ownership', column: 'file_path' },
+        { table: 'librarian_assessments', column: 'entity_path' },
+      ];
+      for (const target of pathColumns) {
+        columnUpdates += rebindPathColumn(target.table, target.column);
+      }
+
+      if (this.hasTable('librarian_context_packs')) {
+        const rows = db
+          .prepare('SELECT rowid as rowid, related_files, code_snippets, invalidation_triggers FROM librarian_context_packs')
+          .all() as Array<{
+            rowid: number;
+            related_files: string;
+            code_snippets: string;
+            invalidation_triggers: string;
+          }>;
+        const update = db.prepare(
+          'UPDATE librarian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ? WHERE rowid = ?'
+        );
+
+        for (const row of rows) {
+          let nextRelated = row.related_files;
+          let nextSnippets = row.code_snippets;
+          let nextTriggers = row.invalidation_triggers;
+          let changed = false;
+
+          const related = parseJsonOrNull<unknown[]>(row.related_files);
+          if (Array.isArray(related)) {
+            const rebased = related.map((item) =>
+              typeof item === 'string' ? maybeRebaseLegacyAbsolutePath(item, previousWorkspace) : item
+            );
+            const serialized = JSON.stringify(rebased);
+            if (serialized !== row.related_files) {
+              nextRelated = serialized;
+              changed = true;
+            }
+          } else {
+            parseWarnings += 1;
+          }
+
+          const snippets = parseJsonOrNull<unknown[]>(row.code_snippets);
+          if (Array.isArray(snippets)) {
+            const rebased = snippets.map((item) => {
+              if (!item || typeof item !== 'object') return item;
+              const snippet = item as Record<string, unknown>;
+              if (typeof snippet.filePath !== 'string') return item;
+              const nextPath = maybeRebaseLegacyAbsolutePath(snippet.filePath, previousWorkspace);
+              if (nextPath === snippet.filePath) return item;
+              return { ...snippet, filePath: nextPath };
+            });
+            const serialized = JSON.stringify(rebased);
+            if (serialized !== row.code_snippets) {
+              nextSnippets = serialized;
+              changed = true;
+            }
+          } else {
+            parseWarnings += 1;
+          }
+
+          const triggers = parseJsonOrNull<unknown[]>(row.invalidation_triggers);
+          if (Array.isArray(triggers)) {
+            const rebased = triggers.map((item) =>
+              typeof item === 'string' ? maybeRebaseLegacyAbsolutePath(item, previousWorkspace) : item
+            );
+            const serialized = JSON.stringify(rebased);
+            if (serialized !== row.invalidation_triggers) {
+              nextTriggers = serialized;
+              changed = true;
+            }
+          } else {
+            parseWarnings += 1;
+          }
+
+          if (changed) {
+            update.run(nextRelated, nextSnippets, nextTriggers, row.rowid);
+            contextPackUpdates += 1;
+          }
+        }
+      }
+
+      const watchStateRow = db
+        .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+        .get('watch_state') as { value?: string } | undefined;
+      if (watchStateRow?.value) {
+        const watchStateParsed = safeJsonParse<Record<string, unknown>>(watchStateRow.value);
+        if (watchStateParsed.ok) {
+          const next = {
+            ...watchStateParsed.value,
+            workspace_root: currentWorkspace,
+          };
+          db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)')
+            .run('watch_state', JSON.stringify(next));
+          watchStateUpdated = true;
+        } else {
+          parseWarnings += 1;
+        }
+      }
+
+      if (this.hasTable('librarian_bootstrap_history')) {
+        bootstrapWorkspaceRows = db
+          .prepare('UPDATE librarian_bootstrap_history SET workspace = ? WHERE workspace = ?')
+          .run(currentWorkspace, previousWorkspace).changes;
+      }
+
+      const nextMetadata = {
+        ...(metadata ?? {}),
+        workspace: currentWorkspace,
+      };
+      db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)')
+        .run('metadata', JSON.stringify(nextMetadata));
+      db.prepare('INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)')
+        .run(
+          'workspace_rebind',
+          JSON.stringify({
+            from: previousWorkspace,
+            to: currentWorkspace,
+            reboundAt: new Date().toISOString(),
+            pathColumnUpdates: columnUpdates,
+            contextPackUpdates,
+            watchStateUpdated,
+            bootstrapWorkspaceRows,
+            parseWarnings,
+          })
+        );
+    });
+
+    transactional();
+
+    logWarning('[librarian] Rebound workspace paths after index relocation', {
+      from: previousWorkspace,
+      to: currentWorkspace,
+      pathColumnUpdates: columnUpdates,
+      contextPackUpdates,
+      watchStateUpdated,
+      bootstrapWorkspaceRows,
+      parseWarnings,
+    });
   }
 
   private ensureEmbeddingColumns(): void {
@@ -1515,14 +1747,14 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   // Metadata
   // --------------------------------------------------------------------------
 
-  async getMetadata(): Promise<LibrarianMetadata | null> {
+  async getMetadata(): Promise<LiBrainianMetadata | null> {
     const db = this.ensureDb();
     const row = db
       .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
       .get('metadata') as { value: string } | undefined;
 
     if (!row) return noResult();
-    const parsed = parseJsonOrNull<LibrarianMetadata>(row.value);
+    const parsed = parseJsonOrNull<LiBrainianMetadata>(row.value);
     if (!parsed || typeof parsed !== 'object') {
       return noResult();
     }
@@ -1533,7 +1765,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     };
   }
 
-  async setMetadata(metadata: LibrarianMetadata): Promise<void> {
+  async setMetadata(metadata: LiBrainianMetadata): Promise<void> {
     const db = this.ensureDb();
     db.prepare(
       'INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)'
@@ -1560,17 +1792,17 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   // Version
   // --------------------------------------------------------------------------
 
-  async getVersion(): Promise<LibrarianVersion | null> {
+  async getVersion(): Promise<LiBrainianVersion | null> {
     const db = this.ensureDb();
     const row = db
       .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
       .get('version') as { value: string } | undefined;
 
     if (!row) return noResult();
-    return parseJsonOrNull<LibrarianVersion>(row.value);
+    return parseJsonOrNull<LiBrainianVersion>(row.value);
   }
 
-  async setVersion(version: LibrarianVersion): Promise<void> {
+  async setVersion(version: LiBrainianVersion): Promise<void> {
     const db = this.ensureDb();
     db.prepare(
       'INSERT OR REPLACE INTO librarian_metadata (key, value) VALUES (?, ?)'
@@ -5385,19 +5617,19 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
   // Commits
   // --------------------------------------------------------------------------
 
-  async getCommit(id: string): Promise<LibrarianCommit | null> {
+  async getCommit(id: string): Promise<LiBrainianCommit | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_commits WHERE id = ?').get(id) as CommitRow | undefined;
     return row ? rowToCommit(row) : null;
   }
 
-  async getCommitBySha(sha: string): Promise<LibrarianCommit | null> {
+  async getCommitBySha(sha: string): Promise<LiBrainianCommit | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_commits WHERE sha = ?').get(sha) as CommitRow | undefined;
     return row ? rowToCommit(row) : null;
   }
 
-  async getCommits(options: CommitQueryOptions = {}): Promise<LibrarianCommit[]> {
+  async getCommits(options: CommitQueryOptions = {}): Promise<LiBrainianCommit[]> {
     const db = this.ensureDb();
     const clauses: string[] = [];
     const params: unknown[] = [];
@@ -5422,7 +5654,7 @@ export class SqliteLibrarianStorage implements LibrarianStorage {
     return rows.map(rowToCommit);
   }
 
-  async upsertCommit(commit: Omit<LibrarianCommit, 'id' | 'createdAt'>): Promise<LibrarianCommit> {
+  async upsertCommit(commit: Omit<LiBrainianCommit, 'id' | 'createdAt'>): Promise<LiBrainianCommit> {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     const id = randomUUID();
@@ -7907,7 +8139,7 @@ function rowToTestMapping(row: TestMappingRow): TestMapping {
   };
 }
 
-function rowToCommit(row: CommitRow): LibrarianCommit {
+function rowToCommit(row: CommitRow): LiBrainianCommit {
   return {
     id: row.id,
     sha: row.sha,
@@ -8140,7 +8372,7 @@ function rowToBootstrapReport(row: BootstrapHistoryRow): BootstrapReport {
   };
 }
 
-function parseVersionString(versionString: string): LibrarianVersion {
+function parseVersionString(versionString: string): LiBrainianVersion {
   const [major, minor, patch] = versionString.split('.').map(Number);
   return {
     major,
@@ -8180,7 +8412,7 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
 // ============================================================================
 
 /**
- * Creates a SQLite-backed LibrarianStorage instance.
+ * Creates a SQLite-backed LiBrainianStorage instance.
  *
  * The storage uses better-sqlite3 for synchronous, high-performance operations.
  * Embeddings are stored as BLOBs with brute-force cosine similarity search
@@ -8188,7 +8420,7 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
  *
  * @param dbPath - Path to the SQLite database file, or ':memory:' for in-memory storage
  * @param workspaceRoot - Optional workspace root for resolving relative paths
- * @returns A LibrarianStorage instance (not yet initialized - call initialize())
+ * @returns A LiBrainianStorage instance (not yet initialized - call initialize())
  *
  * @example
  * ```typescript
@@ -8196,15 +8428,15 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
  * await storage.initialize();
  * ```
  */
-export function createSqliteStorage(dbPath: string, workspaceRoot?: string): LibrarianStorage {
-  return new SqliteLibrarianStorage(dbPath, workspaceRoot);
+export function createSqliteStorage(dbPath: string, workspaceRoot?: string): LiBrainianStorage {
+  return new SqliteLiBrainianStorage(dbPath, workspaceRoot);
 }
 
 /**
- * Creates and initializes a LibrarianStorage instance from a StorageBackend configuration.
+ * Creates and initializes a LiBrainianStorage instance from a StorageBackend configuration.
  *
  * @param backend - Storage backend configuration specifying type and connection details
- * @returns A fully initialized LibrarianStorage instance
+ * @returns A fully initialized LiBrainianStorage instance
  * @throws Error if the backend type is not supported
  *
  * @example
@@ -8217,17 +8449,17 @@ export function createSqliteStorage(dbPath: string, workspaceRoot?: string): Lib
  */
 export async function createStorageFromBackend(
   backend: StorageBackend
-): Promise<LibrarianStorage> {
+): Promise<LiBrainianStorage> {
   switch (backend.type) {
     case 'sqlite': {
-      const storage = new SqliteLibrarianStorage(
+      const storage = new SqliteLiBrainianStorage(
         backend.connectionString || ':memory:'
       );
       await storage.initialize();
       return storage;
     }
     case 'memory': {
-      const storage = new SqliteLibrarianStorage(':memory:');
+      const storage = new SqliteLiBrainianStorage(':memory:');
       await storage.initialize();
       return storage;
     }
