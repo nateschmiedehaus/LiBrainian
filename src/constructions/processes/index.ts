@@ -94,6 +94,18 @@ export {
 } from './query_relevance_gate.js';
 
 export {
+  createContextPackDepthGateConstruction,
+  isShallowContextPack,
+  type ContextPackDepthQueryType,
+  type ContextPackDepthQuery,
+  type ContextPackDepthFixture,
+  type ContextPackDepthGateInput,
+  type ContextPackDepthQueryResult,
+  type ContextPackDepthFixtureResult,
+  type ContextPackDepthGateOutput,
+} from './context_pack_depth_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,
