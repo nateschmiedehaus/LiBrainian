@@ -3,6 +3,7 @@ import { createLiBrainian } from '../../api/librarian.js';
 import type { ContextPack } from '../../types.js';
 import type { Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
+import { createResultQualityJudgeConstruction, type ResultQualityJudgeOutput } from './result_quality_judge.js';
 
 export interface QueryRelevancePair {
   query: string;
@@ -29,6 +30,7 @@ export interface QueryRelevancePairResult {
   precisionAtK: number;
   pollutedByInternalFiles: boolean;
   confidenceValues: number[];
+  quality: ResultQualityJudgeOutput;
 }
 
 export interface QueryRelevanceFixtureResult {
@@ -142,6 +144,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
       const precisionThreshold = input.precisionThreshold ?? DEFAULT_PRECISION_THRESHOLD;
       const findings: string[] = [];
       const fixtureResults: QueryRelevanceFixtureResult[] = [];
+      const qualityJudge = createResultQualityJudgeConstruction();
 
       for (const fixture of fixtures) {
         const librarian = await createLiBrainian({
@@ -168,6 +171,13 @@ export function createQueryRelevanceGateConstruction(): Construction<
             const relevantHits = topFiles.filter((file) => expectedSet.has(file)).length;
             const pollutedByInternalFiles = topFiles.some((file) => file.includes('.librarian/'));
             const confidenceValues = topPacks.map((pack) => Number(pack.confidence ?? 0));
+            const quality = await qualityJudge.execute({
+              query: pair.query,
+              expectedFiles: pair.expectedFiles,
+              topFiles,
+              confidenceValues,
+              evidenceSnippets: topPacks.flatMap((pack) => (pack.codeSnippets ?? []).map((snippet) => snippet.content)),
+            });
 
             pairResults.push({
               query: pair.query,
@@ -177,6 +187,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
               precisionAtK: relevantHits / Math.max(k, 1),
               pollutedByInternalFiles,
               confidenceValues,
+              quality,
             });
           }
 
@@ -194,7 +205,8 @@ export function createQueryRelevanceGateConstruction(): Construction<
           const pass =
             precisionFailures.length === 0 &&
             internalPollutionCount === 0 &&
-            confidenceSane;
+            confidenceSane &&
+            pairResults.every((result) => result.quality.pass);
 
           if (!pass) {
             if (precisionFailures.length > 0) {
@@ -207,6 +219,10 @@ export function createQueryRelevanceGateConstruction(): Construction<
             }
             if (!confidenceSane) {
               findings.push(`${fixture.name}: confidence score sanity check failed`);
+            }
+            const failedQuality = pairResults.filter((result) => !result.quality.pass);
+            if (failedQuality.length > 0) {
+              findings.push(`${fixture.name}: ResultQualityJudge failed for ${failedQuality.length} query pair(s)`);
             }
           }
 

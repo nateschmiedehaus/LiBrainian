@@ -133,6 +133,15 @@ export {
 } from './patrol_regression_closure_gate.js';
 
 export {
+  createResultQualityJudgeConstruction,
+  deriveResultQualityThresholds,
+  type ResultQualityThresholdSeed,
+  type ResultQualityThresholds,
+  type ResultQualityJudgeInput,
+  type ResultQualityJudgeOutput,
+} from './result_quality_judge.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,

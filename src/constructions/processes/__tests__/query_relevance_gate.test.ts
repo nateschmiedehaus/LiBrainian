@@ -77,7 +77,16 @@ describe('Query Relevance Gate', () => {
         fixtureResult.pairResults.every((pair) =>
           pair.precisionAtK >= 0 &&
           pair.precisionAtK <= 1 &&
-          pair.confidenceValues.every((confidence) => confidence >= 0 && confidence <= 1)
+          pair.confidenceValues.every((confidence) => confidence >= 0 && confidence <= 1) &&
+          pair.quality.kind === 'ResultQualityJudgment.v1' &&
+          pair.quality.scores.relevance >= 0 &&
+          pair.quality.scores.relevance <= 1 &&
+          pair.quality.scores.completeness >= 0 &&
+          pair.quality.scores.completeness <= 1 &&
+          pair.quality.scores.actionability >= 0 &&
+          pair.quality.scores.actionability <= 1 &&
+          pair.quality.scores.accuracy >= 0 &&
+          pair.quality.scores.accuracy <= 1
         )
       )
     ).toBe(true);
