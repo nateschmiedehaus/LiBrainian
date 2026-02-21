@@ -185,7 +185,7 @@ describe('package release scripts', () => {
     const scripts = packageJson.scripts ?? {};
 
     expect(scripts['test:changed']).toBe(
-      'node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run --changed'
+      'node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit -- vitest --run --changed'
     );
     expect(scripts['validate:public']).toBe(
       'npm run hygiene:generated-artifacts && npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'

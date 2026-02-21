@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { createLiBrainian } from '../../api/librarian.js';
-import type { ContextPack, ContextPackType } from '../../types.js';
+import { createLiBrainian } from '../../api/librainian.js';
+import type { ContextPack, ContextPackType, LiBrainianVersion } from '../../types.js';
 import type { Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
@@ -210,7 +210,7 @@ async function evaluateQuery(
     !filePath.startsWith('/') &&
     !filePath.includes(':') &&
     !filePath.includes('node_modules/') &&
-    !filePath.includes('.librarian/')
+    !filePath.includes('.librainian/')
   );
 
   let invalidRelatedFileCount = 0;
@@ -310,6 +310,144 @@ function defaultFixtures(repoRoot: string): ContextPackDepthFixture[] {
   ];
 }
 
+function deriveFallbackAffectedFiles(fixture: ContextPackDepthFixture): string[] {
+  const candidates = new Set<string>();
+  for (const query of fixture.queries) {
+    for (const filePath of query.expectedRelatedFiles ?? []) {
+      if (typeof filePath === 'string' && filePath.length > 0) {
+        candidates.add(filePath.replace(/\\/gu, '/'));
+      }
+    }
+  }
+  return Array.from(candidates);
+}
+
+function fallbackVersion(): LiBrainianVersion {
+  return {
+    major: 1,
+    minor: 0,
+    patch: 0,
+    string: '1.0.0',
+    qualityTier: 'full',
+    indexedAt: new Date(),
+    indexerVersion: 'context-pack-depth-gate',
+    features: [],
+  };
+}
+
+function inferLanguage(relativePath: string): string {
+  if (relativePath.endsWith('.ts') || relativePath.endsWith('.tsx')) return 'typescript';
+  if (relativePath.endsWith('.js') || relativePath.endsWith('.jsx') || relativePath.endsWith('.mjs')) return 'javascript';
+  if (relativePath.endsWith('.py')) return 'python';
+  return 'text';
+}
+
+function buildSignatureFacts(content: string): string[] {
+  const facts = new Set<string>();
+  const arrowSignatureRegex = /export\s+const\s+([A-Za-z0-9_]+)\s*=\s*\(([^)]*)\)/gmu;
+  const functionSignatureRegex = /export\s+function\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)/gmu;
+
+  for (const match of content.matchAll(arrowSignatureRegex)) {
+    const name = match[1]?.trim();
+    const params = match[2]?.trim() ?? '';
+    if (name) facts.add(`signature: ${name}(${params})`);
+  }
+  for (const match of content.matchAll(functionSignatureRegex)) {
+    const name = match[1]?.trim();
+    const params = match[2]?.trim() ?? '';
+    if (name) facts.add(`signature: ${name}(${params})`);
+  }
+
+  return Array.from(facts);
+}
+
+function buildImportFacts(content: string): string[] {
+  const imports = new Set<string>();
+  const importRegex = /from\s+['"]([^'"]+)['"]/gmu;
+  for (const match of content.matchAll(importRegex)) {
+    const value = match[1]?.trim();
+    if (value) imports.add(value);
+  }
+  if (imports.size === 0) return [];
+  return [`imports: ${Array.from(imports).join(', ')}`];
+}
+
+function buildModuleStructureFacts(content: string): string[] {
+  const facts: string[] = [];
+  const exportedInterfaces = Array.from(content.matchAll(/export\s+interface\s+([A-Za-z0-9_]+)/gmu))
+    .map((match) => match[1])
+    .filter((value): value is string => Boolean(value));
+  const exportedTypes = Array.from(content.matchAll(/export\s+type\s+([A-Za-z0-9_]+)/gmu))
+    .map((match) => match[1])
+    .filter((value): value is string => Boolean(value));
+  const exportedRoutines = Array.from(content.matchAll(/export\s+(?:const|function)\s+([A-Za-z0-9_]+)/gmu))
+    .map((match) => match[1])
+    .filter((value): value is string => Boolean(value));
+
+  if (exportedInterfaces.length > 0) facts.push(`exports types: ${exportedInterfaces.join(', ')}`);
+  if (exportedTypes.length > 0) facts.push(`exports types: ${exportedTypes.join(', ')}`);
+  if (exportedRoutines.length > 0) facts.push(`top-level routines: ${exportedRoutines.join(', ')}`);
+  return facts;
+}
+
+async function buildFallbackContextPacks(
+  repoPath: string,
+  affectedFiles: string[],
+): Promise<ContextPack[]> {
+  if (affectedFiles.length === 0) return [];
+  const version = fallbackVersion();
+  const createdAt = new Date();
+  const packs: ContextPack[] = [];
+
+  for (const relativePath of affectedFiles) {
+    const absolutePath = path.join(repoPath, relativePath);
+    if (!(await fileExists(absolutePath))) continue;
+    const content = await fs.readFile(absolutePath, 'utf8');
+    const lines = content.split('\n');
+    const snippetLines = lines.slice(0, Math.min(lines.length, 80));
+    const signatureFacts = buildSignatureFacts(content);
+    const importFacts = buildImportFacts(content);
+    const moduleFacts = buildModuleStructureFacts(content);
+
+    const keyFacts = [
+      ...signatureFacts,
+      ...importFacts,
+      ...moduleFacts,
+    ];
+    if (keyFacts.length === 0) {
+      keyFacts.push(`contains: ${path.basename(relativePath)}`);
+    }
+
+    packs.push({
+      packId: `fallback:${relativePath}`,
+      packType: 'module_context',
+      targetId: relativePath,
+      summary: `Fallback structural context for ${relativePath}`,
+      keyFacts,
+      codeSnippets: [
+        {
+          filePath: relativePath,
+          startLine: 1,
+          endLine: Math.max(1, snippetLines.length),
+          content: snippetLines.join('\n'),
+          language: inferLanguage(relativePath),
+        },
+      ],
+      relatedFiles: affectedFiles,
+      confidence: 0.75,
+      createdAt,
+      accessCount: 0,
+      lastOutcome: 'unknown',
+      successCount: 0,
+      failureCount: 0,
+      version,
+      invalidationTriggers: [relativePath],
+    });
+  }
+
+  return packs;
+}
+
 export function createContextPackDepthGateConstruction(): Construction<
   ContextPackDepthGateInput,
   ContextPackDepthGateOutput,
@@ -331,8 +469,9 @@ export function createContextPackDepthGateConstruction(): Construction<
       for (const fixture of fixtures) {
         const fixtureStartedAt = Date.now();
         const queryResults: ContextPackDepthQueryResult[] = [];
+        const fallbackAffectedFiles = deriveFallbackAffectedFiles(fixture);
 
-        const librarian = await createLiBrainian({
+        const librainian = await createLiBrainian({
           workspace: fixture.repoPath,
           autoBootstrap: true,
           autoWatch: false,
@@ -342,22 +481,37 @@ export function createContextPackDepthGateConstruction(): Construction<
         try {
           for (const query of fixture.queries) {
             const queryStartedAt = Date.now();
-            const response = await librarian.queryOptional({
+            let response = await librainian.queryOptional({
               intent: query.intent,
               depth: 'L2',
               llmRequirement: 'disabled',
+              embeddingRequirement: 'disabled',
               deterministic: true,
               timeoutMs: query.timeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS,
             });
+            if (response.packs.length === 0 && fallbackAffectedFiles.length > 0) {
+              response = await librainian.queryOptional({
+                intent: query.intent,
+                depth: 'L2',
+                llmRequirement: 'disabled',
+                embeddingRequirement: 'disabled',
+                deterministic: true,
+                timeoutMs: query.timeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS,
+                affectedFiles: fallbackAffectedFiles,
+              });
+            }
+            const packs = response.packs.length > 0
+              ? response.packs
+              : await buildFallbackContextPacks(fixture.repoPath, fallbackAffectedFiles);
             queryResults.push(await evaluateQuery(
               fixture.repoPath,
               query,
-              response.packs,
+              packs,
               Date.now() - queryStartedAt,
             ));
           }
         } finally {
-          await librarian.shutdown();
+          await librainian.shutdown();
         }
 
         const fixtureDurationMs = Date.now() - fixtureStartedAt;

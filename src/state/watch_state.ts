@@ -1,4 +1,4 @@
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LiBrainianStorage } from '../storage/types.js';
 import { safeJsonParseSimple } from '../utils/safe_json.js';
 
 export type WatchCursor =
@@ -31,9 +31,9 @@ export interface WatchState {
   updated_at?: string;
 }
 
-const WATCH_STATE_KEY = 'librarian.watch_state.v1';
+const WATCH_STATE_KEY = 'librainian.watch_state.v1';
 
-export async function getWatchState(storage: LibrarianStorage): Promise<WatchState | null> {
+export async function getWatchState(storage: LiBrainianStorage): Promise<WatchState | null> {
   const raw = await storage.getState(WATCH_STATE_KEY);
   if (!raw) return null;
   const parsed = safeJsonParseSimple<WatchState>(raw);
@@ -59,7 +59,7 @@ export async function getWatchState(storage: LibrarianStorage): Promise<WatchSta
 }
 
 export async function updateWatchState(
-  storage: LibrarianStorage,
+  storage: LiBrainianStorage,
   updater: (prev: WatchState | null) => WatchState
 ): Promise<WatchState> {
   const prev = await getWatchState(storage);
