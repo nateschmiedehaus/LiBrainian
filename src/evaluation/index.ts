@@ -136,6 +136,24 @@ export {
 } from './ab_harness.js';
 
 export {
+  type AbQueryType,
+  type AbTaskMetadata,
+  type AbTaskPairInput,
+  type AbPowerAnalysis,
+  type AbStratumSummary,
+  type AbOverallSummary,
+  type AbVarianceSummary,
+  type AbTreatmentWorseCase,
+  type AbCorrelationSummary,
+  type AbRootCauseSummary,
+  type AbDecisionSummary,
+  type AbDiagnosisReport,
+  diagnoseAbReports,
+  renderAbDiagnosisMarkdown,
+  buildTaskMetadataMap,
+} from './ab_diagnosis.js';
+
+export {
   // Types
   type Citation,
   type VerificationReason,

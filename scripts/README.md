@@ -9,6 +9,7 @@ LiBrainian scripts are grouped by function:
   - `refresh-final-verification.mjs`
 - **Evaluation orchestration**
   - `ab-harness.ts`
+  - `ab-diagnosis.ts`
   - `agentic-use-case-review.ts`
   - `external-repo-smoke.ts`
   - `external-ground-truth.ts`

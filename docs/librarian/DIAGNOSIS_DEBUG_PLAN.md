@@ -24,6 +24,39 @@ Diagnose failures with objective evidence, convert them into deterministic fixes
 8. Remaining publish blocker is measurement sufficiency, not runtime correctness:
    - gate reason: `t3_plus_significance_sample_insufficient`.
 
+## A/B Statistical Diagnosis Update (2026-02-21)
+
+Evidence artifacts:
+- `state/audits/librarian/ab-diagnosis.json`
+- `state/audits/librarian/ab-diagnosis.md`
+
+Findings from aggregated historical A/B evidence:
+1. **Sample coverage is now >2x latest run**, but still underpowered for the observed effect size.
+   - reports analyzed: 24
+   - paired samples: 48 per group
+   - coverage vs latest run: 8.0x
+2. **Observed lift is positive but not statistically significant.**
+   - control success: 79.17%
+   - treatment success: 85.42%
+   - absolute delta: +6.25%
+   - p-value: 0.4225
+   - 95% CI: [-8.97%, +21.47%]
+3. **Power analysis indicates a large remaining sample gap.**
+   - required per group (80% power, alpha 0.05): 585
+   - current per group: 48
+   - gap: 537 per group
+4. **Stratified evidence is heavily skewed to debugging tasks.**
+   - debugging: 46 pairs, +2.17% absolute lift
+   - explanation: 2 pairs, +100% absolute lift (too sparse for inference)
+   - structural: 0 pairs
+   - architectural: 0 pairs
+5. **Root-cause classification:** `sample_size` (not enough power for current observed effect), with one concrete treatment-worse regression (`srtd-bugfix-topological-order-regression`).
+
+Decision:
+- **Primary focus now:** `sampling_and_experiment_design`.
+- Do not treat this as retrieval-vs-synthesis proof yet; current evidence cannot support that decision boundary with statistical confidence.
+- Next mandatory step is query-type coverage expansion (structural/explanation/architectural) plus materially larger paired-run volume before changing roadmap priorities.
+
 ## Immediate Execution Tasks
 
 1. **A/B Superiority Hardening (Current Priority)**

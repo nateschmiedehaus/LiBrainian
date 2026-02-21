@@ -24,6 +24,7 @@ describe('package release scripts', () => {
     expect(scripts['test:e2e:reality:tarball']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --agentic-report eval-results/agentic-use-case-review.json --artifact state/e2e/reality-tarball.json');
     expect(scripts['test:e2e:diagnostic:ab:quick']).toBe('npm run eval:ab:agentic-bugfix:quick');
     expect(scripts['test:e2e:diagnostic:ab:release']).toBe('npm run eval:ab:agentic-bugfix:codex');
+    expect(scripts['eval:ab:diagnose']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/ab-diagnosis.ts');
     expect(scripts['test:e2e:full:quick']).toBe('npm run policy:e2e:mainline && npm run eval:use-cases:agentic:quick && npm run test:e2e:outcome:quick && npm run test:e2e:triage && npm run test:e2e:dev-truth:quick && npm run test:e2e:reality:quick && npm run test:e2e:acceptance');
     expect(scripts['test:e2e:full']).toBe('npm run policy:e2e:mainline && npm run eval:use-cases:agentic && npm run test:e2e:outcome && npm run test:e2e:triage && npm run test:e2e:dev-truth && npm run test:e2e:reality && npm run test:e2e:acceptance');
     expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:full:quick');
@@ -74,6 +75,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'context-pack-diff.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-branch-hygiene.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'gh-pr-stabilize.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'ab-diagnosis.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-mainline-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
@@ -185,7 +187,7 @@ describe('package release scripts', () => {
     const scripts = packageJson.scripts ?? {};
 
     expect(scripts['test:changed']).toBe(
-      'node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run --changed'
+      'node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit -- vitest --run --changed'
     );
     expect(scripts['validate:public']).toBe(
       'npm run hygiene:generated-artifacts && npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'
