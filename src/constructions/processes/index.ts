@@ -76,6 +76,14 @@ export {
 } from './presets.js';
 
 export {
+  createBootstrapQualityGateConstruction,
+  type BootstrapQualityFixture,
+  type BootstrapQualityGateInput,
+  type BootstrapQualityFixtureResult,
+  type BootstrapQualityGateOutput,
+} from './bootstrap_quality_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,
