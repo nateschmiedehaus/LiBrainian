@@ -26,6 +26,7 @@ COMMANDS:
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
     stats               Summarize tool-call cost/performance telemetry
+    calibration         Build confidence calibration dashboard from patrol artifacts
     bootstrap           Initialize or refresh the knowledge index
     embed               Repair and backfill semantic embeddings
     uninstall           Remove LiBrainian bootstrap artifacts from workspace
@@ -171,6 +172,35 @@ EXAMPLES:
     librarian stats
     librarian stats --days 30 --limit 10
     librarian stats --json
+`,
+
+  calibration: `
+librarian calibration - Build confidence calibration dashboard from patrol runs
+
+USAGE:
+    librarian calibration [options]
+
+OPTIONS:
+    --patrol-dir <path>    Path to patrol artifacts directory (default: state/patrol)
+    --bucket-count <n>     Number of reliability buckets (default: 10)
+    --min-samples <n>      Minimum required sample count for readiness (default: 50)
+    --json                 Output machine-readable JSON report
+
+DESCRIPTION:
+    Reads patrol-run artifacts and computes calibration health, including:
+    - Reliability buckets (stated confidence vs observed correctness)
+    - Expected Calibration Error (ECE)
+    - Maximum Calibration Error (MCE)
+    - Overconfidence ratio
+    - Per-run trend over time
+
+    Also emits actionable recommendations when calibration quality is weak
+    or sample volume is insufficient.
+
+EXAMPLES:
+    librarian calibration
+    librarian calibration --bucket-count 12 --min-samples 80
+    librarian calibration --patrol-dir state/patrol --json
 `,
 
   query: `

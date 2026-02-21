@@ -5,6 +5,7 @@
  * Commands:
  *   librarian status              - Show current librarian status
  *   librarian stats               - Summarize cost/performance from evidence ledger
+ *   librarian calibration         - Build confidence calibration dashboard from patrol runs
  *   librarian query <intent>      - Run a query against the knowledge base
  *   librarian repo-map            - Generate a compact repo map ranked by symbol centrality
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
@@ -63,6 +64,7 @@ import { parseArgs } from 'node:util';
 import { showHelp } from './help.js';
 import { statusCommand } from './commands/status.js';
 import { statsCommand } from './commands/stats.js';
+import { calibrationCommand } from './commands/calibration.js';
 import { queryCommand } from './commands/query.js';
 import { repoMapCommand } from './commands/repo_map.js';
 import { feedbackCommand } from './commands/feedback.js';
@@ -125,7 +127,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+type Command = 'status' | 'stats' | 'calibration' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -155,6 +157,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'stats': {
     description: 'Summarize tool-call cost and performance from evidence ledger',
     usage: 'librarian stats [--days N] [--limit N] [--json]',
+  },
+  'calibration': {
+    description: 'Build confidence calibration dashboard from patrol run artifacts',
+    usage: 'librarian calibration [--patrol-dir <path>] [--bucket-count N] [--min-samples N] [--json]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
@@ -476,6 +482,9 @@ async function main(): Promise<void> {
         break;
       case 'stats':
         await statsCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'calibration':
+        await calibrationCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'query':
