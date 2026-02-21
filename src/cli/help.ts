@@ -91,6 +91,7 @@ GLOBAL OPTIONS:
     --no-telemetry      Disable local telemetry logging output
     --local-only        Force fully local operation (implies --offline)
     --verbose           Enable verbose output
+    --debug             Include stack traces and verbose error diagnostics
     --json              Enable JSON output for errors (agent friendly)
 
 EXAMPLES:

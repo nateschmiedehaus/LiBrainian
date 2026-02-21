@@ -47,6 +47,30 @@ function isStorageLockError(message: string): boolean {
     || normalized.includes('database is locked');
 }
 
+function buildIndexFailureGuidance(
+  errorMessage: string,
+  finalStatus: { stats: { totalFunctions: number; totalModules: number } } | null,
+): string {
+  const normalized = errorMessage.toLowerCase();
+  let guidance = 'Run "librarian bootstrap" to recover and retry.';
+
+  if (normalized.includes('providerunavailable') || normalized.includes('provider')) {
+    guidance = 'Check provider credentials/network, then retry. If needed, run "librarian check-providers".';
+  } else if (normalized.includes('lock') || normalized.includes('sqlite_busy')) {
+    guidance = 'Another process may hold the database lock; wait and retry.';
+  } else if (normalized.includes('extract') || normalized.includes('parse')) {
+    guidance = 'Check file syntax/support and retry after fixing parse issues.';
+  }
+
+  if (finalStatus) {
+    guidance += ` Context packs were invalidated; current totals: ${finalStatus.stats.totalFunctions} functions, ${finalStatus.stats.totalModules} modules.`;
+  } else {
+    guidance += ' Database state may be unknown; run "librarian bootstrap" before continuing.';
+  }
+
+  return guidance;
+}
+
 export async function indexCommand(options: IndexCommandOptions): Promise<void> {
   const workspace = options.workspace || process.cwd();
   const verbose = options.verbose ?? false;
@@ -241,54 +265,20 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     try {
       await librarian.reindexFiles(resolvedFiles);
     } catch (error) {
-      console.error('\n\u274C Indexing failed\n');
-
-      if (error instanceof Error) {
-        console.error(`Error: ${error.message}\n`);
-
-        if (error.message.includes('ProviderUnavailable') || error.message.includes('provider')) {
-          console.error('The LLM provider is unavailable or not configured correctly.');
-          console.error('Check your API credentials and network connection.\n');
-        } else if (error.message.includes('lock') || error.message.includes('SQLITE_BUSY')) {
-          console.error('Database lock conflict detected.');
-          console.error('Another process may be accessing the database.\n');
-        } else if (error.message.includes('extract') || error.message.includes('parse')) {
-          console.error('Failed to extract or parse file content.');
-          console.error('One or more files may have syntax errors or unsupported formats.\n');
-        }
-
-        if (verbose && error.stack) {
-          console.error('Stack trace:');
-          console.error(error.stack);
-          console.error('');
-        }
-      } else {
-        console.error(`Unknown error: ${String(error)}\n`);
-      }
-
-      const finalStatus = await librarian.getStatus().catch((err) => {
-        if (verbose) {
-          console.error(`Could not retrieve status: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        return null;
-      });
-      if (finalStatus) {
-        console.error('\u26A0\uFE0F  Context packs for indexed files have been invalidated.');
-        console.error('   Run "librarian bootstrap" to regenerate them.');
-        console.error(`Current totals: ${finalStatus.stats.totalFunctions} functions, ${finalStatus.stats.totalModules} modules\n`);
-      } else {
-        console.error('\u26A0\uFE0F  Database may be in an unknown state. Run "librarian bootstrap" to recover.\n');
-      }
-
-      if (verbose && (created > 0 || updated > 0)) {
-        console.error('Partial progress before failure:');
-        console.error(`  Entities created: ${created}`);
-        console.error(`  Entities updated: ${updated}\n`);
-      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const finalStatus = await librarian.getStatus().catch(() => null);
+      const guidance = buildIndexFailureGuidance(errorMessage, finalStatus);
 
       throw new CliError(
-        `Failed to index files: ${error instanceof Error ? error.message : String(error)}`,
-        'INDEX_FAILED'
+        `Failed to index files: ${errorMessage}. ${guidance}`,
+        'INDEX_FAILED',
+        undefined,
+        {
+          operation: 'reindexFiles',
+          stack: error instanceof Error ? error.stack : undefined,
+          entitiesCreated: created,
+          entitiesUpdated: updated,
+        },
       );
     }
 

@@ -21,6 +21,28 @@ describe('CLI Output Sanity Gate', () => {
       (probe) => probe.args.join(' ') === 'definitely-not-a-command',
     );
     expect(unknownCommand?.exitCode).not.toBe(0);
+    expect(unknownCommand?.hasSingleLineError).toBe(true);
+    expect(unknownCommand?.hasActionableError).toBe(true);
+
+    const configSubcommandError = result.commandResults.find(
+      (probe) => probe.args.join(' ') === 'config definitely-not-a-subcommand',
+    );
+    expect(configSubcommandError?.exitCode).not.toBe(0);
+    expect(configSubcommandError?.hasSingleLineError).toBe(true);
+    expect(configSubcommandError?.hasActionableError).toBe(true);
+
+    const replayError = result.commandResults.find(
+      (probe) => probe.args.join(' ') === 'replay',
+    );
+    expect(replayError?.exitCode).not.toBe(0);
+    expect(replayError?.hasSingleLineError).toBe(true);
+    expect(replayError?.hasActionableError).toBe(true);
+
+    const replayDebugError = result.commandResults.find(
+      (probe) => probe.args.join(' ') === 'replay --debug',
+    );
+    expect(replayDebugError?.exitCode).not.toBe(0);
+    expect((replayDebugError?.errorLineCount ?? 0) >= 2).toBe(true);
 
     const statusJson = result.commandResults.find(
       (probe) => probe.args.join(' ') === 'status --json',

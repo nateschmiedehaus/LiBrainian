@@ -607,54 +607,79 @@ function inferErrorCodeFromMessage(message: string): ErrorCode {
  */
 export function formatError(error: unknown): string {
   if (error instanceof CliError) {
-    return `Error [${error.errorCode}]: ${error.message}`;
+    return `Error [${error.errorCode}]: ${toSingleLine(error.message)}`;
   }
   if (error instanceof Error) {
     // Check for common error patterns and suggest solutions
     const message = error.message;
 
     if (message.includes('unverified_by_trace(provider_unavailable)')) {
-      return `Error [EPROVIDER_UNAVAILABLE]: Provider unavailable.\n\nSuggestion: ${ERROR_SUGGESTIONS.PROVIDER_UNAVAILABLE}`;
+      return `Error [EPROVIDER_UNAVAILABLE]: Provider unavailable. Next: ${toSingleLine(ERROR_SUGGESTIONS.PROVIDER_UNAVAILABLE)}`;
     }
 
     if (message.includes('not bootstrapped') || message.includes('No existing librarian data')) {
-      return `Error [ENOINDEX]: LiBrainian not initialized.\n\nSuggestion: ${ERROR_SUGGESTIONS.NOT_BOOTSTRAPPED}`;
+      return `Error [ENOINDEX]: LiBrainian not initialized. Next: ${toSingleLine(ERROR_SUGGESTIONS.NOT_BOOTSTRAPPED)}`;
     }
 
     if (message.includes('ENOENT')) {
-      return `Error [EFILE_NOT_FOUND]: File or directory not found: ${message}`;
+      return `Error [EFILE_NOT_FOUND]: ${toSingleLine(`File or directory not found: ${message}`)}`;
     }
 
-    return `Error: ${sanitizeTraceMarkerMessage(message)}`;
+    return `Error: ${toSingleLine(sanitizeTraceMarkerMessage(message))}`;
   }
-  return `Error: ${String(error)}`;
+  return `Error: ${toSingleLine(String(error))}`;
 }
 
 /**
  * Format error for human-readable output with recovery hints
  */
-export function formatErrorWithHints(envelope: ErrorEnvelope): string {
-  const lines: string[] = [
-    `Error [${envelope.code}]: ${sanitizeTraceMarkerMessage(envelope.message)}`,
-    '',
-  ];
+export function formatErrorWithHints(
+  envelope: ErrorEnvelope,
+  options?: { debug?: boolean }
+): string {
+  const debug = options?.debug === true;
+  const message = toSingleLine(sanitizeTraceMarkerMessage(envelope.message));
+  const nextStep = toSingleLine(resolvePrimaryRecoveryHint(envelope.recoveryHints));
+  const summary = `Error [${envelope.code}]: ${message}. Next: ${nextStep}`;
 
-  if (envelope.retryable) {
-    lines.push('This error is retryable.');
-    if (envelope.context?.retryAfterMs) {
-      lines.push(`Suggested wait time: ${envelope.context.retryAfterMs}ms`);
-    }
-    lines.push('');
+  if (!debug) {
+    return summary;
+  }
+
+  const lines: string[] = [summary, `Retryable: ${envelope.retryable ? 'yes' : 'no'}`];
+
+  if (typeof envelope.context?.retryAfterMs === 'number') {
+    lines.push(`Retry after: ${envelope.context.retryAfterMs}ms`);
   }
 
   if (envelope.recoveryHints.length > 0) {
-    lines.push('Recovery suggestions:');
+    lines.push('Recovery hints:');
     for (const hint of envelope.recoveryHints) {
-      lines.push(`  - ${hint}`);
+      lines.push(`- ${toSingleLine(sanitizeTraceMarkerMessage(hint))}`);
     }
   }
 
+  const stack = envelope.context?.stack;
+  if (typeof stack === 'string' && stack.trim().length > 0) {
+    lines.push('Stack trace:');
+    lines.push(stack.trimEnd());
+  }
+
   return lines.join('\n');
+}
+
+function toSingleLine(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
+}
+
+function resolvePrimaryRecoveryHint(hints: string[]): string {
+  for (const hint of hints) {
+    const sanitized = toSingleLine(sanitizeTraceMarkerMessage(hint));
+    if (sanitized.length > 0) {
+      return sanitized;
+    }
+  }
+  return 'Run `librarian help <command>` for usage information.';
 }
 
 /**

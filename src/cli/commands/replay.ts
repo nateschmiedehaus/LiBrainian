@@ -17,6 +17,7 @@ import type {
   FitnessReport,
   StageResult,
 } from '../../evolution/types.js';
+import { CliError } from '../errors.js';
 import { sanitizeTraceStatus } from '../user_messages.js';
 
 interface ReplayOptions {
@@ -35,10 +36,10 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
   } = options;
 
   if (!target) {
-    console.error('Error: Please provide a cycle ID or variant ID to replay.');
-    console.error('Usage: librarian replay <cycle-id|variant-id>');
-    process.exitCode = 1;
-    return;
+    throw new CliError(
+      'Missing replay target. Usage: librarian replay <cycle-id|variant-id>.',
+      'INVALID_ARGUMENT',
+    );
   }
 
   const auditPath = path.join(workspace, 'state/audits/evolution');
@@ -75,10 +76,14 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
     }
   }
 
-  console.error(`Error: Could not find cycle or variant with ID: ${target}`);
-  console.error('\nAvailable cycles:');
-  listAvailableCycles(auditPath);
-  process.exitCode = 1;
+  const availableCycles = listAvailableCycles(auditPath);
+  const availableSnippet = availableCycles.length > 0
+    ? ` Available cycle IDs: ${availableCycles.join(', ')}.`
+    : ' No cycle artifacts found under state/audits/evolution/cycles.';
+  throw new CliError(
+    `Could not find cycle or variant with ID "${target}". Verify the ID and retry.${availableSnippet}`,
+    'ENTITY_NOT_FOUND',
+  );
 }
 
 async function replayCycle(
@@ -298,26 +303,14 @@ function findVariantInArchive(archive: unknown, variantId: string): Variant | nu
   return null;
 }
 
-function listAvailableCycles(auditPath: string): void {
+function listAvailableCycles(auditPath: string): string[] {
   const cyclesDir = path.join(auditPath, 'cycles');
   if (!fs.existsSync(cyclesDir)) {
-    console.log('  (no cycles found)');
-    return;
+    return [];
   }
 
-  const files = fs.readdirSync(cyclesDir)
+  return fs.readdirSync(cyclesDir)
     .filter(f => f.endsWith('.json'))
     .map(f => f.replace('.json', ''))
     .slice(0, 10);
-
-  if (files.length === 0) {
-    console.log('  (no cycles found)');
-  } else {
-    for (const file of files) {
-      console.log(`  - ${file}`);
-    }
-    if (files.length === 10) {
-      console.log('  ...(more cycles available)');
-    }
-  }
 }

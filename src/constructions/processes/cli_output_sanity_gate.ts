@@ -24,6 +24,9 @@ export interface CliOutputProbeResult {
   hasDebugNoise: boolean;
   hasStackTrace: boolean;
   hasDoubleOutput: boolean;
+  errorLineCount: number;
+  hasSingleLineError: boolean;
+  hasActionableError: boolean;
   pass: boolean;
   findings: string[];
 }
@@ -76,6 +79,18 @@ function hasDebugNoise(output: string): boolean {
 
 function hasStackTrace(output: string): boolean {
   return /(^|\n)\s*at\s+[^\n(]+\([^)]*\)/u.test(output);
+}
+
+function compactLines(output: string): string[] {
+  return normalizeLines(output)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function isActionableErrorLine(line: string): boolean {
+  return /\bnext:\b/iu.test(line)
+    || /\brun\b/iu.test(line)
+    || /\buse\b/iu.test(line);
 }
 
 function isIgnorableDuplicateLine(line: string): boolean {
@@ -162,6 +177,9 @@ function buildProbePlan(registeredCommands: string[]): CliProbe[] {
     { args: ['status', '--json'], expectedExit: 'zero', expectJson: true, snapshotKey: 'statusJson' },
     { args: ['features', '--json'], expectedExit: 'zero', expectJson: true },
     { args: ['definitely-not-a-command'], expectedExit: 'non-zero' },
+    { args: ['config', 'definitely-not-a-subcommand'], expectedExit: 'non-zero' },
+    { args: ['replay'], expectedExit: 'non-zero' },
+    { args: ['replay', '--debug'], expectedExit: 'non-zero' },
   ];
 
   for (const command of registeredCommands) {
@@ -223,9 +241,10 @@ async function runCliProbe(
       clearTimeout(timeout);
 
       const combined = `${stdout}\n${stderr}`;
+      const debugRequested = probe.args.includes('--debug');
+      const errorLines = compactLines(stderr);
       const jsonParse = probe.expectJson ? parseJsonOutput(stdout) : { ok: false, keys: [] };
       const findings: string[] = [];
-      const expectedExitCode = probe.expectedExit === 'zero' ? 0 : 1;
       const passExit =
         probe.expectedExit === 'zero'
           ? exitCode === 0
@@ -245,10 +264,29 @@ async function runCliProbe(
       if (stackTrace && exitCode === 0) {
         findings.push('stack trace detected in successful command output');
       }
+      if (stackTrace && !debugRequested && probe.expectedExit === 'non-zero') {
+        findings.push('stack trace detected in non-debug error output');
+      }
 
       const repeated = hasDoubleOutput(combined);
       if (repeated) {
         findings.push('double/repeated output detected');
+      }
+
+      const singleLineError = errorLines.length === 1;
+      const actionableError = errorLines.some((line) => isActionableErrorLine(line));
+      if (probe.expectedExit === 'non-zero' && !debugRequested) {
+        if (!singleLineError) {
+          findings.push(`error output must be single-line for non-debug mode (got ${errorLines.length} line(s))`);
+        }
+        if (!actionableError) {
+          findings.push('error output must include a next-step action');
+        }
+      }
+      if (probe.expectedExit === 'non-zero' && debugRequested) {
+        if (errorLines.length < 2) {
+          findings.push('debug error output should include verbose multi-line details');
+        }
       }
 
       if (probe.expectJson && !jsonParse.ok) {
@@ -271,6 +309,9 @@ async function runCliProbe(
         hasDebugNoise: debugNoise,
         hasStackTrace: stackTrace,
         hasDoubleOutput: repeated,
+        errorLineCount: errorLines.length,
+        hasSingleLineError: singleLineError,
+        hasActionableError: actionableError,
         pass: findings.length === 0,
         findings,
       });

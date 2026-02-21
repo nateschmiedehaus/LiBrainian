@@ -572,11 +572,10 @@ describe('indexCommand', () => {
       await expect(indexCommand(options)).rejects.toMatchObject({
         code: 'INDEX_FAILED',
       });
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
     });
 
-    it('should provide detailed error message for provider unavailable', async () => {
+    it('should include provider guidance in thrown error message', async () => {
       const error = new Error('ProviderUnavailable: API key not configured');
       mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
@@ -586,17 +585,12 @@ describe('indexCommand', () => {
         force: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('LLM provider is unavailable')
-      );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('API credentials')
+      await expect(indexCommand(options)).rejects.toThrow(
+        'Check provider credentials/network, then retry',
       );
     });
 
-    it('should provide detailed error message for database lock', async () => {
+    it('should include lock guidance in thrown error message', async () => {
       const error = new Error('Database error: SQLITE_BUSY');
       mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
@@ -606,14 +600,12 @@ describe('indexCommand', () => {
         force: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Database lock conflict')
+      await expect(indexCommand(options)).rejects.toThrow(
+        'Another process may hold the database lock; wait and retry.',
       );
     });
 
-    it('should provide detailed error message for parse errors', async () => {
+    it('should include parse guidance in thrown error message', async () => {
       const error = new Error('Failed to extract function from source');
       mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
@@ -623,14 +615,12 @@ describe('indexCommand', () => {
         force: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to extract or parse')
+      await expect(indexCommand(options)).rejects.toThrow(
+        'Check file syntax/support and retry after fixing parse issues.',
       );
     });
 
-    it('should show stack trace in verbose mode on error', async () => {
+    it('captures stack trace in error details for debug rendering', async () => {
       const error = new Error('Test error with stack');
       error.stack = 'Error: Test error\n  at test.js:1:1';
       mockLiBrainian.reindexFiles.mockRejectedValue(error);
@@ -642,10 +632,12 @@ describe('indexCommand', () => {
         force: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Stack trace:'));
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('at test.js:1:1'));
+      await expect(indexCommand(options)).rejects.toMatchObject({
+        code: 'INDEX_FAILED',
+        details: expect.objectContaining({
+          stack: expect.stringContaining('at test.js:1:1'),
+        }),
+      });
     });
 
     it('should ensure librarian.shutdown is called even on failure', async () => {
@@ -663,7 +655,7 @@ describe('indexCommand', () => {
       expect(mockLiBrainian.shutdown).toHaveBeenCalled();
     });
 
-    it('should show final status on partial failure', async () => {
+    it('includes final status totals in failure guidance when available', async () => {
       const error = new Error('Partial failure');
       mockLiBrainian.reindexFiles.mockRejectedValue(error);
       mockLiBrainian.getStatus.mockResolvedValueOnce({
@@ -681,13 +673,8 @@ describe('indexCommand', () => {
         force: true,
       };
 
-      await expect(indexCommand(options)).rejects.toThrow(CliError);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Context packs for indexed files have been invalidated')
-      );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('105 functions, 11 modules')
+      await expect(indexCommand(options)).rejects.toThrow(
+        'Context packs were invalidated; current totals: 105 functions, 11 modules.',
       );
     });
   });
@@ -870,7 +857,7 @@ describe('indexCommand', () => {
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Entities updated: 1'));
     });
 
-    it('should show entity counts on partial failure in verbose mode', async () => {
+    it('should preserve partial progress counts in error details', async () => {
       let eventHandler: ((event: any) => void) | null = null;
       let handlerResolve: () => void;
       const handlerReady = new Promise<void>((resolve) => {
@@ -905,12 +892,12 @@ describe('indexCommand', () => {
         data: { entityId: 'entity-1' },
       });
 
-      await expect(indexPromise).rejects.toThrow(CliError);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Partial progress before failure')
-      );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Entities created: 1'));
+      await expect(indexPromise).rejects.toMatchObject({
+        code: 'INDEX_FAILED',
+        details: expect.objectContaining({
+          entitiesCreated: 1,
+        }),
+      });
     });
   });
 

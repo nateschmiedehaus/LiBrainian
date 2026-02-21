@@ -135,13 +135,13 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Output a structured error for agent consumption
  */
-function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean): void {
+function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean, debug: boolean): void {
   if (useJson) {
     // JSON mode: output structured error
     console.error(formatErrorJson(envelope));
   } else {
     // Human mode: formatted error with hints
-    console.error(formatErrorWithHints(envelope));
+    console.error(formatErrorWithHints(envelope, { debug }));
   }
 }
 
@@ -387,6 +387,7 @@ async function main(): Promise<void> {
       'local-only': { type: 'boolean', default: false },
       workspace: { type: 'string', short: 'w', default: process.cwd() },
       verbose: { type: 'boolean', default: false },
+      debug: { type: 'boolean', default: false },
     },
     allowPositionals: true,
     strict: false,
@@ -401,9 +402,13 @@ async function main(): Promise<void> {
   const command = positionals[0] as Command | undefined;
   let commandArgs = positionals.slice(1);
   const defaultWorkspace = values.workspace as string;
-  const verbose = values.verbose as boolean;
-  if (verbose) {
+  const debug = values.debug as boolean;
+  const verbose = (values.verbose as boolean) || debug;
+  if (verbose || debug) {
     process.env.LIBRARIAN_VERBOSE = '1';
+  }
+  if (debug) {
+    process.env.LIBRARIAN_DEBUG = '1';
   }
 
   if (values.help || !command || command === 'help') {
@@ -447,7 +452,7 @@ async function main(): Promise<void> {
         context: { command },
       },
     );
-    outputStructuredError(envelope, jsonMode);
+    outputStructuredError(envelope, jsonMode, debug);
     process.exitCode = getExitCode(envelope);
     return;
   }
@@ -691,8 +696,7 @@ async function main(): Promise<void> {
             showHistory: args.includes('--history'),
           });
         } else {
-          console.error('Unknown config subcommand. Use: librarian config heal');
-          process.exitCode = 1;
+          throw new CliError('Unknown config subcommand. Use: librarian config heal.', 'INVALID_ARGUMENT');
         }
         break;
 		      case 'doctor':
@@ -769,7 +773,7 @@ async function main(): Promise<void> {
     }
 
     // Output error in appropriate format
-    outputStructuredError(envelope, jsonMode);
+    outputStructuredError(envelope, jsonMode, debug);
 
     // Set exit code based on error type
     process.exitCode = getExitCode(envelope);
@@ -784,8 +788,9 @@ main()
   .catch((error) => {
     // Fatal errors also get structured output if possible
     const jsonMode = process.argv.includes('--json');
+    const debug = process.argv.includes('--debug');
     const envelope = classifyError(error);
-    outputStructuredError(envelope, jsonMode);
+    outputStructuredError(envelope, jsonMode, debug);
     process.exitCode = getExitCode(envelope);
   })
   .finally(() => {

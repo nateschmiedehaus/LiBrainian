@@ -329,30 +329,50 @@ describe('formatError', () => {
 });
 
 describe('formatErrorWithHints', () => {
-  it('should include recovery hints', () => {
+  it('formats non-debug output as single-line actionable text', () => {
     const envelope = createErrorEnvelope('ENOINDEX', 'Index not found');
     const formatted = formatErrorWithHints(envelope);
 
     expect(formatted).toContain('ENOINDEX');
     expect(formatted).toContain('Index not found');
-    expect(formatted).toContain('Recovery suggestions:');
+    expect(formatted).toContain('Next:');
     expect(formatted).toContain('librarian bootstrap');
+    expect(formatted).not.toContain('\n');
   });
 
-  it('should indicate retryability', () => {
+  it('includes next-step hints for retryable envelopes', () => {
     const retryableEnvelope = createErrorEnvelope('EPROVIDER_RATE_LIMIT', 'Rate limited');
     const formatted = formatErrorWithHints(retryableEnvelope);
 
-    expect(formatted).toContain('retryable');
+    expect(formatted).toContain('Next:');
+    expect(formatted).not.toContain('\n');
   });
 
-  it('should include retry wait time when provided', () => {
+  it('includes retry wait time in debug output', () => {
     const envelope = createErrorEnvelope('EPROVIDER_RATE_LIMIT', 'Rate limited', {
       context: { retryAfterMs: 5000 },
     });
-    const formatted = formatErrorWithHints(envelope);
+    const formatted = formatErrorWithHints(envelope, { debug: true });
 
+    expect(formatted).toContain('Retryable: yes');
     expect(formatted).toContain('5000ms');
+    expect(formatted).toContain('\n');
+  });
+
+  it('includes stack trace details only in debug output', () => {
+    const envelope = createErrorEnvelope('EUNKNOWN', 'Unexpected failure', {
+      context: {
+        stack: 'Error: Unexpected failure\n    at run (/tmp/test.ts:1:1)',
+      },
+    });
+
+    const compact = formatErrorWithHints(envelope);
+    const debug = formatErrorWithHints(envelope, { debug: true });
+
+    expect(compact).not.toContain('Stack trace:');
+    expect(compact).not.toContain('\n');
+    expect(debug).toContain('Stack trace:');
+    expect(debug).toContain('at run (/tmp/test.ts:1:1)');
   });
 
   it('sanitizes unverified trace marker text in formatted output', () => {
