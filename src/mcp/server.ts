@@ -55,6 +55,7 @@ import {
   type GetChangeImpactToolInput,
   type BlastRadiusToolInput,
   type PreCommitCheckToolInput,
+  type ValidateChangePlanToolInput,
   type ClaimWorkScopeToolInput,
   type AppendClaimToolInput,
   type QueryClaimsToolInput,
@@ -134,6 +135,7 @@ import {
 } from '../api/embedding_coverage.js';
 import { readQueryCostTelemetry, type QueryCostTelemetry } from '../api/query_cost_telemetry.js';
 import { computeChangeImpactReport } from '../api/change_impact_tool.js';
+import { computeChangePlanValidation } from '../api/change_plan_validator.js';
 import { categorizeRetrievalStatus, computeRetrievalEntropy } from '../api/retrieval_escalation.js';
 import { selectTechniqueCompositions } from '../api/plan_compiler.js';
 import {
@@ -393,6 +395,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  validate_change_plan: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
   append_claim: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   query_claims: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1939,6 +1942,21 @@ export class LiBrainianMCPServer {
             maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass (default high)' },
           },
           required: ['changedFiles'],
+        },
+      },
+      {
+        name: 'validate_change_plan',
+        description: 'Pre-flight change-plan validator that flags missing files, blast radius, and risk before edits start',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            description: { type: 'string', description: 'Human-readable change description (e.g., rename AuthService.login to authenticate)' },
+            planned_files: { type: 'array', items: { type: 'string' }, description: 'Files currently planned for modification' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            change_type: { type: 'string', enum: ['rename', 'signature_change', 'delete', 'move', 'add_param', 'general'], description: 'Change category used for specialized validation checks' },
+            symbols_affected: { type: 'array', items: { type: 'string' }, description: 'Optional explicit symbols affected by this change' },
+          },
+          required: ['description', 'planned_files'],
         },
       },
       {
@@ -3597,6 +3615,8 @@ export class LiBrainianMCPServer {
         return this.executeBlastRadius(args as BlastRadiusToolInput);
       case 'pre_commit_check':
         return this.executePreCommitCheck(args as PreCommitCheckToolInput);
+      case 'validate_change_plan':
+        return this.executeValidateChangePlan(args as ValidateChangePlanToolInput);
       case 'claim_work_scope':
         return this.executeClaimWorkScope(args as ClaimWorkScopeToolInput, context);
       case 'append_claim':
@@ -9249,6 +9269,65 @@ export class LiBrainianMCPServer {
       },
       recommendedActions,
     };
+  }
+
+  private async executeValidateChangePlan(input: ValidateChangePlanToolInput): Promise<unknown> {
+    try {
+      const workspacePath = input.workspace
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+      if (!workspacePath) {
+        return {
+          success: false,
+          tool: 'validate_change_plan',
+          error: 'No workspace specified and no workspaces registered.',
+          recommendedActions: [
+            { tool: 'bootstrap', rationale: 'Register and index a workspace before validating change plans.' },
+          ],
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace) {
+        return {
+          success: false,
+          tool: 'validate_change_plan',
+          workspace: workspacePath,
+          error: `Workspace not registered: ${workspacePath}`,
+          availableWorkspaces: Array.from(this.state.workspaces.keys()),
+        };
+      }
+      if (workspace.indexState !== 'ready') {
+        return {
+          success: false,
+          tool: 'validate_change_plan',
+          workspace: workspacePath,
+          error: `Workspace not ready (state: ${workspace.indexState}). Run bootstrap first.`,
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const result = await computeChangePlanValidation(storage, {
+        workspaceRoot: workspacePath,
+        description: input.description,
+        planned_files: input.planned_files,
+        change_type: input.change_type ?? 'general',
+        symbols_affected: input.symbols_affected,
+      });
+
+      return {
+        success: true,
+        tool: 'validate_change_plan',
+        workspace: workspacePath,
+        ...result,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'validate_change_plan',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   private normalizeClaimValues(values: string[] | undefined, maxItems = 32): string[] {

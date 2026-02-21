@@ -27,6 +27,7 @@ import {
   SynthesizePlanToolInputSchema,
   BlastRadiusToolInputSchema,
   PreCommitCheckToolInputSchema,
+  ValidateChangePlanToolInputSchema,
   ClaimWorkScopeToolInputSchema,
   AppendClaimToolInputSchema,
   QueryClaimsToolInputSchema,
@@ -72,6 +73,7 @@ import {
   isSynthesizePlanToolInput,
   isBlastRadiusToolInput,
   isPreCommitCheckToolInput,
+  isValidateChangePlanToolInput,
   isClaimWorkScopeToolInput,
   isAppendClaimToolInput,
   isQueryClaimsToolInput,
@@ -161,6 +163,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('pre_commit_check');
+      expect(schemas).toContain('validate_change_plan');
       expect(schemas).toContain('claim_work_scope');
       expect(schemas).toContain('append_claim');
       expect(schemas).toContain('query_claims');
@@ -171,7 +174,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(57);
+      expect(schemas).toHaveLength(58);
     });
 
     it('should return schema for known tools', () => {
@@ -736,6 +739,52 @@ describe('MCP Schema', () => {
       expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'critical' })).toBe(true);
       expect(isPreCommitCheckToolInput({ changedFiles: ['src/a.ts'], maxRiskLevel: 'invalid' })).toBe(false);
       expect(isPreCommitCheckToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Validate Change Plan Tool Schema', () => {
+    it('should validate required fields', () => {
+      const result = validateToolInput('validate_change_plan', {
+        description: 'Rename AuthService.login to AuthService.authenticate',
+        planned_files: ['src/auth/service.ts', 'src/api/login.ts'],
+      });
+      expect(result.valid).toBe(true);
+      expect(ValidateChangePlanToolInputSchema).toBeDefined();
+    });
+
+    it('should validate optional fields', () => {
+      const result = validateToolInput('validate_change_plan', {
+        description: 'Add parameter to MathService.calculate',
+        planned_files: ['src/math/service.ts', 'src/api/compute.ts'],
+        workspace: '/tmp/workspace',
+        change_type: 'add_param',
+        symbols_affected: ['MathService.calculate'],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject missing required fields', () => {
+      expect(validateToolInput('validate_change_plan', { description: 'rename' }).valid).toBe(false);
+      expect(validateToolInput('validate_change_plan', { planned_files: ['src/a.ts'] }).valid).toBe(false);
+      expect(validateToolInput('validate_change_plan', { description: 'rename', planned_files: [] }).valid).toBe(false);
+    });
+
+    it('should pass type guard', () => {
+      expect(isValidateChangePlanToolInput({
+        description: 'Rename login',
+        planned_files: ['src/auth.ts'],
+      })).toBe(true);
+      expect(isValidateChangePlanToolInput({
+        description: 'Rename login',
+        planned_files: ['src/auth.ts'],
+        change_type: 'signature_change',
+      })).toBe(true);
+      expect(isValidateChangePlanToolInput({
+        description: 'Rename login',
+        planned_files: ['src/auth.ts'],
+        change_type: 'invalid',
+      })).toBe(false);
+      expect(isValidateChangePlanToolInput(null)).toBe(false);
     });
   });
 

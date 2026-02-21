@@ -1080,6 +1080,24 @@ export interface PreCommitCheckToolInput {
   maxRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
 }
 
+/** validate_change_plan tool input */
+export interface ValidateChangePlanToolInput {
+  /** Human-readable description of intended change */
+  description: string;
+
+  /** Files the agent currently plans to modify */
+  planned_files: string[];
+
+  /** Optional workspace path (uses first ready workspace if omitted) */
+  workspace?: string;
+
+  /** Change category used to choose validation strategy */
+  change_type?: 'rename' | 'signature_change' | 'delete' | 'move' | 'add_param' | 'general';
+
+  /** Optional explicit symbols affected by this change */
+  symbols_affected?: string[];
+}
+
 /** claim_work_scope tool input */
 export interface ClaimWorkScopeToolInput {
   /** Semantic scope identifier (file, module, symbol, or task scope key) */
@@ -2121,6 +2139,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  validate_change_plan: {
+    tool: 'validate_change_plan',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   claim_work_scope: {
     tool: 'claim_work_scope',
     requiredScopes: ['read'],
@@ -2780,6 +2804,27 @@ export function isPreCommitCheckToolInput(value: unknown): value is PreCommitChe
     || obj.maxRiskLevel === 'critical'
     || typeof obj.maxRiskLevel === 'undefined';
   return changedFilesOk && workspaceOk && strictOk && maxRiskLevelOk;
+}
+
+/** Type guard for ValidateChangePlanToolInput */
+export function isValidateChangePlanToolInput(value: unknown): value is ValidateChangePlanToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const descriptionOk = typeof obj.description === 'string' && obj.description.trim().length > 0;
+  const plannedFilesOk = Array.isArray(obj.planned_files)
+    && obj.planned_files.every((entry) => typeof entry === 'string' && entry.trim().length > 0);
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const changeTypeOk = obj.change_type === 'rename'
+    || obj.change_type === 'signature_change'
+    || obj.change_type === 'delete'
+    || obj.change_type === 'move'
+    || obj.change_type === 'add_param'
+    || obj.change_type === 'general'
+    || typeof obj.change_type === 'undefined';
+  const symbolsOk = Array.isArray(obj.symbols_affected)
+    ? obj.symbols_affected.every((entry) => typeof entry === 'string')
+    : typeof obj.symbols_affected === 'undefined';
+  return descriptionOk && plannedFilesOk && workspaceOk && changeTypeOk && symbolsOk;
 }
 
 /** Type guard for ClaimWorkScopeToolInput */

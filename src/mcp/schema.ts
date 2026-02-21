@@ -217,6 +217,17 @@ export const PreCommitCheckToolInputSchema = z.object({
 }).strict();
 
 /**
+ * validate_change_plan tool input schema
+ */
+export const ValidateChangePlanToolInputSchema = z.object({
+  description: z.string().min(1).max(4000).describe('Human-readable description of intended change'),
+  planned_files: z.array(z.string().min(1)).min(1).max(500).describe('Files currently planned for modification'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  change_type: z.enum(['rename', 'signature_change', 'delete', 'move', 'add_param', 'general']).optional().default('general').describe('Change type used for validation strategy'),
+  symbols_affected: z.array(z.string().min(1)).max(100).optional().describe('Optional explicit symbols affected by this change'),
+}).strict();
+
+/**
  * claim_work_scope tool input schema
  */
 export const ClaimWorkScopeToolInputSchema = z.object({
@@ -723,6 +734,7 @@ export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInput
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
+export type ValidateChangePlanToolInputType = z.infer<typeof ValidateChangePlanToolInputSchema>;
 export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
 export type AppendClaimToolInputType = z.infer<typeof AppendClaimToolInputSchema>;
 export type QueryClaimsToolInputType = z.infer<typeof QueryClaimsToolInputSchema>;
@@ -804,6 +816,7 @@ export const TOOL_INPUT_SCHEMAS = {
   get_change_impact: GetChangeImpactToolInputSchema,
   blast_radius: BlastRadiusToolInputSchema,
   pre_commit_check: PreCommitCheckToolInputSchema,
+  validate_change_plan: ValidateChangePlanToolInputSchema,
   claim_work_scope: ClaimWorkScopeToolInputSchema,
   append_claim: AppendClaimToolInputSchema,
   query_claims: QueryClaimsToolInputSchema,
@@ -1134,6 +1147,24 @@ export const preCommitCheckToolJsonSchema: JSONSchema = {
     maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass', default: 'high' },
   },
   required: ['changedFiles'],
+  additionalProperties: false,
+};
+
+/** validate_change_plan tool JSON Schema */
+export const validateChangePlanToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/validate-change-plan-tool-input',
+  title: 'ValidateChangePlanToolInput',
+  description: 'Input for validate_change_plan - pre-flight validation for incomplete file plans and blast-radius risk',
+  type: 'object',
+  properties: {
+    description: { type: 'string', description: 'Human-readable description of intended change', minLength: 1, maxLength: 4000 },
+    planned_files: { type: 'array', items: { type: 'string' }, description: 'Files currently planned for modification', minItems: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    change_type: { type: 'string', enum: ['rename', 'signature_change', 'delete', 'move', 'add_param', 'general'], description: 'Change type used for validation strategy', default: 'general' },
+    symbols_affected: { type: 'array', items: { type: 'string' }, description: 'Optional explicit symbols affected by this change' },
+  },
+  required: ['description', 'planned_files'],
   additionalProperties: false,
 };
 
@@ -1679,6 +1710,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   get_change_impact: getChangeImpactToolJsonSchema,
   blast_radius: blastRadiusToolJsonSchema,
   pre_commit_check: preCommitCheckToolJsonSchema,
+  validate_change_plan: validateChangePlanToolJsonSchema,
   claim_work_scope: claimWorkScopeToolJsonSchema,
   append_claim: appendClaimToolJsonSchema,
   query_claims: queryClaimsToolJsonSchema,
