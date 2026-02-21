@@ -1919,3 +1919,8 @@ export function createIndexLiBrainian(
 
 // Backward-compatible alias for legacy imports that still reference IndexLibrarian.
 export { IndexLiBrainian as IndexLibrarian };
+export function createIndexLibrarian(
+  config?: Partial<IndexLiBrainianConfig>
+): IndexLiBrainian {
+  return createIndexLiBrainian(config);
+}

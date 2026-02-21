@@ -10,7 +10,7 @@ import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSucces
 import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
-import { resolveLiBrainianProvider } from './llm_env.js';
+import * as llmEnv from './llm_env.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
@@ -35,6 +35,13 @@ function toSingleLineMessage(error: unknown): string {
 
 function toSingleLineText(text: string): string {
   return text.replace(/\s+/gu, ' ').trim();
+}
+
+function resolvePreferredProviderFromEnv(): ProviderName | undefined {
+  const resolver =
+    (llmEnv as { resolveLiBrainianProvider?: () => ProviderName | undefined }).resolveLiBrainianProvider
+    ?? (llmEnv as { resolveLibrarianProvider?: () => ProviderName | undefined }).resolveLibrarianProvider;
+  return resolver?.();
 }
 
 export interface ProviderGateStatus {
@@ -275,7 +282,7 @@ export async function runProviderReadinessGate(
     }
   }
 
-  const preferred = resolveLiBrainianProvider();
+  const preferred = resolvePreferredProviderFromEnv();
   const isReady = (name: ProviderName | null | undefined) => Boolean(name && providers.some((p) => p.provider === name && p.available && p.authenticated));
   const pick = (name: ProviderName | null | undefined): ProviderName | null => (isReady(name) ? (name as ProviderName) : null);
   const selectedProvider = networkDisabled
