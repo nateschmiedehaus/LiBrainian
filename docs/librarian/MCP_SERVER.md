@@ -101,6 +101,35 @@ Query the knowledge index for relevant context.
 - v1 surfaces numeric `confidence` values. Treat them as *ranking signals*, not epistemic claim confidence.
 - The spec-system target is `ConfidenceValue` for claim confidence. Until migrated, LiBrainian must disclose calibration absence (see `docs/LiBrainian/specs/INTEGRATION_CHANGE_LIST.md`).
 
+### Proactive Intel (Always-On)
+
+`query` responses include a `proactiveIntel` array by default when the index contains high-signal contextual alerts.
+
+Per-request opt-out:
+
+```typescript
+{
+  intent: '...',
+  proactiveIntel: false // or proactive_intel: false
+}
+```
+
+Environment controls:
+
+- `LIBRARIAN_PROACTIVE_INTEL_ENABLED` (default: `true`)
+- `LIBRARIAN_PROACTIVE_THRESHOLD` (default: `0.7`)
+- `LIBRARIAN_PROACTIVE_TOKEN_BUDGET` (default: `200`)
+- `LIBRARIAN_PROACTIVE_SECURITY_BYPASS` (default: `true`)
+- `LIBRARIAN_PROACTIVE_MAX_ASSEMBLY_MS` (default: `50`)
+
+Audit findings (issue #680):
+
+- Hook trigger: proactive assembly executes in `query` by default (unless `proactiveIntel: false` or `proactive_intel: false`).
+- Delivery path: `proactiveIntel` is serialized in the MCP `query` response payload with snake-case alias `proactive_intel`.
+- E2E evidence:
+  - `src/mcp/__tests__/proactive_intel_query.test.ts` validates server query behavior and MCP payload delivery.
+  - `src/mcp/__tests__/proactive_intel_query.integration.test.ts` validates a real LiBrainian query path (real SQLite storage, no query mock) reaches an MCP client with proactive intel.
+
 ### verify_claim
 
 Verify a code-related claim against indexed evidence.

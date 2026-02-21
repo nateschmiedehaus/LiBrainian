@@ -646,6 +646,12 @@ export interface QueryToolInput {
   /** Optional session identifier for loop detection and adaptive retrieval behavior */
   sessionId?: string;
 
+  /** Optional agent identifier used for per-agent proactive intel calibration */
+  agentId?: string;
+
+  /** Snake-case alias for agentId */
+  agent_id?: string;
+
   /** Intent mode: understand, impact, debug, refactor, security, test, document, navigate, or general */
   intentType?: QueryIntent;
 
@@ -705,6 +711,12 @@ export interface QueryToolInput {
 
   /** Chunk size used for stream view metadata (default: 5, max: 200) */
   streamChunkSize?: number;
+
+  /** Enable/disable proactive intel injection for this query (default: enabled) */
+  proactiveIntel?: boolean;
+
+  /** Snake-case alias for proactiveIntel */
+  proactive_intel?: boolean;
 }
 
 /** librainian_get_uncertainty tool input */
@@ -773,6 +785,18 @@ export interface QueryToolOutput {
   nearMisses?: Array<{
     packId: string;
     reason: string;
+  }>;
+
+  /** Relevance-gated proactive context assembled from indexed signals */
+  proactiveIntel?: Array<{
+    type: string;
+    category: 'security' | 'cochange' | 'ownership' | 'churn' | 'maintainability' | 'rationale' | 'health';
+    content: string;
+    relevanceScore: number;
+    adjustedScore: number;
+    alwaysInjected?: boolean;
+    tokens: number;
+    filePath?: string;
   }>;
 
   /** Aggregate confidence signal for the full response page */
@@ -2616,6 +2640,8 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   const obj = value as Record<string, unknown>;
   const intentOk = typeof obj.intent === 'string';
   const sessionIdOk = typeof obj.sessionId === 'string' || typeof obj.sessionId === 'undefined';
+  const agentIdOk = typeof obj.agentId === 'string' || typeof obj.agentId === 'undefined';
+  const agentIdAliasOk = typeof obj.agent_id === 'string' || typeof obj.agent_id === 'undefined';
   const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
   const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
   const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
@@ -2626,8 +2652,12 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
   const explainMissesAliasOk = typeof obj.explain_misses === 'boolean' || typeof obj.explain_misses === 'undefined';
   const streamOk = typeof obj.stream === 'boolean' || typeof obj.stream === 'undefined';
   const streamChunkSizeOk = typeof obj.streamChunkSize === 'number' || typeof obj.streamChunkSize === 'undefined';
+  const proactiveIntelOk = typeof obj.proactiveIntel === 'boolean' || typeof obj.proactiveIntel === 'undefined';
+  const proactiveIntelAliasOk = typeof obj.proactive_intel === 'boolean' || typeof obj.proactive_intel === 'undefined';
   return intentOk
     && sessionIdOk
+    && agentIdOk
+    && agentIdAliasOk
     && pageSizeOk
     && pageIdxOk
     && outputFileOk
@@ -2637,7 +2667,9 @@ export function isQueryToolInput(value: unknown): value is QueryToolInput {
     && explainMissesOk
     && explainMissesAliasOk
     && streamOk
-    && streamChunkSizeOk;
+    && streamChunkSizeOk
+    && proactiveIntelOk
+    && proactiveIntelAliasOk;
 }
 
 /** Type guard for LibrainianGetUncertaintyToolInput */

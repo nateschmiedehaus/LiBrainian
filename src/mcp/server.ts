@@ -324,6 +324,56 @@ interface LoopMetrics {
   futileCount: number;
 }
 
+type ProactiveIntelCategory =
+  | 'security'
+  | 'cochange'
+  | 'ownership'
+  | 'churn'
+  | 'maintainability'
+  | 'rationale'
+  | 'health';
+
+interface ProactiveIntelItem {
+  type: string;
+  category: ProactiveIntelCategory;
+  content: string;
+  relevanceScore: number;
+  adjustedScore: number;
+  alwaysInjected?: boolean;
+  tokens: number;
+  filePath?: string;
+}
+
+interface ProactiveIntelWeightVector {
+  security: number;
+  cochange: number;
+  ownership: number;
+  churn: number;
+  maintainability: number;
+  rationale: number;
+  health: number;
+}
+
+interface ProactiveIntelWeightEntry {
+  weights: ProactiveIntelWeightVector;
+  updatedAt: string;
+}
+
+interface ProactiveIntelFeedbackContext {
+  categories: ProactiveIntelCategory[];
+  sessionId?: string;
+  agentKey?: string;
+  createdAt: string;
+}
+
+interface ProactiveIntelWeightsState {
+  schemaVersion: 1;
+  updatedAt: string;
+  sessions: Record<string, ProactiveIntelWeightEntry>;
+  agents: Record<string, ProactiveIntelWeightEntry>;
+  feedbackContexts: Record<string, ProactiveIntelFeedbackContext>;
+}
+
 /** Audit log entry */
 export interface AuditLogEntry {
   /** Entry ID */
@@ -536,6 +586,22 @@ const DEFAULT_CONFORMAL_TAU_BY_ALPHA: Record<string, number> = {
 const AMBIGUOUS_SYMBOL_MATCH_THRESHOLD = 3;
 const MAX_QUERY_SYMBOL_CANDIDATES = 8;
 const MAX_DECOMPOSED_SUBQUERIES = 4;
+const PROACTIVE_INTEL_WEIGHTS_STATE_KEY = 'librarian.mcp.proactive_intel_weights.v1';
+const PROACTIVE_INTEL_FEEDBACK_CONTEXT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const PROACTIVE_INTEL_MAX_TRACKED_ENTRIES = 200;
+const PROACTIVE_INTEL_DEFAULT_THRESHOLD = 0.7;
+const PROACTIVE_INTEL_DEFAULT_TOKEN_BUDGET = 200;
+const PROACTIVE_INTEL_DEFAULT_MAX_ASSEMBLY_MS = 50;
+const PROACTIVE_INTEL_MAX_FILES = 4;
+const PROACTIVE_INTEL_BASE_WEIGHTS: ProactiveIntelWeightVector = {
+  security: 1,
+  cochange: 1,
+  ownership: 1,
+  churn: 1,
+  maintainability: 1,
+  rationale: 1,
+  health: 1,
+};
 
 interface MutableToolSchemaNode {
   type?: string;
@@ -566,6 +632,10 @@ const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.alpha': 'Conformal error-rate target alpha in [0.01, 0.5]. Lower alpha requests stricter coverage guarantees, while higher alpha allows tighter context sets with lower guaranteed coverage.',
   'query.recencyWeight': 'Optional episodic recency-bias weight in [0,1]. Set 0 to disable recency influence, or increase toward 1 to prioritize recently accessed files that still satisfy semantic relevance checks.',
   'query.recency_weight': 'Snake-case alias for recencyWeight with identical semantics, preserving backward-compatible payloads while tuning episodic recency influence in retrieval ranking and hint injection.',
+  'query.agentId': 'Optional stable agent identifier used to load and update per-agent proactive intel category weights. Provide a consistent value (for example codex-cli or patrol) so LiBrainian can calibrate proactive hints for that agent over time.',
+  'query.agent_id': 'Snake-case alias for agentId with identical semantics, allowing clients that use snake-case payloads to participate in persistent per-agent proactive intel calibration behavior.',
+  'query.proactiveIntel': 'Set true (default) to include relevance-gated proactiveIntel hints assembled from indexed signals (security risk, co-change patterns, ownership recency, maintainability, and health). Set false to suppress proactive injection for this request.',
+  'query.proactive_intel': 'Snake-case alias for proactiveIntel with identical behavior. Pass false to explicitly suppress proactive hints for a single query call.',
 };
 
 function countWords(value: string): number {
@@ -1639,6 +1709,8 @@ export class LiBrainianMCPServer {
             intent: { type: 'string', description: 'Goal-oriented question for semantic retrieval (for example: "How does auth token refresh work?" or "What breaks if I change X?")' },
             workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
             sessionId: { type: 'string', description: 'Optional session identifier used for repeated-query loop detection' },
+            agentId: { type: 'string', description: 'Optional stable agent identifier used for per-agent proactive intel calibration' },
+            agent_id: { type: 'string', description: 'Snake-case alias for agentId' },
             intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Intent mode: understand=explain, impact=blast radius, debug=root-cause, refactor=safe changes, security=risk review, test=coverage/tests, document=docs summary, navigate=where to look, general=fallback' },
             affectedFiles: { type: 'array', items: { type: 'string' }, description: 'Scope to files' },
             contextHints: {
@@ -1689,6 +1761,8 @@ export class LiBrainianMCPServer {
             explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
             stream: { type: 'boolean', description: 'Enable chunked stream metadata so clients can consume packs incrementally after the query completes' },
             streamChunkSize: { type: 'number', description: 'Chunk size for stream metadata groups (default 5, max 200)' },
+            proactiveIntel: { type: 'boolean', description: 'Enable proactive intel enrichment in query responses (default true)' },
+            proactive_intel: { type: 'boolean', description: 'Snake-case alias for proactiveIntel' },
           },
           required: ['intent'],
         },
@@ -5320,6 +5394,731 @@ export class LiBrainianMCPServer {
     }
   }
 
+  private resolveQueryAgentId(input: QueryToolInput): string | undefined {
+    const raw = input.agentId ?? input.agent_id;
+    if (typeof raw !== 'string') return undefined;
+    const normalized = raw.trim().toLowerCase();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private resolveQueryProactiveIntelEnabled(input: QueryToolInput): boolean {
+    if (input.proactiveIntel === false || input.proactive_intel === false) return false;
+    return true;
+  }
+
+  private readBooleanEnv(key: string, fallback: boolean): boolean {
+    const raw = process.env[key];
+    if (typeof raw !== 'string') return fallback;
+    const normalized = raw.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    return fallback;
+  }
+
+  private readNumberEnv(key: string, fallback: number, min: number, max: number): number {
+    const raw = process.env[key];
+    if (typeof raw !== 'string') return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(min, Math.min(max, parsed));
+  }
+
+  private proactiveIntelEnabledByEnv(): boolean {
+    return this.readBooleanEnv('LIBRARIAN_PROACTIVE_INTEL_ENABLED', true);
+  }
+
+  private resolveProactiveIntelThreshold(): number {
+    return this.readNumberEnv('LIBRARIAN_PROACTIVE_THRESHOLD', PROACTIVE_INTEL_DEFAULT_THRESHOLD, 0, 1);
+  }
+
+  private resolveProactiveIntelTokenBudget(): number {
+    return Math.trunc(this.readNumberEnv('LIBRARIAN_PROACTIVE_TOKEN_BUDGET', PROACTIVE_INTEL_DEFAULT_TOKEN_BUDGET, 32, 2000));
+  }
+
+  private resolveProactiveIntelSecurityBypass(): boolean {
+    return this.readBooleanEnv('LIBRARIAN_PROACTIVE_SECURITY_BYPASS', true);
+  }
+
+  private resolveProactiveIntelMaxAssemblyMs(): number {
+    return Math.trunc(
+      this.readNumberEnv(
+        'LIBRARIAN_PROACTIVE_MAX_ASSEMBLY_MS',
+        PROACTIVE_INTEL_DEFAULT_MAX_ASSEMBLY_MS,
+        1,
+        5000,
+      ),
+    );
+  }
+
+  private toWorkspaceRelativePath(filePath: string, workspacePath: string): string {
+    const relative = path.relative(workspacePath, filePath).replaceAll('\\', '/');
+    if (!relative || relative.startsWith('..')) {
+      return filePath.replaceAll('\\', '/');
+    }
+    return relative;
+  }
+
+  private normalizeRiskScore(raw: number | undefined): number | undefined {
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return undefined;
+    if (raw <= 1) return raw;
+    if (raw <= 10) return raw / 10;
+    return Math.min(1, raw / 100);
+  }
+
+  private normalizeMaintainabilityScore(raw: number | undefined): number | undefined {
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return undefined;
+    if (raw <= 1) return raw;
+    return Math.min(1, raw / 100);
+  }
+
+  private parseUniversalKnowledgePayload(raw: string | undefined): Record<string, unknown> | null {
+    if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private readNestedObject(root: Record<string, unknown>, key: string): Record<string, unknown> | null {
+    const value = root[key];
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : null;
+  }
+
+  private readNestedString(root: Record<string, unknown>, keys: string[]): string | undefined {
+    let cursor: Record<string, unknown> | null = root;
+    for (let index = 0; index < keys.length - 1; index += 1) {
+      if (!cursor) return undefined;
+      cursor = this.readNestedObject(cursor, keys[index] ?? '');
+    }
+    if (!cursor) return undefined;
+    const leaf = cursor[keys[keys.length - 1] ?? ''];
+    return typeof leaf === 'string' && leaf.trim().length > 0 ? leaf.trim() : undefined;
+  }
+
+  private readNestedNumber(root: Record<string, unknown>, keys: string[]): number | undefined {
+    let cursor: Record<string, unknown> | null = root;
+    for (let index = 0; index < keys.length - 1; index += 1) {
+      if (!cursor) return undefined;
+      cursor = this.readNestedObject(cursor, keys[index] ?? '');
+    }
+    if (!cursor) return undefined;
+    const leaf = cursor[keys[keys.length - 1] ?? ''];
+    return typeof leaf === 'number' && Number.isFinite(leaf) ? leaf : undefined;
+  }
+
+  private createDefaultProactiveIntelWeightsState(): ProactiveIntelWeightsState {
+    return {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      sessions: {},
+      agents: {},
+      feedbackContexts: {},
+    };
+  }
+
+  private clampProactiveIntelWeight(value: number): number {
+    if (!Number.isFinite(value)) return 1;
+    return Number(Math.max(0.25, Math.min(2, value)).toFixed(4));
+  }
+
+  private sanitizeProactiveIntelWeightVector(value: unknown): ProactiveIntelWeightVector {
+    const raw = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+    const base: ProactiveIntelWeightVector = { ...PROACTIVE_INTEL_BASE_WEIGHTS };
+    for (const category of Object.keys(base) as ProactiveIntelCategory[]) {
+      const candidate = raw[category];
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        base[category] = this.clampProactiveIntelWeight(candidate);
+      }
+    }
+    return base;
+  }
+
+  private sanitizeProactiveIntelWeightEntry(value: unknown): ProactiveIntelWeightEntry | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const raw = value as Record<string, unknown>;
+    const updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date(0).toISOString();
+    return {
+      weights: this.sanitizeProactiveIntelWeightVector(raw.weights),
+      updatedAt,
+    };
+  }
+
+  private sanitizeProactiveIntelWeightsState(raw: string | null): ProactiveIntelWeightsState {
+    if (!raw) return this.createDefaultProactiveIntelWeightsState();
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return this.createDefaultProactiveIntelWeightsState();
+      }
+      const record = parsed as Record<string, unknown>;
+      const sessionsRaw = record.sessions && typeof record.sessions === 'object' && !Array.isArray(record.sessions)
+        ? record.sessions as Record<string, unknown>
+        : {};
+      const agentsRaw = record.agents && typeof record.agents === 'object' && !Array.isArray(record.agents)
+        ? record.agents as Record<string, unknown>
+        : {};
+      const feedbackRaw = record.feedbackContexts && typeof record.feedbackContexts === 'object' && !Array.isArray(record.feedbackContexts)
+        ? record.feedbackContexts as Record<string, unknown>
+        : {};
+
+      const sessions: Record<string, ProactiveIntelWeightEntry> = {};
+      for (const [key, value] of Object.entries(sessionsRaw)) {
+        const entry = this.sanitizeProactiveIntelWeightEntry(value);
+        if (entry) sessions[key] = entry;
+      }
+
+      const agents: Record<string, ProactiveIntelWeightEntry> = {};
+      for (const [key, value] of Object.entries(agentsRaw)) {
+        const entry = this.sanitizeProactiveIntelWeightEntry(value);
+        if (entry) agents[key] = entry;
+      }
+
+      const feedbackContexts: Record<string, ProactiveIntelFeedbackContext> = {};
+      for (const [token, value] of Object.entries(feedbackRaw)) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+        const entry = value as Record<string, unknown>;
+        const categories = Array.isArray(entry.categories)
+          ? entry.categories.filter((category): category is ProactiveIntelCategory => (
+            category === 'security'
+            || category === 'cochange'
+            || category === 'ownership'
+            || category === 'churn'
+            || category === 'maintainability'
+            || category === 'rationale'
+            || category === 'health'
+          ))
+          : [];
+        const createdAt = typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString();
+        if (categories.length === 0) continue;
+        feedbackContexts[token] = {
+          categories,
+          sessionId: typeof entry.sessionId === 'string' && entry.sessionId.length > 0 ? entry.sessionId : undefined,
+          agentKey: typeof entry.agentKey === 'string' && entry.agentKey.length > 0 ? entry.agentKey : undefined,
+          createdAt,
+        };
+      }
+
+      return {
+        schemaVersion: 1,
+        updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : new Date().toISOString(),
+        sessions,
+        agents,
+        feedbackContexts,
+      };
+    } catch {
+      return this.createDefaultProactiveIntelWeightsState();
+    }
+  }
+
+  private pruneProactiveIntelWeightsState(state: ProactiveIntelWeightsState): void {
+    const now = Date.now();
+    for (const [token, context] of Object.entries(state.feedbackContexts)) {
+      const createdAt = Date.parse(context.createdAt);
+      if (!Number.isFinite(createdAt) || now - createdAt > PROACTIVE_INTEL_FEEDBACK_CONTEXT_TTL_MS) {
+        delete state.feedbackContexts[token];
+      }
+    }
+
+    const trimByUpdatedAt = (entries: Record<string, ProactiveIntelWeightEntry>): void => {
+      const records = Object.entries(entries);
+      if (records.length <= PROACTIVE_INTEL_MAX_TRACKED_ENTRIES) return;
+      records
+        .sort((a, b) => Date.parse(a[1].updatedAt) - Date.parse(b[1].updatedAt))
+        .slice(0, records.length - PROACTIVE_INTEL_MAX_TRACKED_ENTRIES)
+        .forEach(([key]) => {
+          delete entries[key];
+        });
+    };
+
+    trimByUpdatedAt(state.sessions);
+    trimByUpdatedAt(state.agents);
+  }
+
+  private async loadProactiveIntelWeightsState(storage: LiBrainianStorage): Promise<ProactiveIntelWeightsState> {
+    if (typeof storage.getState !== 'function') {
+      return this.createDefaultProactiveIntelWeightsState();
+    }
+    const raw = await storage.getState(PROACTIVE_INTEL_WEIGHTS_STATE_KEY).catch(() => null);
+    const state = this.sanitizeProactiveIntelWeightsState(raw);
+    this.pruneProactiveIntelWeightsState(state);
+    return state;
+  }
+
+  private async persistProactiveIntelWeightsState(
+    storage: LiBrainianStorage,
+    state: ProactiveIntelWeightsState,
+  ): Promise<void> {
+    if (typeof storage.setState !== 'function') return;
+    state.updatedAt = new Date().toISOString();
+    this.pruneProactiveIntelWeightsState(state);
+    await storage.setState(PROACTIVE_INTEL_WEIGHTS_STATE_KEY, JSON.stringify(state));
+  }
+
+  private getOrCreateProactiveWeightEntry(
+    table: Record<string, ProactiveIntelWeightEntry>,
+    key: string | undefined,
+  ): ProactiveIntelWeightEntry | null {
+    if (!key) return null;
+    const existing = table[key];
+    if (existing) return existing;
+    const created: ProactiveIntelWeightEntry = {
+      weights: { ...PROACTIVE_INTEL_BASE_WEIGHTS },
+      updatedAt: new Date().toISOString(),
+    };
+    table[key] = created;
+    return created;
+  }
+
+  private resolveMergedProactiveWeights(
+    state: ProactiveIntelWeightsState,
+    sessionId: string,
+    agentKey: string | undefined,
+  ): ProactiveIntelWeightVector {
+    const sessionWeights = state.sessions[sessionId]?.weights;
+    const agentWeights = agentKey ? state.agents[agentKey]?.weights : undefined;
+    const merged: ProactiveIntelWeightVector = { ...PROACTIVE_INTEL_BASE_WEIGHTS };
+    for (const category of Object.keys(merged) as ProactiveIntelCategory[]) {
+      const sessionValue = sessionWeights?.[category];
+      const agentValue = agentWeights?.[category];
+      if (typeof sessionValue === 'number' && typeof agentValue === 'number') {
+        merged[category] = this.clampProactiveIntelWeight((sessionValue + agentValue) / 2);
+      } else if (typeof sessionValue === 'number') {
+        merged[category] = this.clampProactiveIntelWeight(sessionValue);
+      } else if (typeof agentValue === 'number') {
+        merged[category] = this.clampProactiveIntelWeight(agentValue);
+      }
+    }
+    return merged;
+  }
+
+  private normalizeQueryFileCandidates(files: string[], workspacePath: string): string[] {
+    const normalized = new Set<string>();
+    for (const file of files) {
+      if (typeof file !== 'string') continue;
+      const trimmed = file.trim();
+      if (!trimmed) continue;
+      const resolved = path.isAbsolute(trimmed)
+        ? path.resolve(trimmed)
+        : path.resolve(workspacePath, trimmed);
+      normalized.add(resolved);
+      if (normalized.size >= PROACTIVE_INTEL_MAX_FILES) break;
+    }
+    return Array.from(normalized);
+  }
+
+  private async collectProactiveIntelForFile(options: {
+    storage: LiBrainianStorage;
+    workspacePath: string;
+    filePath: string;
+    declaredChangeSet: Set<string>;
+  }): Promise<ProactiveIntelItem[]> {
+    const { storage, workspacePath, filePath, declaredChangeSet } = options;
+    const fileLabel = this.toWorkspaceRelativePath(filePath, workspacePath);
+    const readUniversalKnowledge = typeof storage.getUniversalKnowledgeByFile === 'function'
+      ? storage.getUniversalKnowledgeByFile.bind(storage)
+      : undefined;
+    const readOwnership = typeof storage.getOwnershipByFilePath === 'function'
+      ? storage.getOwnershipByFilePath.bind(storage)
+      : undefined;
+    const readCochange = typeof storage.getCochangeEdges === 'function'
+      ? storage.getCochangeEdges.bind(storage)
+      : undefined;
+    const readAssessment = typeof storage.getAssessmentByPath === 'function'
+      ? storage.getAssessmentByPath.bind(storage)
+      : undefined;
+    const [records, ownership, cochangeEdges, assessment] = await Promise.all([
+      readUniversalKnowledge ? readUniversalKnowledge(filePath).catch(() => []) : Promise.resolve([]),
+      readOwnership ? readOwnership(filePath).catch(() => []) : Promise.resolve([]),
+      readCochange
+        ? readCochange({ fileA: filePath, limit: 8, orderBy: 'strength', orderDirection: 'desc' }).catch(() => [])
+        : Promise.resolve([]),
+      readAssessment ? readAssessment(filePath).catch(() => null) : Promise.resolve(null),
+    ]);
+
+    const items: ProactiveIntelItem[] = [];
+    const typedRecords = Array.isArray(records)
+      ? records.filter((entry): entry is {
+        purposeSummary?: string;
+        knowledge?: string;
+        riskScore?: number;
+        maintainabilityIndex?: number;
+      } => !!entry && typeof entry === 'object')
+      : [];
+    const typedOwnership = Array.isArray(ownership)
+      ? ownership.filter((entry): entry is { author: string; score: number; lastModified: Date } => (
+        !!entry
+        && typeof entry === 'object'
+        && typeof (entry as { author?: unknown }).author === 'string'
+        && typeof (entry as { score?: unknown }).score === 'number'
+        && (entry as { lastModified?: unknown }).lastModified instanceof Date
+      ))
+      : [];
+    const typedCochange = Array.isArray(cochangeEdges)
+      ? cochangeEdges.filter((entry): entry is {
+        fileA: string;
+        fileB: string;
+        strength: number;
+        changeCount: number;
+      } => (
+        !!entry
+        && typeof entry === 'object'
+        && typeof (entry as { fileA?: unknown }).fileA === 'string'
+        && typeof (entry as { fileB?: unknown }).fileB === 'string'
+        && typeof (entry as { strength?: unknown }).strength === 'number'
+        && typeof (entry as { changeCount?: unknown }).changeCount === 'number'
+      ))
+      : [];
+
+    const maxRisk = typedRecords.reduce<number | undefined>((max, record) => {
+      const normalized = this.normalizeRiskScore(record.riskScore);
+      if (typeof normalized !== 'number') return max;
+      return typeof max === 'number' ? Math.max(max, normalized) : normalized;
+    }, undefined);
+    if (typeof maxRisk === 'number' && maxRisk >= 0.75) {
+      const severity = maxRisk >= 0.9 ? 'CRITICAL' : 'HIGH';
+      items.push({
+        type: 'security-alert',
+        category: 'security',
+        content: `security.riskScore: ${severity} for ${fileLabel}. Changes require security review before merge.`,
+        relevanceScore: maxRisk,
+        adjustedScore: maxRisk,
+        alwaysInjected: true,
+        tokens: estimateTokens(fileLabel) + 18,
+        filePath,
+      });
+    }
+
+    const minMaintainability = typedRecords.reduce<number | undefined>((min, record) => {
+      const normalized = this.normalizeMaintainabilityScore(record.maintainabilityIndex);
+      if (typeof normalized !== 'number') return min;
+      return typeof min === 'number' ? Math.min(min, normalized) : normalized;
+    }, undefined);
+    if (typeof minMaintainability === 'number' && minMaintainability <= 0.55) {
+      const scorePct = Math.round(minMaintainability * 100);
+      const relevance = Number(Math.min(1, 0.4 + (1 - minMaintainability)).toFixed(4));
+      items.push({
+        type: 'maintainability-alert',
+        category: 'maintainability',
+        content: `quality.maintainabilityIndex for ${fileLabel} is ${scorePct}. Expect higher refactor risk and add regression coverage.`,
+        relevanceScore: relevance,
+        adjustedScore: relevance,
+        tokens: estimateTokens(fileLabel) + 18,
+        filePath,
+      });
+    }
+
+    const purpose = typedRecords
+      .map((record) => {
+        if (typeof record.purposeSummary === 'string' && record.purposeSummary.trim().length > 0) {
+          return record.purposeSummary.trim();
+        }
+        const payload = this.parseUniversalKnowledgePayload(record.knowledge);
+        if (!payload) return undefined;
+        return this.readNestedString(payload, ['semantics', 'purpose', 'summary'])
+          ?? this.readNestedString(payload, ['rationale', 'decisionSummary']);
+      })
+      .find((value): value is string => typeof value === 'string' && value.length > 0);
+    if (purpose) {
+      const excerpt = purpose.length > 160 ? `${purpose.slice(0, 157)}...` : purpose;
+      items.push({
+        type: 'rationale',
+        category: 'rationale',
+        content: `Rationale for ${fileLabel}: ${excerpt}`,
+        relevanceScore: 0.74,
+        adjustedScore: 0.74,
+        tokens: estimateTokens(excerpt) + 10,
+        filePath,
+      });
+    }
+
+    const freshestOwner = typedOwnership
+      .slice()
+      .sort((a, b) => b.score - a.score)[0];
+    if (freshestOwner) {
+      const daysSinceLastCommit = Math.max(
+        0,
+        Math.floor((Date.now() - freshestOwner.lastModified.getTime()) / (24 * 60 * 60 * 1000)),
+      );
+      if (daysSinceLastCommit >= 14) {
+        const relevance = Number(Math.min(1, 0.55 + (daysSinceLastCommit / 90)).toFixed(4));
+        items.push({
+          type: 'ownership',
+          category: 'ownership',
+          content: `Owner signal for ${fileLabel}: ${freshestOwner.author} last modified this file ${daysSinceLastCommit} days ago.`,
+          relevanceScore: relevance,
+          adjustedScore: relevance,
+          tokens: estimateTokens(fileLabel) + 16,
+          filePath,
+        });
+      }
+    }
+
+    const parsedChurn = typedRecords
+      .map((record) => {
+        const payload = this.parseUniversalKnowledgePayload(record.knowledge);
+        if (!payload) return undefined;
+        return this.readNestedNumber(payload, ['history', 'churnHistory', 'changesLast7Days'])
+          ?? this.readNestedNumber(payload, ['history', 'changesLast7Days'])
+          ?? this.readNestedNumber(payload, ['history', 'churn', 'changesLast7Days']);
+      })
+      .find((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    const fallbackChurn = typedCochange.reduce((max, edge) => Math.max(max, edge.changeCount), 0);
+    const churnCount = typeof parsedChurn === 'number' ? parsedChurn : fallbackChurn;
+    if (churnCount >= 4) {
+      const relevance = Number(Math.min(1, 0.45 + (churnCount / 20)).toFixed(4));
+      items.push({
+        type: 'churn-alert',
+        category: 'churn',
+        content: `${fileLabel} changed ${Math.trunc(churnCount)} times recently. High churn suggests unstable implementation boundaries.`,
+        relevanceScore: relevance,
+        adjustedScore: relevance,
+        tokens: estimateTokens(fileLabel) + 15,
+        filePath,
+      });
+    }
+
+    if (declaredChangeSet.size > 0) {
+      const missingPartner = typedCochange.find((edge) => {
+        const partner = edge.fileA === filePath ? edge.fileB : edge.fileA;
+        return !declaredChangeSet.has(path.resolve(partner)) && edge.strength >= 0.65;
+      });
+      if (missingPartner) {
+        const partner = missingPartner.fileA === filePath ? missingPartner.fileB : missingPartner.fileA;
+        const partnerLabel = this.toWorkspaceRelativePath(path.resolve(partner), workspacePath);
+        const pct = Math.round(Math.max(0, Math.min(1, missingPartner.strength)) * 100);
+        items.push({
+          type: 'co-change-alert',
+          category: 'cochange',
+          content: `${fileLabel} and ${partnerLabel} co-change in ${pct}% of commits. ${partnerLabel} is missing from the declared change set.`,
+          relevanceScore: Number(Math.max(0, Math.min(1, missingPartner.strength)).toFixed(4)),
+          adjustedScore: Number(Math.max(0, Math.min(1, missingPartner.strength)).toFixed(4)),
+          tokens: estimateTokens(`${fileLabel} ${partnerLabel}`) + 18,
+          filePath,
+        });
+      }
+    }
+
+    if (assessment && typeof assessment === 'object') {
+      const typedAssessment = assessment as {
+        healthScore?: number;
+        overallHealth?: string;
+      };
+      const score = typeof typedAssessment.healthScore === 'number' && Number.isFinite(typedAssessment.healthScore)
+        ? typedAssessment.healthScore
+        : undefined;
+      const healthState = typeof typedAssessment.overallHealth === 'string' ? typedAssessment.overallHealth : undefined;
+      if ((typeof score === 'number' && score < 65) || healthState === 'at-risk' || healthState === 'critical') {
+        const normalized = typeof score === 'number'
+          ? Number(Math.max(0, Math.min(1, (100 - score) / 100)).toFixed(4))
+          : 0.65;
+        items.push({
+          type: 'health-alert',
+          category: 'health',
+          content: `Health score for ${fileLabel} is ${typeof score === 'number' ? Math.round(score) : 'unknown'} (${healthState ?? 'needs-attention'}).`,
+          relevanceScore: Math.max(0.6, normalized),
+          adjustedScore: Math.max(0.6, normalized),
+          tokens: estimateTokens(fileLabel) + 14,
+          filePath,
+        });
+      }
+    }
+
+    return items;
+  }
+
+  private async buildQueryProactiveIntel(options: {
+    storage: LiBrainianStorage;
+    workspacePath: string;
+    input: QueryToolInput;
+    packs: Array<{ relatedFiles?: string[] }>;
+    sessionId: string;
+    agentId?: string;
+    feedbackToken?: string;
+    declaredAffectedFiles?: string[];
+  }): Promise<ProactiveIntelItem[] | undefined> {
+    if (!this.proactiveIntelEnabledByEnv()) return undefined;
+    if (!this.resolveQueryProactiveIntelEnabled(options.input)) return undefined;
+
+    const threshold = this.resolveProactiveIntelThreshold();
+    const tokenBudget = this.resolveProactiveIntelTokenBudget();
+    const securityBypass = this.resolveProactiveIntelSecurityBypass();
+    const maxAssemblyMs = this.resolveProactiveIntelMaxAssemblyMs();
+    const assemblyStartedAt = Date.now();
+
+    const packCandidateFiles = this.normalizeQueryFileCandidates(
+      options.packs.flatMap((pack) => Array.isArray(pack.relatedFiles) ? pack.relatedFiles : []),
+      options.workspacePath,
+    );
+    const declaredCandidateFiles = this.normalizeQueryFileCandidates(
+      options.declaredAffectedFiles ?? [],
+      options.workspacePath,
+    );
+    const candidateFiles = Array.from(
+      new Set<string>([...packCandidateFiles, ...declaredCandidateFiles]),
+    ).slice(0, PROACTIVE_INTEL_MAX_FILES);
+    if (candidateFiles.length === 0) return undefined;
+
+    const declaredChangeSet = new Set(
+      this.normalizeQueryFileCandidates(options.declaredAffectedFiles ?? [], options.workspacePath),
+    );
+
+    const weightState = await this.loadProactiveIntelWeightsState(options.storage);
+    const mergedWeights = this.resolveMergedProactiveWeights(weightState, options.sessionId, options.agentId);
+    const collected: ProactiveIntelItem[] = [];
+
+    for (const filePath of candidateFiles) {
+      if (Date.now() - assemblyStartedAt > maxAssemblyMs) {
+        void this.appendWorkspaceAuditLog(options.workspacePath, {
+          ts: new Date().toISOString(),
+          event: 'proactive_intel_timing_violation',
+          elapsed_ms: Date.now() - assemblyStartedAt,
+          max_ms: maxAssemblyMs,
+          workspace: options.workspacePath,
+        }).catch(() => undefined);
+        return undefined;
+      }
+      const fileItems = await this.collectProactiveIntelForFile({
+        storage: options.storage,
+        workspacePath: options.workspacePath,
+        filePath,
+        declaredChangeSet,
+      });
+      collected.push(...fileItems);
+    }
+
+    const deduped = new Map<string, ProactiveIntelItem>();
+    for (const item of collected) {
+      const key = `${item.type}:${item.filePath ?? ''}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, item);
+      }
+    }
+
+    const ranked = Array.from(deduped.values())
+      .map((item) => {
+        const weight = mergedWeights[item.category] ?? 1;
+        const adjustedScore = Number((item.relevanceScore * weight).toFixed(4));
+        return {
+          ...item,
+          adjustedScore,
+          tokens: Math.max(1, item.tokens || estimateTokens(item.content)),
+        };
+      })
+      .filter((item) => {
+        if (item.category === 'security' && item.alwaysInjected && securityBypass) return true;
+        return item.adjustedScore >= threshold;
+      })
+      .sort((a, b) => {
+        if (Boolean(b.alwaysInjected) !== Boolean(a.alwaysInjected)) {
+          return Number(Boolean(b.alwaysInjected)) - Number(Boolean(a.alwaysInjected));
+        }
+        return b.adjustedScore - a.adjustedScore;
+      });
+
+    const selected: ProactiveIntelItem[] = [];
+    let consumedTokens = 0;
+    for (const item of ranked) {
+      if (consumedTokens + item.tokens > tokenBudget) continue;
+      selected.push(item);
+      consumedTokens += item.tokens;
+    }
+
+    if (Date.now() - assemblyStartedAt > maxAssemblyMs) {
+      void this.appendWorkspaceAuditLog(options.workspacePath, {
+        ts: new Date().toISOString(),
+        event: 'proactive_intel_timing_violation',
+        elapsed_ms: Date.now() - assemblyStartedAt,
+        max_ms: maxAssemblyMs,
+        workspace: options.workspacePath,
+      }).catch(() => undefined);
+      return undefined;
+    }
+
+    if (selected.length > 0 && typeof options.feedbackToken === 'string' && options.feedbackToken.length > 0) {
+      const categories = Array.from(new Set(selected.map((item) => item.category)));
+      weightState.feedbackContexts[options.feedbackToken] = {
+        categories,
+        sessionId: options.sessionId,
+        agentKey: options.agentId,
+        createdAt: new Date().toISOString(),
+      };
+      await this.persistProactiveIntelWeightsState(options.storage, weightState).catch(() => undefined);
+    }
+
+    return selected.length > 0 ? selected : undefined;
+  }
+
+  private classifyProactiveFeedbackSignal(input: SubmitFeedbackToolInput): 'acted_on' | 'ignored' | 'dismissed' {
+    const missingContext = typeof input.missingContext === 'string' ? input.missingContext.toLowerCase() : '';
+    const hasDismissiveLanguage = /\b(irrelevant|noise|wrong|bad|distracting|spam)\b/.test(missingContext);
+    const hasNegativeRatings = Array.isArray(input.customRatings)
+      ? input.customRatings.some((rating) => rating.relevant === false)
+      : false;
+    if (input.outcome === 'failure' || hasDismissiveLanguage || hasNegativeRatings) {
+      return 'dismissed';
+    }
+    if (input.outcome === 'success') {
+      return 'acted_on';
+    }
+    return 'ignored';
+  }
+
+  private applyProactiveFeedbackDelta(
+    entry: ProactiveIntelWeightEntry,
+    categories: ProactiveIntelCategory[],
+    delta: number,
+  ): void {
+    for (const category of categories) {
+      const current = entry.weights[category] ?? 1;
+      entry.weights[category] = this.clampProactiveIntelWeight(current + delta);
+    }
+    entry.updatedAt = new Date().toISOString();
+  }
+
+  private async applyProactiveIntelFeedbackCalibration(
+    storage: LiBrainianStorage,
+    input: SubmitFeedbackToolInput,
+  ): Promise<{
+    signal: 'acted_on' | 'ignored' | 'dismissed';
+    updatedCategories: ProactiveIntelCategory[];
+  } | undefined> {
+    const state = await this.loadProactiveIntelWeightsState(storage);
+    const feedbackContext = state.feedbackContexts[input.feedbackToken];
+    if (!feedbackContext || feedbackContext.categories.length === 0) return undefined;
+
+    const signal = this.classifyProactiveFeedbackSignal(input);
+    const delta = signal === 'acted_on' ? 0.05 : signal === 'ignored' ? -0.02 : -0.1;
+    const sessionEntry = this.getOrCreateProactiveWeightEntry(state.sessions, feedbackContext.sessionId);
+    if (sessionEntry) {
+      this.applyProactiveFeedbackDelta(sessionEntry, feedbackContext.categories, delta);
+    }
+
+    const explicitAgent = typeof input.agentId === 'string' && input.agentId.trim().length > 0
+      ? input.agentId.trim().toLowerCase()
+      : undefined;
+    const agentEntry = this.getOrCreateProactiveWeightEntry(
+      state.agents,
+      explicitAgent ?? feedbackContext.agentKey,
+    );
+    if (agentEntry) {
+      this.applyProactiveFeedbackDelta(agentEntry, feedbackContext.categories, delta);
+    }
+
+    await this.persistProactiveIntelWeightsState(storage, state);
+    return {
+      signal,
+      updatedCategories: feedbackContext.categories,
+    };
+  }
+
   private async executeQuery(input: QueryToolInput, context: ToolExecutionContext = {}): Promise<unknown> {
     const requestedAlpha = this.resolveConformalAlpha(input);
     const fallbackConformalCalibration: ConformalCalibrationProfile = {
@@ -5428,6 +6227,7 @@ export class LiBrainianMCPServer {
         context,
         explicitSessionId: input.sessionId,
       });
+      const queryAgentId = this.resolveQueryAgentId(input);
       const preLoopMetrics = sessionState
         ? this.collectLoopMetrics(sessionState.queryHistory, input.intent, workspace.path)
         : null;
@@ -5839,6 +6639,19 @@ export class LiBrainianMCPServer {
             usedIntentAugmentation: Boolean(contextHintIntentSuffix),
           }
         : undefined;
+      const feedbackToken = typeof response.feedbackToken === 'string'
+        ? response.feedbackToken
+        : undefined;
+      const proactiveIntel = await this.buildQueryProactiveIntel({
+        storage,
+        workspacePath: workspace.path,
+        input,
+        packs: pagedPacks,
+        sessionId,
+        agentId: queryAgentId,
+        feedbackToken,
+        declaredAffectedFiles: mergedAffectedFiles,
+      });
 
       const baseResult = {
         disclosures: userDisclosures,
@@ -5858,6 +6671,7 @@ export class LiBrainianMCPServer {
         synthesis: response.synthesis,
         synthesisMode: response.synthesisMode,
         llmError: response.llmError ? parseEpistemicMessage(response.llmError).userMessage : response.llmError,
+        feedbackToken,
         intent: input.intent,
         pagination,
         sortOrder: 'retrieval_score_desc',
@@ -5876,6 +6690,7 @@ export class LiBrainianMCPServer {
         episodicHints,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
         nearMisses,
+        proactiveIntel,
         loopDetection: sessionState
           ? this.recordQueryAndBuildLoopDetection({
             sessionState,
@@ -5936,6 +6751,8 @@ export class LiBrainianMCPServer {
         context_hint_applied: resultWithHumanReview.contextHintApplied,
         episodic_hints: resultWithHumanReview.episodicHints,
         near_misses: resultWithHumanReview.nearMisses,
+        feedback_token: resultWithHumanReview.feedbackToken,
+        proactive_intel: resultWithHumanReview.proactiveIntel,
         loop_detection: resultWithHumanReview.loopDetection,
         ...(resultWithHumanReview.humanReviewRecommendation
           ? { human_review_recommendation: resultWithHumanReview.humanReviewRecommendation }
@@ -7415,6 +8232,9 @@ export class LiBrainianMCPServer {
           customRatings: input.customRatings,
         }
       );
+      const proactiveCalibration = result.success
+        ? await this.applyProactiveIntelFeedbackCalibration(storage, input).catch(() => undefined)
+        : undefined;
 
       return {
         feedbackToken: input.feedbackToken,
@@ -7423,6 +8243,7 @@ export class LiBrainianMCPServer {
         adjustmentsApplied: result.adjustmentsApplied,
         error: result.error,
         workspace: resolvedWorkspace,
+        proactiveCalibration,
       };
     } catch (error) {
       return {

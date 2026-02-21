@@ -280,6 +280,7 @@ describe('MCP Schema', () => {
     it('should validate input with all options', () => {
       const input = {
         intent: 'How does authentication work?',
+        agentId: 'codex-cli',
         intentType: 'understand',
         affectedFiles: ['src/auth.ts'],
         contextHints: {
@@ -296,6 +297,7 @@ describe('MCP Schema', () => {
         pageSize: 10,
         pageIdx: 1,
         outputFile: '/tmp/query.json',
+        proactiveIntel: true,
       };
       const result = validateToolInput('query', input);
       expect(result.valid).toBe(true);
@@ -304,12 +306,18 @@ describe('MCP Schema', () => {
     it('should accept snake-case context_hints alias', () => {
       const input = {
         intent: 'trace auth flow',
+        agent_id: 'codex-cli',
         context_hints: {
           active_file: '/tmp/workspace/src/auth.ts',
         },
       };
       const result = validateToolInput('query', input);
       expect(result.valid).toBe(true);
+    });
+
+    it('should accept proactive intel flags in camelCase and snake_case', () => {
+      expect(validateToolInput('query', { intent: 'trace auth flow', proactiveIntel: false }).valid).toBe(true);
+      expect(validateToolInput('query', { intent: 'trace auth flow', proactive_intel: true }).valid).toBe(true);
     });
 
     it('should accept recencyWeight and recency_weight aliases', () => {

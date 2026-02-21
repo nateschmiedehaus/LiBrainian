@@ -90,6 +90,8 @@ export const QueryToolInputSchema = z.object({
   intent: z.string().min(1).max(2000).describe('The query intent or question'),
   workspace: z.string().optional().describe('Workspace path (optional, uses first ready workspace if not specified)'),
   sessionId: z.string().min(1).optional().describe('Optional session identifier used for loop detection and adaptive query behavior'),
+  agentId: z.string().min(1).optional().describe('Optional agent identifier used for per-agent proactive intel calibration'),
+  agent_id: z.string().min(1).optional().describe('Snake-case alias for agentId'),
   intentType: QueryIntentSchema.optional().describe('Typed query intent for routing optimization'),
   affectedFiles: z.array(z.string()).optional().describe('File paths to scope the query to'),
   contextHints: z.object({
@@ -122,6 +124,8 @@ export const QueryToolInputSchema = z.object({
   explain_misses: z.boolean().optional().describe('Alias for explainMisses'),
   stream: z.boolean().optional().default(false).describe('Enable chunked stream view metadata for progressive result consumption'),
   streamChunkSize: PageSizeSchema.optional().default(5).describe('Chunk size for stream view metadata (default: 5, max: 200)'),
+  proactiveIntel: z.boolean().optional().default(true).describe('Enable proactive intel enrichment in query response (default true)'),
+  proactive_intel: z.boolean().optional().describe('Snake-case alias for proactiveIntel'),
 }).strict();
 
 /**
@@ -941,6 +945,8 @@ export const queryToolJsonSchema: JSONSchema = {
     intent: { type: 'string', description: 'Goal-oriented question about behavior, architecture, or impact (not a raw file-read request)', minLength: 1, maxLength: 2000 },
     workspace: { type: 'string', description: 'Workspace path (optional, uses first ready workspace if not specified)' },
     sessionId: { type: 'string', description: 'Optional session identifier used for loop detection and adaptive query behavior', minLength: 1 },
+    agentId: { type: 'string', description: 'Optional agent identifier used for per-agent proactive intel calibration', minLength: 1 },
+    agent_id: { type: 'string', description: 'Snake-case alias for agentId', minLength: 1 },
     intentType: { type: 'string', enum: ['understand', 'debug', 'refactor', 'impact', 'security', 'test', 'document', 'navigate', 'general'], description: 'Intent mode: understand=explain, impact=blast radius, debug=root-cause, refactor=safe changes, security=risk review, test=coverage/tests, document=docs summary, navigate=where to look, general=fallback' },
     affectedFiles: { type: 'array', items: { type: 'string' }, description: 'File paths to scope the query to' },
     contextHints: {
@@ -995,6 +1001,8 @@ export const queryToolJsonSchema: JSONSchema = {
     explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
     stream: { type: 'boolean', description: 'Enable chunked stream view metadata for progressive result consumption', default: false },
     streamChunkSize: { type: 'number', description: 'Chunk size for stream view metadata (default: 5, max: 200)', minimum: 1, maximum: 200, default: 5 },
+    proactiveIntel: { type: 'boolean', description: 'Enable proactive intel enrichment in query response (default true)', default: true },
+    proactive_intel: { type: 'boolean', description: 'Snake-case alias for proactiveIntel' },
   },
   required: ['intent'],
   additionalProperties: false,
