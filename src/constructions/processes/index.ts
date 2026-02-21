@@ -115,6 +115,17 @@ export {
 } from './cli_output_sanity_gate.js';
 
 export {
+  createSelfIndexGateConstruction,
+  type SelfIndexQueryId,
+  type SelfIndexQuerySpec,
+  type SelfIndexFixture,
+  type SelfIndexGateInput,
+  type SelfIndexQueryResult,
+  type SelfIndexFixtureResult,
+  type SelfIndexGateOutput,
+} from './self_index_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,
