@@ -169,8 +169,9 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_search');
       expect(schemas).toContain('memory_update');
       expect(schemas).toContain('memory_delete');
+      expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(56);
+      expect(schemas).toHaveLength(57);
     });
 
     it('should return schema for known tools', () => {

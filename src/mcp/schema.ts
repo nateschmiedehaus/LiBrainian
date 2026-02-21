@@ -465,6 +465,13 @@ export const ListConstructionsToolInputSchema = z.object({
 }).strict().default({});
 
 /**
+ * List capabilities tool input schema
+ */
+export const ListCapabilitiesToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path used to resolve workspace-scoped compositions'),
+}).strict().default({});
+
+/**
  * Invoke construction tool input schema
  */
 export const InvokeConstructionToolInputSchema = z.object({
@@ -737,6 +744,7 @@ export type TraceDataFlowToolInputType = z.infer<typeof TraceDataFlowToolInputSc
 export type ResetSessionStateToolInputType = z.infer<typeof ResetSessionStateToolInputSchema>;
 export type RequestHumanReviewToolInputType = z.infer<typeof RequestHumanReviewToolInputSchema>;
 export type ListConstructionsToolInputType = z.infer<typeof ListConstructionsToolInputSchema>;
+export type ListCapabilitiesToolInputType = z.infer<typeof ListCapabilitiesToolInputSchema>;
 export type InvokeConstructionToolInputType = z.infer<typeof InvokeConstructionToolInputSchema>;
 export type DescribeConstructionToolInputType = z.infer<typeof DescribeConstructionToolInputSchema>;
 export type ExplainOperatorToolInputType = z.infer<typeof ExplainOperatorToolInputSchema>;
@@ -787,6 +795,7 @@ export const TOOL_INPUT_SCHEMAS = {
   reset_session_state: ResetSessionStateToolInputSchema,
   request_human_review: RequestHumanReviewToolInputSchema,
   list_constructions: ListConstructionsToolInputSchema,
+  list_capabilities: ListCapabilitiesToolInputSchema,
   invoke_construction: InvokeConstructionToolInputSchema,
   describe_construction: DescribeConstructionToolInputSchema,
   explain_operator: ExplainOperatorToolInputSchema,
@@ -1531,6 +1540,18 @@ export const listConstructionsToolJsonSchema: JSONSchema = {
   additionalProperties: false,
 };
 
+/** List capabilities tool JSON Schema */
+export const listCapabilitiesToolJsonSchema: JSONSchema = {
+  $id: 'librarian://schemas/list-capabilities-tool-input',
+  type: 'object',
+  description: 'Input for list_capabilities - return a versioned capability inventory for MCP tools, constructions, and compositions',
+  properties: {
+    workspace: { type: 'string', description: 'Workspace path used to resolve workspace-scoped compositions' },
+  },
+  required: [],
+  additionalProperties: false,
+};
+
 /** Invoke construction tool JSON Schema */
 export const invokeConstructionToolJsonSchema: JSONSchema = {
   $schema: JSON_SCHEMA_DRAFT,
@@ -1649,6 +1670,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   reset_session_state: resetSessionStateToolJsonSchema,
   request_human_review: requestHumanReviewToolJsonSchema,
   list_constructions: listConstructionsToolJsonSchema,
+  list_capabilities: listCapabilitiesToolJsonSchema,
   invoke_construction: invokeConstructionToolJsonSchema,
   describe_construction: describeConstructionToolJsonSchema,
   explain_operator: explainOperatorToolJsonSchema,

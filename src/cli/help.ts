@@ -38,6 +38,7 @@ COMMANDS:
     export              Export portable .librarian index bundle
     import              Import portable .librarian index bundle
     features            Show dynamic feature registry and current status
+    capabilities        Emit machine-readable capability inventory
     mcp                 Start MCP stdio server / print client config snippets
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
@@ -111,6 +112,7 @@ EXAMPLES:
     librainian export --output state/exports/librarian-index.tar.gz
     librainian import --input state/exports/librarian-index.tar.gz
     librainian features --json
+    librainian capabilities --json --out state/capabilities.json
     librainian mcp --print-config --client claude
     librainian generate-docs --include tools,context,rules
     librainian compose "Prepare a release plan" --limit 1
@@ -679,6 +681,30 @@ EXAMPLES:
     librarian features
     librarian features --verbose
     librarian features --json --out state/features.json
+`,
+
+  'capabilities': `
+librarian capabilities - Emit machine-readable capability inventory
+
+USAGE:
+    librarian capabilities [options]
+
+OPTIONS:
+    --json               Emit machine-readable inventory (default)
+    --out <path>         Write JSON output to a file
+
+DESCRIPTION:
+    Returns a versioned capability inventory for agent startup/discovery that includes:
+    - MCP tools (name, description, input schema, example usage)
+    - Registered constructions (name/id, description, input schema, example usage)
+    - Available technique compositions (name/id, description, input schema, example usage)
+
+    The output includes inventoryVersion so agents can detect capability set changes.
+
+EXAMPLES:
+    librarian capabilities
+    librarian capabilities --json
+    librarian capabilities --out state/capabilities.json
 `,
 
   mcp: `

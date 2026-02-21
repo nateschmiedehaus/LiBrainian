@@ -962,6 +962,12 @@ export interface ListConstructionsToolInput {
   availableOnly?: boolean;
 }
 
+/** List capabilities tool input */
+export interface ListCapabilitiesToolInput {
+  /** Optional workspace path to resolve workspace-scoped compositions */
+  workspace?: string;
+}
+
 /** Invoke construction tool input */
 export interface InvokeConstructionToolInput {
   /** Construction ID returned by list_constructions */
@@ -2064,6 +2070,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: false,
     riskLevel: 'low',
   },
+  list_capabilities: {
+    tool: 'list_capabilities',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
   invoke_construction: {
     tool: 'invoke_construction',
     requiredScopes: ['read'],
@@ -2667,6 +2679,14 @@ export function isListConstructionsToolInput(value: unknown): value is ListConst
     || typeof obj.trustTier === 'undefined';
   const availableOnlyOk = typeof obj.availableOnly === 'boolean' || typeof obj.availableOnly === 'undefined';
   return tagsOk && capabilitiesOk && requiresOk && languageOk && trustTierOk && availableOnlyOk;
+}
+
+/** Type guard for ListCapabilitiesToolInput */
+export function isListCapabilitiesToolInput(value: unknown): value is ListCapabilitiesToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return workspaceOk;
 }
 
 /** Type guard for InvokeConstructionToolInput */

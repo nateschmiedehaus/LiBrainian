@@ -46,6 +46,7 @@ import {
   type LibrainianGetUncertaintyToolInput,
   type ResetSessionStateToolInput,
   type RequestHumanReviewToolInput,
+  type ListCapabilitiesToolInput,
   type ListConstructionsToolInput,
   type InvokeConstructionToolInput,
   type DescribeConstructionToolInput,
@@ -164,6 +165,7 @@ import {
   invokeConstruction,
   listConstructions,
 } from '../constructions/registry.js';
+import { buildCapabilityInventory } from '../capabilities/inventory.js';
 
 // ============================================================================
 // TYPES
@@ -382,6 +384,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   reset_session_state: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 300 },
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   list_constructions: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  list_capabilities: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
   invoke_construction: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 4200 },
   describe_construction: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
   explain_operator: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1808,6 +1811,17 @@ export class LibrarianMCPServer {
             blocking: { type: 'boolean', description: 'Whether the agent should pause for human response' },
           },
           required: ['reason', 'context_summary', 'proposed_action', 'confidence_tier', 'risk_level', 'blocking'],
+        },
+      },
+      {
+        name: 'list_capabilities',
+        description: 'Return versioned capability inventory spanning MCP tools, constructions, and technique compositions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path used to resolve workspace-scoped compositions' },
+          },
+          required: [],
         },
       },
       {
@@ -3563,6 +3577,8 @@ export class LibrarianMCPServer {
         return this.executeResetSessionState(args as ResetSessionStateToolInput, context);
       case 'request_human_review':
         return this.executeRequestHumanReview(args as RequestHumanReviewToolInput);
+      case 'list_capabilities':
+        return this.executeListCapabilities(args as ListCapabilitiesToolInput);
       case 'list_constructions':
         return this.executeListConstructions(args as ListConstructionsToolInput);
       case 'invoke_construction':
@@ -6727,6 +6743,20 @@ export class LibrarianMCPServer {
     const logPath = path.join(workspaceRoot, '.librainian', 'audit-log.jsonl');
     await fs.mkdir(path.dirname(logPath), { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  private async executeListCapabilities(_input: ListCapabilitiesToolInput): Promise<unknown> {
+    const mcpTools = this.getAvailableTools().map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    }));
+
+    const inventory = buildCapabilityInventory({ mcpTools });
+    return {
+      ...inventory,
+      hint: 'Use inventoryVersion to detect capability changes between sessions.',
+    };
   }
 
   private async executeListConstructions(input: ListConstructionsToolInput): Promise<unknown> {
