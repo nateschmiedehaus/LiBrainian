@@ -3,6 +3,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import type { EvidenceManifestSummary } from './evidence_reconciliation.js';
@@ -18,6 +19,16 @@ const DISCOVERED_EVIDENCE_DIRS = ['eval-results', join('state', 'audits')];
 const EXCLUDED_EVIDENCE_ARTIFACTS = new Set([
   'state/audits/librarian/manifest.json',
 ]);
+const DEFAULT_GATE_COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_GATE_COMMAND_TASK_KEYS = [
+  'layer0.typecheck',
+  'layer0.build',
+  'layer1.noWave0Imports',
+  'layer1.noDirectImports',
+  'layer1.extractionPrereqs',
+  'layer1.repoExtraction',
+] as const;
+const GATE_RUNS_DIR = join('state', 'audits', 'librarian', 'gate-runs');
 
 export interface EvidenceArtifactMetadata {
   path: string;
@@ -29,12 +40,36 @@ export interface EvidenceArtifactMetadata {
 export interface EvidenceManifest {
   artifacts: EvidenceArtifactMetadata[];
   summary: EvidenceManifestSummary;
+  gateRuns?: EvidenceGateRun[];
+}
+
+export interface EvidenceGateRun {
+  taskKey: string;
+  layer: number;
+  command: string;
+  status: 'pass' | 'fail' | 'skipped';
+  exitCode: number | null;
+  durationMs: number;
+  ranAt: string;
+  stdoutPath: string;
+  stderrPath: string;
+  reason?: string;
 }
 
 type DirectoryEntry = {
   name: string;
   isDirectory(): boolean;
   isFile(): boolean;
+};
+
+type GateTaskConfig = {
+  layer?: unknown;
+  command?: unknown;
+  dependsOn?: unknown;
+};
+
+type GatesDocument = {
+  tasks?: Record<string, GateTaskConfig>;
 };
 
 const DEFAULT_AB_LIFT_TARGET = 0.2;
@@ -134,6 +169,152 @@ async function discoverEvidenceArtifacts(workspaceRoot: string): Promise<string[
   return discovered;
 }
 
+function parseDependencyKeys(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+}
+
+function sanitizeTaskKey(taskKey: string): string {
+  return taskKey.replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
+
+async function writeGateRunLog(
+  workspaceRoot: string,
+  taskKey: string,
+  timestamp: string,
+  stream: 'stdout' | 'stderr',
+  content: string,
+): Promise<string> {
+  const filename = `${timestamp}-${sanitizeTaskKey(taskKey)}.${stream}.log`;
+  const relativePath = normalizeArtifactPath(join(GATE_RUNS_DIR, filename));
+  const absolutePath = join(workspaceRoot, relativePath);
+  await mkdir(dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, content, 'utf8');
+  return relativePath;
+}
+
+async function runGateCommands(options: {
+  workspaceRoot: string;
+  taskKeys?: readonly string[];
+  timeoutMs?: number;
+}): Promise<EvidenceGateRun[]> {
+  const gatesPath = join(options.workspaceRoot, 'docs', 'librarian', 'GATES.json');
+  let gates: GatesDocument;
+  try {
+    gates = await readJson<GatesDocument>(gatesPath);
+  } catch {
+    return [];
+  }
+
+  const tasks = gates.tasks ?? {};
+  const selectedKeys = options.taskKeys && options.taskKeys.length > 0
+    ? Array.from(new Set(options.taskKeys))
+    : Array.from(DEFAULT_GATE_COMMAND_TASK_KEYS);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_GATE_COMMAND_TIMEOUT_MS;
+  const resultsByTask = new Map<string, EvidenceGateRun>();
+  const runs: EvidenceGateRun[] = [];
+
+  for (const taskKey of selectedKeys) {
+    const task = tasks[taskKey];
+    if (!task) continue;
+    const layer = typeof task.layer === 'number' ? task.layer : -1;
+    if (layer < 0 || layer > 1) continue;
+    if (typeof task.command !== 'string' || task.command.trim().length === 0) continue;
+
+    const dependencyKeys = parseDependencyKeys(task.dependsOn);
+    const failedDependency = dependencyKeys.find((dependencyKey) => {
+      const dependency = resultsByTask.get(dependencyKey);
+      return dependency && dependency.status !== 'pass';
+    });
+    const ranAt = new Date().toISOString();
+    const timestamp = ranAt.replace(/[:.]/g, '-');
+
+    if (failedDependency) {
+      const reason = `dependency_failed:${failedDependency}`;
+      const stdoutPath = await writeGateRunLog(
+        options.workspaceRoot,
+        taskKey,
+        timestamp,
+        'stdout',
+        '',
+      );
+      const stderrPath = await writeGateRunLog(
+        options.workspaceRoot,
+        taskKey,
+        timestamp,
+        'stderr',
+        reason,
+      );
+
+      const skippedRun: EvidenceGateRun = {
+        taskKey,
+        layer,
+        command: task.command,
+        status: 'skipped',
+        exitCode: null,
+        durationMs: 0,
+        ranAt,
+        stdoutPath,
+        stderrPath,
+        reason,
+      };
+      runs.push(skippedRun);
+      resultsByTask.set(taskKey, skippedRun);
+      continue;
+    }
+
+    const started = Date.now();
+    const commandResult = spawnSync(task.command, {
+      cwd: options.workspaceRoot,
+      encoding: 'utf8',
+      shell: true,
+      timeout: timeoutMs,
+      maxBuffer: 16 * 1024 * 1024,
+      env: process.env,
+    });
+    const durationMs = Date.now() - started;
+    const stdout = String(commandResult.stdout ?? '');
+    const stderrRaw = String(commandResult.stderr ?? '');
+    const timeoutReason = commandResult.error?.name === 'Error'
+      && (commandResult.error as NodeJS.ErrnoException).code === 'ETIMEDOUT'
+      ? `timeout_after_ms:${timeoutMs}`
+      : null;
+    const stderr = timeoutReason ? `${stderrRaw}\n${timeoutReason}`.trim() : stderrRaw;
+    const stdoutPath = await writeGateRunLog(
+      options.workspaceRoot,
+      taskKey,
+      timestamp,
+      'stdout',
+      stdout,
+    );
+    const stderrPath = await writeGateRunLog(
+      options.workspaceRoot,
+      taskKey,
+      timestamp,
+      'stderr',
+      stderr,
+    );
+    const status: EvidenceGateRun['status'] = commandResult.status === 0 ? 'pass' : 'fail';
+    const run: EvidenceGateRun = {
+      taskKey,
+      layer,
+      command: task.command,
+      status,
+      exitCode: typeof commandResult.status === 'number' ? commandResult.status : null,
+      durationMs,
+      ranAt,
+      stdoutPath,
+      stderrPath,
+      reason: timeoutReason ?? undefined,
+    };
+
+    runs.push(run);
+    resultsByTask.set(taskKey, run);
+  }
+
+  return runs;
+}
+
 async function buildEvidenceSummary(workspaceRoot: string, artifacts: EvidenceArtifactMetadata[]): Promise<EvidenceManifestSummary> {
   const metricsPath = join(workspaceRoot, 'eval-results', 'metrics-report.json');
   const abPath = join(workspaceRoot, 'eval-results', 'ab-results.json');
@@ -215,7 +396,17 @@ async function buildEvidenceSummary(workspaceRoot: string, artifacts: EvidenceAr
 export async function buildEvidenceManifest(options: {
   workspaceRoot: string;
   artifacts?: readonly string[];
+  runGateCommands?: boolean;
+  gateCommandTaskKeys?: readonly string[];
+  gateCommandTimeoutMs?: number;
 }): Promise<EvidenceManifest> {
+  const gateRuns = options.runGateCommands
+    ? await runGateCommands({
+      workspaceRoot: options.workspaceRoot,
+      taskKeys: options.gateCommandTaskKeys,
+      timeoutMs: options.gateCommandTimeoutMs,
+    })
+    : [];
   const discovered = await discoverEvidenceArtifacts(options.workspaceRoot);
   const artifacts = uniqueSortedArtifacts([
     ...(options.artifacts ?? DEFAULT_EVIDENCE_ARTIFACTS),
@@ -245,17 +436,25 @@ export async function buildEvidenceManifest(options: {
   }
 
   const summary = await buildEvidenceSummary(options.workspaceRoot, entries);
-  return { artifacts: entries, summary };
+  return gateRuns.length > 0
+    ? { artifacts: entries, summary, gateRuns }
+    : { artifacts: entries, summary };
 }
 
 export async function writeEvidenceManifest(options: {
   workspaceRoot: string;
   artifacts?: readonly string[];
   outputPath?: string;
+  runGateCommands?: boolean;
+  gateCommandTaskKeys?: readonly string[];
+  gateCommandTimeoutMs?: number;
 }): Promise<{ manifest: EvidenceManifest; outputPath: string }> {
   const manifest = await buildEvidenceManifest({
     workspaceRoot: options.workspaceRoot,
     artifacts: options.artifacts,
+    runGateCommands: options.runGateCommands,
+    gateCommandTaskKeys: options.gateCommandTaskKeys,
+    gateCommandTimeoutMs: options.gateCommandTimeoutMs,
   });
 
   const outputPath =

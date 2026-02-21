@@ -138,4 +138,63 @@ describe('evidence reconciliation summaries', () => {
     expect(updated.tasks['layer7.unrelated'].status).toBe('unverified');
     expect(updated.tasks['layer7.unrelated'].note).not.toContain('unverified_by_trace');
   });
+
+  it('reconciles layer0/layer1 tasks using gate command run evidence', () => {
+    const summary = buildEvidenceSummary(BASE_MANIFEST);
+    const gates = {
+      tasks: {
+        'layer0.typecheck': { status: 'unverified', layer: 0 },
+        'layer0.build': { status: 'unverified', layer: 0 },
+        'layer1.noWave0Imports': { status: 'unverified', layer: 1 },
+      },
+      validationStatus: {
+        blockingMetrics: {},
+      },
+    };
+
+    const updated = reconcileGates(gates, summary, {
+      evidencePaths: [],
+      gateRuns: [
+        {
+          taskKey: 'layer0.typecheck',
+          layer: 0,
+          command: 'npx tsc --noEmit',
+          status: 'pass',
+          exitCode: 0,
+          durationMs: 1200,
+          ranAt: '2026-02-21T00:00:00.000Z',
+          stdoutPath: 'state/audits/librarian/gate-runs/layer0.typecheck.stdout.log',
+          stderrPath: 'state/audits/librarian/gate-runs/layer0.typecheck.stderr.log',
+        },
+        {
+          taskKey: 'layer0.build',
+          layer: 0,
+          command: 'npm run build',
+          status: 'fail',
+          exitCode: 2,
+          durationMs: 2200,
+          ranAt: '2026-02-21T00:00:02.000Z',
+          stdoutPath: 'state/audits/librarian/gate-runs/layer0.build.stdout.log',
+          stderrPath: 'state/audits/librarian/gate-runs/layer0.build.stderr.log',
+        },
+        {
+          taskKey: 'layer1.noWave0Imports',
+          layer: 1,
+          command: 'rg "src/(wave0|orchestrator)/" src || echo PASS',
+          status: 'skipped',
+          exitCode: null,
+          durationMs: 0,
+          ranAt: '2026-02-21T00:00:03.000Z',
+          stdoutPath: 'state/audits/librarian/gate-runs/layer1.noWave0Imports.stdout.log',
+          stderrPath: 'state/audits/librarian/gate-runs/layer1.noWave0Imports.stderr.log',
+          reason: 'dependency_failed:layer0.build',
+        },
+      ],
+    });
+
+    expect(updated.tasks['layer0.typecheck'].status).toBe('pass');
+    expect(updated.tasks['layer0.build'].status).toBe('fail');
+    expect(updated.tasks['layer1.noWave0Imports'].status).toBe('fail');
+    expect(String(updated.tasks['layer1.noWave0Imports'].note ?? '')).toContain('dependency_failed');
+  });
 });

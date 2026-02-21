@@ -46,6 +46,8 @@ describe('package release scripts', () => {
     expect(scripts['hooks:install']).toBe('lefthook install');
     expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
+    expect(scripts['evidence:manifest']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/build-evidence-manifest.ts');
+    expect(scripts['evidence:reconcile']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/reconcile-evidence.ts');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
     expect(scripts['issues:plan']).toBe(
       'node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json'
@@ -185,7 +187,7 @@ describe('package release scripts', () => {
     const scripts = packageJson.scripts ?? {};
 
     expect(scripts['test:changed']).toBe(
-      'node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run --changed'
+      'node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit -- vitest --run --changed'
     );
     expect(scripts['validate:public']).toBe(
       'npm run hygiene:generated-artifacts && npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'

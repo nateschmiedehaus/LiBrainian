@@ -153,4 +153,56 @@ describe('evidence manifest generation', () => {
       buildEvidenceManifest({ workspaceRoot })
     ).rejects.toThrow(/final-verification\.json/);
   });
+
+  it('captures layer0/layer1 gate command evidence when enabled', async () => {
+    await writeFixtureFile(
+      workspaceRoot,
+      'docs/librarian/GATES.json',
+      JSON.stringify({
+        tasks: {
+          'layer0.typecheck': {
+            layer: 0,
+            command: 'node -e "console.log(\'typecheck-ok\')"',
+          },
+          'layer0.build': {
+            layer: 0,
+            command: 'node -e "process.exit(2)"',
+            dependsOn: ['layer0.typecheck'],
+          },
+          'layer1.noWave0Imports': {
+            layer: 1,
+            command: 'node -e "console.log(\'no-wave0\')"',
+            dependsOn: ['layer0.build'],
+          },
+        },
+      }),
+      FIXED_TIME,
+    );
+
+    const manifest = await buildEvidenceManifest({
+      workspaceRoot,
+      runGateCommands: true,
+      gateCommandTaskKeys: ['layer0.typecheck', 'layer0.build', 'layer1.noWave0Imports'],
+    });
+
+    expect(Array.isArray(manifest.gateRuns)).toBe(true);
+    expect(manifest.gateRuns).toHaveLength(3);
+    expect(manifest.gateRuns?.[0]?.taskKey).toBe('layer0.typecheck');
+    expect(manifest.gateRuns?.[0]?.status).toBe('pass');
+    expect(manifest.gateRuns?.[1]?.taskKey).toBe('layer0.build');
+    expect(manifest.gateRuns?.[1]?.status).toBe('fail');
+    expect(manifest.gateRuns?.[2]?.taskKey).toBe('layer1.noWave0Imports');
+    expect(manifest.gateRuns?.[2]?.status).toBe('skipped');
+
+    const stdoutPath = manifest.gateRuns?.[0]?.stdoutPath;
+    const stderrPath = manifest.gateRuns?.[1]?.stderrPath;
+    expect(stdoutPath).toBeDefined();
+    expect(stderrPath).toBeDefined();
+
+    const stdoutRaw = await readFile(join(workspaceRoot, stdoutPath!), 'utf8');
+    expect(stdoutRaw).toContain('typecheck-ok');
+
+    const artifactPaths = manifest.artifacts.map((artifact) => artifact.path);
+    expect(artifactPaths.some((artifactPath) => artifactPath.includes('state/audits/librarian/gate-runs'))).toBe(true);
+  });
 });

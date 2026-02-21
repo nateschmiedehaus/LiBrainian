@@ -43,6 +43,20 @@ export type EvidenceSummary = EvidenceManifestSummary & {
 export type GateReconcileOptions = {
   evidencePaths?: string[];
   unverifiedReason?: string;
+  gateRuns?: EvidenceGateRun[];
+};
+
+export type EvidenceGateRun = {
+  taskKey: string;
+  layer: number;
+  command: string;
+  status: 'pass' | 'fail' | 'skipped';
+  exitCode: number | null;
+  durationMs: number;
+  ranAt: string;
+  stdoutPath: string;
+  stderrPath: string;
+  reason?: string;
 };
 
 type GateTask = {
@@ -219,6 +233,7 @@ export function reconcileGates(
   const next = JSON.parse(JSON.stringify(gates ?? {})) as GateSet;
   const reason = options.unverifiedReason ?? DEFAULT_UNVERIFIED_REASON;
   const evidencePaths = new Set(options.evidencePaths ?? []);
+  const gateRuns = Array.isArray(options.gateRuns) ? options.gateRuns : [];
   next.lastUpdated = summary.generatedAt;
   if (typeof next.description === 'string') {
     next.description = 'Machine-readable gate status with tiered testing architecture (evidence reconciled).';
@@ -287,6 +302,35 @@ export function reconcileGates(
     if (!tasks[key]) return;
     tasks[key] = { ...tasks[key], ...updates };
   };
+
+  for (const run of gateRuns) {
+    const existing = tasks[run.taskKey];
+    if (!existing) continue;
+    const gateStatus = run.status === 'pass' ? 'pass' : 'fail';
+    const noteParts = [
+      `automated_gate_run:${run.status}`,
+      `exit_code:${run.exitCode ?? 'null'}`,
+      `duration_ms:${run.durationMs}`,
+    ];
+    if (run.reason) {
+      noteParts.push(run.reason);
+    }
+    tasks[run.taskKey] = {
+      ...existing,
+      status: gateStatus,
+      lastRun: formatDate(run.ranAt),
+      measured: {
+        exitCode: run.exitCode,
+        durationMs: run.durationMs,
+        ranAt: run.ranAt,
+      },
+      evidence: `${run.command}; stdout=${run.stdoutPath}; stderr=${run.stderrPath}`,
+      note: noteParts.join('; '),
+      verified: run.status === 'pass',
+    };
+    evidencePaths.add(run.stdoutPath);
+    evidencePaths.add(run.stderrPath);
+  }
 
   updateTask('layer7.metricsRAGAS', {
     status: derivedMetricsMet ? 'pass' : 'fail',
