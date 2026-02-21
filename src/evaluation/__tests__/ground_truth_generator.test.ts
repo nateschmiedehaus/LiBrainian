@@ -229,6 +229,14 @@ describe('GroundTruthGenerator - Function Queries', () => {
     );
     expect(exactQuery).toBeDefined();
   });
+
+  it('should generate implementation queries from function definitions', () => {
+    const queries = generator.generateImplementationQueries(facts);
+    const implementationQuery = queries.find((q) => q.query.toLowerCase().startsWith('how is '));
+    expect(implementationQuery).toBeDefined();
+    expect(implementationQuery?.query.toLowerCase()).toContain('implemented');
+    expect(implementationQuery?.expectedAnswer.type).toBe('contains');
+  });
 });
 
 // ============================================================================

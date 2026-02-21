@@ -141,6 +141,7 @@ export class GroundTruthGenerator {
       ...this.generateFunctionQueries(facts),
       ...this.generateImportQueries(facts),
       ...this.generateClassQueries(facts),
+      ...this.generateImplementationQueries(facts),
       ...this.generateCallGraphQueries(facts),
     ];
 
@@ -499,6 +500,32 @@ export class GroundTruthGenerator {
         expectedAnswer: {
           type: 'exists',
           value: details.isAbstract ?? false,
+          evidence: [fact],
+        },
+      });
+    }
+
+    return queries;
+  }
+
+  /**
+   * Generate implementation-focused queries for function definitions.
+   */
+  generateImplementationQueries(facts: ASTFact[]): StructuralGroundTruthQuery[] {
+    const queries: StructuralGroundTruthQuery[] = [];
+    const functionFacts = facts.filter((f) => f.type === 'function_def');
+
+    for (const fact of functionFacts) {
+      const fileName = this.getFileName(fact.file);
+      const functionName = fact.identifier;
+      queries.push({
+        id: this.generateId('func-implementation', functionName),
+        query: `How is ${functionName} implemented?`,
+        category: 'behavioral',
+        difficulty: 'medium',
+        expectedAnswer: {
+          type: 'contains',
+          value: [functionName, fileName],
           evidence: [fact],
         },
       });

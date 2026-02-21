@@ -108,6 +108,20 @@ export {
 } from './ground_truth_generator.js';
 
 export {
+  type SelfUnderstandingQueryType,
+  type SelfUnderstandingThresholds,
+  type SelfUnderstandingCategoryScore,
+  type SelfUnderstandingQueryResult,
+  type SelfUnderstandingEvaluationReport,
+  type SelfUnderstandingQueryResponse,
+  type SelfUnderstandingQueryExecutor,
+  type SelfUnderstandingEvaluationOptions,
+  inferSelfUnderstandingQueryType,
+  evaluateSelfUnderstandingQuery,
+  runSelfUnderstandingEvaluation,
+} from './self_understanding.js';
+
+export {
   type RepoMetaInput,
   type StructuralGroundTruthExport,
   exportStructuralGroundTruth,
