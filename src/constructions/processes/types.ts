@@ -1,7 +1,7 @@
 import type { LlmRequirement } from '../../types.js';
 import type { ProcessInput, ProcessOutput } from './process_base.js';
 
-export type UnitPatrolOperationKind = 'bootstrap' | 'status' | 'query';
+export type UnitPatrolOperationKind = 'bootstrap' | 'status' | 'query' | 'metamorphic';
 
 export interface UnitPatrolQueryConfig {
   intent: string;
@@ -26,6 +26,8 @@ export interface UnitPatrolEvaluationCriteria {
   minQueryPacks?: number;
   requireBootstrapped?: boolean;
   maxDurationMs?: number;
+  minMetamorphicTransforms?: number;
+  maxMetamorphicFailureRate?: number;
 }
 
 export interface UnitPatrolInput extends ProcessInput {
@@ -54,6 +56,7 @@ export interface UnitPatrolQualityScores {
   reliability: number;
   coverage: number;
   speed: number;
+  metamorphicFailureRate: number | null;
 }
 
 export interface UnitPatrolResult extends ProcessOutput {

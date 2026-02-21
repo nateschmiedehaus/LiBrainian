@@ -66,4 +66,51 @@ describe('UnitPatrol', () => {
     expect(result.pass).toBe(true);
     expect(result.findings.filter((finding) => finding.severity === 'error')).toHaveLength(0);
   }, 140_000);
+
+  it('reports metamorphic query stability metrics with at least five transform types', async () => {
+    const construction = new UnitPatrolConstruction(
+      'unit-patrol-metamorphic',
+      'Unit Patrol Metamorphic',
+      'Metamorphic patrol scenario for semantic-preserving transformation checks.',
+      {
+        name: 'unit-patrol-metamorphic-scenario',
+        operations: [
+          { kind: 'bootstrap' },
+          {
+            kind: 'metamorphic',
+            query: {
+              intent: 'How does authentication work and where are user credentials validated?',
+              depth: 'L1',
+              llmRequirement: 'disabled',
+              timeoutMs: 30_000,
+            },
+          },
+          { kind: 'status' },
+        ],
+      },
+      {
+        minPassRate: 0.67,
+        requireBootstrapped: true,
+        maxDurationMs: 180_000,
+      },
+    );
+
+    const result = await construction.execute({
+      fixtureRepoPath: FIXTURE_REPO,
+      timeoutMs: 180_000,
+      budget: { maxDurationMs: 180_000 },
+      keepSandbox: false,
+    });
+
+    const metamorphicStep = result.operations.find((operation) => operation.operation === 'metamorphic');
+    expect(metamorphicStep).toBeDefined();
+
+    const transformationCount = Number(metamorphicStep?.details.transformationCount ?? 0);
+    const failureRate = Number(metamorphicStep?.details.failureRate ?? NaN);
+
+    expect(transformationCount).toBeGreaterThanOrEqual(5);
+    expect(Number.isFinite(failureRate)).toBe(true);
+    expect(failureRate).toBeGreaterThanOrEqual(0);
+    expect(failureRate).toBeLessThanOrEqual(1);
+  }, 220_000);
 });
