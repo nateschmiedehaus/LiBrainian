@@ -1857,6 +1857,32 @@ export interface DiagnoseSelfToolInput {
   workspace?: string;
 }
 
+/** Scope run diagnostics tool input */
+export interface ScopeRunDiagnosticsToolInput {
+  /** Repository role determines ownership semantics for remediation queue */
+  repositoryRole?: 'core' | 'client';
+
+  /** Command outputs to classify into actionable/deferred/expected buckets */
+  commandResults: Array<{
+    command: string;
+    exitCode: number | null;
+    stdout?: string;
+    stderr?: string;
+    timedOut?: boolean;
+    durationMs?: number;
+  }>;
+
+  /** Optional baseline issue references used to defer known out-of-scope failures */
+  baselineIssueRefs?: Array<{
+    pattern: string;
+    issue?: string;
+    note?: string;
+  }>;
+
+  /** Max findings retained per command (default 3) */
+  maxFindingsPerCommand?: number;
+}
+
 /** List verification plans tool input */
 export interface ListVerificationPlansToolInput {
   /** Workspace path (optional, uses first available if not specified) */
@@ -2262,6 +2288,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   diagnose_self: {
     tool: 'diagnose_self',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  scope_run_diagnostics: {
+    tool: 'scope_run_diagnostics',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',
@@ -3088,6 +3120,36 @@ export function isDiagnoseSelfToolInput(value: unknown): value is DiagnoseSelfTo
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+}
+
+/** Type guard for ScopeRunDiagnosticsToolInput */
+export function isScopeRunDiagnosticsToolInput(value: unknown): value is ScopeRunDiagnosticsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const repositoryRoleOk = obj.repositoryRole === 'core'
+    || obj.repositoryRole === 'client'
+    || typeof obj.repositoryRole === 'undefined';
+  const commandResultsOk = Array.isArray(obj.commandResults)
+    && obj.commandResults.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      const candidate = entry as Record<string, unknown>;
+      const commandOk = typeof candidate.command === 'string' && candidate.command.trim().length > 0;
+      const exitCodeOk = typeof candidate.exitCode === 'number' || candidate.exitCode === null;
+      const stdoutOk = typeof candidate.stdout === 'string' || typeof candidate.stdout === 'undefined';
+      const stderrOk = typeof candidate.stderr === 'string' || typeof candidate.stderr === 'undefined';
+      return commandOk && exitCodeOk && stdoutOk && stderrOk;
+    });
+  const baselineRefsOk = Array.isArray(obj.baselineIssueRefs)
+    ? obj.baselineIssueRefs.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      const candidate = entry as Record<string, unknown>;
+      return typeof candidate.pattern === 'string'
+        && (typeof candidate.issue === 'string' || typeof candidate.issue === 'undefined')
+        && (typeof candidate.note === 'string' || typeof candidate.note === 'undefined');
+    })
+    : typeof obj.baselineIssueRefs === 'undefined';
+  const maxFindingsOk = typeof obj.maxFindingsPerCommand === 'number' || typeof obj.maxFindingsPerCommand === 'undefined';
+  return repositoryRoleOk && commandResultsOk && baselineRefsOk && maxFindingsOk;
 }
 
 /** Type guard for ListVerificationPlansToolInput */

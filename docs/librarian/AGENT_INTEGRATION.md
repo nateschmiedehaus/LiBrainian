@@ -14,6 +14,15 @@ Truth source for “what runs today”: `docs/LiBrainian/STATUS.md` and `package
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: release qualification only accepts 100% strict pass evidence.
 - Rationale: LiBrainian's value claim is agent cognition under real development conditions, so release proof must capture real agent loops (`diagnose -> hypothesize -> act -> verify`) with zero degraded shortcuts.
 
+## Autonomous Fix Scope Policy
+
+- Use `docs/librarian/AUTONOMOUS_FIX_SCOPING.md` for closure scoping policy.
+- Canonical classifier: `src/api/run_diagnostics_scope.ts`.
+- Construction wrapper: `src/constructions/processes/run_diagnostics_scope_construction.ts`.
+- MCP tool: `scope_run_diagnostics`.
+- CLI path: `LiBrainian diagnose --run-output-file <path>`.
+- Policy applies to both LiBrainian core and client repositories.
+
 ## Control Theory Model
 
 ```

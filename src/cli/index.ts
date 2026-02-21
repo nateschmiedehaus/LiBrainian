@@ -284,7 +284,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'diagnose': {
     description: 'Diagnose LiBrainian self-knowledge drift',
-    usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
+    usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium] [--run-output-file <path>] [--repository-role core|client]',
   },
   'compose': {
     description: 'Compose construction pipelines or technique bundles from intent',
@@ -633,6 +633,10 @@ async function main(): Promise<void> {
           const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
             ? riskToleranceRaw
             : undefined;
+          const repositoryRoleRaw = getStringArg(args, '--repository-role');
+          const repositoryRole = (repositoryRoleRaw === 'core' || repositoryRoleRaw === 'client')
+            ? repositoryRoleRaw
+            : undefined;
           await diagnoseCommand({
             workspace,
             pretty: args.includes('--pretty'),
@@ -640,6 +644,8 @@ async function main(): Promise<void> {
             heal: args.includes('--heal'),
             riskTolerance,
             format: diagnoseFormat,
+            runOutputFile: getStringArg(args, '--run-output-file'),
+            repositoryRole,
           });
         }
         break;

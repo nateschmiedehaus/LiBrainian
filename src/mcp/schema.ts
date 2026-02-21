@@ -690,6 +690,27 @@ export const DiagnoseSelfToolInputSchema = z.object({
 }).strict();
 
 /**
+ * scope_run_diagnostics tool input schema
+ */
+export const ScopeRunDiagnosticsToolInputSchema = z.object({
+  repositoryRole: z.enum(['core', 'client']).optional().default('core').describe('Repository role for ownership semantics in remediation output'),
+  commandResults: z.array(z.object({
+    command: z.string().min(1).describe('Executed command'),
+    exitCode: z.number().int().nullable().describe('Command exit code (null when unavailable)'),
+    stdout: z.string().optional().describe('Captured stdout (optional)'),
+    stderr: z.string().optional().describe('Captured stderr (optional)'),
+    timedOut: z.boolean().optional().describe('Whether command timed out'),
+    durationMs: z.number().int().min(0).optional().describe('Command duration in milliseconds'),
+  }).strict()).min(1).max(200).describe('Command outputs to classify into must_fix_now, expected_diagnostic, or defer_non_scope'),
+  baselineIssueRefs: z.array(z.object({
+    pattern: z.string().min(1).describe('Case-insensitive substring used to map output lines to known baseline issues'),
+    issue: z.string().min(1).optional().describe('Linked issue id/reference for deferred handling (optional when creating follow-up candidates)'),
+    note: z.string().optional().describe('Optional explanatory note for deferred mapping'),
+  }).strict()).optional().describe('Known baseline mappings allowed for explicit defer_non_scope classification'),
+  maxFindingsPerCommand: z.number().int().min(1).max(20).optional().default(3).describe('Maximum findings retained per command to keep remediation plans concise'),
+}).strict();
+
+/**
  * Status tool input schema
  */
 export const StatusToolInputSchema = z.object({
@@ -767,6 +788,7 @@ export type CompileTechniqueCompositionToolInputType = z.infer<typeof CompileTec
 export type CompileIntentBundlesToolInputType = z.infer<typeof CompileIntentBundlesToolInputSchema>;
 export type SystemContractToolInputType = z.infer<typeof SystemContractToolInputSchema>;
 export type DiagnoseSelfToolInputType = z.infer<typeof DiagnoseSelfToolInputSchema>;
+export type ScopeRunDiagnosticsToolInputType = z.infer<typeof ScopeRunDiagnosticsToolInputSchema>;
 export type StatusToolInputType = z.infer<typeof StatusToolInputSchema>;
 export type GetSessionBriefingToolInputType = z.infer<typeof GetSessionBriefingToolInputSchema>;
 
@@ -780,6 +802,7 @@ export const TOOL_INPUT_SCHEMAS = {
   get_session_briefing: GetSessionBriefingToolInputSchema,
   system_contract: SystemContractToolInputSchema,
   diagnose_self: DiagnoseSelfToolInputSchema,
+  scope_run_diagnostics: ScopeRunDiagnosticsToolInputSchema,
   status: StatusToolInputSchema,
   semantic_search: SemanticSearchToolInputSchema,
   get_context_pack: GetContextPackToolInputSchema,

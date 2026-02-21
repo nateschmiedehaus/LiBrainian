@@ -1578,3 +1578,7 @@ export async function createLibrarian(config: LibrarianConfig): Promise<Libraria
 export function createLibrarianSync(config: LibrarianConfig): Librarian {
   return new Librarian({ ...config, autoBootstrap: false });
 }
+
+export { Librarian as LiBrainian };
+export { createLibrarian as createLiBrainian };
+export { createLibrarianSync as createLiBrainianSync };

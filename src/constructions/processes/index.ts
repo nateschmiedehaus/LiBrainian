@@ -149,6 +149,11 @@ export {
 } from './result_quality_judge.js';
 
 export {
+  createRunDiagnosticsScopeConstruction,
+  type RunDiagnosticsScopeConstructionOutput,
+} from './run_diagnostics_scope_construction.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,

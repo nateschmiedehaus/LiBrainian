@@ -69,4 +69,44 @@ describe('diagnoseCommand', () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Self Diagnosis'));
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Status: ok'));
   });
+
+  it('emits diagnostics scope summary when run output is provided', async () => {
+    await diagnoseCommand({
+      workspace: mockWorkspace,
+      runOutput: {
+        repositoryRole: 'client',
+        commandResults: [
+          {
+            command: 'git commit -m "test"',
+            exitCode: 127,
+            stderr: '/bin/bash: librainian-update: command not found',
+          },
+        ],
+      },
+    });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"diagnosticsScope"'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"must_fix_now"'));
+  });
+
+  it('prints deferred issue action count in text mode when diagnostics scope is included', async () => {
+    await diagnoseCommand({
+      workspace: mockWorkspace,
+      format: 'text',
+      runOutput: {
+        repositoryRole: 'client',
+        baselineIssueRefs: [{ pattern: 'confidence_calibration_validation.test.ts' }],
+        commandResults: [
+          {
+            command: 'npm test -- --run',
+            exitCode: 1,
+            stderr: 'FAIL src/__tests__/confidence_calibration_validation.test.ts > ECE 0.183 > expected 0.15',
+          },
+        ],
+      },
+    });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Diagnostics Scope Verdict: defer_non_scope'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Deferred Issue Actions: 1'));
+  });
 });

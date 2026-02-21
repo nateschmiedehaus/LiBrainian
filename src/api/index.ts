@@ -5,10 +5,19 @@
 // Main librarian API
 export {
   Librarian,
+  Librarian as LiBrainian,
   createLibrarian,
+  createLibrarian as createLiBrainian,
   createLibrarianSync,
+  createLibrarianSync as createLiBrainianSync,
 } from './librarian.js';
-export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
+export type {
+  LibrarianConfig,
+  LibrarianConfig as LiBrainianConfig,
+  LibrarianStatus,
+  LibrarianStatus as LiBrainianStatus,
+  LibrarianDependencyOverrides,
+} from './librarian.js';
 export type {
   LlmRequirement,
   LlmRequired,
@@ -182,6 +191,22 @@ export type {
   TrajectoryAnalysisReportV1,
   KnowledgeCoverageReportV1,
 } from './reporting.js';
+export {
+  classifyRunDiagnosticsScope,
+} from './run_diagnostics_scope.js';
+export type {
+  RepositoryRole,
+  ScopeVerdict,
+  FindingClass,
+  FixQueuePriority,
+  FixQueueCategory,
+  BaselineIssueRef,
+  CommandDiagnosticResult,
+  RunDiagnosticsScopeInput,
+  ScopedDiagnosticFinding,
+  AutonomousFixQueueItem,
+  RunDiagnosticsScopeReport,
+} from './run_diagnostics_scope.js';
 export {
   TAXONOMY_ITEMS,
   TAXONOMY_ITEM_COUNT,
@@ -593,7 +618,9 @@ export type {
 // Query API
 export {
   queryLibrarian,
+  queryLibrarian as queryLiBrainian,
   queryLibrarianWithObserver,
+  queryLibrarianWithObserver as queryLiBrainianWithObserver,
   getQueryPipelineDefinition,
   getQueryPipelineStages,
   createFunctionQuery,

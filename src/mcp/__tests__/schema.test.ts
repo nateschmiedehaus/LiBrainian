@@ -118,6 +118,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('get_session_briefing');
       expect(schemas).toContain('system_contract');
       expect(schemas).toContain('diagnose_self');
+      expect(schemas).toContain('scope_run_diagnostics');
       expect(schemas).toContain('status');
       expect(schemas).toContain('semantic_search');
       expect(schemas).toContain('get_context_pack');
@@ -171,7 +172,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(57);
+      expect(schemas).toHaveLength(58);
     });
 
     it('should return schema for known tools', () => {

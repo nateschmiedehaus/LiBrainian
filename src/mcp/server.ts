@@ -80,6 +80,7 @@ import {
   type GetContextPackBundleToolInput,
   type SystemContractToolInput,
   type DiagnoseSelfToolInput,
+  type ScopeRunDiagnosticsToolInput,
   type ListVerificationPlansToolInput,
   type ListEpisodesToolInput,
   type ListTechniquePrimitivesToolInput,
@@ -126,6 +127,7 @@ import {
 } from '../api/index.js';
 import type { ContextPack, FunctionKnowledge, GraphEdge, LiBrainianQuery, LiBrainianResponse } from '../types.js';
 import { estimateTokens } from '../api/token_budget.js';
+import { classifyRunDiagnosticsScope } from '../api/run_diagnostics_scope.js';
 import {
   computeEmbeddingCoverage,
   hasSufficientSemanticCoverage,
@@ -372,6 +374,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   estimate_task_complexity: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1500 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  scope_run_diagnostics: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
   list_episodes: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
   list_technique_primitives: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
@@ -1410,6 +1413,47 @@ export class LiBrainianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
           },
           required: [],
+        },
+      },
+      {
+        name: 'scope_run_diagnostics',
+        description: 'Classify run output into must_fix_now, expected_diagnostic, and defer_non_scope with a prioritized autonomous fix queue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            repositoryRole: { type: 'string', enum: ['core', 'client'], description: 'Repository role for ownership semantics in remediation output' },
+            commandResults: {
+              type: 'array',
+              description: 'Command outputs to classify into actionable/deferred/expected categories',
+              items: {
+                type: 'object',
+                properties: {
+                  command: { type: 'string', description: 'Executed command' },
+                  exitCode: { type: 'number', description: 'Exit code (nullable when unavailable)' },
+                  stdout: { type: 'string', description: 'Captured stdout (optional)' },
+                  stderr: { type: 'string', description: 'Captured stderr (optional)' },
+                  timedOut: { type: 'boolean', description: 'Whether command timed out' },
+                  durationMs: { type: 'number', description: 'Duration in milliseconds' },
+                },
+                required: ['command', 'exitCode'],
+              },
+            },
+            baselineIssueRefs: {
+              type: 'array',
+              description: 'Optional known baseline mappings allowed for defer_non_scope classification',
+              items: {
+                type: 'object',
+                properties: {
+                  pattern: { type: 'string', description: 'Case-insensitive output pattern' },
+                  issue: { type: 'string', description: 'Linked issue reference (optional when creating follow-up candidates)' },
+                  note: { type: 'string', description: 'Optional explanatory note' },
+                },
+                required: ['pattern'],
+              },
+            },
+            maxFindingsPerCommand: { type: 'number', description: 'Maximum findings retained per command (default 3)' },
+          },
+          required: ['commandResults'],
         },
       },
       {
@@ -3533,6 +3577,8 @@ export class LiBrainianMCPServer {
         return this.executeSystemContract(args as SystemContractToolInput);
       case 'diagnose_self':
         return this.executeDiagnoseSelf(args as DiagnoseSelfToolInput);
+      case 'scope_run_diagnostics':
+        return this.executeScopeRunDiagnostics(args as ScopeRunDiagnosticsToolInput);
       case 'list_verification_plans':
         return this.executeListVerificationPlans(args as ListVerificationPlansToolInput);
       case 'list_episodes':
@@ -4602,6 +4648,27 @@ export class LiBrainianMCPServer {
         success: true,
         workspace: workspacePath,
         diagnosis,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeScopeRunDiagnostics(input: ScopeRunDiagnosticsToolInput): Promise<unknown> {
+    try {
+      const report = classifyRunDiagnosticsScope({
+        repositoryRole: input.repositoryRole ?? 'core',
+        commandResults: input.commandResults,
+        baselineIssueRefs: input.baselineIssueRefs,
+        maxFindingsPerCommand: input.maxFindingsPerCommand,
+      });
+
+      return {
+        success: true,
+        report,
       };
     } catch (error) {
       return {
