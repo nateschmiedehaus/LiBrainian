@@ -3181,3 +3181,5 @@ export function isLiBrainianResource(value: unknown): value is LiBrainianResourc
     typeof obj.provenance === 'object'
   );
 }
+
+export type { LiBrainianMCPServerConfig as LibrarianMCPServerConfig };

@@ -11677,6 +11677,11 @@ export async function createLiBrainianMCPServer(
   return server;
 }
 
+export {
+  LiBrainianMCPServer as LibrarianMCPServer,
+  createLiBrainianMCPServer as createLibrarianMCPServer,
+};
+
 /**
  * Create and start a server with stdio transport.
  */

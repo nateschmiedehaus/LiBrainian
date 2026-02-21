@@ -71,6 +71,25 @@ function createTempJsonPath(prefix) {
   return path.join(dir, `${prefix}.json`);
 }
 
+function readStatusReport(workspace, prefix = 'status') {
+  const statusOut = createTempJsonPath(prefix);
+  const statusResult = runCli(workspace, ['status', '--format', 'json', '--out', statusOut], { allowFailure: true });
+  if (statusResult.status !== 0 && !fs.existsSync(statusOut)) {
+    fail('Status command failed before producing JSON output.');
+  }
+  return JSON.parse(fs.readFileSync(statusOut, 'utf8'));
+}
+
+function ensureBootstrapped(workspace, statusReport) {
+  if (!statusReport?.bootstrap?.required?.mvp) {
+    return statusReport;
+  }
+
+  console.log('[dogfood-ci] Fresh clone detected; running bootstrap --mode fast before health checks');
+  runCli(workspace, ['bootstrap', '--mode', 'fast', '--no-claude-md', '--force-resume'], { stdio: 'inherit' });
+  return readStatusReport(workspace, 'status-post-bootstrap');
+}
+
 function assertHealthyStatus(statusReport) {
   if (statusReport.storage?.status !== 'ready') {
     fail(`Status storage is not ready: ${statusReport.storage?.status ?? 'unknown'}`);
@@ -118,12 +137,7 @@ function main() {
   runCli(workspace, ['status'], { stdio: 'inherit', allowFailure: true });
 
   console.log('[dogfood-ci] Validating status health');
-  const statusOut = createTempJsonPath('status');
-  const statusResult = runCli(workspace, ['status', '--format', 'json', '--out', statusOut], { allowFailure: true });
-  if (statusResult.status !== 0 && !fs.existsSync(statusOut)) {
-    fail('Status command failed before producing JSON output.');
-  }
-  const statusReport = JSON.parse(fs.readFileSync(statusOut, 'utf8'));
+  const statusReport = ensureBootstrapped(workspace, readStatusReport(workspace, 'status'));
   if (!skipHealthAssert) {
     assertHealthyStatus(statusReport);
   } else {

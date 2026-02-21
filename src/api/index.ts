@@ -8,7 +8,17 @@ export {
   createLibrarian,
   createLibrarianSync,
 } from './librarian.js';
+export {
+  Librarian as LiBrainian,
+  createLibrarian as createLiBrainian,
+  createLibrarianSync as createLiBrainianSync,
+} from './librarian.js';
 export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
+export type {
+  LibrarianConfig as LiBrainianConfig,
+  LibrarianStatus as LiBrainianStatus,
+  LibrarianDependencyOverrides as LiBrainianDependencyOverrides,
+} from './librarian.js';
 export type {
   LlmRequirement,
   LlmRequired,
@@ -603,6 +613,10 @@ export {
   applyDocumentBias,
   applyDefinitionBias,
   isDefinitionEntity,
+} from './query.js';
+export {
+  queryLibrarian as queryLiBrainian,
+  queryLibrarianWithObserver as queryLiBrainianWithObserver,
 } from './query.js';
 export type { QueryClassification } from './query.js';
 

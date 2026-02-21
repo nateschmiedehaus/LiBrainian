@@ -8407,6 +8407,12 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return denominator === 0 ? 0 : dotProduct / denominator;
 }
 
+// Backward-compatibility aliases for pre-rename runtime import surfaces.
+export {
+  SqliteLiBrainianStorage as SqliteLibrarianStorage,
+  SqliteLiBrainianStorage as SqliteStorage,
+};
+
 // ============================================================================
 // FACTORY FUNCTION
 // ============================================================================
