@@ -8432,6 +8432,9 @@ export function createSqliteStorage(dbPath: string, workspaceRoot?: string): LiB
   return new SqliteLiBrainianStorage(dbPath, workspaceRoot);
 }
 
+// Temporary compatibility alias for mixed LiBrainian/Librarian import surfaces.
+export { SqliteLiBrainianStorage as SqliteLibrarianStorage };
+
 /**
  * Creates and initializes a LiBrainianStorage instance from a StorageBackend configuration.
  *

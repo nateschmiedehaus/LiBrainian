@@ -10,6 +10,7 @@ LiBrainian scripts are grouped by function:
 - **Evaluation orchestration**
   - `ab-harness.ts`
   - `agentic-use-case-review.ts`
+  - `baseline-failure-triage.ts`
   - `external-repo-smoke.ts`
   - `external-ground-truth.ts`
   - `eval-testing-discipline.ts`
@@ -40,6 +41,8 @@ LiBrainian scripts are grouped by function:
   - Remove stale `codex/*` branches with merged PRs from origin and local repo.
 - `npm run librainian:update:staged`
   - Runs hook-friendly staged-file incremental index refresh (`librainian update --staged`).
+- `npm run issues:baseline-triage -- --log <path-to-build-or-test-log>`
+  - Classifies mixed output into `must_fix_now` / `expected_diagnostic` / `defer_non_scope`, emits triage artifacts, and auto-opens/updates baseline issues by default.
 - `npm run hygiene:generated-artifacts`
   - Fails fast if generated TypeScript emit artifacts appear in tracked/unignored source-controlled paths.
 
