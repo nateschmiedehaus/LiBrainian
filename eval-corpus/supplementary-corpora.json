@@ -1,0 +1,98 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-02-21T00:00:00.000Z",
+  "strictAgenticMinimumNonLiBrainianCorpora": 2,
+  "requiredBlindSpotCoverage": [
+    "domain-diversity",
+    "language-diversity",
+    "broken-legacy-code",
+    "scale",
+    "multi-repo-cross-boundary"
+  ],
+  "blindSpots": [
+    {"id": "domain-diversity", "title": "Domain diversity"},
+    {"id": "language-diversity", "title": "Language diversity"},
+    {"id": "non-code-entities", "title": "Non-code entity coverage"},
+    {"id": "broken-legacy-code", "title": "Broken and legacy code"},
+    {"id": "multi-repo-cross-boundary", "title": "Multi-repo and cross-boundary scenarios"},
+    {"id": "scale", "title": "Scale"},
+    {"id": "adversarial-obfuscated-input", "title": "Adversarial and obfuscated input"},
+    {"id": "multi-team-convention-conflicts", "title": "Multi-team convention conflicts"},
+    {"id": "stale-index-scenarios", "title": "Stale index scenarios"},
+    {"id": "naive-first-run-experience", "title": "Naive first-run experience"}
+  ],
+  "corpora": [
+    {
+      "id": "medium-python",
+      "name": "Medium Python Fixture",
+      "path": "eval-corpus/repos/medium-python",
+      "source": "local-fixture",
+      "nonLiBrainian": true,
+      "qualifiesForStrictAgentic": true,
+      "blindSpots": ["language-diversity", "naive-first-run-experience", "domain-diversity"]
+    },
+    {
+      "id": "adversarial",
+      "name": "Adversarial Fixture",
+      "path": "eval-corpus/repos/adversarial",
+      "source": "local-fixture",
+      "nonLiBrainian": false,
+      "qualifiesForStrictAgentic": false,
+      "blindSpots": ["broken-legacy-code", "adversarial-obfuscated-input", "multi-team-convention-conflicts"]
+    },
+    {
+      "id": "large-monorepo",
+      "name": "Large Monorepo Fixture",
+      "path": "eval-corpus/repos/large-monorepo",
+      "source": "local-fixture",
+      "nonLiBrainian": false,
+      "qualifiesForStrictAgentic": false,
+      "blindSpots": ["scale", "stale-index-scenarios", "multi-team-convention-conflicts"]
+    },
+    {
+      "id": "federation-user-service",
+      "name": "Federation User Service Fixture",
+      "path": "eval-corpus/repos/federation-user-service",
+      "source": "local-fixture",
+      "nonLiBrainian": false,
+      "qualifiesForStrictAgentic": false,
+      "blindSpots": ["multi-repo-cross-boundary"]
+    },
+    {
+      "id": "federation-billing-service",
+      "name": "Federation Billing Service Fixture",
+      "path": "eval-corpus/repos/federation-billing-service",
+      "source": "local-fixture",
+      "nonLiBrainian": false,
+      "qualifiesForStrictAgentic": false,
+      "blindSpots": ["multi-repo-cross-boundary"]
+    },
+    {
+      "id": "domain-terraform-iac",
+      "name": "Domain Terraform IaC Fixture",
+      "path": "eval-corpus/repos/domain-terraform-iac",
+      "source": "local-fixture",
+      "nonLiBrainian": true,
+      "qualifiesForStrictAgentic": true,
+      "blindSpots": ["domain-diversity", "non-code-entities", "naive-first-run-experience"]
+    },
+    {
+      "id": "domain-solidity",
+      "name": "Domain Solidity Fixture",
+      "path": "eval-corpus/repos/domain-solidity",
+      "source": "local-fixture",
+      "nonLiBrainian": true,
+      "qualifiesForStrictAgentic": true,
+      "blindSpots": ["domain-diversity", "language-diversity", "adversarial-obfuscated-input"]
+    },
+    {
+      "id": "external-reccmp-py",
+      "name": "External reccmp Python Repo",
+      "path": "eval-corpus/external-repos/reccmp-py",
+      "source": "external-manifest",
+      "nonLiBrainian": true,
+      "qualifiesForStrictAgentic": true,
+      "blindSpots": ["language-diversity", "scale", "naive-first-run-experience"]
+    }
+  ]
+}

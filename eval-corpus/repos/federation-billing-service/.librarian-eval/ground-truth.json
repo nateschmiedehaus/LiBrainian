@@ -1,0 +1,39 @@
+{
+  "version": "0.1.0",
+  "repoId": "federation-billing-service",
+  "queries": [
+    {
+      "queryId": "fbs-user-contract-consumer",
+      "repoId": "federation-billing-service",
+      "intent": "How does billing consume the upstream user service contract?",
+      "category": "architectural",
+      "difficulty": "moderate",
+      "correctAnswer": {
+        "summary": "Billing imports UserContract from the user service boundary and rejects disabled users before charging.",
+        "mustIncludeFiles": ["src/charge.ts"],
+        "shouldIncludeFiles": [],
+        "mustIncludeFacts": [
+          "chargeUser accepts a UserContract payload.",
+          "Disabled users trigger an error before payment logic."
+        ],
+        "mustNotClaim": [
+          "Billing fetches user records from its own database for authorization."
+        ],
+        "acceptableVariations": [
+          "The charge path uses the federated UserContract and blocks disabled users."
+        ],
+        "evidenceRefs": [
+          {
+            "refId": "fbs-charge",
+            "kind": "file",
+            "label": "Billing contract consumer",
+            "path": "src/charge.ts",
+            "location": { "startLine": 1, "endLine": 14 }
+          }
+        ]
+      },
+      "lastVerified": "2026-02-21",
+      "verifiedBy": "codex"
+    }
+  ]
+}

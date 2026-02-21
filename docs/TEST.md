@@ -121,6 +121,7 @@ Release qualification uses real-agent evidence and must pass with zero strict ma
 - **Required command**: `npm run test:agentic:strict`
   - runs real agent-command A/B (`eval:ab:agentic-bugfix:codex`)
   - runs progressive, docs-derived use-case review (`eval:use-cases:agentic`)
+  - runs dogfood blind-spot coverage gate (`eval:dogfood:blind-spots`)
   - runs live-fire and external smoke on real repos
   - runs testing-discipline audit (`eval:testing-discipline`)
   - runs strict publish gate (`eval:publish-gate --zero-warning`)

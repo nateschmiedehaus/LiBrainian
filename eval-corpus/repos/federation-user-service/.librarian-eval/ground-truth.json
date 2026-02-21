@@ -1,0 +1,39 @@
+{
+  "version": "0.1.0",
+  "repoId": "federation-user-service",
+  "queries": [
+    {
+      "queryId": "fus-contract-export",
+      "repoId": "federation-user-service",
+      "intent": "Which user contract fields are exported for downstream services?",
+      "category": "architectural",
+      "difficulty": "trivial",
+      "correctAnswer": {
+        "summary": "The service exports UserContract with id, email, and status.",
+        "mustIncludeFiles": ["src/contracts.ts"],
+        "shouldIncludeFiles": ["src/service.ts"],
+        "mustIncludeFacts": [
+          "UserContract contains id, email, and status fields.",
+          "buildUserContract returns the user service boundary payload."
+        ],
+        "mustNotClaim": [
+          "UserContract includes billing or payment fields."
+        ],
+        "acceptableVariations": [
+          "The outbound user contract is the UserContract type with id/email/status."
+        ],
+        "evidenceRefs": [
+          {
+            "refId": "fus-contract",
+            "kind": "file",
+            "label": "User contract declaration",
+            "path": "src/contracts.ts",
+            "location": { "startLine": 1, "endLine": 8 }
+          }
+        ]
+      },
+      "lastVerified": "2026-02-21",
+      "verifiedBy": "codex"
+    }
+  ]
+}

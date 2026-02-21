@@ -43,6 +43,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Real-project use-case vetting command: `npm run eval:use-cases:agentic` (docs-derived intents against external repos, progressive prerequisite chain enforced, fail-closed thresholds).
 - Testing-discipline hardening command: `npm run eval:testing-discipline` (10 fail-closed checks across AB/use-case/live-fire/smoke/composition/constructables).
 - Publish-grade qualification command: `npm run test:agentic:strict`.
+- Dogfood blind-spot coverage gate: `npm run eval:dogfood:blind-spots` (writes `state/eval/dogfood/blind-spot-coverage.{json,md}`).
 
 ## Start Here (Decision Tree)
 - **Orchestration & Validation Roadmap** -> `docs/librarian/WORKPLAN.md` (Phases 0-22)

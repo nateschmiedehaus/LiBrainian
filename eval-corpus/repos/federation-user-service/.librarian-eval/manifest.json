@@ -1,0 +1,13 @@
+{
+  "repoId": "federation-user-service",
+  "name": "Federation User Service Fixture",
+  "languages": ["TypeScript"],
+  "fileCount": 2,
+  "annotationLevel": "partial",
+  "characteristics": {
+    "documentationDensity": "low",
+    "testCoverage": "low",
+    "architecturalClarity": "moderate",
+    "codeQuality": "average"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "version": "0.1.0",
+  "repoId": "domain-terraform-iac",
+  "queries": [
+    {
+      "queryId": "dtf-network-topology",
+      "repoId": "domain-terraform-iac",
+      "intent": "What network components does this Terraform stack declare?",
+      "category": "infra",
+      "difficulty": "trivial",
+      "correctAnswer": {
+        "summary": "The stack declares a VPC and an application subnet tied to that VPC.",
+        "mustIncludeFiles": ["infra/main.tf"],
+        "shouldIncludeFiles": ["infra/variables.tf"],
+        "mustIncludeFacts": [
+          "aws_vpc.main is declared in main.tf.",
+          "aws_subnet.app references aws_vpc.main.id."
+        ],
+        "mustNotClaim": [
+          "Kubernetes cluster or ECS resources are defined in this fixture."
+        ],
+        "acceptableVariations": [
+          "IaC defines a VPC plus app subnet associated with the VPC."
+        ],
+        "evidenceRefs": [
+          {
+            "refId": "dtf-main",
+            "kind": "file",
+            "label": "Terraform network resources",
+            "path": "infra/main.tf",
+            "location": { "startLine": 1, "endLine": 20 }
+          }
+        ]
+      },
+      "lastVerified": "2026-02-21",
+      "verifiedBy": "codex"
+    }
+  ]
+}

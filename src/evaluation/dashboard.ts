@@ -7,6 +7,7 @@ import type {
   EvaluationReport,
   MetricType,
 } from './harness.js';
+import type { BlindSpotCoverageDashboard } from './blind_spot_coverage.js';
 
 export interface DashboardSummary {
   totalCases: number;
@@ -28,12 +29,13 @@ export interface QualityDashboard {
     hallucination: MetricAggregateMap | null;
   };
   slices: Record<string, { metrics: MetricAggregateMap }>;
+  blindSpotCoverage?: BlindSpotCoverageDashboard;
   markdown?: string;
 }
 
 export function buildQualityDashboard(
   report: EvaluationReport,
-  opts: { includeMarkdown?: boolean } = {}
+  opts: { includeMarkdown?: boolean; blindSpotCoverage?: BlindSpotCoverageDashboard } = {}
 ): QualityDashboard {
   const totalCases = report.queryCount ?? report.queryResults.length ?? 0;
   const suiteCount = Object.keys(report.byTag ?? {}).length;
@@ -65,6 +67,7 @@ export function buildQualityDashboard(
     summary,
     metrics,
     slices,
+    blindSpotCoverage: opts.blindSpotCoverage,
   };
 
   if (opts.includeMarkdown) {
@@ -105,6 +108,14 @@ export function renderQualityDashboardMarkdown(dashboard: QualityDashboard): str
       const metricSummary = summarizeMetrics(slice.metrics);
       lines.push(`- ${suite}: ${metricSummary}`);
     }
+  }
+
+  if (dashboard.blindSpotCoverage) {
+    lines.push('', '## Dogfood Blind Spot Coverage');
+    lines.push(`- Supplementary corpora: ${dashboard.blindSpotCoverage.summary.supplementaryCorporaCount}/${dashboard.blindSpotCoverage.summary.minimumSupplementaryCorpora}`);
+    lines.push(`- Required category coverage: ${dashboard.blindSpotCoverage.summary.requiredCoverageMet ? 'PASS' : 'FAIL'}`);
+    lines.push(`- Strict gate external coverage: ${dashboard.blindSpotCoverage.summary.strictGateCoverageMet ? 'PASS' : 'FAIL'}`);
+    lines.push(`- Release claim annotations: ${dashboard.blindSpotCoverage.summary.releaseClaimAnnotationsMet ? 'PASS' : 'FAIL'}`);
   }
 
   return lines.join('\n');

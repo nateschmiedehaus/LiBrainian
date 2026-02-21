@@ -1,0 +1,39 @@
+{
+  "version": "0.1.0",
+  "repoId": "domain-solidity",
+  "queries": [
+    {
+      "queryId": "dsol-loop-gas",
+      "repoId": "domain-solidity",
+      "intent": "Which function performs an O(n) token distribution loop that impacts gas cost?",
+      "category": "security",
+      "difficulty": "moderate",
+      "correctAnswer": {
+        "summary": "distribute loops over recipients and performs a transfer for each recipient, so gas scales linearly with recipient count.",
+        "mustIncludeFiles": ["contracts/TokenDistributor.sol"],
+        "shouldIncludeFiles": [],
+        "mustIncludeFacts": [
+          "distribute contains a for loop over recipients.",
+          "Each iteration calls token.transfer."
+        ],
+        "mustNotClaim": [
+          "The function is constant-time regardless of recipients length."
+        ],
+        "acceptableVariations": [
+          "Gas grows with recipients array length due to per-recipient transfer loop."
+        ],
+        "evidenceRefs": [
+          {
+            "refId": "dsol-distribute",
+            "kind": "file",
+            "label": "Solidity distribution loop",
+            "path": "contracts/TokenDistributor.sol",
+            "location": { "startLine": 7, "endLine": 18 }
+          }
+        ]
+      },
+      "lastVerified": "2026-02-21",
+      "verifiedBy": "codex"
+    }
+  ]
+}

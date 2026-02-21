@@ -1,0 +1,13 @@
+{
+  "repoId": "federation-billing-service",
+  "name": "Federation Billing Service Fixture",
+  "languages": ["TypeScript"],
+  "fileCount": 2,
+  "annotationLevel": "partial",
+  "characteristics": {
+    "documentationDensity": "low",
+    "testCoverage": "low",
+    "architecturalClarity": "moderate",
+    "codeQuality": "average"
+  }
+}

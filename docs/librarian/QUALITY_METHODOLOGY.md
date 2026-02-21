@@ -423,6 +423,10 @@ export interface CircularDependency {
 # Overall health dashboard
 LiBrainian health
 
+# Dogfood blind-spot coverage dashboard
+npm run eval:dogfood:blind-spots
+# artifacts: state/eval/dogfood/blind-spot-coverage.{json,md}
+
 # Specific quality checks
 LiBrainian quality --check=dead-code
 LiBrainian quality --check=hotspots

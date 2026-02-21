@@ -1,0 +1,13 @@
+{
+  "repoId": "domain-solidity",
+  "name": "Domain Solidity Fixture",
+  "languages": ["Solidity"],
+  "fileCount": 1,
+  "annotationLevel": "partial",
+  "characteristics": {
+    "documentationDensity": "low",
+    "testCoverage": "low",
+    "architecturalClarity": "moderate",
+    "codeQuality": "average"
+  }
+}

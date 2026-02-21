@@ -73,6 +73,18 @@ export {
 } from './dashboard.js';
 
 export {
+  type BlindSpotDefinition,
+  type SupplementaryCorpus,
+  type BlindSpotCatalog,
+  type ExternalRepoManifest,
+  type BlindSpotCoverageEntry,
+  type BlindSpotCoverageSummary,
+  type BlindSpotCoverageDashboard,
+  buildBlindSpotCoverageDashboard,
+  renderBlindSpotCoverageMarkdown,
+} from './blind_spot_coverage.js';
+
+export {
   // Types
   type ASTFactType,
   type ASTFact,

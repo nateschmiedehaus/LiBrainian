@@ -19,6 +19,7 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:ab:agentic-bugfix:codex']).toBeTypeOf('string');
     expect(scripts['eval:live-fire:hardcore']).toBeTypeOf('string');
     expect(scripts['eval:use-cases:agentic']).toBeTypeOf('string');
+    expect(scripts['eval:dogfood:blind-spots']).toBeTypeOf('string');
     expect(scripts['eval:testing-discipline']).toBeTypeOf('string');
     expect(scripts['eval:testing-tracker']).toBeTypeOf('string');
     expect(scripts['test:agentic:strict']).toBeTypeOf('string');
@@ -70,11 +71,13 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:use-cases:agentic:quick']).toContain('--evidenceProfile quick');
     expect(scripts['eval:use-cases:agentic:quick']).toContain('--deterministicQueries');
     expect(scripts['eval:trial-by-fire:publish']).toContain('npm run eval:use-cases:agentic');
+    expect(scripts['eval:trial-by-fire:publish']).toContain('npm run eval:dogfood:blind-spots');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:ab:agentic-bugfix:codex');
     expect(scripts['test:agentic:strict:quick']).toContain('npm run eval:ab:agentic-bugfix:quick');
     expect(scripts['test:agentic:strict:quick']).not.toContain('agentic-bugfix:reference');
     expect(scripts['test:agentic:strict:quick']).not.toContain('eval:publish-gate');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:use-cases:agentic');
+    expect(scripts['test:agentic:strict']).toContain('npm run eval:dogfood:blind-spots');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:live-fire:hardcore');
     expect(scripts['test:agentic:strict']).toContain('npm run smoke:external:all');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-discipline');

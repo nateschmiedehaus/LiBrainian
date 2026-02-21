@@ -1266,37 +1266,79 @@
       "Retrieval Recall@5": {
         "target": ">=0.8",
         "measured": "0.82",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:medium-python",
+          "supplementary-corpus:external-reccmp-py"
+        ],
+        "requiresSupplementaryCorpus": false
       },
       "Context Precision": {
         "target": ">=0.7",
         "measured": "0.74",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:adversarial",
+          "supplementary-corpus:domain-terraform-iac"
+        ],
+        "requiresSupplementaryCorpus": false
       },
       "Hallucination Rate": {
         "target": "<0.05",
         "measured": "0.03",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:adversarial",
+          "supplementary-corpus:domain-solidity"
+        ],
+        "requiresSupplementaryCorpus": false
       },
       "Faithfulness": {
         "target": ">=0.85",
         "measured": "0.87",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:federation-user-service",
+          "supplementary-corpus:federation-billing-service"
+        ],
+        "requiresSupplementaryCorpus": false
       },
       "Answer Relevancy": {
         "target": ">=0.75",
         "measured": "0.79",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:medium-python",
+          "supplementary-corpus:domain-terraform-iac"
+        ],
+        "requiresSupplementaryCorpus": false
       },
       "A/B Lift": {
         "target": ">=0.2",
         "measured": "0.20833333333333334 (p=0.09371405527122034)",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:external-reccmp-py",
+          "supplementary-corpus:medium-python"
+        ],
+        "requiresSupplementaryCorpus": false
       },
       "Memory per 1K LOC": {
         "target": "<=50 MB",
         "measured": "0.8982833980068219 MB",
-        "status": "MET"
+        "status": "MET",
+        "validatedBy": [
+          "self-hosting:librainian",
+          "supplementary-corpus:large-monorepo",
+          "supplementary-corpus:external-reccmp-py"
+        ],
+        "requiresSupplementaryCorpus": false
       }
     },
     "evidence": "eval-results/final-verification.json",

@@ -20,6 +20,8 @@ repositories, annotations, and query/answer pairs.
 - `ab-harness/tasks.json`: Deterministic baseline A/B tasks.
 - `ab-harness/tasks.agentic.json`: Agent-command taskpack for autonomous
   treatment/control benchmarking with strict gate support.
+- `supplementary-corpora.json`: Dogfooding blind-spot coverage catalog used by
+  `npm run eval:dogfood:blind-spots` and strict release qualification.
 
 ## Current Status
 
@@ -28,3 +30,8 @@ repo manifests (`external-repos/manifest.json`) used by live evaluation runs.
 
 Some query sets remain sparse or intentionally narrow and should continue to be
 expanded with machine-verifiable fixtures as evaluation coverage grows.
+
+The supplementary fixture set now includes explicit blind-spot corpora for:
+- multi-repo federation (`federation-user-service`, `federation-billing-service`)
+- domain-specific infra (`domain-terraform-iac`)
+- domain-specific Solidity (`domain-solidity`)

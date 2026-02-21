@@ -1,0 +1,13 @@
+{
+  "repoId": "domain-terraform-iac",
+  "name": "Domain Terraform IaC Fixture",
+  "languages": ["Terraform", "HCL"],
+  "fileCount": 2,
+  "annotationLevel": "partial",
+  "characteristics": {
+    "documentationDensity": "low",
+    "testCoverage": "n/a",
+    "architecturalClarity": "moderate",
+    "codeQuality": "average"
+  }
+}
