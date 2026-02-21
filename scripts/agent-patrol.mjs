@@ -23,6 +23,7 @@ import { readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync, execSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -63,15 +64,12 @@ function run(command, args, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Cheapest-model resolution
+// Patrol + internal model resolution
 // ---------------------------------------------------------------------------
-// We don't want patrol runs burning expensive tokens on indexing/enrichment.
-// Strategy: query local provider caches or known model lists to find the
-// cheapest available model. No hardcoded model names -- we discover at runtime.
-//
-// Codex: read ~/.codex/models_cache.json, pick the model with 'mini' in slug
-// Claude: use 'haiku' alias (always the cheapest tier)
-// Embeddings: force local xenova (free, no API calls)
+// Patrol quality is sensitive to model capability. For Codex:
+// - Patrol agent model: latest available medium tier
+// - LiBrainian internal indexing/synthesis model: absolute cheapest available
+// Embeddings stay local xenova (free).
 
 // Models that must NEVER be used for patrol runs (too expensive).
 // If the resolved model matches any of these, we refuse to proceed.
@@ -81,15 +79,21 @@ const BLOCKED_EXPENSIVE_MODELS = [
   'o3', 'o1', 'gpt-5',                      // OpenAI expensive tiers (non-mini)
 ];
 
-function isBlockedModel(model) {
+function isBlockedModel(model, provider) {
   if (!model) return false;
   const lower = model.toLowerCase();
+  if (provider === 'codex' && lower.includes('codex-medium')) return false;
   // Block if it matches an expensive tier AND is not a mini/haiku variant
   if (lower.includes('mini') || lower.includes('haiku')) return false;
   return BLOCKED_EXPENSIVE_MODELS.some((b) => lower.includes(b));
 }
 
-function resolveCheapestModels(agentBin) {
+function pickNewest(models) {
+  if (!models || models.length === 0) return null;
+  return [...models].sort((a, b) => b.localeCompare(a))[0] ?? null;
+}
+
+export function resolveCheapestModels(agentBin, options = {}) {
   const basename = path.basename(agentBin);
   const isCodex = basename === 'codex' || basename.startsWith('codex');
 
@@ -101,29 +105,32 @@ function resolveCheapestModels(agentBin) {
   };
 
   if (isCodex) {
-    // Read codex models cache to find cheapest available
-    const cachePath = path.join(os.homedir(), '.codex', 'models_cache.json');
+    // Read codex models cache:
+    // - patrol model => latest medium tier
+    // - internal model => cheapest available tier
+    const homeDir = options.homeDir ?? os.homedir();
+    const cachePath = path.join(homeDir, '.codex', 'models_cache.json');
     try {
       const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
       const models = cache.models ?? [];
+      const slugs = models
+        .map((m) => String(m?.slug ?? '').trim())
+        .filter(Boolean);
 
-      // Prefer: mini models (cheapest), then spark (fast/cheap), sorted by slug descending (newest first)
-      const miniModels = models
-        .filter((m) => (m.slug ?? '').includes('mini'))
-        .sort((a, b) => (b.slug ?? '').localeCompare(a.slug ?? ''));
-      const sparkModels = models
-        .filter((m) => (m.slug ?? '').includes('spark'))
-        .sort((a, b) => (b.slug ?? '').localeCompare(a.slug ?? ''));
+      const mediumModels = slugs.filter((slug) => slug.includes('medium'));
+      const miniModels = slugs.filter((slug) => slug.includes('mini'));
+      const lowModels = slugs.filter((slug) => slug.includes('low'));
+      const sparkModels = slugs.filter((slug) => slug.includes('spark'));
 
-      if (miniModels.length > 0) {
-        result.llmModel = miniModels[0].slug;
-      } else if (sparkModels.length > 0) {
-        result.llmModel = sparkModels[0].slug;
-      } else {
-        result.llmModel = 'gpt-5-codex-mini';
-      }
+      result.llmModel = pickNewest(mediumModels) ?? 'gpt-5-codex-medium';
+      result.internalLlmModel =
+        pickNewest(miniModels)
+        ?? pickNewest(lowModels)
+        ?? pickNewest(sparkModels)
+        ?? 'gpt-5-codex-mini';
     } catch {
-      result.llmModel = 'gpt-5-codex-mini';
+      result.llmModel = 'gpt-5-codex-medium';
+      result.internalLlmModel = 'gpt-5-codex-mini';
     }
   } else {
     // Claude pricing (Feb 2026):
@@ -138,7 +145,7 @@ function resolveCheapestModels(agentBin) {
   }
 
   // Safety check: refuse to proceed if resolved model is expensive
-  if (isBlockedModel(result.llmModel)) {
+  if (isBlockedModel(result.llmModel, result.llmProvider)) {
     throw new Error(
       `resolved model '${result.llmModel}' is on the blocked expensive list. ` +
       `Patrol must use the cheapest available model. ` +
@@ -150,10 +157,10 @@ function resolveCheapestModels(agentBin) {
 }
 
 /**
- * Build environment variables that force LiBrainian to use the cheapest
- * available models for all provider-backed operations.
+ * Build environment variables that force LiBrainian internal operations to use
+ * the cheapest available model while patrol keeps its selected agent model.
  */
-function buildCheapModelEnv(cheapModels) {
+export function buildCheapModelEnv(cheapModels) {
   return {
     LIBRARIAN_LLM_PROVIDER: cheapModels.llmProvider,
     // Use the internal model for LiBrainian's API calls (can be cheaper than
@@ -1198,7 +1205,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('[patrol] fatal error:', err.message);
-  process.exit(1);
-});
+const mainHref = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : '';
+
+if (mainHref && import.meta.url === mainHref) {
+  main().catch((err) => {
+    console.error('[patrol] fatal error:', err.message);
+    process.exit(1);
+  });
+}
