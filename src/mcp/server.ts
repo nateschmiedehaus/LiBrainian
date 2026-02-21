@@ -11756,6 +11756,12 @@ export async function createLiBrainianMCPServer(
   return server;
 }
 
+// Backward compatibility aliases retained while LiBrainian->Librarian rename settles.
+export {
+  LiBrainianMCPServer as LibrarianMCPServer,
+  createLiBrainianMCPServer as createLibrarianMCPServer,
+};
+
 /**
  * Create and start a server with stdio transport.
  */

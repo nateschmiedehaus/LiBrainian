@@ -1578,3 +1578,10 @@ export async function createLibrarian(config: LibrarianConfig): Promise<Libraria
 export function createLibrarianSync(config: LibrarianConfig): Librarian {
   return new Librarian({ ...config, autoBootstrap: false });
 }
+
+// Backward compatibility aliases retained while LiBrainian->Librarian rename settles.
+export {
+  Librarian as LiBrainian,
+  createLibrarian as createLiBrainian,
+  createLibrarianSync as createLiBrainianSync,
+};

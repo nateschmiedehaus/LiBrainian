@@ -8,6 +8,12 @@ export {
   createLibrarian,
   createLibrarianSync,
 } from './librarian.js';
+// Backward compatibility aliases retained while LiBrainian->Librarian rename settles.
+export {
+  Librarian as LiBrainian,
+  createLibrarian as createLiBrainian,
+  createLibrarianSync as createLiBrainianSync,
+} from './librarian.js';
 export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
 export type {
   LlmRequirement,
@@ -603,6 +609,10 @@ export {
   applyDocumentBias,
   applyDefinitionBias,
   isDefinitionEntity,
+} from './query.js';
+export {
+  queryLibrarian as queryLiBrainian,
+  queryLibrarianWithObserver as queryLiBrainianWithObserver,
 } from './query.js';
 export type { QueryClassification } from './query.js';
 

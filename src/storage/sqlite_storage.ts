@@ -7458,6 +7458,9 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 }
 
+// Backward compatibility alias retained while name migration is in progress.
+export { SqliteLiBrainianStorage as SqliteLibrarianStorage };
+
 // ============================================================================
 // ADVANCED LIBRARY FEATURES ROW TYPES (Migration 011)
 // ============================================================================
