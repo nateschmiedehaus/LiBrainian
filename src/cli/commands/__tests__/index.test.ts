@@ -13,7 +13,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { indexCommand, type IndexCommandOptions } from '../index.js';
-import { Librarian } from '../../../api/librarian.js';
+import { LiBrainian } from '../../../api/librarian.js';
 import { CliError } from '../../errors.js';
 import { globalEventBus } from '../../../events.js';
 import { getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
@@ -47,7 +47,8 @@ describe('indexCommand', () => {
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let mockLibrarian: {
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+  let mockLiBrainian: {
     initialize: Mock;
     getStatus: Mock;
     reindexFiles: Mock;
@@ -61,8 +62,9 @@ describe('indexCommand', () => {
     process.env.LIBRARIAN_LLM_MODEL = 'claude-3-haiku-20240307';
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    mockLibrarian = {
+    mockLiBrainian = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getStatus: vi.fn().mockResolvedValue({
         bootstrapped: true,
@@ -75,7 +77,7 @@ describe('indexCommand', () => {
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
 
-    (Librarian as unknown as Mock).mockImplementation(() => mockLibrarian);
+    (LiBrainian as unknown as Mock).mockImplementation(() => mockLiBrainian);
 
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.realpathSync).mockImplementation((p) => p as string);
@@ -92,6 +94,7 @@ describe('indexCommand', () => {
   afterEach(() => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
     // Restore default environment variables
     process.env.LIBRARIAN_LLM_PROVIDER = 'claude';
     process.env.LIBRARIAN_LLM_MODEL = 'claude-3-haiku-20240307';
@@ -165,7 +168,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
         path.resolve(mockWorkspace, 'src/new.ts'),
         path.resolve(mockWorkspace, 'src/changed.ts'),
       ]);
@@ -188,7 +191,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
         path.resolve(mockWorkspace, 'src/staged-new.ts'),
         path.resolve(mockWorkspace, 'src/staged-change.ts'),
       ]);
@@ -212,7 +215,7 @@ describe('indexCommand', () => {
       await indexCommand(options);
 
       expect(getGitDiffNames).toHaveBeenCalledWith(mockWorkspace, 'origin/main');
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
         path.resolve(mockWorkspace, 'src/new-since.ts'),
       ]);
     });
@@ -245,7 +248,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
         path.resolve(mockWorkspace, 'src/new-name.ts'),
       ]);
       expect(getGitFileContentAtRef).toHaveBeenCalledWith(
@@ -265,7 +268,7 @@ describe('indexCommand', () => {
       };
 
       await expect(indexCommand(options)).resolves.toBeUndefined();
-      expect(mockLibrarian.reindexFiles).not.toHaveBeenCalled();
+      expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
     });
   });
 
@@ -284,7 +287,7 @@ describe('indexCommand', () => {
       await indexCommand(options);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('File not found'));
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
     });
 
     it('should throw CliError when all files are non-existent', async () => {
@@ -322,7 +325,7 @@ describe('indexCommand', () => {
       await indexCommand(options);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Not a file'));
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile2]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile2]);
     });
   });
 
@@ -339,7 +342,7 @@ describe('indexCommand', () => {
       await indexCommand(options);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('File outside workspace'));
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
     });
 
     it('should handle relative paths that escape workspace', async () => {
@@ -366,13 +369,13 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([subFile]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([subFile]);
     });
   });
 
   describe('Bootstrap Check', () => {
     it('should throw CliError when not bootstrapped', async () => {
-      mockLibrarian.getStatus.mockResolvedValue({
+      mockLiBrainian.getStatus.mockResolvedValue({
         bootstrapped: false,
         stats: {
           totalFunctions: 0,
@@ -387,7 +390,7 @@ describe('indexCommand', () => {
       };
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
-      await expect(indexCommand(options)).rejects.toThrow('Librarian not bootstrapped');
+      await expect(indexCommand(options)).rejects.toThrow('LiBrainian not bootstrapped');
       await expect(indexCommand(options)).rejects.toThrow('Run "librarian bootstrap" first');
       await expect(indexCommand(options)).rejects.toMatchObject({
         code: 'NOT_BOOTSTRAPPED',
@@ -395,7 +398,7 @@ describe('indexCommand', () => {
     });
 
     it('should proceed when bootstrapped', async () => {
-      mockLibrarian.getStatus.mockResolvedValue({
+      mockLiBrainian.getStatus.mockResolvedValue({
         bootstrapped: true,
         stats: {
           totalFunctions: 50,
@@ -411,11 +414,34 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalled();
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalled();
+    });
+
+    it('skips update when not bootstrapped and allowLockSkip is true', async () => {
+      mockLiBrainian.getStatus.mockResolvedValue({
+        bootstrapped: false,
+        stats: {
+          totalFunctions: 0,
+          totalModules: 0,
+        },
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('not bootstrapped')
+      );
+      expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
     });
   });
 
-  describe('Librarian Initialization', () => {
+  describe('LiBrainian Initialization', () => {
     it('should initialize librarian with correct workspace', async () => {
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -425,7 +451,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(Librarian).toHaveBeenCalledWith(
+      expect(LiBrainian).toHaveBeenCalledWith(
         expect.objectContaining({
           workspace: mockWorkspace,
           autoBootstrap: false,
@@ -446,7 +472,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(Librarian).toHaveBeenCalledWith(
+      expect(LiBrainian).toHaveBeenCalledWith(
         expect.objectContaining({
           llmProvider: 'codex',
         })
@@ -467,7 +493,7 @@ describe('indexCommand', () => {
       };
 
       await expect(indexCommand(options)).resolves.toBeUndefined();
-      expect(Librarian).toHaveBeenCalledWith(
+      expect(LiBrainian).toHaveBeenCalledWith(
         expect.objectContaining({
           llmProvider: undefined,
           llmModelId: undefined,
@@ -486,7 +512,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(Librarian).toHaveBeenCalledWith(
+      expect(LiBrainian).toHaveBeenCalledWith(
         expect.objectContaining({
           llmModelId: 'claude-3-opus-20240229',
         })
@@ -494,12 +520,46 @@ describe('indexCommand', () => {
 
       delete process.env.LIBRARIAN_LLM_MODEL;
     });
+
+    it('skips update gracefully when index lock is active and allowLockSkip is true', async () => {
+      mockLiBrainian.initialize.mockRejectedValue(
+        new Error('unverified_by_trace:storage_locked:indexing in progress (pid=1234, startedAt=2026-02-21T00:00:00.000Z)')
+      );
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('index is busy')
+      );
+      expect(mockLiBrainian.getStatus).not.toHaveBeenCalled();
+    });
+
+    it('fails when index lock is active and allowLockSkip is false', async () => {
+      mockLiBrainian.initialize.mockRejectedValue(
+        new Error('unverified_by_trace:storage_locked:indexing in progress (pid=1234, startedAt=2026-02-21T00:00:00.000Z)')
+      );
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+      };
+
+      await expect(indexCommand(options)).rejects.toThrow(CliError);
+      await expect(indexCommand(options)).rejects.toThrow('Failed to initialize librarian');
+    });
   });
 
   describe('Reindex Failure Handling', () => {
     it('should handle reindexFiles failure and throw CliError', async () => {
       const error = new Error('Provider unavailable');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -518,7 +578,7 @@ describe('indexCommand', () => {
 
     it('should provide detailed error message for provider unavailable', async () => {
       const error = new Error('ProviderUnavailable: API key not configured');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -538,7 +598,7 @@ describe('indexCommand', () => {
 
     it('should provide detailed error message for database lock', async () => {
       const error = new Error('Database error: SQLITE_BUSY');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -555,7 +615,7 @@ describe('indexCommand', () => {
 
     it('should provide detailed error message for parse errors', async () => {
       const error = new Error('Failed to extract function from source');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -573,7 +633,7 @@ describe('indexCommand', () => {
     it('should show stack trace in verbose mode on error', async () => {
       const error = new Error('Test error with stack');
       error.stack = 'Error: Test error\n  at test.js:1:1';
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -590,7 +650,7 @@ describe('indexCommand', () => {
 
     it('should ensure librarian.shutdown is called even on failure', async () => {
       const error = new Error('Indexing failed');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
 
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -600,17 +660,17 @@ describe('indexCommand', () => {
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
 
-      expect(mockLibrarian.shutdown).toHaveBeenCalled();
+      expect(mockLiBrainian.shutdown).toHaveBeenCalled();
     });
 
     it('should show final status on partial failure', async () => {
       const error = new Error('Partial failure');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
-      mockLibrarian.getStatus.mockResolvedValueOnce({
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.getStatus.mockResolvedValueOnce({
         bootstrapped: true,
         stats: { totalFunctions: 100, totalModules: 10 },
       });
-      mockLibrarian.getStatus.mockResolvedValueOnce({
+      mockLiBrainian.getStatus.mockResolvedValueOnce({
         bootstrapped: true,
         stats: { totalFunctions: 105, totalModules: 11 },
       });
@@ -769,11 +829,11 @@ describe('indexCommand', () => {
         return vi.fn();
       });
 
-      mockLibrarian.getStatus.mockResolvedValueOnce({
+      mockLiBrainian.getStatus.mockResolvedValueOnce({
         bootstrapped: true,
         stats: { totalFunctions: 100, totalModules: 10 },
       });
-      mockLibrarian.getStatus.mockResolvedValueOnce({
+      mockLiBrainian.getStatus.mockResolvedValueOnce({
         bootstrapped: true,
         stats: { totalFunctions: 105, totalModules: 11 },
       });
@@ -823,8 +883,8 @@ describe('indexCommand', () => {
       });
 
       const error = new Error('Partial failure');
-      mockLibrarian.reindexFiles.mockRejectedValue(error);
-      mockLibrarian.getStatus.mockResolvedValue({
+      mockLiBrainian.reindexFiles.mockRejectedValue(error);
+      mockLiBrainian.getStatus.mockResolvedValue({
         bootstrapped: true,
         stats: { totalFunctions: 100, totalModules: 10 },
       });
@@ -864,9 +924,9 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.initialize).toHaveBeenCalled();
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile1, mockFile2]);
-      expect(mockLibrarian.shutdown).toHaveBeenCalled();
+      expect(mockLiBrainian.initialize).toHaveBeenCalled();
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile1, mockFile2]);
+      expect(mockLiBrainian.shutdown).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing successful'));
     });
 
@@ -884,11 +944,11 @@ describe('indexCommand', () => {
     });
 
     it('should show updated totals on success', async () => {
-      mockLibrarian.getStatus.mockResolvedValueOnce({
+      mockLiBrainian.getStatus.mockResolvedValueOnce({
         bootstrapped: true,
         stats: { totalFunctions: 100, totalModules: 10 },
       });
-      mockLibrarian.getStatus.mockResolvedValueOnce({
+      mockLiBrainian.getStatus.mockResolvedValueOnce({
         bootstrapped: true,
         stats: { totalFunctions: 110, totalModules: 12 },
       });
@@ -917,7 +977,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
     });
 
     it('should handle absolute paths', async () => {
@@ -929,7 +989,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile1]);
     });
 
     it('should handle mixed absolute and relative paths', async () => {
@@ -941,7 +1001,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(mockLibrarian.reindexFiles).toHaveBeenCalledWith([mockFile1, mockFile2]);
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([mockFile1, mockFile2]);
     });
   });
 
@@ -958,7 +1018,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(Librarian).toHaveBeenCalledWith(
+      expect(LiBrainian).toHaveBeenCalledWith(
         expect.objectContaining({
           workspace: customWorkspace,
         })
@@ -976,7 +1036,7 @@ describe('indexCommand', () => {
 
       await indexCommand(options);
 
-      expect(Librarian).toHaveBeenCalledWith(
+      expect(LiBrainian).toHaveBeenCalledWith(
         expect.objectContaining({
           workspace: cwd,
         })

@@ -659,6 +659,7 @@ async function main(): Promise<void> {
             incremental: args.includes('--incremental'),
             staged: args.includes('--staged'),
             since: since ?? undefined,
+            allowLockSkip: command === 'update',
           });
         }
         break;

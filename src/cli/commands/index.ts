@@ -15,9 +15,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Librarian } from '../../api/librarian.js';
+import { LiBrainian } from '../../api/librarian.js';
 import { CliError } from '../errors.js';
-import { globalEventBus, type LibrarianEvent } from '../../events.js';
+import { globalEventBus, type LiBrainianEvent } from '../../events.js';
 import {
   getGitDiffNames,
   getGitFileContentAtRef,
@@ -36,6 +36,15 @@ export interface IndexCommandOptions {
   incremental?: boolean;
   staged?: boolean;
   since?: string;
+  allowLockSkip?: boolean;
+}
+
+function isStorageLockError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('storage_locked')
+    || normalized.includes('indexing in progress')
+    || normalized.includes('sqlite_busy')
+    || normalized.includes('database is locked');
 }
 
 export async function indexCommand(options: IndexCommandOptions): Promise<void> {
@@ -73,7 +82,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     );
   }
 
-  console.log('\n=== Librarian Index ===\n');
+  console.log('\n=== LiBrainian Index ===\n');
   console.log(`Workspace: ${workspace}`);
   if (options.since) {
     console.log(`Selection mode: --since ${options.since}`);
@@ -163,7 +172,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
 
   // Initialize librarian with proper error handling
   let initialized = false;
-  const librarian = new Librarian({
+  const librarian = new LiBrainian({
     workspace,
     autoBootstrap: false,
     autoWatch: false,
@@ -175,8 +184,16 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     await librarian.initialize();
     initialized = true;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (options.allowLockSkip && isStorageLockError(errorMessage)) {
+      console.warn('LiBrainian index is busy (another process is indexing); skipping update. Retry shortly.');
+      if (verbose) {
+        console.warn(`Details: ${errorMessage}`);
+      }
+      return;
+    }
     throw new CliError(
-      `Failed to initialize librarian: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to initialize librarian: ${errorMessage}`,
       'STORAGE_ERROR'
     );
   }
@@ -185,7 +202,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   let created = 0;
   let updated = 0;
   const unsubscribe = verbose
-    ? globalEventBus.on('*', (event: LibrarianEvent) => {
+    ? globalEventBus.on('*', (event: LiBrainianEvent) => {
         switch (event.type) {
           case 'entity_created':
             created++;
@@ -202,8 +219,12 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   try {
     const status = await librarian.getStatus();
     if (!status.bootstrapped) {
+      if (options.allowLockSkip) {
+        console.warn('LiBrainian index is not bootstrapped; skipping update. Run "librarian bootstrap" to initialize.');
+        return;
+      }
       throw new CliError(
-        'Librarian not bootstrapped. Run "librarian bootstrap" first.',
+        'LiBrainian not bootstrapped. Run "librarian bootstrap" first.',
         'NOT_BOOTSTRAPPED'
       );
     }
