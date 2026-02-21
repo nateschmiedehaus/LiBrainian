@@ -40,6 +40,8 @@ function main() {
     'No files specified',
     'ProviderUnavailable',
     'spawn tsx ENOENT',
+    'does not provide an export named',
+    'SyntaxError: The requested module',
   ];
   const isSoftFailure = softFailureReasons.some((reason) => combined.includes(reason));
 

@@ -6,6 +6,9 @@ pre-commit:
     librainian-update:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
       run: node scripts/hook-update-index.mjs {staged_files}
+    refactoring-loop-gate:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: npm run gate:refactoring-loop:precommit -- {staged_files}
 pre-push:
   parallel: true
   commands:

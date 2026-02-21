@@ -149,6 +149,18 @@ export {
 } from './result_quality_judge.js';
 
 export {
+  createRefactoringLoopGateConstruction,
+  type RefactoringLoopCategory,
+  type RefactoringLoopSeverity,
+  type RefactoringLoopLevel,
+  type RefactoringLoopPeerExample,
+  type RefactoringLoopImprovement,
+  type RefactoringLoopLevelResult,
+  type RefactoringLoopGateInput,
+  type RefactoringLoopResult,
+} from './refactoring_loop_gate.js';
+
+export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,

@@ -274,6 +274,31 @@ describe('agent_hooks', () => {
         intent: 'test-intent',
       }));
     });
+
+    it('runs refactoring loop gate on modified files and logs failures', async () => {
+      const { logWarning } = await import('../../telemetry/logger.js');
+      vi.mocked(logWarning).mockClear();
+
+      const changedFile = path.join(testDir, 'unsafe.ts');
+      await fs.writeFile(changedFile, `
+export async function run(input: string) {
+  const data = eval(input);
+  return data;
+}
+`);
+
+      await reportTaskOutcome('task-refactor-loop', {
+        success: true,
+        filesModified: [changedFile],
+      }, { workspace: testDir, enableRefactoringLoopGate: true });
+
+      expect(logWarning).toHaveBeenCalledWith(
+        '[agent_hooks] Refactoring loop gate failed',
+        expect.objectContaining({
+          taskId: 'task-refactor-loop',
+        })
+      );
+    });
   });
 
   describe('file monitoring', () => {

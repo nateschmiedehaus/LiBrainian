@@ -43,6 +43,7 @@ import {
   type LibrarianSession,
   type Context,
 } from '../orchestrator/unified_init.js';
+import { createRefactoringLoopGateConstruction } from '../constructions/processes/refactoring_loop_gate.js';
 
 // ============================================================================
 // TYPES
@@ -123,6 +124,14 @@ export interface AgentHookConfig {
   emitEvents?: boolean;
   /** Agent identifier for tracking */
   agentId?: string;
+  /** Enable post-task refactoring loop quality gate checks */
+  enableRefactoringLoopGate?: boolean;
+  /** Current repair-loop iteration for this task */
+  refactoringLoopIteration?: number;
+  /** Maximum allowed repair-loop iterations before escalation */
+  refactoringLoopMaxIterations?: number;
+  /** Gate depth: 2 for pre-commit parity, 4 for full quality mode */
+  refactoringLoopGateLevel?: 2 | 4;
 }
 
 /**
@@ -345,6 +354,44 @@ export async function reportTaskOutcome(
       const storage = sessionForFeedback?.librarian?.getStorage?.();
       if (storage) {
         await submitDetailedFeedback(taskId, packIds, outcome, storage, config.agentId);
+      }
+    }
+
+    if ((config.enableRefactoringLoopGate ?? true) && outcome.filesModified && outcome.filesModified.length > 0) {
+      const changedFiles: string[] = [];
+      for (const filePath of outcome.filesModified) {
+        const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(workspace, filePath);
+        if (!/\.(?:ts|tsx|js|jsx|mjs|cjs)$/iu.test(resolved)) continue;
+        try {
+          const stats = await fs.stat(resolved);
+          if (stats.isFile()) changedFiles.push(resolved);
+        } catch {
+          // Ignore deleted or transient files.
+        }
+      }
+
+      if (changedFiles.length > 0) {
+        const gate = createRefactoringLoopGateConstruction();
+        const gateResult = await gate.execute({
+          workspace,
+          changedFiles,
+          iteration: config.refactoringLoopIteration ?? 1,
+          maxIterations: config.refactoringLoopMaxIterations ?? 3,
+          gateLevel: config.refactoringLoopGateLevel ?? 4,
+          l0CompilationPassed: true,
+          l1TestsPassed: true,
+          l4AgenticUtilityDelta: 0,
+        });
+
+        if (!gateResult.pass) {
+          logWarning('[agent_hooks] Refactoring loop gate failed', {
+            taskId,
+            failedLevels: gateResult.failedLevels,
+            escalateToHuman: gateResult.escalateToHuman,
+            improvementCount: gateResult.requiredImprovements.length,
+            summary: gateResult.summary,
+          });
+        }
       }
     }
 

@@ -189,6 +189,8 @@
     "gh:branches:cleanup": "node scripts/gh-branch-hygiene.mjs",
     "librainian:update": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update",
     "librainian:update:staged": "node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update --staged",
+    "gate:refactoring-loop:precommit": "node scripts/run-with-tmpdir.mjs -- npx tsx scripts/refactoring-loop-gate.ts --mode precommit",
+    "gate:refactoring-loop:ci": "node scripts/run-with-tmpdir.mjs -- npx tsx scripts/refactoring-loop-gate.ts --mode ci",
     "hooks:update-index": "node scripts/hook-update-index.mjs",
     "hooks:install": "lefthook install",
     "prepare": "npm run hooks:install",
