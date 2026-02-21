@@ -22,13 +22,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run LiBrainian action
         uses: ./.github/actions/librainian
         with:
           workspace-root: ${{ github.workspace }}
+          cache-path: .librarian
           cache-key: librainian-${{ runner.os }}-${{ hashFiles('**/*.ts', '**/*.js', 'package-lock.json') }}
           restore-keys: |
             librainian-${{ runner.os }}-
           upload-artifact: true
           artifact-name: librainian-dogfood-index
+
+      - name: Dogfood gate (status + index + query suite)
+        run: node scripts/dogfood-ci-gate.mjs

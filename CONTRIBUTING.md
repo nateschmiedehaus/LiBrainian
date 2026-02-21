@@ -77,6 +77,21 @@ npm run typecheck
 
 If those pass, your environment is ready for editing and PR work.
 
+### LiBrainian Dogfood Workflow (Required)
+
+Before opening a PR, use LiBrainian on LiBrainian itself:
+
+```bash
+npx librainian status
+npx librainian query "Where is the MCP server initialized?" --strategy heuristic --no-synthesis
+npx librainian check --diff working-tree
+```
+
+Required expectation:
+- `librainian status` reports a healthy index (no MVP bootstrap required)
+- Query responses are non-empty and point to relevant files
+- `librainian check` passes for your changed files before review
+
 ### Environment Variables
 
 For full functionality, set these (all optional):

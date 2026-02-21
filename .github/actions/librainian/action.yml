@@ -45,7 +45,6 @@ runs:
         action_root="${{ github.action_path }}"
         repo_root="$(cd "${action_root}/../../.." && pwd)"
         tsx_bin="${repo_root}/node_modules/.bin/tsx"
-        export LIBRARIAN_SKIP_PROVIDER_CHECK=1
 
         if [ ! -x "${tsx_bin}" ]; then
           echo "[librainian-action] Installing repository dependencies."
@@ -54,7 +53,7 @@ runs:
         fi
 
         did_bootstrap=0
-        if [ ! -d "${workspace}/.librainian" ]; then
+        if [ ! -d "${workspace}/${{ inputs.cache-path }}" ]; then
           echo "[librainian-action] No existing index found, running bootstrap."
           "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
           did_bootstrap=1
