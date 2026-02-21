@@ -27,18 +27,21 @@ import { logInfo, logWarning } from '../../telemetry/logger.js';
  * Available embedding models with their properties.
  *
  * Note: Code-specific models like CodeBERT are not available in @xenova/transformers.
- * However, testing shows all-MiniLM-L6-v2 achieves perfect AUC (1.0) on code similarity tasks.
+ * all-MiniLM-L6-v2 is validated against an adversarial code-similarity harness with
+ * conservative quality floors (AUC > 0.6, accuracy > 0.5).
  * jina-embeddings-v2-base-en has 8K context window (vs 256 for MiniLM).
  */
+const MINILM_QUALITY_BASELINE = 'AUC > 0.6, accuracy > 0.5 on adversarial code similarity benchmark (src/__tests__/embedding_validation_real.integration.test.ts)';
+
 export const EMBEDDING_MODELS = {
   // General NLP model - small and fast (256 token context)
-  // Validated: AUC 1.0, 100% accuracy on code similarity task
+  // Quality baseline tracked by src/__tests__/embedding_validation_real.integration.test.ts
   'all-MiniLM-L6-v2': {
     xenovaId: 'Xenova/all-MiniLM-L6-v2',
     pythonId: 'all-MiniLM-L6-v2',
     dimension: 384,
     contextWindow: 256,
-    description: 'Fast, small model - validated for code similarity (AUC 1.0)',
+    description: `Fast, small model - ${MINILM_QUALITY_BASELINE}`,
   },
   // Jina embeddings - 8K context window, good for longer documents
   'jina-embeddings-v2-base-en': {
@@ -60,7 +63,7 @@ export const EMBEDDING_MODELS = {
 
 export type EmbeddingModelId = keyof typeof EMBEDDING_MODELS;
 
-// Default model - all-MiniLM-L6-v2 validated with perfect AUC on code
+// Default model - all-MiniLM-L6-v2 clears the documented adversarial quality floor
 export const DEFAULT_CODE_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
 export const DEFAULT_NLP_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
 

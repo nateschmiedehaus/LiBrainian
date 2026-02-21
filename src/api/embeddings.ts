@@ -61,6 +61,12 @@ export interface EmbeddingConfig {
   description: string;
 }
 
+const EMBEDDING_MODEL_DESCRIPTIONS = {
+  miniLm: EMBEDDING_MODELS['all-MiniLM-L6-v2'].description,
+  jina: EMBEDDING_MODELS['jina-embeddings-v2-base-en'].description,
+  bge: EMBEDDING_MODELS['bge-small-en-v1.5'].description,
+} as const;
+
 /**
  * Available embedding model configurations.
  *
@@ -74,7 +80,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 256,
     batchSize: 32,
-    description: 'Fast, small model - validated for code similarity (AUC 1.0)',
+    description: EMBEDDING_MODEL_DESCRIPTIONS.miniLm,
   },
   'xenova:jina-embeddings-v2-base-en': {
     model: 'jina-embeddings-v2-base-en',
@@ -82,7 +88,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 8192,
     batchSize: 16,
-    description: 'Large context (8K tokens) - good for full files',
+    description: EMBEDDING_MODEL_DESCRIPTIONS.jina,
   },
   'xenova:bge-small-en-v1.5': {
     model: 'bge-small-en-v1.5',
@@ -90,7 +96,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 512,
     batchSize: 32,
-    description: 'BGE small - efficient and effective',
+    description: EMBEDDING_MODEL_DESCRIPTIONS.bge,
   },
   // Shorthand aliases (default to xenova provider)
   'all-MiniLM-L6-v2': {
@@ -99,7 +105,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 256,
     batchSize: 32,
-    description: 'Fast, small model - validated for code similarity (AUC 1.0)',
+    description: EMBEDDING_MODEL_DESCRIPTIONS.miniLm,
   },
   'jina-embeddings-v2-base-en': {
     model: 'jina-embeddings-v2-base-en',
@@ -107,7 +113,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 8192,
     batchSize: 16,
-    description: 'Large context (8K tokens) - good for full files',
+    description: EMBEDDING_MODEL_DESCRIPTIONS.jina,
   },
   'bge-small-en-v1.5': {
     model: 'bge-small-en-v1.5',
@@ -115,7 +121,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 512,
     batchSize: 32,
-    description: 'BGE small - efficient and effective',
+    description: EMBEDDING_MODEL_DESCRIPTIONS.bge,
   },
 };
 
