@@ -1,0 +1,35 @@
+name: unit-patrol
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  unit-patrol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: '1'
+      LIBRARIAN_LLM_PROVIDER: disabled
+      LIBRARIAN_EMBEDDING_PROVIDER: xenova
+      LIBRARIAN_EMBEDDING_MODEL: all-MiniLM-L6-v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit patrol quality gates
+        run: npm run test:unit-patrol
