@@ -118,6 +118,45 @@ body:
         - CLI output shows explicit success signal.
     validations:
       required: true
+  - type: textarea
+    id: affected_files
+    attributes:
+      label: affected-files
+      description: List concrete files expected to change. Use one path per line.
+      placeholder: |
+        src/constructions/processes/patrol_process.ts
+        src/cli/commands/status.ts
+    validations:
+      required: true
+  - type: dropdown
+    id: complexity_estimate
+    attributes:
+      label: complexity-estimate
+      description: Agent complexity estimate for implementation.
+      options:
+        - S
+        - M
+        - L
+    validations:
+      required: true
+  - type: input
+    id: verification_command
+    attributes:
+      label: verification-command
+      description: Exact command agents should run to verify implementation.
+      placeholder: npm run build && npm test -- --run src/constructions/processes/__tests__/unit_patrol.test.ts
+    validations:
+      required: true
+  - type: dropdown
+    id: actionability
+    attributes:
+      label: Agent actionability label
+      description: Choose which label triage should apply.
+      options:
+        - agent/actionable
+        - agent/needs-human
+    validations:
+      required: true
   - type: dropdown
     id: contribution
     attributes:

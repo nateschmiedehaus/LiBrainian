@@ -169,3 +169,42 @@ body:
         - No new warnings/errors in related CLI output.
     validations:
       required: true
+  - type: textarea
+    id: affected_files
+    attributes:
+      label: affected-files
+      description: List concrete files expected to change. Use one path per line.
+      placeholder: |
+        src/cli/commands/query.ts
+        src/api/query.ts
+    validations:
+      required: true
+  - type: dropdown
+    id: complexity_estimate
+    attributes:
+      label: complexity-estimate
+      description: Agent complexity estimate for implementation.
+      options:
+        - S
+        - M
+        - L
+    validations:
+      required: true
+  - type: input
+    id: verification_command
+    attributes:
+      label: verification-command
+      description: Exact command agents should run to verify the fix.
+      placeholder: npm run build && npm test -- --run src/cli/commands/__tests__/query.test.ts
+    validations:
+      required: true
+  - type: dropdown
+    id: actionability
+    attributes:
+      label: Agent actionability label
+      description: Choose which label triage should apply.
+      options:
+        - agent/actionable
+        - agent/needs-human
+    validations:
+      required: true
