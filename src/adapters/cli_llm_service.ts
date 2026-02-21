@@ -14,6 +14,12 @@ import {
 } from '../utils/provider_failures.js';
 import { isPrivacyModeStrict } from '../utils/runtime_controls.js';
 import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
+import {
+  ProviderChaosMiddleware,
+  createProviderChaosConfigFromEnv,
+  type ProviderChaosResult,
+  type ProviderExecResult,
+} from './provider_chaos.js';
 
 type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: number) => void; recordRetry?: () => void };
 
@@ -135,6 +141,12 @@ function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
   return clipped || `${provider} CLI error`;
 }
 
+function classifyCorruptOutput(result: ProviderChaosResult): string | null {
+  if (result.chaosMode === 'truncated_response') return 'provider_chaos_truncated_response';
+  if (result.chaosMode === 'garbage_response') return 'provider_chaos_garbage_response';
+  return null;
+}
+
 function isStickyFailureReason(reason: string): boolean {
   const normalized = reason.toLowerCase();
   return normalized === 'auth_failed' || normalized === 'quota_exceeded';
@@ -156,6 +168,7 @@ export class CliLlmService {
   private codexHealthCheckTimeoutMs = coerceTimeout(process.env.CODEX_HEALTH_CHECK_TIMEOUT_MS, 20000);
   private healthCheckIntervalMs = coerceTimeout(process.env.LLM_HEALTH_CHECK_INTERVAL_MS, 60000);
   private providerWorkspaceRoot = resolveProviderWorkspaceRoot();
+  private providerChaos = new ProviderChaosMiddleware(createProviderChaosConfigFromEnv());
 
   private health: HealthState = {
     claude: buildInitialHealth('claude'),
@@ -351,11 +364,18 @@ export class CliLlmService {
         env.CLAUDE_MODEL = options.modelId;
       }
       logInfo('CLI LLM: claude call', { promptLength: fullPrompt.length });
-        const result = await execa('claude', args, {
-        input: fullPrompt,
-        env,
-        timeout: this.claudeTimeoutMs > 0 ? this.claudeTimeoutMs : undefined,
-        reject: false,
+      const result = await this.executeWithChaos(async () => {
+        const output = await execa('claude', args, {
+          input: fullPrompt,
+          env,
+          timeout: this.claudeTimeoutMs > 0 ? this.claudeTimeoutMs : undefined,
+          reject: false,
+        });
+        return {
+          exitCode: Number(output.exitCode ?? 1),
+          stdout: String(output.stdout ?? ''),
+          stderr: String(output.stderr ?? ''),
+        };
       });
         if (result.exitCode !== 0) {
           const rawError = normalizeClaudeErrorMessage(String(result.stderr || result.stdout || 'Claude CLI error'));
@@ -364,6 +384,11 @@ export class CliLlmService {
           await this.recordFailure('claude', errorMsg, rawError);
           throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
         }
+      const corruptionReason = classifyCorruptOutput(result);
+      if (corruptionReason) {
+        await this.recordFailure('claude', corruptionReason, corruptionReason);
+        throw new Error(`unverified_by_trace(llm_execution_failed): ${corruptionReason}`);
+      }
       const content = String(result.stdout ?? '');
       if (governor) {
         governor.recordTokens(estimateTokenCount(content));
@@ -420,11 +445,18 @@ export class CliLlmService {
 
         args.push('-');
         logInfo('CLI LLM: codex call', { promptLength: fullPrompt.length });
-        const result = await execa('codex', args, {
-          input: fullPrompt,
-          env: withCliPath({ ...process.env }),
-          timeout: this.codexTimeoutMs > 0 ? this.codexTimeoutMs : undefined,
-          reject: false,
+        const result = await this.executeWithChaos(async () => {
+          const output = await execa('codex', args, {
+            input: fullPrompt,
+            env: withCliPath({ ...process.env }),
+            timeout: this.codexTimeoutMs > 0 ? this.codexTimeoutMs : undefined,
+            reject: false,
+          });
+          return {
+            exitCode: Number(output.exitCode ?? 1),
+            stdout: String(output.stdout ?? ''),
+            stderr: String(output.stderr ?? ''),
+          };
         });
 
         if (result.exitCode !== 0) {
@@ -436,6 +468,11 @@ export class CliLlmService {
         }
 
         let content = String(result.stdout ?? '');
+        const corruptionReason = classifyCorruptOutput(result);
+        if (corruptionReason) {
+          await this.recordFailure('codex', corruptionReason, corruptionReason);
+          throw new Error(`unverified_by_trace(llm_execution_failed): ${corruptionReason}`);
+        }
         if (outputPath) {
           try {
             content = await fs.promises.readFile(outputPath, 'utf8');
@@ -463,6 +500,23 @@ export class CliLlmService {
         }
       }
     });
+  }
+
+  private async executeWithChaos(invoke: () => Promise<ProviderExecResult>): Promise<ProviderChaosResult> {
+    try {
+      return await this.providerChaos.execute(invoke);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('provider_chaos_timeout')) {
+        return {
+          chaosMode: 'timeout',
+          exitCode: 1,
+          stdout: '',
+          stderr: message,
+        };
+      }
+      throw error;
+    }
   }
 
   private async recordFailure(provider: CliProvider, message: string, rawMessage?: string): Promise<void> {

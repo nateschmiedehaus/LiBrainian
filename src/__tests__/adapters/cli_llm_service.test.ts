@@ -22,12 +22,20 @@ describe('CliLlmService provider routing', () => {
   const previousWave0Provider = process.env.WAVE0_LLM_PROVIDER;
   const previousGenericProvider = process.env.LLM_PROVIDER;
   const previousAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const previousChaosEnabled = process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED;
+  const previousChaosMode = process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
+  const previousChaosRate = process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
+  const previousChaosSequence = process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE;
 
   beforeEach(() => {
     execaMock.mockReset();
     delete process.env.LIBRARIAN_LLM_PROVIDER;
     delete process.env.WAVE0_LLM_PROVIDER;
     delete process.env.LLM_PROVIDER;
+    delete process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED;
+    delete process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
+    delete process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
+    delete process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE;
   });
 
   afterEach(() => {
@@ -39,6 +47,14 @@ describe('CliLlmService provider routing', () => {
     else process.env.LLM_PROVIDER = previousGenericProvider;
     if (previousAnthropicApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = previousAnthropicApiKey;
+    if (previousChaosEnabled === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED;
+    else process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED = previousChaosEnabled;
+    if (previousChaosMode === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
+    else process.env.LIBRARIAN_PROVIDER_CHAOS_MODE = previousChaosMode;
+    if (previousChaosRate === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
+    else process.env.LIBRARIAN_PROVIDER_CHAOS_RATE = previousChaosRate;
+    if (previousChaosSequence === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE;
+    else process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE = previousChaosSequence;
   });
 
   it('uses requested provider when no override is configured', async () => {
@@ -177,5 +193,31 @@ describe('CliLlmService provider routing', () => {
       messages: [{ role: 'user', content: 'hello' }],
     });
     expect(result.provider).toBe('claude');
+  });
+
+  it('recovers from chaos-injected corruption and succeeds on subsequent calls', async () => {
+    process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED = '1';
+    process.env.LIBRARIAN_PROVIDER_CHAOS_RATE = '1';
+    process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE = 'truncated_response,slow_response,slow_response';
+    execaMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: 'healthy provider response payload',
+      stderr: '',
+    } as never);
+
+    const service = new CliLlmService();
+
+    const first = await service.chat({
+      provider: 'claude',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+    expect(first.provider).toBe('codex');
+
+    const second = await service.chat({
+      provider: 'claude',
+      messages: [{ role: 'user', content: 'hello again' }],
+    });
+    expect(second.provider).toBe('claude');
+    expect(second.content.includes('provider_chaos')).toBe(false);
   });
 });

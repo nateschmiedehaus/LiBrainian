@@ -133,6 +133,13 @@ export {
 } from './patrol_regression_closure_gate.js';
 
 export {
+  createProviderChaosGateConstruction,
+  type ProviderChaosGateInput,
+  type ProviderChaosModeResult,
+  type ProviderChaosGateOutput,
+} from './provider_chaos_gate.js';
+
+export {
   createResultQualityJudgeConstruction,
   deriveResultQualityThresholds,
   type ResultQualityThresholdSeed,
