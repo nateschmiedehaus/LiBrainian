@@ -39,6 +39,8 @@ function main() {
     'No valid files to index',
     'No files specified',
     'ProviderUnavailable',
+    'llm_adapter_unavailable',
+    'Default LLM service factory not registered',
     'spawn tsx ENOENT',
   ];
   const isSoftFailure = softFailureReasons.some((reason) => combined.includes(reason));

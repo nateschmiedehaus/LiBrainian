@@ -2503,7 +2503,7 @@ export const DEFAULT_MCP_SERVER_CONFIG: LiBrainianMCPServerConfig = {
     defaultReviewTimeoutSeconds: 300,
   },
   proactiveInjection: {
-    enabled: false,
+    enabled: true,
     maxTokens: 2000,
     minCoverage: 0.5,
   },

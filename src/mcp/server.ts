@@ -2469,6 +2469,20 @@ export class LiBrainianMCPServer {
         throw new Error(`Authorization denied: ${invocation.authTokenError}`);
       }
 
+      const proactiveInjectionResult = await this.tryHandleProactiveToolCall(name, invocation.toolArgs);
+      if (proactiveInjectionResult) {
+        this.logAudit({
+          id: entryId,
+          timestamp: new Date().toISOString(),
+          operation: 'tool_call',
+          name,
+          input: this.sanitizeInput(invocation.toolArgs),
+          status: 'success',
+          durationMs: Date.now() - startTime,
+        });
+        return proactiveInjectionResult;
+      }
+
       // Validate input
       const validation = validateToolInput(name, invocation.toolArgs);
       if (!validation.valid) {
@@ -2658,6 +2672,26 @@ export class LiBrainianMCPServer {
     } finally {
       this.inFlightToolCalls = Math.max(0, this.inFlightToolCalls - 1);
     }
+  }
+
+  private async tryHandleProactiveToolCall(name: string, args: unknown): Promise<CallToolResult | null> {
+    const normalizedTool = this.normalizeProactiveToolName(name);
+    if (!normalizedTool) return null;
+
+    const toolArgs = (typeof args === 'object' && args !== null && !Array.isArray(args))
+      ? args as Record<string, unknown>
+      : {};
+    const injected = await this.onToolCall(normalizedTool, toolArgs);
+    if (!injected) return null;
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: injected,
+        },
+      ],
+    };
   }
 
   private extractToolInvocationContext(args: unknown): {

@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { estimateTokens } from '../../api/token_budget.js';
-import { createLibrarianMCPServer, type LibrarianMCPServer } from '../server.js';
+import { createLiBrainianMCPServer, type LiBrainianMCPServer } from '../server.js';
+import { DEFAULT_MCP_SERVER_CONFIG } from '../types.js';
 
 function makeStorageMock(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
@@ -26,8 +27,9 @@ describe('MCP proactive tool injection', () => {
     await fs.rm(workspace, { recursive: true, force: true });
   });
 
-  it('is opt-in and returns null by default', async () => {
-    const server = await createLibrarianMCPServer();
+  it('is enabled by default and returns null when no context packs exist', async () => {
+    expect(DEFAULT_MCP_SERVER_CONFIG.proactiveInjection.enabled).toBe(true);
+    const server = await createLiBrainianMCPServer();
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
       indexState: 'ready',
@@ -44,7 +46,7 @@ describe('MCP proactive tool injection', () => {
 
   it('injects read_file context when enabled and coverage is at least 50%', async () => {
     const filePath = path.join(workspace, 'src/auth/login.ts');
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       proactiveInjection: {
         enabled: true,
         maxTokens: 2000,
@@ -90,7 +92,7 @@ describe('MCP proactive tool injection', () => {
 
   it('skips injection when coverage is below threshold', async () => {
     const filePath = path.join(workspace, 'src/auth/login.ts');
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       proactiveInjection: {
         enabled: true,
         maxTokens: 2000,
@@ -132,7 +134,7 @@ describe('MCP proactive tool injection', () => {
   it('adds refactor safety summary for write/edit tool calls', async () => {
     const filePath = path.join(workspace, 'src/auth/login.ts');
     const callerPath = path.join(workspace, 'src/http/routes.ts');
-    const server = await createLibrarianMCPServer({
+    const server = await createLiBrainianMCPServer({
       proactiveInjection: {
         enabled: true,
         maxTokens: 2000,
@@ -182,7 +184,7 @@ describe('MCP proactive tool injection', () => {
       JSON.stringify({ librainian: { proactiveInjection: true } }, null, 2),
       'utf8',
     );
-    const server = await createLibrarianMCPServer();
+    const server = await createLiBrainianMCPServer();
     server.registerWorkspace(workspace);
     server.updateWorkspaceState(workspace, {
       indexState: 'ready',
@@ -208,5 +210,42 @@ describe('MCP proactive tool injection', () => {
     });
 
     expect(injected).toContain('LiBrainian Proactive Context');
+  });
+
+  it('wires proactive injection through callTool lifecycle for read_file', async () => {
+    const filePath = path.join(workspace, 'src/auth/login.ts');
+    const server = await createLiBrainianMCPServer({
+      proactiveInjection: {
+        enabled: true,
+        maxTokens: 2000,
+        minCoverage: 0.5,
+      },
+    } as any);
+    server.registerWorkspace(workspace);
+    server.updateWorkspaceState(workspace, {
+      indexState: 'ready',
+      storage: makeStorageMock({
+        getContextPacks: async () => [
+          {
+            packId: 'pack-login',
+            packType: 'function_context',
+            targetId: 'fn-login',
+            summary: 'Handles login validation and session creation.',
+            keyFacts: ['Reads auth config and validates credential hashes.'],
+            relatedFiles: [filePath],
+            confidence: 0.9,
+          },
+        ],
+        getFunctionsByPath: async () => [{ id: 'fn-login' }],
+      }) as any,
+    });
+
+    const result = await (server as any).callTool('read_file', {
+      workspace,
+      path: 'src/auth/login.ts',
+    });
+    const text = result.content?.[0]?.text ?? '';
+    expect(text).toContain('LiBrainian Proactive Context');
+    expect(text).toContain('Tool: read_file');
   });
 });
