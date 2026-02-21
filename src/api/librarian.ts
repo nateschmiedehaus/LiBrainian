@@ -1578,3 +1578,10 @@ export async function createLibrarian(config: LibrarianConfig): Promise<Libraria
 export function createLibrarianSync(config: LibrarianConfig): Librarian {
   return new Librarian({ ...config, autoBootstrap: false });
 }
+
+// Legacy compatibility aliases for modules that still import LiBrainian symbols.
+export {
+  Librarian as LiBrainian,
+  createLibrarian as createLiBrainian,
+  createLibrarianSync as createLiBrainianSync,
+};

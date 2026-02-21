@@ -68,8 +68,18 @@ export interface OwnershipInput {
   // File content for tribal knowledge extraction
   content?: string;
 
+  // LLM-derived wisdom from semantic extraction
+  wisdom?: OwnershipWisdomInput;
+
   // Codeowners data
   codeowners?: string[];
+}
+
+export interface OwnershipWisdomInput {
+  tribal?: string[];
+  gotchas?: string[];
+  tips?: string[];
+  learningPath?: Array<{ order?: number; description: string }>;
 }
 
 export interface IndexedCommit {
@@ -318,7 +328,7 @@ export async function extractOwnership(input: OwnershipInput): Promise<Ownership
   const reviewers = buildReviewerList(experts);
 
   // Extract tribal knowledge from comments
-  const knowledge = extractTribalKnowledge(input.content);
+  const knowledge = extractTribalKnowledge(input.content, input.wisdom);
 
   // Build contact info (would come from external source in production)
   const contact = buildContactInfo(owner);
@@ -405,67 +415,63 @@ function buildReviewerList(experts: Expert[]): Reviewer[] {
     }));
 }
 
-function extractTribalKnowledge(content: string | undefined): TribalKnowledgeInfo {
-  const tribal: TribalKnowledge[] = [];
-  const gotchas: Gotcha[] = [];
-  const tips: Tip[] = [];
-  const learningPath: LearningStep[] = [];
+function extractTribalKnowledge(content: string | undefined, wisdom?: OwnershipWisdomInput): TribalKnowledgeInfo {
+  const commentTribal: TribalKnowledge[] = [];
+  const commentGotchas: Gotcha[] = [];
+  const commentTips: Tip[] = [];
 
-  if (!content) {
-    return { tribal, gotchas, tips, learningPath };
+  if (content) {
+    // Extract warnings/cautions
+    const warningMatches = content.matchAll(/(?:WARNING|CAUTION|IMPORTANT|NOTE|NB):?\s*([^\n]+)/gi);
+    for (const match of warningMatches) {
+      commentTribal.push({
+        knowledge: match[1].trim(),
+        source: 'Code comment',
+        importance: 'important',
+      });
+    }
+
+    // Extract gotchas from specific patterns
+    const gotchaMatches = content.matchAll(/(?:GOTCHA|HACK|WORKAROUND|QUIRK):?\s*([^\n]+)/gi);
+    for (const match of gotchaMatches) {
+      commentGotchas.push({
+        description: match[1].trim(),
+        consequence: 'May cause unexpected behavior',
+        prevention: 'Follow documented pattern',
+      });
+    }
+
+    // Extract tips from @see or "see also" patterns
+    const tipMatches = content.matchAll(/@see\s+([^\n]+)|see\s+also:?\s+([^\n]+)/gi);
+    for (const match of tipMatches) {
+      commentTips.push({
+        description: (match[1] || match[2]).trim(),
+        context: 'Related documentation',
+      });
+    }
   }
 
-  // Extract warnings/cautions
-  const warningMatches = content.matchAll(/(?:WARNING|CAUTION|IMPORTANT|NOTE|NB):?\s*([^\n]+)/gi);
-  for (const match of warningMatches) {
-    tribal.push({
-      knowledge: match[1].trim(),
-      source: 'Code comment',
-      importance: 'important',
-    });
-  }
-
-  // Extract gotchas from specific patterns
-  const gotchaMatches = content.matchAll(/(?:GOTCHA|HACK|WORKAROUND|QUIRK):?\s*([^\n]+)/gi);
-  for (const match of gotchaMatches) {
-    gotchas.push({
-      description: match[1].trim(),
-      consequence: 'May cause unexpected behavior',
-      prevention: 'Follow documented pattern',
-    });
-  }
-
-  // Extract tips from @see or "see also" patterns
-  const tipMatches = content.matchAll(/@see\s+([^\n]+)|see\s+also:?\s+([^\n]+)/gi);
-  for (const match of tipMatches) {
-    tips.push({
-      description: (match[1] || match[2]).trim(),
-      context: 'Related documentation',
-    });
-  }
-
-  // Build learning path from complexity of code
-  const complexity = estimateComplexity(content);
-  if (complexity > 10) {
-    learningPath.push({
-      order: 1,
-      description: 'Understand the data structures used',
-    });
-    learningPath.push({
-      order: 2,
-      description: 'Trace the main execution flow',
-    });
-    learningPath.push({
-      order: 3,
-      description: 'Review edge cases and error handling',
-    });
-  }
+  const llmTribal = normalizeStringList(wisdom?.tribal).map((knowledge) => ({
+    knowledge,
+    source: 'LLM semantic extraction',
+    importance: 'important' as const,
+  }));
+  const llmGotchas = normalizeStringList(wisdom?.gotchas).map((description) => ({
+    description,
+    consequence: 'Can cause incorrect behavior if overlooked',
+    prevention: 'Review semantics and tests before modifying',
+  }));
+  const llmTips = normalizeStringList(wisdom?.tips).map((description) => ({
+    description,
+    context: 'Recommended usage pattern from semantic analysis',
+  }));
+  const llmLearningPath = normalizeLearningPath(wisdom?.learningPath);
 
   return {
-    tribal: tribal.slice(0, 5),
-    gotchas: gotchas.slice(0, 5),
-    tips: tips.slice(0, 5),
-    learningPath,
+    tribal: dedupeByKey([...llmTribal, ...commentTribal], (item) => item.knowledge.toLowerCase()).slice(0, 5),
+    gotchas: dedupeByKey([...llmGotchas, ...commentGotchas], (item) => item.description.toLowerCase()).slice(0, 5),
+    tips: dedupeByKey([...llmTips, ...commentTips], (item) => item.description.toLowerCase()).slice(0, 5),
+    learningPath: llmLearningPath,
   };
 }
 
@@ -518,6 +524,48 @@ function buildEscalationPath(owner: TeamMember | null, codeowners?: string[]): s
   }
 
   return parts.join(' → ');
+}
+
+function normalizeStringList(values: string[] | undefined, limit = 5): string[] {
+  if (!Array.isArray(values)) return [];
+  const normalized = values
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  return dedupeByKey(normalized, (value) => value.toLowerCase()).slice(0, limit);
+}
+
+function normalizeLearningPath(
+  learningPath: Array<{ order?: number; description: string }> | undefined
+): LearningStep[] {
+  if (!Array.isArray(learningPath)) return [];
+  const normalized = learningPath
+    .map((step, index) => {
+      const description = typeof step.description === 'string' ? step.description.trim() : '';
+      if (description.length === 0) return null;
+      const order = typeof step.order === 'number' && Number.isFinite(step.order) && step.order > 0
+        ? Math.trunc(step.order)
+        : index + 1;
+      return { order, description };
+    })
+    .filter((step): step is LearningStep => step !== null);
+  const deduped = dedupeByKey(normalized, (step) => step.description.toLowerCase());
+  return deduped
+    .sort((a, b) => a.order - b.order)
+    .slice(0, 8)
+    .map((step, index) => ({ order: index + 1, description: step.description }));
+}
+
+function dedupeByKey<T>(items: T[], keyFn: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
 }
 
 // ============================================================================

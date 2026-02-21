@@ -15,6 +15,9 @@ import { createError } from '../errors.js';
 import type { LibrarianStorage } from '../../storage/types.js';
 import type { FunctionKnowledge, GraphEdge } from '../../types.js';
 
+const WISDOM_COVERAGE_MIN_FUNCTIONS = 50;
+const WISDOM_COVERAGE_THRESHOLD = 0.2;
+
 export interface CheckCommandOptions {
   workspace: string;
   args: string[];
@@ -314,8 +317,9 @@ async function runChecks(storage: LibrarianStorage, workspaceRoot: string, chang
   const orphanedClaims = await checkOrphanedClaims(storage, workspaceRoot, changedExisting);
   const coverageRegression = await checkCoverageRegression(storage, workspaceRoot, changedExisting);
   const callGraphIntegrity = await checkCallGraphIntegrity(storage, workspaceRoot, changedExisting);
+  const wisdomCoverage = await checkWisdomCoverage(storage, workspaceRoot);
 
-  return [staleContext, brokenImports, orphanedClaims, coverageRegression, callGraphIntegrity];
+  return [staleContext, brokenImports, orphanedClaims, coverageRegression, callGraphIntegrity, wisdomCoverage];
 }
 
 async function checkStaleContext(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
@@ -553,6 +557,57 @@ async function checkCallGraphIntegrity(storage: LibrarianStorage, workspaceRoot:
   };
 }
 
+async function checkWisdomCoverage(storage: LibrarianStorage, workspaceRoot: string): Promise<LintCheck> {
+  const records = await storage.getUniversalKnowledgeByKind('function');
+
+  if (records.length < WISDOM_COVERAGE_MIN_FUNCTIONS) {
+    return {
+      name: 'wisdom_coverage',
+      status: 'pass',
+      message: `Wisdom coverage check skipped (<${WISDOM_COVERAGE_MIN_FUNCTIONS} indexed functions).`,
+    };
+  }
+
+  let enrichedCount = 0;
+  const missingWisdomFiles: string[] = [];
+  let parseErrors = 0;
+
+  for (const record of records) {
+    const wisdomStatus = hasWisdomKnowledge(record.knowledge);
+    if (wisdomStatus === 'present') {
+      enrichedCount += 1;
+      continue;
+    }
+    if (wisdomStatus === 'parse_error') {
+      parseErrors += 1;
+    }
+    if (missingWisdomFiles.length < 10) {
+      missingWisdomFiles.push(record.file);
+    }
+  }
+
+  const coverage = enrichedCount / records.length;
+  const coveragePercent = Math.round(coverage * 100);
+  const requiredPercent = Math.round(WISDOM_COVERAGE_THRESHOLD * 100);
+  const parseSuffix = parseErrors > 0 ? ` (${parseErrors} parse errors)` : '';
+
+  if (coverage >= WISDOM_COVERAGE_THRESHOLD) {
+    return {
+      name: 'wisdom_coverage',
+      status: 'pass',
+      message: `Wisdom coverage ${coveragePercent}% (${enrichedCount}/${records.length})${parseSuffix}.`,
+    };
+  }
+
+  return {
+    name: 'wisdom_coverage',
+    status: 'fail',
+    message: `Wisdom coverage ${coveragePercent}% (${enrichedCount}/${records.length}) is below required ${requiredPercent}%${parseSuffix}.`,
+    files: missingWisdomFiles.map((filePath) => normalizeDisplayPath(workspaceRoot, filePath)),
+    fix: 'Regenerate understanding with LLM semantic extraction and verify ownership.knowledge.gotchas/tips are populated.',
+  };
+}
+
 function collectFunctionImpacts(
   edges: GraphEdge[],
   key: 'fromId' | 'toId',
@@ -571,6 +626,30 @@ function resolveEvidencePath(workspaceRoot: string, evidencePath: string): strin
   return path.isAbsolute(evidencePath)
     ? path.normalize(evidencePath)
     : path.resolve(workspaceRoot, evidencePath);
+}
+
+function hasWisdomKnowledge(knowledgeJson: string): 'present' | 'missing' | 'parse_error' {
+  try {
+    const parsed: unknown = JSON.parse(knowledgeJson);
+    if (!isRecord(parsed)) return 'missing';
+    const ownership = parsed.ownership;
+    if (!isRecord(ownership)) return 'missing';
+    const knowledge = ownership.knowledge;
+    if (!isRecord(knowledge)) return 'missing';
+
+    const gotchas = knowledge.gotchas;
+    const tips = knowledge.tips;
+
+    const hasGotchas = Array.isArray(gotchas) && gotchas.length > 0;
+    const hasTips = Array.isArray(tips) && tips.length > 0;
+    return hasGotchas || hasTips ? 'present' : 'missing';
+  } catch {
+    return 'parse_error';
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function normalizeDisplayPath(workspaceRoot: string, filePath: string): string {

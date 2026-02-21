@@ -71,7 +71,8 @@ export {
 } from './types.js';
 
 export {
-  SqliteLibrarianStorage,
+  SqliteLiBrainianStorage,
+  SqliteLiBrainianStorage as SqliteLibrarianStorage,
   createSqliteStorage,
   createStorageFromBackend,
 } from './sqlite_storage.js';

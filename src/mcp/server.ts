@@ -11677,6 +11677,12 @@ export async function createLiBrainianMCPServer(
   return server;
 }
 
+// Legacy compatibility aliases for modules/tests that still import Librarian symbols.
+export {
+  LiBrainianMCPServer as LibrarianMCPServer,
+  createLiBrainianMCPServer as createLibrarianMCPServer,
+};
+
 /**
  * Create and start a server with stdio transport.
  */
