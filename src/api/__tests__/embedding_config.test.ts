@@ -22,6 +22,8 @@ describe('Embedding Configuration', () => {
   beforeEach(() => {
     // Reset environment for each test
     process.env = { ...originalEnv };
+    delete process.env.LIBRAINIAN_EMBEDDING_MODEL;
+    delete process.env.LIBRAINIAN_EMBEDDING_PROVIDER;
     delete process.env.LIBRARIAN_EMBEDDING_MODEL;
     delete process.env.LIBRARIAN_EMBEDDING_PROVIDER;
   });
@@ -63,6 +65,15 @@ describe('Embedding Configuration', () => {
       expect(config.dimensions).toBe(768);
     });
 
+    it('uses LIBRAINIAN_EMBEDDING_MODEL environment variable', () => {
+      process.env.LIBRAINIAN_EMBEDDING_MODEL = 'jina-embeddings-v2-base-en';
+
+      const config = getEmbeddingConfig();
+
+      expect(config.model).toBe('jina-embeddings-v2-base-en');
+      expect(config.dimensions).toBe(768);
+    });
+
     it('explicit modelId overrides environment variable', () => {
       process.env.LIBRARIAN_EMBEDDING_MODEL = 'jina-embeddings-v2-base-en';
 
@@ -74,6 +85,15 @@ describe('Embedding Configuration', () => {
 
     it('applies LIBRARIAN_EMBEDDING_PROVIDER override', () => {
       process.env.LIBRARIAN_EMBEDDING_PROVIDER = 'sentence-transformers';
+
+      const config = getEmbeddingConfig('all-MiniLM-L6-v2');
+
+      expect(config.model).toBe('all-MiniLM-L6-v2');
+      expect(config.provider).toBe('sentence-transformers');
+    });
+
+    it('applies LIBRAINIAN_EMBEDDING_PROVIDER override', () => {
+      process.env.LIBRAINIAN_EMBEDDING_PROVIDER = 'sentence-transformers';
 
       const config = getEmbeddingConfig('all-MiniLM-L6-v2');
 

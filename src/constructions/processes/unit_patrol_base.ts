@@ -172,10 +172,12 @@ function toSingleLine(error: unknown): string {
 
 function resolveEmbeddingMetadata(): UnitPatrolResult['embedding'] {
   const provider =
+    process.env.LIBRAINIAN_EMBEDDING_PROVIDER ??
     process.env.LIBRARIAN_EMBEDDING_PROVIDER ??
     process.env.LIBRARIAN_EMBED_PROVIDER ??
     'xenova';
   const model =
+    process.env.LIBRAINIAN_EMBEDDING_MODEL ??
     process.env.LIBRARIAN_EMBEDDING_MODEL ??
     process.env.LIBRARIAN_EMBED_MODEL ??
     'all-MiniLM-L6-v2';

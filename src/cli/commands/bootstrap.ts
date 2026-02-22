@@ -35,6 +35,7 @@ import {
   getMissingGrammarPackages,
   installMissingGrammars,
 } from '../grammar_support.js';
+import { acquireWorkspaceLock, type WorkspaceLockHandle } from '../../integration/workspace_lock.js';
 
 export interface BootstrapCommandOptions {
   workspace: string;
@@ -72,6 +73,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       'workspace-set': { type: 'string' },
       'llm-provider': { type: 'string' },
       'llm-model': { type: 'string' },
+      'lock-timeout-ms': { type: 'string', default: '30000' },
     },
     allowPositionals: true,
     strict: false,
@@ -80,7 +82,8 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   const force = values.force as boolean;
   const forceResume = values['force-resume'] as boolean;
   const timeoutMs = parseInt(values.timeout as string, 10);
-  const scope = typeof values.scope === 'string' ? values.scope.toLowerCase() : 'full';
+  const rawScope = typeof values.scope === 'string' ? values.scope.toLowerCase() : 'full';
+  const scope = rawScope === 'librainian' ? 'librarian' : rawScope;
   const bootstrapModeRaw = typeof values.mode === 'string' ? values.mode.toLowerCase().trim() : 'full';
   const emitBaseline = values['emit-baseline'] as boolean;
   const updateAgentDocs = values['update-agent-docs'] as boolean;
@@ -95,6 +98,8 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     ? requestedLlmProviderRaw
     : undefined;
   const requestedLlmModel = typeof values['llm-model'] === 'string' ? values['llm-model'].trim() : undefined;
+  const lockTimeoutRaw = typeof values['lock-timeout-ms'] === 'string' ? values['lock-timeout-ms'] : '30000';
+  const lockTimeoutMs = parsePositiveInt(lockTimeoutRaw, 'lock-timeout-ms');
   const explicitLlmRequested = Boolean(requestedLlmProvider || requestedLlmModel);
   let enableLlm = explicitLlmRequested;
   let skipLlm = !enableLlm;
@@ -103,13 +108,14 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     throw createError('INVALID_ARGUMENT', 'Use either --force or --force-resume (not both).');
   }
   if (timeoutMs > 0) {
-    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librarian bootstrap');
+    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for LiBrainian bootstrap');
   }
 
-  console.log('Librarian Bootstrap');
+  console.log('LiBrainian Bootstrap');
   console.log('===================\n');
   if (scope !== 'full') {
-    console.log(`Scope: ${scope}`);
+    const scopeLabel = scope === 'librarian' ? 'LiBrainian' : scope;
+    console.log(`Scope: ${scopeLabel}`);
   }
   console.log(`Mode: ${bootstrapMode}`);
   if (explicitLlmRequested) {
@@ -133,7 +139,9 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   ): Promise<void> => {
     // Run pre-flight checks FIRST to detect problems early
     console.log('Running pre-flight checks...\n');
-    const skipProviders = process.env.LIBRARIAN_SKIP_PROVIDER_CHECK === '1' || !explicitLlmRequested;
+    const skipProviders =
+      (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1'
+      || !explicitLlmRequested;
     const preflightReport = await runPreflightChecks({
       workspaceRoot: runWorkspaceRoot,
       skipProviderChecks: skipProviders,
@@ -196,7 +204,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       if (coverageWarnings.length > 0) {
         console.log(`⚠️  Parser coverage incomplete: ${coverageWarnings.join('; ')}`);
         if (!installGrammars && missingGrammarPackages.length > 0) {
-          console.log('   Run `librarian bootstrap --install-grammars` to install missing grammar packages.');
+          console.log('   Run `librainian bootstrap --install-grammars` to install missing grammar packages.');
         }
       }
     }
@@ -208,7 +216,8 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     const providerSpinner = createSpinner('Verifying provider configuration...');
     let providerStatus: AllProviderStatus | null = null;
     try {
-      const providerCheckSkipped = process.env.LIBRARIAN_SKIP_PROVIDER_CHECK === '1';
+      const providerCheckSkipped =
+        (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1';
       if (providerCheckSkipped) {
         providerSpinner.succeed('Provider checks skipped (offline/degraded mode)');
         skipEmbeddings = true;
@@ -282,11 +291,25 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     }
 
     const storageSpinner = createSpinner('Initializing storage...');
+    const lockSpinner = createSpinner('Acquiring workspace bootstrap lock...');
     const dbPath = await resolveDbPath(runWorkspaceRoot);
     let storage = createSqliteStorage(dbPath, runWorkspaceRoot);
+    let workspaceLock: WorkspaceLockHandle | null = null;
     const progressReporter = createBootstrapProgressReporter();
 
     try {
+      try {
+        workspaceLock = await acquireWorkspaceLock(runWorkspaceRoot, { timeoutMs: lockTimeoutMs });
+        lockSpinner.succeed('Workspace bootstrap lock acquired');
+      } catch (error) {
+        lockSpinner.fail('Workspace bootstrap lock unavailable');
+        const detail = toSingleLine(error instanceof Error ? error.message : String(error));
+        throw createError(
+          'STORAGE_ERROR',
+          `LiBrainian bootstrap lock unavailable: ${detail}. Run \`librainian doctor --heal\` if stale.`
+        );
+      }
+
       try {
         await storage.initialize();
         storageSpinner.succeed('Storage initialized');
@@ -407,13 +430,16 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
 
       if (!report.success) {
         console.log('\nBootstrap completed with errors. Some features may be limited.');
-        console.log('Run `librarian status` for more details.');
+        console.log('Run `librainian status` for more details.');
       } else {
-        console.log('\nLibrarian is ready! Run `librarian query "<intent>"` to search the knowledge base.');
+        console.log('\nLiBrainian is ready! Run `librainian query \"<intent>\"` to search the knowledge base.');
       }
     } finally {
       progressReporter.complete();
       await storage.close();
+      if (workspaceLock) {
+        await workspaceLock.release().catch(() => {});
+      }
     }
   };
 
@@ -582,5 +608,17 @@ function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {
       exclude: [...EXCLUDE_PATTERNS],
     };
   }
-  throw createError('INVALID_ARGUMENT', `Unknown scope \"${scope}\" (use \"full\" or \"librarian\")`);
+  throw createError('INVALID_ARGUMENT', `Unknown scope \"${scope}\" (use \"full\", \"librarian\", or \"librainian\")`);
+}
+
+function parsePositiveInt(raw: string, optionName: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw createError('INVALID_ARGUMENT', `--${optionName} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function toSingleLine(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
 }

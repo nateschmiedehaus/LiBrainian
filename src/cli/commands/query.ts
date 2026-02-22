@@ -44,7 +44,7 @@ type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
-  const commandArgs = args.length > 0 ? args : rawArgs.slice(1);
+  const commandArgs = resolveQueryCommandArgs(rawArgs, args);
 
   // Parse command-specific options
   const { values, positionals } = parseArgs({
@@ -118,7 +118,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     : undefined;
   const timeoutMs = parseInt(values.timeout as string, 10);
   if (timeoutMs > 0) {
-    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for librarian queries');
+    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for LiBrainian queries');
   }
   const outputJson = values.json as boolean;
   const outputPath = typeof values.out === 'string' && values.out.trim().length > 0
@@ -131,6 +131,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     // Keep stdout machine-readable when JSON output is requested.
     // Progress indicators render to stderr, but disable them entirely for JSON mode.
     process.env.LIBRARIAN_NO_PROGRESS = '1';
+    process.env.LIBRAINIAN_NO_PROGRESS = '1';
   }
   const noSynthesis = values['no-synthesis'] as boolean;
   const deterministic = values.deterministic as boolean;
@@ -207,7 +208,8 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       const bootstrapSpinner = createSpinner('Bootstrap required; initializing (fast mode)...');
       try {
         let skipEmbeddings = false;
-        const providerCheckSkipped = process.env.LIBRARIAN_SKIP_PROVIDER_CHECK === '1';
+        const providerCheckSkipped =
+          (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1';
         if (providerCheckSkipped) {
           skipEmbeddings = true;
         } else {
@@ -783,6 +785,17 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   } finally {
     await storage.close();
   }
+}
+
+function resolveQueryCommandArgs(rawArgs: string[], args: string[]): string[] {
+  const queryIndex = rawArgs.findIndex((arg) => arg === 'query');
+  if (queryIndex >= 0) {
+    const sliced = rawArgs.slice(queryIndex + 1);
+    if (sliced.length > 0) {
+      return sliced;
+    }
+  }
+  return args.length > 0 ? args : rawArgs.slice(1);
 }
 
 function validateDepth(depth: string): 'L0' | 'L1' | 'L2' | 'L3' {

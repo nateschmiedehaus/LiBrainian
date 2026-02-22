@@ -331,7 +331,7 @@ export class Librarian {
       }
     }
     if (!this.config.disableLlmDiscovery && (!this.config.llmProvider || !this.config.llmModelId)) {
-      if (process.env.LIBRARIAN_SKIP_PROVIDER_CHECK !== '1') {
+      if ((process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) !== '1') {
         try {
           const discovered = await resolveLibrarianModelConfigWithDiscovery();
           if (discovered.provider && discovered.modelId) {

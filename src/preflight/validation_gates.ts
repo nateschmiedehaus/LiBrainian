@@ -166,7 +166,7 @@ const gateSemanticIndexingProvidersAvailable: ValidationGateFn = async (ctx) => 
   if (
     process.env.NODE_ENV === 'test' ||
     process.env.WAVE0_TEST_MODE === 'true' ||
-    process.env.LIBRARIAN_SKIP_PROVIDER_CHECK === '1' ||
+    (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1' ||
     ctx.config.skipProviderProbe
   ) {
     return {

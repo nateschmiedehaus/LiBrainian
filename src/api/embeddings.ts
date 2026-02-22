@@ -44,7 +44,8 @@ export type EmbeddingProvider = 'xenova' | 'sentence-transformers';
  *
  * Supports multiple providers and models with environment variable overrides:
  * - LIBRARIAN_EMBEDDING_MODEL: Model identifier (e.g., 'all-MiniLM-L6-v2')
- * - LIBRARIAN_EMBEDDING_PROVIDER: Provider preference ('xenova' | 'sentence-transformers')
+ * - LIBRAINIAN_EMBEDDING_PROVIDER (or legacy LIBRARIAN_EMBEDDING_PROVIDER):
+ *   Provider preference ('xenova' | 'sentence-transformers')
  */
 export interface EmbeddingConfig {
   /** Model identifier (e.g., 'all-MiniLM-L6-v2', 'jina-embeddings-v2-base-en') */
@@ -146,6 +147,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
  */
 export function getEmbeddingConfig(modelId?: string): EmbeddingConfig {
   const id = modelId
+    || process.env.LIBRAINIAN_EMBEDDING_MODEL
     || process.env.LIBRARIAN_EMBEDDING_MODEL
     || 'all-MiniLM-L6-v2';
 
@@ -161,7 +163,9 @@ export function getEmbeddingConfig(modelId?: string): EmbeddingConfig {
   }
 
   // Apply provider override from environment if set
-  const providerOverride = process.env.LIBRARIAN_EMBEDDING_PROVIDER;
+  const providerOverride =
+    process.env.LIBRAINIAN_EMBEDDING_PROVIDER
+    ?? process.env.LIBRARIAN_EMBEDDING_PROVIDER;
   if (providerOverride === 'xenova' || providerOverride === 'sentence-transformers') {
     return { ...config, provider: providerOverride };
   }

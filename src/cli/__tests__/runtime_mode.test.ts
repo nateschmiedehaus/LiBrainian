@@ -98,6 +98,29 @@ describe('cli runtime mode', () => {
     expect(mode.noColor).toBe(true);
   });
 
+  it('recognizes LIBRAINIAN_* environment controls', () => {
+    const mode = deriveCliRuntimeMode({
+      args: [],
+      jsonMode: false,
+      env: {
+        LIBRAINIAN_NO_INTERACTIVE: '1',
+        LIBRAINIAN_NO_PROGRESS: '1',
+        LIBRAINIAN_ASSUME_YES: '1',
+        LIBRAINIAN_LOCAL_ONLY: '1',
+        LIBRAINIAN_NO_TELEMETRY: '1',
+      },
+      stdoutIsTTY: true,
+      stderrIsTTY: true,
+    });
+
+    expect(mode.nonInteractive).toBe(true);
+    expect(mode.noProgress).toBe(true);
+    expect(mode.assumeYes).toBe(true);
+    expect(mode.localOnly).toBe(true);
+    expect(mode.offline).toBe(true);
+    expect(mode.noTelemetry).toBe(true);
+  });
+
   it('applies env settings and quiet console suppression', () => {
     const env: NodeJS.ProcessEnv = {};
     let logCalls = 0;
@@ -128,14 +151,21 @@ describe('cli runtime mode', () => {
     const restore = applyCliRuntimeMode(mode, { env, consoleLike: fakeConsole });
 
     expect(env.LIBRARIAN_NO_INTERACTIVE).toBe('1');
+    expect(env.LIBRAINIAN_NO_INTERACTIVE).toBe('1');
     expect(env.LIBRARIAN_NO_PROGRESS).toBe('1');
+    expect(env.LIBRAINIAN_NO_PROGRESS).toBe('1');
     expect(env.NO_COLOR).toBe('1');
     expect(env.FORCE_COLOR).toBe('0');
     expect(env.LIBRARIAN_ASSUME_YES).toBe('1');
+    expect(env.LIBRAINIAN_ASSUME_YES).toBe('1');
     expect(env.LIBRARIAN_LOG_LEVEL).toBe('silent');
+    expect(env.LIBRAINIAN_LOG_LEVEL).toBe('silent');
     expect(env.LIBRARIAN_OFFLINE).toBe('1');
+    expect(env.LIBRAINIAN_OFFLINE).toBe('1');
     expect(env.LIBRARIAN_SKIP_PROVIDER_CHECK).toBe('1');
+    expect(env.LIBRAINIAN_SKIP_PROVIDER_CHECK).toBe('1');
     expect(env.LIBRARIAN_NO_TELEMETRY).toBe('1');
+    expect(env.LIBRAINIAN_NO_TELEMETRY).toBe('1');
 
     fakeConsole.log();
     fakeConsole.info();
@@ -205,8 +235,11 @@ describe('cli runtime mode', () => {
     const restore = applyCliRuntimeMode(mode, { env });
     try {
       expect(env.LIBRARIAN_LOCAL_ONLY).toBe('1');
+      expect(env.LIBRAINIAN_LOCAL_ONLY).toBe('1');
       expect(env.LIBRARIAN_OFFLINE).toBe('1');
+      expect(env.LIBRAINIAN_OFFLINE).toBe('1');
       expect(env.LIBRARIAN_SKIP_PROVIDER_CHECK).toBe('1');
+      expect(env.LIBRAINIAN_SKIP_PROVIDER_CHECK).toBe('1');
     } finally {
       restore();
     }

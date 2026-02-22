@@ -134,7 +134,7 @@ export interface FirstRunGateOptions {
    * Best-effort auto-install of missing tree-sitter grammars into the Librarian
    * grammar cache before bootstrapping.
    *
-   * Default: enabled outside of test mode unless `LIBRARIAN_AUTO_INSTALL_GRAMMARS=0`.
+   * Default: enabled outside of test mode unless `LIBRAINIAN_AUTO_INSTALL_GRAMMARS=0`.
    */
   autoInstallGrammars?: boolean;
   /**
@@ -347,9 +347,17 @@ export async function ensureLibrarianReady(
     const shouldAutoInstallGrammars =
       (typeof autoInstallGrammars === 'boolean'
         ? autoInstallGrammars
-        : (!isTestMode() && String(process.env.LIBRARIAN_AUTO_INSTALL_GRAMMARS ?? '1') !== '0'))
-      && String(process.env.LIBRARIAN_OFFLINE ?? '') !== '1'
-      && String(process.env.LIBRARIAN_SKIP_PROVIDER_CHECK ?? '') !== '1';
+        : (!isTestMode() && String(
+          process.env.LIBRAINIAN_AUTO_INSTALL_GRAMMARS
+          ?? process.env.LIBRARIAN_AUTO_INSTALL_GRAMMARS
+          ?? '1'
+        ) !== '0'))
+      && String(process.env.LIBRAINIAN_OFFLINE ?? process.env.LIBRARIAN_OFFLINE ?? '') !== '1'
+      && String(
+        process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK
+        ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK
+        ?? ''
+      ) !== '1';
 
     const shouldCheckParserCoverage = shouldAutoInstallGrammars || requireCompleteParserCoverage;
     if (shouldCheckParserCoverage) {
