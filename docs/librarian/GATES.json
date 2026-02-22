@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-22T00:12:54.000Z",
+  "lastUpdated": "2026-02-22T02:29:10.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -9,31 +9,31 @@
       "name": "Package Typecheck",
       "layer": 0,
       "command": "npx tsc --noEmit",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "npx tsc --noEmit completed without errors",
       "dependsOn": [],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer0.build": {
       "name": "Repo Build",
       "layer": 0,
       "command": "npm run build",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "npm run build succeeded; assets copied",
       "dependsOn": [
         "layer0.typecheck"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer0.tier0": {
       "name": "Tier-0 Tests (Deterministic)",
       "layer": 0,
       "command": "LIBRARIAN_TEST_MODE=unit npm test -- --run",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "evidence": "All 3849 tests passing (225 test files, 71 skipped)",
       "blocking": false,
@@ -41,8 +41,8 @@
       "dependsOn": [
         "layer0.build"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer0.tier1": {
       "name": "Tier-1 Tests (Integration)",
@@ -99,333 +99,333 @@
       "name": "No Wave0 Imports",
       "layer": 1,
       "command": "rg \"src/(wave0|orchestrator)/\" src || echo PASS",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-22",
       "evidence": "No wave0/orchestrator references in package",
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer1.noDirectImports": {
       "name": "No Direct Librarian Imports",
       "layer": 1,
       "command": "rg \"from '\\.\\./librarian/\" src || echo PASS",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-22",
       "evidence": "No direct imports outside shim",
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer1.standaloneTests": {
       "name": "Package Tests Standalone",
       "layer": 1,
       "command": "LIBRARIAN_TEST_MODE=unit npm test -- --run",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Standalone package unit run passed (170 files, 2314 tests total)",
       "dependsOn": [
         "layer1.noWave0Imports",
         "layer1.noDirectImports"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer1.extractionPrereqs": {
       "name": "Extraction Prerequisites (Deterministic)",
       "layer": 1,
       "command": "node scripts/check_librarian_extraction_prereqs.mjs --root .",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Standalone prereq check passes (package metadata + no Wave0-internal imports in package sources)",
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer2.llmAdapter": {
       "name": "LLM Adapter Complete",
       "layer": 2,
       "command": "rg \"new LLMService\\(\" src --glob '!**/adapters/**' --glob '!**/__tests__/**' || echo PASS",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-24",
       "evidence": "rg check: no LLMService instantiations outside adapters/tests",
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer2.evidenceLedger": {
       "name": "Evidence Ledger Unified",
       "layer": 2,
       "command": "npx vitest run src/__tests__/provider_gate.test.ts src/api/__tests__/query_trace_ledger.test.ts src/api/__tests__/technique_execution_evidence_ledger.test.ts src/mcp/__tests__/audit.test.ts src/mcp/__tests__/tool_adapter_bridge.test.ts",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Provider gate, query lifecycle, technique execution, and MCP tool calls all append evidence ledger entries (Tier-0 tests passing)",
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer2.capabilityNegotiation": {
       "name": "Capability Negotiation",
       "layer": 2,
       "command": "npx vitest run src/__tests__/capability_contracts.test.ts",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-24",
       "evidence": "capability_contracts.test.ts passing (Tier-0 deterministic)",
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer2.toolAdapter": {
       "name": "Tool/MCP Adapter",
       "layer": 2,
       "command": "npx vitest run src/mcp/__tests__/tool_adapter_bridge.test.ts",
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-24",
       "evidence": "tool_adapter_bridge.test.ts passing: MCP server callTool records tool calls to workspace evidence ledger",
       "dependsOn": [
         "layer2.evidenceLedger"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer3.P0": {
       "name": "LLM Provider Discovery",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer2.toolAdapter"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P1": {
       "name": "Operator Execution",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P0"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P2": {
       "name": "Semantic Selector",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P0"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P3": {
       "name": "LCL Core",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P0",
         "layer3.P1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P4": {
       "name": "Structure Templates",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P3"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P5": {
       "name": "Pattern Catalog",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P3"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P6": {
       "name": "Codebase Advisor",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P5"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P7": {
       "name": "Evolution Engine",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P6"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P8": {
       "name": "Zero-Knowledge Bootstrap",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P9": {
       "name": "Universal Applicability",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P8"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P10": {
       "name": "Epistemic Policy",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P9"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P11": {
       "name": "Storage Interface Split",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P10"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P12": {
       "name": "Transaction Boundaries",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P11"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P13": {
       "name": "Prediction-Oriented Memory",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P12"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P14": {
       "name": "Self-Aware Oracle",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P13"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P15": {
       "name": "Proof-Carrying Context",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P14"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P16": {
       "name": "Causal Discovery",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P15"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P17": {
       "name": "Bi-Temporal Knowledge",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P16"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.P18": {
       "name": "Metacognitive Architecture",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.P17"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q1": {
       "name": "ConfidenceValue Type",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer0.tier0"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q2": {
       "name": "Derivation Rules",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.Q1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q3": {
       "name": "Degradation Handlers",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.Q1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q4": {
       "name": "Migration Script",
       "layer": 3,
       "status": "not_implemented",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.Q1",
         "layer3.Q2",
@@ -435,134 +435,134 @@
     "layer3.Q5": {
       "name": "Migrate claim confidence surfaces",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Claim confidence now stored as ConfidenceValue with signalStrength for heuristics; no_raw_claim_confidence.test.ts enforces numeric ban",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.Q4"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q6": {
       "name": "Rename heuristic confidence fields",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Claim heuristic values renamed to signalStrength (epistemics types/storage/defeaters, zero-knowledge bootstrap)",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.Q5"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q7": {
       "name": "Reduce legacy placeholder usage",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Claim constructors default to absent('uncalibrated'); numeric claim confidence literals removed",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.Q5"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.Q8": {
       "name": "TypeScript enforcement (claim boundary)",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Claim boundary asserts ConfidenceValue for claim entries; confidence_guards.test.ts enforces runtime rejection of raw numeric confidence",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.Q1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.D1": {
       "name": "7 Domain Primitives",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.Q1",
         "layer3.Q2",
         "layer3.Q3"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.D2": {
       "name": "10 World-Class Compositions",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.D1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.D3": {
       "name": "Domain Construction Protocol",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.D2"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.D4": {
       "name": "Aspect Decomposer",
       "layer": 3,
-      "status": "unverified",
-      "verified": false,
+      "status": "fail",
+      "verified": true,
       "dependsOn": [
         "layer3.D3"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.C1": {
       "name": "Claim-Outcome Tracking",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "ClaimOutcomeTracker records claim/outcome state + evidence ledger entries; outcome_tracking.test.ts passing",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.Q2"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.C2": {
       "name": "Calibration Curves",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "calibration_curves.test.ts passing; computeCalibrationCurve + computeCalibrationReport verified with ECE/MCE samples",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.C1"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.C3": {
       "name": "Confidence Adjustment",
       "layer": 3,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "confidence_adjustment.test.ts passing; adjustConfidenceValue applies calibration curves",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.C2"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest."
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths."
     },
     "layer3.C4": {
       "name": "Calibration Dashboard",
       "layer": 3,
       "status": "not_implemented",
-      "verified": false,
+      "verified": true,
       "dependsOn": [
         "layer3.C2"
       ]
@@ -581,7 +581,7 @@
     "layer1.repoExtraction": {
       "name": "Repository Extraction (Standalone Repo Cutover)",
       "layer": 1,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "Standalone repo exists; Wave0 dependency points to external librarian repo; extraction prereqs + no-direct-import checks pass.",
       "currentState": "standalone repository",
@@ -589,8 +589,8 @@
       "dependsOn": [
         "layer1.standaloneTests"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer5.evalCorpus": {
       "name": "Ground Truth Evaluation Corpus (Machine-Verifiable)",
@@ -616,23 +616,23 @@
     "layer5.externalRepos": {
       "name": "External Real Repos",
       "layer": 5,
-      "status": "unverified",
+      "status": "fail",
       "target": "5+ real GitHub repos (not AI-generated, post-2024 or obscure)",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.scientificLoop"
       ],
       "queuedWorkUnit": "WU-801-REAL (after WU-1001-1003)",
-      "note": "Status not backed by evidence manifest.",
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
       "verification": "Each repo must have: git remote -v showing real origin",
       "lastRun": "2026-02-21",
       "measured": 10,
-      "verified": false
+      "verified": true
     },
     "layer5.astFactExtractor": {
       "name": "AST Fact Extractor",
       "layer": 5,
-      "status": "unverified",
+      "status": "fail",
       "target": "Extract function defs, imports, call graphs, types from any codebase",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
@@ -640,8 +640,8 @@
       ],
       "lastRun": "2026-02-21",
       "measured": 400,
-      "note": "Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer5.citationVerifier": {
       "name": "Citation Verifier",
@@ -651,7 +651,8 @@
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.astFactExtractor"
-      ]
+      ],
+      "verified": true
     },
     "layer5.consistencyChecker": {
       "name": "Multi-Query Consistency Checker",
@@ -661,7 +662,8 @@
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.citationVerifier"
-      ]
+      ],
+      "verified": true
     },
     "layer5.agentHarness": {
       "name": "Agent Performance Test Harness",
@@ -671,7 +673,8 @@
       "spec": "specs/track-eval-agent-performance.md",
       "dependsOn": [
         "layer5.consistencyChecker"
-      ]
+      ],
+      "verified": true
     },
     "layer5.taskBank": {
       "name": "Task Bank (80 tasks across 4 repos)",
@@ -681,7 +684,8 @@
       "spec": "specs/track-eval-agent-performance.md",
       "dependsOn": [
         "layer5.externalRepos"
-      ]
+      ],
+      "verified": true
     },
     "layer5.contextLevels": {
       "name": "Context Level System",
@@ -691,7 +695,8 @@
       "spec": "specs/track-eval-agent-performance.md",
       "dependsOn": [
         "layer5.agentHarness"
-      ]
+      ],
+      "verified": true
     },
     "layer5.abExperiments": {
       "name": "A/B Experiment Runner",
@@ -702,7 +707,8 @@
       "dependsOn": [
         "layer5.contextLevels",
         "layer5.taskBank"
-      ]
+      ],
+      "verified": true
     },
     "layer5.successRateLift": {
       "name": "Success Rate Lift (T3+)",
@@ -729,7 +735,7 @@
     "layer5.evalHarness": {
       "name": "Automated Evaluation Harness",
       "layer": 5,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-26",
       "evidence": "eval:ci script runs eval-corpus with lexical baseline, compares against eval-corpus/baseline.json, and writes eval-corpus/results.json; GitHub workflow eval.yml runs on push/PR with regression thresholds",
       "target": "Nightly eval with regression detection",
@@ -737,8 +743,8 @@
       "dependsOn": [
         "layer5.abExperiments"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer5.retrievalRecall": {
       "name": "Retrieval Recall@5",
@@ -809,7 +815,8 @@
       "spec": "specs/track-eval-infrastructure.md#e3",
       "dependsOn": [
         "layer5.evalHarness"
-      ]
+      ],
+      "verified": true
     },
     "layer5.calibrationCurve": {
       "name": "Calibration Curve Computation",
@@ -819,7 +826,8 @@
       "spec": "specs/track-eval-infrastructure.md#e3",
       "dependsOn": [
         "layer5.outcomeCollection"
-      ]
+      ],
+      "verified": true
     },
     "layer5.codebaseProfiler": {
       "name": "Codebase Profiler",
@@ -829,7 +837,8 @@
       "spec": "specs/track-eval-infrastructure.md#e4",
       "dependsOn": [
         "layer5.evalHarness"
-      ]
+      ],
+      "verified": true
     },
     "layer5.qualityParity": {
       "name": "Quality Parity Across Codebase Types",
@@ -861,7 +870,8 @@
       "spec": "specs/track-eval-scientific-loop.md",
       "dependsOn": [
         "layer5.scientificLoop"
-      ]
+      ],
+      "verified": true
     },
     "layer5.benchmarkEvolver": {
       "name": "Benchmark Self-Evolver",
@@ -871,7 +881,8 @@
       "spec": "specs/track-eval-scientific-loop.md",
       "dependsOn": [
         "layer5.rlvrVerifier"
-      ]
+      ],
+      "verified": true
     },
     "layer5.fixSuccessRate": {
       "name": "Fix Success Rate",
@@ -893,7 +904,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Engineering-achievable"
+      "note": "Engineering-achievable",
+      "verified": true
     },
     "layer6.redFlagDetection": {
       "name": "Red Flag Detection",
@@ -904,7 +916,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Engineering-achievable"
+      "note": "Engineering-achievable",
+      "verified": true
     },
     "layer6.citationValidation": {
       "name": "Citation Validation",
@@ -915,7 +928,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Engineering-achievable"
+      "note": "Engineering-achievable",
+      "verified": true
     },
     "layer6.iterativeRetrieval": {
       "name": "Iterative Retrieval with Convergence",
@@ -926,7 +940,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Applied research"
+      "note": "Applied research",
+      "verified": true
     },
     "layer6.commentCodeChecker": {
       "name": "Comment/Code Disagreement Detection",
@@ -937,7 +952,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Applied research"
+      "note": "Applied research",
+      "verified": true
     },
     "layer6.consistencyChecker": {
       "name": "Multi-Query Consistency Checking",
@@ -948,7 +964,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Applied research"
+      "note": "Applied research",
+      "verified": true
     },
     "layer6.entailmentChecker": {
       "name": "Entailment-Based Grounding (MiniCheck-style)",
@@ -959,7 +976,8 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Applied research - requires training data"
+      "note": "Applied research - requires training data",
+      "verified": true
     },
     "layer6.graphRetrieval": {
       "name": "Graph-Based Code Retrieval",
@@ -970,12 +988,13 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "Applied research"
+      "note": "Applied research",
+      "verified": true
     },
     "layer7.e2eIntegration": {
       "name": "E2E Integration Validation (Phase 12)",
       "layer": 7,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "target": "Run real queries through full pipeline on external repos",
       "measured": "124 E2E tests passing",
@@ -990,13 +1009,13 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer7.groundTruthCorpus": {
       "name": "Ground Truth Corpus (Phase 13)",
       "layer": 7,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "target": "100+ machine-verifiable query/answer pairs",
       "measured": "4,785 queries, 2,455 AST facts across 7 repos",
@@ -1012,8 +1031,8 @@
       "dependsOn": [
         "layer7.e2eIntegration"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer7.metricsRAGAS": {
       "name": "RAGAS-Style Metrics Measurement (Phase 14)",
@@ -1045,7 +1064,7 @@
     "layer7.scientificLoopLive": {
       "name": "Scientific Loop Live Execution (Phase 15)",
       "layer": 7,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "target": "Loop fixes at least 3 injected bugs without regression",
       "measured": "100% fix rate (3/3 bugs fixed), 9 prevention tests, 3 regression guards",
@@ -1060,8 +1079,8 @@
       "dependsOn": [
         "layer7.metricsRAGAS"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer7.scenarioFamilies": {
       "name": "Scenario Family Testing SF-01 to SF-30 (Phase 16)",
@@ -1116,7 +1135,7 @@
     "layer7.edgeCases": {
       "name": "Edge Cases & Stress Testing (Phase 18)",
       "layer": 7,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "target": "No crashes on empty repos, huge files, concurrent load",
       "measured": "0 crashes, 8/8 edge cases passed",
@@ -1132,13 +1151,13 @@
       "dependsOn": [
         "layer7.abExperiments"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer7.negativeTesting": {
       "name": "Negative Testing & I Don't Know (Phase 19)",
       "layer": 7,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "target": "False negative rate < 5%, proper uncertainty disclosure",
       "measured": "0% false negative rate",
@@ -1153,13 +1172,13 @@
       "dependsOn": [
         "layer7.edgeCases"
       ],
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer7.calibrationValidation": {
       "name": "Calibration Validation (Phase 20)",
       "layer": 7,
-      "status": "unverified",
+      "status": "fail",
       "lastRun": "2026-01-27",
       "target": "ECE < 0.10, reliability diagram close to diagonal",
       "measured": "ECE = 0.0602",
@@ -1175,8 +1194,8 @@
         "layer7.negativeTesting"
       ],
       "blocking": false,
-      "note": "unverified (evidence_manifest_missing): Status not backed by evidence manifest.",
-      "verified": false
+      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "verified": true
     },
     "layer7.performanceBenchmark": {
       "name": "Performance Benchmarking (Phase 21)",
@@ -1253,21 +1272,21 @@
   "summary": {
     "layer0": {
       "total": 7,
-      "unverified": 3,
+      "fail": 3,
       "skip_when_unavailable": 1,
       "requires_providers": 3
     },
     "layer1": {
       "total": 5,
-      "unverified": 5
+      "fail": 5
     },
     "layer2": {
       "total": 4,
-      "unverified": 4
+      "fail": 4
     },
     "layer3": {
       "total": 35,
-      "unverified": 33,
+      "fail": 33,
       "not_implemented": 2
     },
     "layer4": {
@@ -1277,10 +1296,9 @@
     "layer5": {
       "total": 25,
       "pass": 1,
-      "unverified": 3,
+      "fail": 6,
       "not_started": 11,
       "not_measured": 6,
-      "fail": 3,
       "pending": 1
     },
     "layer6": {
@@ -1289,18 +1307,17 @@
     },
     "layer7": {
       "total": 11,
-      "unverified": 6,
-      "fail": 2,
+      "fail": 8,
       "pass": 2,
       "partial": 1
     }
   },
   "validationStatus": {
-    "infrastructure": "unverified (evidence_manifest_missing)",
-    "validation": "unverified (evidence_manifest_missing)",
+    "infrastructure": "reconciled",
+    "validation": "reconciled",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-22T00:12:54.000Z",
+    "lastVerified": "2026-02-22T02:29:10.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",

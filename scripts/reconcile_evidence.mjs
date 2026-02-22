@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -30,9 +31,13 @@ async function main() {
   } = await loadReconciler();
 
   const root = process.cwd();
+  const manifestCandidates = [
+    path.join(root, 'state', 'audits', 'librarian', 'manifest.json'),
+    path.join(root, 'state', 'audits', 'LiBrainian', 'manifest.json'),
+  ];
   const manifestPath = values.manifest
     ? path.resolve(values.manifest)
-    : path.join(root, 'state', 'audits', 'librarian', 'manifest.json');
+    : manifestCandidates.find((candidate) => existsSync(candidate)) ?? manifestCandidates[0];
 
   const manifestRaw = await readFile(manifestPath, 'utf8');
   const manifest = JSON.parse(manifestRaw);

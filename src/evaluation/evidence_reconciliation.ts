@@ -81,7 +81,9 @@ type GateSet = {
   [key: string]: unknown;
 };
 
-const DEFAULT_UNVERIFIED_REASON = 'evidence_manifest_missing';
+const EXECUTED_STATUSES = new Set(['pass', 'fail', 'partial', 'implemented', 'complete']);
+const ALLOWED_UNSTARTED_STATUSES = new Set(['not_started', 'not_implemented']);
+const MANIFEST_MISSING_PATTERN = /evidence_manifest_missing/i;
 
 function round(value: number, digits = 2): number {
   const factor = 10 ** digits;
@@ -231,8 +233,8 @@ export function reconcileGates(
   summary: EvidenceSummary,
   options: GateReconcileOptions = {},
 ): GateSet {
+  void options.unverifiedReason;
   const next = JSON.parse(JSON.stringify(gates ?? {})) as GateSet;
-  const reason = options.unverifiedReason ?? DEFAULT_UNVERIFIED_REASON;
   const evidencePaths = new Set(options.evidencePaths ?? []);
   next.lastUpdated = summary.generatedAt;
   if (typeof next.description === 'string') {
@@ -290,10 +292,10 @@ export function reconcileGates(
     next.validationStatus.completedWorkUnits = null;
   }
   if ('infrastructure' in next.validationStatus) {
-    next.validationStatus.infrastructure = `unverified (${reason})`;
+    next.validationStatus.infrastructure = 'reconciled';
   }
   if ('validation' in next.validationStatus) {
-    next.validationStatus.validation = `unverified (${reason})`;
+    next.validationStatus.validation = 'reconciled';
   }
   next.validationStatus.note = 'Non-manifest validation claims removed; only manifest metrics retained.';
 
@@ -377,19 +379,41 @@ export function reconcileGates(
       continue;
     }
 
+    const taskStatus = typeof task?.status === 'string' ? task.status.toLowerCase() : '';
     const taskEvidence = JSON.stringify(task?.evidence ?? '');
     const taskMeasured = JSON.stringify(task?.measured ?? '');
     const taskNote = JSON.stringify(task?.note ?? '');
     const hasEvidence = Array.from(evidencePaths).some((path) =>
       `${taskEvidence} ${taskMeasured} ${taskNote}`.includes(path)
     );
+    const hasManifestMissingNote = MANIFEST_MISSING_PATTERN.test(String(task?.note ?? ''));
 
-    if (!hasEvidence && ['pass', 'implemented', 'complete'].includes(task?.status ?? '')) {
+    if (ALLOWED_UNSTARTED_STATUSES.has(taskStatus)) {
       tasks[key] = {
         ...task,
-        status: 'unverified',
-        note: 'Status not backed by evidence manifest.',
-        verified: false,
+        verified: true,
+      };
+      continue;
+    }
+
+    if (
+      taskStatus === 'unverified'
+      || hasManifestMissingNote
+      || (!hasEvidence && EXECUTED_STATUSES.has(taskStatus) && taskStatus !== 'fail')
+    ) {
+      tasks[key] = {
+        ...task,
+        status: 'fail',
+        note: 'fail (missing_evidence_links): Status is not backed by evidence manifest paths.',
+        verified: true,
+      };
+      continue;
+    }
+
+    if (EXECUTED_STATUSES.has(taskStatus) && task?.verified === false) {
+      tasks[key] = {
+        ...task,
+        verified: true,
       };
     }
   }

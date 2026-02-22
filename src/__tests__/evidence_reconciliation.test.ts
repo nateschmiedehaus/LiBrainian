@@ -137,7 +137,8 @@ describe('evidence reconciliation summaries', () => {
     expect(updated.validationStatus.blockingMetrics).toHaveProperty('Retrieval Recall@5');
     expect(updated.description).not.toContain('COMPLETE');
     expect(updated.tasks['layer7.metricsRAGAS'].status).toBe('pass');
-    expect(updated.tasks['layer7.unrelated'].status).toBe('unverified');
+    expect(updated.tasks['layer7.unrelated'].status).toBe('fail');
+    expect(updated.tasks['layer7.unrelated'].note).toContain('missing_evidence_links');
     expect(updated.tasks['layer7.unrelated'].note).not.toContain('unverified_by_trace');
   });
 });

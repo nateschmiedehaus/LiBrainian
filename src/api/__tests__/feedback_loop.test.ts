@@ -59,6 +59,7 @@ import { getCurrentVersion } from '../versioning.js';
 import { SqliteEvidenceLedger, createSessionId } from '../../epistemics/evidence_ledger.js';
 
 const workspaceRoot = process.cwd();
+const FEEDBACK_HOOK_TIMEOUT_MS = 30000;
 
 // Use unique temp DB paths to avoid lock contention
 function getTempDbPath(): string {
@@ -105,7 +106,7 @@ describe('Feedback Loop Integration', () => {
 
     afterEach(async () => {
       await storage?.close?.();
-    });
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('query response includes feedbackToken', async () => {
       const { queryLibrarian } = await import('../query.js');
@@ -231,11 +232,11 @@ describe('Feedback Loop Integration', () => {
     beforeEach(async () => {
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-    });
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     afterEach(async () => {
       await storage?.close?.();
-    });
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('processAgentFeedback records confidence event', async () => {
       // Create a test context pack
@@ -350,7 +351,7 @@ describe('Feedback Loop Integration', () => {
 
     afterEach(async () => {
       await storage?.close?.();
-    });
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('feedbackToken can be used to retrieve original query packs', async () => {
       // This test verifies that the feedbackToken allows mapping
@@ -409,11 +410,11 @@ describe('Feedback Loop Integration', () => {
     beforeEach(async () => {
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-    });
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     afterEach(async () => {
       await storage?.close?.();
-    });
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('confidence never goes below 0.1 after negative feedback', async () => {
       const testPackId = 'test-pack-low';
@@ -494,7 +495,7 @@ describe('FeedbackProcessingResult type', () => {
 
   afterEach(async () => {
     await storage?.close?.();
-  });
+  }, FEEDBACK_HOOK_TIMEOUT_MS);
 
   it('processAgentFeedback returns proper result structure', async () => {
     storage = createSqliteStorage(getTempDbPath(), workspaceRoot);

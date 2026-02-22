@@ -49,7 +49,14 @@ describe('package release scripts', () => {
     expect(scripts['hooks:install']).toBe('lefthook install');
     expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
+    expect(scripts['evidence:freshness-check']).toBe('node scripts/check-evidence-freshness.mjs');
+    expect(scripts['evidence:assert-gates']).toBe('node scripts/assert-gates-verified.mjs');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
+    expect(scripts['evidence:verify']).toBe('npm run evidence:sync && npm run evidence:freshness-check && npm run evidence:assert-gates');
+    expect(scripts['eval:publish-gate']).toContain('npm run evidence:refresh');
+    expect(scripts['eval:publish-gate']).toContain('npm run evidence:freshness-check');
+    expect(scripts['eval:publish-gate']).toContain('npm run evidence:assert-gates');
+    expect(scripts['eval:trial-by-fire:publish']).toContain('npm run evidence:verify');
     expect(scripts['issues:plan']).toBe(
       'node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json'
     );
@@ -64,6 +71,8 @@ describe('package release scripts', () => {
   it('contains packaging guard script files', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-package-identity.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-release-provenance.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-gates-verified.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'check-evidence-freshness.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'evidence-drift-guard.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
