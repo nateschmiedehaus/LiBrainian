@@ -29,6 +29,17 @@ export {
   type DaemonStatus,
 } from './daemon.js';
 
+// LTL safety monitor evaluator
+export {
+  LTLMonitorEvaluator,
+  createLTLMonitorEvaluator,
+  type SafetyViolationSeverity,
+  type SafetyViolationEvidence,
+  type SafetyViolation,
+  type LTLSafetyProperty,
+  type LTLMonitorEvaluatorConfig,
+} from './ltl_monitor_evaluator.js';
+
 // Dependency Tracker (for file change invalidation)
 export {
   DependencyTracker,

@@ -191,6 +191,26 @@ export function createThresholdAlertEvent(alert: { kind: string; message: string
   return { type: 'threshold_alert', timestamp: new Date(), data: alert };
 }
 
+export function createSafetyViolationEvent(violation: {
+  monitorId: string;
+  violatedProperty: string;
+  severity: 'warn' | 'block';
+  evidence: object;
+  description?: string;
+}): LibrarianEvent {
+  return {
+    type: 'safety_violation',
+    timestamp: new Date(),
+    data: {
+      monitorId: violation.monitorId,
+      violatedProperty: violation.violatedProperty,
+      severity: violation.severity,
+      evidence: violation.evidence,
+      description: violation.description,
+    },
+  };
+}
+
 export function createContextPackInvalidationEvent(packId: string, outcome: 'success' | 'failure'): LibrarianEvent {
   return { type: 'context_pack_invalidated', timestamp: new Date(), data: { packId, outcome } };
 }

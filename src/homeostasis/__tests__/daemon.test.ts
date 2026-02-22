@@ -17,6 +17,8 @@ import {
 } from '../triggers.js';
 import { LibrarianEventBus } from '../../events.js';
 import type { LibrarianStorage, StorageStats } from '../../storage/types.js';
+import type { GraphEdge, LibrarianEvent } from '../../types.js';
+import * as logger from '../../telemetry/logger.js';
 
 // ============================================================================
 // TEST UTILITIES
@@ -475,6 +477,121 @@ describe('HomeostasisDaemon', () => {
 // ============================================================================
 
 describe('Homeostasis Integration', () => {
+  it('emits safety_violation on indexing_complete when a monitored invariant is violated', async () => {
+    const violatingEdges: GraphEdge[] = [
+      {
+        fromId: 'src/mcp/server.ts',
+        fromType: 'file',
+        toId: 'src/storage/sqlite_storage.ts',
+        toType: 'file',
+        edgeType: 'imports',
+        sourceFile: 'src/mcp/server.ts',
+        sourceLine: 12,
+        confidence: 1,
+        computedAt: new Date(),
+      },
+    ];
+
+    const mockStorage = {
+      ...createMockStorage(),
+      getGraphEdges: vi.fn().mockResolvedValue(violatingEdges),
+    } as LibrarianStorage;
+    const eventBus = createTestEventBus();
+    const warningSpy = vi.spyOn(logger, 'logWarning').mockImplementation(() => undefined);
+    const safetyEvents: LibrarianEvent[] = [];
+
+    eventBus.on('safety_violation', (event) => {
+      safetyEvents.push(event);
+    });
+
+    const daemon = createHomeostasisDaemon({
+      storage: mockStorage,
+      eventBus,
+    });
+
+    await daemon.start();
+    await eventBus.emit({
+      type: 'indexing_complete',
+      timestamp: new Date(),
+      data: {
+        taskId: 'index_1',
+        filesProcessed: 10,
+        functionsIndexed: 100,
+        durationMs: 1500,
+      },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(safetyEvents).toHaveLength(1);
+    expect(safetyEvents[0].data).toMatchObject({
+      violatedProperty: 'G(no_direct_mcp_to_storage_imports)',
+      severity: 'block',
+      evidence: expect.objectContaining({
+        sourceFile: 'src/mcp/server.ts',
+        importPath: 'src/storage/sqlite_storage.ts',
+      }),
+    });
+    expect(warningSpy).toHaveBeenCalledWith(
+      '[homeostasis] safety_violation event received',
+      expect.objectContaining({
+        violatedProperty: 'G(no_direct_mcp_to_storage_imports)',
+        severity: 'block',
+      })
+    );
+
+    await daemon.stop();
+    warningSpy.mockRestore();
+  });
+
+  it('does not emit safety_violation when monitored invariants hold', async () => {
+    const cleanEdges: GraphEdge[] = [
+      {
+        fromId: 'src/mcp/server.ts',
+        fromType: 'file',
+        toId: 'src/api/index.ts',
+        toType: 'file',
+        edgeType: 'imports',
+        sourceFile: 'src/mcp/server.ts',
+        sourceLine: 20,
+        confidence: 1,
+        computedAt: new Date(),
+      },
+    ];
+
+    const mockStorage = {
+      ...createMockStorage(),
+      getGraphEdges: vi.fn().mockResolvedValue(cleanEdges),
+    } as LibrarianStorage;
+    const eventBus = createTestEventBus();
+    const safetyEvents: LibrarianEvent[] = [];
+
+    eventBus.on('safety_violation', (event) => {
+      safetyEvents.push(event);
+    });
+
+    const daemon = createHomeostasisDaemon({
+      storage: mockStorage,
+      eventBus,
+    });
+
+    await daemon.start();
+    await eventBus.emit({
+      type: 'indexing_complete',
+      timestamp: new Date(),
+      data: {
+        taskId: 'index_2',
+        filesProcessed: 10,
+        functionsIndexed: 100,
+        durationMs: 1500,
+      },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(safetyEvents).toHaveLength(0);
+
+    await daemon.stop();
+  });
+
   it('responds to threshold_alert events', async () => {
     const mockStorage = createMockStorage();
     const eventBus = createTestEventBus();

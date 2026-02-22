@@ -1894,6 +1894,7 @@ export type LibrarianEventType =
   | 'engine_confidence'
   | 'integration_context'
   | 'integration_outcome'
+  | 'safety_violation'
   | 'upgrade_started'
   | 'upgrade_complete'
   | 'confidence_updated'

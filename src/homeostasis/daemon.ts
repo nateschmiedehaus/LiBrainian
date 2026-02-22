@@ -17,6 +17,7 @@
 
 import type { LibrarianStorage } from '../storage/types.js';
 import type { LibrarianEventBus } from '../events.js';
+import type { LibrarianEvent } from '../types.js';
 import {
   TriggerWiring,
   createTriggerWiring,
@@ -37,6 +38,10 @@ import {
   createRecoveryLearner,
   type RecoveryOutcome as LearnerOutcome,
 } from '../learning/recovery_learner.js';
+import {
+  createLTLMonitorEvaluator,
+  type LTLMonitorEvaluator,
+} from './ltl_monitor_evaluator.js';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 
@@ -181,6 +186,8 @@ export class HomeostasisDaemon {
   private readonly config: typeof DEFAULT_CONFIG;
   private readonly learner: RecoveryLearner;
   private triggerWiring: TriggerWiring | null = null;
+  private readonly ltlMonitorEvaluator: LTLMonitorEvaluator;
+  private readonly eventUnsubscribers: Array<() => void> = [];
   private running = false;
   private healingInProgress = false;
   private healthChecksTriggered = 0;
@@ -203,6 +210,10 @@ export class HomeostasisDaemon {
     this.storage = config.storage;
     this.eventBus = config.eventBus;
     this.learner = config.recoveryLearner ?? createRecoveryLearner();
+    this.ltlMonitorEvaluator = createLTLMonitorEvaluator({
+      storage: this.storage,
+      eventBus: this.eventBus,
+    });
     this.config = {
       ...DEFAULT_CONFIG,
       ...config,
@@ -234,6 +245,17 @@ export class HomeostasisDaemon {
     this.triggerWiring.onTrigger((trigger) => {
       void this.onTrigger(trigger);
     });
+
+    this.eventUnsubscribers.push(
+      this.eventBus.on('indexing_complete', (event) => {
+        void this.onIndexingComplete(event);
+      })
+    );
+    this.eventUnsubscribers.push(
+      this.eventBus.on('safety_violation', (event) => {
+        this.onSafetyViolation(event);
+      })
+    );
 
     // Start config healing if enabled
     if (this.config.enableConfigHealing && this.config.workspacePath) {
@@ -322,6 +344,11 @@ export class HomeostasisDaemon {
       this.triggerWiring = null;
     }
 
+    while (this.eventUnsubscribers.length > 0) {
+      const unsubscribe = this.eventUnsubscribers.pop();
+      unsubscribe?.();
+    }
+
     // Clear queue
     this.healingQueue = [];
 
@@ -385,6 +412,39 @@ export class HomeostasisDaemon {
   // ============================================================================
   // TRIGGER HANDLING
   // ============================================================================
+
+  private async onIndexingComplete(event: LibrarianEvent): Promise<void> {
+    try {
+      const violations = await this.ltlMonitorEvaluator.evaluateOnIndexingComplete(event);
+      if (violations.length > 0) {
+        logWarning('[homeostasis] LTL monitor detected safety violations', {
+          count: violations.length,
+        });
+      }
+    } catch (error) {
+      logError('[homeostasis] LTL monitor evaluation failed', {
+        error: getErrorMessage(error),
+      });
+    }
+  }
+
+  private onSafetyViolation(event: LibrarianEvent): void {
+    const violatedProperty = typeof event.data.violatedProperty === 'string'
+      ? event.data.violatedProperty
+      : 'unknown_property';
+    const severity = typeof event.data.severity === 'string'
+      ? event.data.severity
+      : 'warn';
+    const evidence = event.data.evidence && typeof event.data.evidence === 'object'
+      ? event.data.evidence
+      : {};
+
+    logWarning('[homeostasis] safety_violation event received', {
+      violatedProperty,
+      severity,
+      evidence,
+    });
+  }
 
   private async onTrigger(trigger: TriggeredHealthCheck): Promise<void> {
     this.healthChecksTriggered++;
