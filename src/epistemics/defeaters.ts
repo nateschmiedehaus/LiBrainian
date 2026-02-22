@@ -21,6 +21,7 @@ import {
   type ExtendedDefeaterType,
   type DefeaterSeverity,
   type Contradiction,
+  type ContradictionResolution,
   type ContradictionType,
   type ClaimSignalStrength,
   type EvidenceGraph,
@@ -30,6 +31,11 @@ import {
   createContradiction,
   computeOverallSignalStrength,
 } from './types.js';
+import type { ConstructionCalibrationTracker } from '../constructions/calibration_tracker.js';
+import {
+  onContradictionResolved,
+  type ContradictionCalibrationResolution,
+} from './calibration_integration.js';
 import type { EvidenceProvenance, ProvenanceSource } from './evidence_ledger.js';
 import type { EvidenceGraphStorage } from './storage.js';
 import {
@@ -692,6 +698,20 @@ export async function resolveDefeater(
       }
     }
   }
+}
+
+/**
+ * Resolve a contradiction and route winner/loser outcomes into calibration tracking.
+ */
+export async function resolveContradictionWithCalibration(
+  storage: EvidenceGraphStorage,
+  contradictionId: string,
+  resolution: ContradictionResolution,
+  tracker: ConstructionCalibrationTracker,
+  calibration: ContradictionCalibrationResolution
+): Promise<void> {
+  await storage.resolveContradiction(contradictionId, resolution);
+  onContradictionResolved(resolution, calibration, tracker);
 }
 
 // ============================================================================

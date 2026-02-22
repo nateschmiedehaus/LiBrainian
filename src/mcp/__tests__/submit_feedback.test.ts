@@ -19,6 +19,7 @@ describe('MCP submit_feedback tool', () => {
         workspace,
         feedbackToken: 'fbk_missing',
         outcome: 'failure',
+        predictionId: 'pred-human-123',
       });
 
       expect(result.isError).toBe(true);

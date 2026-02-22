@@ -357,6 +357,65 @@ export class ConstructionCalibrationTracker {
   }
 
   /**
+   * Get total prediction count for a construction.
+   */
+  getPredictionCount(constructionId: string): number {
+    return this.getPredictionCounts().get(constructionId)?.total ?? 0;
+  }
+
+  /**
+   * Compute calibrated confidence for a raw confidence value.
+   *
+   * Returns null when there is insufficient outcome history.
+   */
+  getCalibratedConfidence(
+    constructionId: string,
+    rawConfidence: number,
+    minSamples: number = 20
+  ): number | null {
+    if (!Number.isFinite(rawConfidence)) {
+      return null;
+    }
+    const clampedRaw = Math.max(0, Math.min(1, rawConfidence));
+    const counts = this.getPredictionCounts().get(constructionId);
+    if (!counts || counts.withOutcome < minSamples) {
+      return null;
+    }
+
+    const report = this.getCalibration(constructionId, { minSamples });
+    if (report.sampleCount < minSamples) {
+      return null;
+    }
+
+    const bucket = report.buckets.find((candidate) => {
+      const [low, high] = candidate.confidenceRange;
+      if (clampedRaw === 1.0) {
+        return clampedRaw >= low && clampedRaw <= high;
+      }
+      return clampedRaw >= low && clampedRaw < high;
+    });
+
+    if (!bucket || bucket.sampleSize === 0) {
+      return null;
+    }
+
+    return Math.max(0, Math.min(1, bucket.empiricalAccuracy));
+  }
+
+  /**
+   * Convenience alias for construction-level calibration reports.
+   */
+  getCalibrationReport(
+    constructionId: string,
+    options: CalibrationOptions = {}
+  ): ConstructionCalibrationReport {
+    return this.getCalibration(constructionId, {
+      ...options,
+      minSamples: options.minSamples ?? 20,
+    });
+  }
+
+  /**
    * Clear all tracking data (useful for testing).
    */
   clear(): void {

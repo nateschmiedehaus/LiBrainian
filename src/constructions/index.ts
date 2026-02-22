@@ -87,6 +87,12 @@ export {
 } from './operators.js';
 
 export {
+  calibrated,
+  type CalibratedOptions,
+  type ImmediateConstructionOutcome,
+} from './integration-wrappers.js';
+
+export {
   RefactoringSafetyChecker,
   createRefactoringSafetyChecker,
   type RefactoringTarget,

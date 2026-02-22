@@ -143,6 +143,7 @@ import {
 import { compileTechniqueBundlesFromIntent } from '../api/plan_compiler.js';
 import { listTechniqueCompositions as listStoredTechniqueCompositions } from '../state/technique_compositions.js';
 import { submitQueryFeedback } from '../integration/agent_protocol.js';
+import { getStageCalibrationTracker } from '../api/stage_calibration.js';
 import { createSqliteStorage, type LiBrainianStorage } from '../storage/index.js';
 import { checkDefeaters, STANDARD_DEFEATERS } from '../knowledge/defeater_activation.js';
 import { CodePropertyGraphBuilder } from '../analysis/code_property_graph.js';
@@ -167,6 +168,7 @@ import {
   listConstructions,
 } from '../constructions/registry.js';
 import { buildCapabilityInventory } from '../capabilities/inventory.js';
+import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
 
 // ============================================================================
 // TYPES
@@ -2076,6 +2078,7 @@ export class LiBrainianMCPServer {
             outcome: { type: 'string', enum: ['success', 'failure', 'partial'], description: 'Task outcome' },
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
             agentId: { type: 'string', description: 'Agent identifier' },
+            predictionId: { type: 'string', description: 'Optional prediction ID when feedback resolves a human review' },
             missingContext: { type: 'string', description: 'Description of missing context' },
             customRatings: {
               type: 'array',
@@ -7314,6 +7317,26 @@ export class LiBrainianMCPServer {
           customRatings: input.customRatings,
         }
       );
+
+      if (input.predictionId) {
+        const tracker = getStageCalibrationTracker();
+        if (tracker) {
+          try {
+            const instrumentationWorkspace = await this.ensureWorkspaceInstrumentation(resolvedWorkspace);
+            const ledger = instrumentationWorkspace?.evidenceLedger;
+            await recordHumanFeedbackOutcome(
+              {
+                predictionId: input.predictionId,
+                outcome: input.outcome,
+              },
+              tracker,
+              ledger ?? undefined,
+            );
+          } catch {
+            // Feedback submission must succeed even if calibration journaling cannot be persisted.
+          }
+        }
+      }
 
       return {
         feedbackToken: input.feedbackToken,

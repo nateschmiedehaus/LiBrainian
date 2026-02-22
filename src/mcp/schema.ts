@@ -317,6 +317,7 @@ export const SubmitFeedbackToolInputSchema = z.object({
   outcome: z.enum(['success', 'failure', 'partial']).describe('Task outcome'),
   workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
   agentId: z.string().optional().describe('Agent identifier'),
+  predictionId: z.string().optional().describe('Optional prediction ID when feedback resolves a human review'),
   missingContext: z.string().optional().describe('Description of missing context'),
   customRatings: z.array(z.object({
     packId: z.string().min(1),
@@ -1298,6 +1299,7 @@ export const submitFeedbackToolJsonSchema: JSONSchema = {
     outcome: { type: 'string', enum: ['success', 'failure', 'partial'], description: 'Task outcome' },
     workspace: { type: 'string', description: 'Workspace path' },
     agentId: { type: 'string', description: 'Agent identifier' },
+    predictionId: { type: 'string', description: 'Optional prediction ID when feedback resolves a human review' },
     missingContext: { type: 'string', description: 'Description of missing context' },
     customRatings: { type: 'array', items: { type: 'string' }, description: 'Optional per-pack ratings' },
   },

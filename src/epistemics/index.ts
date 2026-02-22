@@ -102,6 +102,7 @@ export {
   // Resolution
   getResolutionActions,
   resolveDefeater,
+  resolveContradictionWithCalibration,
   type ResolutionAction,
 
   // Health Assessment
@@ -190,6 +191,17 @@ export {
   type ClaimOutcomeTrackerConfig,
   type OutcomeCalibrationOptions,
 } from './outcomes.js';
+
+// Calibration integration bridges (construction/session/runtime outcome wiring)
+export {
+  recordCIOutcomes,
+  recordHumanFeedbackOutcome,
+  onContradictionResolved,
+  type CIOutcomeRecord,
+  type CITestResult,
+  type HumanFeedbackResolution,
+  type ContradictionCalibrationResolution,
+} from './calibration_integration.js';
 
 // Calibration curve computation (Track F C2)
 export {

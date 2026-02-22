@@ -1220,6 +1220,9 @@ export interface SubmitFeedbackToolInput {
   /** Agent identifier */
   agentId?: string;
 
+  /** Optional construction prediction ID when feedback resolves a human review request */
+  predictionId?: string;
+
   /** Description of missing context */
   missingContext?: string;
 
@@ -2868,9 +2871,16 @@ export function isSubmitFeedbackToolInput(value: unknown): value is SubmitFeedba
   const outcomeOk = obj.outcome === 'success' || obj.outcome === 'failure' || obj.outcome === 'partial';
   const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
   const agentIdOk = typeof obj.agentId === 'string' || typeof obj.agentId === 'undefined';
+  const predictionIdOk = typeof obj.predictionId === 'string' || typeof obj.predictionId === 'undefined';
   const missingContextOk = typeof obj.missingContext === 'string' || typeof obj.missingContext === 'undefined';
   const ratingsOk = Array.isArray(obj.customRatings) || typeof obj.customRatings === 'undefined';
-  return tokenOk && outcomeOk && workspaceOk && agentIdOk && missingContextOk && ratingsOk;
+  return tokenOk
+    && outcomeOk
+    && workspaceOk
+    && agentIdOk
+    && predictionIdOk
+    && missingContextOk
+    && ratingsOk;
 }
 
 /** Type guard for FeedbackRetrievalResultToolInput */
