@@ -7,6 +7,7 @@ describe('librainian action dogfood workflow', () => {
     const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'librainian-action-dogfood.yml');
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
+    expect(workflow).toContain('workflow_dispatch:');
     expect(workflow).toContain('name: librainian-action-dogfood');
     expect(workflow).toContain('node scripts/dogfood-ci-gate.mjs --artifact state/dogfood/clean-clone-self-hosting.json');
     expect(workflow).toContain('name: Upload clean-clone self-hosting artifact');

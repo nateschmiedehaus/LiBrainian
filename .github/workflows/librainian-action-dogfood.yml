@@ -1,6 +1,7 @@
 name: librainian-action-dogfood
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
