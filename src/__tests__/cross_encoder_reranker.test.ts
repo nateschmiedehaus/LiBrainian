@@ -188,6 +188,15 @@ describe('Cross-Encoder Re-ranking', () => {
     }, 60000);
   });
 
+  describe('model registry', () => {
+    it('includes the mixedbread mxbai reranker and retains historical ms-marco options', () => {
+      const models = getAvailableModels().map((item) => item.id);
+      expect(models).toContain('cross-encoder/mixedbread-ai/mxbai-rerank-xsmall-v1');
+      expect(models).toContain('cross-encoder/ms-marco-MiniLM-L-6-v2');
+      expect(models).toContain('cross-encoder/ms-marco-MiniLM-L-12-v2');
+    });
+  });
+
   describe('rerankBatch', () => {
     it('should re-rank with batching', async () => {
       console.log('\nBatch re-ranking...');

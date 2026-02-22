@@ -56,6 +56,7 @@ export interface RerankerOptions {
 }
 
 export type CrossEncoderModelId =
+  | 'cross-encoder/mixedbread-ai/mxbai-rerank-xsmall-v1'
   | 'cross-encoder/ms-marco-MiniLM-L-6-v2'
   | 'cross-encoder/ms-marco-MiniLM-L-12-v2';
 
@@ -69,7 +70,23 @@ interface CrossEncoderModel {
   avgLatencyMs: number;
 }
 
+const DEFAULT_CROSS_ENCODER_MODEL_ID: CrossEncoderModelId = 'cross-encoder/mixedbread-ai/mxbai-rerank-xsmall-v1';
+const DEFAULT_CROSS_ENCODER_TRUNCATE_CHARS = 8192;
+const FALLBACK_CROSS_ENCODERS: Record<CrossEncoderModelId, CrossEncoderModelId[]> = {
+  'cross-encoder/mixedbread-ai/mxbai-rerank-xsmall-v1': [
+    'cross-encoder/ms-marco-MiniLM-L-12-v2',
+    'cross-encoder/ms-marco-MiniLM-L-6-v2',
+  ],
+  'cross-encoder/ms-marco-MiniLM-L-6-v2': [],
+  'cross-encoder/ms-marco-MiniLM-L-12-v2': [],
+};
+
 const CROSS_ENCODER_MODELS: Record<CrossEncoderModelId, CrossEncoderModel> = {
+  'cross-encoder/mixedbread-ai/mxbai-rerank-xsmall-v1': {
+    xenovaId: 'mixedbread-ai/mxbai-rerank-xsmall-v1',
+    description: 'Code-aware reranker (mixedbread, 8k context window)',
+    avgLatencyMs: 25,
+  },
   'cross-encoder/ms-marco-MiniLM-L-6-v2': {
     xenovaId: 'Xenova/ms-marco-MiniLM-L-6-v2',
     description: 'Fast cross-encoder for passage re-ranking (6 layers)',
@@ -110,7 +127,7 @@ const _loadingPromises = new Map<CrossEncoderModelId, Promise<LoadedCrossEncoder
  * Different models can load concurrently without interference.
  */
 async function getCrossEncoder(
-  modelId: CrossEncoderModelId = 'cross-encoder/ms-marco-MiniLM-L-6-v2'
+  modelId: CrossEncoderModelId = DEFAULT_CROSS_ENCODER_MODEL_ID
 ): Promise<LoadedCrossEncoder> {
   // Return cached model if already loaded
   const cached = _modelCache.get(modelId);
@@ -124,38 +141,67 @@ async function getCrossEncoder(
     return existingPromise;
   }
 
-  const modelConfig = CROSS_ENCODER_MODELS[modelId];
-  if (!modelConfig) {
-    throw new Error(`Unknown cross-encoder model: ${modelId}`);
-  }
+  const candidateModelIds = [modelId, ...(FALLBACK_CROSS_ENCODERS[modelId] ?? [])];
+  let lastError: Error | null = null;
 
-  // Start loading and store promise to prevent concurrent loads for THIS model
-  const loadingPromise = (async () => {
-    console.error(`[cross-encoder] Loading ${modelId}...`);
+  for (const candidateModelId of candidateModelIds) {
+    const modelConfig = CROSS_ENCODER_MODELS[candidateModelId];
+    if (!modelConfig) {
+      throw new Error(`Unknown cross-encoder model: ${candidateModelId}`);
+    }
+
+    if (_modelCache.has(candidateModelId)) {
+      return _modelCache.get(candidateModelId)!;
+    }
+
+    const existingPromise = _loadingPromises.get(candidateModelId);
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    console.error(`[cross-encoder] Loading ${candidateModelId}...`);
     const startTime = Date.now();
 
-    // Load tokenizer and model directly for proper logit access
-    const tokenizer = await AutoTokenizer.from_pretrained(modelConfig.xenovaId);
-    const model = await AutoModelForSequenceClassification.from_pretrained(
-      modelConfig.xenovaId,
-      { quantized: true }
-    );
+    const loadingPromise = (async () => {
+      // Load tokenizer and model directly for proper logit access
+      const tokenizer = await AutoTokenizer.from_pretrained(modelConfig.xenovaId);
+      const model = await AutoModelForSequenceClassification.from_pretrained(
+        modelConfig.xenovaId,
+        { quantized: true }
+      );
 
-    const loaded = { tokenizer, model };
-    console.error(`[cross-encoder] Model loaded in ${Date.now() - startTime}ms`);
+      return { tokenizer, model };
+    })();
 
-    return loaded;
-  })();
+    _loadingPromises.set(candidateModelId, loadingPromise);
 
-  _loadingPromises.set(modelId, loadingPromise);
-
-  try {
-    const loaded = await loadingPromise;
-    _modelCache.set(modelId, loaded);
-    return loaded;
-  } finally {
-    _loadingPromises.delete(modelId);
+    try {
+      const loaded = await loadingPromise;
+      console.error(`[cross-encoder] Model loaded in ${Date.now() - startTime}ms`);
+      _modelCache.set(candidateModelId, loaded);
+      return loaded;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`[cross-encoder] Failed to load ${candidateModelId}: ${reason}`);
+      lastError = error instanceof Error ? error : new Error(reason);
+      _loadingPromises.delete(candidateModelId);
+      if (candidateModelId !== modelId) {
+        console.error(`[cross-encoder] Falling back to ${candidateModelId} replacement model.`);
+        continue;
+      }
+      continue;
+    } finally {
+      if (_loadingPromises.get(candidateModelId) === loadingPromise) {
+        _loadingPromises.delete(candidateModelId);
+      }
+    }
   }
+
+  throw new Error(
+    `Failed to load cross-encoder model chain for ${modelId}: ${
+      lastError?.message ?? 'Unknown error'
+    }`,
+  );
 }
 
 /**
@@ -169,7 +215,7 @@ async function scoreQueryDocumentPair(
 ): Promise<number> {
   // Tokenize as a pair
   const inputs = await crossEncoder.tokenizer(query, {
-    text_pair: document.slice(0, 512), // Truncate document
+    text_pair: document.slice(0, DEFAULT_CROSS_ENCODER_TRUNCATE_CHARS), // Truncate document
     padding: true,
     truncation: true,
     return_tensors: 'pt'
@@ -208,7 +254,7 @@ export async function rerank(
     topK = 50,
     returnTopN = 10,
     minScore = -Infinity, // Raw logits can be negative
-    modelId = 'cross-encoder/ms-marco-MiniLM-L-6-v2',
+    modelId = DEFAULT_CROSS_ENCODER_MODEL_ID,
   } = options;
 
   // Limit documents to re-rank
@@ -280,7 +326,7 @@ export async function rerankBatch(
     topK = 50,
     returnTopN = 10,
     minScore = -Infinity,
-    modelId = 'cross-encoder/ms-marco-MiniLM-L-6-v2',
+    modelId = DEFAULT_CROSS_ENCODER_MODEL_ID,
     batchSize = 8,
   } = options;
 
@@ -371,7 +417,7 @@ export async function hybridRerank(
     returnTopN = 10,
     biEncoderWeight = 0.3,
     crossEncoderWeight = 0.7,
-    modelId = 'cross-encoder/ms-marco-MiniLM-L-6-v2',
+    modelId = DEFAULT_CROSS_ENCODER_MODEL_ID,
   } = options;
 
   // Get documents
@@ -423,7 +469,7 @@ export async function hybridRerank(
  * Preload cross-encoder model for faster first query.
  */
 export async function preloadReranker(
-  modelId: CrossEncoderModelId = 'cross-encoder/ms-marco-MiniLM-L-6-v2'
+  modelId: CrossEncoderModelId = DEFAULT_CROSS_ENCODER_MODEL_ID
 ): Promise<void> {
   await getCrossEncoder(modelId);
 }
