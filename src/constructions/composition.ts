@@ -35,6 +35,10 @@ import {
   ConstructionTimeoutError,
 } from './base/construction_base.js';
 import type { Construction, Context } from './types.js';
+import {
+  isConstructionOutcome,
+  type ConstructionExecutionResult,
+} from './types.js';
 import { registerGeneratedConstruction } from './registry.js';
 
 // ============================================================================
@@ -91,6 +95,28 @@ export interface Tracer {
   addEvent(spanId: string, name: string, attributes?: Record<string, unknown>): void;
   /** Set attributes on a span */
   setAttribute(spanId: string, key: string, value: unknown): void;
+}
+
+function unwrapExecutionResult<T>(
+  execution: ConstructionExecutionResult<T, ConstructionError>,
+  constructionId: string,
+): T {
+  if (!isConstructionOutcome<T, ConstructionError>(execution)) {
+    return execution as T;
+  }
+  if (execution.ok) {
+    return execution.value;
+  }
+  throw execution.error ?? new ConstructionError(`Construction failed: ${constructionId}`, constructionId);
+}
+
+async function executeOrThrow<TInput, TOutput extends ConstructionResult>(
+  construction: ComposableConstruction<TInput, TOutput>,
+  input: TInput,
+  context?: Context<unknown>,
+): Promise<TOutput> {
+  const execution = await construction.execute(input, context);
+  return unwrapExecutionResult(execution, construction.id);
 }
 
 // ============================================================================
@@ -332,12 +358,12 @@ export class SequenceConstruction<
     const evidenceRefs: string[] = [];
 
     // Execute first construction
-    const firstResult = await this.first.execute(input, context);
+    const firstResult = await executeOrThrow(this.first, input, context);
     evidenceRefs.push(...firstResult.evidenceRefs);
     evidenceRefs.push(`sequence:step_1:${this.first.id}`);
 
     // Execute second construction with first's output
-    const secondResult = await this.second.execute(firstResult, context);
+    const secondResult = await executeOrThrow(this.second, firstResult, context);
     evidenceRefs.push(...secondResult.evidenceRefs);
     evidenceRefs.push(`sequence:step_2:${this.second.id}`);
 
@@ -399,7 +425,7 @@ export class ParallelConstruction<TInput, TOutputs extends ConstructionResult[]>
 
     // Execute all constructions in parallel
     const resultPromises = this.constructions.map(async (construction, index) => {
-      const result = await construction.execute(input, context);
+      const result = await executeOrThrow(construction, input, context);
       evidenceRefs.push(`parallel:branch_${index}:${construction.id}`);
       return result;
     });
@@ -482,7 +508,7 @@ export class ConditionalConstruction<TInput, TOutput extends ConstructionResult>
     const branchTaken: 'true' | 'false' = predicateResult ? 'true' : 'false';
     const construction = predicateResult ? this.ifTrue : this.ifFalse;
 
-    const result = await construction.execute(input, context);
+    const result = await executeOrThrow(construction, input, context);
     evidenceRefs.push(...result.evidenceRefs);
     evidenceRefs.push(`conditional:branch_${branchTaken}:${construction.id}`);
 
@@ -554,7 +580,7 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
       evidenceRefs.push(`retry:attempt_${attempts}`);
 
       try {
-        const result = await this.construction.execute(input, context);
+        const result = await executeOrThrow(this.construction, input, context);
         evidenceRefs.push(...result.evidenceRefs);
 
         // Success - return the result
@@ -635,7 +661,7 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
 
     try {
       const result = await Promise.race([
-        this.construction.execute(input, context),
+        executeOrThrow(this.construction, input, context),
         timeoutPromise,
       ]);
 
@@ -710,7 +736,7 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
     }
 
     // Execute and cache
-    const result = await this.construction.execute(input, context);
+    const result = await executeOrThrow(this.construction, input, context);
 
     // Enforce max entries
     if (this.config.maxEntries && this.cache.size >= this.config.maxEntries) {
@@ -787,7 +813,7 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
         timestamp: Date.now(),
       });
 
-      const result = await this.construction.execute(input, context);
+      const result = await executeOrThrow(this.construction, input, context);
 
       this.tracer.addEvent(spanId, 'execution_completed', {
         timestamp: Date.now(),

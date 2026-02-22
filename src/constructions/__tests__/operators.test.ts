@@ -11,10 +11,13 @@ import {
   mapError,
   provide,
   seq,
+  withRetry,
 } from '../operators.js';
+import { fail, isConstructionOutcome } from '../types.js';
 import {
   ConstructionError,
   ConstructionCancelledError,
+  ConstructionInputError,
   ConstructionTimeoutError,
 } from '../base/construction_base.js';
 
@@ -162,7 +165,14 @@ describe('construction operators', () => {
       (error) => new ConstructionCancelledError(`${error.constructionId}:mapped`)
     );
 
-    await expect(mapped.execute(1)).rejects.toThrow('cancel-base:mapped');
+    const result = await mapped.execute(1);
+    expect(isConstructionOutcome<number, ConstructionCancelledError>(result)).toBe(true);
+    if (isConstructionOutcome<number, ConstructionCancelledError>(result)) {
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('cancel-base:mapped');
+      }
+    }
   });
 
   it('keeps map alias behavior equivalent to mapConstruction', async () => {
@@ -249,5 +259,96 @@ describe('construction operators', () => {
     });
 
     expect(result).toBe('librarian-core:claude-haiku-3-5');
+  });
+
+  it('short-circuits seq when step 2 fails and preserves partial output from step 1', async () => {
+    const step3Spy = vi.fn(async (input: number) => input * 10);
+    const step1: Construction<number, number> = {
+      id: 'step-1',
+      name: 'Step 1',
+      async execute(input: number) {
+        return input + 1;
+      },
+    };
+    const step2: Construction<number, number, ConstructionError> = {
+      id: 'step-2',
+      name: 'Step 2',
+      async execute(input: number) {
+        return fail(
+          new ConstructionInputError('step-2 rejected value', 'value', 'step-2'),
+          undefined,
+          'step-2',
+        );
+      },
+    };
+    const step3: Construction<number, number> = {
+      id: 'step-3',
+      name: 'Step 3',
+      async execute(input: number) {
+        return step3Spy(input);
+      },
+    };
+
+    const piped = seq(seq(step1, step2), step3);
+    const outcome = await piped.execute(5);
+
+    expect(step3Spy).not.toHaveBeenCalled();
+    expect(isConstructionOutcome<number, ConstructionError>(outcome)).toBe(true);
+    if (isConstructionOutcome<number, ConstructionError>(outcome)) {
+      expect(outcome.ok).toBe(false);
+      if (!outcome.ok) {
+        expect(outcome.errorAt).toBe('step-2');
+        expect(outcome.partial).toBe(6);
+      }
+    }
+  });
+
+  it('retries only when error.retriable is true', async () => {
+    let attempts = 0;
+    const flaky: Construction<string, string, ConstructionError> = {
+      id: 'flaky',
+      name: 'Flaky',
+      async execute(input: string) {
+        attempts += 1;
+        if (attempts < 3) {
+          return fail(
+            new ConstructionTimeoutError('flaky', 50) as ConstructionError,
+            { lastInput: input } as unknown as Partial<string>,
+            'flaky',
+          );
+        }
+        return `${input}:ok`;
+      },
+    };
+
+    const retried = withRetry(flaky, { maxAttempts: 4, baseDelayMs: 1 });
+    const success = await retried.execute('payload');
+    expect(success).toBe('payload:ok');
+    expect(attempts).toBe(3);
+
+    attempts = 0;
+    const permanent: Construction<string, string, ConstructionError> = {
+      id: 'permanent',
+      name: 'Permanent',
+      async execute(input: string) {
+        attempts += 1;
+        return fail(
+          new ConstructionInputError('bad input', 'input', 'permanent'),
+          { badInput: input } as unknown as Partial<string>,
+          'permanent',
+        );
+      },
+    };
+
+    const noRetry = withRetry(permanent, { maxAttempts: 5, baseDelayMs: 1 });
+    const failed = await noRetry.execute('bad');
+    expect(attempts).toBe(1);
+    expect(isConstructionOutcome<string, ConstructionError>(failed)).toBe(true);
+    if (isConstructionOutcome<string, ConstructionError>(failed)) {
+      expect(failed.ok).toBe(false);
+      if (!failed.ok) {
+        expect(failed.error.retriable).toBe(false);
+      }
+    }
   });
 });

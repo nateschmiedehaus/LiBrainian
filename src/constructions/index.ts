@@ -13,10 +13,12 @@ export type {
   ConstructionPath,
   Construction,
   ConstructionDebugOptions,
+  ConstructionExecutionResult,
   ConstructionExecutionTrace,
   ConstructionExecutionTraceStep,
   ConstructionFailureHint,
   ConstructionFailureKind,
+  ConstructionOutcome,
   CostRange,
   CostSemiring,
   ConstructionId,
@@ -48,6 +50,9 @@ export {
   LEGACY_CONSTRUCTION_ALIASES,
   isConstructionId,
   toCanonicalConstructionId,
+  fail,
+  isConstructionOutcome,
+  ok,
 } from './types.js';
 
 export {
@@ -74,6 +79,7 @@ export {
   map,
   mapAsync,
   mapError,
+  withRetry,
   provide,
   ProtocolViolationError,
   mapConstruction,

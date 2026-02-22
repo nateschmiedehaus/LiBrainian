@@ -11,6 +11,8 @@ import {
 import type {
   ConstructionPath,
   Construction,
+  ConstructionOutcome,
+  ConstructionExecutionResult,
   CostSemiring,
   ConstructionDebugOptions,
   ConstructionExecutionTrace,
@@ -23,6 +25,7 @@ import type {
   SelectiveConstruction,
   Context,
 } from './types.js';
+import { isConstructionOutcome, fail, ok } from './types.js';
 
 type MutableTrace = {
   mode: 'execution_trace';
@@ -174,22 +177,32 @@ export function explainConstructionFailure(
   };
 }
 
-async function executeWithTrace<I, O, E extends ConstructionError, R>(
+function toConstructionError(error: unknown, constructionId: string): ConstructionError {
+  if (error instanceof ConstructionError) {
+    return error;
+  }
+  if (error instanceof Error) {
+    return new ConstructionError(error.message, constructionId, error);
+  }
+  return new ConstructionError(`Non-error failure: ${String(error)}`, constructionId);
+}
+
+async function executeOutcomeWithTrace<I, O, E extends ConstructionError, R>(
   construction: Construction<I, O, E, R>,
   input: I,
   context?: Context<R>
-): Promise<O> {
+): Promise<ConstructionOutcome<O, E>> {
   const runtime = traceStorage.getStore();
-  if (!runtime) {
-    return construction.execute(input, context);
-  }
-
   const startedEpoch = Date.now();
   const startedAt = nowIso(startedEpoch);
+
   try {
-    const output = await construction.execute(input, context);
+    const execution = await construction.execute(input, context);
+    const outcome = isConstructionOutcome<O, E>(execution)
+      ? execution
+      : ok<O, E>(execution as O);
     const finishedEpoch = Date.now();
-    if (runtime.includeSuccessfulSteps) {
+    if (runtime && outcome.ok && runtime.includeSuccessfulSteps) {
       runtime.trace.steps.push({
         constructionId: construction.id,
         constructionName: construction.name,
@@ -198,27 +211,59 @@ async function executeWithTrace<I, O, E extends ConstructionError, R>(
         durationMs: finishedEpoch - startedEpoch,
         status: 'succeeded',
         inputType: valueType(input),
-        outputType: valueType(output),
+        outputType: valueType(outcome.value),
       });
     }
-    return output;
+    if (runtime && !outcome.ok) {
+      const hint = construction.whyFailed?.(outcome.error) ??
+        explainConstructionFailure(outcome.error, construction.id);
+      runtime.trace.failed ??= hint;
+      runtime.trace.steps.push({
+        constructionId: construction.id,
+        constructionName: construction.name,
+        startedAt,
+        finishedAt: nowIso(finishedEpoch),
+        durationMs: finishedEpoch - startedEpoch,
+        status: 'failed',
+        inputType: valueType(input),
+        errorKind: hint.kind,
+        errorMessage: hint.message,
+      });
+    }
+    return outcome;
   } catch (error) {
     const finishedEpoch = Date.now();
-    const hint = construction.whyFailed?.(error) ?? explainConstructionFailure(error, construction.id);
-    runtime.trace.failed ??= hint;
-    runtime.trace.steps.push({
-      constructionId: construction.id,
-      constructionName: construction.name,
-      startedAt,
-      finishedAt: nowIso(finishedEpoch),
-      durationMs: finishedEpoch - startedEpoch,
-      status: 'failed',
-      inputType: valueType(input),
-      errorKind: hint.kind,
-      errorMessage: hint.message,
-    });
-    throw error;
+    const normalized = toConstructionError(error, construction.id) as E;
+    if (runtime) {
+      const hint = construction.whyFailed?.(normalized) ??
+        explainConstructionFailure(normalized, construction.id);
+      runtime.trace.failed ??= hint;
+      runtime.trace.steps.push({
+        constructionId: construction.id,
+        constructionName: construction.name,
+        startedAt,
+        finishedAt: nowIso(finishedEpoch),
+        durationMs: finishedEpoch - startedEpoch,
+        status: 'failed',
+        inputType: valueType(input),
+        errorKind: hint.kind,
+        errorMessage: hint.message,
+      });
+    }
+    return fail<O, E>(normalized, undefined, construction.id);
   }
+}
+
+async function executeWithTrace<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  input: I,
+  context?: Context<R>
+): Promise<O> {
+  const outcome = await executeOutcomeWithTrace(construction, input, context);
+  if (outcome.ok) {
+    return outcome.value;
+  }
+  throw outcome.error;
 }
 
 function createDebugConstruction<I, O, E extends ConstructionError, R>(
@@ -442,7 +487,7 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
   second: Construction<M, O, E2, R>,
   id = `seq:${first.id}>${second.id}`,
   name = `Seq(${first.name}, ${second.name})`
-): Construction<I, O, E1 | E2, R> {
+): Construction<I, ConstructionExecutionResult<O, E1 | E2>, E1 | E2, R> {
   const firstEstimate = first.getEstimatedConfidence;
   const secondEstimate = second.getEstimatedConfidence;
   const estimatedConfidence = firstEstimate && secondEstimate
@@ -455,9 +500,29 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context): Promise<O> {
-      const intermediate = await executeWithTrace(first, input, context);
-      return executeWithTrace(second, intermediate, context);
+    async execute(
+      input: I,
+      context
+    ): Promise<ConstructionExecutionResult<O, E1 | E2>> {
+      const firstOutcome = await executeOutcomeWithTrace(first, input, context);
+      if (!firstOutcome.ok) {
+        return fail<O, E1 | E2>(
+          firstOutcome.error,
+          firstOutcome.partial as Partial<O> | undefined,
+          firstOutcome.errorAt ?? first.id,
+        );
+      }
+
+      const secondOutcome = await executeOutcomeWithTrace(second, firstOutcome.value, context);
+      if (!secondOutcome.ok) {
+        return fail<O, E1 | E2>(
+          secondOutcome.error,
+          secondOutcome.partial ?? (firstOutcome.value as unknown as Partial<O>),
+          secondOutcome.errorAt ?? second.id,
+        );
+      }
+
+      return secondOutcome.value;
     },
     ...(estimatedConfidence ? { getEstimatedConfidence: estimatedConfidence } : {}),
   });
@@ -493,16 +558,26 @@ export function fallback<I, O, E extends ConstructionError, R>(
   backup: Construction<I, O, E, R>,
   id = `fallback:${primary.id}>${backup.id}`,
   name = `Fallback(${primary.name}, ${backup.name})`
-): Construction<I, O, E, R> {
+): Construction<I, ConstructionExecutionResult<O, E>, E, R> {
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context): Promise<O> {
-      try {
-        return await executeWithTrace(primary, input, context);
-      } catch {
-        return executeWithTrace(backup, input, context);
+    async execute(input: I, context): Promise<ConstructionExecutionResult<O, E>> {
+      const primaryOutcome = await executeOutcomeWithTrace(primary, input, context);
+      if (primaryOutcome.ok) {
+        return primaryOutcome.value;
       }
+
+      const backupOutcome = await executeOutcomeWithTrace(backup, input, context);
+      if (backupOutcome.ok) {
+        return backupOutcome.value;
+      }
+
+      return fail<O, E>(
+        backupOutcome.error,
+        backupOutcome.partial ?? primaryOutcome.partial,
+        backupOutcome.errorAt ?? backup.id,
+      );
     },
     getEstimatedConfidence: primary.getEstimatedConfidence ?? backup.getEstimatedConfidence,
   });
@@ -815,19 +890,83 @@ export function mapError<I, O, E extends ConstructionError, E2 extends Construct
   transform: (error: E) => E2,
   id = `mapError:${construction.id}`,
   name = `MapError(${construction.name})`
-): Construction<I, O, E2, R> {
+): Construction<I, ConstructionExecutionResult<O, E2>, E2, R> {
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<O> {
-      try {
-        return await executeWithTrace(construction, input, context);
-      } catch (error) {
-        if (error instanceof Error) {
-          throw transform(error as E);
-        }
-        throw error;
+    async execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E2>> {
+      const outcome = await executeOutcomeWithTrace(construction, input, context);
+      if (outcome.ok) {
+        return outcome.value;
       }
+      return fail<O, E2>(transform(outcome.error), outcome.partial, outcome.errorAt);
+    },
+    getEstimatedConfidence: construction.getEstimatedConfidence,
+  });
+}
+
+export interface ConstructionRetryOptions {
+  readonly maxAttempts: number;
+  readonly baseDelayMs?: number;
+  readonly maxDelayMs?: number;
+  readonly backoffFactor?: number;
+}
+
+/**
+ * Retry construction execution only when failures are marked retriable.
+ */
+export function withRetry<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  options: ConstructionRetryOptions,
+  id = `withRetry:${construction.id}`,
+  name = `WithRetry(${construction.name})`,
+): Construction<I, ConstructionExecutionResult<O, E>, E, R> {
+  const maxAttempts = Math.max(1, options.maxAttempts);
+  const baseDelayMs = Math.max(0, options.baseDelayMs ?? 50);
+  const backoffFactor = Math.max(1, options.backoffFactor ?? 2);
+  const maxDelayMs = Math.max(baseDelayMs, options.maxDelayMs ?? baseDelayMs * 10);
+
+  return withDiagnostics({
+    id,
+    name,
+    async execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E>> {
+      let attempt = 0;
+      let lastFailure: ConstructionOutcome<O, E> | undefined;
+
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        const outcome = await executeOutcomeWithTrace(construction, input, context);
+        if (outcome.ok) {
+          return outcome.value;
+        }
+
+        lastFailure = outcome;
+        if (!outcome.error.retriable || attempt >= maxAttempts) {
+          return fail<O, E>(outcome.error, outcome.partial, outcome.errorAt ?? construction.id);
+        }
+
+        const delayMs = Math.min(
+          baseDelayMs * Math.pow(backoffFactor, attempt - 1),
+          maxDelayMs,
+        );
+        await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      if (lastFailure && !lastFailure.ok) {
+        return fail<O, E>(
+          lastFailure.error,
+          lastFailure.partial,
+          lastFailure.errorAt ?? construction.id,
+        );
+      }
+      return fail<O, E>(
+        new ConstructionError(
+          `Retry loop exited without outcome after ${maxAttempts} attempts`,
+          construction.id,
+        ) as E,
+        undefined,
+        construction.id,
+      );
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
   });
@@ -841,13 +980,23 @@ export function provide<I, O, E extends ConstructionError, R extends Record<stri
   providedDeps: RP,
   id = `provide:${construction.id}`,
   name = `Provide(${construction.name})`
-): Construction<I, O, E, Omit<R, keyof RP>> {
+): Construction<I, ConstructionExecutionResult<O, E>, E, Omit<R, keyof RP>> {
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<Omit<R, keyof RP>>): Promise<O> {
+    async execute(
+      input: I,
+      context?: Context<Omit<R, keyof RP>>,
+    ): Promise<ConstructionExecutionResult<O, E>> {
       if (!context) {
-        throw new ConstructionError(`Execution context is required for ${construction.id}`, construction.id);
+        return fail<O, E>(
+          new ConstructionError(
+            `Execution context is required for ${construction.id}`,
+            construction.id,
+          ) as E,
+          undefined,
+          construction.id,
+        );
       }
 
       const mergedContext: Context<R> = {
@@ -858,7 +1007,11 @@ export function provide<I, O, E extends ConstructionError, R extends Record<stri
         } as R,
       };
 
-      return executeWithTrace(construction, input, mergedContext);
+      const outcome = await executeOutcomeWithTrace(construction, input, mergedContext);
+      if (outcome.ok) {
+        return outcome.value;
+      }
+      return fail<O, E>(outcome.error, outcome.partial, outcome.errorAt ?? construction.id);
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
   });

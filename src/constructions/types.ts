@@ -230,6 +230,77 @@ export interface ConstructionDebugOptions {
   readonly includeSuccessfulSteps?: boolean;
 }
 
+/**
+ * Railway-style construction outcome.
+ *
+ * Canonical construction operators may return this typed channel instead of throwing.
+ * A compatibility path still allows legacy constructions to return raw values.
+ */
+export type ConstructionOutcome<O, E extends ConstructionError = ConstructionError> =
+  | {
+      readonly ok: true;
+      readonly value: O;
+      readonly result: O;
+    }
+  | {
+      readonly ok: false;
+      readonly error: E;
+      readonly partial?: Partial<O>;
+      readonly errorAt?: string;
+    };
+
+/**
+ * Compatibility execution result while the construction ecosystem migrates.
+ * - Success may be returned as raw O (legacy) or as an explicit ok(...) outcome.
+ * - Failure should be returned as fail(...), not thrown.
+ */
+export type ConstructionExecutionResult<
+  O,
+  E extends ConstructionError = ConstructionError,
+> = O | ConstructionOutcome<O, E>;
+
+/**
+ * Outcome constructor for success track.
+ */
+export function ok<O, E extends ConstructionError = ConstructionError>(
+  value: O,
+): ConstructionOutcome<O, E> {
+  return {
+    ok: true,
+    value,
+    result: value,
+  };
+}
+
+/**
+ * Outcome constructor for error track.
+ */
+export function fail<O, E extends ConstructionError = ConstructionError>(
+  error: E,
+  partial?: Partial<O>,
+  errorAt?: string,
+): ConstructionOutcome<O, E> {
+  return {
+    ok: false,
+    error,
+    partial,
+    errorAt,
+  };
+}
+
+/**
+ * Runtime type guard for construction outcomes.
+ */
+export function isConstructionOutcome<O, E extends ConstructionError = ConstructionError>(
+  value: unknown,
+): value is ConstructionOutcome<O, E> {
+  if (typeof value !== 'object' || value === null || !('ok' in value)) {
+    return false;
+  }
+  const candidate = value as { ok?: unknown };
+  return typeof candidate.ok === 'boolean';
+}
+
 export type Either<A, B> =
   | { readonly tag: 'left'; readonly value: A }
   | { readonly tag: 'right'; readonly value: B };
