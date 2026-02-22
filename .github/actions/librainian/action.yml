@@ -45,15 +45,21 @@ runs:
         action_root="${{ github.action_path }}"
         repo_root="$(cd "${action_root}/../../.." && pwd)"
         tsx_bin="${repo_root}/node_modules/.bin/tsx"
-        timeout_seconds="${LIBRAINIAN_ACTION_TIMEOUT_SECONDS:-420}"
+        stall_timeout_seconds="${LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-300}"
+        hard_timeout_seconds="${LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-1200}"
 
-        if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]] || [ "${timeout_seconds}" -le 0 ]; then
-          echo "[librainian-action] Invalid LIBRAINIAN_ACTION_TIMEOUT_SECONDS=${timeout_seconds}; expected positive integer seconds."
+        if ! [[ "${stall_timeout_seconds}" =~ ^[0-9]+$ ]] || [ "${stall_timeout_seconds}" -le 0 ]; then
+          echo "[librainian-action] Invalid LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS=${stall_timeout_seconds}; expected positive integer seconds."
           exit 1
         fi
 
-        if ! command -v timeout >/dev/null 2>&1; then
-          echo "[librainian-action] Missing required 'timeout' command on runner."
+        if ! [[ "${hard_timeout_seconds}" =~ ^[0-9]+$ ]] || [ "${hard_timeout_seconds}" -le 0 ]; then
+          echo "[librainian-action] Invalid LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS=${hard_timeout_seconds}; expected positive integer seconds."
+          exit 1
+        fi
+
+        if [ "${hard_timeout_seconds}" -le "${stall_timeout_seconds}" ]; then
+          echo "[librainian-action] LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS must be greater than LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS."
           exit 1
         fi
 
@@ -76,19 +82,76 @@ runs:
           local log_file
           local status
           local cmd
+          local cmd_pid
+          local started_at
+          local last_output_at
+          local last_report_at
+          local now
+          local size
+          local last_size
+          local elapsed
+          local idle
+          local timeout_reason
           stage="$1"
           shift
           cmd=( "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" "$@" )
           log_file="$(mktemp)"
 
-          echo "[librainian-action] stage=${stage} timeout=${timeout_seconds}s command=${cmd[*]}"
+          echo "[librainian-action] stage=${stage} stallTimeout=${stall_timeout_seconds}s hardTimeout=${hard_timeout_seconds}s command=${cmd[*]}"
+          "${cmd[@]}" >"${log_file}" 2>&1 &
+          cmd_pid=$!
+          started_at=$(date +%s)
+          last_output_at=${started_at}
+          last_report_at=${started_at}
+          last_size=0
+          timeout_reason=""
+
+          while kill -0 "${cmd_pid}" 2>/dev/null; do
+            sleep 5
+            now=$(date +%s)
+            size=$(wc -c <"${log_file}" 2>/dev/null || echo 0)
+            if [ "${size}" -gt "${last_size}" ]; then
+              last_size="${size}"
+              last_output_at="${now}"
+            fi
+
+            elapsed=$((now - started_at))
+            idle=$((now - last_output_at))
+
+            if [ $((now - last_report_at)) -ge 30 ]; then
+              echo "[librainian-action] stage=${stage} heartbeat elapsed=${elapsed}s idle=${idle}s logBytes=${size}"
+              last_report_at="${now}"
+            fi
+
+            if [ "${idle}" -ge "${stall_timeout_seconds}" ]; then
+              timeout_reason="stall_timeout"
+              break
+            fi
+            if [ "${elapsed}" -ge "${hard_timeout_seconds}" ]; then
+              timeout_reason="hard_timeout"
+              break
+            fi
+          done
+
+          if [ -n "${timeout_reason}" ]; then
+            echo "[librainian-action] stage=${stage} ${timeout_reason} elapsed=${elapsed}s idle=${idle}s."
+            kill -TERM "${cmd_pid}" 2>/dev/null || true
+            sleep 2
+            kill -KILL "${cmd_pid}" 2>/dev/null || true
+            echo "[librainian-action] stage=${stage} last output (tail):"
+            tail -n 200 "${log_file}" || true
+            cleanup_orphan_processes
+            rm -f "${log_file}"
+            return 124
+          fi
+
           set +e
-          timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" "${cmd[@]}" >"${log_file}" 2>&1
+          wait "${cmd_pid}"
           status=$?
           set -e
 
           if [ "${status}" -eq 124 ]; then
-            echo "[librainian-action] stage=${stage} timed out after ${timeout_seconds}s."
+            echo "[librainian-action] stage=${stage} timed out with exit=124."
             echo "[librainian-action] stage=${stage} last output (tail):"
             tail -n 200 "${log_file}" || true
             cleanup_orphan_processes

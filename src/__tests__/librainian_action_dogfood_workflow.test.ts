@@ -36,10 +36,22 @@ describe('librainian action dogfood workflow', () => {
     const actionPath = path.join(process.cwd(), '.github', 'actions', 'librainian', 'action.yml');
     const action = fs.readFileSync(actionPath, 'utf8');
 
-    expect(action).toContain('LIBRAINIAN_ACTION_TIMEOUT_SECONDS');
-    expect(action).toContain('timeout --signal=TERM --kill-after=30s');
+    expect(action).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS');
+    expect(action).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS');
+    expect(action).toContain('heartbeat elapsed=');
+    expect(action).toContain('stall_timeout');
+    expect(action).toContain('hard_timeout');
     expect(action).toContain('cleanup_orphan_processes');
     expect(action).toContain('stage=');
-    expect(action).toContain('timed out after');
+    expect(action).toContain('last output (tail)');
+  });
+
+  it('emits bootstrap heartbeat logs for long-running bootstrap phases', () => {
+    const bootstrapPath = path.join(process.cwd(), 'src', 'cli', 'commands', 'bootstrap.ts');
+    const bootstrap = fs.readFileSync(bootstrapPath, 'utf8');
+
+    expect(bootstrap).toContain('LIBRARIAN_BOOTSTRAP_HEARTBEAT_MS');
+    expect(bootstrap).toContain('[bootstrap-heartbeat]');
+    expect(bootstrap).toContain('phase=');
   });
 });

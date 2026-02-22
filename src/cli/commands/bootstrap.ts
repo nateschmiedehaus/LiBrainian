@@ -347,6 +347,24 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       console.log('\nStarting bootstrap process...\n');
 
       const startTime = Date.now();
+      const heartbeatIntervalMs = parseOptionalPositiveInt(
+        process.env.LIBRARIAN_BOOTSTRAP_HEARTBEAT_MS,
+        30_000,
+        'LIBRARIAN_BOOTSTRAP_HEARTBEAT_MS'
+      );
+      let lastProgressAtMs = startTime;
+      let lastPhaseName = 'initializing';
+      let lastProgressRatio = 0;
+      const heartbeatHandle = setInterval(() => {
+        const now = Date.now();
+        const elapsedSec = Math.max(0, Math.floor((now - startTime) / 1000));
+        const idleSec = Math.max(0, Math.floor((now - lastProgressAtMs) / 1000));
+        const progressPct = Math.max(0, Math.min(100, Math.round(lastProgressRatio * 100)));
+        console.log(
+          `[bootstrap-heartbeat] elapsed=${elapsedSec}s idle=${idleSec}s phase=${lastPhaseName} progress=${progressPct}%`
+        );
+      }, heartbeatIntervalMs);
+      heartbeatHandle.unref?.();
 
       const scopeOverrides = resolveScopeOverrides(runScope);
       const resolvedInclude = includeOverride ?? scopeOverrides.include;
@@ -366,6 +384,9 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         forceReindex: force,
         forceResume,
         progressCallback: (phase: BootstrapPhase, progress: number, details?: { total?: number; current?: number; currentFile?: string }) => {
+          lastProgressAtMs = Date.now();
+          lastPhaseName = phase.name;
+          lastProgressRatio = progress;
           progressReporter.onProgress(phase, progress, details);
         },
       };
@@ -377,7 +398,9 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       }
       const config = createBootstrapConfig(runWorkspaceRoot, configOverrides);
 
-      const report = await bootstrapProject(config, storage);
+      const report = await bootstrapProject(config, storage).finally(() => {
+        clearInterval(heartbeatHandle);
+      });
       progressReporter.complete();
 
       const elapsed = Date.now() - startTime;
@@ -615,6 +638,17 @@ function parsePositiveInt(raw: string, optionName: string): number {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw createError('INVALID_ARGUMENT', `--${optionName} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function parseOptionalPositiveInt(rawValue: string | undefined, fallback: number, envName: string): number {
+  if (rawValue === undefined || rawValue.trim().length === 0) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw createError('INVALID_ARGUMENT', `${envName} must be a positive integer`);
   }
   return parsed;
 }
