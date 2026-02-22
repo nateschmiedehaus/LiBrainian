@@ -1,0 +1,15 @@
+name: librainian
+description: "Codebase intelligence for AI agents with semantic retrieval and typed construction pipelines."
+version: "0.1.0"
+tools:
+  - name: list_constructions
+    description: "Discover available construction analysis presets and schemas."
+  - name: invoke_construction
+    description: "Execute a registered construction by ID with schema-validated input."
+  - name: query
+    description: "Semantic retrieval over indexed workspace knowledge."
+  - name: verify_claim
+    description: "Verify a claim against evidence and provenance data."
+capabilities:
+  - name: constructions
+    description: "Typed composable analysis pipelines with confidence and evidence metadata."

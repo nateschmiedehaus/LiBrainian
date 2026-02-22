@@ -96,6 +96,14 @@ export {
 } from './integration-wrappers.js';
 
 export {
+  toMCPTool,
+  validateSchema as validateConstructionInputSchema,
+  type MCPConstructionTool,
+  type MCPToolResult as MCPConstructionToolResult,
+  type ToMCPToolOptions,
+} from './mcp_bridge.js';
+
+export {
   RefactoringSafetyChecker,
   createRefactoringSafetyChecker,
   type RefactoringTarget,

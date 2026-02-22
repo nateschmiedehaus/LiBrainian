@@ -22,7 +22,7 @@ describe('MCP construction registry tools', () => {
     });
 
     const results = await (server as any).executeListConstructions({
-      tags: ['runtime'],
+      tag: 'runtime',
       availableOnly: true,
     });
 
@@ -32,6 +32,33 @@ describe('MCP construction registry tools', () => {
     expect(results.constructions.some((manifest: { id: string }) => manifest.id === GENERATED_ID)).toBe(true);
     expect(results.constructions[0]).toHaveProperty('inputType');
     expect(results.constructions[0]).toHaveProperty('outputType');
+  });
+
+  it('accepts singular and plural filter aliases consistently', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+    });
+
+    const singleFilter = await (server as any).executeListConstructions({
+      tag: 'security',
+      capability: 'librarian',
+      trustTier: 'official',
+      availableOnly: true,
+    });
+    const pluralFilter = await (server as any).executeListConstructions({
+      tags: ['security'],
+      capabilities: ['librarian'],
+      trustTier: 'official',
+      availableOnly: true,
+    });
+
+    expect(singleFilter.count).toBe(pluralFilter.count);
+    expect(
+      (singleFilter.constructions as Array<{ id: string }>).map((item) => item.id),
+    ).toEqual(
+      (pluralFilter.constructions as Array<{ id: string }>).map((item) => item.id),
+    );
   });
 
   it('invokes a registered runtime construction by id', async () => {
@@ -49,8 +76,15 @@ describe('MCP construction registry tools', () => {
       audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
     });
 
+    const discovered = await (server as any).executeListConstructions({
+      tags: ['runtime'],
+      availableOnly: true,
+    });
+    const runtimeEntry = (discovered.constructions as Array<{ id: string }>).find((entry) => entry.id === GENERATED_ID);
+    expect(runtimeEntry?.id).toBe(GENERATED_ID);
+
     const result = await (server as any).executeInvokeConstruction({
-      constructionId: GENERATED_ID,
+      constructionId: runtimeEntry!.id,
       input: 21,
     });
 
@@ -59,18 +93,19 @@ describe('MCP construction registry tools', () => {
     expect(result.result.data).toBe(42);
   });
 
-  it('rejects unknown construction IDs with an actionable error', async () => {
+  it('returns unknown construction IDs with actionable similar suggestions', async () => {
     const server = await createLibrarianMCPServer({
       authorization: { enabledScopes: ['read'], requireConsent: false },
       audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
     });
 
-    await expect(
-      (server as any).executeInvokeConstruction({
-        constructionId: 'librainian:not-real',
-        input: {},
-      }),
-    ).rejects.toThrow(/Unknown Construction ID/i);
+    const result = await (server as any).executeInvokeConstruction({
+      constructionId: 'librainian:security-audit-helpr',
+      input: {},
+    });
+    expect(result.error).toBe('CONSTRUCTION_NOT_FOUND');
+    expect(Array.isArray(result.suggestions)).toBe(true);
+    expect((result.suggestions as string[]).length).toBeGreaterThan(0);
   });
 
   it('describes a construction with example and composition hints', async () => {
@@ -142,8 +177,28 @@ describe('MCP construction registry tools', () => {
 
     const tools = (server as any).getAvailableTools().map((tool: { name: string }) => tool.name);
     expect(tools).toContain('list_constructions');
+    expect(tools).toContain('invoke_construction');
     expect(tools).toContain('describe_construction');
     expect(tools).toContain('explain_operator');
     expect(tools).toContain('check_construction_types');
+  });
+
+  it('marks construction registry tools as read-only and idempotent', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+    });
+
+    const tools = (server as any).getAvailableTools() as Array<{
+      name: string;
+      annotations?: { readOnlyHint?: boolean; idempotentHint?: boolean };
+    }>;
+    const listTool = tools.find((tool) => tool.name === 'list_constructions');
+    const invokeTool = tools.find((tool) => tool.name === 'invoke_construction');
+
+    expect(listTool?.annotations?.readOnlyHint).toBe(true);
+    expect(listTool?.annotations?.idempotentHint).toBe(true);
+    expect(invokeTool?.annotations?.readOnlyHint).toBe(true);
+    expect(invokeTool?.annotations?.idempotentHint).toBe(true);
   });
 });

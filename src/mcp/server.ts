@@ -163,10 +163,11 @@ import { MemoryBridgeDaemon } from '../memory_bridge/daemon.js';
 import { addMemoryFact, deleteMemoryFact, searchMemoryFacts, updateMemoryFact } from '../memory/fact_store.js';
 import {
   CONSTRUCTION_REGISTRY,
+  findSimilarConstructions,
   getConstructionManifest,
-  invokeConstruction,
   listConstructions,
 } from '../constructions/registry.js';
+import { toMCPTool } from '../constructions/mcp_bridge.js';
 import { buildCapabilityInventory } from '../capabilities/inventory.js';
 import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
 
@@ -388,7 +389,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   request_human_review: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   list_constructions: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
   list_capabilities: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
-  invoke_construction: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 4200 },
+  invoke_construction: { readOnlyHint: true, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 4200 },
   describe_construction: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 2200 },
   explain_operator: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
   check_construction_types: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1700 },
@@ -1834,7 +1835,9 @@ export class LiBrainianMCPServer {
         inputSchema: {
           type: 'object',
           properties: {
+            tag: { type: 'string', description: 'Optional single tag filter alias' },
             tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags to filter constructions' },
+            capability: { type: 'string', description: 'Optional single required capability filter alias' },
             capabilities: { type: 'array', items: { type: 'string' }, description: 'Optional required capability filter' },
             requires: { type: 'array', items: { type: 'string' }, description: 'Alias for capabilities filter' },
             language: { type: 'string', description: 'Optional language filter (example: typescript, python, rust)' },
@@ -6793,9 +6796,18 @@ export class LiBrainianMCPServer {
   }
 
   private async executeListConstructions(input: ListConstructionsToolInput): Promise<unknown> {
+    const tags = [
+      ...(input.tags ?? []),
+      ...(input.tag ? [input.tag] : []),
+    ];
+    const capabilities = [
+      ...(input.capabilities ?? []),
+      ...(input.requires ?? []),
+      ...(input.capability ? [input.capability] : []),
+    ];
     const manifests = listConstructions({
-      tags: input.tags,
-      capabilities: input.capabilities ?? input.requires,
+      tags: tags.length > 0 ? tags : undefined,
+      capabilities: capabilities.length > 0 ? capabilities : undefined,
       trustTier: input.trustTier,
       availableOnly: input.availableOnly,
     });
@@ -6837,9 +6849,13 @@ export class LiBrainianMCPServer {
   private async executeInvokeConstruction(input: InvokeConstructionToolInput): Promise<unknown> {
     const manifest = getConstructionManifest(input.constructionId);
     if (!manifest) {
-      throw new Error(
-        `Unknown Construction ID: ${input.constructionId}. Use list_constructions to discover IDs.`,
-      );
+      return {
+        error: 'CONSTRUCTION_NOT_FOUND',
+        code: 'construction_not_found',
+        message: `Unknown Construction ID: ${input.constructionId}. Use list_constructions to discover IDs.`,
+        constructionId: input.constructionId,
+        suggestions: findSimilarConstructions(input.constructionId, 3).map((candidate) => candidate.id),
+      };
     }
     const requiresLiBrainian = manifest.requiredCapabilities.includes('librarian');
     let resolvedWorkspace: string | undefined;
@@ -6887,21 +6903,38 @@ export class LiBrainianMCPServer {
       }
       deps = { librarian };
     }
-
-    const controller = new AbortController();
-    const result = await invokeConstruction(
-      manifest.id,
-      input.input,
+    const tool = toMCPTool(
+      manifest.construction,
+      manifest,
+      deps,
       {
-        deps,
-        signal: controller.signal,
         sessionId: `invoke_${this.generateId()}`,
-        metadata: {
-          tool: 'invoke_construction',
-          workspace: resolvedWorkspace,
-        },
       },
     );
+    const toolResult = await tool.execute(input.input);
+    const textPayload = toolResult.content[0]?.text;
+    let parsedPayload: Record<string, unknown> | undefined;
+    if (typeof textPayload === 'string') {
+      try {
+        parsedPayload = JSON.parse(textPayload) as Record<string, unknown>;
+      } catch {
+        parsedPayload = {
+          error: 'CONSTRUCTION_FAILED',
+          message: `Construction ${manifest.id} produced a non-JSON result payload.`,
+          constructionId: manifest.id,
+        };
+      }
+    }
+
+    if (toolResult.isError) {
+      return {
+        ...(parsedPayload ?? {
+          error: 'CONSTRUCTION_FAILED',
+          message: `Construction ${manifest.id} failed without structured output.`,
+          constructionId: manifest.id,
+        }),
+      };
+    }
 
     return {
       constructionId: manifest.id,
@@ -6909,7 +6942,12 @@ export class LiBrainianMCPServer {
       success: true,
       available: manifest.available !== false,
       workspace: resolvedWorkspace,
-      result,
+      result: parsedPayload?.result,
+      confidence: parsedPayload?.confidence,
+      confidenceInterval: parsedPayload?.confidenceInterval,
+      evidenceRefs: parsedPayload?.evidenceRefs,
+      analysisTimeMs: parsedPayload?.analysisTimeMs,
+      predictionId: parsedPayload?.predictionId,
     };
   }
 

@@ -148,6 +148,52 @@ function humanizeSlug(id: string): string {
     .join(' ');
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+}
+
+function scoreSimilarity(query: string, candidate: string): number {
+  const normalizedQuery = query.toLowerCase();
+  const normalizedCandidate = candidate.toLowerCase();
+  if (normalizedQuery === normalizedCandidate) return 1;
+
+  let score = 0;
+  if (normalizedCandidate.includes(normalizedQuery) || normalizedQuery.includes(normalizedCandidate)) {
+    score += 0.55;
+  }
+
+  const queryTokens = normalizedQuery.split(/[^a-z0-9]+/g).filter(Boolean);
+  const candidateTokens = normalizedCandidate.split(/[^a-z0-9]+/g).filter(Boolean);
+  const overlap = queryTokens.filter((token) => candidateTokens.includes(token)).length;
+  if (queryTokens.length > 0) {
+    score += 0.35 * (overlap / queryTokens.length);
+  }
+
+  const distance = levenshteinDistance(normalizedQuery, normalizedCandidate);
+  const maxLen = Math.max(normalizedQuery.length, normalizedCandidate.length);
+  if (maxLen > 0) {
+    score += 0.25 * (1 - distance / maxLen);
+  }
+
+  return Math.max(0, Math.min(1, score));
+}
+
 export class ConstructionRegistry {
   private readonly registry = new Map<ConstructionId, ConstructionManifest>();
   private readonly aliases = new Map<string, ConstructionId>();
@@ -226,6 +272,25 @@ export class ConstructionRegistry {
       return 0;
     }
     return scoreSchemaCompatibility(a.outputSchema, b.inputSchema);
+  }
+
+  findSimilar(id: string, limit = 3): ConstructionManifest[] {
+    const target = id.trim();
+    if (!target) {
+      return [];
+    }
+    return Array.from(this.registry.values())
+      .map((manifest) => ({
+        manifest,
+        score: Math.max(
+          scoreSimilarity(target, manifest.id),
+          ...(manifest.legacyIds ?? []).map((legacyId) => scoreSimilarity(target, legacyId)),
+        ),
+      }))
+      .filter((entry) => entry.score >= 0.28)
+      .sort((a, b) => b.score - a.score || a.manifest.id.localeCompare(b.manifest.id))
+      .slice(0, Math.max(1, limit))
+      .map((entry) => entry.manifest);
   }
 
   async invoke(
@@ -619,6 +684,13 @@ export async function invokeConstruction(
   context?: Context<unknown>,
 ): Promise<unknown> {
   return CONSTRUCTION_REGISTRY.invoke(id, input, context);
+}
+
+export function findSimilarConstructions(
+  id: string,
+  limit = 3,
+): ConstructionManifest[] {
+  return CONSTRUCTION_REGISTRY.findSimilar(id, limit);
 }
 
 export function registerGeneratedConstruction(

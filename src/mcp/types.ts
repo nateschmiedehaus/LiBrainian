@@ -946,8 +946,14 @@ export interface RequestHumanReviewToolOutput {
 
 /** List constructions tool input */
 export interface ListConstructionsToolInput {
+  /** Optional single tag filter */
+  tag?: string;
+
   /** Optional tags used for filtering */
   tags?: string[];
+
+  /** Optional single required capability filter */
+  capability?: string;
 
   /** Optional required capabilities filter */
   capabilities?: string[];
@@ -2666,10 +2672,12 @@ export function isRequestHumanReviewToolInput(value: unknown): value is RequestH
 export function isListConstructionsToolInput(value: unknown): value is ListConstructionsToolInput {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
+  const tagOk = typeof obj.tag === 'string' || typeof obj.tag === 'undefined';
   const tagsOk = (
     Array.isArray(obj.tags)
     && obj.tags.every((entry) => typeof entry === 'string')
   ) || typeof obj.tags === 'undefined';
+  const capabilityOk = typeof obj.capability === 'string' || typeof obj.capability === 'undefined';
   const capabilitiesOk = (
     Array.isArray(obj.capabilities)
     && obj.capabilities.every((entry) => typeof entry === 'string')
@@ -2684,7 +2692,14 @@ export function isListConstructionsToolInput(value: unknown): value is ListConst
     || obj.trustTier === 'community'
     || typeof obj.trustTier === 'undefined';
   const availableOnlyOk = typeof obj.availableOnly === 'boolean' || typeof obj.availableOnly === 'undefined';
-  return tagsOk && capabilitiesOk && requiresOk && languageOk && trustTierOk && availableOnlyOk;
+  return tagOk
+    && tagsOk
+    && capabilityOk
+    && capabilitiesOk
+    && requiresOk
+    && languageOk
+    && trustTierOk
+    && availableOnlyOk;
 }
 
 /** Type guard for ListCapabilitiesToolInput */
