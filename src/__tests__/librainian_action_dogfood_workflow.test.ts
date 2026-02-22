@@ -39,7 +39,9 @@ describe('librainian action dogfood workflow', () => {
     expect(action).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS');
     expect(action).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS');
     expect(action).toContain('heartbeat elapsed=');
+    expect(action).toContain('bootstrapIdle=');
     expect(action).toContain('stall_timeout');
+    expect(action).toContain('bootstrap_stall_timeout');
     expect(action).toContain('hard_timeout');
     expect(action).toContain('cleanup_orphan_processes');
     expect(action).toContain('stage=');

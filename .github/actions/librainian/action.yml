@@ -92,6 +92,8 @@ runs:
           local elapsed
           local idle
           local timeout_reason
+          local bootstrap_idle
+          local semantic_suffix
           stage="$1"
           shift
           cmd=( "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" "$@" )
@@ -117,9 +119,22 @@ runs:
 
             elapsed=$((now - started_at))
             idle=$((now - last_output_at))
+            bootstrap_idle=""
+            semantic_suffix=""
+
+            if grep -q "\\[bootstrap-heartbeat\\]" "${log_file}" 2>/dev/null; then
+              bootstrap_idle="$(grep -E "\\[bootstrap-heartbeat\\]" "${log_file}" | tail -n 1 | sed -E 's/.*idle=([0-9]+)s.*/\\1/' || true)"
+              if [[ "${bootstrap_idle}" =~ ^[0-9]+$ ]]; then
+                semantic_suffix=" bootstrapIdle=${bootstrap_idle}s"
+                if [ "${bootstrap_idle}" -ge "${stall_timeout_seconds}" ]; then
+                  timeout_reason="bootstrap_stall_timeout"
+                  break
+                fi
+              fi
+            fi
 
             if [ $((now - last_report_at)) -ge 30 ]; then
-              echo "[librainian-action] stage=${stage} heartbeat elapsed=${elapsed}s idle=${idle}s logBytes=${size}"
+              echo "[librainian-action] stage=${stage} heartbeat elapsed=${elapsed}s idle=${idle}s logBytes=${size}${semantic_suffix}"
               last_report_at="${now}"
             fi
 
