@@ -30,7 +30,7 @@ console.log(first); // "src/api/index.ts"
 
 Use `atom` when you want one focused step.
 Output type: `Construction<string, string, ...>`.
-Decision details: `docs/constructions/operators.md`.
+Decision details: [Construction Operator Decision Guide](./operators.md#question-atom).
 
 ## 5-8 min: Sequence (`>>>` = `seq`)
 
@@ -48,7 +48,7 @@ console.log(output); // "index.ts"
 
 Use `seq` when step B needs output from step A.
 Output type: if `A: I -> X` and `B: X -> O`, then `seq(A, B): I -> O`.
-Decision details: `docs/constructions/operators.md`.
+Decision details: [Construction Operator Decision Guide](./operators.md#question-seq).
 
 ## 8-10 min: Parallel (`&&&` = `fanout`)
 
@@ -65,7 +65,7 @@ console.log({ count, upperValue }); // { count: 10, upperValue: "LIBRAINIAN" }
 
 Use `fanout` when branches are independent and can run concurrently.
 Output type: tuple `[AOutput, BOutput]`.
-Decision details: `docs/constructions/operators.md`.
+Decision details: [Construction Operator Decision Guide](./operators.md#question-fanout).
 
 ## 10-12 min: Fallback (`|||` = `fallback`)
 
@@ -85,7 +85,7 @@ console.log(await resilient.execute('not json')); // "safe-path"
 
 Use `fallback` when you want a backup strategy on failure.
 Output type: shared output type of primary and backup branches.
-Decision details: `docs/constructions/operators.md`.
+Decision details: [Construction Operator Decision Guide](./operators.md#question-fallback).
 
 ## 12-14 min: Conditional (`select`) and Iteration (`fix`)
 
@@ -120,7 +120,7 @@ Use `select` for statically analyzable branching and `fix` for bounded convergen
 Output type:
 - `select(route, onLeft)` returns the union routing output contract.
 - `fix(body, ...)` returns body output plus fixpoint metadata.
-Decision details: `docs/constructions/operators.md`.
+Decision details: [Construction Operator Decision Guide](./operators.md#question-select), [Fix loop guidance](./operators.md#question-fix).
 
 ## 14-15 min: Run Against Real LiBrainian Context
 
