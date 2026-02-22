@@ -33,15 +33,18 @@ function edge(sourceId: string, targetId: string, weight: number): KnowledgeGrap
 function createMockStorage(options?: {
   modules?: any[];
   coChanged?: KnowledgeGraphEdge[];
+  knowledgeEdges?: KnowledgeGraphEdge[];
 }): LibrarianStorage {
   const modules = options?.modules ?? [];
   const coChanged = options?.coChanged ?? [];
+  const knowledgeEdges = options?.knowledgeEdges ?? [];
+  const allEdges = [...coChanged, ...knowledgeEdges];
 
   return {
     getModules: vi.fn().mockResolvedValue(modules),
     getKnowledgeEdges: vi.fn().mockImplementation(async (query?: { sourceId?: string; targetId?: string; edgeType?: string }) => {
-      if (query?.edgeType && query.edgeType !== 'co_changed') return [];
-      return coChanged.filter((entry) => {
+      return allEdges.filter((entry) => {
+        if (query?.edgeType && entry.edgeType !== query.edgeType) return false;
         if (query?.sourceId && entry.sourceId !== query.sourceId) return false;
         if (query?.targetId && entry.targetId !== query.targetId) return false;
         return true;
@@ -107,5 +110,49 @@ describe('computeChangeImpactReport', () => {
 
     expect(shallow.impacted.some((entry) => entry.file === depth2)).toBe(false);
     expect(deep.impacted.some((entry) => entry.file === depth2)).toBe(true);
+  });
+
+  it('includes schema-linked endpoint entities in blast radius', async () => {
+    const openapiSpec = 'specs/openapi.yaml';
+    const schemaId = 'schema:UserResponse';
+    const endpointId = 'endpoint:GET /users/{id}';
+
+    const storage = createMockStorage({
+      modules: [module(openapiSpec)],
+      knowledgeEdges: [
+        {
+          id: 'schema-to-spec',
+          sourceId: schemaId,
+          targetId: openapiSpec,
+          sourceType: 'graphql_type',
+          targetType: 'file',
+          edgeType: 'part_of',
+          weight: 1,
+          confidence: 0.95,
+          metadata: {},
+          computedAt: new Date().toISOString(),
+        },
+        {
+          id: 'endpoint-returns-schema',
+          sourceId: endpointId,
+          targetId: schemaId,
+          sourceType: 'endpoint',
+          targetType: 'graphql_type',
+          edgeType: 'returns_schema',
+          weight: 1,
+          confidence: 0.95,
+          metadata: {},
+          computedAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    const report = await computeChangeImpactReport(storage, {
+      target: openapiSpec,
+      depth: 3,
+    });
+
+    expect(report.success).toBe(true);
+    expect(report.impacted.some((entry) => entry.file === endpointId)).toBe(true);
   });
 });

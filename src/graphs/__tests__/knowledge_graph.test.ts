@@ -23,7 +23,7 @@ import {
   extractSubgraph,
 } from '../knowledge_graph.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import type { LibrarianStorage, KnowledgeGraphEdge, CloneEntry, DebtMetrics, BlameEntry, GraphEdge } from '../../storage/types.js';
+import type { LibrarianStorage, KnowledgeGraphEdge, CloneEntry, DebtMetrics, BlameEntry, GraphEdge, FunctionKnowledge } from '../../storage/types.js';
 
 // Helper to create complete DebtMetrics with defaults
 function createDebtMetrics(partial: Partial<DebtMetrics> & Pick<DebtMetrics, 'entityId' | 'entityType' | 'totalDebt' | 'trend'>): DebtMetrics {
@@ -44,6 +44,26 @@ function createDebtMetrics(partial: Partial<DebtMetrics> & Pick<DebtMetrics, 'en
     confidenceAlpha: 1,
     confidenceBeta: 1,
     computedAt: new Date().toISOString(),
+    ...partial,
+  };
+}
+
+function createFunctionKnowledge(
+  partial: Pick<FunctionKnowledge, 'id' | 'filePath' | 'name'> & Partial<FunctionKnowledge>
+): FunctionKnowledge {
+  return {
+    signature: `function ${partial.name}()`,
+    purpose: `${partial.name} purpose`,
+    startLine: 1,
+    endLine: 1,
+    confidence: 0.9,
+    accessCount: 0,
+    lastAccessed: null,
+    validationCount: 0,
+    outcomeHistory: {
+      successes: 0,
+      failures: 0,
+    },
     ...partial,
   };
 }
@@ -652,6 +672,111 @@ describe('Knowledge Graph', () => {
       expect(implementsEdges).toHaveLength(1);
       expect(implementsEdges[0].sourceType).toBe('class');
       expect(implementsEdges[0].targetType).toBe('interface');
+    });
+
+    it('builds API endpoint and GraphQL edges from api ingestion payloads', async () => {
+      const handlerFunction = createFunctionKnowledge({
+        id: 'fn:getUserHandler',
+        filePath: 'src/routes/users.ts',
+        name: 'getUserHandler',
+      });
+      const routerFunction = createFunctionKnowledge({
+        id: 'fn:routerDispatch',
+        filePath: 'src/routes/router.ts',
+        name: 'routerDispatch',
+      });
+      const graphqlResolver = createFunctionKnowledge({
+        id: 'fn:getUser',
+        filePath: 'src/graphql/resolvers.ts',
+        name: 'getUser',
+      });
+
+      await storage.upsertFunction(handlerFunction);
+      await storage.upsertFunction(routerFunction);
+      await storage.upsertFunction(graphqlResolver);
+
+      await storage.upsertGraphEdges([
+        {
+          fromId: 'fn:routerDispatch',
+          fromType: 'function',
+          toId: 'fn:getUserHandler',
+          toType: 'function',
+          edgeType: 'calls',
+          sourceFile: 'src/routes/router.ts',
+          sourceLine: 12,
+          confidence: 0.9,
+          computedAt: new Date(),
+        },
+        {
+          fromId: 'fn:getUserHandler',
+          fromType: 'function',
+          toId: 'fn:loadUserFromDb',
+          toType: 'function',
+          edgeType: 'calls',
+          sourceFile: 'src/routes/users.ts',
+          sourceLine: 42,
+          confidence: 0.85,
+          computedAt: new Date(),
+        },
+      ]);
+
+      await storage.upsertIngestionItem({
+        id: 'api:knowledge',
+        sourceType: 'api',
+        sourceVersion: 'v1',
+        ingestedAt: new Date().toISOString(),
+        payload: {
+          endpoints: [
+            {
+              path: '/users/{id}',
+              method: 'GET',
+              summary: 'Get user',
+              requestSchemas: ['GetUserRequest'],
+              responseSchemas: ['UserResponse'],
+            },
+          ],
+          graphql: [
+            {
+              name: 'getUser',
+              type: 'query',
+              returnType: 'User',
+            },
+          ],
+          graphql_types: ['Query', 'User'],
+          openapi_files: ['specs/openapi.yaml'],
+          graphql_files: ['src/graphql/schema.graphql'],
+          handler_map: {
+            'GET /users/{id}': ['src/routes/users.ts'],
+          },
+        },
+        metadata: {},
+      });
+
+      await buildKnowledgeGraph({
+        workspace: testDir,
+        storage,
+        includeImports: false,
+        includeCalls: true,
+        includeClones: false,
+        includeCochange: false,
+        includeAuthorship: false,
+        includeDebt: false,
+      });
+
+      const endpointEdges = await storage.getKnowledgeEdges({ targetType: 'endpoint' });
+      expect(endpointEdges.some((edge) => edge.targetId === 'endpoint:GET /users/{id}')).toBe(true);
+
+      const handlerEdges = await storage.getKnowledgeEdges({ edgeType: 'implements_endpoint' });
+      expect(handlerEdges.some((edge) => edge.sourceId === 'fn:getUserHandler' && edge.targetId === 'endpoint:GET /users/{id}')).toBe(true);
+
+      const callerEdges = await storage.getKnowledgeEdges({ edgeType: 'calls_endpoint' });
+      expect(callerEdges.some((edge) => edge.sourceId === 'fn:routerDispatch' && edge.targetId === 'endpoint:GET /users/{id}')).toBe(true);
+
+      const schemaEdges = await storage.getKnowledgeEdges({ edgeType: 'returns_schema' });
+      expect(schemaEdges.some((edge) => edge.sourceId === 'endpoint:GET /users/{id}' && edge.targetId === 'schema:UserResponse')).toBe(true);
+
+      const graphqlEdges = await storage.getKnowledgeEdges({ edgeType: 'graphql_resolves' });
+      expect(graphqlEdges.some((edge) => edge.sourceId === 'fn:getUser' && edge.targetId === 'graphql_operation:query:getUser')).toBe(true);
     });
   });
 });

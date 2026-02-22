@@ -13,7 +13,7 @@ export interface ChangeImpactEntry {
   file: string;
   depth: number;
   direct: boolean;
-  relationship: 'imports';
+  relationship: 'imports' | 'implements_endpoint' | 'calls_endpoint' | 'returns_schema' | 'graphql_resolves' | 'part_of';
   impactScore: number;
   confidence: number;
   reason: string;
@@ -44,6 +44,19 @@ export interface ChangeImpactReport {
 const DEFAULT_DEPTH = 3;
 const MAX_DEPTH = 8;
 const DEFAULT_MAX_RESULTS = 200;
+const API_GRAPH_EDGE_TYPES: ChangeImpactEntry['relationship'][] = [
+  'implements_endpoint',
+  'calls_endpoint',
+  'returns_schema',
+  'graphql_resolves',
+  'part_of',
+];
+
+function isApiGraphRelationship(
+  edgeType: KnowledgeGraphEdge['edgeType']
+): edgeType is Exclude<ChangeImpactEntry['relationship'], 'imports'> {
+  return API_GRAPH_EDGE_TYPES.includes(edgeType as ChangeImpactEntry['relationship']);
+}
 
 export async function computeChangeImpactReport(
   storage: LibrarianStorage,
@@ -56,8 +69,27 @@ export async function computeChangeImpactReport(
   try {
     const modules = await storage.getModules();
     const targetModule = resolveTargetModule(modules, input.target);
+    const graphTarget = targetModule?.path ?? input.target;
 
     if (!targetModule) {
+      const apiOnlyEntries = await collectApiGraphImpactEntries(storage, graphTarget, depth, maxResults);
+      if (apiOnlyEntries.length > 0) {
+        return {
+          success: true,
+          target: input.target,
+          resolvedTarget: graphTarget,
+          depth,
+          impacted: apiOnlyEntries.slice(0, maxResults),
+          summary: {
+            totalImpacted: Math.min(apiOnlyEntries.length, maxResults),
+            directCount: apiOnlyEntries.filter((entry) => entry.direct).length,
+            transitiveCount: apiOnlyEntries.filter((entry) => !entry.direct).length,
+            testsFlagged: apiOnlyEntries.filter((entry) => entry.testCoversChanged).length,
+            maxImpactScore: apiOnlyEntries.length > 0 ? Math.max(...apiOnlyEntries.map((entry) => entry.impactScore)) : 0,
+            durationMs: Date.now() - started,
+          },
+        };
+      }
       return {
         success: false,
         target: input.target,
@@ -127,6 +159,16 @@ export async function computeChangeImpactReport(
         coChangeWeight,
       });
     }
+
+    const seenEntries = new Set(entries.map((entry) => entry.file));
+    const apiEntries = await collectApiGraphImpactEntries(
+      storage,
+      graphTarget,
+      depth,
+      maxResults,
+      seenEntries
+    );
+    entries.push(...apiEntries);
 
     entries.sort((a, b) => {
       if (a.depth !== b.depth) return a.depth - b.depth;
@@ -248,4 +290,102 @@ function scoreImpact(input: {
   const coChangeBoost = Math.min(0.35, Math.max(0, input.coChangeWeight) * 0.35);
   const raw = depthDecay + testBoost + coChangeBoost;
   return Math.max(0, Math.min(1, Number(raw.toFixed(4))));
+}
+
+function isApiEntityId(id: string): boolean {
+  return id.startsWith('endpoint:') || id.startsWith('graphql_operation:');
+}
+
+function scoreApiEdge(edgeType: ChangeImpactEntry['relationship']): number {
+  switch (edgeType) {
+    case 'implements_endpoint':
+      return 0.95;
+    case 'calls_endpoint':
+      return 0.9;
+    case 'returns_schema':
+      return 0.92;
+    case 'graphql_resolves':
+      return 0.9;
+    case 'part_of':
+      return 0.75;
+    default:
+      return 0.8;
+  }
+}
+
+async function collectApiGraphImpactEntries(
+  storage: LibrarianStorage,
+  targetId: string,
+  maxDepth: number,
+  maxResults: number,
+  seenFiles: Set<string> = new Set()
+): Promise<ChangeImpactEntry[]> {
+  const queue: Array<{ nodeId: string; depth: number }> = [{ nodeId: targetId, depth: 0 }];
+  const bestDepthByNode = new Map<string, number>([[targetId, 0]]);
+  const entries: ChangeImpactEntry[] = [];
+  const cache = new Map<string, KnowledgeGraphEdge[]>();
+
+  while (queue.length > 0 && entries.length < maxResults) {
+    const current = queue.shift();
+    if (!current) continue;
+    if (current.depth >= maxDepth) continue;
+
+    let nodeEdges = cache.get(current.nodeId);
+    if (!nodeEdges) {
+      const perTypeEdgeLists = await Promise.all(
+        API_GRAPH_EDGE_TYPES.flatMap((edgeType) => [
+          storage.getKnowledgeEdges({ edgeType, sourceId: current.nodeId, limit: 5_000 }),
+          storage.getKnowledgeEdges({ edgeType, targetId: current.nodeId, limit: 5_000 }),
+        ])
+      );
+      const byId = new Map<string, KnowledgeGraphEdge>();
+      for (const edgeList of perTypeEdgeLists) {
+        for (const edge of edgeList) byId.set(edge.id, edge);
+      }
+      nodeEdges = Array.from(byId.values());
+      cache.set(current.nodeId, nodeEdges);
+    }
+
+    for (const edge of nodeEdges) {
+      if (!isApiGraphRelationship(edge.edgeType)) continue;
+      const neighborId = edge.sourceId === current.nodeId ? edge.targetId : edge.sourceId;
+      const nextDepth = current.depth + 1;
+      const knownDepth = bestDepthByNode.get(neighborId);
+      if (knownDepth !== undefined && knownDepth <= nextDepth) continue;
+      bestDepthByNode.set(neighborId, nextDepth);
+      queue.push({ nodeId: neighborId, depth: nextDepth });
+
+      if (!isApiEntityId(neighborId)) continue;
+      if (seenFiles.has(neighborId)) continue;
+
+      const direct = nextDepth === 1;
+      const baseImpact = scoreImpact({
+        depth: nextDepth,
+        direct,
+        test: false,
+        coChangeWeight: 0,
+      });
+      const impactScore = Math.max(0, Math.min(1, Number((baseImpact * scoreApiEdge(edge.edgeType)).toFixed(4))));
+
+      entries.push({
+        file: neighborId,
+        depth: nextDepth,
+        direct,
+        relationship: edge.edgeType,
+        impactScore,
+        confidence: edge.confidence,
+        reason: `Connected to ${targetId} via ${edge.edgeType}`,
+        reasonFlags: [
+          direct ? 'direct_dependency' : 'transitive_dependency',
+          'api_graph_dependency',
+          `edge:${edge.edgeType}`,
+        ],
+        testCoversChanged: false,
+        coChangeWeight: 0,
+      });
+      seenFiles.add(neighborId);
+    }
+  }
+
+  return entries;
 }

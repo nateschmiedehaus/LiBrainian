@@ -1662,8 +1662,30 @@ export interface KnowledgeGraphEdge {
   id: string;
   sourceId: string;
   targetId: string;
-  sourceType: 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface' | 'commit' | 'author';
-  targetType: 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface' | 'commit' | 'author';
+  sourceType:
+    | 'function'
+    | 'module'
+    | 'file'
+    | 'directory'
+    | 'class'
+    | 'interface'
+    | 'endpoint'
+    | 'graphql_type'
+    | 'graphql_operation'
+    | 'commit'
+    | 'author';
+  targetType:
+    | 'function'
+    | 'module'
+    | 'file'
+    | 'directory'
+    | 'class'
+    | 'interface'
+    | 'endpoint'
+    | 'graphql_type'
+    | 'graphql_operation'
+    | 'commit'
+    | 'author';
   edgeType: KnowledgeEdgeType;
   weight: number;                 // 0-1 strength
   confidence: number;             // 0-1 how certain
@@ -1677,6 +1699,10 @@ export type KnowledgeEdgeType =
   | 'calls'             // A calls B
   | 'extends'           // A extends B
   | 'implements'        // A implements B
+  | 'implements_endpoint' // Function implements REST endpoint
+  | 'calls_endpoint'    // Function transitively calls endpoint handler
+  | 'returns_schema'    // Endpoint/operation returns schema/type
+  | 'graphql_resolves'  // Function resolves GraphQL operation
   | 'clone_of'          // A is clone of B
   | 'debt_related'      // A and B share debt
   | 'authored_by'       // Code authored by person

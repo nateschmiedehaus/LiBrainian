@@ -133,6 +133,187 @@ function generateEdgeId(sourceId: string, targetId: string, edgeType: KnowledgeE
     .slice(0, 32);
 }
 
+interface ApiEndpointPayload {
+  path: string;
+  method: string;
+  summary?: string;
+  requestSchemas?: string[];
+  responseSchemas?: string[];
+}
+
+interface GraphqlOperationPayload {
+  name: string;
+  type: 'query' | 'mutation';
+  returnType?: string;
+}
+
+interface ApiKnowledgePayload {
+  endpoints: ApiEndpointPayload[];
+  graphql: GraphqlOperationPayload[];
+  graphqlTypes: string[];
+  openapiFiles: string[];
+  graphqlFiles: string[];
+  handlerMap: Record<string, string[]>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizePathValue(value: string): string {
+  const normalized = value.replace(/\\/g, '/').trim();
+  if (!normalized) return '';
+  return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+}
+
+function pathMatches(a: string, b: string): boolean {
+  const left = normalizePathValue(a);
+  const right = normalizePathValue(b);
+  if (!left || !right) return false;
+  return left === right || left.endsWith(`/${right}`) || right.endsWith(`/${left}`);
+}
+
+function normalizeSchemaName(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) return '';
+  const schemaPrefix = '#/components/schemas/';
+  if (normalized.startsWith(schemaPrefix)) {
+    return normalized.slice(schemaPrefix.length);
+  }
+  const segments = normalized.split('/');
+  return segments[segments.length - 1] ?? normalized;
+}
+
+function parseApiKnowledgePayload(payload: unknown): ApiKnowledgePayload | null {
+  if (!isRecord(payload)) return null;
+
+  const endpoints: ApiEndpointPayload[] = Array.isArray(payload.endpoints)
+    ? payload.endpoints
+        .filter(isRecord)
+        .map((entry) => ({
+          path: typeof entry.path === 'string' ? entry.path : '',
+          method: typeof entry.method === 'string' ? entry.method.toUpperCase() : '',
+          summary: typeof entry.summary === 'string' ? entry.summary : undefined,
+          requestSchemas: Array.isArray(entry.requestSchemas)
+            ? entry.requestSchemas.filter((schema): schema is string => typeof schema === 'string' && schema.trim().length > 0)
+            : [],
+          responseSchemas: Array.isArray(entry.responseSchemas)
+            ? entry.responseSchemas.filter((schema): schema is string => typeof schema === 'string' && schema.trim().length > 0)
+            : [],
+        }))
+        .filter((entry) => entry.path.length > 0 && entry.method.length > 0)
+    : [];
+
+  const graphql: GraphqlOperationPayload[] = Array.isArray(payload.graphql)
+    ? payload.graphql
+        .filter(isRecord)
+        .map((entry) => {
+          const operationType: GraphqlOperationPayload['type'] = entry.type === 'mutation' ? 'mutation' : 'query';
+          return {
+            name: typeof entry.name === 'string' ? entry.name : '',
+            type: operationType,
+            returnType: typeof entry.returnType === 'string' ? normalizeSchemaName(entry.returnType) : undefined,
+          };
+        })
+        .filter((entry) => entry.name.length > 0)
+    : [];
+
+  const graphqlTypes = Array.isArray(payload.graphql_types)
+    ? payload.graphql_types.filter((type): type is string => typeof type === 'string' && type.trim().length > 0)
+    : [];
+
+  const openapiFiles = Array.isArray(payload.openapi_files)
+    ? payload.openapi_files.filter((file): file is string => typeof file === 'string' && file.trim().length > 0)
+    : [];
+
+  const graphqlFiles = Array.isArray(payload.graphql_files)
+    ? payload.graphql_files.filter((file): file is string => typeof file === 'string' && file.trim().length > 0)
+    : [];
+
+  const handlerMap: Record<string, string[]> = {};
+  if (isRecord(payload.handler_map)) {
+    for (const [key, value] of Object.entries(payload.handler_map)) {
+      if (typeof key !== 'string' || !Array.isArray(value)) continue;
+      handlerMap[key] = value.filter((file): file is string => typeof file === 'string' && file.trim().length > 0);
+    }
+  }
+
+  if (endpoints.length === 0 && graphql.length === 0) return null;
+  return { endpoints, graphql, graphqlTypes, openapiFiles, graphqlFiles, handlerMap };
+}
+
+function extractIdentifierToken(id: string): string {
+  const token = id.split(/[:/#.]/).pop() ?? id;
+  return token.trim().toLowerCase();
+}
+
+interface CallGraphIndexes {
+  functionIdsBySourceFile: Map<string, Set<string>>;
+  incomingCallersByFunctionId: Map<string, Set<string>>;
+  referencedFunctionIds: Set<string>;
+}
+
+function buildCallGraphIndexes(graphEdges: GraphEdge[]): CallGraphIndexes {
+  const functionIdsBySourceFile = new Map<string, Set<string>>();
+  const incomingCallersByFunctionId = new Map<string, Set<string>>();
+  const referencedFunctionIds = new Set<string>();
+
+  for (const edge of graphEdges) {
+    if (edge.edgeType !== 'calls') continue;
+
+    if (edge.fromType === 'function') {
+      referencedFunctionIds.add(edge.fromId);
+      const normalizedSourceFile = normalizePathValue(edge.sourceFile);
+      if (normalizedSourceFile) {
+        if (!functionIdsBySourceFile.has(normalizedSourceFile)) {
+          functionIdsBySourceFile.set(normalizedSourceFile, new Set());
+        }
+        functionIdsBySourceFile.get(normalizedSourceFile)?.add(edge.fromId);
+      }
+    }
+
+    if (edge.toType === 'function') {
+      referencedFunctionIds.add(edge.toId);
+      if (edge.fromType === 'function') {
+        if (!incomingCallersByFunctionId.has(edge.toId)) {
+          incomingCallersByFunctionId.set(edge.toId, new Set());
+        }
+        incomingCallersByFunctionId.get(edge.toId)?.add(edge.fromId);
+      }
+    }
+  }
+
+  return { functionIdsBySourceFile, incomingCallersByFunctionId, referencedFunctionIds };
+}
+
+function addEdge(
+  edges: Map<string, KnowledgeGraphEdge>,
+  sourceId: string,
+  targetId: string,
+  sourceType: KnowledgeGraphEdge['sourceType'],
+  targetType: KnowledgeGraphEdge['targetType'],
+  edgeType: KnowledgeEdgeType,
+  now: string,
+  metadata: Record<string, unknown>,
+  weight = 1,
+  confidence = 0.9
+): void {
+  const id = generateEdgeId(sourceId, targetId, edgeType);
+  if (edges.has(id)) return;
+  edges.set(id, {
+    id,
+    sourceId,
+    targetId,
+    sourceType,
+    targetType,
+    edgeType,
+    weight,
+    confidence,
+    metadata,
+    computedAt: now,
+  });
+}
+
 // ============================================================================
 // GRAPH BUILDING
 // ============================================================================
@@ -394,6 +575,173 @@ async function buildHierarchicalEdges(storage: LibrarianStorage): Promise<Knowle
   return edges;
 }
 
+async function buildFromApiIngestion(storage: LibrarianStorage): Promise<KnowledgeGraphEdge[]> {
+  const [apiItems, callGraphEdges, functions] = await Promise.all([
+    storage.getIngestionItems({ sourceType: 'api', limit: 100 }),
+    storage.getGraphEdges({ edgeTypes: ['calls'], limit: 100_000 }),
+    storage.getFunctions({ limit: 100_000 }),
+  ]);
+
+  if (apiItems.length === 0) return [];
+
+  const now = new Date().toISOString();
+  const edgeMap = new Map<string, KnowledgeGraphEdge>();
+  const callGraph = buildCallGraphIndexes(callGraphEdges);
+
+  const functionsByPath = new Map<string, Set<string>>();
+  const functionsByName = new Map<string, Set<string>>();
+  for (const fn of functions) {
+    const normalizedPath = normalizePathValue(fn.filePath);
+    if (normalizedPath) {
+      if (!functionsByPath.has(normalizedPath)) functionsByPath.set(normalizedPath, new Set());
+      functionsByPath.get(normalizedPath)?.add(fn.id);
+    }
+    const normalizedName = fn.name.trim().toLowerCase();
+    if (normalizedName) {
+      if (!functionsByName.has(normalizedName)) functionsByName.set(normalizedName, new Set());
+      functionsByName.get(normalizedName)?.add(fn.id);
+    }
+  }
+
+  for (const item of apiItems) {
+    const payload = parseApiKnowledgePayload(item.payload);
+    if (!payload) continue;
+
+    const knownGraphqlTypes = new Set<string>(payload.graphqlTypes.map((type) => normalizeSchemaName(type)));
+    if (!knownGraphqlTypes.has('Query')) knownGraphqlTypes.add('Query');
+    if (!knownGraphqlTypes.has('Mutation')) knownGraphqlTypes.add('Mutation');
+
+    for (const typeName of knownGraphqlTypes) {
+      if (!typeName) continue;
+      const typeId = `graphql_type:${typeName}`;
+      for (const graphqlFile of payload.graphqlFiles) {
+        addEdge(edgeMap, typeId, normalizePathValue(graphqlFile), 'graphql_type', 'file', 'part_of', now, {
+          source: 'api_ingestion',
+          kind: 'graphql_type_file',
+        }, 1, 0.85);
+      }
+    }
+
+    for (const endpoint of payload.endpoints) {
+      const endpointId = `endpoint:${endpoint.method} ${endpoint.path}`;
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+      for (const openapiFile of payload.openapiFiles) {
+        addEdge(edgeMap, endpointId, normalizePathValue(openapiFile), 'endpoint', 'file', 'part_of', now, {
+          source: 'api_ingestion',
+          kind: 'endpoint_openapi_file',
+        }, 1, 0.9);
+      }
+
+      const schemaRefs = [...(endpoint.requestSchemas ?? []), ...(endpoint.responseSchemas ?? [])];
+      for (const schemaRef of schemaRefs) {
+        const schemaName = normalizeSchemaName(schemaRef);
+        if (!schemaName) continue;
+        const schemaId = `schema:${schemaName}`;
+        addEdge(edgeMap, endpointId, schemaId, 'endpoint', 'graphql_type', 'returns_schema', now, {
+          source: 'api_ingestion',
+          schema: schemaName,
+        }, 1, 0.92);
+        for (const openapiFile of payload.openapiFiles) {
+          addEdge(edgeMap, schemaId, normalizePathValue(openapiFile), 'graphql_type', 'file', 'part_of', now, {
+            source: 'api_ingestion',
+            kind: 'schema_openapi_file',
+          }, 1, 0.88);
+        }
+      }
+
+      const mappedFiles = payload.handlerMap[endpointKey] ?? [];
+      const candidateHandlerIds = new Set<string>();
+      for (const filePath of mappedFiles) {
+        const normalized = normalizePathValue(filePath);
+
+        for (const [sourceFile, ids] of callGraph.functionIdsBySourceFile) {
+          if (!pathMatches(sourceFile, normalized)) continue;
+          for (const id of ids) candidateHandlerIds.add(id);
+        }
+
+        for (const [functionPath, ids] of functionsByPath) {
+          if (!pathMatches(functionPath, normalized)) continue;
+          for (const id of ids) candidateHandlerIds.add(id);
+        }
+      }
+
+      const graphBackedHandlers = Array.from(candidateHandlerIds).filter((id) => callGraph.referencedFunctionIds.has(id));
+      const handlers = graphBackedHandlers.length > 0 ? graphBackedHandlers : Array.from(candidateHandlerIds);
+      for (const handlerId of handlers) {
+        addEdge(edgeMap, handlerId, endpointId, 'function', 'endpoint', 'implements_endpoint', now, {
+          source: 'api_ingestion',
+          method: endpoint.method,
+          path: endpoint.path,
+        }, 1, 0.93);
+
+        for (const callerId of callGraph.incomingCallersByFunctionId.get(handlerId) ?? []) {
+          addEdge(edgeMap, callerId, endpointId, 'function', 'endpoint', 'calls_endpoint', now, {
+            source: 'api_ingestion',
+            through: handlerId,
+          }, 0.9, 0.9);
+        }
+      }
+    }
+
+    for (const operation of payload.graphql) {
+      const operationId = `graphql_operation:${operation.type}:${operation.name}`;
+      const rootTypeId = `graphql_type:${operation.type === 'mutation' ? 'Mutation' : 'Query'}`;
+
+      addEdge(edgeMap, operationId, rootTypeId, 'graphql_operation', 'graphql_type', 'part_of', now, {
+        source: 'api_ingestion',
+        kind: 'graphql_operation_root',
+      }, 1, 0.9);
+
+      for (const graphqlFile of payload.graphqlFiles) {
+        addEdge(edgeMap, operationId, normalizePathValue(graphqlFile), 'graphql_operation', 'file', 'part_of', now, {
+          source: 'api_ingestion',
+          kind: 'graphql_operation_file',
+        }, 1, 0.85);
+      }
+
+      if (operation.returnType) {
+        addEdge(
+          edgeMap,
+          operationId,
+          `graphql_type:${normalizeSchemaName(operation.returnType)}`,
+          'graphql_operation',
+          'graphql_type',
+          'returns_schema',
+          now,
+          {
+            source: 'api_ingestion',
+            operation: operation.name,
+          },
+          1,
+          0.9
+        );
+      }
+
+      const resolverIds = new Set<string>();
+      for (const id of functionsByName.get(operation.name.toLowerCase()) ?? []) {
+        resolverIds.add(id);
+      }
+      for (const referencedId of callGraph.referencedFunctionIds) {
+        if (extractIdentifierToken(referencedId) === operation.name.toLowerCase()) {
+          resolverIds.add(referencedId);
+        }
+      }
+
+      const graphBackedResolvers = Array.from(resolverIds).filter((id) => callGraph.referencedFunctionIds.has(id));
+      const resolvers = graphBackedResolvers.length > 0 ? graphBackedResolvers : Array.from(resolverIds);
+      for (const resolverId of resolvers) {
+        addEdge(edgeMap, resolverId, operationId, 'function', 'graphql_operation', 'graphql_resolves', now, {
+          source: 'api_ingestion',
+          operation: operation.name,
+          operationType: operation.type,
+        }, 1, 0.92);
+      }
+    }
+  }
+
+  return Array.from(edgeMap.values());
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -406,6 +754,9 @@ function mapEntityType(type: string): KnowledgeGraphEdge['sourceType'] {
     directory: 'directory',
     class: 'class',
     interface: 'interface',
+    endpoint: 'endpoint',
+    graphql_type: 'graphql_type',
+    graphql_operation: 'graphql_operation',
   };
   return typeMap[type] || 'file';
 }
@@ -487,6 +838,10 @@ export async function buildKnowledgeGraph(
     calls: 0,
     extends: 0,
     implements: 0,
+    implements_endpoint: 0,
+    calls_endpoint: 0,
+    returns_schema: 0,
+    graphql_resolves: 0,
     clone_of: 0,
     debt_related: 0,
     authored_by: 0,
@@ -529,6 +884,10 @@ export async function buildKnowledgeGraph(
     const debtEdges = await buildFromDebt(storage);
     allEdges.push(...debtEdges);
   }
+
+  // Build API endpoint and GraphQL relationships from ingestion payloads
+  const apiEdges = await buildFromApiIngestion(storage);
+  allEdges.push(...apiEdges);
 
   // Build hierarchical edges
   const hierarchicalEdges = await buildHierarchicalEdges(storage);
@@ -942,6 +1301,10 @@ function calculateDirectImpact(edge: KnowledgeGraphEdge): number {
     calls: 0.85,
     extends: 0.95,
     implements: 0.9,
+    implements_endpoint: 0.92,
+    calls_endpoint: 0.88,
+    returns_schema: 0.9,
+    graphql_resolves: 0.9,
     clone_of: 0.3,
     debt_related: 0.2,
     authored_by: 0.1,

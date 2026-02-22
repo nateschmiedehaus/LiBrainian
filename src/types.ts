@@ -232,7 +232,16 @@ export interface DocumentKnowledge {
   };
 }
 
-export type GraphEntityType = 'function' | 'module' | 'file' | 'directory' | 'class' | 'interface';
+export type GraphEntityType =
+  | 'function'
+  | 'module'
+  | 'file'
+  | 'directory'
+  | 'class'
+  | 'interface'
+  | 'endpoint'
+  | 'graphql_type'
+  | 'graphql_operation';
 export type GraphEdgeType = 'calls' | 'imports' | 'extends' | 'implements' | 'entangled';
 
 export interface GraphEdge {

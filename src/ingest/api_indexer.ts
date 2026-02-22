@@ -12,11 +12,14 @@ export interface ApiEndpoint {
   path: string;
   method: string;
   summary?: string;
+  requestSchemas?: string[];
+  responseSchemas?: string[];
 }
 
 export interface GraphqlOperation {
   name: string;
   type: 'query' | 'mutation';
+  returnType?: string;
 }
 
 export interface ApiIngestionOptions {
@@ -60,27 +63,99 @@ function parseOpenApi(content: string, isJson: boolean): ApiEndpoint[] {
       if (typeof method !== 'string') continue;
       const details = detailsRaw && typeof detailsRaw === 'object' ? detailsRaw as Record<string, unknown> : {};
       const summary = typeof details.summary === 'string' ? details.summary : undefined;
-      endpoints.push({ path: route, method: method.toUpperCase(), summary });
+      const requestSchemas = collectSchemaRefs((details.requestBody as Record<string, unknown> | undefined)?.content);
+      const responseSchemas = collectResponseSchemaRefs(details.responses);
+      endpoints.push({ path: route, method: method.toUpperCase(), summary, requestSchemas, responseSchemas });
     }
   }
   return endpoints;
 }
 
-function parseGraphql(content: string): GraphqlOperation[] {
+function normalizeSchemaRef(ref: string): string {
+  const schemaPrefix = '#/components/schemas/';
+  if (ref.startsWith(schemaPrefix)) {
+    return ref.slice(schemaPrefix.length);
+  }
+  const parts = ref.split('/');
+  return parts[parts.length - 1] ?? ref;
+}
+
+function collectSchemaRefs(root: unknown): string[] {
+  const refs = new Set<string>();
+
+  function visit(node: unknown): void {
+    if (!node || typeof node !== 'object') return;
+    const value = node as Record<string, unknown>;
+    if (typeof value.$ref === 'string' && value.$ref.trim().length > 0) {
+      refs.add(normalizeSchemaRef(value.$ref));
+    }
+
+    const nestedKeys = ['items', 'additionalProperties', 'not', 'contains', 'propertyNames'];
+    for (const key of nestedKeys) {
+      if (value[key] !== undefined) visit(value[key]);
+    }
+
+    const arrayKeys = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
+    for (const key of arrayKeys) {
+      const arr = value[key];
+      if (Array.isArray(arr)) {
+        for (const entry of arr) visit(entry);
+      }
+    }
+
+    if (value.properties && typeof value.properties === 'object') {
+      for (const entry of Object.values(value.properties as Record<string, unknown>)) {
+        visit(entry);
+      }
+    }
+  }
+
+  visit(root);
+  return Array.from(refs);
+}
+
+function collectResponseSchemaRefs(responsesRaw: unknown): string[] {
+  if (!responsesRaw || typeof responsesRaw !== 'object') return [];
+  const refs = new Set<string>();
+  const responses = responsesRaw as Record<string, unknown>;
+  for (const response of Object.values(responses)) {
+    if (!response || typeof response !== 'object') continue;
+    const content = (response as Record<string, unknown>).content;
+    const schemaRefs = collectSchemaRefs(content);
+    for (const ref of schemaRefs) refs.add(ref);
+  }
+  return Array.from(refs);
+}
+
+function parseGraphql(content: string): { operations: GraphqlOperation[]; typeNames: string[] } {
   const operations: GraphqlOperation[] = [];
+  const typeNames = new Set<string>();
+
+  const typeDefinitionRegex = /\b(type|input|interface|enum)\s+([A-Za-z0-9_]+)/g;
+  let typeMatch: RegExpExecArray | null = typeDefinitionRegex.exec(content);
+  while (typeMatch) {
+    if (typeMatch[2]) typeNames.add(typeMatch[2]);
+    typeMatch = typeDefinitionRegex.exec(content);
+  }
+
   const typeRegex = /type\s+(Query|Mutation)\s*{([\s\S]*?)}/g;
   let match: RegExpExecArray | null = typeRegex.exec(content);
   while (match) {
     const kind = (match[1] ?? '').toLowerCase() as GraphqlOperation['type'];
+    typeNames.add(match[1] ?? '');
     const body = match[2] ?? '';
     const lines = body.split(/\r?\n/);
     for (const line of lines) {
-      const fieldMatch = line.trim().match(/^([A-Za-z0-9_]+)\s*\(/);
-      if (fieldMatch?.[1]) operations.push({ name: fieldMatch[1], type: kind });
+      const trimmed = line.trim();
+      const fieldMatch = trimmed.match(/^([A-Za-z0-9_]+)\s*(?:\([^)]*\))?\s*:\s*([A-Za-z0-9_\[\]!]+)/);
+      if (!fieldMatch?.[1]) continue;
+      const returnType = fieldMatch[2] ? fieldMatch[2].replace(/[\[\]!]/g, '') : undefined;
+      if (returnType) typeNames.add(returnType);
+      operations.push({ name: fieldMatch[1], type: kind, returnType });
     }
     match = typeRegex.exec(content);
   }
-  return operations;
+  return { operations, typeNames: Array.from(typeNames).filter(Boolean) };
 }
 
 async function mapEndpointsToHandlers(
@@ -91,6 +166,13 @@ async function mapEndpointsToHandlers(
 ): Promise<Record<string, string[]>> {
   const mapping: Record<string, string[]> = {};
   endpoints.forEach((endpoint) => { mapping[`${endpoint.method} ${endpoint.path}`] = []; });
+
+  const endpointRouteMatchers = new Map<string, RegExp[]>();
+  for (const endpoint of endpoints) {
+    const routeKey = `${endpoint.method} ${endpoint.path}`;
+    endpointRouteMatchers.set(routeKey, buildRouteMatchers(endpoint));
+  }
+
   for (const filePath of routeFiles) {
     let content = '';
     try {
@@ -102,12 +184,39 @@ async function mapEndpointsToHandlers(
     }
     const relative = path.relative(workspace, filePath);
     for (const endpoint of endpoints) {
-      if (content.includes(endpoint.path)) {
+      const key = `${endpoint.method} ${endpoint.path}`;
+      const matchers = endpointRouteMatchers.get(key) ?? [];
+      if (matchers.some((matcher) => matcher.test(content))) {
         mapping[`${endpoint.method} ${endpoint.path}`]?.push(relative);
       }
     }
   }
   return mapping;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function toRouteLiteralVariants(endpointPath: string): string[] {
+  const normalized = endpointPath.replace(/\/+/g, '/');
+  const colonVariant = normalized.replace(/\{[^/}]+\}/g, ':param');
+  const wildcardVariant = normalized.replace(/\{[^/}]+\}/g, '[^/]+');
+  return Array.from(new Set([normalized, colonVariant, wildcardVariant]));
+}
+
+function buildRouteMatchers(endpoint: ApiEndpoint): RegExp[] {
+  const lowerMethod = endpoint.method.toLowerCase();
+  const variants = toRouteLiteralVariants(endpoint.path);
+  const matchers: RegExp[] = [];
+  for (const variant of variants) {
+    const escaped = escapeRegex(variant).replace(/\\\[\^\/\]\\\+/g, '[^/]+');
+    matchers.push(
+      new RegExp(`\\.${lowerMethod}\\s*\\(\\s*['"\`]${escaped}['"\`]`, 'i'),
+      new RegExp(`route\\s*\\(\\s*['"\`]${escaped}['"\`]\\s*\\)\\s*\\.${lowerMethod}\\s*\\(`, 'i')
+    );
+  }
+  return matchers;
 }
 
 export function createApiIngestionSource(options: ApiIngestionOptions = {}): IngestionSource {
@@ -131,6 +240,7 @@ export function createApiIngestionSource(options: ApiIngestionOptions = {}): Ing
       const errors: string[] = [];
       const endpoints: ApiEndpoint[] = [];
       const graphql: GraphqlOperation[] = [];
+      const graphqlTypes = new Set<string>();
 
       const openapiFiles = await glob(openapiGlobs, { cwd: ctx.workspace, ignore: exclude, absolute: true });
       for (const filePath of openapiFiles) {
@@ -151,7 +261,9 @@ export function createApiIngestionSource(options: ApiIngestionOptions = {}): Ing
           const stats = await fs.stat(filePath);
           if (stats.size > maxFileBytes) continue;
           const content = await fs.readFile(filePath, 'utf8');
-          graphql.push(...parseGraphql(content));
+          const parsed = parseGraphql(content);
+          graphql.push(...parsed.operations);
+          parsed.typeNames.forEach((name) => graphqlTypes.add(name));
         } catch (error: unknown) {
           errors.push(`Failed to parse ${filePath}: ${getErrorMessage(error)}`);
         }
@@ -163,6 +275,7 @@ export function createApiIngestionSource(options: ApiIngestionOptions = {}): Ing
       const payload = {
         endpoints,
         graphql,
+        graphql_types: Array.from(graphqlTypes),
         openapi_files: openapiFiles.map((file) => path.relative(ctx.workspace, file)),
         graphql_files: graphqlFiles.map((file) => path.relative(ctx.workspace, file)),
         handler_map: handlerMap,
