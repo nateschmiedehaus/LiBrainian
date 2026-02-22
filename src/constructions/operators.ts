@@ -12,7 +12,6 @@ import type {
   ConstructionPath,
   Construction,
   ConstructionOutcome,
-  ConstructionExecutionResult,
   CostSemiring,
   ConstructionDebugOptions,
   ConstructionExecutionTrace,
@@ -258,12 +257,8 @@ async function executeWithTrace<I, O, E extends ConstructionError, R>(
   construction: Construction<I, O, E, R>,
   input: I,
   context?: Context<R>
-): Promise<O> {
-  const outcome = await executeOutcomeWithTrace(construction, input, context);
-  if (outcome.ok) {
-    return outcome.value;
-  }
-  throw outcome.error;
+): Promise<ConstructionOutcome<O, E>> {
+  return executeOutcomeWithTrace(construction, input, context);
 }
 
 function createDebugConstruction<I, O, E extends ConstructionError, R>(
@@ -275,7 +270,7 @@ function createDebugConstruction<I, O, E extends ConstructionError, R>(
 
   const debugged: Construction<I, O, E, R> & { getLastTrace(): ConstructionExecutionTrace | undefined } = {
     ...construction,
-    async execute(input: I, context?: Context<R>): Promise<O> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E>> {
       const startedEpoch = Date.now();
       const trace: MutableTrace = {
         mode: 'execution_trace',
@@ -287,24 +282,15 @@ function createDebugConstruction<I, O, E extends ConstructionError, R>(
         steps: [],
       };
 
-      try {
-        const output = await traceStorage.run(
-          { trace, includeSuccessfulSteps },
-          async () => executeWithTrace(construction, input, context)
-        );
-        const finishedEpoch = Date.now();
-        trace.finishedAt = nowIso(finishedEpoch);
-        trace.durationMs = finishedEpoch - startedEpoch;
-        lastTrace = toImmutableTrace(trace);
-        return output;
-      } catch (error) {
-        const finishedEpoch = Date.now();
-        trace.finishedAt = nowIso(finishedEpoch);
-        trace.durationMs = finishedEpoch - startedEpoch;
-        trace.failed ??= construction.whyFailed(error);
-        lastTrace = toImmutableTrace(trace);
-        throw error;
-      }
+      const output = await traceStorage.run(
+        { trace, includeSuccessfulSteps },
+        async () => executeWithTrace(construction, input, context)
+      );
+      const finishedEpoch = Date.now();
+      trace.finishedAt = nowIso(finishedEpoch);
+      trace.durationMs = finishedEpoch - startedEpoch;
+      lastTrace = toImmutableTrace(trace);
+      return output;
     },
     getLastTrace(): ConstructionExecutionTrace | undefined {
       return lastTrace;
@@ -456,8 +442,8 @@ export function identity<T, R = unknown>(
   return withDiagnostics({
     id,
     name,
-    async execute(input: T): Promise<T> {
-      return input;
+    async execute(input: T): Promise<ConstructionOutcome<T, ConstructionError>> {
+      return ok<T, ConstructionError>(input);
     },
   });
 }
@@ -467,14 +453,20 @@ export function identity<T, R = unknown>(
  */
 export function atom<I, O, E extends ConstructionError = ConstructionError, R = unknown>(
   id: string,
-  executor: (input: I, context?: Context<R>) => Promise<O> | O,
+  executor: (
+    input: I,
+    context?: Context<R>
+  ) => Promise<O | ConstructionOutcome<O, E>> | O | ConstructionOutcome<O, E>,
   name = `Atom(${id})`
 ): Construction<I, O, E, R> {
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<O> {
-      return executor(input, context);
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E>> {
+      const execution = await executor(input, context);
+      return isConstructionOutcome<O, E>(execution)
+        ? execution
+        : ok<O, E>(execution as O);
     },
   });
 }
@@ -487,7 +479,7 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
   second: Construction<M, O, E2, R>,
   id = `seq:${first.id}>${second.id}`,
   name = `Seq(${first.name}, ${second.name})`
-): Construction<I, ConstructionExecutionResult<O, E1 | E2>, E1 | E2, R> {
+): Construction<I, O, E1 | E2, R> {
   const firstEstimate = first.getEstimatedConfidence;
   const secondEstimate = second.getEstimatedConfidence;
   const estimatedConfidence = firstEstimate && secondEstimate
@@ -503,7 +495,7 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
     async execute(
       input: I,
       context
-    ): Promise<ConstructionExecutionResult<O, E1 | E2>> {
+    ): Promise<ConstructionOutcome<O, E1 | E2>> {
       const firstOutcome = await executeOutcomeWithTrace(first, input, context);
       if (!firstOutcome.ok) {
         return fail<O, E1 | E2>(
@@ -522,7 +514,7 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
         );
       }
 
-      return secondOutcome.value;
+      return ok<O, E1 | E2>(secondOutcome.value);
     },
     ...(estimatedConfidence ? { getEstimatedConfidence: estimatedConfidence } : {}),
   });
@@ -540,12 +532,26 @@ export function fanout<I, O1, O2, E extends ConstructionError, R>(
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context): Promise<[O1, O2]> {
+    async execute(input: I, context): Promise<ConstructionOutcome<[O1, O2], E>> {
       const [leftOutput, rightOutput] = await Promise.all([
         executeWithTrace(left, input, context),
         executeWithTrace(right, input, context),
       ]);
-      return [leftOutput, rightOutput];
+      if (!leftOutput.ok) {
+        return fail<[O1, O2], E>(
+          leftOutput.error,
+          leftOutput.partial as Partial<[O1, O2]> | undefined,
+          leftOutput.errorAt ?? left.id,
+        );
+      }
+      if (!rightOutput.ok) {
+        return fail<[O1, O2], E>(
+          rightOutput.error,
+          rightOutput.partial as Partial<[O1, O2]> | undefined,
+          rightOutput.errorAt ?? right.id,
+        );
+      }
+      return ok<[O1, O2], E>([leftOutput.value, rightOutput.value]);
     },
   });
 }
@@ -558,19 +564,19 @@ export function fallback<I, O, E extends ConstructionError, R>(
   backup: Construction<I, O, E, R>,
   id = `fallback:${primary.id}>${backup.id}`,
   name = `Fallback(${primary.name}, ${backup.name})`
-): Construction<I, ConstructionExecutionResult<O, E>, E, R> {
+): Construction<I, O, E, R> {
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context): Promise<ConstructionExecutionResult<O, E>> {
+    async execute(input: I, context): Promise<ConstructionOutcome<O, E>> {
       const primaryOutcome = await executeOutcomeWithTrace(primary, input, context);
       if (primaryOutcome.ok) {
-        return primaryOutcome.value;
+        return ok<O, E>(primaryOutcome.value);
       }
 
       const backupOutcome = await executeOutcomeWithTrace(backup, input, context);
       if (backupOutcome.ok) {
-        return backupOutcome.value;
+        return ok<O, E>(backupOutcome.value);
       }
 
       return fail<O, E>(
@@ -595,12 +601,19 @@ export function select<I, A, B, E extends ConstructionError, R>(
   const base = withDiagnostics<I, B, E, R>({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<B> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<B, E>> {
       const decision = await executeWithTrace(condition, input, context);
-      if (decision.tag === 'right') {
-        return decision.value;
+      if (!decision.ok) {
+        return fail<B, E>(
+          decision.error,
+          decision.partial as Partial<B> | undefined,
+          decision.errorAt ?? condition.id,
+        );
       }
-      return executeWithTrace(ifLeft, decision.value, context);
+      if (decision.value.tag === 'right') {
+        return ok<B, E>(decision.value.value);
+      }
+      return executeWithTrace(ifLeft, decision.value.value, context);
     },
     getEstimatedConfidence: ifLeft.getEstimatedConfidence ?? condition.getEstimatedConfidence,
   }) as SelectiveConstruction<I, B, E, R>;
@@ -647,12 +660,19 @@ export function branch<I, A, B, C, E extends ConstructionError, R>(
   const base = withDiagnostics<I, C, E, R>({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<C> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<C, E>> {
       const decision = await executeWithTrace(predicate, input, context);
-      if (decision.tag === 'left') {
-        return executeWithTrace(ifLeft, decision.value, context);
+      if (!decision.ok) {
+        return fail<C, E>(
+          decision.error,
+          decision.partial as Partial<C> | undefined,
+          decision.errorAt ?? predicate.id,
+        );
       }
-      return executeWithTrace(ifRight, decision.value, context);
+      if (decision.value.tag === 'left') {
+        return executeWithTrace(ifLeft, decision.value.value, context);
+      }
+      return executeWithTrace(ifRight, decision.value.value, context);
     },
     getEstimatedConfidence:
       ifLeft.getEstimatedConfidence ??
@@ -707,7 +727,7 @@ export function fix<I extends Record<string, unknown>, E extends ConstructionErr
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<I & FixpointMetadata> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<I & FixpointMetadata, E | ProtocolViolationError>> {
       const maxIter = options.maxIter ?? 10;
       const maxViolations = options.maxViolations ?? 0;
       const hashState = options.metric.stateHash ?? ((state: I) => JSON.stringify(state));
@@ -735,7 +755,15 @@ export function fix<I extends Record<string, unknown>, E extends ConstructionErr
           break;
         }
 
-        const nextState = await executeWithTrace(body, state, context);
+        const nextStateOutcome = await executeWithTrace(body, state, context);
+        if (!nextStateOutcome.ok) {
+          return fail<I & FixpointMetadata, E | ProtocolViolationError>(
+            nextStateOutcome.error,
+            nextStateOutcome.partial as Partial<I & FixpointMetadata> | undefined,
+            nextStateOutcome.errorAt ?? body.id,
+          );
+        }
+        const nextState = nextStateOutcome.value;
         iterations += 1;
         const nextMeasure = options.metric.measure(nextState);
 
@@ -769,7 +797,11 @@ export function fix<I extends Record<string, unknown>, E extends ConstructionErr
         if (seen.has(stateHash)) {
           cycleDetected = true;
           if (maxViolations === 0) {
-            throw new ProtocolViolationError(id, iterations, stateHash);
+            return fail<I & FixpointMetadata, E | ProtocolViolationError>(
+              new ProtocolViolationError(id, iterations, stateHash),
+              state as unknown as Partial<I & FixpointMetadata>,
+              id,
+            );
           }
           state = nextState;
           previousMeasure = nextMeasure;
@@ -803,14 +835,14 @@ export function fix<I extends Record<string, unknown>, E extends ConstructionErr
         }
       }
 
-      return {
+      return ok<I & FixpointMetadata, E | ProtocolViolationError>({
         ...outputState,
         iterations,
         finalMeasure: previousMeasure,
         monotoneViolations,
         cycleDetected,
         terminationReason,
-      };
+      });
     },
     getEstimatedConfidence: body.getEstimatedConfidence,
   }) as Construction<I, I & FixpointMetadata, E | ProtocolViolationError, R>;
@@ -829,10 +861,17 @@ export function dimap<I2, I, O, O2, E extends ConstructionError, R>(
   return withDiagnostics({
     id,
     name,
-    async execute(input: I2, context): Promise<O2> {
+    async execute(input: I2, context): Promise<ConstructionOutcome<O2, E>> {
       const adaptedInput = pre(input);
       const output = await executeWithTrace(construction, adaptedInput, context);
-      return post(output);
+      if (!output.ok) {
+        return fail<O2, E>(
+          output.error,
+          output.partial as Partial<O2> | undefined,
+          output.errorAt ?? construction.id,
+        );
+      }
+      return ok<O2, E>(post(output.value));
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
   });
@@ -874,9 +913,16 @@ export function mapAsync<I, O, O2, E extends ConstructionError, R>(
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<O2> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O2, E>> {
       const output = await executeWithTrace(construction, input, context);
-      return post(output, context);
+      if (!output.ok) {
+        return fail<O2, E>(
+          output.error,
+          output.partial as Partial<O2> | undefined,
+          output.errorAt ?? construction.id,
+        );
+      }
+      return ok<O2, E>(await post(output.value, context));
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
   });
@@ -890,14 +936,14 @@ export function mapError<I, O, E extends ConstructionError, E2 extends Construct
   transform: (error: E) => E2,
   id = `mapError:${construction.id}`,
   name = `MapError(${construction.name})`
-): Construction<I, ConstructionExecutionResult<O, E2>, E2, R> {
+): Construction<I, O, E2, R> {
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E2>> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E2>> {
       const outcome = await executeOutcomeWithTrace(construction, input, context);
       if (outcome.ok) {
-        return outcome.value;
+        return ok<O, E2>(outcome.value);
       }
       return fail<O, E2>(transform(outcome.error), outcome.partial, outcome.errorAt);
     },
@@ -920,7 +966,7 @@ export function withRetry<I, O, E extends ConstructionError, R>(
   options: ConstructionRetryOptions,
   id = `withRetry:${construction.id}`,
   name = `WithRetry(${construction.name})`,
-): Construction<I, ConstructionExecutionResult<O, E>, E, R> {
+): Construction<I, O, E, R> {
   const maxAttempts = Math.max(1, options.maxAttempts);
   const baseDelayMs = Math.max(0, options.baseDelayMs ?? 50);
   const backoffFactor = Math.max(1, options.backoffFactor ?? 2);
@@ -929,7 +975,7 @@ export function withRetry<I, O, E extends ConstructionError, R>(
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E>> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E>> {
       let attempt = 0;
       let lastFailure: ConstructionOutcome<O, E> | undefined;
 
@@ -937,7 +983,7 @@ export function withRetry<I, O, E extends ConstructionError, R>(
         attempt += 1;
         const outcome = await executeOutcomeWithTrace(construction, input, context);
         if (outcome.ok) {
-          return outcome.value;
+          return ok<O, E>(outcome.value);
         }
 
         lastFailure = outcome;
@@ -980,14 +1026,14 @@ export function provide<I, O, E extends ConstructionError, R extends Record<stri
   providedDeps: RP,
   id = `provide:${construction.id}`,
   name = `Provide(${construction.name})`
-): Construction<I, ConstructionExecutionResult<O, E>, E, Omit<R, keyof RP>> {
+): Construction<I, O, E, Omit<R, keyof RP>> {
   return withDiagnostics({
     id,
     name,
     async execute(
       input: I,
       context?: Context<Omit<R, keyof RP>>,
-    ): Promise<ConstructionExecutionResult<O, E>> {
+    ): Promise<ConstructionOutcome<O, E>> {
       if (!context) {
         return fail<O, E>(
           new ConstructionError(
@@ -1009,7 +1055,7 @@ export function provide<I, O, E extends ConstructionError, R extends Record<stri
 
       const outcome = await executeOutcomeWithTrace(construction, input, mergedContext);
       if (outcome.ok) {
-        return outcome.value;
+        return ok<O, E>(outcome.value);
       }
       return fail<O, E>(outcome.error, outcome.partial, outcome.errorAt ?? construction.id);
     },

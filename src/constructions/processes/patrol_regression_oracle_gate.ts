@@ -5,6 +5,7 @@ import {
   type PatrolRegressionOracleEvaluationResult,
 } from '../../evaluation/patrol_regression_oracle.js';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface PatrolRegressionOracleGateInput {
@@ -42,7 +43,7 @@ export function createPatrolRegressionOracleGateConstruction(): Construction<
     name: 'Patrol Regression Oracle Gate',
     description:
       'Auto-generates minimal vitest reproductions from patrol findings and validates pre-fix failure + current pass behavior.',
-    async execute(input: PatrolRegressionOracleGateInput = {}): Promise<PatrolRegressionOracleGateOutput> {
+    async execute(input: PatrolRegressionOracleGateInput = {}) {
       const startedAt = Date.now();
       const minGeneratedTests = input.minGeneratedTests ?? DEFAULT_MIN_GENERATED_TESTS;
       const evaluation = await evaluatePatrolRegressionOracle({
@@ -60,7 +61,7 @@ export function createPatrolRegressionOracleGateConstruction(): Construction<
         );
       }
 
-      return {
+      return ok<PatrolRegressionOracleGateOutput, ConstructionError>({
         kind: 'PatrolRegressionOracleGateResult.v1',
         pass: findings.length === 0 && evaluation.pass,
         minGeneratedTests,
@@ -71,7 +72,7 @@ export function createPatrolRegressionOracleGateConstruction(): Construction<
         results: evaluation.results,
         findings,
         durationMs: Date.now() - startedAt,
-      };
+      });
     },
   };
 }

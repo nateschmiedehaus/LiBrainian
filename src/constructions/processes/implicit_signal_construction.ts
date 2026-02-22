@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface ImplicitSignalInput {
@@ -29,7 +30,7 @@ export function createImplicitSignalConstruction(): Construction<
     id: 'implicit-signal-detector',
     name: 'Implicit Signal Detector',
     description: 'Infers behavioral fallbacks and failure patterns from raw agent output.',
-    async execute(input: ImplicitSignalInput): Promise<ImplicitSignalOutput> {
+    async execute(input: ImplicitSignalInput) {
       const output = `${input.stdout}\n${input.stderr ?? ''}`.toLowerCase();
       const commandsFailed = (output.match(/\b(command not found|enoent|exit code\s*[1-9]|fatal error|permission denied)\b/g) ?? []).length;
       const timeoutRatio =
@@ -42,14 +43,14 @@ export function createImplicitSignalConstruction(): Construction<
       if (commandsFailed > 0) anomalies.push('command_failures_detected');
       if (input.timedOut) anomalies.push('timeout_detected');
 
-      return {
+      return ok<ImplicitSignalOutput, ConstructionError>({
         fellBackToGrep: /\b(rg|ripgrep|grep -|grep\s)/.test(output),
         catInsteadOfContext: /\b(cat\s+|sed -n|head -\d+|tail -\d+)/.test(output),
         commandsFailed,
         abortedEarly: Boolean(input.exitCode && input.exitCode !== 0),
         timeoutRatio,
         stderrAnomalies: anomalies,
-      };
+      });
     },
   };
 }

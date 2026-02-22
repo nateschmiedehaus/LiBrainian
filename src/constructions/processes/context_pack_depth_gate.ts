@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { createLiBrainian } from '../../api/librarian.js';
 import type { ContextPack, ContextPackType } from '../../types.js';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export type ContextPackDepthQueryType = 'function_lookup' | 'module_overview' | 'dependency_trace';
@@ -320,7 +321,7 @@ export function createContextPackDepthGateConstruction(): Construction<
     id: 'context-pack-depth-gate',
     name: 'Context Pack Depth Gate',
     description: 'Validates that context packs include actionable structural intelligence rather than shallow summaries.',
-    async execute(input: ContextPackDepthGateInput = {}): Promise<ContextPackDepthGateOutput> {
+    async execute(input: ContextPackDepthGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = process.cwd();
       const fixtures = input.fixtures ?? defaultFixtures(repoRoot);
@@ -383,14 +384,14 @@ export function createContextPackDepthGateConstruction(): Construction<
         findings.push(`duration exceeded: ${durationMs}ms > ${maxDurationMs}ms`);
       }
 
-      return {
+      return ok<ContextPackDepthGateOutput, ConstructionError>({
         kind: 'ContextPackDepthGateResult.v1',
         pass: findings.length === 0,
         fixtures: fixtureResults,
         findings,
         durationMs,
         maxDurationMs,
-      };
+      });
     },
   };
 }

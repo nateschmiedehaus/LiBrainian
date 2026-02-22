@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface ResultQualityThresholdSeed {
@@ -116,7 +117,7 @@ export function createResultQualityJudgeConstruction(): Construction<
     id: 'result-quality-judge',
     name: 'Result Quality Judge',
     description: 'Scores result usefulness for agents across relevance, completeness, actionability, and accuracy.',
-    async execute(input: ResultQualityJudgeInput): Promise<ResultQualityJudgeOutput> {
+    async execute(input: ResultQualityJudgeInput) {
       const expectedFiles = input.expectedFiles ?? [];
       const topFiles = input.topFiles ?? [];
       const confidenceValues = input.confidenceValues ?? [];
@@ -142,7 +143,7 @@ export function createResultQualityJudgeConstruction(): Construction<
         findings.push(`accuracy ${accuracy.toFixed(3)} below threshold ${thresholds.accuracy.toFixed(3)}`);
       }
 
-      return {
+      return ok<ResultQualityJudgeOutput, ConstructionError>({
         kind: 'ResultQualityJudgment.v1',
         pass: findings.length === 0,
         scores: {
@@ -153,7 +154,7 @@ export function createResultQualityJudgeConstruction(): Construction<
         },
         thresholds,
         findings,
-      };
+      });
     },
   };
 }

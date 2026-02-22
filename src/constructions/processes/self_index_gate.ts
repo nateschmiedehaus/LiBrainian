@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { createLiBrainian } from '../../api/librarian.js';
 import type { ContextPack } from '../../types.js';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export type SelfIndexQueryId =
@@ -230,7 +231,7 @@ export function createSelfIndexGateConstruction(): Construction<
     id: 'self-index-gate',
     name: 'Self-Index Gate',
     description: 'Bootstraps LiBrainian on itself and validates self-referential retrieval quality.',
-    async execute(input: SelfIndexGateInput = {}): Promise<SelfIndexGateOutput> {
+    async execute(input: SelfIndexGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = process.cwd();
       const fixtures = input.fixtures ?? defaultFixtures(repoRoot);
@@ -344,7 +345,7 @@ export function createSelfIndexGateConstruction(): Construction<
         findings.push(`duration exceeded: ${durationMs}ms > ${maxDurationMs}ms`);
       }
 
-      return {
+      return ok<SelfIndexGateOutput, ConstructionError>({
         kind: 'SelfIndexGateResult.v1',
         pass: findings.length === 0,
         k,
@@ -353,7 +354,7 @@ export function createSelfIndexGateConstruction(): Construction<
         findings,
         durationMs,
         maxDurationMs,
-      };
+      });
     },
   };
 }

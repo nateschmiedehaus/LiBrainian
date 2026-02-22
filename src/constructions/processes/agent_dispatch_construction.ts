@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface AgentDispatchInput {
@@ -30,7 +31,7 @@ export function createAgentDispatchConstruction(): Construction<
     id: 'agent-dispatch',
     name: 'Agent Dispatch',
     description: 'Spawns an external agent/process and captures structured execution output.',
-    async execute(input: AgentDispatchInput): Promise<AgentDispatchOutput> {
+    async execute(input: AgentDispatchInput) {
       const startedAt = Date.now();
       const args = input.args ?? [];
       const timeoutMs = input.timeoutMs ?? 0;
@@ -74,14 +75,14 @@ export function createAgentDispatchConstruction(): Construction<
         if (timeout) clearTimeout(timeout);
       });
 
-      return {
+      return ok<AgentDispatchOutput, ConstructionError>({
         commandLine: [input.command, ...args].join(' ').trim(),
         exitCode,
         timedOut,
         durationMs: Date.now() - startedAt,
         stdout,
         stderr,
-      };
+      });
     },
   };
 }

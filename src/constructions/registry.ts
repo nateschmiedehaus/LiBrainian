@@ -12,7 +12,10 @@ import {
   type ConstructionListFilter,
   type ConstructionManifest,
   type ConstructionSchema,
+  fail,
+  isConstructionOutcome,
   isConstructionId,
+  ok,
   toCanonicalConstructionId,
 } from './types.js';
 
@@ -29,9 +32,13 @@ function createUnavailableConstruction(
     id,
     name,
     description: `${name} is registered for discovery but not executable in this runtime.`,
-    async execute(): Promise<unknown> {
-      throw new ConstructionError(
-        `Construction ${id} is not executable in this runtime`,
+    async execute() {
+      return fail<unknown, ConstructionError>(
+        new ConstructionError(
+          `Construction ${id} is not executable in this runtime`,
+          id,
+        ),
+        undefined,
         id,
       );
     },
@@ -562,7 +569,21 @@ function activateCoreConstructions(): void {
         id: existing.id,
         name: existing.name,
         description: existing.description,
-        execute: runtimeEntry.execute,
+        execute: async (input, context) => {
+          try {
+            const execution = await runtimeEntry.execute(input, context);
+            return isConstructionOutcome(execution)
+              ? execution
+              : ok(execution);
+          } catch (error) {
+            const normalized = error instanceof ConstructionError
+              ? error
+              : error instanceof Error
+                ? new ConstructionError(error.message, existing.id, error)
+                : new ConstructionError(`Non-error failure: ${String(error)}`, existing.id);
+            return fail(normalized, undefined, existing.id);
+          }
+        },
       },
       examples: [
         ...existing.examples,

@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface CostBudget {
@@ -34,7 +35,7 @@ export function createCostControlConstruction(): Construction<
     id: 'cost-controller',
     name: 'Cost Controller',
     description: 'Evaluates runtime/token/spend usage against process budget constraints.',
-    async execute(input: CostControlInput): Promise<CostControlOutput> {
+    async execute(input: CostControlInput) {
       const budget = input.budget ?? {};
       const usage = input.usage ?? {};
       const breaches: string[] = [];
@@ -49,11 +50,11 @@ export function createCostControlConstruction(): Construction<
         breaches.push(`usd:${usage.usd}>${budget.maxUsd}`);
       }
 
-      return {
+      return ok<CostControlOutput, ConstructionError>({
         allowed: breaches.length === 0,
         breaches,
         usage,
-      };
+      });
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface ObservationExtractionInput {
@@ -24,7 +25,7 @@ export function createObservationExtractionConstruction(): Construction<
     id: 'observation-extractor',
     name: 'Observation Extractor',
     description: 'Extracts incremental PATROL_OBS lines and full JSON observation blocks.',
-    async execute(input: ObservationExtractionInput): Promise<ObservationExtractionOutput> {
+    async execute(input: ObservationExtractionInput) {
       const prefix = input.incrementalPrefix ?? 'PATROL_OBS: ';
       const blockStart = input.blockStart ?? 'PATROL_OBSERVATION_JSON_START';
       const blockEnd = input.blockEnd ?? 'PATROL_OBSERVATION_JSON_END';
@@ -64,11 +65,11 @@ export function createObservationExtractionConstruction(): Construction<
         }
       }
 
-      return {
+      return ok<ObservationExtractionOutput, ConstructionError>({
         incrementalObservations,
         fullObservation,
         parseWarnings: warnings,
-      };
+      });
     },
   };
 }

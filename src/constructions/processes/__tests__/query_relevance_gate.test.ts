@@ -50,7 +50,7 @@ describe('Query Relevance Gate', () => {
     });
 
     const gate = createQueryRelevanceGateConstruction();
-    const result = await gate.execute({
+    const outcome = await gate.execute({
       fixtures: [
         {
           name: 'query-relevance-fixture',
@@ -65,6 +65,11 @@ describe('Query Relevance Gate', () => {
       k: 3,
       precisionThreshold: 0.2,
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.kind).toBe('QueryRelevanceGateResult.v1');
     expect(result.k).toBe(3);

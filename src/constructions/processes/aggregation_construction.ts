@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface PatrolRunAggregateInput {
@@ -39,16 +40,16 @@ export function createAggregationConstruction(): Construction<
     id: 'patrol-aggregator',
     name: 'Patrol Aggregator',
     description: 'Aggregates per-run patrol observations into rollup metrics.',
-    async execute(input: AggregationInput): Promise<AggregationOutput> {
+    async execute(input: AggregationInput) {
       const runs = input.runs ?? [];
       if (runs.length === 0) {
-        return {
+        return ok<AggregationOutput, ConstructionError>({
           runCount: 0,
           meanNps: 0,
           wouldRecommendRate: 0,
           avgNegativeFindings: 0,
           implicitFallbackRate: 0,
-        };
+        });
       }
 
       const npsValues = runs
@@ -64,13 +65,13 @@ export function createAggregationConstruction(): Construction<
         ? npsValues.reduce((sum, value) => sum + value, 0) / npsValues.length
         : 0;
 
-      return {
+      return ok<AggregationOutput, ConstructionError>({
         runCount: runs.length,
         meanNps: Number(meanNps.toFixed(3)),
         wouldRecommendRate: Number((recommendCount / runs.length).toFixed(3)),
         avgNegativeFindings: Number((negativeCountTotal / runs.length).toFixed(3)),
         implicitFallbackRate: Number((implicitFallbackCount / runs.length).toFixed(3)),
-      };
+      });
     },
   };
 }

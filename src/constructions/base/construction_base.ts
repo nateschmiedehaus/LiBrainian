@@ -24,6 +24,7 @@ import {
 } from '../../epistemics/confidence.js';
 import type { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { generatePredictionId } from '../calibration_tracker.js';
+import { fail, ok } from '../types.js';
 import type { Construction, Context } from '../types.js';
 
 // ============================================================================
@@ -303,11 +304,25 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
       id: constructionId,
       name,
       description,
-      execute: async (input: TInput, context?: Context): Promise<TOutput> => {
+      execute: async (input: TInput, context?: Context) => {
         if (context?.signal.aborted) {
-          throw new ConstructionCancelledError(constructionId);
+          return fail<TOutput, ConstructionError>(
+            new ConstructionCancelledError(constructionId),
+            undefined,
+            constructionId,
+          );
         }
-        return this.execute(input, context);
+        try {
+          const value = await this.execute(input, context);
+          return ok<TOutput, ConstructionError>(value);
+        } catch (error) {
+          const normalized = error instanceof ConstructionError
+            ? error
+            : error instanceof Error
+              ? new ConstructionError(error.message, constructionId, error)
+              : new ConstructionError(`Non-error failure: ${String(error)}`, constructionId);
+          return fail<TOutput, ConstructionError>(normalized, undefined, constructionId);
+        }
       },
     };
   }

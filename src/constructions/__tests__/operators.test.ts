@@ -13,7 +13,7 @@ import {
   seq,
   withRetry,
 } from '../operators.js';
-import { fail, isConstructionOutcome } from '../types.js';
+import { fail, isConstructionOutcome, ok, type ConstructionOutcome } from '../types.js';
 import {
   ConstructionError,
   ConstructionCancelledError,
@@ -29,11 +29,19 @@ function makeNumberConstruction(
   return {
     id,
     name,
-    async execute(input: number): Promise<number> {
-      return transform(input);
+    async execute(input: number): Promise<ConstructionOutcome<number, ConstructionError>> {
+      return ok<number, ConstructionError>(transform(input));
     },
     getEstimatedConfidence: () => deterministic(true, `${id}:estimate`),
   };
+}
+
+function expectOkValue<T>(outcome: ConstructionOutcome<T, ConstructionError>): T {
+  expect(outcome.ok).toBe(true);
+  if (!outcome.ok) {
+    throw new Error(`Expected success outcome, received failure: ${outcome.error.message}`);
+  }
+  return outcome.value;
 }
 
 describe('construction operators', () => {
@@ -47,14 +55,17 @@ describe('construction operators', () => {
 
     const leftResult = await left.execute(5);
     const rightResult = await right.execute(5);
+    const leftValue = expectOkValue(leftResult);
+    const rightValue = expectOkValue(rightResult);
 
-    expect(leftResult).toBe(rightResult);
-    expect(leftResult).toBe(9);
+    expect(leftValue).toBe(rightValue);
+    expect(leftValue).toBe(9);
   });
 
   it('creates a single-step construction via atom', async () => {
     const triple = atom<number, number>('triple', async (input) => input * 3);
-    await expect(triple.execute(4)).resolves.toBe(12);
+    const outcome = await triple.execute(4);
+    expect(expectOkValue(outcome)).toBe(12);
     expect(triple.name).toContain('Atom');
   });
 
@@ -68,9 +79,12 @@ describe('construction operators', () => {
     const baseline = await addOne.execute(8);
     const leftResult = await left.execute(8);
     const rightResult = await right.execute(8);
+    const baselineValue = expectOkValue(baseline);
+    const leftValue = expectOkValue(leftResult);
+    const rightValue = expectOkValue(rightResult);
 
-    expect(leftResult).toBe(baseline);
-    expect(rightResult).toBe(baseline);
+    expect(leftValue).toBe(baselineValue);
+    expect(rightValue).toBe(baselineValue);
   });
 
   it('satisfies dimap identity law', async () => {
@@ -83,8 +97,10 @@ describe('construction operators', () => {
 
     const baseline = await base.execute(4);
     const mapped = await identityMapped.execute(4);
+    const baselineValue = expectOkValue(baseline);
+    const mappedValue = expectOkValue(mapped);
 
-    expect(mapped).toBe(baseline);
+    expect(mappedValue).toBe(baselineValue);
   });
 
   it('satisfies dimap composition law', async () => {
@@ -107,9 +123,11 @@ describe('construction operators', () => {
 
     const leftResult = await left.execute({ raw: '7' });
     const rightResult = await right.execute({ raw: '7' });
+    const leftValue = expectOkValue(leftResult);
+    const rightValue = expectOkValue(rightResult);
 
-    expect(leftResult).toBe(rightResult);
-    expect(leftResult).toBe('n:17');
+    expect(leftValue).toBe(rightValue);
+    expect(leftValue).toBe('n:17');
   });
 
   it('rejects mismatched seq seams but accepts mapped adaptation', () => {
@@ -147,8 +165,8 @@ describe('construction operators', () => {
   it('supports async output adaptation with mapAsync', async () => {
     const base = makeNumberConstruction('base', 'Base', (n) => n + 2);
     const mapped = mapAsync(base, async (output) => `value:${output}`);
-
-    await expect(mapped.execute(5)).resolves.toBe('value:7');
+    const outcome = await mapped.execute(5);
+    expect(expectOkValue(outcome)).toBe('value:7');
   });
 
   it('supports typed error transformation with mapError', async () => {
@@ -179,8 +197,9 @@ describe('construction operators', () => {
     const base = makeNumberConstruction('base', 'Base', (n) => n + 1);
     const viaMap = map(base, (value) => value * 10);
     const viaAlias = mapConstruction(base, (value) => value * 10);
-
-    await expect(viaMap.execute(2)).resolves.toBe(await viaAlias.execute(2));
+    const mapped = await viaMap.execute(2);
+    const aliased = await viaAlias.execute(2);
+    expect(expectOkValue(mapped)).toBe(expectOkValue(aliased));
   });
 
   it('unions typed error channels across seq composition', () => {
@@ -258,7 +277,7 @@ describe('construction operators', () => {
       sessionId: 'provide-session',
     });
 
-    expect(result).toBe('librarian-core:claude-haiku-3-5');
+    expect(expectOkValue(result)).toBe('librarian-core:claude-haiku-3-5');
   });
 
   it('short-circuits seq when step 2 fails and preserves partial output from step 1', async () => {
@@ -323,7 +342,7 @@ describe('construction operators', () => {
 
     const retried = withRetry(flaky, { maxAttempts: 4, baseDelayMs: 1 });
     const success = await retried.execute('payload');
-    expect(success).toBe('payload:ok');
+    expect(expectOkValue(success)).toBe('payload:ok');
     expect(attempts).toBe(3);
 
     attempts = 0;

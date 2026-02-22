@@ -27,7 +27,6 @@ import {
 } from '../epistemics/confidence.js';
 import type {
   ConstructionResult,
-  ConstructionContext,
 } from './base/construction_base.js';
 import {
   ConstructionError,
@@ -46,10 +45,17 @@ import { registerGeneratedConstruction } from './registry.js';
 // ============================================================================
 
 /**
- * @deprecated Use {@link Construction} from `./types` directly.
+ * Legacy composition interface retained for class-based composition pipeline support.
+ *
+ * Canonical `Construction` now uses strict `ConstructionOutcome` return values.
+ * This legacy interface remains value-returning and is normalized at integration boundaries.
  */
-export type ComposableConstruction<TInput, TOutput extends ConstructionResult> =
-  Construction<TInput, TOutput, ConstructionError, unknown>;
+export interface ComposableConstruction<TInput, TOutput extends ConstructionResult> {
+  readonly id: string;
+  readonly name: string;
+  execute(input: TInput, context?: Context<unknown>): Promise<TOutput>;
+  getEstimatedConfidence?(): ConfidenceValue;
+}
 
 // ============================================================================
 // CONFIGURATION TYPES
@@ -98,7 +104,7 @@ export interface Tracer {
 }
 
 function unwrapExecutionResult<T>(
-  execution: ConstructionExecutionResult<T, ConstructionError>,
+  execution: ConstructionExecutionResult<T, ConstructionError> | T,
   constructionId: string,
 ): T {
   if (!isConstructionOutcome<T, ConstructionError>(execution)) {

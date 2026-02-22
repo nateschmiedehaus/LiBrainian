@@ -15,12 +15,17 @@ describe('UnitPatrol', () => {
     const construction = createFixtureSmokeUnitPatrolConstruction();
     const startedAt = Date.now();
 
-    const result = await construction.execute({
+    const outcome = await construction.execute({
       fixtureRepoPath: FIXTURE_REPO,
       timeoutMs: 120_000,
       budget: { maxDurationMs: 120_000 },
       keepSandbox: false,
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.kind).toBe('UnitPatrolResult.v1');
     expect(typeof result.pass).toBe('boolean');
@@ -58,7 +63,12 @@ describe('UnitPatrol', () => {
       budget: { maxDurationMs: 120_000 },
       keepSandbox: false,
     };
-    const result = await construction.execute(input);
+    const outcome = await construction.execute(input);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.scenario).toBe('unit-patrol-custom-scenario');
     expect(result.operations).toHaveLength(2);
@@ -95,12 +105,17 @@ describe('UnitPatrol', () => {
       },
     );
 
-    const result = await construction.execute({
+    const outcome = await construction.execute({
       fixtureRepoPath: FIXTURE_REPO,
       timeoutMs: 180_000,
       budget: { maxDurationMs: 180_000 },
       keepSandbox: false,
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     const metamorphicStep = result.operations.find((operation) => operation.operation === 'metamorphic');
     expect(metamorphicStep).toBeDefined();

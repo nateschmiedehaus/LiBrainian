@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface SandboxLifecycleInput {
@@ -29,19 +30,19 @@ export function createSandboxLifecycleConstruction(): Construction<
     id: 'sandbox-lifecycle',
     name: 'Sandbox Lifecycle',
     description: 'Creates/returns an isolated sandbox workspace for process execution.',
-    async execute(input: SandboxLifecycleInput): Promise<SandboxLifecycleOutput> {
+    async execute(input: SandboxLifecycleInput) {
       const sourcePath = path.resolve(input.repoPath);
       const mode = input.mode ?? 'copy';
       const cleanupOnExit = input.cleanupOnExit !== false;
 
       if (mode === 'reuse') {
-        return {
+        return ok<SandboxLifecycleOutput, ConstructionError>({
           sandboxPath: sourcePath,
           sourcePath,
           mode,
           created: false,
           cleanupOnExit: false,
-        };
+        });
       }
 
       const sandboxRoot = input.sandboxRoot
@@ -54,13 +55,13 @@ export function createSandboxLifecycleConstruction(): Construction<
         force: true,
       });
 
-      return {
+      return ok<SandboxLifecycleOutput, ConstructionError>({
         sandboxPath,
         sourcePath,
         mode,
         created: true,
         cleanupOnExit,
-      };
+      });
     },
   };
 }

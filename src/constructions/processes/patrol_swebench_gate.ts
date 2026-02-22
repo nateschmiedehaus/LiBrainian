@@ -5,6 +5,7 @@ import {
   type PatrolTestPair,
 } from '../../evaluation/patrol_swebench_pairs.js';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface PatrolSwebenchGateInput {
@@ -43,7 +44,7 @@ export function createPatrolSwebenchGateConstruction(): Construction<
     name: 'Patrol SWE-bench Gate',
     description:
       'Auto-generates FAIL_TO_PASS + PASS_TO_PASS patrol test pairs, runs the harness, and enforces a minimum pair count.',
-    async execute(input: PatrolSwebenchGateInput = {}): Promise<PatrolSwebenchGateOutput> {
+    async execute(input: PatrolSwebenchGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = input.repoRoot ?? process.cwd();
       const minPairCount = input.minPairCount ?? DEFAULT_MIN_PAIR_COUNT;
@@ -68,7 +69,7 @@ export function createPatrolSwebenchGateConstruction(): Construction<
         findings.push(`Pair ${evaluation.pairId} failed: ${detail}`);
       }
 
-      return {
+      return ok<PatrolSwebenchGateOutput, ConstructionError>({
         kind: 'PatrolSwebenchGateResult.v1',
         pass: findings.length === 0 && harness.pass,
         pairCount: materialized.pairCount,
@@ -80,7 +81,7 @@ export function createPatrolSwebenchGateConstruction(): Construction<
         harness,
         findings,
         durationMs: Date.now() - startedAt,
-      };
+      });
     },
   };
 }

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { createLiBrainian } from '../../api/librarian.js';
 import type { LiBrainianStorage } from '../../storage/types.js';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface BootstrapQualityFixture {
@@ -275,7 +276,7 @@ export function createBootstrapQualityGateConstruction(): Construction<
     id: 'bootstrap-quality-gate',
     name: 'Bootstrap Quality Gate',
     description: 'Bootstraps fixture repos and validates indexing, embeddings, call graph, and queryability.',
-    async execute(input: BootstrapQualityGateInput = {}): Promise<BootstrapQualityGateOutput> {
+    async execute(input: BootstrapQualityGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = process.cwd();
       const resolvedDefaults = input.fixtures ? null : await defaultFixtures(repoRoot);
@@ -299,13 +300,13 @@ export function createBootstrapQualityGateConstruction(): Construction<
         }
       }
 
-      return {
+      return ok<BootstrapQualityGateOutput, ConstructionError>({
         kind: 'BootstrapQualityGateResult.v1',
         pass: findings.length === 0,
         fixtures: results,
         findings,
         durationMs: Date.now() - startedAt,
-      };
+      });
     },
   };
 }

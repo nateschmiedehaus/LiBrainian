@@ -233,8 +233,7 @@ export interface ConstructionDebugOptions {
 /**
  * Railway-style construction outcome.
  *
- * Canonical construction operators may return this typed channel instead of throwing.
- * A compatibility path still allows legacy constructions to return raw values.
+ * Canonical construction execution returns this typed channel and should never throw.
  */
 export type ConstructionOutcome<O, E extends ConstructionError = ConstructionError> =
   | {
@@ -250,14 +249,12 @@ export type ConstructionOutcome<O, E extends ConstructionError = ConstructionErr
     };
 
 /**
- * Compatibility execution result while the construction ecosystem migrates.
- * - Success may be returned as raw O (legacy) or as an explicit ok(...) outcome.
- * - Failure should be returned as fail(...), not thrown.
+ * Backward-compatible alias retained while call sites are migrated.
  */
 export type ConstructionExecutionResult<
   O,
   E extends ConstructionError = ConstructionError,
-> = O | ConstructionOutcome<O, E>;
+> = ConstructionOutcome<O, E>;
 
 /**
  * Outcome constructor for success track.
@@ -308,9 +305,6 @@ export function unwrapConstructionExecutionResult<
   O,
   E extends ConstructionError = ConstructionError,
 >(value: ConstructionExecutionResult<O, E>): O {
-  if (!isConstructionOutcome<O, E>(value)) {
-    return value;
-  }
   if (value.ok) {
     return value.value;
   }
@@ -362,7 +356,7 @@ export interface Construction<
   readonly id: string;
   readonly name: string;
   readonly description?: string;
-  execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E>>;
+  execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E>>;
   getEstimatedConfidence?(): ConfidenceValue;
   debug?(
     options?: ConstructionDebugOptions

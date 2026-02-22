@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { createLiBrainian } from '../../api/librarian.js';
 import type { ContextPack } from '../../types.js';
-import { unwrapConstructionExecutionResult, type Construction } from '../types.js';
+import { ok, unwrapConstructionExecutionResult, type Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createResultQualityJudgeConstruction, type ResultQualityJudgeOutput } from './result_quality_judge.js';
 
@@ -136,7 +136,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
     id: 'query-relevance-gate',
     name: 'Query Relevance Gate',
     description: 'Runs curated query/ground-truth pairs and enforces precision and relevance quality thresholds.',
-    async execute(input: QueryRelevanceGateInput = {}): Promise<QueryRelevanceGateOutput> {
+    async execute(input: QueryRelevanceGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = process.cwd();
       const fixtures = input.fixtures ?? defaultFixtures(repoRoot);
@@ -243,7 +243,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
         }
       }
 
-      return {
+      return ok<QueryRelevanceGateOutput, ConstructionError>({
         kind: 'QueryRelevanceGateResult.v1',
         pass: findings.length === 0,
         k,
@@ -251,7 +251,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
         fixtures: fixtureResults,
         findings,
         durationMs: Date.now() - startedAt,
-      };
+      });
     },
   };
 }

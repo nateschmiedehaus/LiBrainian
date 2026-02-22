@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import {
   ProviderChaosMiddleware,
@@ -118,7 +119,7 @@ export function createProviderChaosGateConstruction(): Construction<
     id: 'provider-chaos-gate',
     name: 'Provider Chaos Gate',
     description: 'Injects provider failure modes and verifies recovery and state integrity.',
-    async execute(input: ProviderChaosGateInput = {}): Promise<ProviderChaosGateOutput> {
+    async execute(input: ProviderChaosGateInput = {}) {
       const startedAt = Date.now();
       const maxDurationMs = input.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
       const slowDelayMs = input.slowDelayMs ?? DEFAULT_SLOW_DELAY_MS;
@@ -145,14 +146,14 @@ export function createProviderChaosGateConstruction(): Construction<
         findings.push(`Provider chaos gate exceeded duration budget: ${durationMs}ms > ${maxDurationMs}ms.`);
       }
 
-      return {
+      return ok<ProviderChaosGateOutput, ConstructionError>({
         kind: 'ProviderChaosGateResult.v1',
         pass: findings.length === 0,
         modeResults,
         findings,
         durationMs,
         maxDurationMs,
-      };
+      });
     },
   };
 }

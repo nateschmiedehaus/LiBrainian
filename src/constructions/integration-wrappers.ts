@@ -14,7 +14,6 @@ import type { ConstructionCalibrationTracker, VerificationMethod } from './calib
 import { generatePredictionId } from './calibration_tracker.js';
 import type {
   Construction,
-  ConstructionExecutionResult,
   ConstructionOutcome,
   Context,
 } from './types.js';
@@ -40,11 +39,9 @@ type PendingLedgerOutcome = {
 };
 
 function toOutcome<O, E extends ConstructionError>(
-  execution: ConstructionExecutionResult<O, E>
+  execution: ConstructionOutcome<O, E>
 ): ConstructionOutcome<O, E> {
-  return isConstructionOutcome<O, E>(execution)
-    ? execution
-    : ok<O, E>(execution as O);
+  return isConstructionOutcome<O, E>(execution) ? execution : ok<O, E>(execution as O);
 }
 
 function normalizeFailure(error: unknown, constructionId: string): ConstructionError {
@@ -181,7 +178,7 @@ export function calibrated<I, O extends ConstructionResult, E extends Constructi
   construction: Construction<I, O, E, R>,
   tracker: ConstructionCalibrationTracker,
   options: CalibratedOptions<O> = {}
-): Construction<I, ConstructionExecutionResult<O, E>, E, R> {
+): Construction<I, O, E, R> {
   const minPredictions = Math.max(1, options.minPredictionsForCalibration ?? 20);
   const outcomeEventTypes = options.outcomeEventTypes ?? ['outcome', 'feedback', 'verification'];
   const pendingByPrediction = new Map<string, PendingLedgerOutcome>();
@@ -210,7 +207,7 @@ export function calibrated<I, O extends ConstructionResult, E extends Constructi
   return {
     ...construction,
     id: `calibrated(${construction.id})`,
-    async execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E>> {
+    async execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E>> {
       const predictionId = generatePredictionId(construction.id);
       let outcome: ConstructionOutcome<O, E>;
 
@@ -296,7 +293,7 @@ export function calibrated<I, O extends ConstructionResult, E extends Constructi
         });
       }
 
-      return resultWithPrediction;
+      return ok<O, E>(resultWithPrediction);
     },
   };
 }

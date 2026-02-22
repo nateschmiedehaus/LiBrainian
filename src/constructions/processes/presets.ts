@@ -1,4 +1,4 @@
-import { unwrapConstructionExecutionResult, type Construction } from '../types.js';
+import { ok, unwrapConstructionExecutionResult, type Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createAgentDispatchConstruction } from './agent_dispatch_construction.js';
 import { createObservationExtractionConstruction } from './observation_extraction_construction.js';
@@ -53,16 +53,16 @@ function createPresetConstruction(definition: {
     id: definition.id,
     name: definition.name,
     description: definition.description,
-    async execute(input: PresetProcessInput): Promise<PresetProcessOutput> {
+    async execute(input: PresetProcessInput) {
       const dryRun = input.dryRun !== false;
       if (dryRun || !input.command) {
-        return {
+        return ok<PresetProcessOutput, ConstructionError>({
           preset: definition.id,
           pattern: definition.pattern,
           stages: definition.stages,
           costEstimateUsd: definition.costEstimateUsd,
           executed: false,
-        };
+        });
       }
 
       const dispatch = unwrapConstructionExecutionResult(await dispatchConstruction.execute({
@@ -86,7 +86,7 @@ function createPresetConstruction(definition: {
         },
       }));
 
-      return {
+      return ok<PresetProcessOutput, ConstructionError>({
         preset: definition.id,
         pattern: definition.pattern,
         stages: definition.stages,
@@ -103,7 +103,7 @@ function createPresetConstruction(definition: {
           allowed: budget.allowed,
           breaches: budget.breaches,
         },
-      };
+      });
     },
   };
 }

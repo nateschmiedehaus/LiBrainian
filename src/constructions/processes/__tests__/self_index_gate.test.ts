@@ -64,7 +64,7 @@ describe('Self-Index Gate', () => {
     });
 
     const gate = createSelfIndexGateConstruction();
-    const result = await gate.execute({
+    const outcome = await gate.execute({
       fixtures: [
         {
           name: 'self-index-mini',
@@ -102,6 +102,11 @@ describe('Self-Index Gate', () => {
       precisionThreshold: 0.2,
       maxDurationMs: 300_000,
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.kind).toBe('SelfIndexGateResult.v1');
     expect(result.fixtures).toHaveLength(1);

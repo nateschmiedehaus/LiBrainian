@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface CliOutputSanityGateInput {
@@ -339,7 +340,7 @@ export function createCliOutputSanityGateConstruction(): Construction<
     id: 'cli-output-sanity-gate',
     name: 'CLI Output Sanity Gate',
     description: 'Validates CLI output quality, exit codes, help accuracy, and parseability for agent-safe usage.',
-    async execute(input: CliOutputSanityGateInput = {}): Promise<CliOutputSanityGateOutput> {
+    async execute(input: CliOutputSanityGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = input.repoRoot ?? process.cwd();
       const cliEntry = input.cliEntry ?? DEFAULT_CLI_ENTRY;
@@ -394,7 +395,7 @@ export function createCliOutputSanityGateConstruction(): Construction<
         findings.push(`duration exceeded: ${durationMs}ms > ${maxDurationMs}ms`);
       }
 
-      return {
+      return ok<CliOutputSanityGateOutput, ConstructionError>({
         kind: 'CliOutputSanityGateResult.v1',
         pass: findings.length === 0,
         commandCount: commandResults.length,
@@ -404,7 +405,7 @@ export function createCliOutputSanityGateConstruction(): Construction<
         findings,
         durationMs,
         maxDurationMs,
-      };
+      });
     },
   };
 }

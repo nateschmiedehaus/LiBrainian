@@ -1,4 +1,5 @@
 import type { Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import type { AggregationOutput, PatrolRunAggregateInput } from './aggregation_construction.js';
 
@@ -29,7 +30,7 @@ export function createReportConstruction(): Construction<
     id: 'patrol-reporter',
     name: 'Patrol Reporter',
     description: 'Builds a normalized patrol report payload and aggregate health score.',
-    async execute(input: ReportConstructionInput): Promise<ReportConstructionOutput> {
+    async execute(input: ReportConstructionInput) {
       const score = Math.max(
         0,
         Math.min(
@@ -40,7 +41,7 @@ export function createReportConstruction(): Construction<
         ),
       );
 
-      return {
+      return ok<ReportConstructionOutput, ConstructionError>({
         kind: 'PatrolReport.v1',
         createdAt: new Date().toISOString(),
         mode: input.mode,
@@ -48,7 +49,7 @@ export function createReportConstruction(): Construction<
         runs: input.runs,
         aggregate: input.aggregate,
         aggregateHealthScore: Number(score.toFixed(2)),
-      };
+      });
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { Context, Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface ProcessBudget {
@@ -93,7 +94,7 @@ export abstract class AgenticProcess<
     context?: Context<unknown>,
   ): ConstructionPipeline<I, S, O>;
 
-  async execute(input: I, context?: Context<unknown>): Promise<O> {
+  async execute(input: I, context?: Context<unknown>) {
     const startedAt = Date.now();
     const events: ProcessEvent[] = [];
     const pushEvent = (stage: string, type: ProcessEvent['type'], detail?: string): void => {
@@ -175,7 +176,7 @@ export abstract class AgenticProcess<
         ? (output.exitReason ?? 'completed')
         : exitReason;
 
-    return {
+    return ok<O, ConstructionError>({
       ...output,
       observations: output.observations ?? {},
       costSummary: {
@@ -184,6 +185,6 @@ export abstract class AgenticProcess<
       },
       exitReason: resolvedExitReason,
       events,
-    };
+    });
   }
 }

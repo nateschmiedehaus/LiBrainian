@@ -94,7 +94,7 @@ describe('Context Pack Depth Gate', () => {
     });
 
     const gate = createContextPackDepthGateConstruction();
-    const result = await gate.execute({
+    const outcome = await gate.execute({
       fixtures: [
         {
           name: 'ts-depth-fixture',
@@ -118,6 +118,11 @@ describe('Context Pack Depth Gate', () => {
       ],
       maxDurationMs: 120_000,
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.kind).toBe('ContextPackDepthGateResult.v1');
     expect(result.fixtures).toHaveLength(1);

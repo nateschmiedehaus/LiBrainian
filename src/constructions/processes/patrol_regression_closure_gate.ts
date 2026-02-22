@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import { unwrapConstructionExecutionResult, type Construction } from '../types.js';
+import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createCliOutputSanityGateConstruction, type CliOutputProbeResult } from './cli_output_sanity_gate.js';
 
@@ -57,7 +58,7 @@ export function createPatrolRegressionClosureGateConstruction(): Construction<
     id: 'patrol-regression-closure-gate',
     name: 'Patrol Regression Closure Gate',
     description: 'Verifies patrol findings stay closed using construction-level CLI regression checks.',
-    async execute(input: PatrolRegressionClosureGateInput = {}): Promise<PatrolRegressionClosureGateOutput> {
+    async execute(input: PatrolRegressionClosureGateInput = {}) {
       const startedAt = Date.now();
       const repoRoot = path.resolve(input.repoRoot ?? process.cwd());
       const commandTimeoutMs = input.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
@@ -169,14 +170,14 @@ export function createPatrolRegressionClosureGateConstruction(): Construction<
         findings.push(`Patrol regression closure gate exceeded duration budget: ${durationMs}ms > ${maxDurationMs}ms.`);
       }
 
-      return {
+      return ok<PatrolRegressionClosureGateOutput, ConstructionError>({
         kind: 'PatrolRegressionClosureResult.v1',
         pass: findings.length === 0,
         checks,
         findings,
         durationMs,
         maxDurationMs,
-      };
+      });
     },
   };
 }
