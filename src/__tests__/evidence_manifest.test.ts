@@ -48,13 +48,15 @@ describe('evidence manifest generation', () => {
     'eval-results/final-verification.json': JSON.stringify({
       validation_results: {
         phase21: {
-          p50LatencyMs: 0,
-          p99LatencyMs: 1,
+          p50LatencyMs: 633,
+          p99LatencyMs: 1260,
           memoryPerKLOC: 222.78,
         },
       },
       targets: {
         phase21: {
+          p50LatencyMs: 500,
+          p99LatencyMs: 1000,
           memoryPerKLOC: 50,
         },
       },

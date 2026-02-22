@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-21T23:47:07.158Z",
+  "lastUpdated": "2026-02-22T00:12:54.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -616,22 +616,23 @@
     "layer5.externalRepos": {
       "name": "External Real Repos",
       "layer": 5,
-      "status": "pass",
+      "status": "unverified",
       "target": "5+ real GitHub repos (not AI-generated, post-2024 or obscure)",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.scientificLoop"
       ],
       "queuedWorkUnit": "WU-801-REAL (after WU-1001-1003)",
-      "note": "10 external repos verified with git metadata and manifest remotes.",
+      "note": "Status not backed by evidence manifest.",
       "verification": "Each repo must have: git remote -v showing real origin",
       "lastRun": "2026-02-21",
-      "measured": 10
+      "measured": 10,
+      "verified": false
     },
     "layer5.astFactExtractor": {
       "name": "AST Fact Extractor",
       "layer": 5,
-      "status": "pass",
+      "status": "unverified",
       "target": "Extract function defs, imports, call graphs, types from any codebase",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
@@ -639,7 +640,8 @@
       ],
       "lastRun": "2026-02-21",
       "measured": 400,
-      "note": "Ground truth generated directly from AST facts for external repos."
+      "note": "Status not backed by evidence manifest.",
+      "verified": false
     },
     "layer5.citationVerifier": {
       "name": "Citation Verifier",
@@ -748,7 +750,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-21",
+      "lastRun": "2026-02-22",
       "measured": 0.72625
     },
     "layer5.retrievalPrecision": {
@@ -761,7 +763,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-21",
+      "lastRun": "2026-02-22",
       "measured": 0.15550000000000075
     },
     "layer5.hallucinationRate": {
@@ -774,7 +776,7 @@
       "dependsOn": [
         "layer5.evalHarness"
       ],
-      "lastRun": "2026-02-21",
+      "lastRun": "2026-02-22",
       "measured": 0.4025
     },
     "layer5.synthesisAccuracyStructural": {
@@ -1016,15 +1018,15 @@
     "layer7.metricsRAGAS": {
       "name": "RAGAS-Style Metrics Measurement (Phase 14)",
       "layer": 7,
-      "status": "pass",
-      "lastRun": "2026-02-18",
+      "status": "fail",
+      "lastRun": "2026-02-22",
       "target": "Recall@5>=80%, Precision>=70%, Hallucination<5%, Faithfulness>=85%",
       "measured": {
-        "recallAt5": 0.82,
-        "contextPrecision": 0.74,
-        "hallucinationRate": 0.03,
-        "faithfulness": 0.87,
-        "answerRelevancy": 0.79
+        "recallAt5": 0.72625,
+        "contextPrecision": 0.15550000000000075,
+        "hallucinationRate": 0.4025,
+        "faithfulness": 1,
+        "answerRelevancy": 1
       },
       "spec": "docs/librarian/WORKPLAN.md#phase-14",
       "workUnits": [
@@ -1065,7 +1067,7 @@
       "name": "Scenario Family Testing SF-01 to SF-30 (Phase 16)",
       "layer": 7,
       "status": "pass",
-      "lastRun": "2026-02-18",
+      "lastRun": "2026-02-22",
       "target": "All 30 scenario families tested including HARD (SF-21 to SF-30)",
       "measured": "30/30",
       "spec": "docs/librarian/WORKPLAN.md#phase-16",
@@ -1095,7 +1097,7 @@
       "name": "A/B Worker Experiments (Phase 17)",
       "layer": 7,
       "status": "fail",
-      "lastRun": "2026-02-18",
+      "lastRun": "2026-02-22",
       "target": "Treatment >= 20% lift over Control, p < 0.05",
       "measured": "lift=0.20833333333333334 (p=0.09371405527122034)",
       "spec": "docs/librarian/WORKPLAN.md#phase-17",
@@ -1180,14 +1182,40 @@
       "name": "Performance Benchmarking (Phase 21)",
       "layer": 7,
       "status": "partial",
-      "lastRun": "2026-02-18",
+      "lastRun": "2026-02-22",
       "target": "p50 < 500ms, p99 < 2s, memory < 50MB/1K LOC",
       "measured": {
-        "p50LatencyMs": 0,
-        "p99LatencyMs": 1,
-        "memoryPerKLOC": 0.8982833980068219
+        "p50LatencyMs": 824.377167000006,
+        "p99LatencyMs": 2567.3559160000004,
+        "memoryPerKLOC": 0.8117761893076594,
+        "targetP50LatencyMs": 500,
+        "targetP99LatencyMs": 2000,
+        "latencyByQueryType": {
+          "structural": {
+            "sampleCount": 8,
+            "minMs": 296.55512499999895,
+            "maxMs": 2567.3559160000004,
+            "meanMs": 1003.1237499999997,
+            "p50Ms": 634.6242919999931,
+            "p95Ms": 2567.3559160000004,
+            "p99Ms": 2567.3559160000004
+          },
+          "synthesis": {
+            "sampleCount": 8,
+            "minMs": 610.0577499999999,
+            "maxMs": 1700.1397920000018,
+            "meanMs": 1187.2816876250008,
+            "p50Ms": 1131.1001670000041,
+            "p95Ms": 1700.1397920000018,
+            "p99Ms": 1700.1397920000018
+          }
+        },
+        "latencyQueryCounts": {
+          "successful": 16,
+          "failed": 0
+        }
       },
-      "note": "Latency targets missing: only memory targets are part of the manifest summary.",
+      "note": "Measured real end-to-end query latency from query entry to response return; includes per-query-type breakdown.",
       "spec": "docs/librarian/WORKPLAN.md#phase-21",
       "workUnits": [
         "WU-2101",
@@ -1248,12 +1276,11 @@
     },
     "layer5": {
       "total": 25,
-      "invalid": 1,
-      "queued": 1,
-      "not_started": 12,
+      "pass": 1,
+      "unverified": 3,
+      "not_started": 11,
       "not_measured": 6,
-      "unverified": 1,
-      "pass": 3,
+      "fail": 3,
       "pending": 1
     },
     "layer6": {
@@ -1263,8 +1290,8 @@
     "layer7": {
       "total": 11,
       "unverified": 6,
-      "pass": 3,
-      "fail": 1,
+      "fail": 2,
+      "pass": 2,
       "partial": 1
     }
   },
@@ -1273,31 +1300,31 @@
     "validation": "unverified (evidence_manifest_missing)",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-18T16:42:17.000Z",
+    "lastVerified": "2026-02-22T00:12:54.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",
-        "measured": "0.82",
-        "status": "MET"
+        "measured": "0.72625",
+        "status": "NOT MET"
       },
       "Context Precision": {
         "target": ">=0.7",
-        "measured": "0.74",
-        "status": "MET"
+        "measured": "0.15550000000000075",
+        "status": "NOT MET"
       },
       "Hallucination Rate": {
         "target": "<0.05",
-        "measured": "0.03",
-        "status": "MET"
+        "measured": "0.4025",
+        "status": "NOT MET"
       },
       "Faithfulness": {
         "target": ">=0.85",
-        "measured": "0.87",
+        "measured": "1",
         "status": "MET"
       },
       "Answer Relevancy": {
         "target": ">=0.75",
-        "measured": "0.79",
+        "measured": "1",
         "status": "MET"
       },
       "A/B Lift": {
@@ -1307,7 +1334,7 @@
       },
       "Memory per 1K LOC": {
         "target": "<=50 MB",
-        "measured": "0.8982833980068219 MB",
+        "measured": "0.8117761893076594 MB",
         "status": "MET"
       }
     },

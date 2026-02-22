@@ -7,6 +7,7 @@ LiBrainian scripts are grouped by function:
   - `publish-github-package.mjs`
   - `package-install-smoke.mjs`
   - `refresh-final-verification.mjs`
+  - `benchmark-query-latency.ts` (real end-to-end query latency + lingering bootstrap/query process hygiene guard)
 - **Evaluation orchestration**
   - `ab-harness.ts`
   - `ab-diagnosis.ts`

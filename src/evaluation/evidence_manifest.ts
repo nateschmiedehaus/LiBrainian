@@ -188,7 +188,15 @@ async function buildEvidenceSummary(workspaceRoot: string, artifacts: EvidenceAr
     p50LatencyMs: requireNumber(p21.p50LatencyMs, 'validation_results.phase21.p50LatencyMs'),
     p99LatencyMs: requireNumber(p21.p99LatencyMs, 'validation_results.phase21.p99LatencyMs'),
     memoryPerKLOC: requireNumber(p21.memoryPerKLOC, 'validation_results.phase21.memoryPerKLOC'),
+    targetP50LatencyMs: requireNumber(t21.p50LatencyMs, 'targets.phase21.p50LatencyMs'),
+    targetP99LatencyMs: requireNumber(t21.p99LatencyMs, 'targets.phase21.p99LatencyMs'),
     targetMemoryPerKLOC: requireNumber(t21.memoryPerKLOC, 'targets.phase21.memoryPerKLOC'),
+    latencyByQueryType: (p21.latencyByQueryType && typeof p21.latencyByQueryType === 'object')
+      ? p21.latencyByQueryType
+      : {},
+    latencyQueryCounts: (p21.latencyQueryCounts && typeof p21.latencyQueryCounts === 'object')
+      ? p21.latencyQueryCounts
+      : {},
   };
 
   const scenarioSummary = scenarioReport.summary ?? {};

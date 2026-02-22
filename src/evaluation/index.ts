@@ -114,6 +114,13 @@ export {
 } from './ground_truth_export.js';
 
 export {
+  type QueryLatencySample,
+  type LatencyStats,
+  type LatencySummary,
+  summarizeLatencySamples,
+} from './latency_summary.js';
+
+export {
   type MeasuredMetric as ExternalEvalMeasuredMetric,
   type ExternalEvalMetricsReport,
   type ExternalEvalRefreshOptions,

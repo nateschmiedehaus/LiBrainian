@@ -26,8 +26,10 @@ const BASE_MANIFEST: EvidenceManifestSummary = {
     significant: false,
   },
   performance: {
-    p50LatencyMs: 0,
-    p99LatencyMs: 1,
+    p50LatencyMs: 633,
+    p99LatencyMs: 1260,
+    targetP50LatencyMs: 500,
+    targetP99LatencyMs: 1000,
     memoryPerKLOC: 222.78,
     targetMemoryPerKLOC: 50,
   },
