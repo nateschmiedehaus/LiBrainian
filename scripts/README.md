@@ -24,7 +24,7 @@ LiBrainian scripts are grouped by function:
   - `check-file-sizes.mjs`
   - `guard-generated-artifacts.mjs` (blocks likely accidental TypeScript emit artifacts like `src/**/*.js` beside `src/**/*.ts`)
   - `repo-folder-audit.mjs`
-  - `hook-update-index.mjs` (best-effort staged index refresh for pre-commit flows)
+  - `hook-update-index.mjs` (budgeted staged index refresh with explicit latency/reliability gate semantics)
 - **GitHub automation**
   - `gh-autoland.mjs` (push current branch, create/reuse PR, enable squash auto-merge, watch checks)
     - Supports `--issue <N>` to auto-link `Fixes #N` in PR body
@@ -46,6 +46,20 @@ LiBrainian scripts are grouped by function:
   - Runs hook-friendly staged-file incremental index refresh (`librainian update --staged`).
 - `npm run hygiene:generated-artifacts`
   - Fails fast if generated TypeScript emit artifacts appear in tracked/unignored source-controlled paths.
+
+## Pre-commit self-hosting budgets
+
+`scripts/hook-update-index.mjs` enforces explicit commit-time guardrails:
+
+- `LIBRARIAN_PRECOMMIT_BUDGET_MS` (default `45000`): maximum allowed hook latency.
+- `LIBRARIAN_PRECOMMIT_STRICT` (default `1` in CI, `0` locally): when enabled, any non-success update outcome fails the hook.
+- `LIBRARIAN_PRECOMMIT_BUDGET_REPORT`: optional path for machine-readable budget report output.
+
+Remediation when budget gate fails:
+
+1. Run `npm run librainian:update -- <staged files>` to reproduce and collect direct diagnostics.
+2. Fix bootstrap/provider state (for reliability failures), or reduce staged scope to stay within latency budget.
+3. If justified by repo scale, raise `LIBRARIAN_PRECOMMIT_BUDGET_MS` with a corresponding issue/evidence trail.
 
 ## Conventions
 
