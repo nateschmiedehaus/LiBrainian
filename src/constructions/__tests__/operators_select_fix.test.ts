@@ -28,7 +28,12 @@ describe('construction select/branch/fix operators', () => {
     };
 
     const selective = select(condition, ifLeft);
-    const result = await selective.execute(3);
+    const outcome = await selective.execute(3);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result).toBe('value:3');
     expect(ifLeftSpy).not.toHaveBeenCalled();
@@ -51,7 +56,12 @@ describe('construction select/branch/fix operators', () => {
     };
 
     const selective = select(condition, ifLeft);
-    const result = await selective.execute(4);
+    const outcome = await selective.execute(4);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result).toBe('left:6');
     expect(ifLeftSpy).toHaveBeenCalledTimes(1);
@@ -82,8 +92,18 @@ describe('construction select/branch/fix operators', () => {
     };
 
     const conditional = branch(predicate, ifLeft, ifRight);
-    await expect(conditional.execute(8)).resolves.toBe('L:4');
-    await expect(conditional.execute(5)).resolves.toBe('R:15');
+    const leftOutcome = await conditional.execute(8);
+    expect(leftOutcome.ok).toBe(true);
+    if (!leftOutcome.ok) {
+      throw leftOutcome.error;
+    }
+    expect(leftOutcome.value).toBe('L:4');
+    const rightOutcome = await conditional.execute(5);
+    expect(rightOutcome.ok).toBe(true);
+    if (!rightOutcome.ok) {
+      throw rightOutcome.error;
+    }
+    expect(rightOutcome.value).toBe('R:15');
   });
 
   it('select maxCost is an upper bound and minCost a lower bound for sampled runs', async () => {
@@ -170,7 +190,12 @@ describe('construction select/branch/fix operators', () => {
       maxIter: 10,
     });
 
-    const result = await iterative.execute({ count: 0 });
+    const outcome = await iterative.execute({ count: 0 });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
     expect(result.count).toBe(3);
     expect(result.iterations).toBe(3);
     expect(result.monotoneViolations).toBe(0);
@@ -198,7 +223,12 @@ describe('construction select/branch/fix operators', () => {
       maxViolations: 0,
     });
 
-    await expect(iterative.execute({ value: 1 })).rejects.toBeInstanceOf(ProtocolViolationError);
+    const outcome = await iterative.execute({ value: 1 });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) {
+      throw new Error('Expected strict cycle detection to fail');
+    }
+    expect(outcome.error).toBeInstanceOf(ProtocolViolationError);
   });
 
   it('fix records cycle metadata in lenient mode', async () => {
@@ -221,7 +251,12 @@ describe('construction select/branch/fix operators', () => {
       maxViolations: 1,
     });
 
-    const result = await iterative.execute({ value: 2 });
+    const outcome = await iterative.execute({ value: 2 });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
     expect(result.cycleDetected).toBe(true);
     expect(result.terminationReason).toBe('cycle');
   });
@@ -257,7 +292,7 @@ describe('construction select/branch/fix operators', () => {
       maxViolations: 2,
     });
 
-    const result = await iterative.execute(
+    const outcome = await iterative.execute(
       {
         value: 3,
         confidence: deterministic(true, 'start'),
@@ -268,6 +303,11 @@ describe('construction select/branch/fix operators', () => {
         sessionId: 'fix-metric-test',
       }
     );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.monotoneViolations).toBe(1);
     expect((result.confidence as { value: number }).value).toBeLessThan(1);

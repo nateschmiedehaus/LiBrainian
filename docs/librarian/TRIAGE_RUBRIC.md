@@ -13,6 +13,11 @@ Every actionable issue must carry one label from each family:
 
 If intake fields are incomplete, the issue is labeled `triage/missing-essentials`.
 
+Additionally, every actionable issue must be categorized as one of:
+
+- `ship-blocking`
+- `post-ship`
+
 ## Intake essentials
 
 Issues are triage-ready only when all three are present:
@@ -34,6 +39,13 @@ Run once per week (recommended: Monday) and review only `triage/ready` issues.
    - **Next-up queue**: `severity: high` with validated impact and low dependency risk.
    - **Backlog**: medium/low severity or missing enabling dependencies.
 4. For backlog items, add a short defer reason and dependency notes.
+5. Run automated hygiene pass with strict thresholds:
+   - `ship-blocking` vs `post-ship` classification is required.
+   - Issues missing essentials auto-close after 14 days from creation.
+   - Issues with no meaningful activity auto-close after 90 days.
+   - If >100 open issues remain, close oldest `post-ship` issues until count is below cap.
+   - Ensure top 10 `ship-blocking` issues are pinned.
+   - Noise-only comments (`bump`, `ping`, short acknowledgements, and checklist reminders) do not count as meaningful activity.
 
 ## Active sprint admission rule
 
@@ -46,7 +58,7 @@ An issue enters active sprint only if:
 
 ## Backlog hygiene rule
 
-Issues older than 30 days without `triage/ready` should be either:
+Issues older than 90 days without meaningful activity and without `triage/ready` should be either:
 
 - Updated with missing essentials, or
 - Closed with reason (`needs-more-evidence`, `duplicate`, `out-of-scope`).

@@ -7,13 +7,18 @@ import {
 describe('ResultQualityJudge', () => {
   it('scores strong results as passing across all dimensions', async () => {
     const judge = createResultQualityJudgeConstruction();
-    const result = await judge.execute({
+    const outcome = await judge.execute({
       query: 'session storage for authentication tokens',
       expectedFiles: ['src/auth/sessionStore.ts'],
       topFiles: ['src/auth/sessionStore.ts', 'src/auth/tokenValidator.ts'],
       confidenceValues: [0.81, 0.74],
       evidenceSnippets: ['createSession(userId)', 'validateToken(token)'],
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.kind).toBe('ResultQualityJudgment.v1');
     expect(result.pass).toBe(true);
@@ -26,13 +31,18 @@ describe('ResultQualityJudge', () => {
 
   it('flags weak or polluted results as failing', async () => {
     const judge = createResultQualityJudgeConstruction();
-    const result = await judge.execute({
+    const outcome = await judge.execute({
       query: 'loan policy and borrowing limits',
       expectedFiles: ['src/policy/loanPolicy.ts'],
       topFiles: ['.librarian/cache/context.json'],
       confidenceValues: [1.5],
       evidenceSnippets: [],
     });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    const result = outcome.value;
 
     expect(result.pass).toBe(false);
     expect(result.findings.length).toBeGreaterThan(0);

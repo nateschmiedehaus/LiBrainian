@@ -158,6 +158,33 @@ describe('queryCommand LLM resolution', () => {
     expect(call?.intent).toBe('hello world');
   });
 
+  it('preserves query flags from rawArgs when positional args are stripped', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: ['src/mcp/server.ts', 'heuristic', 'hello world'],
+      rawArgs: [
+        '--workspace',
+        '/tmp/workspace',
+        'query',
+        '--files',
+        'src/mcp/server.ts',
+        '--strategy',
+        'heuristic',
+        '--json',
+        'hello world',
+      ],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.intent).toBe('hello world');
+    expect(call?.affectedFiles).toEqual(['/tmp/workspace/src/mcp/server.ts']);
+    expect(call?.embeddingRequirement).toBe('disabled');
+    expect(call?.llmRequirement).toBe('disabled');
+  });
+
   it('maps --strategy heuristic to disabled embeddings and synthesis', async () => {
     const { queryCommand } = await import('../query.js');
     const { queryLibrarian } = await import('../../../api/query.js');

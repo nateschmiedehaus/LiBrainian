@@ -39,8 +39,8 @@ export async function acquireWorkspaceLock(workspaceRoot: string, options: Works
   const existing = await readLockState(lockPath);
   const details = existing ? ` (pid=${existing.pid}, startedAt=${existing.startedAt})` : '';
   throw new Error(
-    `unverified_by_trace(lease_conflict): timed out waiting for librarian bootstrap lock${details}. ` +
-      'If this is stale, delete `.librarian/bootstrap.lock` or run `librarian doctor`.'
+    `unverified_by_trace(lease_conflict): timed out waiting for LiBrainian bootstrap lock${details}. ` +
+      'If this is stale, delete `.librarian/bootstrap.lock` or run `librainian doctor --heal`.'
   );
 }
 

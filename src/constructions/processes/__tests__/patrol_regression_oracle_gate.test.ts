@@ -16,14 +16,17 @@ describe('Patrol Regression Oracle Gate', () => {
         testTimeoutMs: 60_000,
       });
 
-      expect(result.kind).toBe('PatrolRegressionOracleGateResult.v1');
-      expect(result.generatedTestCount).toBeGreaterThanOrEqual(3);
-      expect(result.passingGeneratedTestCount).toBe(result.generatedTestCount);
-      expect(result.results.every((entry) => entry.minimal)).toBe(true);
-      expect(result.results.every((entry) => entry.preFixFails)).toBe(true);
-      expect(result.results.every((entry) => entry.generatedTestPasses)).toBe(true);
-      expect(result.findings).toHaveLength(0);
-      expect(result.pass).toBe(true);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value.kind).toBe('PatrolRegressionOracleGateResult.v1');
+      expect(result.value.generatedTestCount).toBeGreaterThanOrEqual(3);
+      expect(result.value.passingGeneratedTestCount).toBe(result.value.generatedTestCount);
+      expect(result.value.results.every((entry) => entry.minimal)).toBe(true);
+      expect(result.value.results.every((entry) => entry.preFixFails)).toBe(true);
+      expect(result.value.results.every((entry) => entry.generatedTestPasses)).toBe(true);
+      expect(result.value.findings).toHaveLength(0);
+      expect(result.value.pass).toBe(true);
     } finally {
       await rm(outputDir, { recursive: true, force: true });
     }

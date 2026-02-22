@@ -16,6 +16,7 @@ import { indexCommand, type IndexCommandOptions } from '../index.js';
 import { LiBrainian } from '../../../api/librarian.js';
 import { CliError } from '../../errors.js';
 import { globalEventBus } from '../../../events.js';
+import { acquireWorkspaceLock } from '../../../integration/workspace_lock.js';
 import { getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 
 vi.mock('node:fs');
@@ -38,6 +39,13 @@ vi.mock('../../../utils/git.js', () => ({
   getGitStagedChanges: vi.fn(async () => null),
   getGitDiffNames: vi.fn(async () => null),
   getGitFileContentAtRef: vi.fn(() => null),
+}));
+vi.mock('../../../integration/workspace_lock.js', () => ({
+  acquireWorkspaceLock: vi.fn(async () => ({
+    lockPath: '/test/workspace/.librarian/bootstrap.lock',
+    state: { pid: 1234, startedAt: new Date().toISOString() },
+    release: vi.fn(async () => undefined),
+  })),
 }));
 
 describe('indexCommand', () => {
@@ -89,6 +97,11 @@ describe('indexCommand', () => {
     vi.mocked(getGitStagedChanges).mockResolvedValue(null);
     vi.mocked(getGitDiffNames).mockResolvedValue(null);
     vi.mocked(getGitFileContentAtRef).mockReturnValue(null);
+    vi.mocked(acquireWorkspaceLock).mockResolvedValue({
+      lockPath: '/test/workspace/.librarian/bootstrap.lock',
+      state: { pid: 1234, startedAt: new Date().toISOString() },
+      release: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
   afterEach(() => {
@@ -121,6 +134,19 @@ describe('indexCommand', () => {
       };
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
+    });
+
+    it('returns cleanly when no files are selected and allowLockSkip is true', async () => {
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'No modified files found to index. Workspace is already up to date.'
+      );
     });
 
     it('should reject multiple git selectors at once', async () => {
@@ -442,6 +468,26 @@ describe('indexCommand', () => {
   });
 
   describe('LiBrainian Initialization', () => {
+    it('acquires and releases workspace mutation lock', async () => {
+      const release = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(acquireWorkspaceLock).mockResolvedValueOnce({
+        lockPath: '/test/workspace/.librarian/bootstrap.lock',
+        state: { pid: 2345, startedAt: new Date().toISOString() },
+        release,
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+      };
+
+      await indexCommand(options);
+
+      expect(acquireWorkspaceLock).toHaveBeenCalledWith(mockWorkspace, { timeoutMs: 30000 });
+      expect(release).toHaveBeenCalled();
+    });
+
     it('should initialize librarian with correct workspace', async () => {
       const options: IndexCommandOptions = {
         workspace: mockWorkspace,
@@ -522,6 +568,40 @@ describe('indexCommand', () => {
     });
 
     it('skips update gracefully when index lock is active and allowLockSkip is true', async () => {
+      vi.mocked(acquireWorkspaceLock).mockRejectedValueOnce(
+        new Error('unverified_by_trace(lease_conflict): timed out waiting for librarian bootstrap lock')
+      );
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('workspace mutation is active')
+      );
+      expect(mockLiBrainian.initialize).not.toHaveBeenCalled();
+    });
+
+    it('fails when workspace lock is active and allowLockSkip is false', async () => {
+      vi.mocked(acquireWorkspaceLock).mockRejectedValueOnce(
+        new Error('unverified_by_trace(lease_conflict): timed out waiting for librarian bootstrap lock')
+      );
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+      };
+
+      await expect(indexCommand(options)).rejects.toThrow('index lock unavailable');
+      expect(mockLiBrainian.initialize).not.toHaveBeenCalled();
+    });
+
+    it('skips update gracefully when index storage lock is active and allowLockSkip is true', async () => {
       mockLiBrainian.initialize.mockRejectedValue(
         new Error('unverified_by_trace:storage_locked:indexing in progress (pid=1234, startedAt=2026-02-21T00:00:00.000Z)')
       );
@@ -540,7 +620,7 @@ describe('indexCommand', () => {
       expect(mockLiBrainian.getStatus).not.toHaveBeenCalled();
     });
 
-    it('fails when index lock is active and allowLockSkip is false', async () => {
+    it('fails when index storage lock is active and allowLockSkip is false', async () => {
       mockLiBrainian.initialize.mockRejectedValue(
         new Error('unverified_by_trace:storage_locked:indexing in progress (pid=1234, startedAt=2026-02-21T00:00:00.000Z)')
       );

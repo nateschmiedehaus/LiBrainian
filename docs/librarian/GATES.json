@@ -1,7 +1,7 @@
 {
   "$schema": "./gates.schema.json",
   "version": "2.2.0",
-  "lastUpdated": "2026-02-22T02:29:10.000Z",
+  "lastUpdated": "2026-02-22T02:52:26.000Z",
   "updatedBy": "orchestrator",
   "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
   "tasks": {
@@ -702,13 +702,21 @@
       "name": "A/B Experiment Runner",
       "layer": 5,
       "status": "not_started",
-      "target": "Control vs Treatment worker comparison",
+      "target": "lift>=0.2, p<=0.05, n_per_arm>=30",
       "spec": "specs/track-eval-agent-performance.md",
       "dependsOn": [
         "layer5.contextLevels",
         "layer5.taskBank"
       ],
-      "verified": true
+      "verified": true,
+      "lift_threshold": 0.2,
+      "p_threshold": 0.05,
+      "min_sessions_per_arm": 30,
+      "required": [
+        "lift >= lift_threshold",
+        "p_value <= p_threshold",
+        "n_per_arm >= min_sessions_per_arm"
+      ]
     },
     "layer5.successRateLift": {
       "name": "Success Rate Lift (T3+)",
@@ -1118,7 +1126,7 @@
       "status": "fail",
       "lastRun": "2026-02-22",
       "target": "Treatment >= 20% lift over Control, p < 0.05",
-      "measured": "lift=0.20833333333333334 (p=0.09371405527122034)",
+      "measured": "lift=0.20833333333333334 (p=0.09371405527122034, n_per_arm=80)",
       "spec": "docs/librarian/WORKPLAN.md#phase-17",
       "workUnits": [
         "WU-1701",
@@ -1130,7 +1138,16 @@
       "dependsOn": [
         "layer7.scenarioFamilies"
       ],
-      "blocking": false
+      "blocking": false,
+      "note": "fail (p=0.094 > α=0.05 (not significant))",
+      "lift_threshold": 0.2,
+      "p_threshold": 0.05,
+      "min_sessions_per_arm": 30,
+      "required": [
+        "lift >= lift_threshold",
+        "p_value <= p_threshold",
+        "n_per_arm >= min_sessions_per_arm"
+      ]
     },
     "layer7.edgeCases": {
       "name": "Edge Cases & Stress Testing (Phase 18)",
@@ -1317,7 +1334,7 @@
     "validation": "reconciled",
     "totalWorkUnits": null,
     "completedWorkUnits": null,
-    "lastVerified": "2026-02-22T02:29:10.000Z",
+    "lastVerified": "2026-02-22T02:52:26.000Z",
     "blockingMetrics": {
       "Retrieval Recall@5": {
         "target": ">=0.8",
@@ -1345,9 +1362,9 @@
         "status": "MET"
       },
       "A/B Lift": {
-        "target": ">=0.2",
-        "measured": "0.20833333333333334 (p=0.09371405527122034)",
-        "status": "MET"
+        "target": "lift>=0.2 && p<=0.05 && n_per_arm>=30",
+        "measured": "0.20833333333333334 (p=0.09371405527122034, n_per_arm=80)",
+        "status": "NOT MET"
       },
       "Memory per 1K LOC": {
         "target": "<=50 MB",

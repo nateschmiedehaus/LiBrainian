@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   createFixGeneratorConstruction,
   createFixVerifierConstruction,
@@ -132,5 +135,82 @@ describe('patrol fix verify pipeline', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.trigger).toBe('schedule');
+  });
+
+  it('runs end-to-end with real local command dispatch (non-dry-run)', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'librainian-patrol-loop-'));
+    try {
+      const patrolOutputPath = join(tmp, 'patrol-output.txt');
+      const patrolOutput = [
+        'PATROL_OBSERVATION_JSON_START',
+        JSON.stringify({
+          overallVerdict: {
+            npsScore: 4,
+            wouldRecommend: false,
+          },
+          negativeFindingsMandatory: [
+            {
+              category: 'api',
+              severity: 'high',
+              title: 'Known bug: fs.readFileAsync hallucination',
+              detail: 'fs.readFileAsync does not exist in Node.js fs module.',
+            },
+          ],
+        }),
+        'PATROL_OBSERVATION_JSON_END',
+      ].join('\n');
+      await writeFile(patrolOutputPath, patrolOutput, 'utf8');
+
+      const pipeline = createPatrolFixVerifyProcessConstruction();
+      const result = await pipeline.execute({
+        trigger: 'manual',
+        patrolScan: {
+          dryRun: false,
+          command: 'cat',
+          args: [patrolOutputPath],
+        },
+        issueFiler: {
+          dryRun: false,
+          command: process.execPath,
+          args: [
+            '-e',
+            'console.log("https://github.com/example/LiBrainian/issues/42")',
+          ],
+        },
+        fixGenerator: {
+          dryRun: false,
+          command: process.execPath,
+          args: [
+            '-e',
+            'console.log("https://github.com/example/LiBrainian/pull/24")',
+          ],
+        },
+        regressionTest: {
+          dryRun: false,
+          command: process.execPath,
+          args: [
+            '-e',
+            'console.log("GENERATED_TEST: src/__tests__/regressions/fs-readfileasync.test.ts")',
+          ],
+        },
+        fixVerifier: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'process.exit(0)'],
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.issueUrl).toBe('https://github.com/example/LiBrainian/issues/42');
+      expect(result.value.fixPrUrl).toBe('https://github.com/example/LiBrainian/pull/24');
+      expect(result.value.regressionTest.generatedTests).toContain(
+        'src/__tests__/regressions/fs-readfileasync.test.ts',
+      );
+      expect(result.value.verification.passed).toBe(true);
+      expect(result.value.exitReason).toBe('completed');
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
   });
 });

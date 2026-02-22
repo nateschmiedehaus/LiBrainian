@@ -1,0 +1,38 @@
+name: Issue Hygiene Automation
+
+on:
+  schedule:
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: issue-hygiene-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  issue-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run issue hygiene enforcement
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm exec -- tsx scripts/issue-triage-hygiene.ts \
+            --repo "${{ github.repository }}" \
+            --pin-limit 10 \
+            --missing-essentials-days 14 \
+            --stale-days 90

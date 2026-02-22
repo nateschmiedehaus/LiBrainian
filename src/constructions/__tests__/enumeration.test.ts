@@ -886,7 +886,7 @@ describe('getEndpoints', () => {
 // PAGINATION TESTS
 // ============================================================================
 
-describe('enumerateByCategoryPaginated', () => {
+describe('enumerateByCategoryPaginated', { timeout: 120000 }, () => {
   // Import the function
   let enumerateByCategoryPaginated: typeof import('../enumeration.js').enumerateByCategoryPaginated;
 

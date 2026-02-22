@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import { LiBrainian } from '../../api/librarian.js';
 import { CliError } from '../errors.js';
 import { globalEventBus, type LiBrainianEvent } from '../../events.js';
+import { acquireWorkspaceLock, type WorkspaceLockHandle } from '../../integration/workspace_lock.js';
 import {
   getGitDiffNames,
   getGitFileContentAtRef,
@@ -44,7 +45,9 @@ function isStorageLockError(message: string): boolean {
   return normalized.includes('storage_locked')
     || normalized.includes('indexing in progress')
     || normalized.includes('sqlite_busy')
-    || normalized.includes('database is locked');
+    || normalized.includes('database is locked')
+    || normalized.includes('lease_conflict')
+    || normalized.includes('bootstrap lock');
 }
 
 function buildIndexFailureGuidance(
@@ -75,6 +78,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   const workspace = options.workspace || process.cwd();
   const verbose = options.verbose ?? false;
   const force = options.force ?? false;
+  const lockTimeoutMs = resolveMutationLockTimeoutMs();
   const files = await resolveRequestedFiles(workspace, options);
   const selectorMode = Boolean(options.incremental || options.staged || options.since);
 
@@ -86,6 +90,10 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   }
 
   if (!files || files.length === 0) {
+    if (options.allowLockSkip) {
+      console.log('No modified files found to index. Workspace is already up to date.');
+      return;
+    }
     throw new CliError(
       'No files specified. Usage: librarian index <file...>',
       'INVALID_ARGUMENT'
@@ -196,6 +204,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
 
   // Initialize librarian with proper error handling
   let initialized = false;
+  let workspaceLock: WorkspaceLockHandle | null = null;
   const librarian = new LiBrainian({
     workspace,
     autoBootstrap: false,
@@ -205,6 +214,23 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   });
 
   try {
+    try {
+      workspaceLock = await acquireWorkspaceLock(workspace, { timeoutMs: lockTimeoutMs });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (options.allowLockSkip && isStorageLockError(errorMessage)) {
+        console.warn('LiBrainian index is busy (another workspace mutation is active); skipping update. Retry shortly.');
+        if (verbose) {
+          console.warn(`Details: ${toSingleLine(errorMessage)}`);
+        }
+        return;
+      }
+      throw new CliError(
+        `LiBrainian index lock unavailable: ${toSingleLine(errorMessage)}. Run "librainian doctor --heal" if stale.`,
+        'STORAGE_ERROR'
+      );
+    }
+
     await librarian.initialize();
     initialized = true;
   } catch (error) {
@@ -307,7 +333,32 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
         }
       }
     }
+    if (workspaceLock) {
+      try {
+        await workspaceLock.release();
+      } catch (releaseError) {
+        if (verbose) {
+          console.error(`Warning: Workspace lock release error: ${toSingleLine(releaseError instanceof Error ? releaseError.message : String(releaseError))}`);
+        }
+      }
+    }
   }
+}
+
+function resolveMutationLockTimeoutMs(): number {
+  const raw = process.env.LIBRARIAN_MUTATION_LOCK_TIMEOUT_MS;
+  if (!raw || raw.trim().length === 0) {
+    return 30_000;
+  }
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 30_000;
+  }
+  return value;
+}
+
+function toSingleLine(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
 }
 
 async function resolveRequestedFiles(workspace: string, options: IndexCommandOptions): Promise<string[]> {

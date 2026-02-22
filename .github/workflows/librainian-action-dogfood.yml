@@ -38,5 +38,16 @@ jobs:
           upload-artifact: true
           artifact-name: librainian-dogfood-index
 
-      - name: Dogfood gate (status + index + query suite)
-        run: node scripts/dogfood-ci-gate.mjs
+      - name: Dogfood gate (clean clone self-hosting)
+        env:
+          LIBRAINIAN_EMBEDDING_PROVIDER: xenova
+          LIBRAINIAN_EMBEDDING_MODEL: all-MiniLM-L6-v2
+        run: node scripts/dogfood-ci-gate.mjs --artifact state/dogfood/clean-clone-self-hosting.json
+
+      - name: Upload clean-clone self-hosting artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-clone-self-hosting
+          if-no-files-found: error
+          path: state/dogfood/clean-clone-self-hosting.json
