@@ -47,6 +47,49 @@ describe('EvidenceLedger', () => {
     }
   });
 
+  describe('initialize migrations', () => {
+    it('adds telemetry columns before creating cost-based indexes for legacy ledgers', async () => {
+      await ledger.close();
+      if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+      }
+
+      const BetterSqlite3 = (await import('better-sqlite3')).default;
+      const legacy = new BetterSqlite3(dbPath);
+      legacy.exec(`
+        CREATE TABLE evidence_ledger (
+          id TEXT PRIMARY KEY,
+          timestamp TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          provenance TEXT NOT NULL,
+          confidence TEXT,
+          related_entries TEXT NOT NULL DEFAULT '[]',
+          session_id TEXT
+        );
+      `);
+      legacy.close();
+
+      ledger = new SqliteEvidenceLedger(dbPath);
+      await expect(ledger.initialize()).resolves.toBeUndefined();
+
+      const verifyDb = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        const columns = verifyDb
+          .prepare('PRAGMA table_info(evidence_ledger)')
+          .all() as Array<{ name: string }>;
+        expect(columns.map((column) => column.name)).toContain('cost_usd');
+
+        const indices = verifyDb
+          .prepare('PRAGMA index_list(evidence_ledger)')
+          .all() as Array<{ name: string }>;
+        expect(indices.map((index) => index.name)).toContain('idx_ledger_tool_cost');
+      } finally {
+        verifyDb.close();
+      }
+    });
+  });
+
   describe('append', () => {
     it('creates entry with generated ID and timestamp', async () => {
       const entry = await ledger.append({

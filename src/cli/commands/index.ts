@@ -28,6 +28,8 @@ import {
   type GitRename,
 } from '../../utils/git.js';
 import { detectFunctionRenames } from '../../indexing/commit_level_ast_diff.js';
+import { setDefaultLlmServiceFactory } from '../../adapters/llm_service.js';
+import { createCliLlmServiceFactory } from '../../adapters/cli_llm_service.js';
 
 export interface IndexCommandOptions {
   workspace?: string;
@@ -72,6 +74,18 @@ function buildIndexFailureGuidance(
   }
 
   return guidance;
+}
+
+function ensureIndexLlmFactoryRegistered(): void {
+  try {
+    setDefaultLlmServiceFactory(createCliLlmServiceFactory());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('llm_adapter_default_factory_already_registered')) {
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function indexCommand(options: IndexCommandOptions): Promise<void> {
@@ -231,6 +245,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
       );
     }
 
+    ensureIndexLlmFactoryRegistered();
     await librarian.initialize();
     initialized = true;
   } catch (error) {

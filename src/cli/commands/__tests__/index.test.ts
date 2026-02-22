@@ -18,6 +18,8 @@ import { CliError } from '../../errors.js';
 import { globalEventBus } from '../../../events.js';
 import { acquireWorkspaceLock } from '../../../integration/workspace_lock.js';
 import { getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
+import { setDefaultLlmServiceFactory } from '../../../adapters/llm_service.js';
+import { createCliLlmServiceFactory } from '../../../adapters/cli_llm_service.js';
 
 vi.mock('node:fs');
 vi.mock('../../../api/librarian.js');
@@ -46,6 +48,12 @@ vi.mock('../../../integration/workspace_lock.js', () => ({
     state: { pid: 1234, startedAt: new Date().toISOString() },
     release: vi.fn(async () => undefined),
   })),
+}));
+vi.mock('../../../adapters/llm_service.js', () => ({
+  setDefaultLlmServiceFactory: vi.fn(),
+}));
+vi.mock('../../../adapters/cli_llm_service.js', () => ({
+  createCliLlmServiceFactory: vi.fn(() => vi.fn()),
 }));
 
 describe('indexCommand', () => {
@@ -97,6 +105,8 @@ describe('indexCommand', () => {
     vi.mocked(getGitStagedChanges).mockResolvedValue(null);
     vi.mocked(getGitDiffNames).mockResolvedValue(null);
     vi.mocked(getGitFileContentAtRef).mockReturnValue(null);
+    vi.mocked(setDefaultLlmServiceFactory).mockImplementation(() => undefined);
+    vi.mocked(createCliLlmServiceFactory).mockImplementation(() => vi.fn());
     vi.mocked(acquireWorkspaceLock).mockResolvedValue({
       lockPath: '/test/workspace/.librarian/bootstrap.lock',
       state: { pid: 1234, startedAt: new Date().toISOString() },
@@ -504,6 +514,53 @@ describe('indexCommand', () => {
           autoWatch: false,
         })
       );
+    });
+
+    it('registers the CLI default LLM service factory before initialization', async () => {
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+      };
+
+      await indexCommand(options);
+
+      expect(createCliLlmServiceFactory).toHaveBeenCalledTimes(1);
+      expect(setDefaultLlmServiceFactory).toHaveBeenCalledTimes(1);
+      expect(setDefaultLlmServiceFactory).toHaveBeenCalledWith(expect.any(Function));
+      expect((setDefaultLlmServiceFactory as unknown as Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        mockLiBrainian.initialize.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('tolerates already-registered default LLM service factory', async () => {
+      vi.mocked(setDefaultLlmServiceFactory).mockImplementation(() => {
+        throw new Error('unverified_by_trace(llm_adapter_default_factory_already_registered)');
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(mockLiBrainian.initialize).toHaveBeenCalled();
+    });
+
+    it('fails when default LLM service factory registration throws unexpected errors', async () => {
+      vi.mocked(setDefaultLlmServiceFactory).mockImplementation(() => {
+        throw new Error('factory registration failed');
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+      };
+
+      await expect(indexCommand(options)).rejects.toThrow('Failed to initialize librarian: factory registration failed');
+      expect(mockLiBrainian.initialize).not.toHaveBeenCalled();
     });
 
     it('should use environment variable for LLM provider', async () => {
