@@ -6387,6 +6387,8 @@ async function runSynthesisStage(options: {
             citations: synthesisResult.citations,
             keyInsights: synthesisResult.keyInsights,
             uncertainties: synthesisResult.uncertainties,
+            provider: synthesisResult.provider,
+            modelId: synthesisResult.modelId,
           };
           synthesisMode = 'llm';
           explanationParts.push('LLM-synthesized understanding from retrieved knowledge.');

@@ -913,15 +913,36 @@ export class LlmProviderRegistry {
   async findBestProvider(options?: {
     forceRefresh?: boolean;
     requireEmbeddings?: boolean;
+    preferredProviders?: string[];
   }): Promise<DiscoveredProvider | null> {
     const results = await this.discoverAll({ forceRefresh: options?.forceRefresh });
+    const preferredOrder = Array.isArray(options?.preferredProviders)
+      ? options.preferredProviders
+        .filter((providerId): providerId is string => typeof providerId === 'string' && providerId.trim().length > 0)
+        .map((providerId) => providerId.trim())
+      : [];
+    const preferredRanks = new Map<string, number>();
+    for (const [index, providerId] of preferredOrder.entries()) {
+      if (!preferredRanks.has(providerId)) {
+        preferredRanks.set(providerId, index);
+      }
+    }
     const candidates = this.getAllProbes()
       .filter((probe) => {
         if (options?.requireEmbeddings && !probe.descriptor.supportsEmbeddings) return false;
         const status = results.get(probe.descriptor.id);
         return Boolean(status?.available && status?.authenticated);
       })
-      .sort((left, right) => left.descriptor.priority - right.descriptor.priority);
+      .sort((left, right) => {
+        const leftRank = preferredRanks.get(left.descriptor.id);
+        const rightRank = preferredRanks.get(right.descriptor.id);
+        if (leftRank !== undefined || rightRank !== undefined) {
+          if (leftRank === undefined) return 1;
+          if (rightRank === undefined) return -1;
+          if (leftRank !== rightRank) return leftRank - rightRank;
+        }
+        return left.descriptor.priority - right.descriptor.priority;
+      });
 
     const selected = candidates[0];
     if (!selected) return null;
@@ -983,6 +1004,7 @@ llmProviderRegistry.register(codexCliProbe);
 export async function discoverLlmProvider(options?: {
   forceRefresh?: boolean;
   requireEmbeddings?: boolean;
+  preferredProviders?: string[];
 }): Promise<DiscoveredProvider | null> {
   return llmProviderRegistry.findBestProvider(options);
 }

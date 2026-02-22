@@ -161,6 +161,44 @@ describe('llm provider discovery', () => {
     expect(discovered).toBeNull();
   });
 
+  it('prioritizes preferred providers over static priority when healthy', async () => {
+    const claudeProbe: LlmProviderProbe = {
+      descriptor: {
+        id: 'claude',
+        name: 'Claude Provider',
+        authMethod: 'cli_login',
+        defaultModel: 'claude-model',
+        priority: 10,
+        supportsEmbeddings: false,
+        supportsChat: true,
+      },
+      envVars: [],
+      probe: async () => ({ available: true, authenticated: true }),
+    };
+    const codexProbe: LlmProviderProbe = {
+      descriptor: {
+        id: 'codex',
+        name: 'Codex Provider',
+        authMethod: 'cli_login',
+        defaultModel: 'codex-model',
+        priority: 20,
+        supportsEmbeddings: false,
+        supportsChat: true,
+      },
+      envVars: [],
+      probe: async () => ({ available: true, authenticated: true }),
+    };
+    llmProviderRegistry.register(claudeProbe);
+    llmProviderRegistry.register(codexProbe);
+
+    const discovered = await discoverLlmProvider({
+      forceRefresh: true,
+      preferredProviders: ['codex'],
+    });
+    expect(discovered?.provider).toBe('codex');
+    expect(discovered?.modelId).toBe('codex-model');
+  });
+
   it('exposes provider status snapshots', async () => {
     const probe: LlmProviderProbe = {
       descriptor: {

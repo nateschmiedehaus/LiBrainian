@@ -472,6 +472,8 @@ describe('query pipeline definition', () => {
       citations: ['pack-1'],
       keyInsights: ['insight'],
       uncertainties: ['gap'],
+      provider: 'codex',
+      modelId: 'gpt-5-codex',
     });
     const result = await __testing.runSynthesisStage({
       query: { intent: 'test synthesis', depth: 'L1' },
@@ -487,6 +489,8 @@ describe('query pipeline definition', () => {
     });
 
     expect(result.synthesis?.answer).toBe('full');
+    expect(result.synthesis?.provider).toBe('codex');
+    expect(result.synthesis?.modelId).toBe('gpt-5-codex');
     expect(result.synthesisMode).toBe('llm');
     expect(synthesizeQueryAnswerFn).toHaveBeenCalledTimes(1);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');

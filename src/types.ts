@@ -1604,6 +1604,12 @@ export interface SynthesizedResponse {
 
   /** Gaps or uncertainties identified */
   uncertainties: string[];
+
+  /** Machine-readable LLM provider used to generate this synthesis */
+  provider?: 'claude' | 'codex';
+
+  /** Machine-readable model identifier used to generate this synthesis */
+  modelId?: string;
 }
 
 export interface LibrarianEngineResults {

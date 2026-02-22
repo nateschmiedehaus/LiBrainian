@@ -186,6 +186,7 @@ describe('package release scripts', () => {
     expect(script).toContain('Conflict markers detected');
     expect(script).toContain('Untracked/generated JS artifacts');
     expect(script).toContain('is behind origin/main');
+    expect(script).toContain('Local main is behind origin/main');
     expect(script).toContain('missing an issue-closing keyword');
   });
   it('keeps issue planning uncapped by default', () => {

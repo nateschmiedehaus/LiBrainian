@@ -88,6 +88,27 @@ function checkBranchSync(branch, maxBehindMain, violations, warnings) {
     return;
   }
 
+  const hasLocalMain = run('git', ['show-ref', '--verify', '--quiet', 'refs/heads/main']);
+  if (hasLocalMain.status === 0) {
+    const localMainDelta = parseCounts(requireSuccess(
+      'git',
+      ['rev-list', '--left-right', '--count', 'main...origin/main'],
+      'compute local main vs origin/main'
+    ));
+    if (localMainDelta.behind > 0) {
+      warnings.push(
+        `Local main is behind origin/main by ${localMainDelta.behind} commit(s). Run \`git fetch origin --prune && git checkout main && git pull --ff-only origin main\`.`
+      );
+    }
+    if (localMainDelta.ahead > 0) {
+      warnings.push(
+        `Local main is ahead of origin/main by ${localMainDelta.ahead} commit(s). Consider publishing or reconciling local-only commits.`
+      );
+    }
+  } else {
+    warnings.push('Local main branch is missing. Run `git checkout -b main origin/main`.');
+  }
+
   const mainDelta = parseCounts(requireSuccess(
     'git',
     ['rev-list', '--left-right', '--count', `HEAD...origin/main`],

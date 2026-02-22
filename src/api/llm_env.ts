@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import {
   discoverLlmProvider,
   getAllProviderStatus,
@@ -8,15 +10,55 @@ import {
 export type { LibrarianLlmProvider };
 export { llmProviderRegistry };
 
-export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
+const LAST_SUCCESSFUL_PROVIDER_RELATIVE_PATH = [
+  'state',
+  'audits',
+  'librarian',
+  'provider',
+  'last_successful_provider.json',
+];
+
+function coerceProvider(value: string | undefined): LibrarianLlmProvider | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === 'claude' || normalized === 'codex' ? normalized : undefined;
+}
+
+function resolveLastSuccessfulProviderPath(workspaceRoot: string): string {
+  return path.join(workspaceRoot, ...LAST_SUCCESSFUL_PROVIDER_RELATIVE_PATH);
+}
+
+async function readLastSuccessfulProvider(workspaceRoot: string): Promise<LibrarianLlmProvider | undefined> {
+  try {
+    const raw = await fs.readFile(resolveLastSuccessfulProviderPath(workspaceRoot), 'utf8');
+    const parsed = JSON.parse(raw) as { provider?: string };
+    return coerceProvider(parsed.provider);
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveExplicitLibrarianProvider(): LibrarianLlmProvider | undefined {
   const raw =
     process.env.LIBRARIAN_LLM_PROVIDER ??
     process.env.WAVE0_LLM_PROVIDER ??
     process.env.LLM_PROVIDER;
-  return raw === 'claude' || raw === 'codex' ? raw : undefined;
+  return coerceProvider(raw);
+}
+
+export function resolveLibrarianHostAgent(): LibrarianLlmProvider | undefined {
+  const raw =
+    process.env.LIBRARIAN_HOST_AGENT ??
+    process.env.WAVE0_HOST_AGENT ??
+    process.env.HOST_AGENT;
+  return coerceProvider(raw);
+}
+
+export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
+  return resolveExplicitLibrarianProvider() ?? resolveLibrarianHostAgent();
 }
 
 export const resolveLiBrainianProvider = resolveLibrarianProvider;
+export const resolveLiBrainianHostAgent = resolveLibrarianHostAgent;
 
 export function resolveLibrarianModelId(provider?: LibrarianLlmProvider): string | undefined {
   if (process.env.LIBRARIAN_LLM_MODEL) return process.env.LIBRARIAN_LLM_MODEL;
@@ -44,19 +86,36 @@ export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
   modelId: string;
 }> {
   const discoveryErrors: string[] = [];
-  const envConfig = resolveLibrarianModelConfig();
-  if (envConfig.provider && envConfig.modelId) {
-    return { provider: envConfig.provider, modelId: envConfig.modelId };
+  const explicitProvider = resolveExplicitLibrarianProvider();
+  const hostProvider = resolveLibrarianHostAgent();
+  const preferredProvider = explicitProvider ?? hostProvider;
+  const preferredModelId = resolveLibrarianModelId(preferredProvider);
+  if (preferredProvider && preferredModelId) {
+    return { provider: preferredProvider, modelId: preferredModelId };
   }
-  if (envConfig.provider && !envConfig.modelId) {
-    const probe = llmProviderRegistry.getProbe(envConfig.provider);
+  if (preferredProvider && !preferredModelId) {
+    const probe = llmProviderRegistry.getProbe(preferredProvider);
     if (probe) {
-      return { provider: envConfig.provider, modelId: probe.descriptor.defaultModel };
+      return { provider: preferredProvider, modelId: probe.descriptor.defaultModel };
     }
   }
 
+  const preferredProviders: LibrarianLlmProvider[] = [];
+  if (preferredProvider) preferredProviders.push(preferredProvider);
   try {
-    const discovered = await discoverLlmProvider();
+    const lastSuccessfulProvider = await readLastSuccessfulProvider(process.cwd());
+    if (lastSuccessfulProvider && !preferredProviders.includes(lastSuccessfulProvider)) {
+      preferredProviders.push(lastSuccessfulProvider);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    discoveryErrors.push(`last_successful_provider_read_failed: ${message}`);
+  }
+
+  try {
+    const discovered = await discoverLlmProvider({
+      preferredProviders: preferredProviders.length > 0 ? preferredProviders : undefined,
+    });
     if (discovered) {
       if (discovered.provider === 'claude' || discovered.provider === 'codex') {
         return { provider: discovered.provider, modelId: discovered.modelId };

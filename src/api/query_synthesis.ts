@@ -1,7 +1,7 @@
 import type { ContextPack, LibrarianQuery } from '../types.js';
 import type { LibrarianStorage } from '../storage/types.js';
 import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import { resolveLibrarianModelConfigWithDiscovery, type LibrarianLlmProvider } from './llm_env.js';
 import { requireProviders } from './provider_check.js';
 import { createHash } from 'crypto';
 import { generateStructuredWithRetries, type StructuredParseResult } from './structured_generation.js';
@@ -45,6 +45,12 @@ export interface SynthesizedAnswer {
 
   /** Gaps or uncertainties identified */
   uncertainties: string[];
+
+  /** Machine-readable LLM provider used for synthesis */
+  provider?: LibrarianLlmProvider;
+
+  /** Machine-readable model identifier used for synthesis */
+  modelId?: string;
 
   /** Whether synthesis was successful */
   synthesized: true;
@@ -145,7 +151,7 @@ export async function synthesizeQueryAnswer(
       maxTokens: 2000,
       outputSchema: SYNTHESIS_OUTPUT_SCHEMA,
       maxAttempts: 3,
-      parse: (raw) => parseSynthesisResponseStrict(raw, packs, queryId),
+      parse: (raw) => parseSynthesisResponseStrict(raw, packs, queryId, llmConfig),
       buildRepairMessages: ({ previousOutput, parseError }) => ([
         { role: 'system', content: SYNTHESIS_REPAIR_SYSTEM_PROMPT },
         {
@@ -163,7 +169,7 @@ export async function synthesizeQueryAnswer(
     if (structured.ok) {
       return structured.value;
     }
-    return coerceUnstructuredSynthesis(structured.rawResponse, structured.error, queryId);
+    return coerceUnstructuredSynthesis(structured.rawResponse, structured.error, queryId, llmConfig);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -368,19 +374,21 @@ function buildSynthesisPrompt(
 function parseSynthesisResponse(
   response: string,
   packs: ContextPack[],
-  queryId: string
+  queryId: string,
+  llmConfig: { provider: LibrarianLlmProvider; modelId: string }
 ): QuerySynthesisResult {
-  const strict = parseSynthesisResponseStrict(response, packs, queryId);
+  const strict = parseSynthesisResponseStrict(response, packs, queryId, llmConfig);
   if (strict.ok) {
     return strict.value;
   }
-  return coerceUnstructuredSynthesis(response.trim(), strict.error, queryId);
+  return coerceUnstructuredSynthesis(response.trim(), strict.error, queryId, llmConfig);
 }
 
 function parseSynthesisResponseStrict(
   response: string,
   packs: ContextPack[],
-  queryId: string
+  queryId: string,
+  llmConfig: { provider: LibrarianLlmProvider; modelId: string }
 ): StructuredParseResult<SynthesizedAnswer> {
   const trimmed = response.trim();
   const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -433,6 +441,8 @@ function parseSynthesisResponseStrict(
       answer: parsed.answer || trimmed,
       confidence,
       citations,
+      provider: llmConfig.provider,
+      modelId: llmConfig.modelId,
       keyInsights: Array.isArray(parsed.keyInsights)
         ? parsed.keyInsights.filter((i): i is string => typeof i === 'string')
         : [],
@@ -458,7 +468,12 @@ function parsePossiblyLooseJson(input: string): { answer?: string; keyInsights?:
   }
 }
 
-function coerceUnstructuredSynthesis(text: string, issue: unknown, queryId: string): QuerySynthesisResult {
+function coerceUnstructuredSynthesis(
+  text: string,
+  issue: unknown,
+  queryId: string,
+  llmConfig: { provider: LibrarianLlmProvider; modelId: string }
+): QuerySynthesisResult {
   const answer = String(text ?? '').trim();
   if (!answer) throw issue instanceof Error ? issue : new Error(String(issue));
   const normalizedIssue = sanitizeSynthesisIssue(issue);
@@ -469,6 +484,8 @@ function coerceUnstructuredSynthesis(text: string, issue: unknown, queryId: stri
     queryId,
     synthesized: true,
     answer,
+    provider: llmConfig.provider,
+    modelId: llmConfig.modelId,
     confidence: 0.35,
     citations: [],
     keyInsights: extractKeyInsights(answer),

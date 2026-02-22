@@ -65,6 +65,8 @@ describe('synthesizeQueryAnswer', () => {
     expect(result.synthesized).toBe(true);
     if (result.synthesized) {
       expect(result.answer).toContain('Architecture Overview');
+      expect(result.provider).toBe('codex');
+      expect(result.modelId).toBe('gpt-5-codex');
       expect(result.uncertainties.some((entry) => entry.includes('unverified_by_trace'))).toBe(false);
       expect(result.uncertainties[0]).toContain('synthesis_format_non_json');
     }
@@ -94,6 +96,8 @@ describe('synthesizeQueryAnswer', () => {
 
     expect(result.synthesized).toBe(true);
     if (result.synthesized) {
+      expect(result.provider).toBe('codex');
+      expect(result.modelId).toBe('gpt-5-codex');
       expect(result.uncertainties.some((entry) => entry.includes('unverified_by_trace'))).toBe(false);
       expect(result.uncertainties[0]).toContain('structure uncertain');
     }
@@ -123,6 +127,8 @@ describe('synthesizeQueryAnswer', () => {
     expect(result.synthesized).toBe(true);
     if (result.synthesized) {
       expect(result.answer).toContain('Layered architecture');
+      expect(result.provider).toBe('codex');
+      expect(result.modelId).toBe('gpt-5-codex');
       expect(result.citations).toHaveLength(1);
       expect(result.confidence).toBeGreaterThan(0.8);
     }
