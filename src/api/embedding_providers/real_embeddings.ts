@@ -22,6 +22,7 @@
 
 import { spawn } from 'node:child_process';
 import { logInfo, logWarning } from '../../telemetry/logger.js';
+import { resolveRecommendedEmbeddingModel } from './model_selection_policy.js';
 
 /**
  * Available embedding models with their properties.
@@ -56,13 +57,23 @@ export const EMBEDDING_MODELS = {
     contextWindow: 512,
     description: 'BGE small - efficient and effective',
   },
+  // Mixedbread large - higher dimension local model
+  'mxbai-embed-large-v1': {
+    xenovaId: 'mixedbread-ai/mxbai-embed-large-v1',
+    pythonId: 'mixedbread-ai/mxbai-embed-large-v1',
+    dimension: 1024,
+    contextWindow: 512,
+    description: 'Mixedbread large local embedding model (1024 dimensions)',
+  },
 } as const;
 
 export type EmbeddingModelId = keyof typeof EMBEDDING_MODELS;
 
-// Default model - all-MiniLM-L6-v2 validated with perfect AUC on code
-export const DEFAULT_CODE_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
-export const DEFAULT_NLP_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
+// Default model derives from benchmark artifact when available.
+export const DEFAULT_CODE_MODEL: EmbeddingModelId = resolveRecommendedEmbeddingModel({
+  fallbackModelId: 'all-MiniLM-L6-v2',
+});
+export const DEFAULT_NLP_MODEL: EmbeddingModelId = DEFAULT_CODE_MODEL;
 
 // Current active model
 let currentModelId: EmbeddingModelId = DEFAULT_CODE_MODEL;

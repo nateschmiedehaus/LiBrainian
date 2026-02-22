@@ -8,6 +8,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   getEmbeddingConfig,
   listEmbeddingModels,
@@ -18,6 +21,7 @@ import {
 
 describe('Embedding Configuration', () => {
   const originalEnv = process.env;
+  const tempArtifacts: string[] = [];
 
   beforeEach(() => {
     // Reset environment for each test
@@ -26,9 +30,20 @@ describe('Embedding Configuration', () => {
     delete process.env.LIBRAINIAN_EMBEDDING_PROVIDER;
     delete process.env.LIBRARIAN_EMBEDDING_MODEL;
     delete process.env.LIBRARIAN_EMBEDDING_PROVIDER;
+    delete process.env.LIBRARIAN_ENABLE_MXBAI_EMBEDDING;
+    delete process.env.LIBRARIAN_EMBEDDING_BENCHMARK_ARTIFACT;
+    delete process.env.LIBRAINIAN_EMBEDDING_BENCHMARK_ARTIFACT;
   });
 
   afterEach(() => {
+    for (const file of tempArtifacts) {
+      try {
+        fs.rmSync(file, { force: true });
+      } catch {
+        // best effort cleanup
+      }
+    }
+    tempArtifacts.length = 0;
     process.env = originalEnv;
   });
 
@@ -39,6 +54,31 @@ describe('Embedding Configuration', () => {
       expect(config.model).toBe('all-MiniLM-L6-v2');
       expect(config.dimensions).toBe(384);
       expect(config.provider).toBe('xenova');
+    });
+
+    it('uses benchmark recommendation for default model selection', () => {
+      const artifactPath = path.join(os.tmpdir(), `embedding-config-benchmark-${Date.now()}.json`);
+      tempArtifacts.push(artifactPath);
+      fs.writeFileSync(
+        artifactPath,
+        JSON.stringify({
+          kind: 'EmbeddingModelBenchmarkArtifact.v1',
+          schemaVersion: 1,
+          generatedAt: new Date().toISOString(),
+          benchmarkDataset: 'test',
+          models: [],
+          recommendation: {
+            modelId: 'jina-embeddings-v2-base-en',
+            rationale: 'test',
+            score: 1,
+          },
+        }),
+      );
+      process.env.LIBRARIAN_EMBEDDING_BENCHMARK_ARTIFACT = artifactPath;
+
+      const config = getEmbeddingConfig();
+      expect(config.model).toBe('jina-embeddings-v2-base-en');
+      expect(config.dimensions).toBe(768);
     });
 
     it('returns config for specified model', () => {
@@ -107,6 +147,17 @@ describe('Embedding Configuration', () => {
       );
     });
 
+    it('requires feature flag for mxbai model', () => {
+      expect(() => getEmbeddingConfig('mxbai-embed-large-v1')).toThrow(/feature-flagged/);
+    });
+
+    it('returns mxbai config when feature flag is enabled', () => {
+      process.env.LIBRARIAN_ENABLE_MXBAI_EMBEDDING = '1';
+      const config = getEmbeddingConfig('mxbai-embed-large-v1');
+      expect(config.model).toBe('mxbai-embed-large-v1');
+      expect(config.dimensions).toBe(1024);
+    });
+
     it('error message includes available models', () => {
       expect(() => getEmbeddingConfig('unknown')).toThrow(
         /Available models:/
@@ -120,6 +171,17 @@ describe('Embedding Configuration', () => {
 
       expect(models.length).toBeGreaterThan(0);
       expect(models.some(m => m.id === 'all-MiniLM-L6-v2')).toBe(true);
+    });
+
+    it('hides mxbai from model listing when feature flag is disabled', () => {
+      const models = listEmbeddingModels();
+      expect(models.some((model) => model.id === 'mxbai-embed-large-v1')).toBe(false);
+    });
+
+    it('includes mxbai in model listing when feature flag is enabled', () => {
+      process.env.LIBRARIAN_ENABLE_MXBAI_EMBEDDING = '1';
+      const models = listEmbeddingModels();
+      expect(models.some((model) => model.id === 'mxbai-embed-large-v1')).toBe(true);
     });
 
     it('includes model configuration details', () => {

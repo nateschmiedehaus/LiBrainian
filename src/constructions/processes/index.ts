@@ -212,6 +212,18 @@ export {
 } from './provider_chaos_gate.js';
 
 export {
+  createEmbeddingModelSelectionBenchmarkConstruction,
+  EMBEDDING_BENCHMARK_ARTIFACT_KIND,
+  EMBEDDING_BENCHMARK_DATASET_ID,
+  EMBEDDING_BENCHMARK_DEFAULT_OUTPUT_PATH,
+  EMBEDDING_BENCHMARK_CANDIDATE_MODELS,
+  type EmbeddingBenchmarkDocument,
+  type EmbeddingBenchmarkQuery,
+  type EmbeddingModelSelectionBenchmarkInput,
+  type EmbeddingModelSelectionBenchmarkOutput,
+} from './embedding_model_selection_benchmark.js';
+
+export {
   createSessionKnowledgeHarvestConstruction,
   type SessionHarvestClaim,
   type SessionKnowledgeHarvestInput,

@@ -26,6 +26,11 @@ import {
   setEmbeddingModel,
   type EmbeddingModelId,
 } from './embedding_providers/real_embeddings.js';
+import {
+  isEmbeddingModelEnabled,
+  resolveRecommendedEmbeddingModel,
+  type SupportedEmbeddingModelId,
+} from './embedding_providers/model_selection_policy.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { emptyArray } from './empty_values.js';
 import { createEmptyRedactionCounts, mergeRedactionCounts, redactText, type RedactionCounts } from './redaction.js';
@@ -93,6 +98,14 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     batchSize: 32,
     description: 'BGE small - efficient and effective',
   },
+  'xenova:mxbai-embed-large-v1': {
+    model: 'mxbai-embed-large-v1',
+    dimensions: 1024,
+    provider: 'xenova',
+    contextWindow: 512,
+    batchSize: 8,
+    description: 'Mixedbread large local embedding model (feature-flagged)',
+  },
   // Shorthand aliases (default to xenova provider)
   'all-MiniLM-L6-v2': {
     model: 'all-MiniLM-L6-v2',
@@ -117,6 +130,14 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     contextWindow: 512,
     batchSize: 32,
     description: 'BGE small - efficient and effective',
+  },
+  'mxbai-embed-large-v1': {
+    model: 'mxbai-embed-large-v1',
+    dimensions: 1024,
+    provider: 'xenova',
+    contextWindow: 512,
+    batchSize: 8,
+    description: 'Mixedbread large local embedding model (feature-flagged)',
   },
 };
 
@@ -146,10 +167,13 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
  * ```
  */
 export function getEmbeddingConfig(modelId?: string): EmbeddingConfig {
+  const recommendedModelId = resolveRecommendedEmbeddingModel({
+    fallbackModelId: 'all-MiniLM-L6-v2',
+  });
   const id = modelId
     || process.env.LIBRAINIAN_EMBEDDING_MODEL
     || process.env.LIBRARIAN_EMBEDDING_MODEL
-    || 'all-MiniLM-L6-v2';
+    || recommendedModelId;
 
   const config = DEFAULT_EMBEDDING_CONFIGS[id];
 
@@ -159,6 +183,12 @@ export function getEmbeddingConfig(modelId?: string): EmbeddingConfig {
       .join(', ');
     throw new Error(
       `Unknown embedding model: ${id}. Available models: ${availableModels}`
+    );
+  }
+
+  if (!isEmbeddingModelEnabled(config.model as SupportedEmbeddingModelId)) {
+    throw new Error(
+      `Embedding model ${config.model} is feature-flagged. Set LIBRARIAN_ENABLE_MXBAI_EMBEDDING=1 to enable.`
     );
   }
 
@@ -184,7 +214,7 @@ export function listEmbeddingModels(): Array<{ id: string; config: EmbeddingConf
 
   for (const [id, config] of Object.entries(DEFAULT_EMBEDDING_CONFIGS)) {
     // Only include short names (without provider prefix) to avoid duplicates
-    if (!id.includes(':') && !seen.has(config.model)) {
+    if (!id.includes(':') && !seen.has(config.model) && isEmbeddingModelEnabled(config.model as SupportedEmbeddingModelId)) {
       seen.add(config.model);
       result.push({ id, config });
     }

@@ -12,6 +12,7 @@ LiBrainian scripts are grouped by function:
   - `ab-harness.ts`
   - `ab-diagnosis.ts`
   - `agentic-use-case-review.ts`
+  - `embedding-model-benchmark.ts`
   - `external-repo-smoke.ts`
   - `external-ground-truth.ts`
   - `refresh-external-eval-corpus.ts`
@@ -46,6 +47,8 @@ LiBrainian scripts are grouped by function:
   - Runs hook-friendly staged-file incremental index refresh (`librainian update --staged`).
 - `npm run hygiene:generated-artifacts`
   - Fails fast if generated TypeScript emit artifacts appear in tracked/unignored source-controlled paths.
+- `npm run benchmark:embeddings`
+  - Runs deterministic local embedding candidate benchmark and writes `state/benchmarks/embedding-model-selection.json`.
 
 ## Pre-commit self-hosting budgets
 

@@ -38,6 +38,7 @@ import { GovernorContext, estimateTokenCount } from '../api/governor_context.js'
 import { writeGovernorBudgetReport, type GovernorBudgetOutcome } from '../api/governors.js';
 import { minimizeSnippet } from '../api/redaction.js';
 import { generateMultiVector, serializeMultiVector } from '../api/embedding_providers/multi_vector_representations.js';
+import { getSupportedEmbeddingModelIds } from '../api/embedding_providers/model_selection_policy.js';
 import { AstIndexer, type LlmProvider, type ResolvedCallEdge } from './ast_indexer.js';
 import { computeCallEdgeConfidence, computeImportEdgeConfidence } from './edge_confidence.js';
 import { computeGraphMetrics, writeGraphMetricsReport, type GraphMetricsEntry } from '../graphs/metrics.js';
@@ -1534,11 +1535,11 @@ export class IndexLiBrainian implements IndexingAgent {
     // SECURITY: Validate embedding model BEFORE any operations.
     // Trust boundary: config is populated by internal IndexLiBrainian constructor,
     // not directly from user input. External config files are validated at load time.
-    const ALLOWED_EMBEDDING_MODELS = ['all-MiniLM-L6-v2', 'jina-embeddings-v2-base-en', 'bge-small-en-v1.5'] as const;
-    type AllowedEmbeddingModel = (typeof ALLOWED_EMBEDDING_MODELS)[number];
-    const isAllowedModel = (m: string): m is AllowedEmbeddingModel =>
-      (ALLOWED_EMBEDDING_MODELS as readonly string[]).includes(m);
-    const rawModelId = this.config.embeddingModelId ?? 'all-MiniLM-L6-v2';
+    const ALLOWED_EMBEDDING_MODELS = getSupportedEmbeddingModelIds();
+    const defaultModelId = ALLOWED_EMBEDDING_MODELS[0] ?? 'all-MiniLM-L6-v2';
+    const isAllowedModel = (m: string): m is (typeof ALLOWED_EMBEDDING_MODELS)[number] =>
+      ALLOWED_EMBEDDING_MODELS.includes(m as (typeof ALLOWED_EMBEDDING_MODELS)[number]);
+    const rawModelId = this.config.embeddingModelId ?? defaultModelId;
     if (!isAllowedModel(rawModelId)) {
       // Sanitize before logging to prevent injection attacks
       const sanitized = String(rawModelId).slice(0, 100).replace(/[\x00-\x1f\x7f-\x9f]/g, '');

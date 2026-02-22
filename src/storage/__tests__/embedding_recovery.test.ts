@@ -65,6 +65,26 @@ describe('Embedding Dimension Mismatch Recovery', () => {
     expect(stats.find(s => s.dimension === 768)?.count).toBe(2);
   });
 
+  it('tracks 1024-dimension embeddings and clears lower-dimension vectors when upgrading model', async () => {
+    const metadata: EmbeddingMetadata = {
+      modelId: 'test-model',
+      entityType: 'function',
+    };
+
+    await storage.setEmbedding('fn-384-a', createEmbedding(384), metadata);
+    await storage.setEmbedding('fn-384-b', createEmbedding(384), metadata);
+    await storage.setEmbedding('fn-768-a', createEmbedding(768), { ...metadata, modelId: 'legacy-768' });
+    await storage.setEmbedding('fn-1024-a', createEmbedding(1024), { ...metadata, modelId: 'mxbai-embed-large-v1' });
+
+    const cleared = await storage.clearMismatchedEmbeddings(1024);
+    expect(cleared).toBe(3);
+
+    const stats = await storage.getEmbeddingStats();
+    expect(stats).toHaveLength(1);
+    expect(stats[0]?.dimension).toBe(1024);
+    expect(stats[0]?.count).toBe(1);
+  });
+
   it('should clear mismatched embeddings correctly', async () => {
     const metadata: EmbeddingMetadata = {
       modelId: 'test-model',
@@ -140,6 +160,28 @@ describe('Embedding Dimension Mismatch Recovery', () => {
         // autoRecoverDimensionMismatch not set (defaults to false)
       })
     ).rejects.toThrow('embedding_dimension_mismatch');
+  });
+
+  it('auto-recovers when switching from 384/768 legacy vectors to 1024 model dimension', async () => {
+    const metadata: EmbeddingMetadata = {
+      modelId: 'legacy-model',
+      entityType: 'function',
+    };
+
+    await storage.setEmbedding('fn-legacy-384', createEmbedding(384), metadata);
+    await storage.setEmbedding('fn-legacy-768', createEmbedding(768), { ...metadata, modelId: 'legacy-768' });
+
+    const queryEmbedding = createEmbedding(1024);
+    const result = await storage.findSimilarByEmbedding(queryEmbedding, {
+      limit: 10,
+      minSimilarity: 0.5,
+      autoRecoverDimensionMismatch: true,
+    });
+
+    expect(result.degraded).toBe(true);
+    expect(result.degradedReason).toBe('auto_recovered_dimension_mismatch');
+    expect(result.clearedMismatchedCount).toBe(2);
+    expect(result.results).toHaveLength(0);
   });
 
   it('rejects zero-norm embeddings at storage boundary', async () => {
