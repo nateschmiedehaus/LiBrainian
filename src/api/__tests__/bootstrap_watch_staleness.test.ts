@@ -12,6 +12,7 @@ vi.mock('../versioning.js', () => ({
 
 vi.mock('../../utils/git.js', () => ({
   getCurrentGitSha: vi.fn(),
+  getGitCommitRelation: vi.fn(() => 'indexed_ancestor'),
 }));
 
 vi.mock('../../state/watch_state.js', () => ({
@@ -63,6 +64,7 @@ describe('isBootstrapRequired watch freshness checks', () => {
 
     expect(result.required).toBe(true);
     expect(result.reason).toContain('Index is stale relative to git HEAD');
+    expect(result.reason).toContain('Run `librarian bootstrap');
     expect(vi.mocked(updateWatchState)).toHaveBeenCalledTimes(1);
   });
 

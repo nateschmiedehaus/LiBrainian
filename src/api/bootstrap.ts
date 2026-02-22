@@ -4,7 +4,7 @@ import * as path from 'path';
 import { glob } from 'glob';
 import { createHash, randomUUID } from 'crypto';
 import { getErrorMessage } from '../utils/errors.js';
-import { getCurrentGitSha } from '../utils/git.js';
+import { getCurrentGitSha, getGitCommitRelation } from '../utils/git.js';
 import { logWarning, logInfo } from '../telemetry/logger.js';
 import type { LibrarianStorage, TransactionContext } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
@@ -2121,6 +2121,18 @@ export async function isBootstrapRequired(
     const indexedSha = watchState.cursor.lastIndexedCommitSha;
     const headSha = getCurrentGitSha(workspace);
     if (headSha && indexedSha && headSha !== indexedSha) {
+      const relation = getGitCommitRelation(workspace, indexedSha, headSha);
+      let relationNote = 'git history moved';
+      let remediation = 'Run `librarian bootstrap` to refresh the self-index cursor before trusting query results.';
+      if (relation === 'indexed_ancestor') {
+        relationNote = 'new commits detected on current lineage';
+      } else if (relation === 'head_ancestor') {
+        relationNote = 'branch/reset moved HEAD behind indexed commit';
+        remediation = 'Run `librarian bootstrap --force` to rebuild index state for the current checkout before trusting query results.';
+      } else if (relation === 'diverged') {
+        relationNote = 'history diverged (rebase/rewrite/switch)';
+        remediation = 'Run `librarian bootstrap --force` to rebuild index state for rewritten history before trusting query results.';
+      }
       await updateWatchState(storage, (prev) => ({
         ...(prev ?? watchState),
         schema_version: 1,
@@ -2132,7 +2144,7 @@ export async function isBootstrapRequired(
       });
       return {
         required: true,
-        reason: `Index is stale relative to git HEAD (${indexedSha.slice(0, 12)} -> ${headSha.slice(0, 12)})`,
+        reason: `Index is stale relative to git HEAD (${indexedSha.slice(0, 12)} -> ${headSha.slice(0, 12)}; ${relationNote}). ${remediation}`,
       };
     }
   }

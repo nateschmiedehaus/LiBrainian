@@ -270,30 +270,38 @@ describe('HNSWIndex', () => {
     });
 
     it('should pre-filter traversal work when entity type is constrained', () => {
-      const perfIndex = new HNSWIndex({ efSearch: 80 });
-      for (let i = 0; i < 240; i++) {
-        perfIndex.insert(`module_${i}`, randomVector(128), 'module');
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+      try {
+        const perfIndex = new HNSWIndex({ efSearch: 80 });
+        const moduleVector = new Float32Array([1, 0, 0, 0]);
+        const functionVector = new Float32Array([0, 1, 0, 0]);
+
+        for (let i = 0; i < 240; i++) {
+          perfIndex.insert(`module_${i}`, moduleVector, 'module');
+        }
+        for (let i = 0; i < 24; i++) {
+          perfIndex.insert(`function_${i}`, functionVector, 'function');
+        }
+
+        const cosineSpy = vi.spyOn(
+          perfIndex as unknown as { cosineDistance: (a: Float32Array, b: Float32Array) => number },
+          'cosineDistance'
+        );
+
+        perfIndex.search(functionVector, 10);
+        const unfilteredDistanceCalls = cosineSpy.mock.calls.length;
+        cosineSpy.mockClear();
+
+        const filtered = perfIndex.search(functionVector, 10, ['function']);
+        const filteredDistanceCalls = cosineSpy.mock.calls.length;
+        cosineSpy.mockRestore();
+
+        expect(filtered.length).toBeGreaterThan(0);
+        expect(filtered.every((item) => item.entityType === 'function')).toBe(true);
+        expect(filteredDistanceCalls).toBeLessThan(unfilteredDistanceCalls);
+      } finally {
+        randomSpy.mockRestore();
       }
-      for (let i = 0; i < 24; i++) {
-        perfIndex.insert(`function_${i}`, randomVector(128), 'function');
-      }
-
-      const cosineSpy = vi.spyOn(
-        perfIndex as unknown as { cosineDistance: (a: Float32Array, b: Float32Array) => number },
-        'cosineDistance'
-      );
-
-      perfIndex.search(randomVector(128), 10);
-      const unfilteredDistanceCalls = cosineSpy.mock.calls.length;
-      cosineSpy.mockClear();
-
-      const filtered = perfIndex.search(randomVector(128), 10, ['function']);
-      const filteredDistanceCalls = cosineSpy.mock.calls.length;
-      cosineSpy.mockRestore();
-
-      expect(filtered.length).toBeGreaterThan(0);
-      expect(filtered.every((item) => item.entityType === 'function')).toBe(true);
-      expect(filteredDistanceCalls).toBeLessThan(unfilteredDistanceCalls);
     });
 
     it('should find filtered results even when entry point type is excluded', () => {

@@ -84,6 +84,15 @@ export {
 } from './patrol_fix_verify_process.js';
 
 export {
+  createOperationalProofGateConstruction,
+  OPERATIONAL_PROOF_GATE_DESCRIPTION,
+  type OperationalProofCheck,
+  type OperationalProofGateInput,
+  type OperationalProofCheckResult,
+  type OperationalProofGateOutput,
+} from './operational_proof_gate.js';
+
+export {
   createCodeReviewPipelineConstruction,
   createMigrationAssistantConstruction,
   createDocumentationGeneratorConstruction,
@@ -144,6 +153,15 @@ export {
   type SelfIndexFixtureResult,
   type SelfIndexGateOutput,
 } from './self_index_gate.js';
+
+export {
+  createSelfIndexDurabilityGateConstruction,
+  type SelfIndexDurabilityScenarioKind,
+  type SelfIndexDurabilityGateInput,
+  type SelfIndexDurabilityCheck,
+  type SelfIndexDurabilityScenarioResult,
+  type SelfIndexDurabilityGateOutput,
+} from './self_index_durability_gate.js';
 
 export {
   createPatrolRegressionClosureGateConstruction,

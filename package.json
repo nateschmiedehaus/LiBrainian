@@ -176,7 +176,7 @@
     "eval:external-corpus:refresh": "node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus.ts",
     "eval:external-corpus:refresh:batched": "node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus-batched.ts",
     "issues:plan": "node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json",
-    "issues:hygiene": "npm exec -- tsx scripts/issue-triage-hygiene.ts --repo nateschmiedehaus/LiBrainian --open-issue-cap 100 --pin-limit 10 --missing-essentials-days 14 --stale-days 90",
+    "issues:hygiene": "npm exec -- tsx scripts/issue-triage-hygiene.ts --repo nateschmiedehaus/LiBrainian --pin-limit 10 --missing-essentials-days 14 --stale-days 90",
     "issues:hygiene:dry-run": "npm run issues:hygiene -- --dry-run",
     "hygiene:generated-artifacts": "node scripts/guard-generated-artifacts.mjs",
     "policy:hygiene": "node scripts/git-hygiene-guard.mjs --mode warn",
@@ -234,7 +234,8 @@
     "release:qualify": "npm run validate:full && npm run test:agentic:strict",
     "release:github-packages": "node scripts/publish-github-package.mjs",
     "release:github": "npm publish --provenance --access public && npm run release:github-packages",
-    "release": "npm run policy:publish && npm run release:github"
+    "release": "npm run policy:publish && npm run release:github",
+    "test:property:vector-index": "node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit --set LIBRARIAN_RUN_PROPERTY_TESTS=1 -- vitest --run src/storage/__tests__/vector_index_property.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

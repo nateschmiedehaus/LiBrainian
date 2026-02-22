@@ -149,6 +149,60 @@ export function getCurrentGitSha(dir?: string): string | null {
   }
 }
 
+export type GitCommitRelation =
+  | 'equal'
+  | 'indexed_ancestor'
+  | 'head_ancestor'
+  | 'diverged'
+  | 'unknown';
+
+function isLikelyCommitSha(value: string): boolean {
+  return /^[0-9a-f]{7,40}$/iu.test(value);
+}
+
+function isCommitAncestor(dir: string, ancestorSha: string, descendantSha: string): boolean {
+  try {
+    execSync(`git merge-base --is-ancestor ${ancestorSha} ${descendantSha}`, {
+      cwd: dir,
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getGitCommitRelation(
+  dir: string,
+  indexedSha: string,
+  headSha: string,
+): GitCommitRelation {
+  if (!isGitRepo(dir)) {
+    return 'unknown';
+  }
+
+  const indexed = indexedSha.trim();
+  const head = headSha.trim();
+  if (!isLikelyCommitSha(indexed) || !isLikelyCommitSha(head)) {
+    return 'unknown';
+  }
+  if (indexed === head) {
+    return 'equal';
+  }
+
+  const indexedIsAncestor = isCommitAncestor(dir, indexed, head);
+  if (indexedIsAncestor) {
+    return 'indexed_ancestor';
+  }
+
+  const headIsAncestor = isCommitAncestor(dir, head, indexed);
+  if (headIsAncestor) {
+    return 'head_ancestor';
+  }
+
+  return 'diverged';
+}
+
 /**
  * Get current git SHA short version
  */
