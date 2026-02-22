@@ -64,6 +64,26 @@ export {
 } from './patrol_process.js';
 
 export {
+  createPatrolFixVerifyProcessConstruction,
+  createPatrolScanConstruction,
+  createIssueFilerConstruction,
+  createFixGeneratorConstruction,
+  createRegressionTestConstruction,
+  createFixVerifierConstruction,
+  PATROL_FIX_VERIFY_DESCRIPTION,
+  PATROL_FIX_VERIFY_EXAMPLE_INPUT,
+  type PatrolFixVerifyCommandConfig,
+  type PatrolFixVerifyInput,
+  type PatrolFixVerifyOutput,
+  type PatrolScanResult,
+  type PatrolFinding,
+  type IssueFilerResult,
+  type FixGeneratorResult,
+  type RegressionTestResult,
+  type FixVerifierResult,
+} from './patrol_fix_verify_process.js';
+
+export {
   createCodeReviewPipelineConstruction,
   createMigrationAssistantConstruction,
   createDocumentationGeneratorConstruction,
