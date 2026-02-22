@@ -6082,7 +6082,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       return result;
     } catch (error) {
       try {
-        db.exec('ROLLBACK');
+        const inTransactionState = (db as { inTransaction?: boolean | (() => boolean) }).inTransaction;
+        const inTransaction = typeof inTransactionState === 'function'
+          ? inTransactionState()
+          : Boolean(inTransactionState);
+        if (inTransaction) {
+          db.exec('ROLLBACK');
+        }
       } catch (rollbackError) {
         logWarning('SQLite rollback failed', { path: this.dbPath, error: rollbackError });
       }

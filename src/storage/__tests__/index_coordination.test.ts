@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp } from 'node:fs/promises';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -84,5 +84,40 @@ describe('index coordination metadata', () => {
     const authChanges = await storage.getIndexChangeEvents({ paths: ['src/auth/**'] });
     expect(authChanges.length).toBeGreaterThan(0);
     expect(authChanges.every((event) => event.path.startsWith('src/auth/'))).toBe(true);
+  });
+
+  it('does not log rollback warnings when transaction rollback is skipped safely', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const transactionalStorage = storage as unknown as {
+      db: {
+        exec: (statement: string) => unknown;
+        inTransaction: boolean;
+      };
+    };
+    const originalExec = transactionalStorage.db.exec;
+    const rollbackError = new Error('cannot rollback - no transaction is active');
+
+    const execSpy = vi.spyOn(transactionalStorage.db, 'exec').mockImplementation((statement: string) => {
+      if (statement === 'BEGIN') {
+        return undefined;
+      }
+      if (statement === 'ROLLBACK') {
+        throw rollbackError;
+      }
+      return originalExec.call(transactionalStorage.db, statement);
+    });
+
+    await expect(
+      storage.transaction(async () => {
+        throw new Error('indexing conflict');
+      })
+    ).rejects.toThrow('indexing conflict');
+
+    expect(execSpy).toHaveBeenCalledWith('BEGIN');
+    expect(execSpy).not.toHaveBeenCalledWith('ROLLBACK');
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    execSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });
