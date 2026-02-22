@@ -64,6 +64,13 @@ export {
 } from './patrol_process.js';
 
 export {
+  evaluatePatrolPolicy,
+  type PatrolPolicyTrigger,
+  type PatrolPolicyEvaluationInput,
+  type PatrolPolicyEnforcementResult,
+} from './patrol_policy.js';
+
+export {
   createPatrolFixVerifyProcessConstruction,
   createPatrolScanConstruction,
   createIssueFilerConstruction,

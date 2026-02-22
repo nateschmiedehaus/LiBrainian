@@ -43,6 +43,8 @@ const MODE_DEFAULTS = {
 
 const TASK_VARIANTS = ['explore', 'guided', 'construction'];
 
+const PATROL_POLICY_KIND = 'PatrolPolicyEnforcementArtifact.v1';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -61,6 +63,53 @@ function run(command, args, opts = {}) {
     throw new Error(`${command} ${args.join(' ')} failed${output ? `\n${output}` : ''}`);
   }
   return result.stdout?.trim() ?? '';
+}
+
+function requiredEvidenceModeForMode(mode) {
+  if (mode === 'release') return 'wet';
+  if (mode === 'full') return 'mixed';
+  return 'dry';
+}
+
+function inferObservedEvidenceMode(runs) {
+  const successfulRuns = runs.filter((run) => run.agentExitCode === 0);
+  if (successfulRuns.length === 0) return 'none';
+  const withObservations = successfulRuns.filter(
+    (run) => run.observations && run.timedOut !== true
+  );
+  if (withObservations.length === successfulRuns.length) return 'wet';
+  if (withObservations.length > 0) return 'mixed';
+  return 'none';
+}
+
+function evidenceSatisfiesRequiredMode(required, observed) {
+  if (required === 'dry') return observed !== 'none';
+  if (required === 'mixed') return observed === 'mixed' || observed === 'wet';
+  return observed === 'wet';
+}
+
+export function evaluatePatrolPolicyGate(mode, runs) {
+  const requiredEvidenceMode = requiredEvidenceModeForMode(mode);
+  const observedEvidenceMode = inferObservedEvidenceMode(runs);
+  const failClosed = requiredEvidenceMode !== 'dry';
+  const sufficientEvidence = evidenceSatisfiesRequiredMode(
+    requiredEvidenceMode,
+    observedEvidenceMode,
+  );
+  const enforcement = failClosed && !sufficientEvidence ? 'blocked' : 'allowed';
+
+  return {
+    kind: PATROL_POLICY_KIND,
+    schemaVersion: 1,
+    mode,
+    requiredEvidenceMode,
+    observedEvidenceMode,
+    failClosed,
+    enforcement,
+    reason: enforcement === 'blocked'
+      ? `wet-testing policy fail-closed: required=${requiredEvidenceMode} observed=${observedEvidenceMode}`
+      : `wet-testing policy satisfied: required=${requiredEvidenceMode} observed=${observedEvidenceMode}`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1171,6 +1220,7 @@ async function main() {
   const aggregate = computeAggregate(runs);
 
   // Build report
+  const policy = evaluatePatrolPolicyGate(opts.mode, runs);
   const report = {
     kind: 'PatrolReport.v1',
     mode: opts.mode,
@@ -1178,6 +1228,7 @@ async function main() {
     commitSha,
     runs,
     aggregate,
+    policy,
   };
 
   // Write artifact
@@ -1196,11 +1247,20 @@ async function main() {
   console.log(`  Implicit fallback rate: ${(aggregate.implicitFallbackRate * 100).toFixed(1)}%`);
   console.log(`  Constructions exercised: ${aggregate.constructionCoverage.exercised}`);
   console.log(`  Composition success rate: ${(aggregate.compositionSuccessRate * 100).toFixed(1)}%`);
+  console.log(
+    `  Policy decision: required=${policy.requiredEvidenceMode} ` +
+    `observed=${policy.observedEvidenceMode} enforcement=${policy.enforcement}`,
+  );
 
   // Exit with error if no observations were extracted
   const obsCount = runs.filter((r) => r.observations).length;
   if (obsCount === 0) {
     console.error('[patrol] FAIL: no observations extracted from any run');
+    process.exit(1);
+  }
+
+  if (policy.enforcement === 'blocked') {
+    console.error(`[patrol] FAIL: ${policy.reason}`);
     process.exit(1);
   }
 }

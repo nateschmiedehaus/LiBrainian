@@ -64,6 +64,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         timeout-minutes: 30
 
+      - name: Enforce patrol policy gate
+        run: node scripts/patrol-policy-ci-gate.mjs --report 'state/patrol/patrol-run-*.json' --artifact state/patrol/patrol-policy-gate.json
+
       - name: Post-process
         if: always()
         run: |
@@ -104,6 +107,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         timeout-minutes: 165
+
+      - name: Enforce patrol policy gate
+        run: node scripts/patrol-policy-ci-gate.mjs --report 'state/patrol/patrol-run-*.json' --artifact state/patrol/patrol-policy-gate.json
 
       - name: Post-process with issues
         if: always()
@@ -159,6 +165,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         timeout-minutes: 270
+
+      - name: Enforce patrol policy gate
+        run: node scripts/patrol-policy-ci-gate.mjs --report 'state/patrol/patrol-run-*.json' --artifact state/patrol/patrol-policy-gate.json
 
       - name: Post-process
         if: always()

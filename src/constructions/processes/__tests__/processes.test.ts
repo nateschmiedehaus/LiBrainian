@@ -102,6 +102,22 @@ describe('process constructions', () => {
     expect(result.report.kind).toBe('PatrolReport.v1');
     expect(result.exitReason).toBe('dry_run');
     expect(Array.isArray(result.findings)).toBe(true);
+    expect(result.policyEnforcement.enforcement).toBe('allowed');
+    expect(result.policyEnforcement.requiredEvidenceMode).toBe('dry');
+  });
+
+  it('fails closed when release mode attempts dry-run bypass without wet evidence', async () => {
+    const patrol = createPatrolProcessConstruction();
+    const result = unwrapConstructionExecutionResult(await patrol.execute({
+      mode: 'release',
+      dryRun: true,
+      policyTrigger: 'release',
+    }));
+
+    expect(result.exitReason).toBe('failed');
+    expect(result.policyEnforcement.enforcement).toBe('blocked');
+    expect(result.policyEnforcement.requiredEvidenceMode).toBe('wet');
+    expect(result.findings.some((finding) => finding.category === 'policy')).toBe(true);
   });
 
   it('returns preset process plans in dry-run mode', async () => {

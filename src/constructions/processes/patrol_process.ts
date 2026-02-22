@@ -8,6 +8,12 @@ import { createImplicitSignalConstruction, type ImplicitSignalOutput } from './i
 import { createCostControlConstruction, type CostControlOutput } from './cost_control_construction.js';
 import { createAggregationConstruction, type AggregationOutput, type PatrolRunAggregateInput } from './aggregation_construction.js';
 import { createReportConstruction, type ReportConstructionOutput } from './report_construction.js';
+import {
+  evaluatePatrolPolicy,
+  type PatrolPolicyEnforcementResult,
+  type PatrolPolicyTrigger,
+} from './patrol_policy.js';
+import type { WetTestingPolicyConfig } from './wet_testing_policy.js';
 import { unwrapConstructionExecutionResult } from '../types.js';
 
 export interface PatrolInput extends ProcessInput {
@@ -19,6 +25,9 @@ export interface PatrolInput extends ProcessInput {
   env?: Record<string, string>;
   dryRun?: boolean;
   keepSandbox?: boolean;
+  policyTrigger?: PatrolPolicyTrigger;
+  policyConfig?: WetTestingPolicyConfig;
+  policyDecisionOutputPath?: string;
   observationProtocol?: {
     incrementalPrefix?: string;
     blockStart?: string;
@@ -36,6 +45,7 @@ export interface PatrolOutput extends ProcessOutput {
   }>;
   implicitSignals: ImplicitSignalOutput;
   aggregate: AggregationOutput;
+  policyEnforcement: PatrolPolicyEnforcementResult;
 }
 
 type PatrolProcessState = {
@@ -46,6 +56,7 @@ type PatrolProcessState = {
   costControl?: CostControlOutput;
   aggregate?: AggregationOutput;
   report?: ReportConstructionOutput;
+  policyPreflight?: PatrolPolicyEnforcementResult;
 };
 
 function createSyntheticPatrolOutput(mode: 'quick' | 'full' | 'release'): string {
@@ -93,6 +104,18 @@ function normalizeFindings(
       title: String(entry.title ?? 'Untitled finding'),
       detail: String(entry.detail ?? ''),
     }));
+}
+
+function resolvePolicyTrigger(
+  explicit: PatrolPolicyTrigger | undefined,
+  mode: 'quick' | 'full' | 'release',
+): PatrolPolicyTrigger {
+  if (explicit) return explicit;
+  if (mode === 'release') return 'release';
+  const eventName = process.env.GITHUB_EVENT_NAME;
+  if (eventName === 'schedule') return 'schedule';
+  if (eventName === 'push' || eventName === 'pull_request') return 'ci';
+  return 'manual';
 }
 
 export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, PatrolProcessState> {
@@ -147,6 +170,20 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
               id: 'dispatch.agent',
               run: async (taskInput, state) => {
                 const shouldDryRun = taskInput.dryRun !== false && !taskInput.command;
+                const policyPreflight = evaluatePatrolPolicy({
+                  mode,
+                  trigger: resolvePolicyTrigger(taskInput.policyTrigger, mode),
+                  dryRun: shouldDryRun,
+                  hasCommand: Boolean(taskInput.command),
+                  observationExtracted: false,
+                  timedOut: false,
+                  policyConfig: taskInput.policyConfig,
+                });
+
+                if (policyPreflight.enforcement === 'blocked') {
+                  throw new Error(`patrol_policy_fail_closed:${policyPreflight.reason}`);
+                }
+
                 if (shouldDryRun) {
                   return {
                     dispatch: {
@@ -157,6 +194,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                       stdout: createSyntheticPatrolOutput(mode),
                       stderr: '',
                     },
+                    policyPreflight,
                   };
                 }
 
@@ -172,7 +210,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                   env: taskInput.env,
                   timeoutMs: taskInput.timeoutMs,
                 }));
-                return { dispatch };
+                return { dispatch, policyPreflight };
               },
             },
           ],
@@ -292,9 +330,38 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
             implicitFallbackRate: 0,
           },
         }));
-        const findings = normalizeFindings(state.extraction);
+        const policyEnforcement = evaluatePatrolPolicy({
+          mode,
+          trigger: resolvePolicyTrigger(taskInput.policyTrigger, mode),
+          dryRun: taskInput.dryRun !== false && !taskInput.command,
+          hasCommand: Boolean(taskInput.command),
+          observationExtracted: Boolean(state.extraction?.fullObservation),
+          timedOut: state.dispatch?.timedOut === true,
+          policyConfig: taskInput.policyConfig,
+        });
 
-        const baseExitReason = taskInput.dryRun !== false && !taskInput.command
+        if (taskInput.policyDecisionOutputPath) {
+          await fs.mkdir(path.dirname(taskInput.policyDecisionOutputPath), { recursive: true });
+          await fs.writeFile(
+            taskInput.policyDecisionOutputPath,
+            JSON.stringify(policyEnforcement.decisionArtifact, null, 2),
+            'utf8',
+          );
+        }
+
+        const findings = normalizeFindings(state.extraction);
+        if (policyEnforcement.enforcement === 'blocked') {
+          findings.unshift({
+            category: 'policy',
+            severity: 'critical',
+            title: 'Wet-testing policy blocked patrol execution',
+            detail: policyEnforcement.reason,
+          });
+        }
+
+        const baseExitReason = policyEnforcement.enforcement === 'blocked'
+          ? 'failed'
+          : taskInput.dryRun !== false && !taskInput.command
           ? 'dry_run'
           : (state.costControl?.allowed === false ? 'budget_exceeded' : 'completed');
 
@@ -320,12 +387,14 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
             extraction: state.extraction,
             costControl: state.costControl,
             report,
+            policyEnforcement,
           },
           costSummary: {
             durationMs: state.dispatch?.durationMs ?? 0,
           },
           exitReason: baseExitReason,
           events,
+          policyEnforcement,
         };
       },
     };
