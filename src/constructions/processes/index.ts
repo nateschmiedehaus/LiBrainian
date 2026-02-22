@@ -117,6 +117,16 @@ export {
 } from './wet_testing_policy.js';
 
 export {
+  WET_TESTING_DECISION_MATRIX_V1,
+  WET_TESTING_REPRESENTATIVE_SCENARIOS_V1,
+  evaluateWetTestingPolicyResearch,
+  type WetTestingDecisionMatrixV1,
+  type WetTestingRepresentativeScenarioV1,
+  type WetTestingPolicyResearchScenarioResult,
+  type WetTestingPolicyResearchArtifactV1,
+} from './wet_testing_policy_research.js';
+
+export {
   createCodeReviewPipelineConstruction,
   createMigrationAssistantConstruction,
   createDocumentationGeneratorConstruction,
