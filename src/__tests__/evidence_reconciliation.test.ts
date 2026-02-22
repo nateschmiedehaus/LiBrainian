@@ -21,9 +21,12 @@ const BASE_MANIFEST: EvidenceManifestSummary = {
   },
   ab: {
     lift: 0.2083333333,
-    pValue: 0.0945,
+    pValue: 0.0937140553,
     targetLift: 0.2,
     significant: false,
+    controlSampleSize: 80,
+    treatmentSampleSize: 80,
+    nPerArm: 80,
   },
   performance: {
     p50LatencyMs: 633,
@@ -137,8 +140,82 @@ describe('evidence reconciliation summaries', () => {
     expect(updated.validationStatus.blockingMetrics).toHaveProperty('Retrieval Recall@5');
     expect(updated.description).not.toContain('COMPLETE');
     expect(updated.tasks['layer7.metricsRAGAS'].status).toBe('pass');
+    expect(updated.tasks['layer7.abExperiments'].status).toBe('fail');
+    expect(updated.tasks['layer7.abExperiments'].note).toContain('p=0.094 > α=0.05 (not significant)');
     expect(updated.tasks['layer7.unrelated'].status).toBe('fail');
     expect(updated.tasks['layer7.unrelated'].note).toContain('missing_evidence_links');
     expect(updated.tasks['layer7.unrelated'].note).not.toContain('unverified_by_trace');
+  });
+
+  it('fails ab gate when n-per-arm is below required minimum', () => {
+    const summary = buildEvidenceSummary({
+      ...BASE_MANIFEST,
+      ab: {
+        ...BASE_MANIFEST.ab,
+        lift: 0.31,
+        pValue: 0.01,
+        significant: true,
+        controlSampleSize: 12,
+        treatmentSampleSize: 14,
+        nPerArm: 12,
+      },
+    });
+    const gates = {
+      tasks: {
+        'layer7.abExperiments': { status: 'pass' },
+      },
+      validationStatus: {
+        blockingMetrics: {},
+      },
+    };
+
+    const updated = reconcileGates(gates, summary, { evidencePaths: ['eval-results/ab-results.json'] });
+    expect(updated.tasks['layer7.abExperiments'].status).toBe('fail');
+    expect(updated.tasks['layer7.abExperiments'].note).toContain('n_per_arm=12 < min 30');
+  });
+
+  it('passes ab gate when lift, p-value, and n-per-arm all meet thresholds', () => {
+    const summary = buildEvidenceSummary({
+      ...BASE_MANIFEST,
+      ab: {
+        ...BASE_MANIFEST.ab,
+        lift: 0.31,
+        pValue: 0.01,
+        significant: true,
+        controlSampleSize: 36,
+        treatmentSampleSize: 34,
+        nPerArm: 34,
+      },
+    });
+    const gates = {
+      tasks: {
+        'layer7.abExperiments': { status: 'fail' },
+      },
+      validationStatus: {
+        blockingMetrics: {},
+      },
+    };
+
+    const updated = reconcileGates(gates, summary, { evidencePaths: ['eval-results/ab-results.json'] });
+    expect(updated.tasks['layer7.abExperiments'].status).toBe('pass');
+  });
+
+  it('writes explicit ab gate thresholds into gate definitions', () => {
+    const summary = buildEvidenceSummary(BASE_MANIFEST);
+    const gates = {
+      tasks: {
+        'layer5.abExperiments': { status: 'not_started' },
+        'layer7.abExperiments': { status: 'fail' },
+      },
+      validationStatus: {
+        blockingMetrics: {},
+      },
+    };
+
+    const updated = reconcileGates(gates, summary, { evidencePaths: ['eval-results/ab-results.json'] });
+    expect(updated.tasks['layer5.abExperiments'].p_threshold).toBe(0.05);
+    expect(updated.tasks['layer5.abExperiments'].min_sessions_per_arm).toBe(30);
+    expect(updated.tasks['layer7.abExperiments'].p_threshold).toBe(0.05);
+    expect(updated.tasks['layer7.abExperiments'].min_sessions_per_arm).toBe(30);
   });
 });

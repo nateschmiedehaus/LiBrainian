@@ -41,6 +41,8 @@ describe('evidence manifest generation', () => {
       },
     }),
     'eval-results/ab-results.json': JSON.stringify({
+      control: { n: 80 },
+      treatment: { n: 72 },
       lift: { success_rate_lift: 0.2083333333 },
       statistics: { t_p_value: 0.0945, significant: false },
       targets_met: { lift_20_percent: true },
@@ -117,6 +119,9 @@ describe('evidence manifest generation', () => {
     expect(manifest.summary.scenarios.total).toBe(30);
     expect(manifest.summary.metrics.retrievalRecallAt5.mean).toBe(0.82);
     expect(manifest.summary.ab.pValue).toBe(0.0945);
+    expect(manifest.summary.ab.controlSampleSize).toBe(80);
+    expect(manifest.summary.ab.treatmentSampleSize).toBe(72);
+    expect(manifest.summary.ab.nPerArm).toBe(72);
 
     const auditEntry = manifest.artifacts.find(
       (artifact) =>
@@ -154,5 +159,21 @@ describe('evidence manifest generation', () => {
     await expect(
       buildEvidenceManifest({ workspaceRoot })
     ).rejects.toThrow(/final-verification\.json/);
+  });
+
+  it('fails when A/B sample-size metadata is missing', async () => {
+    await writeFixtureFile(
+      workspaceRoot,
+      'eval-results/ab-results.json',
+      JSON.stringify({
+        lift: { success_rate_lift: 0.2083333333 },
+        statistics: { t_p_value: 0.0945, significant: false },
+      }),
+      FIXED_TIME,
+    );
+
+    await expect(
+      buildEvidenceManifest({ workspaceRoot })
+    ).rejects.toThrow(/ab\.control\.n/);
   });
 });

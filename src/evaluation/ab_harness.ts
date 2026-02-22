@@ -196,6 +196,9 @@ export interface AbLiftSignificance {
   pValue: number | null;
   statisticallySignificant: boolean | null;
   sampleSizeAdequate: boolean;
+  controlSampleSize: number;
+  treatmentSampleSize: number;
+  nPerArm: number;
   minimumSamplePerGroup: number;
   inconclusiveReason?: 'insufficient_samples' | 'zero_standard_error';
 }
@@ -1722,6 +1725,7 @@ function computeLiftSignificance(
   control: AbGroupStats,
   treatment: AbGroupStats
 ): AbLiftSignificance {
+  const nPerArm = Math.min(control.n, treatment.n);
   const sampleSizeAdequate = control.n >= AB_MIN_SAMPLE_PER_GROUP && treatment.n >= AB_MIN_SAMPLE_PER_GROUP;
   if (!sampleSizeAdequate) {
     return {
@@ -1730,6 +1734,9 @@ function computeLiftSignificance(
       pValue: null,
       statisticallySignificant: null,
       sampleSizeAdequate,
+      controlSampleSize: control.n,
+      treatmentSampleSize: treatment.n,
+      nPerArm,
       minimumSamplePerGroup: AB_MIN_SAMPLE_PER_GROUP,
       inconclusiveReason: 'insufficient_samples',
     };
@@ -1744,6 +1751,9 @@ function computeLiftSignificance(
       pValue: null,
       statisticallySignificant: null,
       sampleSizeAdequate,
+      controlSampleSize: control.n,
+      treatmentSampleSize: treatment.n,
+      nPerArm,
       minimumSamplePerGroup: AB_MIN_SAMPLE_PER_GROUP,
       inconclusiveReason: 'zero_standard_error',
     };
@@ -1757,6 +1767,9 @@ function computeLiftSignificance(
     pValue,
     statisticallySignificant: pValue <= AB_SIGNIFICANCE_ALPHA,
     sampleSizeAdequate,
+    controlSampleSize: control.n,
+    treatmentSampleSize: treatment.n,
+    nPerArm,
     minimumSamplePerGroup: AB_MIN_SAMPLE_PER_GROUP,
   };
 }

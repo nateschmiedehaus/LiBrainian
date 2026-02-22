@@ -53,6 +53,15 @@ function requireBoolean(value: unknown, label: string): boolean {
   return value;
 }
 
+function firstDefinedNumber(values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function maxTimestamp(values: string[]): string {
   if (values.length === 0) {
     return new Date(0).toISOString();
@@ -180,6 +189,23 @@ async function buildEvidenceSummary(workspaceRoot: string, artifacts: EvidenceAr
     'ab.statistics.t_p_value'
   );
   const significant = requireBoolean(abReport.statistics?.significant, 'ab.statistics.significant');
+  const controlSampleSize = requireNumber(
+    firstDefinedNumber([
+      abReport.control?.n,
+      abReport.statistics?.control_n,
+      abReport.statistics?.n_control,
+    ]),
+    'ab.control.n'
+  );
+  const treatmentSampleSize = requireNumber(
+    firstDefinedNumber([
+      abReport.treatment?.n,
+      abReport.statistics?.treatment_n,
+      abReport.statistics?.n_treatment,
+    ]),
+    'ab.treatment.n'
+  );
+  const nPerArm = Math.min(controlSampleSize, treatmentSampleSize);
 
   const p21 = finalVerification.validation_results?.phase21 ?? {};
   const t21 = finalVerification.targets?.phase21 ?? {};
@@ -214,6 +240,9 @@ async function buildEvidenceSummary(workspaceRoot: string, artifacts: EvidenceAr
       pValue,
       targetLift: DEFAULT_AB_LIFT_TARGET,
       significant,
+      controlSampleSize,
+      treatmentSampleSize,
+      nPerArm,
     },
     performance: summaryPerformance,
     scenarios: summaryScenarios,

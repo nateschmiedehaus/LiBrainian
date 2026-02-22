@@ -187,6 +187,7 @@ if (selectionMode !== 'sequential') {
 if (report.lift) {
   const significance = report.lift.significance;
   const pValueText = significance.pValue === null ? 'n/a' : significance.pValue.toFixed(4);
+  const nPerArmText = Number.isFinite(significance.nPerArm) ? String(significance.nPerArm) : 'n/a';
   const significanceText = significance.statisticallySignificant === null
     ? `inconclusive (${significance.inconclusiveReason ?? 'unknown'})`
     : (significance.statisticallySignificant ? 'significant' : 'not significant');
@@ -197,12 +198,13 @@ if (report.lift) {
     `Overall lift: ${report.lift.successRateLift.toFixed(3)} success, `
     + `${(report.lift.timeReduction * 100).toFixed(1)}% time reduction, `
     + `${agentReductionText}`
-    + `p=${pValueText} (${significanceText})`
+    + `p=${pValueText}, n_per_arm=${nPerArmText} (${significanceText})`
   );
 }
 if (report.t3PlusLift) {
   const significance = report.t3PlusLift.significance;
   const pValueText = significance.pValue === null ? 'n/a' : significance.pValue.toFixed(4);
+  const nPerArmText = Number.isFinite(significance.nPerArm) ? String(significance.nPerArm) : 'n/a';
   const significanceText = significance.statisticallySignificant === null
     ? `inconclusive (${significance.inconclusiveReason ?? 'unknown'})`
     : (significance.statisticallySignificant ? 'significant' : 'not significant');
@@ -213,7 +215,7 @@ if (report.t3PlusLift) {
     `T3+ lift: ${report.t3PlusLift.successRateLift.toFixed(3)} success, `
     + `${(report.t3PlusLift.timeReduction * 100).toFixed(1)}% time reduction, `
     + `${agentReductionText}`
-    + `p=${pValueText} (${significanceText})`
+    + `p=${pValueText}, n_per_arm=${nPerArmText} (${significanceText})`
   );
 }
 console.log(`AB gates: ${report.gates.passed ? 'passed' : 'failed'}`);

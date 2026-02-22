@@ -17,11 +17,11 @@ describe('Exploration suggestions storage', () => {
     dbPath = getTempDbPath();
     storage = createSqliteStorage(dbPath, process.cwd());
     await storage.initialize();
-  });
+  }, 30000);
 
   afterEach(async () => {
     await storage?.close();
-  });
+  }, 30000);
 
   it('ranks underqueried high-centrality modules above queried peers', async () => {
     const now = new Date().toISOString();

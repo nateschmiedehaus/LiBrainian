@@ -776,6 +776,9 @@ describe('computeAbLiftSummary', () => {
     expect(summary).not.toBeNull();
     expect(summary?.absoluteSuccessRateDelta).toBeCloseTo(0.5, 6);
     expect(summary?.significance.sampleSizeAdequate).toBe(true);
+    expect(summary?.significance.controlSampleSize).toBe(20);
+    expect(summary?.significance.treatmentSampleSize).toBe(20);
+    expect(summary?.significance.nPerArm).toBe(20);
     expect(summary?.significance.pValue).not.toBeNull();
     expect(summary?.significance.statisticallySignificant).toBe(true);
     expect(summary?.confidenceInterval95.lower).toBeGreaterThan(0);
@@ -788,6 +791,9 @@ describe('computeAbLiftSummary', () => {
     const summary = computeAbLiftSummary(control, treatment);
     expect(summary).not.toBeNull();
     expect(summary?.significance.sampleSizeAdequate).toBe(false);
+    expect(summary?.significance.controlSampleSize).toBe(2);
+    expect(summary?.significance.treatmentSampleSize).toBe(2);
+    expect(summary?.significance.nPerArm).toBe(2);
     expect(summary?.significance.pValue).toBeNull();
     expect(summary?.significance.statisticallySignificant).toBeNull();
     expect(summary?.significance.inconclusiveReason).toBe('insufficient_samples');

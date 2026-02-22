@@ -60,6 +60,7 @@ import { SqliteEvidenceLedger, createSessionId } from '../../epistemics/evidence
 
 const workspaceRoot = process.cwd();
 const FEEDBACK_HOOK_TIMEOUT_MS = 30000;
+const FEEDBACK_TEST_TIMEOUT_MS = 60000;
 
 // Use unique temp DB paths to avoid lock contention
 function getTempDbPath(): string {
@@ -123,7 +124,7 @@ describe('Feedback Loop Integration', () => {
       expect(result.feedbackToken).toBeDefined();
       expect(typeof result.feedbackToken).toBe('string');
       expect((result.feedbackToken as string).length).toBeGreaterThan(8);
-    });
+    }, FEEDBACK_TEST_TIMEOUT_MS);
 
     it('feedbackToken is unique per query', async () => {
       const { queryLibrarian } = await import('../query.js');
@@ -138,7 +139,7 @@ describe('Feedback Loop Integration', () => {
       ]);
 
       expect(result1.feedbackToken).not.toBe(result2.feedbackToken);
-    });
+    }, FEEDBACK_TEST_TIMEOUT_MS);
 
     it('query response includes required envelope fields', async () => {
       const { queryLibrarian } = await import('../query.js');

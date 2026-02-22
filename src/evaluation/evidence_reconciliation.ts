@@ -18,6 +18,9 @@ export type EvidenceManifestSummary = {
     pValue: number;
     targetLift: number;
     significant: boolean;
+    controlSampleSize: number;
+    treatmentSampleSize: number;
+    nPerArm: number;
   };
   performance: {
     p50LatencyMs: number;
@@ -41,6 +44,9 @@ export type EvidenceSummary = EvidenceManifestSummary & {
     memoryMet: boolean;
     latencyMet: boolean;
     liftMet: boolean;
+    abPValueMet: boolean;
+    abSampleSizeMet: boolean;
+    abGateMet: boolean;
     scenarioPassRate: number;
   };
 };
@@ -84,6 +90,8 @@ type GateSet = {
 const EXECUTED_STATUSES = new Set(['pass', 'fail', 'partial', 'implemented', 'complete']);
 const ALLOWED_UNSTARTED_STATUSES = new Set(['not_started', 'not_implemented']);
 const MANIFEST_MISSING_PATTERN = /evidence_manifest_missing/i;
+const AB_P_THRESHOLD = 0.05;
+const AB_MIN_SESSIONS_PER_ARM = 30;
 
 function round(value: number, digits = 2): number {
   const factor = 10 ** digits;
@@ -92,6 +100,24 @@ function round(value: number, digits = 2): number {
 
 function formatDate(value: string): string {
   return value.split('T')[0] ?? value;
+}
+
+function formatPValue(value: number): string {
+  if (!Number.isFinite(value)) return 'n/a';
+  return value.toFixed(3);
+}
+
+function getAbGateFailureReason(summary: EvidenceSummary): string | null {
+  if (!summary.derived.liftMet) {
+    return `lift=${round(summary.ab.lift, 3)} < target ${summary.ab.targetLift}`;
+  }
+  if (!summary.derived.abPValueMet) {
+    return `p=${formatPValue(summary.ab.pValue)} > α=${AB_P_THRESHOLD.toFixed(2)} (not significant)`;
+  }
+  if (!summary.derived.abSampleSizeMet) {
+    return `n_per_arm=${summary.ab.nPerArm} < min ${AB_MIN_SESSIONS_PER_ARM}`;
+  }
+  return null;
 }
 
 function normalizeStrictMarkerTokens(text: string): string {
@@ -124,6 +150,9 @@ export function buildEvidenceSummary(manifest: EvidenceManifestSummary): Evidenc
     && manifest.performance.p99LatencyMs <= manifest.performance.targetP99LatencyMs
   );
   const liftMet = manifest.ab.lift >= manifest.ab.targetLift;
+  const abPValueMet = manifest.ab.pValue <= AB_P_THRESHOLD;
+  const abSampleSizeMet = manifest.ab.nPerArm >= AB_MIN_SESSIONS_PER_ARM;
+  const abGateMet = liftMet && abPValueMet && abSampleSizeMet;
   const scenarioPassRate = manifest.scenarios.total > 0
     ? manifest.scenarios.passing / manifest.scenarios.total
     : 0;
@@ -133,6 +162,9 @@ export function buildEvidenceSummary(manifest: EvidenceManifestSummary): Evidenc
       memoryMet,
       latencyMet,
       liftMet,
+      abPValueMet,
+      abSampleSizeMet,
+      abGateMet,
       scenarioPassRate,
     },
   };
@@ -157,7 +189,7 @@ export function renderStatusBlock(summary: EvidenceSummary): string {
 
   const memoryStatus = summary.derived.memoryMet ? 'MET' : 'NOT MET';
   const latencyStatus = summary.derived.latencyMet ? 'MET' : 'NOT MET';
-  const liftStatus = summary.derived.liftMet ? 'MET' : 'NOT MET';
+  const liftStatus = summary.derived.abGateMet ? 'MET' : 'NOT MET';
   const scenarioRate = round(summary.derived.scenarioPassRate * 100, 1);
 
   return [
@@ -168,7 +200,7 @@ export function renderStatusBlock(summary: EvidenceSummary): string {
     '| --- | --- | --- | --- |',
     metricLines,
     '',
-    `| A/B Lift | ${summary.ab.targetLift} | ${round(summary.ab.lift, 4)} (p-value ${round(summary.ab.pValue, 4)}) | ${liftStatus} |`,
+    `| A/B Lift | lift>=${summary.ab.targetLift}, p<=${AB_P_THRESHOLD.toFixed(2)}, n_per_arm>=${AB_MIN_SESSIONS_PER_ARM} | ${round(summary.ab.lift, 4)} (p-value ${round(summary.ab.pValue, 4)}, n_per_arm ${summary.ab.nPerArm}) | ${liftStatus} |`,
     `| Query Latency p50/p99 | <= ${summary.performance.targetP50LatencyMs}/${summary.performance.targetP99LatencyMs} ms | ${round(summary.performance.p50LatencyMs, 1)}/${round(summary.performance.p99LatencyMs, 1)} ms | ${latencyStatus} |`,
     `| Memory per 1K LOC | ${summary.performance.targetMemoryPerKLOC} MB | ${round(summary.performance.memoryPerKLOC, 2)} MB | ${memoryStatus} |`,
     '',
@@ -183,14 +215,14 @@ export function renderValidationBlock(summary: EvidenceSummary): string {
     `Generated: ${summary.generatedAt}`,
     '',
     `Scenario Families: ${summary.scenarios.passing}/${summary.scenarios.total} (${scenarioRate}%)`,
-    `A/B Lift: ${round(summary.ab.lift, 4)} (p-value ${round(summary.ab.pValue, 4)})`,
+    `A/B Lift: ${round(summary.ab.lift, 4)} (p-value ${round(summary.ab.pValue, 4)}, n_per_arm ${summary.ab.nPerArm})`,
     `Memory per 1K LOC: ${round(summary.performance.memoryPerKLOC, 2)} MB (target ${summary.performance.targetMemoryPerKLOC} MB)`,
   ].join('\n');
 }
 
 export function renderImplementationStatusBlock(summary: EvidenceSummary): string {
   const scenarioRate = round(summary.derived.scenarioPassRate * 100, 1);
-  const liftStatus = summary.derived.liftMet ? 'MET' : 'NOT MET';
+  const liftStatus = summary.derived.abGateMet ? 'MET' : 'NOT MET';
   const memoryStatus = summary.derived.memoryMet ? 'MET' : 'NOT MET';
   const latencyStatus = summary.derived.latencyMet ? 'MET' : 'NOT MET';
   return [
@@ -203,7 +235,7 @@ export function renderImplementationStatusBlock(summary: EvidenceSummary): strin
     `Faithfulness: ${round(summary.metrics.faithfulness.mean, 2)} (target ${summary.metrics.faithfulness.target})`,
     `Answer Relevancy: ${round(summary.metrics.answerRelevancy.mean, 2)} (target ${summary.metrics.answerRelevancy.target})`,
     '',
-    `A/B Lift: ${round(summary.ab.lift, 4)} (target ${summary.ab.targetLift}, p-value ${round(summary.ab.pValue, 4)}) → ${liftStatus}`,
+    `A/B Lift: ${round(summary.ab.lift, 4)} (target ${summary.ab.targetLift}, p-value ${round(summary.ab.pValue, 4)}, n_per_arm ${summary.ab.nPerArm}) → ${liftStatus}`,
     `Query Latency p50/p99: ${round(summary.performance.p50LatencyMs, 1)}ms/${round(summary.performance.p99LatencyMs, 1)}ms `
     + `(targets ${summary.performance.targetP50LatencyMs}/${summary.performance.targetP99LatencyMs}ms) → ${latencyStatus}`,
     `Memory per 1K LOC: ${round(summary.performance.memoryPerKLOC, 2)} MB (target ${summary.performance.targetMemoryPerKLOC} MB) → ${memoryStatus}`,
@@ -269,9 +301,9 @@ export function reconcileGates(
       status: summary.metrics.answerRelevancy.met ? 'MET' : 'NOT MET',
     },
     'A/B Lift': {
-      target: `>=${summary.ab.targetLift}`,
-      measured: `${summary.ab.lift} (p=${summary.ab.pValue})`,
-      status: summary.derived.liftMet ? 'MET' : 'NOT MET',
+      target: `lift>=${summary.ab.targetLift} && p<=${AB_P_THRESHOLD.toFixed(2)} && n_per_arm>=${AB_MIN_SESSIONS_PER_ARM}`,
+      measured: `${summary.ab.lift} (p=${summary.ab.pValue}, n_per_arm=${summary.ab.nPerArm})`,
+      status: summary.derived.abGateMet ? 'MET' : 'NOT MET',
     },
     'Memory per 1K LOC': {
       target: `<=${summary.performance.targetMemoryPerKLOC} MB`,
@@ -333,10 +365,29 @@ export function reconcileGates(
     measured: summary.metrics.hallucinationRate.mean,
   });
 
+  const abFailureReason = getAbGateFailureReason(summary);
   updateTask('layer7.abExperiments', {
-    status: summary.derived.liftMet && summary.ab.significant ? 'pass' : 'fail',
+    status: abFailureReason ? 'fail' : 'pass',
     lastRun: summaryDate,
-    measured: `lift=${summary.ab.lift} (p=${summary.ab.pValue})`,
+    measured: `lift=${summary.ab.lift} (p=${summary.ab.pValue}, n_per_arm=${summary.ab.nPerArm})`,
+    note: abFailureReason ? `fail (${abFailureReason})` : 'pass (lift/p-value/sample thresholds met)',
+  });
+
+  for (const key of ['layer5.abExperiments', 'layer7.abExperiments']) {
+    updateTask(key, {
+      lift_threshold: summary.ab.targetLift,
+      p_threshold: AB_P_THRESHOLD,
+      min_sessions_per_arm: AB_MIN_SESSIONS_PER_ARM,
+      required: [
+        'lift >= lift_threshold',
+        'p_value <= p_threshold',
+        'n_per_arm >= min_sessions_per_arm',
+      ],
+    });
+  }
+
+  updateTask('layer5.abExperiments', {
+    target: `lift>=${summary.ab.targetLift}, p<=${AB_P_THRESHOLD.toFixed(2)}, n_per_arm>=${AB_MIN_SESSIONS_PER_ARM}`,
   });
 
   updateTask('layer7.scenarioFamilies', {
