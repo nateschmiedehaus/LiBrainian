@@ -53,6 +53,7 @@ export {
   fail,
   isConstructionOutcome,
   ok,
+  unwrapConstructionExecutionResult,
 } from './types.js';
 
 export {

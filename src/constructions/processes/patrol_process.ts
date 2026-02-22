@@ -8,6 +8,7 @@ import { createImplicitSignalConstruction, type ImplicitSignalOutput } from './i
 import { createCostControlConstruction, type CostControlOutput } from './cost_control_construction.js';
 import { createAggregationConstruction, type AggregationOutput, type PatrolRunAggregateInput } from './aggregation_construction.js';
 import { createReportConstruction, type ReportConstructionOutput } from './report_construction.js';
+import { unwrapConstructionExecutionResult } from '../types.js';
 
 export interface PatrolInput extends ProcessInput {
   repoPath?: string;
@@ -123,11 +124,11 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
               id: 'sandbox.setup',
               run: async (taskInput) => {
                 if (!taskInput.repoPath) return {};
-                const sandbox = await sandboxConstruction.execute({
+                const sandbox = unwrapConstructionExecutionResult(await sandboxConstruction.execute({
                   repoPath: taskInput.repoPath,
                   mode: 'copy',
                   cleanupOnExit: taskInput.keepSandbox !== true,
-                });
+                }));
                 if (sandbox.created && sandbox.cleanupOnExit) {
                   this.registerCleanup(async () => {
                     await fs.rm(sandbox.sandboxPath, { recursive: true, force: true });
@@ -164,13 +165,13 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                 }
 
                 const cwd = state.sandbox?.sandboxPath ?? taskInput.cwd ?? process.cwd();
-                const dispatch = await dispatchConstruction.execute({
+                const dispatch = unwrapConstructionExecutionResult(await dispatchConstruction.execute({
                   command: taskInput.command,
                   args: taskInput.args ?? [],
                   cwd,
                   env: taskInput.env,
                   timeoutMs: taskInput.timeoutMs,
-                });
+                }));
                 return { dispatch };
               },
             },
@@ -184,12 +185,12 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
               id: 'extract.observations',
               run: async (taskInput, state) => {
                 const output = state.dispatch?.stdout ?? '';
-                const extraction = await extractionConstruction.execute({
+                const extraction = unwrapConstructionExecutionResult(await extractionConstruction.execute({
                   output,
                   incrementalPrefix: taskInput.observationProtocol?.incrementalPrefix,
                   blockStart: taskInput.observationProtocol?.blockStart,
                   blockEnd: taskInput.observationProtocol?.blockEnd,
-                });
+                }));
                 return { extraction };
               },
             },
@@ -197,14 +198,14 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
               id: 'extract.implicit',
               run: async (_, state) => {
                 const dispatch = state.dispatch;
-                const implicitSignals = await implicitSignalConstruction.execute({
+                const implicitSignals = unwrapConstructionExecutionResult(await implicitSignalConstruction.execute({
                   stdout: dispatch?.stdout ?? '',
                   stderr: dispatch?.stderr,
                   exitCode: dispatch?.exitCode,
                   timedOut: dispatch?.timedOut,
                   durationMs: dispatch?.durationMs,
                   timeoutMs: input.timeoutMs,
-                });
+                }));
                 return { implicitSignals };
               },
             },
@@ -217,7 +218,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
             {
               id: 'budget.evaluate',
               run: async (taskInput, state) => {
-                const costControl = await costControlConstruction.execute({
+                const costControl = unwrapConstructionExecutionResult(await costControlConstruction.execute({
                   budget: {
                     maxDurationMs: taskInput.budget?.maxDurationMs,
                     maxTokens: taskInput.budget?.maxTokenBudget,
@@ -226,7 +227,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                   usage: {
                     durationMs: state.dispatch?.durationMs ?? 0,
                   },
-                });
+                }));
                 return { costControl };
               },
             },
@@ -245,7 +246,9 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                   observations: state.extraction?.fullObservation as PatrolRunAggregateInput['observations'],
                   implicitSignals: state.implicitSignals,
                 };
-                const aggregate = await aggregationConstruction.execute({ runs: [run] });
+                const aggregate = unwrapConstructionExecutionResult(
+                  await aggregationConstruction.execute({ runs: [run] }),
+                );
                 return { aggregate };
               },
             },
@@ -258,7 +261,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                   observations: state.extraction?.fullObservation as PatrolRunAggregateInput['observations'],
                   implicitSignals: state.implicitSignals,
                 };
-                const report = await reportConstruction.execute({
+                const report = unwrapConstructionExecutionResult(await reportConstruction.execute({
                   mode,
                   commitSha: process.env.GITHUB_SHA,
                   runs: [run],
@@ -269,7 +272,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                     avgNegativeFindings: 0,
                     implicitFallbackRate: 0,
                   },
-                });
+                }));
                 return { report };
               },
             },
@@ -277,7 +280,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
         },
       ],
       finalize: async (taskInput, state, events) => {
-        const report = state.report ?? await reportConstruction.execute({
+        const report = state.report ?? unwrapConstructionExecutionResult(await reportConstruction.execute({
           mode,
           commitSha: process.env.GITHUB_SHA,
           runs: [],
@@ -288,7 +291,7 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
             avgNegativeFindings: 0,
             implicitFallbackRate: 0,
           },
-        });
+        }));
         const findings = normalizeFindings(state.extraction);
 
         const baseExitReason = taskInput.dryRun !== false && !taskInput.command

@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { createLiBrainian, type LiBrainian } from '../../api/librarian.js';
 import type { LlmRequirement } from '../../types.js';
+import { unwrapConstructionExecutionResult } from '../types.js';
 import { AgenticProcess, type ConstructionPipeline } from './process_base.js';
 import { createSandboxLifecycleConstruction, type SandboxLifecycleOutput } from './sandbox_construction.js';
 import type {
@@ -229,11 +230,11 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
             {
               id: 'sandbox.setup',
               run: async (stageInput) => {
-                const sandbox = await sandboxConstruction.execute({
+                const sandbox = unwrapConstructionExecutionResult(await sandboxConstruction.execute({
                   repoPath: stageInput.fixtureRepoPath,
                   mode: 'copy',
                   cleanupOnExit: stageInput.keepSandbox !== true,
-                });
+                }));
                 if (sandbox.created && sandbox.cleanupOnExit) {
                   this.registerCleanup(async () => {
                     await fs.rm(sandbox.sandboxPath, { recursive: true, force: true });

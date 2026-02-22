@@ -1,4 +1,4 @@
-import type { Construction } from '../types.js';
+import { unwrapConstructionExecutionResult, type Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createAgentDispatchConstruction } from './agent_dispatch_construction.js';
 import { createObservationExtractionConstruction } from './observation_extraction_construction.js';
@@ -65,15 +65,17 @@ function createPresetConstruction(definition: {
         };
       }
 
-      const dispatch = await dispatchConstruction.execute({
+      const dispatch = unwrapConstructionExecutionResult(await dispatchConstruction.execute({
         command: input.command,
         args: input.args ?? [],
         cwd: input.cwd,
         env: input.env,
         timeoutMs: input.timeoutMs,
-      });
-      const extraction = await extractionConstruction.execute({ output: dispatch.stdout });
-      const budget = await costControlConstruction.execute({
+      }));
+      const extraction = unwrapConstructionExecutionResult(
+        await extractionConstruction.execute({ output: dispatch.stdout }),
+      );
+      const budget = unwrapConstructionExecutionResult(await costControlConstruction.execute({
         budget: {
           maxDurationMs: input.budget?.maxDurationMs,
           maxTokens: input.budget?.maxTokenBudget,
@@ -82,7 +84,7 @@ function createPresetConstruction(definition: {
         usage: {
           durationMs: dispatch.durationMs,
         },
-      });
+      }));
 
       return {
         preset: definition.id,

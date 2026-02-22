@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import type { Construction } from '../types.js';
+import { unwrapConstructionExecutionResult, type Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createCliOutputSanityGateConstruction, type CliOutputProbeResult } from './cli_output_sanity_gate.js';
 
@@ -66,12 +66,12 @@ export function createPatrolRegressionClosureGateConstruction(): Construction<
       const checks: PatrolRegressionCheckResult[] = [];
 
       const cliGate = createCliOutputSanityGateConstruction();
-      const cliResult = await cliGate.execute({
+      const cliResult = unwrapConstructionExecutionResult(await cliGate.execute({
         repoRoot,
         cliEntry: input.cliEntry,
         commandTimeoutMs,
         maxDurationMs,
-      });
+      }));
 
       const helpCoveragePass = cliResult.helpValidation.pass;
       pushCheck(checks, findings, {

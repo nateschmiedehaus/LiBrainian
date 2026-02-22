@@ -301,6 +301,22 @@ export function isConstructionOutcome<O, E extends ConstructionError = Construct
   return typeof candidate.ok === 'boolean';
 }
 
+/**
+ * Normalize a compatibility execution result to a value or throw on failed outcome.
+ */
+export function unwrapConstructionExecutionResult<
+  O,
+  E extends ConstructionError = ConstructionError,
+>(value: ConstructionExecutionResult<O, E>): O {
+  if (!isConstructionOutcome<O, E>(value)) {
+    return value;
+  }
+  if (value.ok) {
+    return value.value;
+  }
+  throw value.error;
+}
+
 export type Either<A, B> =
   | { readonly tag: 'left'; readonly value: A }
   | { readonly tag: 'right'; readonly value: B };
@@ -346,7 +362,7 @@ export interface Construction<
   readonly id: string;
   readonly name: string;
   readonly description?: string;
-  execute(input: I, context?: Context<R>): Promise<O>;
+  execute(input: I, context?: Context<R>): Promise<ConstructionExecutionResult<O, E>>;
   getEstimatedConfidence?(): ConfidenceValue;
   debug?(
     options?: ConstructionDebugOptions

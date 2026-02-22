@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { createLiBrainian } from '../../api/librarian.js';
 import type { ContextPack } from '../../types.js';
-import type { Construction } from '../types.js';
+import { unwrapConstructionExecutionResult, type Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createResultQualityJudgeConstruction, type ResultQualityJudgeOutput } from './result_quality_judge.js';
 
@@ -171,13 +171,13 @@ export function createQueryRelevanceGateConstruction(): Construction<
             const relevantHits = topFiles.filter((file) => expectedSet.has(file)).length;
             const pollutedByInternalFiles = topFiles.some((file) => file.includes('.librarian/'));
             const confidenceValues = topPacks.map((pack) => Number(pack.confidence ?? 0));
-            const quality = await qualityJudge.execute({
+            const quality = unwrapConstructionExecutionResult(await qualityJudge.execute({
               query: pair.query,
               expectedFiles: pair.expectedFiles,
               topFiles,
               confidenceValues,
               evidenceSnippets: topPacks.flatMap((pack) => (pack.codeSnippets ?? []).map((snippet) => snippet.content)),
-            });
+            }));
 
             pairResults.push({
               query: pair.query,
