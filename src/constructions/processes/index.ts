@@ -93,6 +93,23 @@ export {
 } from './operational_proof_gate.js';
 
 export {
+  WET_TESTING_POLICY_KIND,
+  WET_TESTING_POLICY_DECISION_KIND,
+  WET_TESTING_POLICY_DECISION_ARTIFACT_KIND,
+  DEFAULT_WET_TESTING_POLICY_CONFIG,
+  parseWetTestingPolicyConfig,
+  parseWetTestingPolicyContext,
+  evaluateWetTestingPolicy,
+  createWetTestingPolicyDecisionArtifact,
+  type WetTestingPolicyConfig,
+  type WetTestingPolicyRuleCondition,
+  type WetTestingPolicyContext,
+  type WetTestingEvidenceMode,
+  type WetTestingPolicyDecision,
+  type WetTestingPolicyDecisionArtifact,
+} from './wet_testing_policy.js';
+
+export {
   createCodeReviewPipelineConstruction,
   createMigrationAssistantConstruction,
   createDocumentationGeneratorConstruction,
