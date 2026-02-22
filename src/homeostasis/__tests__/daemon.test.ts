@@ -19,6 +19,7 @@ import { LibrarianEventBus } from '../../events.js';
 import type { LibrarianStorage, StorageStats } from '../../storage/types.js';
 import type { GraphEdge, LibrarianEvent } from '../../types.js';
 import * as logger from '../../telemetry/logger.js';
+import * as seededPackValidation from '../seeded_pack_validation.js';
 
 // ============================================================================
 // TEST UTILITIES
@@ -366,6 +367,25 @@ describe('HomeostasisDaemon', () => {
       await daemon.triggerHealthCheck('test');
 
       expect(daemon.getStatus().healingsCompleted).toBe(1);
+    });
+
+    it('runs seeded-pack validation during health checks', async () => {
+      const validatorSpy = vi
+        .spyOn(seededPackValidation, 'validateSeededPacks')
+        .mockResolvedValue({ checked: 0, invalidated: 0 });
+
+      daemon = createHomeostasisDaemon({
+        storage: mockStorage,
+        eventBus,
+      });
+
+      await daemon.start();
+      await daemon.triggerHealthCheck('seeded-pack-validation');
+
+      expect(validatorSpy).toHaveBeenCalledTimes(1);
+      expect(validatorSpy).toHaveBeenCalledWith(mockStorage);
+
+      validatorSpy.mockRestore();
     });
   });
 

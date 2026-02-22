@@ -42,6 +42,7 @@ import {
   createLTLMonitorEvaluator,
   type LTLMonitorEvaluator,
 } from './ltl_monitor_evaluator.js';
+import { validateSeededPacks } from './seeded_pack_validation.js';
 import { logInfo, logWarning, logError } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 
@@ -519,6 +520,14 @@ export class HomeostasisDaemon {
         source: trigger.source,
         urgency: trigger.urgency,
       });
+
+      try {
+        await validateSeededPacks(this.storage);
+      } catch (validationError) {
+        logWarning('[homeostasis] Seeded-pack validation failed', {
+          error: getErrorMessage(validationError),
+        });
+      }
 
       // 1. Diagnose issues
       const plan = await this.diagnose(trigger);

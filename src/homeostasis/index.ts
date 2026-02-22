@@ -58,6 +58,12 @@ export {
   type MemoryBridgeHookResult,
 } from './memory_bridge_hook.js';
 
+export {
+  validateSeededPacks,
+  type SeededPackValidationOptions,
+  type SeededPackValidationResult,
+} from './seeded_pack_validation.js';
+
 // Re-export config self-healing for convenience
 export {
   diagnoseConfiguration,

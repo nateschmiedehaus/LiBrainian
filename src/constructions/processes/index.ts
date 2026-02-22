@@ -140,6 +140,14 @@ export {
 } from './provider_chaos_gate.js';
 
 export {
+  createSessionKnowledgeHarvestConstruction,
+  type SessionHarvestClaim,
+  type SessionKnowledgeHarvestInput,
+  type SessionKnowledgeHarvestOutput,
+  type SessionKnowledgeHarvestOptions,
+} from './session_knowledge_harvest_construction.js';
+
+export {
   createResultQualityJudgeConstruction,
   deriveResultQualityThresholds,
   type ResultQualityThresholdSeed,

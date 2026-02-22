@@ -16,6 +16,7 @@ import type {
   StorageCapabilities,
   QueryOptions,
   ContextPackQueryOptions,
+  ContextPackSeedLookupOptions,
   GraphEdgeQueryOptions,
   SimilaritySearchOptions,
   SimilarityResult,
@@ -624,6 +625,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       this.ensureFunctionBehaviorColumns();
       this.ensureContextPackOutcomeColumns();
       this.ensureContextPackVersioningColumns();
+      this.ensureContextPackSeedingColumns();
       this.ensureConfidenceEventColumns();
       this.ensureUniversalKnowledgeTable();
       this.ensureFileKnowledgeTable();
@@ -1153,6 +1155,39 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     if (!names.has('schema_version')) {
       db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1').run();
     }
+  }
+
+  private ensureContextPackSeedingColumns(): void {
+    const db = this.db;
+    if (!db) return;
+    const columns = db.prepare('PRAGMA table_info(librarian_context_packs)').all() as { name: string }[];
+    const names = new Set(columns.map((column) => column.name));
+
+    if (!names.has('intent_type')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN intent_type TEXT').run();
+    }
+    if (!names.has('scope')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN scope TEXT').run();
+    }
+    if (!names.has('provenance')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN provenance TEXT').run();
+    }
+    if (!names.has('token_estimate')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN token_estimate INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('source_construction_id')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN source_construction_id TEXT').run();
+    }
+    if (!names.has('session_id')) {
+      db.prepare('ALTER TABLE librarian_context_packs ADD COLUMN session_id TEXT').run();
+    }
+
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_packs_intent_scope ON librarian_context_packs(intent_type, scope, invalidated)'
+    ).run();
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_packs_provenance ON librarian_context_packs(provenance)'
+    ).run();
   }
 
   private ensureConfidenceEventColumns(): void {
@@ -1709,6 +1744,39 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     counts = mergeRedactionCounts(counts, lastOutcomeResult.counts);
     const versionStringResult = this.sanitizeString(normalizedPack.version.string);
     counts = mergeRedactionCounts(counts, versionStringResult.counts);
+    const intentTypeResult = normalizedPack.intentType
+      ? this.sanitizeString(normalizedPack.intentType)
+      : null;
+    if (intentTypeResult) {
+      counts = mergeRedactionCounts(counts, intentTypeResult.counts);
+    }
+    const scopeResult = normalizedPack.scope
+      ? this.sanitizeString(normalizedPack.scope)
+      : null;
+    if (scopeResult) {
+      counts = mergeRedactionCounts(counts, scopeResult.counts);
+    }
+    const provenanceResult = normalizedPack.provenance
+      ? this.sanitizeString(normalizedPack.provenance)
+      : null;
+    if (provenanceResult) {
+      counts = mergeRedactionCounts(counts, provenanceResult.counts);
+    }
+    const sourceConstructionIdResult = normalizedPack.sourceConstructionId
+      ? this.sanitizeString(normalizedPack.sourceConstructionId)
+      : null;
+    if (sourceConstructionIdResult) {
+      counts = mergeRedactionCounts(counts, sourceConstructionIdResult.counts);
+    }
+    const sessionIdResult = normalizedPack.sessionId
+      ? this.sanitizeString(normalizedPack.sessionId)
+      : null;
+    if (sessionIdResult) {
+      counts = mergeRedactionCounts(counts, sessionIdResult.counts);
+    }
+    const normalizedTokenEstimate = Number.isFinite(normalizedPack.tokenEstimate)
+      ? Math.max(0, Math.floor(normalizedPack.tokenEstimate ?? 0))
+      : 0;
 
     const snippetResults = normalizedPack.codeSnippets.map((snippet) => this.sanitizeSnippet(snippet));
     for (const snippetResult of snippetResults) {
@@ -1731,6 +1799,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
           string: versionStringResult.value,
         },
         invalidationTriggers: invalidationResult.values,
+        intentType: intentTypeResult?.value,
+        scope: scopeResult?.value,
+        provenance: provenanceResult?.value,
+        tokenEstimate: normalizedTokenEstimate,
+        sourceConstructionId: sourceConstructionIdResult?.value,
+        sessionId: sessionIdResult?.value,
       },
       counts,
     };
@@ -2947,6 +3021,54 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     return row ? rowToContextPack(row) : null;
   }
 
+  async findByIntentAndScope(
+    intentType: string,
+    scope: string,
+    options: ContextPackSeedLookupOptions = {}
+  ): Promise<ContextPack[]> {
+    const db = this.ensureDb();
+    const params: unknown[] = [intentType, scope];
+    let sql = `
+      SELECT *
+      FROM librarian_context_packs
+      WHERE intent_type = ?
+        AND scope = ?
+    `;
+    if (!options.includeInvalidated) {
+      sql += ' AND invalidated = 0';
+    }
+    sql += ' ORDER BY created_at DESC';
+    if (options.limit) {
+      sql += ' LIMIT ?';
+      params.push(options.limit);
+    }
+    const rows = db.prepare(sql).all(...params) as ContextPackRow[];
+    return rows.map(rowToContextPack);
+  }
+
+  async findByProvenance(
+    provenance: string,
+    options: ContextPackSeedLookupOptions = {}
+  ): Promise<ContextPack[]> {
+    const db = this.ensureDb();
+    const params: unknown[] = [provenance];
+    let sql = `
+      SELECT *
+      FROM librarian_context_packs
+      WHERE provenance = ?
+    `;
+    if (!options.includeInvalidated) {
+      sql += ' AND invalidated = 0';
+    }
+    sql += ' ORDER BY created_at DESC';
+    if (options.limit) {
+      sql += ' LIMIT ?';
+      params.push(options.limit);
+    }
+    const rows = db.prepare(sql).all(...params) as ContextPackRow[];
+    return rows.map(rowToContextPack);
+  }
+
   async upsertContextPack(pack: ContextPack): Promise<void> {
     const db = this.ensureDb();
     const { pack: sanitized, counts } = this.sanitizeContextPack(pack);
@@ -2955,12 +3077,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     db.prepare(`
       INSERT INTO librarian_context_packs (
-        pack_id, pack_type, target_id, summary, key_facts, code_snippets,
+        pack_id, pack_type, target_id, intent_type, scope, provenance, token_estimate,
+        source_construction_id, session_id, summary, key_facts, code_snippets,
         related_files, confidence, created_at, access_count, last_outcome,
         success_count, failure_count, version_string, content_hash, schema_version, invalidation_triggers,
         invalidated, last_verified_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(target_id, pack_type) DO UPDATE SET
+        intent_type = excluded.intent_type,
+        scope = excluded.scope,
+        provenance = excluded.provenance,
+        token_estimate = excluded.token_estimate,
+        source_construction_id = excluded.source_construction_id,
+        session_id = excluded.session_id,
         summary = excluded.summary,
         key_facts = excluded.key_facts,
         code_snippets = excluded.code_snippets,
@@ -2978,6 +3107,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       sanitized.packId,
       sanitized.packType,
       sanitized.targetId,
+      sanitized.intentType ?? null,
+      sanitized.scope ?? null,
+      sanitized.provenance ?? null,
+      sanitized.tokenEstimate ?? 0,
+      sanitized.sourceConstructionId ?? null,
+      sanitized.sessionId ?? null,
       sanitized.summary,
       JSON.stringify(sanitized.keyFacts),
       JSON.stringify(sanitized.codeSnippets),
@@ -7896,6 +8031,12 @@ interface ContextPackRow {
   pack_id: string;
   pack_type: string;
   target_id: string;
+  intent_type: string | null;
+  scope: string | null;
+  provenance: string | null;
+  token_estimate: number | null;
+  source_construction_id: string | null;
+  session_id: string | null;
   schema_version: number;
   content_hash: string;
   summary: string;
@@ -8240,6 +8381,12 @@ function computeContextPackContentHash(pack: ContextPack): string {
     schemaVersion: pack.schemaVersion ?? 1,
     packType: pack.packType,
     targetId: pack.targetId,
+    intentType: pack.intentType ?? null,
+    scope: pack.scope ?? null,
+    provenance: pack.provenance ?? null,
+    tokenEstimate: pack.tokenEstimate ?? 0,
+    sourceConstructionId: pack.sourceConstructionId ?? null,
+    sessionId: pack.sessionId ?? null,
     summary: pack.summary,
     keyFacts: [...pack.keyFacts],
     codeSnippets: pack.codeSnippets.map((snippet) => ({
@@ -8324,6 +8471,12 @@ function rowToContextPack(row: ContextPackRow): ContextPack {
     packId: row.pack_id,
     packType: row.pack_type as ContextPack['packType'],
     targetId: row.target_id,
+    intentType: row.intent_type ?? undefined,
+    scope: row.scope ?? undefined,
+    provenance: row.provenance ?? undefined,
+    tokenEstimate: row.token_estimate ?? undefined,
+    sourceConstructionId: row.source_construction_id ?? undefined,
+    sessionId: row.session_id ?? undefined,
     schemaVersion: row.schema_version ?? 1,
     contentHash: row.content_hash || undefined,
     summary: row.summary,

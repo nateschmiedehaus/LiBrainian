@@ -88,7 +88,10 @@ export {
 
 export {
   calibrated,
+  withContextPackSeeding,
   type CalibratedOptions,
+  type ContextPackSeedingMetadata,
+  type ContextPackSeedingOptions,
   type ImmediateConstructionOutcome,
 } from './integration-wrappers.js';
 

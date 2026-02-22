@@ -132,6 +132,8 @@ export interface LibrarianStorage {
   getContextPacks(options?: ContextPackQueryOptions): Promise<ContextPack[]>;
   getContextPack(packId: string): Promise<ContextPack | null>;
   getContextPackForTarget(targetId: string, packType: string): Promise<ContextPack | null>;
+  findByIntentAndScope(intentType: string, scope: string, options?: ContextPackSeedLookupOptions): Promise<ContextPack[]>;
+  findByProvenance(provenance: string, options?: ContextPackSeedLookupOptions): Promise<ContextPack[]>;
   upsertContextPack(pack: ContextPack): Promise<void>;
   invalidateContextPacks(triggerPath: string): Promise<number>;
   deleteContextPack(packId: string): Promise<void>;
@@ -457,6 +459,8 @@ export type KnowledgeStorage = Pick<
   | 'getContextPacks'
   | 'getContextPack'
   | 'getContextPackForTarget'
+  | 'findByIntentAndScope'
+  | 'findByProvenance'
   | 'upsertContextPack'
   | 'invalidateContextPacks'
   | 'deleteContextPack'
@@ -693,6 +697,11 @@ export interface ContextPackQueryOptions extends QueryOptions {
   relatedFilePrefix?: string;
   language?: string;
   excludeTests?: boolean;
+}
+
+export interface ContextPackSeedLookupOptions {
+  includeInvalidated?: boolean;
+  limit?: number;
 }
 
 /**

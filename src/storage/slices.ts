@@ -40,6 +40,8 @@ const SLICE_METHODS: SliceMethodMap = {
     'getContextPacks',
     'getContextPack',
     'getContextPackForTarget',
+    'findByIntentAndScope',
+    'findByProvenance',
     'upsertContextPack',
     'invalidateContextPacks',
     'deleteContextPack',

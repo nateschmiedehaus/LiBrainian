@@ -50,6 +50,12 @@ CREATE TABLE IF NOT EXISTS librarian_context_packs (
   pack_id TEXT PRIMARY KEY,
   pack_type TEXT NOT NULL,
   target_id TEXT NOT NULL,
+  intent_type TEXT,
+  scope TEXT,
+  provenance TEXT,
+  token_estimate INTEGER NOT NULL DEFAULT 0,
+  source_construction_id TEXT,
+  session_id TEXT,
   summary TEXT NOT NULL,
   key_facts TEXT NOT NULL,
   code_snippets TEXT NOT NULL,
@@ -70,6 +76,8 @@ CREATE TABLE IF NOT EXISTS librarian_context_packs (
 
 CREATE INDEX IF NOT EXISTS idx_packs_target ON librarian_context_packs(target_id);
 CREATE INDEX IF NOT EXISTS idx_packs_type ON librarian_context_packs(pack_type);
+CREATE INDEX IF NOT EXISTS idx_packs_intent_scope ON librarian_context_packs(intent_type, scope, invalidated);
+CREATE INDEX IF NOT EXISTS idx_packs_provenance ON librarian_context_packs(provenance);
 
 -- Embeddings table
 CREATE TABLE IF NOT EXISTS librarian_embeddings (

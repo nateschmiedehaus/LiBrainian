@@ -260,6 +260,12 @@ export interface ContextPack {
   packId: string;
   packType: ContextPackType;
   targetId: string; // Function/module ID this pack is for
+  intentType?: string;
+  scope?: string;
+  provenance?: string;
+  tokenEstimate?: number;
+  sourceConstructionId?: string;
+  sessionId?: string;
   schemaVersion?: number;
   contentHash?: string;
   summary: string;
