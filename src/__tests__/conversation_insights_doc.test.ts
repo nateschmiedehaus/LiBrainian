@@ -41,6 +41,11 @@ describe('conversation insights doc', () => {
     expect(content).toContain('before release-gate runs');
   });
 
+  it('contains a machine-readable checkpoint header', () => {
+    const content = readFileSync(insightsPath, 'utf8');
+    expect(content).toMatch(/<!--\s*checkpoint[\s\S]*?date:\s*.+\n[\s\S]*?gates_reconcile_sha:\s*.+\n[\s\S]*?claimed_status:\s*.+\n[\s\S]*?-->/);
+  });
+
   it('action items map to required categories and include concrete trace targets', () => {
     const content = readFileSync(insightsPath, 'utf8');
     const actionSection = extractSection(content, '## Action Items');

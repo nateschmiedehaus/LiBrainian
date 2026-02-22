@@ -16,6 +16,8 @@ describe('canonical npm scripts', () => {
     expect(scripts['tier1:dogfood']).toBeTypeOf('string');
     expect(scripts['complexity:check']).toBeTypeOf('string');
     expect(scripts['eval:publish-gate']).toBeTypeOf('string');
+    expect(scripts['validate:checkpoint']).toBeTypeOf('string');
+    expect(scripts['validate:checkpoint']).toBe('node scripts/validate-checkpoint.mjs');
     expect(scripts['eval:ab:agentic-bugfix:codex']).toBeTypeOf('string');
     expect(scripts['eval:live-fire:hardcore']).toBeTypeOf('string');
     expect(scripts['eval:use-cases:agentic']).toBeTypeOf('string');
@@ -32,6 +34,7 @@ describe('canonical npm scripts', () => {
     const scripts = pkg.scripts ?? {};
 
     expect(scripts['eval:publish-gate']).toContain('--zero-warning');
+    expect(scripts['eval:publish-gate']).toContain('npm run validate:checkpoint');
     expect(scripts['eval:publish-gate']).toContain('npm run canon:guard');
     expect(scripts['eval:publish-gate']).toContain('npm run complexity:check');
     expect(scripts['eval:ab:agentic']).toContain('--maxVerificationFallbackShare 0');

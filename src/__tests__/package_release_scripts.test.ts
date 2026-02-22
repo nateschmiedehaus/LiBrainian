@@ -51,11 +51,13 @@ describe('package release scripts', () => {
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
     expect(scripts['evidence:freshness-check']).toBe('node scripts/check-evidence-freshness.mjs');
     expect(scripts['evidence:assert-gates']).toBe('node scripts/assert-gates-verified.mjs');
+    expect(scripts['validate:checkpoint']).toBe('node scripts/validate-checkpoint.mjs');
     expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
     expect(scripts['evidence:verify']).toBe('npm run evidence:sync && npm run evidence:freshness-check && npm run evidence:assert-gates');
     expect(scripts['eval:publish-gate']).toContain('npm run evidence:refresh');
     expect(scripts['eval:publish-gate']).toContain('npm run evidence:freshness-check');
     expect(scripts['eval:publish-gate']).toContain('npm run evidence:assert-gates');
+    expect(scripts['eval:publish-gate']).toContain('npm run validate:checkpoint');
     expect(scripts['eval:trial-by-fire:publish']).toContain('npm run evidence:verify');
     expect(scripts['issues:plan']).toBe(
       'node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json'
@@ -79,6 +81,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-freshness-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-external-blackbox-e2e.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'validate-checkpoint.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-harness.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-triage.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-reality-gate.mjs'))).toBe(true);

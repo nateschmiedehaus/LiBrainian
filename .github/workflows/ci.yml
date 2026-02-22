@@ -177,6 +177,9 @@ jobs:
       - name: Assert zero unverified gates
         run: npm run evidence:assert-gates
 
+      - name: Validate conversation checkpoint
+        run: npm run validate:checkpoint
+
       - name: Performance SLA benchmark gate
         run: node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts benchmark --queries 4 --incremental-files 5 --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
 

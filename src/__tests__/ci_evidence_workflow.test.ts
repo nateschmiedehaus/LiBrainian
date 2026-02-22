@@ -12,5 +12,6 @@ describe('ci evidence workflow', () => {
     expect(workflow).toContain('npm run evidence:sync');
     expect(workflow).toContain('npm run evidence:freshness-check');
     expect(workflow).toContain('npm run evidence:assert-gates');
+    expect(workflow).toContain('npm run validate:checkpoint');
   });
 });

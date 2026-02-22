@@ -153,6 +153,12 @@
   - Release gate now reflects measured reality instead of passing on an A/B saturated-success/negative-efficiency loophole.
   - Next required work is not gate-massage; it is improving treatment performance on real T3+ workloads so the stricter gate passes.
 
+<!-- checkpoint
+date: 2026-02-17T00:00:00Z
+gates_reconcile_sha: 71e28e2e8e1567aeed2036a26e2dc026ea82cb55
+claimed_status: passed
+-->
+
 ## Checkpoint 2026-02-17 (A/B Efficiency Remediation for Strict Release)
 - Root cause for failed strict chain after gate hardening was treatment inefficiency in saturated-success A/B runs (ceiling mode), not correctness failures.
 - Implemented A/B runtime hardening for real agent command runs:
