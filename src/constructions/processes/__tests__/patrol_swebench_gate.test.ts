@@ -3,17 +3,18 @@ import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createPatrolSwebenchGateConstruction } from '../patrol_swebench_gate.js';
+import { unwrapConstructionExecutionResult } from '../../types.js';
 
 describe('Patrol SWE-bench Gate', () => {
   it('generates and evaluates at least three FAIL_TO_PASS + PASS_TO_PASS pairs', async () => {
     const artifactRoot = await mkdtemp(path.join(tmpdir(), 'patrol-swebench-gate-'));
     try {
       const gate = createPatrolSwebenchGateConstruction();
-      const result = await gate.execute({
+      const result = unwrapConstructionExecutionResult(await gate.execute({
         minPairCount: 3,
         executeVerificationCommands: false,
         outputPath: path.join(artifactRoot, 'pairs.generated.json'),
-      });
+      }));
 
       expect(result.kind).toBe('PatrolSwebenchGateResult.v1');
       expect(result.pairCount).toBeGreaterThanOrEqual(3);

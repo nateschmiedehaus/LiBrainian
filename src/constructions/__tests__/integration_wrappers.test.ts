@@ -4,7 +4,10 @@ import { createSessionId, SqliteEvidenceLedger } from '../../epistemics/evidence
 import { ConstructionError } from '../base/construction_base.js';
 import { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { calibrated } from '../integration-wrappers.js';
-import type { Construction } from '../types.js';
+import {
+  unwrapConstructionExecutionResult,
+  type Construction,
+} from '../types.js';
 
 type TestResult = {
   confidence: ConfidenceValue;
@@ -62,9 +65,9 @@ describe('calibrated integration wrapper', () => {
       }
     );
 
-    const execution = await wrapped.execute(1);
-    expect((execution as TestResult).predictionId).toBeTruthy();
-    const confidence = getNumericValue((execution as TestResult).confidence);
+    const execution = unwrapConstructionExecutionResult(await wrapped.execute(1));
+    expect(execution.predictionId).toBeTruthy();
+    const confidence = getNumericValue(execution.confidence);
     expect(confidence).not.toBeNull();
     expect(confidence).not.toBeCloseTo(0.9, 4);
 
@@ -84,9 +87,9 @@ describe('calibrated integration wrapper', () => {
     }
 
     const wrapped = calibrated(createBaseConstruction(constructionId, 0.7), tracker);
-    const execution = await wrapped.execute(1);
+    const execution = unwrapConstructionExecutionResult(await wrapped.execute(1));
 
-    const confidence = getNumericValue((execution as TestResult).confidence);
+    const confidence = getNumericValue(execution.confidence);
     expect(confidence).toBeCloseTo(0.7, 4);
   });
 
@@ -112,8 +115,8 @@ describe('calibrated integration wrapper', () => {
       ledger,
       outcomeEventTypes: ['outcome'],
     });
-    const execution = await wrapped.execute(7);
-    const predictionId = (execution as TestResult).predictionId;
+    const execution = unwrapConstructionExecutionResult(await wrapped.execute(7));
+    const predictionId = execution.predictionId;
     expect(predictionId).toBeTruthy();
 
     await ledger.append({

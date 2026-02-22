@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createBootstrapQualityGateConstruction } from '../bootstrap_quality_gate.js';
+import { unwrapConstructionExecutionResult } from '../../types.js';
 
 const tempRoots: string[] = [];
 
@@ -45,14 +46,14 @@ describe('Bootstrap Quality Gate', () => {
     });
 
     const gate = createBootstrapQualityGateConstruction();
-    const result = await gate.execute({
+    const result = unwrapConstructionExecutionResult(await gate.execute({
       fixtures: [
         { name: 'ts-fixture', language: 'typescript', repoPath: tsFixture },
         { name: 'py-fixture', language: 'python', repoPath: pyFixture },
         { name: 'c-fixture', language: 'c', repoPath: cFixture },
       ],
       timeoutMs: 120_000,
-    });
+    }));
 
     expect(result.kind).toBe('BootstrapQualityGateResult.v1');
     expect(result.fixtures).toHaveLength(3);

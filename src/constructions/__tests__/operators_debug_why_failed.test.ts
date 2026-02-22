@@ -5,7 +5,7 @@ import {
   type ConstructionError,
 } from '../base/construction_base.js';
 import { seq } from '../operators.js';
-import type { Construction } from '../types.js';
+import { isConstructionOutcome, type Construction } from '../types.js';
 
 function makeConstruction(
   id: string,
@@ -29,7 +29,15 @@ describe('construction diagnostics operators', () => {
     expect(debugged).toBeDefined();
 
     const result = await debugged!.execute(2);
-    expect(result).toBe(9);
+    if (isConstructionOutcome<number, ConstructionError>(result)) {
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        throw result.error;
+      }
+      expect(result.value).toBe(9);
+    } else {
+      expect(result).toBe(9);
+    }
 
     const trace = (debugged as any).getLastTrace?.();
     expect(trace).toBeTruthy();
@@ -66,7 +74,16 @@ describe('construction diagnostics operators', () => {
       includeSuccessfulSteps: false,
     });
 
-    await expect(debugged!.execute(1)).rejects.toThrow('Missing required capability: git.commit');
+    const execution = await debugged!.execute(1);
+    expect(isConstructionOutcome<number, ConstructionError>(execution)).toBe(true);
+    if (!isConstructionOutcome<number, ConstructionError>(execution)) {
+      throw new Error('Expected ConstructionOutcome from debugged sequence execution');
+    }
+    expect(execution.ok).toBe(false);
+    if (execution.ok) {
+      throw new Error('Expected failed outcome');
+    }
+    expect(execution.error.message).toContain('Missing required capability: git.commit');
 
     const trace = (debugged as any).getLastTrace?.();
     expect(trace).toBeTruthy();

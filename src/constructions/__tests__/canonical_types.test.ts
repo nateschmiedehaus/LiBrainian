@@ -3,7 +3,21 @@ import { deterministic } from '../../epistemics/confidence.js';
 import { sequence } from '../composition.js';
 import { BaseConstruction, type ConstructionResult } from '../base/construction_base.js';
 import { identity, seq } from '../operators.js';
-import type { Construction, Context } from '../types.js';
+import {
+  isConstructionOutcome,
+  type Construction,
+  type Context,
+} from '../types.js';
+
+function resolveExecutionResult<T>(value: unknown): T {
+  if (isConstructionOutcome<T>(value)) {
+    if (value.ok) {
+      return value.value;
+    }
+    throw value.error;
+  }
+  return value as T;
+}
 
 class ExampleConstruction extends BaseConstruction<number, ConstructionResult & { data: number }> {
   readonly CONSTRUCTION_ID = 'example_construction';
@@ -31,7 +45,9 @@ describe('canonical construction interface bridge', () => {
       signal: new AbortController().signal,
       sessionId: 'sess-test',
     };
-    const result = await adapted.execute(3, context);
+    const result = resolveExecutionResult<ConstructionResult & { data: number }>(
+      await adapted.execute(3, context),
+    );
     expect(result.data).toBe(6);
   });
 
@@ -65,7 +81,9 @@ describe('canonical construction interface bridge', () => {
     };
 
     const composed = sequence(first, second);
-    const result = await composed.execute(2);
+    const result = resolveExecutionResult<ConstructionResult & { data: number }>(
+      await composed.execute(2),
+    );
     expect(result.data).toBe(12);
   });
 
@@ -76,11 +94,13 @@ describe('canonical construction interface bridge', () => {
       wrapped
     );
 
-    const result = await chain.execute(7, {
-      deps: { librarian: {} as any },
-      signal: new AbortController().signal,
-      sessionId: 'sess-op',
-    });
+    const result = resolveExecutionResult<ConstructionResult & { data: number }>(
+      await chain.execute(7, {
+        deps: { librarian: {} as any },
+        signal: new AbortController().signal,
+        sessionId: 'sess-op',
+      }),
+    );
 
     expect(result.data).toBe(14);
   });

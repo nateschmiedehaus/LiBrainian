@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createCliOutputSanityGateConstruction } from '../cli_output_sanity_gate.js';
+import { unwrapConstructionExecutionResult } from '../../types.js';
 
 describe('CLI Output Sanity Gate', () => {
   it('validates CLI output quality, exit-code behavior, and help consistency', async () => {
     const gate = createCliOutputSanityGateConstruction();
-    const result = await gate.execute({
+    const result = unwrapConstructionExecutionResult(await gate.execute({
       registeredCommands: ['help', 'status', 'query', 'features', 'capabilities'],
       commandTimeoutMs: 20_000,
       maxDurationMs: 120_000,
-    });
+    }));
 
     expect(result.kind).toBe('CliOutputSanityGateResult.v1');
     expect(result.commandCount).toBeGreaterThanOrEqual(6);

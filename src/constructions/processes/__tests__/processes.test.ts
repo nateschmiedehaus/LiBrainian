@@ -8,6 +8,7 @@ import {
   type ProcessInput,
   type ProcessOutput,
 } from '../index.js';
+import { unwrapConstructionExecutionResult } from '../../types.js';
 
 interface DemoInput extends ProcessInput {
   fail?: boolean;
@@ -86,17 +87,17 @@ describe('process constructions', () => {
       'PATROL_OBSERVATION_JSON_END',
     ].join('\n');
 
-    const result = await extractor.execute({ output });
+    const result = unwrapConstructionExecutionResult(await extractor.execute({ output }));
     expect(result.incrementalObservations).toHaveLength(1);
     expect(result.fullObservation?.overallVerdict).toBeTruthy();
   });
 
   it('runs patrol process in dry-run mode', async () => {
     const patrol = createPatrolProcessConstruction();
-    const result = await patrol.execute({
+    const result = unwrapConstructionExecutionResult(await patrol.execute({
       mode: 'quick',
       dryRun: true,
-    });
+    }));
 
     expect(result.report.kind).toBe('PatrolReport.v1');
     expect(result.exitReason).toBe('dry_run');
@@ -105,7 +106,7 @@ describe('process constructions', () => {
 
   it('returns preset process plans in dry-run mode', async () => {
     const preset = createCodeReviewPipelineConstruction();
-    const result = await preset.execute({ dryRun: true });
+    const result = unwrapConstructionExecutionResult(await preset.execute({ dryRun: true }));
 
     expect(result.preset).toBe('code-review-pipeline');
     expect(result.executed).toBe(false);
@@ -114,7 +115,7 @@ describe('process constructions', () => {
 
   it('guarantees cleanup execution even on failure', async () => {
     const demo = new DemoProcess();
-    const result = await demo.execute({ fail: true });
+    const result = unwrapConstructionExecutionResult(await demo.execute({ fail: true }));
 
     expect(result.exitReason).toBe('failed');
     expect(demo.getCleanupCount()).toBe(1);
