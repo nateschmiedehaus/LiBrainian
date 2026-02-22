@@ -47,6 +47,124 @@ function extractLockSignals(text) {
   return [...new Set(signals)];
 }
 
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseElapsedSeconds(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return 0;
+  if (/^\d+$/u.test(text)) return Number(text);
+  let days = 0;
+  let rest = text;
+  if (text.includes('-')) {
+    const [dayPart, timePart] = text.split('-', 2);
+    days = Number(dayPart);
+    rest = timePart ?? '';
+  }
+  const pieces = rest.split(':').map((part) => Number(part));
+  if (pieces.some((piece) => Number.isNaN(piece))) return 0;
+  let hours = 0;
+  let minutes = 0;
+  let seconds = 0;
+  if (pieces.length === 3) {
+    [hours, minutes, seconds] = pieces;
+  } else if (pieces.length === 2) {
+    [minutes, seconds] = pieces;
+  } else if (pieces.length === 1) {
+    [seconds] = pieces;
+  }
+  return (days * 86400) + (hours * 3600) + (minutes * 60) + seconds;
+}
+
+function parsePsTable() {
+  if (process.platform === 'win32') {
+    return [];
+  }
+  const attempts = [
+    ['-axo', 'pid=,ppid=,user=,etimes=,command='],
+    ['-axo', 'pid=,ppid=,user=,etime=,command='],
+  ];
+  let stdout = '';
+  for (const args of attempts) {
+    const result = spawnSync('ps', args, {
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if ((result.status ?? 1) === 0 && result.stdout) {
+      stdout = result.stdout;
+      break;
+    }
+  }
+  if (!stdout) {
+    return [];
+  }
+  const rows = [];
+  for (const rawLine of stdout.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(.*)$/u);
+    const fallbackMatch = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+([0-9:-]+)\s+(.*)$/u);
+    const tokens = match ?? fallbackMatch;
+    if (!tokens) continue;
+    const [, pidRaw, ppidRaw, user, elapsedRaw, command] = tokens;
+    const elapsedSec = parseElapsedSeconds(elapsedRaw);
+    rows.push({
+      pid: Number(pidRaw),
+      ppid: Number(ppidRaw),
+      user,
+      elapsedSec,
+      command: command.trim(),
+    });
+  }
+  return rows;
+}
+
+function collectProcessDiagnostics(rootPid) {
+  const table = parsePsTable();
+  const byPid = new Map(table.map((row) => [row.pid, row]));
+  const descendants = [];
+  const queue = [rootPid];
+  const seen = new Set();
+  while (queue.length > 0) {
+    const currentPid = queue.shift();
+    if (!currentPid || seen.has(currentPid)) continue;
+    seen.add(currentPid);
+    const row = byPid.get(currentPid);
+    if (row) descendants.push(row);
+    for (const candidate of table) {
+      if (candidate.ppid === currentPid && !seen.has(candidate.pid)) {
+        queue.push(candidate.pid);
+      }
+    }
+  }
+
+  const lineage = [];
+  let cursor = byPid.get(rootPid);
+  while (cursor) {
+    lineage.push(cursor);
+    if (cursor.ppid <= 1 || lineage.length >= 20) break;
+    cursor = byPid.get(cursor.ppid);
+  }
+
+  return {
+    capturedAt: new Date().toISOString(),
+    rootPid,
+    lineage,
+    descendants,
+  };
+}
+
+function isPidAlive(pid) {
+  if (!pid || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function parseArgs(argv) {
   let artifact = 'state/dogfood/clean-clone-self-hosting.json';
   let sourceWorkspace = process.cwd();
@@ -187,15 +305,16 @@ function run(command, args, options = {}) {
 
 function terminateProcessGroup(child, signal) {
   const pid = child.pid;
-  if (!pid || pid <= 0) return;
+  if (!pid || pid <= 0) return { ok: false, error: 'missing_pid' };
   try {
     if (process.platform === 'win32') {
       process.kill(pid, signal);
     } else {
       process.kill(-pid, signal);
     }
+    return { ok: true, error: null };
   } catch {
-    // Best-effort termination only.
+    return { ok: false, error: `signal_failed:${signal}` };
   }
 }
 
@@ -222,17 +341,59 @@ async function runStreaming(command, args, options = {}) {
   let lastActivityAt = Date.now();
   const timeoutMs = options.timeoutMs;
   const stallTimeoutMs = options.stallTimeoutMs;
+  const heartbeatTimeline = [];
+  const stageTimeline = [];
+  const stageSeen = new Set();
+  let terminationReason = null;
+  let recoveryAudit = null;
+
+  const pushHeartbeat = (event, details = {}) => {
+    if (heartbeatTimeline.length >= 500) return;
+    heartbeatTimeline.push({
+      event,
+      atMs: Date.now() - startedAt,
+      ...details,
+    });
+  };
+  const stageMatchers = [
+    { stage: 'bootstrap_banner', pattern: /LiBrainian Bootstrap/iu },
+    { stage: 'preflight_checks', pattern: /Running pre-flight checks/iu },
+    { stage: 'bootstrap_start', pattern: /Starting bootstrap process/iu },
+    { stage: 'bootstrap_complete', pattern: /Bootstrap process completed/iu },
+  ];
+  const parseStages = (text, stream) => {
+    for (const rawLine of String(text).split(/\r?\n/gu)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      for (const matcher of stageMatchers) {
+        if (matcher.pattern.test(line) && !stageSeen.has(matcher.stage)) {
+          stageSeen.add(matcher.stage);
+          stageTimeline.push({
+            stage: matcher.stage,
+            stream,
+            line,
+            atMs: Date.now() - startedAt,
+          });
+        }
+      }
+    }
+  };
+  pushHeartbeat('spawned', { pid: child.pid ?? null });
 
   const onStdout = (chunk) => {
     const text = String(chunk);
     stdout += text;
     lastActivityAt = Date.now();
+    pushHeartbeat('stdout_chunk', { bytes: text.length });
+    parseStages(text, 'stdout');
     if (options.stdio === 'inherit') process.stdout.write(text);
   };
   const onStderr = (chunk) => {
     const text = String(chunk);
     stderr += text;
     lastActivityAt = Date.now();
+    pushHeartbeat('stderr_chunk', { bytes: text.length });
+    parseStages(text, 'stderr');
     if (options.stdio === 'inherit') process.stderr.write(text);
   };
 
@@ -242,10 +403,47 @@ async function runStreaming(command, args, options = {}) {
   const terminateChild = (reason) => {
     if (terminated) return;
     terminated = true;
+    terminationReason = reason;
     if (reason === 'timeout') timedOut = true;
     if (reason === 'stall') stalled = true;
-    terminateProcessGroup(child, 'SIGTERM');
-    setTimeout(() => terminateProcessGroup(child, 'SIGKILL'), 2000);
+    const pid = child.pid ?? null;
+    const preDiagnostics = pid ? collectProcessDiagnostics(pid) : null;
+    const targetPids = preDiagnostics
+      ? preDiagnostics.descendants.map((entry) => entry.pid)
+      : [];
+    recoveryAudit = {
+      reason,
+      policy: 'scoped_process_group_only',
+      scopeRootPid: pid,
+      stageAtTermination: stageTimeline.length > 0 ? stageTimeline[stageTimeline.length - 1].stage : null,
+      preTermination: preDiagnostics,
+      targetDescendantPids: targetPids,
+      unrelatedTerminationPrevented: true,
+      actions: [],
+      postTermination: null,
+      targetStillAlivePids: [],
+    };
+    pushHeartbeat('termination_requested', {
+      reason,
+      pid,
+      targetCount: targetPids.length,
+    });
+    const sigterm = terminateProcessGroup(child, 'SIGTERM');
+    recoveryAudit.actions.push({
+      signal: 'SIGTERM',
+      ok: sigterm.ok,
+      error: sigterm.error,
+      atMs: Date.now() - startedAt,
+    });
+    setTimeout(() => {
+      const sigkill = terminateProcessGroup(child, 'SIGKILL');
+      recoveryAudit.actions.push({
+        signal: 'SIGKILL',
+        ok: sigkill.ok,
+        error: sigkill.error,
+        atMs: Date.now() - startedAt,
+      });
+    }, 2000);
   };
 
   const timeoutHandle = timeoutMs && timeoutMs > 0
@@ -262,13 +460,21 @@ async function runStreaming(command, args, options = {}) {
   const status = await new Promise((resolve) => {
     child.on('error', (error) => {
       spawnError = error;
+      pushHeartbeat('child_error', { message: getErrorMessage(error) });
       terminateChild('spawn_error');
     });
-    child.on('close', (code) => resolve(code ?? 1));
+    child.on('close', (code) => {
+      pushHeartbeat('close', { code: code ?? 1 });
+      resolve(code ?? 1);
+    });
   });
 
   if (timeoutHandle) clearTimeout(timeoutHandle);
   if (stallHandle) clearInterval(stallHandle);
+  if (recoveryAudit && recoveryAudit.scopeRootPid) {
+    recoveryAudit.postTermination = collectProcessDiagnostics(recoveryAudit.scopeRootPid);
+    recoveryAudit.targetStillAlivePids = recoveryAudit.targetDescendantPids.filter((pid) => isPidAlive(pid));
+  }
 
   const trimmedStdout = stdout.trim();
   const trimmedStderr = stderr.trim();
@@ -282,8 +488,12 @@ async function runStreaming(command, args, options = {}) {
     cwd,
     timedOut,
     stalled,
+    terminationReason,
     stallTimeoutMs: stallTimeoutMs ?? null,
     spawnError: spawnError instanceof Error ? spawnError.message : null,
+    heartbeatTimeline,
+    stageTimeline,
+    recoveryAudit,
   };
 
   if ((result.status ?? 1) !== 0 && !options.allowFailure) {
@@ -395,7 +605,11 @@ function commandRecord(name, result, pass, extra = {}) {
     lockSignals,
     timedOut: Boolean(result.timedOut),
     stalled: Boolean(result.stalled),
+    terminationReason: result.terminationReason ?? null,
     stallTimeoutMs: result.stallTimeoutMs ?? null,
+    heartbeatTimeline: Array.isArray(result.heartbeatTimeline) ? result.heartbeatTimeline : [],
+    stageTimeline: Array.isArray(result.stageTimeline) ? result.stageTimeline : [],
+    recoveryAudit: result.recoveryAudit ?? null,
     ...extra,
   };
 }
@@ -512,7 +726,7 @@ async function main() {
     commands.push(commandRecord('librainian.bootstrap', bootstrapResult, bootstrapResult.status === 0));
     if (bootstrapResult.status !== 0) {
       if (bootstrapResult.stalled) {
-        fail(`Bootstrap stalled: no output for ${bootstrapStallTimeoutMs}ms`);
+        fail(`stall_detected: bootstrap produced no output for ${bootstrapStallTimeoutMs}ms`);
       }
       fail(`Bootstrap failed: ${toSingleLine(bootstrapResult.stderr || bootstrapResult.stdout)}`);
     }
