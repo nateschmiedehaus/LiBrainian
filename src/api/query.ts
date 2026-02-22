@@ -1762,11 +1762,14 @@ export async function queryLibrarian(
       recordCoverageGap,
     });
 
-    const providerSnapshot = await checkProviderSnapshot({
-      workspaceRoot,
-      ledger: traceOptions.evidenceLedger,
-      sessionId: traceSessionId,
-    });
+    const skipProviderSnapshot = llmRequirement === 'disabled' && query.embeddingRequirement === 'disabled';
+    const providerSnapshot = skipProviderSnapshot
+      ? null
+      : await checkProviderSnapshot({
+          workspaceRoot,
+          ledger: traceOptions.evidenceLedger,
+          sessionId: traceSessionId,
+        });
 
     const { disclosures: watchDisclosures, health: watchHealth, state: watchState } = await buildWatchDisclosures({
       storage,
@@ -1781,8 +1784,8 @@ export async function queryLibrarian(
         'Ensure watch mode is healthy or re-run bootstrap for fresh indexing.'
       );
     }
-    const embeddingProviderReady = providerSnapshot.status.embedding.available;
-    const llmProviderReady = providerSnapshot.status.llm.available;
+    const embeddingProviderReady = providerSnapshot?.status.embedding.available ?? false;
+    const llmProviderReady = providerSnapshot?.status.llm.available ?? false;
     let embeddingDisclosureAdded = false;
     if (!embeddingProviderReady && !embeddingRequirementExplicit && embeddingRequirement === 'required') {
       embeddingRequirement = 'optional';
@@ -1808,20 +1811,20 @@ export async function queryLibrarian(
     if (llmRequirement === 'required' && !llmProviderReady) {
       throw new ProviderUnavailableError({
         message: 'unverified_by_trace(provider_unavailable): LLM provider unavailable',
-        missing: [`LLM: ${providerSnapshot.status.llm.error ?? 'unavailable'}`],
+        missing: [`LLM: ${providerSnapshot?.status.llm.error ?? 'unavailable'}`],
         suggestion:
-          providerSnapshot.remediationSteps.join(' ') ||
-          providerSnapshot.reason ||
+          providerSnapshot?.remediationSteps.join(' ') ||
+          providerSnapshot?.reason ||
           'Authenticate providers via CLI (Claude: `claude setup-token` or run `claude`; Codex: `codex login`).',
       });
     }
     if (embeddingsRequired && !embeddingProviderReady && query.embeddingRequirement === 'required') {
       throw new ProviderUnavailableError({
         message: 'unverified_by_trace(provider_unavailable): Embedding provider unavailable',
-        missing: [`Embedding: ${providerSnapshot.status.embedding.error ?? 'unavailable'}`],
+        missing: [`Embedding: ${providerSnapshot?.status.embedding.error ?? 'unavailable'}`],
         suggestion:
-          providerSnapshot.remediationSteps.join(' ') ||
-          providerSnapshot.reason ||
+          providerSnapshot?.remediationSteps.join(' ') ||
+          providerSnapshot?.reason ||
           'Install embedding providers (xenova/transformers) or configure sentence-transformers.',
       });
     }
@@ -1829,15 +1832,15 @@ export async function queryLibrarian(
     if (llmRequirement === 'optional') {
       llmAvailable = llmProviderReady;
       if (!llmAvailable) {
-        llmProviderError = providerSnapshot.status.llm.error ?? 'LLM provider unavailable';
+        llmProviderError = providerSnapshot?.status.llm.error ?? 'LLM provider unavailable';
         recordCoverageGap(
           'synthesis',
-          `LLM unavailable: ${providerSnapshot.status.llm.error ?? 'not configured'}.`,
+          `LLM unavailable: ${providerSnapshot?.status.llm.error ?? 'not configured'}.`,
           'moderate',
           'Authenticate a live LLM provider (Claude: `claude setup-token` or run `claude`; Codex: `codex login`).'
         );
         disclosures.push(
-          `unverified_by_trace(llm_unavailable): ${providerSnapshot.status.llm.error ?? 'LLM provider unavailable'}`
+          `unverified_by_trace(llm_unavailable): ${providerSnapshot?.status.llm.error ?? 'LLM provider unavailable'}`
         );
       }
     } else if (llmRequirement === 'disabled') {
@@ -1855,7 +1858,7 @@ export async function queryLibrarian(
       query.embeddingRequirement !== 'disabled' && embeddingProviderReady && capabilities.optional.embeddings;
     if (wantsSemanticRetrieval && !embeddingsAvailable && !shouldRunExhaustive) {
       const reason = capabilities.optional.embeddings
-        ? providerSnapshot.status.embedding.error ?? 'Embedding provider unavailable'
+        ? providerSnapshot?.status.embedding.error ?? 'Embedding provider unavailable'
         : 'Embedding retrieval unsupported by storage';
       recordCoverageGap('semantic_retrieval', reason, 'significant');
       if (!embeddingDisclosureAdded) {

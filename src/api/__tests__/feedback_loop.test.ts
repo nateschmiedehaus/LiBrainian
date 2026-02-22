@@ -15,8 +15,7 @@
  * - Increase confidence for relevant results (+0.05 × usefulness)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 // Mock provider_check.js to fail fast instead of timing out
 vi.mock('../provider_check.js', () => ({
@@ -50,7 +49,6 @@ vi.mock('../provider_check.js', () => ({
   },
 }));
 import path from 'node:path';
-import os from 'node:os';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { processAgentFeedback } from '../../integration/agent_feedback.js';
 import type { AgentFeedback } from '../../integration/agent_feedback.js';
@@ -62,14 +60,29 @@ const workspaceRoot = process.cwd();
 const FEEDBACK_HOOK_TIMEOUT_MS = 30000;
 const FEEDBACK_TEST_TIMEOUT_MS = 60000;
 
-// Use unique temp DB paths to avoid lock contention
-function getTempDbPath(): string {
-  return path.join(os.tmpdir(), `librarian-test-${randomUUID()}.db`);
+let sharedStorage: LibrarianStorage | null = null;
+
+async function getSharedStorage(): Promise<LibrarianStorage> {
+  if (sharedStorage === null) {
+    sharedStorage = createSqliteStorage(':memory:');
+    await sharedStorage.initialize();
+  }
+
+  return sharedStorage;
 }
 
+afterAll(async () => {
+  await sharedStorage?.close?.();
+  sharedStorage = null;
+}, FEEDBACK_HOOK_TIMEOUT_MS);
+
 async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: string): Promise<void> {
+  const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const functionId = `fn-feedback-${uniqueId}`;
+  const packId = `pack-feedback-${uniqueId}`;
+
   await storage.upsertFunction({
-    id: 'fn-feedback-1',
+    id: functionId,
     filePath: path.join(workspaceRoot, relatedFile),
     name: 'feedbackTest',
     signature: 'feedbackTest(): void',
@@ -83,9 +96,9 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
     outcomeHistory: { successes: 0, failures: 0 },
   });
   await storage.upsertContextPack({
-    packId: 'pack-feedback-1',
+    packId,
     packType: 'function_context',
-    targetId: 'fn-feedback-1',
+    targetId: functionId,
     summary: 'Feedback loop context pack',
     keyFacts: ['Used to validate query envelope'],
     codeSnippets: [],
@@ -101,41 +114,38 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
   });
 }
 
-describe('Feedback Loop Integration', () => {
+describe.sequential('Feedback Loop Integration', () => {
   describe('feedbackToken in query response', () => {
     let storage: LibrarianStorage;
 
-    afterEach(async () => {
-      await storage?.close?.();
-    }, FEEDBACK_HOOK_TIMEOUT_MS);
-
     it('query response includes feedbackToken', async () => {
       const { queryLibrarian } = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      const providerCheckModule = await import('../provider_check.js');
+      vi.mocked(providerCheckModule.checkProviderSnapshot).mockClear();
+      storage = await getSharedStorage();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       // Run a simple query
       const result = await queryLibrarian(
-        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        { intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
 
       expect(result.feedbackToken).toBeDefined();
       expect(typeof result.feedbackToken).toBe('string');
       expect((result.feedbackToken as string).length).toBeGreaterThan(8);
+      expect(providerCheckModule.checkProviderSnapshot).not.toHaveBeenCalled();
     }, FEEDBACK_TEST_TIMEOUT_MS);
 
     it('feedbackToken is unique per query', async () => {
       const { queryLibrarian } = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      storage = await getSharedStorage();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       // Run two identical queries
       const [result1, result2] = await Promise.all([
-        queryLibrarian({ intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
-        queryLibrarian({ intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
+        queryLibrarian({ intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
+        queryLibrarian({ intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] }, storage),
       ]);
 
       expect(result1.feedbackToken).not.toBe(result2.feedbackToken);
@@ -143,12 +153,11 @@ describe('Feedback Loop Integration', () => {
 
     it('query response includes required envelope fields', async () => {
       const { queryLibrarian } = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      storage = await getSharedStorage();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       const result = await queryLibrarian(
-        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        { intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
 
@@ -164,16 +173,15 @@ describe('Feedback Loop Integration', () => {
 
     it('records query access logs when retrieval targets are returned', async () => {
       const { queryLibrarian } = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      storage = await getSharedStorage();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       const firstResult = await queryLibrarian(
-        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        { intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
       const secondResult = await queryLibrarian(
-        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        { intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage
       );
 
@@ -199,8 +207,7 @@ describe('Feedback Loop Integration', () => {
 
     it('records construction plan evidence when ledger is provided', async () => {
       const { queryLibrarian } = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      storage = await getSharedStorage();
       await seedStorageForQuery(storage, 'src/auth.ts');
 
       const ledger = new SqliteEvidenceLedger(':memory:');
@@ -208,7 +215,7 @@ describe('Feedback Loop Integration', () => {
       const sessionId = createSessionId('sess_query_construction_plan');
 
       const result = await queryLibrarian(
-        { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
+        { intent: 'lookup query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
         storage,
         undefined,
         undefined,
@@ -231,12 +238,7 @@ describe('Feedback Loop Integration', () => {
     let storage: LibrarianStorage;
 
     beforeEach(async () => {
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
-    }, FEEDBACK_HOOK_TIMEOUT_MS);
-
-    afterEach(async () => {
-      await storage?.close?.();
+      storage = await getSharedStorage();
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('processAgentFeedback records confidence event', async () => {
@@ -245,7 +247,7 @@ describe('Feedback Loop Integration', () => {
       await storage.upsertContextPack({
         packId: testPackId,
         packType: 'function_context',
-        targetId: 'test-target',
+        targetId: `${testPackId}-target`,
         summary: 'Test pack',
         keyFacts: [],
         codeSnippets: [],
@@ -282,7 +284,7 @@ describe('Feedback Loop Integration', () => {
       await storage.upsertContextPack({
         packId: testPackId,
         packType: 'function_context',
-        targetId: 'test-target',
+        targetId: `${testPackId}-target`,
         summary: 'Test pack',
         keyFacts: [],
         codeSnippets: [],
@@ -317,7 +319,7 @@ describe('Feedback Loop Integration', () => {
       await storage.upsertContextPack({
         packId: testPackId,
         packType: 'function_context',
-        targetId: 'test-target',
+        targetId: `${testPackId}-target`,
         summary: 'Test pack',
         keyFacts: [],
         codeSnippets: [],
@@ -350,17 +352,12 @@ describe('Feedback Loop Integration', () => {
   describe('feedback token storage', () => {
     let storage: LibrarianStorage;
 
-    afterEach(async () => {
-      await storage?.close?.();
-    }, FEEDBACK_HOOK_TIMEOUT_MS);
-
     it('feedbackToken can be used to retrieve original query packs', async () => {
       // This test verifies that the feedbackToken allows mapping
       // back to the original query results for feedback attribution
 
       const { queryLibrarian, getFeedbackContext } = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      storage = await getSharedStorage();
 
       // Skip if getFeedbackContext doesn't exist yet
       if (typeof getFeedbackContext !== 'function') {
@@ -370,7 +367,7 @@ describe('Feedback Loop Integration', () => {
       }
 
       const result = await queryLibrarian(
-        { intent: 'test query', depth: 'L0' },
+        { intent: 'lookup query', depth: 'L0' },
         storage
       ).catch(() => null);
 
@@ -383,8 +380,7 @@ describe('Feedback Loop Integration', () => {
 
     it('restores feedbackToken context from storage after module reload', async () => {
       const queryModule = await import('../query.js');
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
+      storage = await getSharedStorage();
 
       await seedStorageForQuery(storage, 'src/feedback/reload_test.ts');
       const result = await queryModule.queryLibrarian(
@@ -409,12 +405,7 @@ describe('Feedback Loop Integration', () => {
     let storage: LibrarianStorage;
 
     beforeEach(async () => {
-      storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-      await storage.initialize();
-    }, FEEDBACK_HOOK_TIMEOUT_MS);
-
-    afterEach(async () => {
-      await storage?.close?.();
+      storage = await getSharedStorage();
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('confidence never goes below 0.1 after negative feedback', async () => {
@@ -422,7 +413,7 @@ describe('Feedback Loop Integration', () => {
       await storage.upsertContextPack({
         packId: testPackId,
         packType: 'function_context',
-        targetId: 'test-target',
+        targetId: `${testPackId}-target`,
         summary: 'Test pack',
         keyFacts: [],
         codeSnippets: [],
@@ -458,7 +449,7 @@ describe('Feedback Loop Integration', () => {
       await storage.upsertContextPack({
         packId: testPackId,
         packType: 'function_context',
-        targetId: 'test-target',
+        targetId: `${testPackId}-target`,
         summary: 'Test pack',
         keyFacts: [],
         codeSnippets: [],
@@ -491,22 +482,17 @@ describe('Feedback Loop Integration', () => {
   });
 });
 
-describe('FeedbackProcessingResult type', () => {
+describe.sequential('FeedbackProcessingResult type', () => {
   let storage: LibrarianStorage;
 
-  afterEach(async () => {
-    await storage?.close?.();
-  }, FEEDBACK_HOOK_TIMEOUT_MS);
-
   it('processAgentFeedback returns proper result structure', async () => {
-    storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-    await storage.initialize();
+    storage = await getSharedStorage();
 
     const testPackId = 'test-result-structure';
     await storage.upsertContextPack({
       packId: testPackId,
       packType: 'function_context',
-      targetId: 'test-target',
+      targetId: `${testPackId}-target`,
       summary: 'Test pack',
       keyFacts: [],
       codeSnippets: [],

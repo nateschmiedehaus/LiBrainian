@@ -48,9 +48,14 @@ const HALF_LIFE_DAYS = 30;
 const DEDUPE_THRESHOLD = 0.5;
 const MAX_CANDIDATES = 300;
 const MAX_EVENTS = 5000;
+const MEMORY_DB_BUSY_TIMEOUT_MS = 250;
 
 function memoryDbPath(workspaceRoot: string): string {
   return path.join(path.resolve(workspaceRoot), '.librarian', 'memory.db');
+}
+
+function configureMemoryDb(db: Database.Database): void {
+  db.pragma(`busy_timeout = ${MEMORY_DB_BUSY_TIMEOUT_MS}`);
 }
 
 function normalizeText(value: string): string {
@@ -123,6 +128,7 @@ async function ensureMemorySchema(workspaceRoot: string): Promise<string> {
   await fs.mkdir(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   try {
+    configureMemoryDb(db);
     db.exec(`
       CREATE TABLE IF NOT EXISTS memory_facts (
         id TEXT PRIMARY KEY,
@@ -172,6 +178,7 @@ export async function addMemoryFact(workspaceRoot: string, input: MemoryAddInput
   const dbPath = await ensureMemorySchema(workspaceRoot);
   const db = new Database(dbPath);
   try {
+    configureMemoryDb(db);
     const now = new Date().toISOString();
     const source: MemoryFactSource = input.source ?? 'agent';
     const scope: MemoryFactScope = input.scope ?? 'codebase';
@@ -280,6 +287,7 @@ export async function updateMemoryFact(workspaceRoot: string, id: string, conten
   const dbPath = await ensureMemorySchema(workspaceRoot);
   const db = new Database(dbPath);
   try {
+    configureMemoryDb(db);
     const existing = db.prepare(
       `SELECT id, content, source, scope, scope_key, confidence, evergreen, created_at, updated_at
        FROM memory_facts WHERE id = ?`
@@ -326,6 +334,7 @@ export async function deleteMemoryFact(workspaceRoot: string, id: string): Promi
   const dbPath = await ensureMemorySchema(workspaceRoot);
   const db = new Database(dbPath);
   try {
+    configureMemoryDb(db);
     const existing = db.prepare('SELECT id, content FROM memory_facts WHERE id = ?').get(id) as {
       id: string;
       content: string;
@@ -352,6 +361,7 @@ export async function searchMemoryFacts(
   const dbPath = await ensureMemorySchema(workspaceRoot);
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
+    configureMemoryDb(db);
     const limit = Math.max(1, Math.min(200, options?.limit ?? 10));
     const minScore = Math.max(0, Math.min(1, options?.minScore ?? 0));
     const scopeKey = options?.scopeKey?.trim() || null;
@@ -408,6 +418,7 @@ export async function listMemoryFacts(workspaceRoot: string, limit = 100): Promi
   const dbPath = await ensureMemorySchema(workspaceRoot);
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
+    configureMemoryDb(db);
     const rows = db.prepare(
       `SELECT id, content, source, scope, scope_key, confidence, evergreen, created_at, updated_at
        FROM memory_facts
@@ -434,6 +445,7 @@ export async function getMemoryStoreStats(workspaceRoot: string): Promise<Memory
   const dbPath = await ensureMemorySchema(workspaceRoot);
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
+    configureMemoryDb(db);
     const row = db.prepare(
       `SELECT COUNT(*) as totalFacts, MIN(created_at) as oldestFactAt, MAX(updated_at) as newestFactAt
        FROM memory_facts`
