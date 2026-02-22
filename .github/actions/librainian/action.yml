@@ -45,6 +45,69 @@ runs:
         action_root="${{ github.action_path }}"
         repo_root="$(cd "${action_root}/../../.." && pwd)"
         tsx_bin="${repo_root}/node_modules/.bin/tsx"
+        timeout_seconds="${LIBRAINIAN_ACTION_TIMEOUT_SECONDS:-420}"
+
+        if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]] || [ "${timeout_seconds}" -le 0 ]; then
+          echo "[librainian-action] Invalid LIBRAINIAN_ACTION_TIMEOUT_SECONDS=${timeout_seconds}; expected positive integer seconds."
+          exit 1
+        fi
+
+        if ! command -v timeout >/dev/null 2>&1; then
+          echo "[librainian-action] Missing required 'timeout' command on runner."
+          exit 1
+        fi
+
+        cleanup_orphan_processes() {
+          local pattern
+          local pids
+          pattern="src/cli/index.ts --workspace ${workspace}"
+          pids="$(pgrep -f "${pattern}" || true)"
+          if [ -z "${pids}" ]; then
+            return
+          fi
+          echo "[librainian-action] Detected stale LiBrainian CLI processes: ${pids}"
+          printf '%s\n' "${pids}" | xargs -r kill -TERM || true
+          sleep 2
+          printf '%s\n' "${pids}" | xargs -r kill -KILL || true
+        }
+
+        run_librainian_command() {
+          local stage
+          local log_file
+          local status
+          local cmd
+          stage="$1"
+          shift
+          cmd=( "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" "$@" )
+          log_file="$(mktemp)"
+
+          echo "[librainian-action] stage=${stage} timeout=${timeout_seconds}s command=${cmd[*]}"
+          set +e
+          timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" "${cmd[@]}" >"${log_file}" 2>&1
+          status=$?
+          set -e
+
+          if [ "${status}" -eq 124 ]; then
+            echo "[librainian-action] stage=${stage} timed out after ${timeout_seconds}s."
+            echo "[librainian-action] stage=${stage} last output (tail):"
+            tail -n 200 "${log_file}" || true
+            cleanup_orphan_processes
+            rm -f "${log_file}"
+            return 124
+          fi
+
+          if [ "${status}" -ne 0 ]; then
+            echo "[librainian-action] stage=${stage} failed with exit=${status}."
+            tail -n 200 "${log_file}" || true
+            rm -f "${log_file}"
+            return "${status}"
+          fi
+
+          if [ -s "${log_file}" ]; then
+            cat "${log_file}"
+          fi
+          rm -f "${log_file}"
+        }
 
         if [ ! -x "${tsx_bin}" ]; then
           echo "[librainian-action] Installing repository dependencies."
@@ -52,10 +115,12 @@ runs:
           npm rebuild --prefix "${repo_root}" better-sqlite3
         fi
 
+        cleanup_orphan_processes
+
         did_bootstrap=0
         if [ ! -d "${workspace}/${{ inputs.cache-path }}" ]; then
           echo "[librainian-action] No existing index found, running bootstrap."
-          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
+          run_librainian_command "bootstrap.initial" bootstrap --mode fast --no-claude-md --force-resume
           did_bootstrap=1
         fi
 
@@ -63,7 +128,7 @@ runs:
           echo "[librainian-action] Bootstrap completed; skipping incremental refresh."
         else
           set +e
-          update_output="$("${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" update --incremental 2>&1)"
+          update_output="$(run_librainian_command "update.incremental" update --incremental 2>&1)"
           update_status=$?
           set -e
 
@@ -78,7 +143,7 @@ runs:
               printf '%s\n' "${update_output}"
             fi
             echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
-            "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force
+            run_librainian_command "bootstrap.fallback" bootstrap --mode fast --no-claude-md --force
           fi
         fi
 

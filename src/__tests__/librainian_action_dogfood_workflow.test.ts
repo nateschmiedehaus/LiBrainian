@@ -31,4 +31,15 @@ describe('librainian action dogfood workflow', () => {
     expect(script).toContain('dogfood-retention-audit.json');
     expect(script).toContain('artifact.retention');
   });
+
+  it('enforces timeout and stale-process diagnostics in the librainian action', () => {
+    const actionPath = path.join(process.cwd(), '.github', 'actions', 'librainian', 'action.yml');
+    const action = fs.readFileSync(actionPath, 'utf8');
+
+    expect(action).toContain('LIBRAINIAN_ACTION_TIMEOUT_SECONDS');
+    expect(action).toContain('timeout --signal=TERM --kill-after=30s');
+    expect(action).toContain('cleanup_orphan_processes');
+    expect(action).toContain('stage=');
+    expect(action).toContain('timed out after');
+  });
 });
