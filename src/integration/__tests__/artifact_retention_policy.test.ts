@@ -103,5 +103,42 @@ describe('artifact retention policy', () => {
       await fs.rm(workspace, { recursive: true, force: true });
     }
   });
-});
 
+  it('enforces bounded growth on repeated-run transient artifacts', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retention-bounded-'));
+    try {
+      await fs.mkdir(path.join(workspace, '.git'), { recursive: true });
+
+      for (let index = 0; index < 15; index += 1) {
+        const sandbox = path.join(workspace, '.patrol-tmp', `sandbox-${String(index).padStart(2, '0')}`);
+        await fs.mkdir(sandbox, { recursive: true });
+        const time = new Date(Date.now() - (15 - index) * 1000);
+        await fs.utimes(sandbox, time, time);
+      }
+
+      for (let index = 0; index < 8; index += 1) {
+        const tgz = path.join(workspace, `librainian-${index}.tgz`);
+        await writeFileAt(tgz, (8 - index) * 1000);
+      }
+
+      const applied = await runArtifactRetention({
+        workspaceRoot: workspace,
+        context: 'repo',
+        dryRun: false,
+      });
+
+      const sandboxEntries = await fs.readdir(path.join(workspace, '.patrol-tmp'));
+      const tgzEntries = (await fs.readdir(workspace)).filter((entry) => /^librainian-.*\.tgz$/u.test(entry));
+
+      expect(sandboxEntries.length).toBeLessThanOrEqual(10);
+      expect(tgzEntries.length).toBeLessThanOrEqual(4);
+      expect(existsSync(path.join(workspace, '.patrol-tmp', 'sandbox-14'))).toBe(true);
+      expect(existsSync(path.join(workspace, '.patrol-tmp', 'sandbox-00'))).toBe(false);
+      expect(existsSync(path.join(workspace, 'librainian-7.tgz'))).toBe(true);
+      expect(existsSync(path.join(workspace, 'librainian-0.tgz'))).toBe(false);
+      expect(applied.audit.summary.deleted).toBeGreaterThanOrEqual(9);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+});
