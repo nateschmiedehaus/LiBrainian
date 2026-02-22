@@ -5,6 +5,9 @@ import type { IndexChangeEventType } from './storage/types.js';
 
 export type LibrarianEventHandler = (event: LibrarianEvent) => void | Promise<void>;
 export type { LibrarianEvent, LibrarianEventType };
+export type LiBrainianEventHandler = LibrarianEventHandler;
+export type LiBrainianEvent = LibrarianEvent;
+export type LiBrainianEventType = LibrarianEventType;
 
 export class LibrarianEventBus {
   private handlers = new Map<LibrarianEventType | '*', Set<LibrarianEventHandler>>();

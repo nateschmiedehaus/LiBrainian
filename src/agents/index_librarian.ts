@@ -1917,6 +1917,8 @@ export function createIndexLiBrainian(
   return new IndexLiBrainian(config);
 }
 
+export type IndexLibrarianConfig = IndexLiBrainianConfig;
+
 // Backward-compatible alias for legacy imports that still reference IndexLibrarian.
 export { IndexLiBrainian as IndexLibrarian };
 export function createIndexLibrarian(

@@ -4525,14 +4525,6 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     try {
-      if (this.dbPath !== ':memory:' && fsSync.existsSync(this.dbPath)) {
-        const serializedStat = fsSync.statSync(serializedPath);
-        const dbStat = fsSync.statSync(this.dbPath);
-        if (serializedStat.mtimeMs < dbStat.mtimeMs) {
-          return false;
-        }
-      }
-
       const payload = fsSync.readFileSync(serializedPath);
       if (payload.length === 0) {
         return false;
@@ -7457,6 +7449,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     db.prepare('DELETE FROM librarian_fault_localizations WHERE id = ?').run(id);
   }
 }
+
+export { SqliteLiBrainianStorage as SqliteLibrarianStorage };
 
 // ============================================================================
 // ADVANCED LIBRARY FEATURES ROW TYPES (Migration 011)

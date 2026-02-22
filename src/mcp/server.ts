@@ -121,7 +121,7 @@ import {
   createBootstrapConfig,
   isBootstrapRequired,
   getBootstrapStatus,
-  queryLiBrainian,
+  queryLibrarian,
   generateRepoMap,
 } from '../api/index.js';
 import type { ContextPack, FunctionKnowledge, GraphEdge, LiBrainianQuery, LiBrainianResponse } from '../types.js';
@@ -10988,7 +10988,7 @@ export class LiBrainianMCPServer {
   ): Promise<QueryExecutionOutcome> {
     const timeoutToken = Symbol('query_timeout');
     const raced = await Promise.race([
-      queryLiBrainian(
+      queryLibrarian(
         query,
         storage,
         undefined,

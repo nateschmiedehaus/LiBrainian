@@ -170,6 +170,8 @@ export interface LibrarianContext extends ConstructionRequirements {
   readonly evidenceLedger?: IEvidenceLedger;
 }
 
+export type LiBrainianContext = LibrarianContext;
+
 /**
  * Call-time execution context for canonical constructions.
  */

@@ -1910,3 +1910,12 @@ export interface LibrarianEvent {
   /** Optional cross-system correlation ID */
   correlationId?: string;
 }
+
+// Canonical LiBrainian aliases for migrated modules.
+export type LiBrainianVersion = LibrarianVersion;
+export type LiBrainianMetadata = LibrarianMetadata;
+export type LiBrainianQuery = LibrarianQuery;
+export type LiBrainianResponse = LibrarianResponse;
+export type LiBrainianEngineResults = LibrarianEngineResults;
+export type LiBrainianEventType = LibrarianEventType;
+export type LiBrainianEvent = LibrarianEvent;

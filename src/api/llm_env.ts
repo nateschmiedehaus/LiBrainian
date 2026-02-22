@@ -16,6 +16,8 @@ export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
   return raw === 'claude' || raw === 'codex' ? raw : undefined;
 }
 
+export const resolveLiBrainianProvider = resolveLibrarianProvider;
+
 export function resolveLibrarianModelId(provider?: LibrarianLlmProvider): string | undefined {
   if (process.env.LIBRARIAN_LLM_MODEL) return process.env.LIBRARIAN_LLM_MODEL;
   if (provider === 'claude') {
@@ -27,11 +29,15 @@ export function resolveLibrarianModelId(provider?: LibrarianLlmProvider): string
   return process.env.CLAUDE_MODEL ?? process.env.CODEX_MODEL ?? process.env.WAVE0_LLM_MODEL;
 }
 
+export const resolveLiBrainianModelId = resolveLibrarianModelId;
+
 export function resolveLibrarianModelConfig(): { provider?: LibrarianLlmProvider; modelId?: string } {
   const provider = resolveLibrarianProvider();
   const modelId = resolveLibrarianModelId(provider);
   return { provider, modelId };
 }
+
+export const resolveLiBrainianModelConfig = resolveLibrarianModelConfig;
 
 export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
   provider: LibrarianLlmProvider;
@@ -84,3 +90,5 @@ export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
     '  - Register a custom provider in llmProviderRegistry'
   );
 }
+
+export const resolveLiBrainianModelConfigWithDiscovery = resolveLibrarianModelConfigWithDiscovery;

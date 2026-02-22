@@ -2082,3 +2082,7 @@ export interface FaultLocalizationQueryOptions {
   minConfidence?: number;
   limit?: number;
 }
+
+// Canonical LiBrainian aliases for migrated modules.
+export type LiBrainianStorage = LibrarianStorage;
+export type LiBrainianCommit = LibrarianCommit;

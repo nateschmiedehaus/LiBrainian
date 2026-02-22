@@ -802,6 +802,23 @@ async function main(): Promise<void> {
 
 const CLI_NON_EXITING_COMMANDS = new Set(['watch', 'mcp']);
 
+function flushStream(stream: NodeJS.WriteStream): Promise<void> {
+  if (stream.destroyed || !stream.writable) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    stream.write('', () => resolve());
+  });
+}
+
+async function flushProcessOutput(): Promise<void> {
+  await Promise.all([
+    flushStream(process.stdout),
+    flushStream(process.stderr),
+  ]);
+}
+
 main()
   .catch((error) => {
     // Fatal errors also get structured output if possible
@@ -816,7 +833,11 @@ main()
     const shouldForceExit = !CLI_NON_EXITING_COMMANDS.has(command);
     if (!shouldForceExit) return;
     setImmediate(() => {
-      process.exit(process.exitCode ?? 0);
+      flushProcessOutput()
+        .catch(() => undefined)
+        .finally(() => {
+          process.exit(process.exitCode ?? 0);
+        });
     });
   });
 

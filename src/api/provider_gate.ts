@@ -38,10 +38,22 @@ function toSingleLineText(text: string): string {
 }
 
 function resolvePreferredProviderFromEnv(): ProviderName | undefined {
-  const resolver =
-    (llmEnv as { resolveLiBrainianProvider?: () => ProviderName | undefined }).resolveLiBrainianProvider
-    ?? (llmEnv as { resolveLibrarianProvider?: () => ProviderName | undefined }).resolveLibrarianProvider;
-  return resolver?.();
+  const getResolver = (name: 'resolveLibrarianProvider' | 'resolveLiBrainianProvider'): (() => ProviderName | undefined) | undefined => {
+    if (!Object.prototype.hasOwnProperty.call(llmEnv, name)) {
+      return undefined;
+    }
+    const candidate = (llmEnv as Record<string, unknown>)[name];
+    return typeof candidate === 'function'
+      ? candidate as () => ProviderName | undefined
+      : undefined;
+  };
+
+  const legacyResolver = getResolver('resolveLibrarianProvider');
+  if (legacyResolver) {
+    return legacyResolver();
+  }
+
+  return getResolver('resolveLiBrainianProvider')?.();
 }
 
 export interface ProviderGateStatus {

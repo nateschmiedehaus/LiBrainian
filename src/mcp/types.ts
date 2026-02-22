@@ -3181,3 +3181,8 @@ export function isLiBrainianResource(value: unknown): value is LiBrainianResourc
     typeof obj.provenance === 'object'
   );
 }
+
+// Canonical Librarian aliases retained for modules still importing legacy names.
+export type LibrarianResource<T = unknown> = LiBrainianResource<T>;
+export type LibrarianMCPServerConfig = LiBrainianMCPServerConfig;
+export const isLibrarianResource = isLiBrainianResource;

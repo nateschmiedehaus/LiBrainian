@@ -3,6 +3,8 @@
  */
 
 export type {
+  LiBrainianStorage,
+  LiBrainianCommit,
   LibrarianStorage,
   StorageCapabilities,
   StorageSlices,
