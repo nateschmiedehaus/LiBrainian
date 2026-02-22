@@ -77,6 +77,7 @@ import { inspectCommand } from './commands/inspect.js';
 import { confidenceCommand } from './commands/confidence.js';
 import { validateCommand } from './commands/validate.js';
 import { checkProvidersCommand } from './commands/check_providers.js';
+import { providerCommand } from './commands/provider.js';
 import { auditSkillCommand } from './commands/audit_skill.js';
 import { visualizeCommand } from './commands/visualize.js';
 import { coverageCommand } from './commands/coverage.js';
@@ -127,7 +128,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'calibration' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+type Command = 'status' | 'stats' | 'calibration' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'provider' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -213,6 +214,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'check-providers': {
     description: 'Check provider availability and authentication',
     usage: 'librarian check-providers [--format text|json] [--out <path>]',
+  },
+  'provider': {
+    description: 'Select and inspect active LLM provider/model',
+    usage: 'librarian provider list|current|use <provider> [--model <id>] [--session <id>] [--json] [--out <path>]',
   },
   'audit-skill': {
     description: 'Audit a SKILL.md for malicious or suspicious patterns',
@@ -535,6 +540,9 @@ async function main(): Promise<void> {
           format: defaultFormat as 'text' | 'json',
           out: getStringArg(args, '--out') ?? undefined,
         });
+        break;
+      case 'provider':
+        await providerCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'audit-skill':
         await auditSkillCommand({ workspace, args: commandArgs, rawArgs: args });

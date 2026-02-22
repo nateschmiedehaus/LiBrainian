@@ -44,6 +44,7 @@ COMMANDS:
     eject-docs          Remove injected librarian docs from CLAUDE.md files
     generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
     check-providers     Check provider availability and authentication
+    provider            List/select active provider and model defaults
     audit-skill         Audit a SKILL.md for malicious patterns
     watch               Watch for file changes and auto-reindex
     check               Run diff-aware CI integrity checks
@@ -223,7 +224,7 @@ OPTIONS:
     --diversity-lambda <n>  MMR lambda in [0,1] (1=relevance, 0=diversity, default: 0.5)
     --no-synthesis      Disable LLM synthesis/method hints (retrieval only)
     --deterministic     Enable deterministic mode for testing (skips LLM, stable sorting)
-    --llm-provider <p>  Override LLM provider for synthesis: claude | codex (default: stored bootstrap setting or env)
+    --llm-provider <p>  Override LLM provider for synthesis (must be a registered provider)
     --llm-model <id>    Override LLM model id for synthesis (default: stored bootstrap setting or env)
     --uc <ids>          Comma-separated UC IDs (e.g., UC-041,UC-042)
     --uc-priority <p>   UC priority: low|medium|high
@@ -370,7 +371,7 @@ OPTIONS:
     --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
     --no-claude-md      Skip CLAUDE.md injection even when updating agent docs
     --install-grammars  Install missing tree-sitter grammar packages
-    --llm-provider <p>  Force LLM provider: claude | codex (default: auto)
+    --llm-provider <p>  Force LLM provider (must be registered; default: auto)
     --llm-model <id>    Force LLM model id (default: daily selection)
 
 DESCRIPTION:
@@ -1217,6 +1218,40 @@ EXAMPLES:
     librarian check-providers
     librarian check-providers --json
     librarian check-providers --json --out /tmp/librarian-providers.json
+`,
+
+  provider: `
+librarian provider - Select active provider/model and inspect override layers
+
+USAGE:
+    librarian provider list [--session <id>] [--json] [--out <path>]
+    librarian provider current [--session <id>] [--json] [--out <path>]
+    librarian provider use <provider> [--model <id>] [--session <id>] [--json] [--out <path>]
+
+OPTIONS:
+    --session <id>      Apply/read session-scoped override for an existing query session
+    --model <id>        Override model id (default: provider default model)
+    --json              Output machine-readable JSON payload
+    --out <path>        Write JSON output to file (requires --json)
+
+DESCRIPTION:
+    Provides hot-swappable runtime provider selection with two scopes:
+    - User default (persisted): applies to future queries/sessions
+    - Session override: applies immediately to the next call in that session
+
+    Selection precedence:
+    1) Explicit query flags (--llm-provider/--llm-model)
+    2) Session override
+    3) User default
+    4) Bootstrap defaults
+    5) Provider discovery
+
+EXAMPLES:
+    librarian provider list
+    librarian provider current
+    librarian provider use codex --model gpt-5-codex
+    librarian provider use claude --session sess_abc123
+    librarian provider current --session sess_abc123 --json
 `,
 
   watch: `

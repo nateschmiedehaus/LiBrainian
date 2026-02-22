@@ -422,6 +422,56 @@ describe('queryCommand LLM resolution', () => {
     }
   });
 
+  it('uses session-scoped provider selection for follow-up calls and exposes selection metadata in JSON output', async () => {
+    const { queryCommand } = await import('../query.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-session-provider-'));
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'auth overview', '--session', 'new', '--json'],
+      });
+      const startOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const started = JSON.parse(startOutput ?? '{}') as { sessionId?: string };
+      expect(started.sessionId).toBeTruthy();
+
+      const sessionPath = path.join(workspace, '.librarian', 'query_sessions', `${started.sessionId}.json`);
+      const persisted = JSON.parse(await fs.readFile(sessionPath, 'utf8')) as {
+        session?: Record<string, unknown>;
+      };
+      persisted.session = {
+        ...(persisted.session ?? {}),
+        llmSelection: {
+          provider: 'codex',
+          modelId: 'gpt-5-codex',
+          updatedAt: new Date().toISOString(),
+        },
+      };
+      await fs.writeFile(sessionPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8');
+
+      logSpy?.mockClear();
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'token refresh details', '--session', started.sessionId!, '--json'],
+      });
+      const followUpOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.trim().startsWith('{'));
+      const followUp = JSON.parse(followUpOutput ?? '{}') as {
+        selectedProvider?: string;
+        selectedModel?: string;
+        selectionSource?: string;
+      };
+      expect(followUp.selectedProvider).toBe('codex');
+      expect(followUp.selectedModel).toBe('gpt-5-codex');
+      expect(followUp.selectionSource).toBe('session');
+      expect(process.env.LIBRARIAN_LLM_PROVIDER).toBe('codex');
+      expect(process.env.LIBRARIAN_LLM_MODEL).toBe('gpt-5-codex');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   it('surfaces critical storage and synthesis warnings before coverage gaps', async () => {
     const { queryCommand } = await import('../query.js');
     const { queryLibrarian } = await import('../../../api/query.js');

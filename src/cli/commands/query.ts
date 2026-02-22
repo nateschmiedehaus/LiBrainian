@@ -1,5 +1,4 @@
 import { parseArgs } from 'node:util';
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
@@ -16,7 +15,6 @@ import {
 import type { LibrarianQuery, LibrarianResponse, StageReport, TokenBudget } from '../../types.js';
 import { createError, suggestSimilarQueries } from '../errors.js';
 import { createSpinner, formatDuration, printKeyValue } from '../progress.js';
-import { safeJsonParse } from '../../utils/safe_json.js';
 import {
   parseStructuralQueryIntent,
   executeExhaustiveDependencyQuery,
@@ -31,6 +29,14 @@ import {
 import { emitJsonOutput } from '../json_output.js';
 import { ContextAssemblySessionManager, type ContextSession } from '../../api/context_sessions.js';
 import { parseTraceMarkerMessage, sanitizeTraceMarkerMessage } from '../user_messages.js';
+import { loadQuerySession, saveQuerySession } from '../query_sessions.js';
+import {
+  isRegisteredProvider,
+  readBootstrapLlmSelection,
+  readUserLlmSelection,
+  resolveProviderDefaultModel,
+  type LlmSelectionSource,
+} from '../provider_selection.js';
 
 export interface QueryCommandOptions {
   workspace: string;
@@ -87,6 +93,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
   const sessionFlagRaw = typeof values.session === 'string' ? values.session.trim() : '';
   const sessionRequested = sessionFlagRaw.length > 0;
+  const requestedSessionId = sessionRequested && sessionFlagRaw.toLowerCase() !== 'new'
+    ? sessionFlagRaw
+    : null;
   const drillDownTarget = typeof values['drill-down'] === 'string'
     ? values['drill-down'].trim()
     : '';
@@ -148,7 +157,13 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     throw createError('INVALID_ARGUMENT', `Invalid --limit value "${limitRaw}" (must be a positive integer).`);
   }
   const requestedLlmProviderRaw = typeof values['llm-provider'] === 'string' ? values['llm-provider'].trim() : '';
-  const requestedLlmProvider = (requestedLlmProviderRaw === 'claude' || requestedLlmProviderRaw === 'codex') ? requestedLlmProviderRaw : undefined;
+  const requestedLlmProvider = requestedLlmProviderRaw.length > 0 ? requestedLlmProviderRaw : undefined;
+  if (requestedLlmProvider && !isRegisteredProvider(requestedLlmProvider)) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Unknown --llm-provider "${requestedLlmProvider}". Run "librarian provider list" to inspect registered providers.`
+    );
+  }
   const requestedLlmModel = typeof values['llm-model'] === 'string' ? values['llm-model'].trim() : undefined;
   const ucRaw = typeof values.uc === 'string' ? values.uc : '';
   const ucIds = ucRaw ? ucRaw.split(',').map((id) => id.trim()).filter(Boolean) : undefined;
@@ -424,21 +439,47 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       }
     }
 
+    let persistedSession: ContextSession | null = null;
+    if (requestedSessionId) {
+      persistedSession = await loadQuerySession(workspace, requestedSessionId);
+      if (!persistedSession) {
+        throw createError('INVALID_ARGUMENT', `Session "${requestedSessionId}" was not found. Start one with --session new.`);
+      }
+    }
+
     const spinner = createSpinner(`Querying: "${intent.substring(0, 50)}${intent.length > 50 ? '...' : ''}"`);
-    let resolvedProvider: 'claude' | 'codex' | undefined = requestedLlmProvider;
+    let resolvedProvider: string | undefined = requestedLlmProvider;
     let resolvedModel: string | undefined = requestedLlmModel;
+    let selectionSource: LlmSelectionSource = 'none';
+    if (resolvedProvider || resolvedModel) {
+      selectionSource = 'explicit';
+    }
     if (!resolvedProvider && resolvedModel) {
       if (resolvedModel.startsWith('claude-') || resolvedModel.startsWith('claude')) resolvedProvider = 'claude';
       else if (resolvedModel.startsWith('gpt-') || resolvedModel.startsWith('codex')) resolvedProvider = 'codex';
     }
     if (!resolvedProvider && !resolvedModel) {
-      const rawDefaults = await storage.getState('librarian.llm_defaults.v1');
-      const parsed = rawDefaults ? safeJsonParse<Record<string, unknown>>(rawDefaults) : null;
-      const provider = parsed?.ok ? parsed.value.provider : null;
-      const modelId = parsed?.ok ? parsed.value.modelId : null;
-      if ((provider === 'claude' || provider === 'codex') && typeof modelId === 'string' && modelId.trim()) {
-        resolvedProvider = provider;
-        resolvedModel = modelId.trim();
+      const sessionSelection = persistedSession?.llmSelection;
+      if (sessionSelection?.provider && sessionSelection.modelId) {
+        resolvedProvider = sessionSelection.provider;
+        resolvedModel = sessionSelection.modelId;
+        selectionSource = 'session';
+      }
+    }
+    if (!resolvedProvider && !resolvedModel) {
+      const userDefault = await readUserLlmSelection(storage);
+      if (userDefault?.provider && userDefault.modelId) {
+        resolvedProvider = userDefault.provider;
+        resolvedModel = userDefault.modelId;
+        selectionSource = 'user_default';
+      }
+    }
+    if (!resolvedProvider && !resolvedModel) {
+      const bootstrapDefaults = await readBootstrapLlmSelection(storage);
+      if (bootstrapDefaults?.provider && bootstrapDefaults.modelId) {
+        resolvedProvider = bootstrapDefaults.provider;
+        resolvedModel = bootstrapDefaults.modelId;
+        selectionSource = 'bootstrap_default';
       }
     }
     if (!resolvedProvider && !resolvedModel && !noSynthesis) {
@@ -447,6 +488,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         if (discovered.provider && discovered.modelId) {
           resolvedProvider = discovered.provider;
           resolvedModel = discovered.modelId;
+          selectionSource = 'discovery';
         }
       } catch {
         // No providers discovered - continue without LLM synthesis
@@ -454,7 +496,10 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     }
     if (resolvedProvider && !resolvedModel) {
       resolvedModel =
-        resolveLibrarianModelId(resolvedProvider)
+        resolveProviderDefaultModel(resolvedProvider)
+        ?? (resolvedProvider === 'claude' || resolvedProvider === 'codex'
+          ? resolveLibrarianModelId(resolvedProvider)
+          : undefined)
         ?? (resolvedProvider === 'codex' ? 'gpt-5.1-codex-mini' : 'claude-haiku-4-5-20241022');
     }
     const hasLlmConfig = Boolean(resolvedProvider && resolvedModel);
@@ -509,13 +554,8 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         }, storage),
       });
 
-      const requestedSessionId = sessionFlagRaw.toLowerCase() === 'new' ? null : sessionFlagRaw;
       if (requestedSessionId) {
-        const persisted = await loadQuerySession(workspace, requestedSessionId);
-        if (!persisted) {
-          throw createError('INVALID_ARGUMENT', `Session "${requestedSessionId}" was not found. Start one with --session new.`);
-        }
-        sessionManager.restore(persisted);
+        sessionManager.restore(persistedSession!);
       }
 
       const spinner = createSpinner(
@@ -570,6 +610,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           newPacksCount,
           totalPacks: session.context.packs.length,
           historyTurns: session.history.length,
+          selectedProvider: resolvedProvider ?? null,
+          selectedModel: resolvedModel ?? null,
+          selectionSource,
           suggestedFollowUps,
           drillDownSuggestions,
           lastUpdatedAt: session.updatedAt,
@@ -584,6 +627,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         printKeyValue([
           { key: 'Mode', value: mode },
           { key: 'Session ID', value: session.sessionId },
+          { key: 'Provider', value: resolvedProvider ?? 'none' },
+          { key: 'Model', value: resolvedModel ?? 'none' },
+          { key: 'Selection Source', value: selectionSource },
           { key: 'New Packs', value: newPacksCount },
           { key: 'Total Session Packs', value: session.context.packs.length },
           { key: 'Turns', value: session.history.length },
@@ -627,6 +673,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         const criticalWarnings = collectCriticalWarnings(response);
         await emitJsonOutput({
           ...displayResponse,
+          selectedProvider: resolvedProvider ?? null,
+          selectedModel: resolvedModel ?? null,
+          selectionSource,
           strategy: strategyInfo.strategy,
           strategyReason: strategyInfo.reason,
           strategyWarning: strategyInfo.warning,
@@ -657,6 +706,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       const keyValues = [
         { key: 'Intent', value: intent },
         { key: 'Depth', value: depth },
+        { key: 'Provider', value: resolvedProvider ?? 'none' },
+        { key: 'Model', value: resolvedModel ?? 'none' },
+        { key: 'Selection Source', value: selectionSource },
         { key: 'Affected Files', value: affectedFiles?.join(', ') || 'None specified' },
         { key: 'UC Requirements', value: ucIds?.join(', ') || 'None specified' },
         { key: 'Total Confidence', value: displayResponse.totalConfidence.toFixed(3) },
@@ -976,48 +1028,4 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
   }
 
   return warnings;
-}
-
-interface PersistedQuerySession {
-  schemaVersion: 1;
-  savedAt: string;
-  session: ContextSession;
-}
-
-function resolveQuerySessionsDir(workspace: string): string {
-  return path.resolve(workspace, '.librarian', 'query_sessions');
-}
-
-function resolveQuerySessionPath(workspace: string, sessionId: string): string {
-  const trimmed = sessionId.trim();
-  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
-    throw createError('INVALID_ARGUMENT', `Invalid session ID "${sessionId}".`);
-  }
-  return path.join(resolveQuerySessionsDir(workspace), `${trimmed}.json`);
-}
-
-async function loadQuerySession(workspace: string, sessionId: string): Promise<ContextSession | null> {
-  const filePath = resolveQuerySessionPath(workspace, sessionId);
-  try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    const parsed = safeJsonParse<PersistedQuerySession>(raw);
-    if (!parsed.ok || !parsed.value?.session) return null;
-    return parsed.value.session;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('ENOENT')) return null;
-    throw error;
-  }
-}
-
-async function saveQuerySession(workspace: string, session: ContextSession): Promise<void> {
-  const sessionsDir = resolveQuerySessionsDir(workspace);
-  const filePath = resolveQuerySessionPath(workspace, session.sessionId);
-  const payload: PersistedQuerySession = {
-    schemaVersion: 1,
-    savedAt: new Date().toISOString(),
-    session,
-  };
-  await fs.mkdir(sessionsDir, { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }

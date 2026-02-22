@@ -9,6 +9,11 @@ const MAX_QUESTION_LENGTH = 500;
 export interface ContextSession {
   sessionId: string;
   initialQuery: LibrarianQuery;
+  llmSelection?: {
+    provider: string;
+    modelId: string;
+    updatedAt: string;
+  };
   context: AccumulatedContext;
   history: ConversationTurn[];
   createdAt: string;
