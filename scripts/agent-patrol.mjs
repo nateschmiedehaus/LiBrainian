@@ -24,6 +24,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync, execSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { runArtifactRetention } from './artifact-retention-policy.mjs';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1221,6 +1222,12 @@ async function main() {
 
   // Build report
   const policy = evaluatePatrolPolicyGate(opts.mode, runs);
+  const retentionResult = await runArtifactRetention({
+    workspaceRoot: REPO_ROOT,
+    context: 'auto',
+    dryRun: false,
+    auditOutPath: path.join('state', 'retention', 'patrol-retention-audit.json'),
+  });
   const report = {
     kind: 'PatrolReport.v1',
     mode: opts.mode,
@@ -1229,6 +1236,11 @@ async function main() {
     runs,
     aggregate,
     policy,
+    retention: {
+      policyContext: retentionResult.policy.context,
+      auditPath: path.relative(REPO_ROOT, retentionResult.auditPath),
+      summary: retentionResult.audit.summary,
+    },
   };
 
   // Write artifact

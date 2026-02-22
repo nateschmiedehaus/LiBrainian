@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runArtifactRetention } from './artifact-retention-policy.mjs';
 
 const ARTIFACT_KIND = 'CleanCloneSelfHostingArtifact.v1';
 const MIN_SEMANTIC_COVERAGE_PCT = 80;
@@ -692,6 +693,7 @@ async function main() {
     commands,
     lockSignals: [],
     error: null,
+    retention: null,
   };
 
   try {
@@ -818,6 +820,24 @@ async function main() {
     artifact.pass = false;
     artifact.error = toSingleLine(error instanceof Error ? error.message : String(error));
   } finally {
+    try {
+      const retentionResult = await runArtifactRetention({
+        workspaceRoot: sourceWorkspace,
+        context: 'auto',
+        dryRun: false,
+        auditOutPath: path.join('state', 'retention', 'dogfood-retention-audit.json'),
+      });
+      artifact.retention = {
+        policyContext: retentionResult.policy.context,
+        auditPath: path.relative(sourceWorkspace, retentionResult.auditPath),
+        summary: retentionResult.audit.summary,
+      };
+    } catch (retentionError) {
+      const retentionMessage = `retention_failed: ${toSingleLine(getErrorMessage(retentionError))}`;
+      artifact.retention = { error: retentionMessage };
+      artifact.pass = false;
+      artifact.error = artifact.error ? `${artifact.error}; ${retentionMessage}` : retentionMessage;
+    }
     const artifactAbsolutePath = writeArtifact(artifactPath, artifact);
     console.log(`[dogfood-ci] artifact: ${artifactAbsolutePath}`);
     if (!keepSandbox) {

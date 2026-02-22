@@ -49,5 +49,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clean-clone-self-hosting
+          retention-days: 30
           if-no-files-found: error
           path: state/dogfood/clean-clone-self-hosting.json
