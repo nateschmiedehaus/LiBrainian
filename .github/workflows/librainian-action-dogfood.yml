@@ -44,4 +44,7 @@ jobs:
           artifact-name: librainian-dogfood-index
 
       - name: Dogfood gate (status + index + query suite)
+        env:
+          DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 900000
+          DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS: 480000
         run: node scripts/dogfood-ci-gate.mjs
