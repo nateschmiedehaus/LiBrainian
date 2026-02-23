@@ -45,8 +45,8 @@ runs:
         action_root="${{ github.action_path }}"
         repo_root="$(cd "${action_root}/../../.." && pwd)"
         tsx_bin="${repo_root}/node_modules/.bin/tsx"
-        stall_timeout_seconds="${LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-300}"
-        hard_timeout_seconds="${LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-900}"
+        stall_timeout_seconds="${LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-600}"
+        hard_timeout_seconds="${LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-1080}"
         heartbeat_interval_seconds="${LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS:-15}"
 
         require_positive_int() {

@@ -87,8 +87,9 @@ describe('github readiness docs', () => {
     );
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
-    expect(workflow).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS: 300');
-    expect(workflow).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS: 900');
+    expect(workflow).toContain('workflow_dispatch:');
+    expect(workflow).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS: 600');
+    expect(workflow).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS: 1080');
     expect(workflow).toContain('LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS: 15');
   });
 
@@ -96,8 +97,8 @@ describe('github readiness docs', () => {
     const actionPath = path.join(process.cwd(), '.github', 'actions', 'librainian', 'action.yml');
     const action = fs.readFileSync(actionPath, 'utf8');
 
-    expect(action).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-300');
-    expect(action).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-900');
+    expect(action).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-600');
+    expect(action).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-1080');
     expect(action).toContain('LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS:-15');
     expect(action).toContain('stage=${stage} heartbeat');
     expect(action).toContain('stall_detected: stage=${stage} produced no output');

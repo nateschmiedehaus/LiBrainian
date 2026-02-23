@@ -1,6 +1,7 @@
 name: librainian-action-dogfood
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -30,8 +31,8 @@ jobs:
       - name: Run LiBrainian action
         uses: ./.github/actions/librainian
         env:
-          LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS: 300
-          LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS: 900
+          LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS: 600
+          LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS: 1080
           LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS: 15
         with:
           workspace-root: ${{ github.workspace }}
