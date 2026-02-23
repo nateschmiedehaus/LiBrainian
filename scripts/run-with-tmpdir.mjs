@@ -9,7 +9,7 @@ function printUsageAndExit(code) {
   console.error(
     [
       'Usage:',
-      '  node scripts/run-with-tmpdir.mjs [--tmpdir PATH] [--set KEY=VALUE ...] -- <command> [args...]',
+      '  node scripts/run-with-tmpdir.mjs [--tmpdir PATH] [--timeout-seconds N] [--set KEY=VALUE ...] -- <command> [args...]',
       '',
       'Example:',
       '  node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_MODE=unit -- vitest --run',
@@ -21,6 +21,7 @@ function printUsageAndExit(code) {
 function parseArgs(argv) {
   const sets = [];
   let tmpdir;
+  let timeoutSeconds;
   let i = 0;
   while (i < argv.length) {
     const arg = argv[i];
@@ -37,6 +38,14 @@ function parseArgs(argv) {
       i += 2;
       continue;
     }
+    if (arg === '--timeout-seconds') {
+      const raw = argv[i + 1];
+      const parsed = Number.parseInt(raw ?? '', 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) printUsageAndExit(2);
+      timeoutSeconds = parsed;
+      i += 2;
+      continue;
+    }
     printUsageAndExit(2);
   }
 
@@ -45,10 +54,10 @@ function parseArgs(argv) {
   const cmd = argv[sep + 1];
   if (!cmd) printUsageAndExit(2);
   const cmdArgs = argv.slice(sep + 2);
-  return { tmpdir, sets, cmd, cmdArgs };
+  return { tmpdir, timeoutSeconds, sets, cmd, cmdArgs };
 }
 
-const { tmpdir: explicitTmpdir, sets, cmd, cmdArgs } = parseArgs(process.argv.slice(2));
+const { tmpdir: explicitTmpdir, timeoutSeconds, sets, cmd, cmdArgs } = parseArgs(process.argv.slice(2));
 
 const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librainian');
 const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librainian');
@@ -132,24 +141,71 @@ const child = spawn(cmd, cmdArgs, {
   shell: process.platform === 'win32',
 });
 
-child.on('exit', (code, signal) => {
+let finalized = false;
+let timedOut = false;
+let hardKillTimer;
+let timeoutTimer;
+
+function finalizeWith(code) {
+  if (finalized) return;
+  finalized = true;
+  if (timeoutTimer) clearTimeout(timeoutTimer);
+  if (hardKillTimer) clearTimeout(hardKillTimer);
   void cleanupLease().finally(() => {
-    if (typeof code === 'number') process.exit(code);
-    process.exit(signal ? 1 : 0);
+    process.exit(code);
   });
+}
+
+function terminateChild(signal) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  try {
+    child.kill(signal);
+  } catch {
+    // Ignore kill failures; close handler will determine final exit behavior.
+  }
+}
+
+if (typeof timeoutSeconds === 'number') {
+  timeoutTimer = setTimeout(() => {
+    timedOut = true;
+    // eslint-disable-next-line no-console
+    console.error(`[run-with-tmpdir] Command timed out after ${timeoutSeconds}s: ${cmd} ${cmdArgs.join(' ')}`);
+    terminateChild('SIGTERM');
+    hardKillTimer = setTimeout(() => {
+      terminateChild('SIGKILL');
+    }, 5_000);
+    hardKillTimer.unref();
+  }, timeoutSeconds * 1_000);
+  timeoutTimer.unref();
+}
+
+child.on('error', () => {
+  finalizeWith(1);
 });
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
+child.on('close', (code, signal) => {
+  if (timedOut) {
+    finalizeWith(124);
+    return;
+  }
+  if (typeof code === 'number') {
+    finalizeWith(code);
+    return;
+  }
+  finalizeWith(signal ? 1 : 0);
+});
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
   process.on(signal, () => {
-    if (!child.killed) {
-      child.kill(signal);
-    }
+    terminateChild(signal);
   });
 }
 
 process.on('uncaughtException', () => {
+  terminateChild('SIGTERM');
   void cleanupLease();
 });
 process.on('unhandledRejection', () => {
+  terminateChild('SIGTERM');
   void cleanupLease();
 });
