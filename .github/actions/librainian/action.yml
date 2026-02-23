@@ -46,7 +46,7 @@ runs:
         repo_root="$(cd "${action_root}/../../.." && pwd)"
         tsx_bin="${repo_root}/node_modules/.bin/tsx"
         stall_timeout_seconds="${LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-300}"
-        hard_timeout_seconds="${LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-1200}"
+        hard_timeout_seconds="${LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-900}"
 
         if ! [[ "${stall_timeout_seconds}" =~ ^[0-9]+$ ]] || [ "${stall_timeout_seconds}" -le 0 ]; then
           echo "[librainian-action] Invalid LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS=${stall_timeout_seconds}; expected positive integer seconds."

@@ -29,6 +29,9 @@ jobs:
         run: npm ci
 
       - name: Run LiBrainian action
+        env:
+          LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS: 300
+          LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS: 900
         uses: ./.github/actions/librainian
         with:
           workspace-root: ${{ github.workspace }}
