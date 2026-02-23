@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { deterministic } from '../../epistemics/confidence.js';
-import type { Construction } from '../types.js';
+import type { Construction, ConstructionOutcome, Context } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import {
   branch,
@@ -10,6 +10,24 @@ import {
   right,
   select,
 } from '../operators.js';
+
+function expectOkValue<T>(outcome: ConstructionOutcome<T, ConstructionError>): T {
+  expect(outcome.ok).toBe(true);
+  if (!outcome.ok) {
+    throw outcome.error;
+  }
+  return outcome.value;
+}
+
+function expectFailError<E extends ConstructionError>(
+  outcome: ConstructionOutcome<unknown, E>
+): E {
+  expect(outcome.ok).toBe(false);
+  if (outcome.ok) {
+    throw new Error('Expected failure outcome');
+  }
+  return outcome.error;
+}
 
 describe('construction select/branch/fix operators', () => {
   it('select skips ifLeft when condition returns right', async () => {
@@ -28,7 +46,7 @@ describe('construction select/branch/fix operators', () => {
     };
 
     const selective = select(condition, ifLeft);
-    const result = await selective.execute(3);
+    const result = expectOkValue(await selective.execute(3));
 
     expect(result).toBe('value:3');
     expect(ifLeftSpy).not.toHaveBeenCalled();
@@ -51,7 +69,7 @@ describe('construction select/branch/fix operators', () => {
     };
 
     const selective = select(condition, ifLeft);
-    const result = await selective.execute(4);
+    const result = expectOkValue(await selective.execute(4));
 
     expect(result).toBe('left:6');
     expect(ifLeftSpy).toHaveBeenCalledTimes(1);
@@ -82,8 +100,8 @@ describe('construction select/branch/fix operators', () => {
     };
 
     const conditional = branch(predicate, ifLeft, ifRight);
-    await expect(conditional.execute(8)).resolves.toBe('L:4');
-    await expect(conditional.execute(5)).resolves.toBe('R:15');
+    expect(expectOkValue(await conditional.execute(8))).toBe('L:4');
+    expect(expectOkValue(await conditional.execute(5))).toBe('R:15');
   });
 
   it('select maxCost is an upper bound and minCost a lower bound for sampled runs', async () => {
@@ -170,7 +188,7 @@ describe('construction select/branch/fix operators', () => {
       maxIter: 10,
     });
 
-    const result = await iterative.execute({ count: 0 });
+    const result = expectOkValue(await iterative.execute({ count: 0 }));
     expect(result.count).toBe(3);
     expect(result.iterations).toBe(3);
     expect(result.monotoneViolations).toBe(0);
@@ -198,7 +216,8 @@ describe('construction select/branch/fix operators', () => {
       maxViolations: 0,
     });
 
-    await expect(iterative.execute({ value: 1 })).rejects.toBeInstanceOf(ProtocolViolationError);
+    const error = expectFailError(await iterative.execute({ value: 1 }));
+    expect(error).toBeInstanceOf(ProtocolViolationError);
   });
 
   it('fix records cycle metadata in lenient mode', async () => {
@@ -221,7 +240,7 @@ describe('construction select/branch/fix operators', () => {
       maxViolations: 1,
     });
 
-    const result = await iterative.execute({ value: 2 });
+    const result = expectOkValue(await iterative.execute({ value: 2 }));
     expect(result.cycleDetected).toBe(true);
     expect(result.terminationReason).toBe('cycle');
   });
@@ -257,17 +276,19 @@ describe('construction select/branch/fix operators', () => {
       maxViolations: 2,
     });
 
-    const result = await iterative.execute(
+    const executionContext: Context<unknown> = {
+      deps: { evidenceLedger: { append } },
+      signal: new AbortController().signal,
+      sessionId: 'fix-metric-test',
+    };
+
+    const result = expectOkValue(await iterative.execute(
       {
         value: 3,
         confidence: deterministic(true, 'start'),
       },
-      {
-        deps: { evidenceLedger: { append } } as any,
-        signal: new AbortController().signal,
-        sessionId: 'fix-metric-test',
-      }
-    );
+      executionContext
+    ));
 
     expect(result.monotoneViolations).toBe(1);
     expect((result.confidence as { value: number }).value).toBeLessThan(1);

@@ -59,4 +59,22 @@ describe('CLI Output Sanity Gate', () => {
     expect(result.snapshots.queryHelpHead.length).toBeGreaterThan(0);
     expect(result.snapshots.statusJsonKeys.length).toBeGreaterThan(0);
   }, 140_000);
+
+  it('can skip per-command help probes for bounded runtime checks', async () => {
+    const gate = createCliOutputSanityGateConstruction();
+    const result = unwrapConstructionExecutionResult(await gate.execute({
+      registeredCommands: ['help', 'status', 'query', 'features', 'capabilities'],
+      probePerCommandHelp: false,
+      commandTimeoutMs: 20_000,
+      maxDurationMs: 120_000,
+    }));
+
+    const perCommandHelpProbe = result.commandResults.find((probe) => {
+      const args = probe.args.join(' ');
+      return args.startsWith('help ') && args !== 'help query';
+    });
+
+    expect(perCommandHelpProbe).toBeUndefined();
+    expect(result.commandCount).toBe(9);
+  }, 140_000);
 });

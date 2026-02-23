@@ -72,6 +72,7 @@ export function createPatrolRegressionClosureGateConstruction(): Construction<
         cliEntry: input.cliEntry,
         commandTimeoutMs,
         maxDurationMs,
+        probePerCommandHelp: false,
       }));
 
       const helpCoveragePass = cliResult.helpValidation.pass;

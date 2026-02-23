@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { pruneRuntimeArtifacts } from './prune-runtime-artifacts.mjs';
+import { RUNTIME_ACTIVE_LEASE_DIR, pruneRuntimeArtifacts } from './prune-runtime-artifacts.mjs';
 
 function printUsageAndExit(code) {
   // eslint-disable-next-line no-console
@@ -50,8 +50,6 @@ function parseArgs(argv) {
 
 const { tmpdir: explicitTmpdir, sets, cmd, cmdArgs } = parseArgs(process.argv.slice(2));
 
-await pruneRuntimeArtifacts({ quiet: true, enforceSizeBudget: false }).catch(() => {});
-
 const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librainian');
 const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librainian');
 const osTmpdir = path.resolve(os.tmpdir(), 'librainian');
@@ -95,6 +93,28 @@ if (!resolvedTmpdir) {
   throw lastError ?? new Error('Unable to create any writable temp directory');
 }
 
+const leaseDir = path.join(resolvedTmpdir, RUNTIME_ACTIVE_LEASE_DIR);
+const leaseFile = path.join(leaseDir, `${process.pid}.lease`);
+await mkdir(leaseDir, { recursive: true });
+await writeFile(
+  leaseFile,
+  JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }) + '\n',
+  'utf8',
+);
+const leaseHeartbeat = setInterval(() => {
+  void utimes(leaseFile, new Date(), new Date()).catch(() => {});
+}, 30_000);
+leaseHeartbeat.unref();
+let leaseCleaned = false;
+async function cleanupLease() {
+  if (leaseCleaned) return;
+  leaseCleaned = true;
+  clearInterval(leaseHeartbeat);
+  await rm(leaseFile, { force: true });
+}
+
+await pruneRuntimeArtifacts({ quiet: true, enforceSizeBudget: false }).catch(() => {});
+
 const env = { ...process.env, TMPDIR: resolvedTmpdir, TMP: resolvedTmpdir, TEMP: resolvedTmpdir };
 env.LIBRAINIAN_TMPDIR = resolvedTmpdir;
 env.LIBRARIAN_TMPDIR = resolvedTmpdir;
@@ -113,6 +133,23 @@ const child = spawn(cmd, cmdArgs, {
 });
 
 child.on('exit', (code, signal) => {
-  if (typeof code === 'number') process.exit(code);
-  process.exit(signal ? 1 : 0);
+  void cleanupLease().finally(() => {
+    if (typeof code === 'number') process.exit(code);
+    process.exit(signal ? 1 : 0);
+  });
+});
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    if (!child.killed) {
+      child.kill(signal);
+    }
+  });
+}
+
+process.on('uncaughtException', () => {
+  void cleanupLease();
+});
+process.on('unhandledRejection', () => {
+  void cleanupLease();
 });

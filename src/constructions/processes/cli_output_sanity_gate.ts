@@ -11,6 +11,7 @@ export interface CliOutputSanityGateInput {
   maxDurationMs?: number;
   commandTimeoutMs?: number;
   registeredCommands?: string[];
+  probePerCommandHelp?: boolean;
 }
 
 export interface CliOutputProbeResult {
@@ -171,7 +172,7 @@ function extractHelpCommands(helpOutput: string): string[] {
   return Array.from(new Set(commands));
 }
 
-function buildProbePlan(registeredCommands: string[]): CliProbe[] {
+function buildProbePlan(registeredCommands: string[], probePerCommandHelp: boolean): CliProbe[] {
   const probes: CliProbe[] = [
     { args: ['help'], expectedExit: 'zero', snapshotKey: 'globalHelp' },
     { args: ['help', 'query'], expectedExit: 'zero', snapshotKey: 'queryHelp' },
@@ -184,8 +185,10 @@ function buildProbePlan(registeredCommands: string[]): CliProbe[] {
     { args: ['replay', '--debug'], expectedExit: 'non-zero' },
   ];
 
-  for (const command of registeredCommands) {
-    probes.push({ args: ['help', command], expectedExit: 'zero' });
+  if (probePerCommandHelp) {
+    for (const command of registeredCommands) {
+      probes.push({ args: ['help', command], expectedExit: 'zero' });
+    }
   }
 
   const seen = new Set<string>();
@@ -350,7 +353,7 @@ export function createCliOutputSanityGateConstruction(): Construction<
       const registeredCommands = input.registeredCommands
         ? Array.from(new Set(input.registeredCommands))
         : await extractRegisteredCommands(repoRoot, cliEntry);
-      const probes = buildProbePlan(registeredCommands);
+      const probes = buildProbePlan(registeredCommands, input.probePerCommandHelp ?? true);
       const commandResults: CliOutputProbeResult[] = [];
       const findings: string[] = [];
 

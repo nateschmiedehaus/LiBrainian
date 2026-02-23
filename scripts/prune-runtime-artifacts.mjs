@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export const RUNTIME_ACTIVE_LEASE_DIR = '.librainian-active-leases';
 
 function parsePositiveInt(raw, fallback) {
   const value = Number(raw);
@@ -103,15 +104,37 @@ function rootSpecs() {
 }
 
 async function pruneRoot(spec, nowMs, maxAgeMs, maxEntriesPerRoot) {
+  const leaseInfo = await getActiveLeaseInfo(spec.root, nowMs, 4 * 60 * 60 * 1000);
+  if (leaseInfo.hasActiveLease) {
+    return {
+      root: spec.root,
+      scanned: 0,
+      deleted: 0,
+      failures: 0,
+      budgetDeleted: 0,
+      protectedByActiveLease: true,
+      activeLeaseCount: leaseInfo.activeLeaseCount,
+    };
+  }
+
   let entries;
   try {
     entries = await readdir(spec.root, { withFileTypes: true });
   } catch {
-    return { root: spec.root, scanned: 0, deleted: 0, failures: 0 };
+    return {
+      root: spec.root,
+      scanned: 0,
+      deleted: 0,
+      failures: 0,
+      budgetDeleted: 0,
+      protectedByActiveLease: false,
+      activeLeaseCount: 0,
+    };
   }
 
   const candidates = [];
   for (const entry of entries) {
+    if (entry.name === RUNTIME_ACTIVE_LEASE_DIR) continue;
     if (!spec.include(entry.name)) continue;
     const fullPath = path.join(spec.root, entry.name);
     try {
@@ -149,6 +172,8 @@ async function pruneRoot(spec, nowMs, maxAgeMs, maxEntriesPerRoot) {
     deleted,
     failures,
     budgetDeleted: 0,
+    protectedByActiveLease: false,
+    activeLeaseCount: 0,
   };
 }
 
@@ -192,6 +217,11 @@ async function sizeBytesForPath(rootPath) {
 }
 
 async function collectBudgetCandidates(spec) {
+  const leaseInfo = await getActiveLeaseInfo(spec.root, Date.now(), 4 * 60 * 60 * 1000);
+  if (leaseInfo.hasActiveLease) {
+    return [];
+  }
+
   let entries;
   try {
     entries = await readdir(spec.root, { withFileTypes: true });
@@ -201,6 +231,7 @@ async function collectBudgetCandidates(spec) {
 
   const candidates = [];
   for (const entry of entries) {
+    if (entry.name === RUNTIME_ACTIVE_LEASE_DIR) continue;
     if (!spec.include(entry.name)) continue;
     const fullPath = path.join(spec.root, entry.name);
     let entryStat;
@@ -220,6 +251,33 @@ async function collectBudgetCandidates(spec) {
   return candidates;
 }
 
+async function getActiveLeaseInfo(root, nowMs, activeLeaseMaxAgeMs) {
+  const leaseDir = path.join(root, RUNTIME_ACTIVE_LEASE_DIR);
+  let entries;
+  try {
+    entries = await readdir(leaseDir, { withFileTypes: true });
+  } catch {
+    return { hasActiveLease: false, activeLeaseCount: 0 };
+  }
+
+  let activeLeaseCount = 0;
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const leasePath = path.join(leaseDir, entry.name);
+    let leaseStat;
+    try {
+      leaseStat = await stat(leasePath);
+    } catch {
+      continue;
+    }
+    if (nowMs - leaseStat.mtimeMs <= activeLeaseMaxAgeMs) {
+      activeLeaseCount += 1;
+    }
+  }
+
+  return { hasActiveLease: activeLeaseCount > 0, activeLeaseCount };
+}
+
 export async function pruneRuntimeArtifacts(options = {}) {
   const maxAgeHours = parsePositiveInt(options.maxAgeHours, 12);
   const maxEntriesPerRoot = parsePositiveInt(options.maxEntriesPerRoot, 200);
@@ -229,7 +287,7 @@ export async function pruneRuntimeArtifacts(options = {}) {
   const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
   const maxTotalBytes = maxTotalGb * 1024 * 1024 * 1024;
   const nowMs = Date.now();
-  const specs = rootSpecs();
+  const specs = Array.isArray(options.roots) ? options.roots : rootSpecs();
   const results = [];
 
   for (const spec of specs) {
