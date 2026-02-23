@@ -152,7 +152,7 @@ runs:
         did_bootstrap=0
         if [ ! -d "${workspace}/${{ inputs.cache-path }}" ]; then
           echo "[librainian-action] No existing index found, running bootstrap."
-          run_with_watchdog "bootstrap.initial" "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
+          run_with_watchdog "bootstrap.initial" "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --scope librainian --mode fast --no-claude-md --force-resume
           did_bootstrap=1
         fi
 
@@ -175,7 +175,7 @@ runs:
               printf '%s\n' "${update_output}"
             fi
             echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
-            run_with_watchdog "bootstrap.fallback" "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force
+            run_with_watchdog "bootstrap.fallback" "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --scope librainian --mode fast --no-claude-md --force
           fi
         fi
 

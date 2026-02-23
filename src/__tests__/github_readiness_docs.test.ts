@@ -102,5 +102,7 @@ describe('github readiness docs', () => {
     expect(action).toContain('LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS:-15');
     expect(action).toContain('stage=${stage} heartbeat');
     expect(action).toContain('stall_detected: stage=${stage} produced no output');
+    expect(action).toContain('bootstrap --scope librainian --mode fast --no-claude-md --force-resume');
+    expect(action).toContain('bootstrap --scope librainian --mode fast --no-claude-md --force');
   });
 });
