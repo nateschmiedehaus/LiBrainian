@@ -11,6 +11,11 @@ describe('dogfood ci gate liveness controls', () => {
     expect(parsed.bootstrapStallTimeoutMs).toBe(12345);
   });
 
+  it('allows disabling bootstrap stall timeout with zero', () => {
+    const parsed = parseArgs(['--bootstrap-stall-timeout-ms', '0']);
+    expect(parsed.bootstrapStallTimeoutMs).toBe(0);
+  });
+
   it('marks silent command as stalled before hard timeout', async () => {
     const result = await runStreaming(
       process.execPath,

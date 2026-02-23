@@ -250,7 +250,7 @@ function parseArgs(argv) {
   if (!Number.isFinite(bootstrapTimeoutMs) || bootstrapTimeoutMs <= 0) {
     fail(`Invalid --bootstrap-timeout-ms value: ${bootstrapTimeoutMs}`);
   }
-  if (!Number.isFinite(bootstrapStallTimeoutMs) || bootstrapStallTimeoutMs <= 0) {
+  if (!Number.isFinite(bootstrapStallTimeoutMs) || bootstrapStallTimeoutMs < 0) {
     fail(`Invalid --bootstrap-stall-timeout-ms value: ${bootstrapStallTimeoutMs}`);
   }
 

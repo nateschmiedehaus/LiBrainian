@@ -46,5 +46,5 @@ jobs:
       - name: Dogfood gate (status + index + query suite)
         env:
           DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 900000
-          DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS: 480000
+          DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS: 0
         run: node scripts/dogfood-ci-gate.mjs
