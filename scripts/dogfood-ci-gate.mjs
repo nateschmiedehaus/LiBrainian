@@ -728,6 +728,9 @@ async function main() {
       if (bootstrapResult.stalled) {
         fail(`stall_detected: bootstrap produced no output for ${bootstrapStallTimeoutMs}ms`);
       }
+      if (bootstrapResult.timedOut) {
+        fail(`bootstrap_timeout: bootstrap exceeded ${bootstrapTimeoutMs}ms before completion`);
+      }
       fail(`Bootstrap failed: ${toSingleLine(bootstrapResult.stderr || bootstrapResult.stdout)}`);
     }
     artifact.checks.bootstrapSucceeded = true;

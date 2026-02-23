@@ -61,6 +61,22 @@ const timer = setInterval(() => {
     expect(result.status).toBe(0);
   });
 
+  it('classifies hard timeout when stall watchdog is disabled', async () => {
+    const result = await runStreaming(
+      process.execPath,
+      ['-e', 'setTimeout(() => {}, 10_000);'],
+      {
+        allowFailure: true,
+        timeoutMs: 200,
+        stallTimeoutMs: 0,
+      },
+    );
+    expect(result.timedOut).toBe(true);
+    expect(result.stalled).toBe(false);
+    expect(result.terminationReason).toBe('timeout');
+    expect(result.status).not.toBe(0);
+  });
+
   it('records bootstrap stage timeline when stage lines are emitted', async () => {
     const script = `
 process.stdout.write('LiBrainian Bootstrap\\n');

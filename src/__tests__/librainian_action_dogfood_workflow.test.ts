@@ -9,7 +9,8 @@ describe('librainian-action-dogfood workflow contract', () => {
     const workflow = readFileSync(workflowPath, 'utf8');
 
     expect(workflow).toContain('name: Dogfood gate (status + index + query suite)');
-    expect(workflow).toContain('DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 900000');
+    expect(workflow).toContain('timeout-minutes: 30');
+    expect(workflow).toContain('DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 1500000');
     expect(workflow).toContain('DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS: 0');
   });
 });

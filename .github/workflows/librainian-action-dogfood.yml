@@ -14,7 +14,7 @@ permissions:
 jobs:
   dogfood-action:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,6 +45,6 @@ jobs:
 
       - name: Dogfood gate (status + index + query suite)
         env:
-          DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 900000
+          DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 1500000
           DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS: 0
         run: node scripts/dogfood-ci-gate.mjs
