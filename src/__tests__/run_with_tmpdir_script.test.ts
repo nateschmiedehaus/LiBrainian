@@ -39,4 +39,28 @@ describe('run-with-tmpdir script', () => {
     const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
     expect(output).toContain('Command timed out after 1s');
   });
+
+  it('emits explicit classification when a command exits non-zero without a failure summary', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'run-with-tmpdir.mjs');
+    const result = spawnSync(
+      process.execPath,
+      [
+        scriptPath,
+        '--',
+        process.execPath,
+        '-e',
+        'process.stderr.write("partial output without summary\\n"); process.exit(1);',
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        timeout: 15_000,
+      },
+    );
+
+    expect(result.status).toBe(1);
+    const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
+    expect(output).toContain('[run-with-tmpdir] nonzero_without_summary:');
+    expect(output).toContain('exit_code=1');
+  });
 });

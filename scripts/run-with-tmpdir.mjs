@@ -135,7 +135,7 @@ for (const kv of sets) {
 }
 
 const child = spawn(cmd, cmdArgs, {
-  stdio: 'inherit',
+  stdio: ['inherit', 'pipe', 'pipe'],
   env,
   // Needed for `.cmd` resolution on Windows.
   shell: process.platform === 'win32',
@@ -145,6 +145,57 @@ let finalized = false;
 let timedOut = false;
 let hardKillTimer;
 let timeoutTimer;
+const outputTail = [];
+let observedOutputBytes = 0;
+
+function appendOutputTail(rawChunk) {
+  const text = String(rawChunk ?? '');
+  if (text.length === 0) return;
+  observedOutputBytes += Buffer.byteLength(text);
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
+  for (const line of lines) {
+    if (line.length === 0) continue;
+    outputTail.push(line);
+  }
+  if (outputTail.length > 25) {
+    outputTail.splice(0, outputTail.length - 25);
+  }
+}
+
+function hasFailureSummaryInTail() {
+  const joined = outputTail.join('\n');
+  if (joined.length === 0) return false;
+  const failureSummaryPatterns = [
+    /\bTest Files\s+\d+\s+failed\b/i,
+    /\bTests?\s+\d+\s+failed\b/i,
+    /\bFailed Tests\b/i,
+    /^\s*FAIL\b/im,
+    /^\s*ERROR\b/im,
+  ];
+  return failureSummaryPatterns.some((pattern) => pattern.test(joined));
+}
+
+function emitNonZeroWithoutSummary(exitCode, signal) {
+  const tailText = outputTail.join(' | ').replace(/\s+/g, ' ').trim();
+  const truncatedTail = tailText.length > 320 ? `${tailText.slice(0, 320)}...` : tailText;
+  const signalValue = signal ? String(signal) : 'none';
+  const commandLabel = [cmd, ...cmdArgs].join(' ').trim();
+  // eslint-disable-next-line no-console
+  console.error(
+    `[run-with-tmpdir] nonzero_without_summary: exit_code=${exitCode} signal=${signalValue} output_bytes=${observedOutputBytes} command="${commandLabel}" tail="${truncatedTail}"`,
+  );
+}
+
+child.stdout?.on('data', (chunk) => {
+  appendOutputTail(chunk);
+  process.stdout.write(chunk);
+});
+
+child.stderr?.on('data', (chunk) => {
+  appendOutputTail(chunk);
+  process.stderr.write(chunk);
+});
 
 function finalizeWith(code) {
   if (finalized) return;
@@ -187,6 +238,9 @@ child.on('close', (code, signal) => {
   if (timedOut) {
     finalizeWith(124);
     return;
+  }
+  if (typeof code === 'number' && code !== 0 && !hasFailureSummaryInTail()) {
+    emitNonZeroWithoutSummary(code, signal);
   }
   if (typeof code === 'number') {
     finalizeWith(code);
