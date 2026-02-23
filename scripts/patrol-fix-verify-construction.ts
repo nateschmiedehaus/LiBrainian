@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import { parseArgs } from 'node:util';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { createPatrolFixVerifyProcessConstruction, type PatrolFixVerifyInput } from '../src/constructions/processes/patrol_fix_verify_process.js';
+import { createOperationalProofGateConstruction } from '../src/constructions/processes/operational_proof_gate.js';
 
 function toBoolean(value: string | undefined, fallback: boolean): boolean {
   if (typeof value !== 'string') return fallback;
@@ -22,6 +25,8 @@ async function main(): Promise<void> {
       'fix-command': { type: 'string' },
       'regression-command': { type: 'string' },
       'verify-command': { type: 'string' },
+      'result-out': { type: 'string', default: 'state/patrol/patrol-fix-verify-result.json' },
+      'proof-bundle-out': { type: 'string', default: 'state/patrol/patrol-fix-verify-proof.json' },
     },
     allowPositionals: false,
   });
@@ -74,7 +79,59 @@ async function main(): Promise<void> {
 
   if (result.value.exitReason !== 'completed') {
     process.exitCode = 1;
+    return;
   }
+
+  const resultOutPath = resolve(values['result-out']);
+  const proofBundleOutPath = resolve(values['proof-bundle-out']);
+  await mkdir(dirname(resultOutPath), { recursive: true });
+  await writeFile(resultOutPath, JSON.stringify(result.value, null, 2), 'utf8');
+
+  const proofReaderScript = [
+    'const fs = require("node:fs");',
+    `process.stdout.write(fs.readFileSync(${JSON.stringify(resultOutPath)}, "utf8"));`,
+  ].join(' ');
+  const proofGate = createOperationalProofGateConstruction();
+  const proofResult = await proofGate.execute({
+    checks: [
+      {
+        id: 'patrol-fix-verify-proof',
+        description: 'validate patrol loop output and emitted artifact',
+        command: process.execPath,
+        args: ['-e', proofReaderScript],
+        requiredOutputSubstrings: ['PatrolFixVerifyResult.v1', result.value.issueUrl, result.value.fixPrUrl],
+        requiredFilePaths: [resultOutPath],
+      },
+    ],
+    proofBundleOutputPath: proofBundleOutPath,
+    proofBundleSource: 'patrol-fix-verify-construction',
+  });
+
+  if (!proofResult.ok) {
+    console.error(JSON.stringify({
+      ok: false,
+      error: proofResult.error.message,
+      errorAt: proofResult.errorAt,
+    }, null, 2));
+    process.exitCode = 1;
+    return;
+  }
+  if (!proofResult.value.passed) {
+    console.error(JSON.stringify({
+      ok: false,
+      error: 'operational proof gate failed',
+      proof: proofResult.value,
+    }, null, 2));
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(JSON.stringify({
+    ok: true,
+    resultPath: resultOutPath,
+    proofBundlePath: proofBundleOutPath,
+    proofBundle: proofResult.value.proofBundle,
+  }, null, 2));
 }
 
 void main();

@@ -22,3 +22,6 @@ jobs:
 
       - name: Run patrol fix verify construction
         run: npm run patrol:fix-verify:schedule
+
+      - name: Validate operational proof bundle
+        run: node scripts/operational-proof-ci-gate.mjs --bundle state/patrol/patrol-fix-verify-proof.json

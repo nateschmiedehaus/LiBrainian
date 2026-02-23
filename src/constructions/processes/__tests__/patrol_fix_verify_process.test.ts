@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   createFixGeneratorConstruction,
   createFixVerifierConstruction,
@@ -8,6 +11,7 @@ import {
   createRegressionTestConstruction,
   type PatrolFixVerifyInput,
 } from '../patrol_fix_verify_process.js';
+import { createOperationalProofGateConstruction } from '../operational_proof_gate.js';
 
 function makeState(input: PatrolFixVerifyInput = {}) {
   return {
@@ -132,5 +136,83 @@ describe('patrol fix verify pipeline', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.trigger).toBe('schedule');
+  });
+
+  it('produces machine-verifiable operational proof for a non-dry-run patrol loop', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'librainian-patrol-proof-loop-'));
+    try {
+      const patrolScript = [
+        'console.log("PATROL_OBSERVATION_JSON_START");',
+        'console.log(JSON.stringify({',
+        '  overallVerdict: { npsScore: 3, wouldRecommend: false },',
+        '  negativeFindingsMandatory: [',
+        '    { category: "api", severity: "high", title: "Known bug reproduced", detail: "non-dry-run loop finding" }',
+        '  ]',
+        '}));',
+        'console.log("PATROL_OBSERVATION_JSON_END");',
+      ].join(' ');
+
+      const pipeline = createPatrolFixVerifyProcessConstruction();
+      const result = await pipeline.execute({
+        trigger: 'manual',
+        knownBugHint: 'non-dry-run proof loop',
+        patrolScan: { dryRun: false, command: process.execPath, args: ['-e', patrolScript] },
+        issueFiler: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'console.log("https://github.com/example/LiBrainian/issues/4242")'],
+        },
+        fixGenerator: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'console.log("https://github.com/example/LiBrainian/pull/9898")'],
+        },
+        regressionTest: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'console.log("GENERATED_TEST: src/__tests__/regressions/non_dry_run_proof.test.ts")'],
+        },
+        fixVerifier: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'console.log("VERIFY_OK")'],
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.exitReason).toBe('completed');
+      expect(result.value.issueUrl).toContain('/issues/');
+      expect(result.value.fixPrUrl).toContain('/pull/');
+
+      const loopArtifactPath = join(tmp, 'non-dry-run-loop.json');
+      await writeFile(loopArtifactPath, JSON.stringify(result.value, null, 2), 'utf8');
+
+      const proofReaderScript = [
+        'const fs = require("node:fs");',
+        `process.stdout.write(fs.readFileSync(${JSON.stringify(loopArtifactPath)}, "utf8"));`,
+      ].join(' ');
+      const gate = createOperationalProofGateConstruction();
+      const proofResult = await gate.execute({
+        checks: [
+          {
+            id: 'patrol-loop-proof',
+            description: 'non-dry-run patrol loop emits issue/pr evidence and artifact',
+            command: process.execPath,
+            args: ['-e', proofReaderScript],
+            requiredOutputSubstrings: ['PatrolFixVerifyResult.v1', result.value.issueUrl, result.value.fixPrUrl],
+            requiredFilePaths: [loopArtifactPath],
+          },
+        ],
+      });
+
+      expect(proofResult.ok).toBe(true);
+      if (!proofResult.ok) return;
+      expect(proofResult.value.passed).toBe(true);
+      expect(proofResult.value.failureCount).toBe(0);
+      expect(proofResult.value.checkResults[0]?.passed).toBe(true);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
   });
 });

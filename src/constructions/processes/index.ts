@@ -100,6 +100,23 @@ export {
 } from './operational_proof_gate.js';
 
 export {
+  createProofContractEvaluatorConstruction,
+  PROOF_CONTRACT_EVALUATOR_DESCRIPTION,
+  type ProofContractEvaluationInput,
+  type ProofContractEvaluationOutput,
+} from './proof_contract_evaluator.js';
+
+export {
+  OPERATIONAL_PROOF_BUNDLE_KIND,
+  OperationalProofBundleSchema,
+  OperationalProofBundleCheckSchema,
+  createOperationalProofBundle,
+  parseOperationalProofBundle,
+  type OperationalProofBundle,
+  type OperationalProofBundleCheck,
+} from './proof_bundle.js';
+
+export {
   WET_TESTING_POLICY_KIND,
   WET_TESTING_POLICY_DECISION_KIND,
   WET_TESTING_POLICY_DECISION_ARTIFACT_KIND,

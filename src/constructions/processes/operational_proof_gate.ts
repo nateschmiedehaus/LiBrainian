@@ -1,11 +1,15 @@
-import { access, mkdir, writeFile } from 'node:fs/promises';
-import { constants as fsConstants } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Construction } from '../types.js';
 import { fail, ok, unwrapConstructionExecutionResult } from '../types.js';
 import { ConstructionError, ConstructionInputError } from '../base/construction_base.js';
 import type { ProcessEvent, ProcessInput, ProcessOutput } from './process_base.js';
 import { createAgentDispatchConstruction } from './agent_dispatch_construction.js';
+import { createProofContractEvaluatorConstruction } from './proof_contract_evaluator.js';
+import {
+  createOperationalProofBundle,
+  type OperationalProofBundle,
+} from './proof_bundle.js';
 import {
   createWetTestingPolicyDecisionArtifact,
   evaluateWetTestingPolicy,
@@ -34,6 +38,8 @@ export interface OperationalProofGateInput extends ProcessInput {
   policyConfig?: WetTestingPolicyConfig;
   policyContext?: WetTestingPolicyContext;
   policyDecisionOutputPath?: string;
+  proofBundleOutputPath?: string;
+  proofBundleSource?: string;
 }
 
 export interface OperationalProofCheckResult {
@@ -55,19 +61,8 @@ export interface OperationalProofGateOutput extends ProcessOutput {
   passed: boolean;
   failureCount: number;
   checkResults: OperationalProofCheckResult[];
+  proofBundle: OperationalProofBundle;
   policyDecisionArtifact?: WetTestingPolicyDecisionArtifact;
-}
-
-async function listMissingFilePaths(paths: readonly string[]): Promise<string[]> {
-  const missing: string[] = [];
-  for (const filePath of paths) {
-    try {
-      await access(filePath, fsConstants.F_OK);
-    } catch {
-      missing.push(filePath);
-    }
-  }
-  return missing;
 }
 
 function uniqueValues(values: readonly string[] | undefined): string[] {
@@ -103,6 +98,7 @@ export function createOperationalProofGateConstruction(): Construction<
   unknown
 > {
   const dispatchConstruction = createAgentDispatchConstruction();
+  const proofEvaluator = createProofContractEvaluatorConstruction();
   return {
     id: 'operational-proof-gate',
     name: 'Operational Proof Gate',
@@ -177,6 +173,18 @@ export function createOperationalProofGateConstruction(): Construction<
             ].join(';');
             const policyFailure = buildPolicyFailClosedResult(reason);
             checkResults.push(policyFailure);
+            const proofBundle = createOperationalProofBundle({
+              source: input.proofBundleSource ?? 'operational-proof-gate',
+              checks: checkResults,
+            });
+            if (input.proofBundleOutputPath) {
+              await mkdir(dirname(input.proofBundleOutputPath), { recursive: true });
+              await writeFile(
+                input.proofBundleOutputPath,
+                JSON.stringify(proofBundle, null, 2),
+                'utf8',
+              );
+            }
             events.push({
               stage: 'policy',
               type: 'warning',
@@ -189,6 +197,7 @@ export function createOperationalProofGateConstruction(): Construction<
               passed: false,
               failureCount: 1,
               checkResults,
+              proofBundle,
               policyDecisionArtifact,
               observations: {
                 checks: checkResults,
@@ -223,53 +232,76 @@ export function createOperationalProofGateConstruction(): Construction<
 
         const requiredOutputSubstrings = uniqueValues(check.requiredOutputSubstrings);
         const requiredFilePaths = uniqueValues(check.requiredFilePaths);
-        const combinedOutput = `${dispatch.stdout}\n${dispatch.stderr}`;
-        const missingOutputSubstrings = requiredOutputSubstrings.filter(
-          (snippet) => !combinedOutput.includes(snippet),
+        const evaluation = unwrapConstructionExecutionResult(
+          await proofEvaluator.execute({
+            id: check.id,
+            description: check.description,
+            commandLine: dispatch.commandLine,
+            exitCode: dispatch.exitCode,
+            timedOut: dispatch.timedOut,
+            durationMs: dispatch.durationMs,
+            stdout: dispatch.stdout,
+            stderr: dispatch.stderr,
+            requiredOutputSubstrings,
+            requiredFilePaths,
+          }),
         );
-        const missingFilePaths = await listMissingFilePaths(requiredFilePaths);
-        const passed = dispatch.exitCode === 0
-          && !dispatch.timedOut
-          && missingOutputSubstrings.length === 0
-          && missingFilePaths.length === 0;
 
         checkResults.push({
-          id: check.id,
-          description: check.description,
-          commandLine: dispatch.commandLine,
-          exitCode: dispatch.exitCode,
-          timedOut: dispatch.timedOut,
-          durationMs: dispatch.durationMs,
-          passed,
-          missingOutputSubstrings,
-          missingFilePaths,
-          stdout: dispatch.stdout,
-          stderr: dispatch.stderr,
+          id: evaluation.id,
+          description: evaluation.description,
+          commandLine: evaluation.commandLine,
+          exitCode: evaluation.exitCode,
+          timedOut: evaluation.timedOut,
+          durationMs: evaluation.durationMs,
+          passed: evaluation.passed,
+          missingOutputSubstrings: evaluation.missingOutputSubstrings,
+          missingFilePaths: evaluation.missingFilePaths,
+          stdout: evaluation.stdout,
+          stderr: evaluation.stderr,
         });
 
         events.push({
           stage: check.id,
-          type: passed ? 'stage_end' : 'warning',
+          type: evaluation.passed ? 'stage_end' : 'warning',
           timestamp: new Date().toISOString(),
-          detail: passed ? 'operational_proof_check_passed' : 'operational_proof_check_failed',
+          detail: evaluation.passed ? 'operational_proof_check_passed' : 'operational_proof_check_failed',
         });
 
-        if (!passed && failFast) {
+        if (!evaluation.passed && failFast) {
           break;
         }
       }
 
       const failureCount = checkResults.filter((entry) => !entry.passed).length;
       const passed = failureCount === 0 && checkResults.length === checks.length;
+      const proofBundle = createOperationalProofBundle({
+        source: input.proofBundleSource ?? 'operational-proof-gate',
+        checks: checkResults,
+      });
+      if (input.proofBundleOutputPath) {
+        await mkdir(dirname(input.proofBundleOutputPath), { recursive: true });
+        await writeFile(
+          input.proofBundleOutputPath,
+          JSON.stringify(proofBundle, null, 2),
+          'utf8',
+        );
+      }
       return ok({
         kind: 'OperationalProofGateResult.v1',
         passed,
         failureCount,
         checkResults,
+        proofBundle,
         policyDecisionArtifact,
         observations: {
           checks: checkResults,
           policyDecision: policyDecisionArtifact?.decision,
+          proofBundleSummary: {
+            source: proofBundle.source,
+            passed: proofBundle.passed,
+            failureCount: proofBundle.failureCount,
+          },
         },
         costSummary: {
           durationMs: Date.now() - startedAtMs,

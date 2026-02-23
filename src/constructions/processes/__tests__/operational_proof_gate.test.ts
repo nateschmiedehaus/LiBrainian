@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createOperationalProofGateConstruction } from '../operational_proof_gate.js';
 import { DEFAULT_WET_TESTING_POLICY_CONFIG } from '../wet_testing_policy.js';
+import {
+  OPERATIONAL_PROOF_BUNDLE_KIND,
+  parseOperationalProofBundle,
+} from '../proof_bundle.js';
 
 describe('operational proof gate', () => {
   it('passes when command outputs and required artifacts satisfy proof contract', async () => {
@@ -36,6 +40,8 @@ describe('operational proof gate', () => {
       expect(result.value.passed).toBe(true);
       expect(result.value.failureCount).toBe(0);
       expect(result.value.checkResults[0]?.passed).toBe(true);
+      expect(result.value.proofBundle.kind).toBe(OPERATIONAL_PROOF_BUNDLE_KIND);
+      expect(result.value.proofBundle.passed).toBe(true);
 
       const artifact = await readFile(artifactPath, 'utf8');
       expect(artifact).toContain('"ok":true');
@@ -63,6 +69,7 @@ describe('operational proof gate', () => {
     expect(result.value.passed).toBe(false);
     expect(result.value.failureCount).toBe(1);
     expect(result.value.checkResults[0]?.passed).toBe(false);
+    expect(result.value.proofBundle.passed).toBe(false);
     expect(result.value.checkResults[0]?.missingOutputSubstrings).toContain('REQUIRED_MARKER');
     expect(result.value.checkResults[0]?.missingFilePaths).toContain('/tmp/does-not-exist-proof-artifact.txt');
   });
@@ -97,15 +104,17 @@ describe('operational proof gate', () => {
     expect(result.value.passed).toBe(false);
     expect(result.value.failureCount).toBe(1);
     expect(result.value.checkResults[0]?.id).toBe('policy.fail_closed');
+    expect(result.value.proofBundle.passed).toBe(false);
     expect(result.value.policyDecisionArtifact?.decision.requiredEvidenceMode).toBe('wet');
     expect(result.value.policyDecisionArtifact?.decision.failClosed).toBe(true);
   });
 
-  it('writes machine-readable policy decision artifact when output path is provided', async () => {
+  it('writes machine-readable policy decision and proof-bundle artifacts when output paths are provided', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'librainian-operational-proof-policy-'));
     try {
       const artifactPath = join(tmp, 'proof-artifact.json');
       const policyPath = join(tmp, 'policy-decision.json');
+      const proofBundlePath = join(tmp, 'proof-bundle.json');
       const script = [
         'const fs = require("node:fs");',
         `fs.writeFileSync(${JSON.stringify(artifactPath)}, JSON.stringify({ ok: true }), "utf8");`,
@@ -135,6 +144,7 @@ describe('operational proof gate', () => {
           requiresExternalRepo: true,
         },
         policyDecisionOutputPath: policyPath,
+        proofBundleOutputPath: proofBundlePath,
       });
 
       expect(result.ok).toBe(true);
@@ -149,8 +159,24 @@ describe('operational proof gate', () => {
       expect(parsed.kind).toBe('WetTestingPolicyDecisionArtifact.v1');
       expect(parsed.decision?.requiredEvidenceMode).toBe('wet');
       expect(parsed.decision?.matchedRuleId).toBe('critical-release-wet');
+
+      const proofRaw = await readFile(proofBundlePath, 'utf8');
+      const proof = parseOperationalProofBundle(JSON.parse(proofRaw));
+      expect(proof.kind).toBe(OPERATIONAL_PROOF_BUNDLE_KIND);
+      expect(proof.passed).toBe(true);
+      expect(proof.checks[0]?.id).toBe('proof-check');
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
+  });
+
+  it('rejects invalid proof bundle schema', () => {
+    expect(() => parseOperationalProofBundle({
+      kind: OPERATIONAL_PROOF_BUNDLE_KIND,
+      source: 'test',
+      passed: true,
+      failureCount: 0,
+      checks: [],
+    })).toThrow();
   });
 });
