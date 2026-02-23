@@ -18,6 +18,11 @@ async function writeFileAt(filePath: string, ageMs: number): Promise<void> {
   await fs.utimes(filePath, mtime, mtime);
 }
 
+async function setPathAge(targetPath: string, ageMs: number): Promise<void> {
+  const mtime = new Date(Date.now() - ageMs);
+  await fs.utimes(targetPath, mtime, mtime);
+}
+
 describe('artifact retention policy', () => {
   it('uses installed defaults when workspace is not a git repo', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retention-installed-'));
@@ -139,6 +144,109 @@ describe('artifact retention policy', () => {
       expect(applied.audit.summary.deleted).toBeGreaterThanOrEqual(9);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('prunes external clean clones from configured roots while preserving recent activity', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retention-ext-clones-'));
+    const externalRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retention-ext-root-'));
+    try {
+      await fs.mkdir(path.join(workspace, '.git'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspace, '.librainian-retention.json'),
+        JSON.stringify({
+          classes: {
+            externalCleanClones: {
+              searchRoots: [externalRoot],
+              maxAgeDays: 0.01,
+              maxCount: 1,
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      const oldByAge = path.join(externalRoot, 'librarian-clean-clone-old-age');
+      const oldByCount = path.join(externalRoot, 'librainian-clean-clone-old-count');
+      const recent = path.join(externalRoot, 'librainian-clean-clone-recent');
+      await fs.mkdir(oldByAge, { recursive: true });
+      await fs.mkdir(oldByCount, { recursive: true });
+      await fs.mkdir(recent, { recursive: true });
+
+      await setPathAge(oldByAge, 10 * DAY_MS);
+      await setPathAge(oldByCount, 5 * DAY_MS);
+      await setPathAge(recent, 1 * 60 * 60 * 1000);
+
+      const applied = await runArtifactRetention({
+        workspaceRoot: workspace,
+        context: 'repo',
+        dryRun: false,
+      });
+
+      expect(existsSync(oldByAge)).toBe(false);
+      expect(existsSync(oldByCount)).toBe(false);
+      expect(existsSync(recent)).toBe(true);
+
+      const cloneDecisions = applied.audit.decisions.filter(
+        (decision) => decision.classId === 'externalCleanClones',
+      );
+      expect(cloneDecisions.length).toBe(3);
+      const recentDecision = cloneDecisions.find((decision) => decision.path.endsWith('librainian-clean-clone-recent'));
+      expect(recentDecision?.action).toBe('keep');
+      expect(recentDecision?.reason).toBe('recent_activity_guard');
+      expect(applied.policy.classes.externalCleanClones.searchRoots).toContain(externalRoot);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+      await fs.rm(externalRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('prunes external AB harness artifacts from configured roots', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retention-ext-harness-'));
+    const externalRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-retention-ext-root-'));
+    try {
+      await fs.mkdir(path.join(workspace, '.git'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspace, '.librainian-retention.json'),
+        JSON.stringify({
+          classes: {
+            externalHarnessArtifacts: {
+              searchRoots: [externalRoot],
+              maxAgeDays: 7,
+              maxCount: 10,
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      const harnessRoot = path.join(externalRoot, 'librainian', '.ab-harness-artifacts');
+      const oldRun = path.join(harnessRoot, 'run-old');
+      const recentRun = path.join(harnessRoot, 'run-recent');
+      await fs.mkdir(oldRun, { recursive: true });
+      await fs.mkdir(recentRun, { recursive: true });
+      await setPathAge(oldRun, 10 * DAY_MS);
+      await setPathAge(recentRun, 2 * DAY_MS);
+
+      const applied = await runArtifactRetention({
+        workspaceRoot: workspace,
+        context: 'repo',
+        dryRun: false,
+      });
+
+      expect(existsSync(oldRun)).toBe(false);
+      expect(existsSync(recentRun)).toBe(true);
+
+      const harnessDecisions = applied.audit.decisions.filter(
+        (decision) => decision.classId === 'externalHarnessArtifacts',
+      );
+      expect(harnessDecisions.length).toBe(2);
+      const oldDecision = harnessDecisions.find((decision) => decision.path.endsWith(path.join('.ab-harness-artifacts', 'run-old')));
+      expect(oldDecision?.action).toBe('delete');
+      expect(oldDecision?.reason).toBe('age_limit');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+      await fs.rm(externalRoot, { recursive: true, force: true });
     }
   });
 });

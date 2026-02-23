@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +9,9 @@ const RETENTION_POLICY_KIND = 'LiBrainianArtifactRetentionPolicy.v1';
 const RETENTION_AUDIT_KIND = 'LiBrainianArtifactRetentionAudit.v1';
 const OVERRIDE_FILENAME = '.librainian-retention.json';
 const PROTECTED_CLASS_IDS = new Set(['releaseEvidence']);
+const EXTERNAL_CLONE_NAME_PATTERN = /^(librarian|librainian)-clean-clone-/iu;
+const HARNESS_NAMESPACE_NAMES = ['librarian', 'librainian'];
+const DEFAULT_EXTERNAL_ROOT_TOKENS = ['$HOME/tmp', '$TMPDIR', '../.tmp'];
 
 const DEFAULT_POLICY_BY_CONTEXT = {
   repo: {
@@ -15,12 +19,40 @@ const DEFAULT_POLICY_BY_CONTEXT = {
     patrolReports: { maxAgeDays: 30, maxCount: 60, protected: false },
     temporarySandboxes: { maxAgeDays: 2, maxCount: 10, protected: false },
     transientPackages: { maxAgeDays: 2, maxCount: 4, protected: false },
+    externalCleanClones: {
+      maxAgeDays: 2,
+      maxCount: 4,
+      minDeleteAgeDays: 0.125,
+      protected: false,
+      searchRoots: DEFAULT_EXTERNAL_ROOT_TOKENS,
+    },
+    externalHarnessArtifacts: {
+      maxAgeDays: 7,
+      maxCount: 8,
+      minDeleteAgeDays: 0.125,
+      protected: false,
+      searchRoots: DEFAULT_EXTERNAL_ROOT_TOKENS,
+    },
   },
   installed: {
     releaseEvidence: { maxAgeDays: 30, maxCount: null, protected: true },
     patrolReports: { maxAgeDays: 14, maxCount: 20, protected: false },
     temporarySandboxes: { maxAgeDays: 1, maxCount: 5, protected: false },
     transientPackages: { maxAgeDays: 1, maxCount: 2, protected: false },
+    externalCleanClones: {
+      maxAgeDays: 2,
+      maxCount: 3,
+      minDeleteAgeDays: 0.125,
+      protected: false,
+      searchRoots: DEFAULT_EXTERNAL_ROOT_TOKENS,
+    },
+    externalHarnessArtifacts: {
+      maxAgeDays: 3,
+      maxCount: 4,
+      minDeleteAgeDays: 0.125,
+      protected: false,
+      searchRoots: DEFAULT_EXTERNAL_ROOT_TOKENS,
+    },
   },
 };
 
@@ -47,6 +79,37 @@ async function readOverrideConfig(workspaceRoot) {
   const raw = await fs.readFile(overridePath, 'utf8');
   const parsed = JSON.parse(raw);
   return { path: overridePath, content: parsed };
+}
+
+function resolveSearchRootToken(rawRoot, workspaceRoot) {
+  if (typeof rawRoot !== 'string') {
+    throw new Error('Retention searchRoots entries must be strings.');
+  }
+  const token = rawRoot.trim();
+  if (token.length === 0) {
+    throw new Error('Retention searchRoots entries cannot be empty.');
+  }
+  if (token === '$TMPDIR' || token === '$TMP') {
+    return path.resolve(os.tmpdir());
+  }
+  if (token === '$HOME') {
+    return path.resolve(os.homedir());
+  }
+  if (token.startsWith('$HOME/')) {
+    return path.resolve(path.join(os.homedir(), token.slice('$HOME/'.length)));
+  }
+  return path.resolve(path.isAbsolute(token) ? token : path.join(workspaceRoot, token));
+}
+
+function resolveSearchRoots(searchRoots, workspaceRoot) {
+  if (!Array.isArray(searchRoots)) {
+    throw new Error('Retention searchRoots override must be an array.');
+  }
+  const uniqueRoots = new Set();
+  for (const root of searchRoots) {
+    uniqueRoots.add(resolveSearchRootToken(root, workspaceRoot));
+  }
+  return [...uniqueRoots];
 }
 
 export async function resolveRetentionPolicy({
@@ -77,6 +140,8 @@ export async function resolveRetentionPolicy({
     classes[classId] = {
       maxAgeMs: toMsFromDays(classOverride.maxAgeDays ?? config.maxAgeDays),
       maxCount: classOverride.maxCount ?? config.maxCount,
+      minDeleteAgeMs: toMsFromDays(classOverride.minDeleteAgeDays ?? config.minDeleteAgeDays ?? 0),
+      searchRoots: resolveSearchRoots(classOverride.searchRoots ?? config.searchRoots ?? [], workspaceRoot),
       protected: protectedFlag,
     };
   }
@@ -117,7 +182,68 @@ async function listEntries(relativeDir, workspaceRoot, predicate) {
   return results;
 }
 
-async function collectClassCandidates(classId, workspaceRoot) {
+function toDecisionPath(absolutePath, workspaceRoot) {
+  const relativePath = path.relative(workspaceRoot, absolutePath);
+  if (relativePath.length > 0 && !relativePath.startsWith('..')) {
+    return relativePath;
+  }
+  return absolutePath;
+}
+
+async function listEntriesFromAbsoluteDir(dirPath, workspaceRoot, predicate) {
+  let entries;
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const results = [];
+  for (const entry of entries) {
+    if (!predicate(entry)) continue;
+    const absolutePath = path.join(dirPath, entry.name);
+    const stat = await fs.stat(absolutePath);
+    results.push({
+      relativePath: toDecisionPath(absolutePath, workspaceRoot),
+      absolutePath,
+      sizeBytes: stat.size,
+      mtimeMs: stat.mtimeMs,
+      isDirectory: stat.isDirectory(),
+    });
+  }
+  return results;
+}
+
+async function collectExternalCleanCloneCandidates(workspaceRoot, searchRoots) {
+  const candidates = new Map();
+  for (const root of searchRoots) {
+    const matched = await listEntriesFromAbsoluteDir(root, workspaceRoot, (entry) => {
+      return entry.isDirectory() && EXTERNAL_CLONE_NAME_PATTERN.test(entry.name);
+    });
+    for (const candidate of matched) {
+      candidates.set(candidate.absolutePath, candidate);
+    }
+  }
+  return [...candidates.values()];
+}
+
+async function collectExternalHarnessCandidates(workspaceRoot, searchRoots) {
+  const candidates = new Map();
+  for (const root of searchRoots) {
+    for (const namespaceName of HARNESS_NAMESPACE_NAMES) {
+      const harnessRoot = path.join(root, namespaceName, '.ab-harness-artifacts');
+      const matched = await listEntriesFromAbsoluteDir(harnessRoot, workspaceRoot, (entry) => {
+        return entry.isDirectory() || entry.isFile();
+      });
+      for (const candidate of matched) {
+        candidates.set(candidate.absolutePath, candidate);
+      }
+    }
+  }
+  return [...candidates.values()];
+}
+
+async function collectClassCandidates(classId, workspaceRoot, classConfig) {
   switch (classId) {
     case 'releaseEvidence': {
       const dogfood = await listEntries('state/dogfood', workspaceRoot, (entry) => {
@@ -143,6 +269,10 @@ async function collectClassCandidates(classId, workspaceRoot) {
       return listEntries('.', workspaceRoot, (entry) => {
         return entry.isFile() && /^librainian-.*\.tgz$/iu.test(entry.name);
       });
+    case 'externalCleanClones':
+      return collectExternalCleanCloneCandidates(workspaceRoot, classConfig.searchRoots ?? []);
+    case 'externalHarnessArtifacts':
+      return collectExternalHarnessCandidates(workspaceRoot, classConfig.searchRoots ?? []);
     default:
       return [];
   }
@@ -150,7 +280,12 @@ async function collectClassCandidates(classId, workspaceRoot) {
 
 function shouldDeleteCandidate(candidateIndex, ageMs, classConfig) {
   if (classConfig.protected) return false;
-  const exceededAge = classConfig.maxAgeMs !== null && ageMs > classConfig.maxAgeMs;
+  const guardedByRecentActivity =
+    classConfig.minDeleteAgeMs !== null &&
+    Number.isFinite(classConfig.minDeleteAgeMs) &&
+    ageMs < classConfig.minDeleteAgeMs;
+  const exceededAgeRaw = classConfig.maxAgeMs !== null && ageMs > classConfig.maxAgeMs;
+  const exceededAge = exceededAgeRaw && !guardedByRecentActivity;
   const exceededCount =
     classConfig.maxCount !== null &&
     Number.isFinite(classConfig.maxCount) &&
@@ -160,7 +295,12 @@ function shouldDeleteCandidate(candidateIndex, ageMs, classConfig) {
 
 function decisionReason(candidateIndex, ageMs, classConfig) {
   if (classConfig.protected) return 'protected';
-  const exceededAge = classConfig.maxAgeMs !== null && ageMs > classConfig.maxAgeMs;
+  const guardedByRecentActivity =
+    classConfig.minDeleteAgeMs !== null &&
+    Number.isFinite(classConfig.minDeleteAgeMs) &&
+    ageMs < classConfig.minDeleteAgeMs;
+  const exceededAgeRaw = classConfig.maxAgeMs !== null && ageMs > classConfig.maxAgeMs;
+  const exceededAge = exceededAgeRaw && !guardedByRecentActivity;
   const exceededCount =
     classConfig.maxCount !== null &&
     Number.isFinite(classConfig.maxCount) &&
@@ -168,6 +308,7 @@ function decisionReason(candidateIndex, ageMs, classConfig) {
   if (exceededAge && exceededCount) return 'age_and_count_limit';
   if (exceededAge) return 'age_limit';
   if (exceededCount) return 'count_limit';
+  if (guardedByRecentActivity && exceededAgeRaw) return 'recent_activity_guard';
   return 'within_retention';
 }
 
@@ -192,7 +333,7 @@ export async function runArtifactRetention({
   let bytesReclaimed = 0;
 
   for (const [classId, classConfig] of Object.entries(policy.classes)) {
-    const candidates = await collectClassCandidates(classId, workspaceRoot);
+    const candidates = await collectClassCandidates(classId, workspaceRoot, classConfig);
     candidates.sort((left, right) => right.mtimeMs - left.mtimeMs);
     let classKept = 0;
     let classDeleted = 0;
@@ -327,4 +468,3 @@ if (isDirectExecution) {
       process.exit(1);
     });
 }
-
