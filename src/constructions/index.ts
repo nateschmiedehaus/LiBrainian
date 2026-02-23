@@ -306,6 +306,7 @@ export {
   isShallowContextPack,
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
+  resolveUnitPatrolSelection,
   UNIT_PATROL_DEFAULT_SCENARIO,
   UNIT_PATROL_DEFAULT_EVALUATION,
   PATROL_PROCESS_DESCRIPTION,
@@ -373,6 +374,9 @@ export {
   type ResultQualityJudgeInput,
   type ResultQualityJudgeOutput,
   type UnitPatrolOperationKind,
+  type UnitPatrolExecutionProfile,
+  type UnitPatrolDomain,
+  type UnitPatrolTask,
   type UnitPatrolQueryConfig,
   type UnitPatrolOperation,
   type UnitPatrolScenario,
@@ -381,7 +385,10 @@ export {
   type UnitPatrolOperationResult,
   type UnitPatrolFinding,
   type UnitPatrolQualityScores,
+  type UnitPatrolSelectorDecisionTrace,
   type UnitPatrolResult,
+  type UnitPatrolExecutionBudget,
+  type UnitPatrolSelection,
 } from './processes/index.js';
 
 // Strategic Constructions - wrapping strategic modules

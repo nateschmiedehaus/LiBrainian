@@ -36,6 +36,8 @@ describe('UnitPatrol', () => {
     expect(result.operations.some((operation) => operation.operation === 'bootstrap')).toBe(true);
     expect(result.operations.some((operation) => operation.operation === 'query')).toBe(true);
     expect(Array.isArray(result.findings)).toBe(true);
+    expect(result.selectorTrace.profile).toBeTypeOf('string');
+    expect(result.selectorTrace.rationale.length).toBeGreaterThan(0);
     expect(result.embedding.realProviderExpected).toBe(true);
     expect(result.costSummary.durationMs).toBeLessThanOrEqual(120_000);
     expect(Date.now() - startedAt).toBeLessThan(120_000);

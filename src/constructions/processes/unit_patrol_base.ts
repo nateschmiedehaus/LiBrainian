@@ -15,12 +15,16 @@ import type {
   UnitPatrolResult,
   UnitPatrolScenario,
 } from './types.js';
+import { resolveUnitPatrolSelection } from './unit_patrol_selector.js';
 
 type UnitPatrolState = {
   workspace: string;
   sandbox?: SandboxLifecycleOutput;
   operations: UnitPatrolOperationResult[];
   findings: UnitPatrolFinding[];
+  selectorTrace?: UnitPatrolResult['selectorTrace'];
+  selectorScenarioName?: string;
+  evaluation?: Required<UnitPatrolEvaluationCriteria>;
 };
 
 type MetamorphicTransformKind =
@@ -215,7 +219,6 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
   }
 
   protected buildPipeline(input: UnitPatrolInput): ConstructionPipeline<UnitPatrolInput, UnitPatrolState, UnitPatrolResult> {
-    const scenario = input.scenario ?? this.defaultScenario;
     const sandboxConstruction = createSandboxLifecycleConstruction();
 
     return {
@@ -261,6 +264,22 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
                 const operations: UnitPatrolOperationResult[] = [];
                 const findings: UnitPatrolFinding[] = [];
                 let librarian: LiBrainian | null = null;
+                const selector = await resolveUnitPatrolSelection(
+                  { ...stageInput, fixtureRepoPath: workspace },
+                  this.defaultScenario,
+                  {
+                    ...DEFAULT_EVALUATION,
+                    ...this.defaultEvaluation,
+                  },
+                );
+
+                if (selector.trace.enforcement.droppedOperations > 0) {
+                  findings.push({
+                    severity: 'warning',
+                    code: 'selector_budget_enforced',
+                    message: `Selector dropped ${selector.trace.enforcement.droppedOperations} operation(s) to satisfy ${selector.profile} profile budgets.`,
+                  });
+                }
 
                 const ensureLibrarian = async (): Promise<LiBrainian> => {
                   if (librarian) return librarian;
@@ -279,22 +298,49 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
                   return librarian;
                 };
 
-                for (const operation of scenario.operations) {
+                for (const operation of selector.scenario.operations) {
                   operations.push(await this.runOperation(operation, workspace, ensureLibrarian, findings));
                 }
 
-                return { operations, findings, workspace };
+                return {
+                  operations,
+                  findings,
+                  workspace,
+                  selectorTrace: selector.trace,
+                  selectorScenarioName: selector.scenario.name,
+                  evaluation: selector.evaluation,
+                };
               },
             },
           ],
         },
       ],
       finalize: async (stageInput, state, events) => {
-        const criteria: Required<UnitPatrolEvaluationCriteria> = {
+        const criteria: Required<UnitPatrolEvaluationCriteria> = state.evaluation ?? {
           ...DEFAULT_EVALUATION,
           ...this.defaultEvaluation,
           ...(stageInput.evaluation ?? {}),
         };
+        const selectorTrace =
+          state.selectorTrace ??
+          {
+            profile: 'strict',
+            domain: 'unknown',
+            task: 'retrieval',
+            strategyPack: 'strict',
+            budgets: {
+              maxDurationMs: criteria.maxDurationMs,
+              maxOperations: Math.max((stageInput.scenario ?? this.defaultScenario).operations.length, 1),
+              maxQueries: 1,
+              maxMetamorphicTransforms: criteria.minMetamorphicTransforms,
+            },
+            rationale: ['selector_fallback:trace_unavailable'],
+            enforcement: {
+              droppedOperations: 0,
+              droppedQueries: 0,
+              droppedMetamorphic: 0,
+            },
+          };
         const operations = state.operations;
         const passed = operations.filter((operation) => operation.pass).length;
         const passRate = operations.length > 0 ? passed / operations.length : 0;
@@ -364,16 +410,21 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
 
         return {
           kind: 'UnitPatrolResult.v1',
-          scenario: (stageInput.scenario ?? this.defaultScenario).name,
+          scenario: state.selectorScenarioName ?? (stageInput.scenario ?? this.defaultScenario).name,
           workspace: state.workspace || stageInput.fixtureRepoPath,
           pass,
           passRate,
           operations,
           findings,
           qualityScores,
+          selectorTrace,
           embedding: resolveEmbeddingMetadata(),
           observations: {
-            scenario: (stageInput.scenario ?? this.defaultScenario).name,
+            scenario: state.selectorScenarioName ?? (stageInput.scenario ?? this.defaultScenario).name,
+            selectorProfile: selectorTrace.profile,
+            selectorDomain: selectorTrace.domain,
+            selectorTask: selectorTrace.task,
+            selectorStrategyPack: selectorTrace.strategyPack,
             operationCount: operations.length,
             eventCount: events.length,
           },

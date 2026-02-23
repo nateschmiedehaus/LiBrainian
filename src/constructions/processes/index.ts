@@ -251,9 +251,17 @@ export {
   UNIT_PATROL_DEFAULT_SCENARIO,
   UNIT_PATROL_DEFAULT_EVALUATION,
 } from './unit_patrol_base.js';
+export {
+  resolveUnitPatrolSelection,
+  type UnitPatrolExecutionBudget,
+  type UnitPatrolSelection,
+} from './unit_patrol_selector.js';
 
 export type {
   UnitPatrolOperationKind,
+  UnitPatrolExecutionProfile,
+  UnitPatrolDomain,
+  UnitPatrolTask,
   UnitPatrolQueryConfig,
   UnitPatrolOperation,
   UnitPatrolScenario,
@@ -262,5 +270,6 @@ export type {
   UnitPatrolOperationResult,
   UnitPatrolFinding,
   UnitPatrolQualityScores,
+  UnitPatrolSelectorDecisionTrace,
   UnitPatrolResult,
 } from './types.js';
