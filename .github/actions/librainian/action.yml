@@ -45,6 +45,103 @@ runs:
         action_root="${{ github.action_path }}"
         repo_root="$(cd "${action_root}/../../.." && pwd)"
         tsx_bin="${repo_root}/node_modules/.bin/tsx"
+        stall_timeout_seconds="${LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS:-300}"
+        hard_timeout_seconds="${LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS:-900}"
+        heartbeat_interval_seconds="${LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS:-15}"
+
+        require_positive_int() {
+          local key="$1"
+          local value="$2"
+          if ! [[ "${value}" =~ ^[0-9]+$ ]] || [ "${value}" -le 0 ]; then
+            echo "[librainian-action] Invalid ${key}: ${value}. Expected positive integer."
+            exit 1
+          fi
+        }
+
+        require_positive_int "LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS" "${stall_timeout_seconds}"
+        require_positive_int "LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS" "${hard_timeout_seconds}"
+        require_positive_int "LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS" "${heartbeat_interval_seconds}"
+
+        if [ "${hard_timeout_seconds}" -le "${stall_timeout_seconds}" ]; then
+          echo "[librainian-action] Invalid timeout policy: hard timeout (${hard_timeout_seconds}s) must be greater than stall timeout (${stall_timeout_seconds}s)."
+          exit 1
+        fi
+
+        run_with_watchdog() {
+          local stage="$1"
+          shift
+
+          local log_file pid pgid start_ts last_output_ts last_heartbeat_ts output_cursor now elapsed idle status
+          log_file="$(mktemp)"
+          output_cursor=1
+          start_ts="$(date +%s)"
+          last_output_ts="${start_ts}"
+          last_heartbeat_ts="${start_ts}"
+
+          echo "[librainian-action] stage=${stage} starting command: $*"
+          setsid "$@" >"${log_file}" 2>&1 &
+          pid="$!"
+          pgid="$(ps -o pgid= "${pid}" 2>/dev/null | tr -d '[:space:]')"
+          if [ -z "${pgid}" ]; then
+            pgid="${pid}"
+          fi
+
+          while kill -0 "${pid}" 2>/dev/null; do
+            if [ -s "${log_file}" ]; then
+              local total_lines
+              total_lines="$(wc -l < "${log_file}" | tr -d '[:space:]')"
+              if [ "${total_lines}" -ge "${output_cursor}" ]; then
+                sed -n "${output_cursor},${total_lines}p" "${log_file}"
+                output_cursor=$((total_lines + 1))
+                last_output_ts="$(date +%s)"
+              fi
+            fi
+
+            now="$(date +%s)"
+            elapsed=$((now - start_ts))
+            idle=$((now - last_output_ts))
+
+            if [ $((now - last_heartbeat_ts)) -ge "${heartbeat_interval_seconds}" ]; then
+              echo "[librainian-action] stage=${stage} heartbeat elapsed=${elapsed}s idle=${idle}s pid=${pid} pgid=${pgid}"
+              last_heartbeat_ts="${now}"
+            fi
+
+            if [ "${idle}" -ge "${stall_timeout_seconds}" ]; then
+              echo "[librainian-action] stall_detected: stage=${stage} produced no output for ${idle}s (limit ${stall_timeout_seconds}s)"
+              kill -- "-${pgid}" 2>/dev/null || true
+              sleep 2
+              kill -0 "${pid}" 2>/dev/null && kill -9 -- "-${pgid}" 2>/dev/null || true
+              wait "${pid}" 2>/dev/null || true
+              rm -f "${log_file}"
+              return 124
+            fi
+
+            if [ "${elapsed}" -ge "${hard_timeout_seconds}" ]; then
+              echo "[librainian-action] hard_timeout: stage=${stage} exceeded ${hard_timeout_seconds}s"
+              kill -- "-${pgid}" 2>/dev/null || true
+              sleep 2
+              kill -0 "${pid}" 2>/dev/null && kill -9 -- "-${pgid}" 2>/dev/null || true
+              wait "${pid}" 2>/dev/null || true
+              rm -f "${log_file}"
+              return 124
+            fi
+
+            sleep 1
+          done
+
+          if [ -s "${log_file}" ]; then
+            local total_lines
+            total_lines="$(wc -l < "${log_file}" | tr -d '[:space:]')"
+            if [ "${total_lines}" -ge "${output_cursor}" ]; then
+              sed -n "${output_cursor},${total_lines}p" "${log_file}"
+            fi
+          fi
+
+          wait "${pid}"
+          status="$?"
+          rm -f "${log_file}"
+          return "${status}"
+        }
 
         if [ ! -x "${tsx_bin}" ]; then
           echo "[librainian-action] Installing repository dependencies."
@@ -55,7 +152,7 @@ runs:
         did_bootstrap=0
         if [ ! -d "${workspace}/${{ inputs.cache-path }}" ]; then
           echo "[librainian-action] No existing index found, running bootstrap."
-          "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
+          run_with_watchdog "bootstrap.initial" "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force-resume
           did_bootstrap=1
         fi
 
@@ -78,7 +175,7 @@ runs:
               printf '%s\n' "${update_output}"
             fi
             echo "[librainian-action] Incremental refresh failed, falling back to bootstrap."
-            "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force
+            run_with_watchdog "bootstrap.fallback" "${tsx_bin}" "${repo_root}/src/cli/index.ts" --workspace "${workspace}" bootstrap --mode fast --no-claude-md --force
           fi
         fi
 
