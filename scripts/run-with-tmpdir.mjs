@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { pruneRuntimeArtifacts } from './prune-runtime-artifacts.mjs';
 
 function printUsageAndExit(code) {
   // eslint-disable-next-line no-console
@@ -49,16 +50,33 @@ function parseArgs(argv) {
 
 const { tmpdir: explicitTmpdir, sets, cmd, cmdArgs } = parseArgs(process.argv.slice(2));
 
-const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librarian');
-const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librarian');
-const osTmpdir = path.resolve(os.tmpdir(), 'librarian');
+await pruneRuntimeArtifacts({ quiet: true, enforceSizeBudget: false }).catch(() => {});
+
+const fallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librainian');
+const localTmpdir = path.resolve(process.cwd(), '.tmp', 'librainian');
+const osTmpdir = path.resolve(os.tmpdir(), 'librainian');
+const legacyFallbackTmpdir = path.resolve(process.cwd(), '..', '.tmp', 'librarian');
+const legacyLocalTmpdir = path.resolve(process.cwd(), '.tmp', 'librarian');
+const legacyOsTmpdir = path.resolve(os.tmpdir(), 'librarian');
 const configuredTmpdir =
   (explicitTmpdir && explicitTmpdir.trim().length > 0 ? explicitTmpdir : undefined) ??
+  (process.env.LIBRAINIAN_TMPDIR && process.env.LIBRAINIAN_TMPDIR.trim().length > 0
+    ? process.env.LIBRAINIAN_TMPDIR
+    : undefined) ??
   (process.env.LIBRARIAN_TMPDIR && process.env.LIBRARIAN_TMPDIR.trim().length > 0
     ? process.env.LIBRARIAN_TMPDIR
     : undefined) ??
   fallbackTmpdir;
-const tmpdirCandidates = [...new Set([configuredTmpdir, localTmpdir, osTmpdir])];
+const tmpdirCandidates = [
+  ...new Set([
+    configuredTmpdir,
+    localTmpdir,
+    osTmpdir,
+    legacyFallbackTmpdir,
+    legacyLocalTmpdir,
+    legacyOsTmpdir,
+  ]),
+];
 
 let resolvedTmpdir;
 let lastError;
@@ -78,6 +96,8 @@ if (!resolvedTmpdir) {
 }
 
 const env = { ...process.env, TMPDIR: resolvedTmpdir, TMP: resolvedTmpdir, TEMP: resolvedTmpdir };
+env.LIBRAINIAN_TMPDIR = resolvedTmpdir;
+env.LIBRARIAN_TMPDIR = resolvedTmpdir;
 for (const kv of sets) {
   const idx = kv.indexOf('=');
   const key = kv.slice(0, idx);
