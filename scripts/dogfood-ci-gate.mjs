@@ -731,7 +731,9 @@ async function main() {
       if (bootstrapResult.timedOut) {
         fail(`bootstrap_timeout: bootstrap exceeded ${bootstrapTimeoutMs}ms before completion`);
       }
-      fail(`Bootstrap failed: ${toSingleLine(bootstrapResult.stderr || bootstrapResult.stdout)}`);
+      const signal = bootstrapResult.terminationReason ?? 'none';
+      const output = toSingleLine(bootstrapResult.stderr || bootstrapResult.stdout);
+      fail(`bootstrap_failed: status=${bootstrapResult.status} termination=${signal}${output ? ` output=${output}` : ''}`);
     }
     artifact.checks.bootstrapSucceeded = true;
 

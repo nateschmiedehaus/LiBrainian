@@ -48,3 +48,11 @@ jobs:
           DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS: 1500000
           DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS: 0
         run: node scripts/dogfood-ci-gate.mjs
+
+      - name: Upload clean-clone dogfood artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: librainian-clean-clone-self-hosting
+          if-no-files-found: warn
+          path: state/dogfood/clean-clone-self-hosting.json
