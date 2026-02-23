@@ -35,13 +35,16 @@ export interface SharedAgentContext {
   tokenBudget?: number;
 }
 
-export interface ConstructionOutput {
+export interface ConstructionOutput<TData = Record<string, unknown>> {
   constructionId: string;
+  summary: string;
   findings: ConstructionFinding[];
   recommendations: ConstructionRecommendation[];
   confidence: ConfidenceValue;
   evidenceRefs: string[];
-  asContext(): Partial<SharedAgentContext>;
+  data: TData;
+  metadata?: Record<string, unknown>;
+  contextPatch?: Partial<SharedAgentContext>;
 }
 
 export interface LegoPipelineBrick<TInput = void> {
@@ -61,6 +64,53 @@ export interface ComposedConstructionReport {
 
 export interface ComposeConstructionsOptions {
   include?: Array<'knowledge' | 'refactoring' | 'security'>;
+}
+
+export function serializeConstructionOutput<TData>(output: ConstructionOutput<TData>): string {
+  return JSON.stringify(output);
+}
+
+export function deserializeConstructionOutput(raw: string): ConstructionOutput<Record<string, unknown>> {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Invalid construction output payload: expected object');
+  }
+  if (typeof parsed.constructionId !== 'string' || parsed.constructionId.length === 0) {
+    throw new Error('Invalid construction output payload: missing constructionId');
+  }
+  if (typeof parsed.summary !== 'string' || parsed.summary.length === 0) {
+    throw new Error('Invalid construction output payload: missing summary');
+  }
+  if (!Array.isArray(parsed.evidenceRefs)) {
+    throw new Error('Invalid construction output payload: missing evidenceRefs');
+  }
+  if (!('data' in parsed)) {
+    throw new Error('Invalid construction output payload: missing data');
+  }
+  if (!Array.isArray(parsed.findings) || !Array.isArray(parsed.recommendations)) {
+    throw new Error('Invalid construction output payload: malformed findings/recommendations');
+  }
+  if (!('confidence' in parsed)) {
+    throw new Error('Invalid construction output payload: missing confidence');
+  }
+  const metadata = parsed.metadata;
+  const contextPatch = parsed.contextPatch;
+
+  return {
+    constructionId: parsed.constructionId as string,
+    summary: parsed.summary as string,
+    findings: parsed.findings as ConstructionFinding[],
+    recommendations: parsed.recommendations as ConstructionRecommendation[],
+    confidence: parsed.confidence as ConfidenceValue,
+    evidenceRefs: parsed.evidenceRefs as string[],
+    data: parsed.data as Record<string, unknown>,
+    metadata: (typeof metadata === 'object' && metadata !== null)
+      ? (metadata as Record<string, unknown>)
+      : undefined,
+    contextPatch: (typeof contextPatch === 'object' && contextPatch !== null)
+      ? (contextPatch as Partial<SharedAgentContext>)
+      : undefined,
+  };
 }
 
 class KnowledgeBrick implements LegoPipelineBrick<void> {
@@ -102,17 +152,30 @@ class KnowledgeBrick implements LegoPipelineBrick<void> {
       target: feature,
     }));
     const confidence = report.confidence;
+    const summary = report.primaryLocation
+      ? `Primary location ${report.primaryLocation.file}:${report.primaryLocation.startLine} with ${report.locations.length} candidate locations.`
+      : `No primary location identified; ${report.locations.length} candidate locations returned.`;
 
     return {
       constructionId: this.id,
+      summary,
       findings,
       recommendations,
       confidence,
       evidenceRefs: report.evidenceRefs,
-      asContext: () => ({
+      data: {
+        primaryLocation: report.primaryLocation ?? null,
+        locations: report.locations,
+        relatedFeatures: report.relatedFeatures,
+      },
+      metadata: {
+        brick: this.id,
+        locationCount: report.locations.length,
+      },
+      contextPatch: {
         retrievedPacks: packs,
         focusEntity: report.primaryLocation?.file,
-      }),
+      },
     };
   }
 }
@@ -161,16 +224,30 @@ class RefactoringBrick implements LegoPipelineBrick<void> {
         target: gap.uncoveredUsage.file,
       })),
     ];
+    const summary = report.breakingChanges.length > 0
+      ? `Detected ${report.breakingChanges.length} potential breaking changes for ${focusEntity}.`
+      : `No breaking changes detected for ${focusEntity}.`;
 
     return {
       constructionId: this.id,
+      summary,
       findings,
       recommendations,
       confidence: report.confidence,
       evidenceRefs: report.evidenceRefs,
-      asContext: () => ({
+      data: {
         focusEntity,
-      }),
+        breakingChanges: report.breakingChanges,
+        risks: report.risks,
+        testCoverageGaps: report.testCoverageGaps,
+      },
+      metadata: {
+        brick: this.id,
+        riskCount: report.risks.length,
+      },
+      contextPatch: {
+        focusEntity,
+      },
     };
   }
 }
@@ -213,14 +290,26 @@ class SecurityBrick implements LegoPipelineBrick<void> {
       rationale: finding.description,
       target: finding.file,
     }));
+    const summary = report.findings.length > 0
+      ? `Security audit found ${report.findings.length} findings across ${auditFiles.length} files.`
+      : `Security audit found no findings across ${auditFiles.length} files.`;
 
     return {
       constructionId: this.id,
+      summary,
       findings,
       recommendations,
       confidence: report.confidence,
       evidenceRefs: report.evidenceRefs,
-      asContext: () => ({}),
+      data: {
+        auditedFiles: auditFiles,
+        findings: report.findings,
+      },
+      metadata: {
+        brick: this.id,
+        auditedFileCount: auditFiles.length,
+      },
+      contextPatch: {},
     };
   }
 }
@@ -267,7 +356,7 @@ export async function composeConstructions(
   for (const brick of bricks) {
     const output = await brick.run(undefined, context);
     outputs.push(output);
-    const patch = output.asContext();
+    const patch = output.contextPatch ?? {};
     context = mergeContext(context, patch);
     context.priorFindings = [...context.priorFindings, ...output.findings];
   }

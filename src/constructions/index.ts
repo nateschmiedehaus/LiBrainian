@@ -470,6 +470,8 @@ export {
 // Composable Lego-style construction pipeline (shared context + standardized findings)
 export {
   composeConstructions,
+  deserializeConstructionOutput,
+  serializeConstructionOutput,
   type SharedAgentContext,
   type ConstructionFinding,
   type ConstructionRecommendation,
