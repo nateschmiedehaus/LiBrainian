@@ -71,12 +71,13 @@ runs:
           local stage="$1"
           shift
 
-          local log_file pid pgid start_ts last_output_ts last_heartbeat_ts output_cursor now elapsed idle status
+          local log_file pid pgid start_ts last_output_ts last_heartbeat_ts output_cursor now elapsed idle status saw_output
           log_file="$(mktemp)"
           output_cursor=1
           start_ts="$(date +%s)"
           last_output_ts="${start_ts}"
           last_heartbeat_ts="${start_ts}"
+          saw_output=0
 
           echo "[librainian-action] stage=${stage} starting command: $*"
           setsid "$@" >"${log_file}" 2>&1 &
@@ -88,6 +89,7 @@ runs:
 
           while kill -0 "${pid}" 2>/dev/null; do
             if [ -s "${log_file}" ]; then
+              saw_output=1
               local total_lines
               total_lines="$(wc -l < "${log_file}" | tr -d '[:space:]')"
               if [ "${total_lines}" -ge "${output_cursor}" ]; then
@@ -106,8 +108,8 @@ runs:
               last_heartbeat_ts="${now}"
             fi
 
-            if [ "${idle}" -ge "${stall_timeout_seconds}" ]; then
-              echo "[librainian-action] stall_detected: stage=${stage} produced no output for ${idle}s (limit ${stall_timeout_seconds}s)"
+            if [ "${saw_output}" -eq 0 ] && [ "${idle}" -ge "${stall_timeout_seconds}" ]; then
+              echo "[librainian-action] stall_detected: stage=${stage} produced no output for ${idle}s before first child output (limit ${stall_timeout_seconds}s)"
               kill -- "-${pgid}" 2>/dev/null || true
               sleep 2
               kill -0 "${pid}" 2>/dev/null && kill -9 -- "-${pgid}" 2>/dev/null || true
