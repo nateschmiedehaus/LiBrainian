@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getNumericValue, type ConfidenceValue } from '../../epistemics/confidence.js';
 import { createSessionId, SqliteEvidenceLedger } from '../../epistemics/evidence_ledger.js';
-import { ConstructionError } from '../base/construction_base.js';
+import { ConstructionError, toEvidenceIds } from '../base/construction_base.js';
 import { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { calibrated } from '../integration-wrappers.js';
 import {
@@ -11,7 +11,7 @@ import {
 
 type TestResult = {
   confidence: ConfidenceValue;
-  evidenceRefs: string[];
+  evidenceRefs: ReturnType<typeof toEvidenceIds>;
   analysisTimeMs: number;
   predictionId?: string;
   actualCorrect?: boolean;
@@ -39,7 +39,7 @@ function createBaseConstruction(id: string, confidence: number): Construction<nu
     async execute(input: number): Promise<TestResult> {
       return {
         confidence: measured(confidence),
-        evidenceRefs: [`ev:${id}:${input}`],
+        evidenceRefs: toEvidenceIds([`ev:${id}:${input}`]),
         analysisTimeMs: 1,
       };
     },
@@ -105,7 +105,7 @@ describe('calibrated integration wrapper', () => {
       async execute(input: number): Promise<TestResult> {
         return {
           confidence: measured(0.6),
-          evidenceRefs: ['ev:shared'],
+          evidenceRefs: toEvidenceIds(['ev:shared']),
           analysisTimeMs: input,
         };
       },
@@ -162,7 +162,7 @@ describe('calibrated integration wrapper', () => {
         runCount += 1;
         return {
           confidence: measured(0.8),
-          evidenceRefs: [`ev:${runCount}`],
+          evidenceRefs: toEvidenceIds([`ev:${runCount}`]),
           analysisTimeMs: 1,
           actualCorrect: runCount <= 15, // 60% true while confidence says 80%
         };

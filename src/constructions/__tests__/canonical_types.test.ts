@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deterministic } from '../../epistemics/confidence.js';
 import { sequence } from '../composition.js';
-import { BaseConstruction, type ConstructionResult } from '../base/construction_base.js';
+import { BaseConstruction, toEvidenceIds, type ConstructionResult } from '../base/construction_base.js';
 import { identity, seq } from '../operators.js';
 import {
   isConstructionOutcome,
@@ -26,7 +26,7 @@ class ExampleConstruction extends BaseConstruction<number, ConstructionResult & 
     return {
       data: input * 2,
       confidence: deterministic(true, 'example'),
-      evidenceRefs: ['example:executed'],
+      evidenceRefs: toEvidenceIds(['example:executed']),
       analysisTimeMs: 1,
     };
   }
@@ -59,7 +59,7 @@ describe('canonical construction interface bridge', () => {
         return {
           data: input + 1,
           confidence: deterministic(true, 'first'),
-          evidenceRefs: ['first:executed'],
+          evidenceRefs: toEvidenceIds(['first:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -73,7 +73,7 @@ describe('canonical construction interface bridge', () => {
         return {
           data: input.data * 4,
           confidence: deterministic(true, 'second'),
-          evidenceRefs: ['second:executed'],
+          evidenceRefs: toEvidenceIds(['second:executed']),
           analysisTimeMs: 1,
         };
       },

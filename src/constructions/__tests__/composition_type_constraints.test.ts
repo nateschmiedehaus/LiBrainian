@@ -5,6 +5,7 @@ import {
   type ComposableConstruction,
   type ConstructionResult,
 } from '../composition.js';
+import { toEvidenceIds } from '../base/construction_base.js';
 
 type FeatureInput = { feature: string };
 type RefactorPlan = ConstructionResult & { entityId: string; refactoringType: 'rename' };
@@ -19,7 +20,7 @@ function createFirst(): ComposableConstruction<FeatureInput, RefactorPlan> {
         entityId: input.feature,
         refactoringType: 'rename',
         confidence: deterministic(true, 'first'),
-        evidenceRefs: ['first:executed'],
+        evidenceRefs: toEvidenceIds(['first:executed']),
         analysisTimeMs: 1,
       };
     },
@@ -34,7 +35,7 @@ function createSecond(): ComposableConstruction<RefactorPlan, RefactorOutput> {
       return {
         safe: input.refactoringType === 'rename',
         confidence: deterministic(true, 'second'),
-        evidenceRefs: ['second:executed'],
+        evidenceRefs: toEvidenceIds(['second:executed']),
         analysisTimeMs: 1,
       };
     },
@@ -49,7 +50,7 @@ function createBadSecond(): ComposableConstruction<number, RefactorOutput> {
       return {
         safe: input > 0,
         confidence: deterministic(true, 'bad-second'),
-        evidenceRefs: ['bad-second:executed'],
+        evidenceRefs: toEvidenceIds(['bad-second:executed']),
         analysisTimeMs: 1,
       };
     },

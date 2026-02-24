@@ -22,6 +22,7 @@ import {
   parallelAllConfidence,
   getNumericValue,
 } from '../../epistemics/confidence.js';
+import { createEvidenceId, type EvidenceId } from '../../epistemics/evidence_ledger.js';
 import type { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { generatePredictionId } from '../calibration_tracker.js';
 import { fail, ok } from '../types.js';
@@ -44,11 +45,15 @@ export interface ConstructionResult {
   /** Confidence in this result with mandatory provenance */
   confidence: ConfidenceValue;
   /** Evidence trail supporting this result */
-  evidenceRefs: string[];
+  evidenceRefs: EvidenceId[];
   /** Time taken to produce this result in milliseconds */
   analysisTimeMs: number;
   /** Optional prediction ID for calibration tracking */
   predictionId?: string;
+}
+
+export function toEvidenceIds(refs: readonly (EvidenceId | string)[]): EvidenceId[] {
+  return refs.map((ref) => createEvidenceId(String(ref)));
 }
 
 /**
@@ -367,8 +372,8 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    * @param refs - The array to add the reference to
    * @param ref - The evidence reference to add
    */
-  protected addEvidence(refs: string[], ref: string): void {
-    refs.push(ref);
+  protected addEvidence(refs: EvidenceId[], ref: string | EvidenceId): void {
+    refs.push(createEvidenceId(String(ref)));
   }
 
   /**
@@ -405,8 +410,8 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    * @param results - Array of results to merge evidence from
    * @returns Combined array of all evidence references
    */
-  protected mergeEvidenceRefs(results: ConstructionResult[]): string[] {
-    return results.flatMap((r) => r.evidenceRefs);
+  protected mergeEvidenceRefs(results: ConstructionResult[]): EvidenceId[] {
+    return [...new Set(results.flatMap((r) => r.evidenceRefs))];
   }
 
   /**

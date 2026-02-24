@@ -1,6 +1,7 @@
 import type { Librarian } from '../api/librarian.js';
 import type { IEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import type { ConfidenceValue } from '../epistemics/confidence.js';
+import type { EvidenceId } from '../epistemics/evidence_ledger.js';
 import type { ConstructionError } from './base/construction_base.js';
 import type { ConstructionCalibrationTracker } from './calibration_tracker.js';
 import type { Framework, Language } from './constructable_types.js';
@@ -182,6 +183,19 @@ export interface Context<R = LibrarianContext> {
   tokenBudget?: number;
   metadata?: Record<string, unknown>;
   traceContext?: Record<string, unknown>;
+}
+
+/**
+ * Canonical epistemic construction output envelope.
+ *
+ * `evidenceRefs` are typed evidence-ledger handles; raw strings are not assignable.
+ */
+export interface ConstructionResult<O = unknown> {
+  readonly value: O;
+  readonly confidence: ConfidenceValue;
+  readonly evidenceRefs: EvidenceId[];
+  readonly analysisTimeMs: number;
+  readonly predictionId?: string;
 }
 
 export type ConstructionFailureKind =

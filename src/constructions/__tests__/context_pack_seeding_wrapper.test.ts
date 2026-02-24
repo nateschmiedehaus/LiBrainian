@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import type { LiBrainianStorage } from '../../storage/types.js';
-import type { ConstructionResult } from '../base/construction_base.js';
+import { toEvidenceIds, type ConstructionResult } from '../base/construction_base.js';
 import { withContextPackSeeding } from '../integration-wrappers.js';
 import type { Context, Construction } from '../types.js';
 import { ok } from '../types.js';
@@ -74,7 +74,7 @@ describe('withContextPackSeeding', () => {
         executions += 1;
         return ok({
           confidence: measured(0.85),
-          evidenceRefs: [`ev:${input.intentType}:${input.scope}`],
+          evidenceRefs: toEvidenceIds([`ev:${input.intentType}:${input.scope}`]),
           analysisTimeMs: 5,
           summary: `Analysis for ${input.query}`,
           findings: ['fact:one', 'fact:two'],
@@ -125,7 +125,7 @@ describe('withContextPackSeeding', () => {
       async execute(input) {
         return ok({
           confidence: measured(0.75),
-          evidenceRefs: [`ev:${input.intentType}:${input.scope}`],
+          evidenceRefs: toEvidenceIds([`ev:${input.intentType}:${input.scope}`]),
           analysisTimeMs: 3,
           summary: `Low-confidence analysis for ${input.query}`,
           findings: [],

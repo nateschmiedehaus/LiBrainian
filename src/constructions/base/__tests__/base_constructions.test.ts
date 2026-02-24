@@ -16,6 +16,7 @@ import type { ConfidenceValue } from '../../../epistemics/confidence.js';
 import { deterministic, bounded, absent } from '../../../epistemics/confidence.js';
 import {
   BaseConstruction,
+  toEvidenceIds,
   type ConstructionResult,
 } from '../construction_base.js';
 import {
@@ -72,7 +73,7 @@ class SimpleConstruction extends BaseConstruction<SimpleInput, SimpleResult> {
 
   async execute(input: SimpleInput): Promise<SimpleResult> {
     const startTime = Date.now();
-    const evidenceRefs: string[] = [];
+    const evidenceRefs: ConstructionResult['evidenceRefs'] = [];
 
     this.addEvidence(evidenceRefs, 'processing:started');
     const processed = input.value.toUpperCase();
@@ -619,12 +620,12 @@ describe('Confidence Propagation Rules', () => {
       // Access protected method via testing
       const result1: ConstructionResult = {
         confidence: { type: 'measured', value: 0.8, measurement: { datasetId: 'test', sampleSize: 10, accuracy: 0.8, confidenceInterval: [0.7, 0.9], measuredAt: '' } },
-        evidenceRefs: [],
+        evidenceRefs: toEvidenceIds([]),
         analysisTimeMs: 0,
       };
       const result2: ConstructionResult = {
         confidence: { type: 'measured', value: 0.6, measurement: { datasetId: 'test', sampleSize: 10, accuracy: 0.6, confidenceInterval: [0.5, 0.7], measuredAt: '' } },
-        evidenceRefs: [],
+        evidenceRefs: toEvidenceIds([]),
         analysisTimeMs: 0,
       };
 
@@ -642,12 +643,12 @@ describe('Confidence Propagation Rules', () => {
     it('should use product for parallel-all confidence', () => {
       const result1: ConstructionResult = {
         confidence: { type: 'measured', value: 0.8, measurement: { datasetId: 'test', sampleSize: 10, accuracy: 0.8, confidenceInterval: [0.7, 0.9], measuredAt: '' } },
-        evidenceRefs: [],
+        evidenceRefs: toEvidenceIds([]),
         analysisTimeMs: 0,
       };
       const result2: ConstructionResult = {
         confidence: { type: 'measured', value: 0.9, measurement: { datasetId: 'test', sampleSize: 10, accuracy: 0.9, confidenceInterval: [0.8, 1.0], measuredAt: '' } },
-        evidenceRefs: [],
+        evidenceRefs: toEvidenceIds([]),
         analysisTimeMs: 0,
       };
 

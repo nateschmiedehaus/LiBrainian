@@ -19,7 +19,7 @@
 import type { Librarian } from '../../api/librarian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded } from '../../epistemics/confidence.js';
-import { BaseConstruction, type ConstructionResult } from './construction_base.js';
+import { BaseConstruction, toEvidenceIds, type ConstructionResult } from './construction_base.js';
 
 // ============================================================================
 // TYPES
@@ -450,12 +450,12 @@ export abstract class AssessmentConstruction<TInput, TStandard>
       recommendations,
       itemsAssessed,
       confidence,
-      evidenceRefs: [
+      evidenceRefs: toEvidenceIds([
         `assessment:score_${score}`,
         `grade:${grade}`,
         `categories:${breakdown.categories.length}`,
         `recommendations:${recommendations.length}`,
-      ],
+      ]),
       analysisTimeMs,
       predictionId,
     };

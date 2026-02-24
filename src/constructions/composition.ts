@@ -32,6 +32,7 @@ import {
   ConstructionError,
   ConstructionCancelledError,
   ConstructionTimeoutError,
+  toEvidenceIds,
 } from './base/construction_base.js';
 import type { Construction, Context } from './types.js';
 import {
@@ -382,7 +383,7 @@ export class SequenceConstruction<
     return {
       ...secondResult,
       confidence: propagatedConfidence,
-      evidenceRefs,
+      evidenceRefs: toEvidenceIds(evidenceRefs),
       analysisTimeMs: Date.now() - startTime,
     };
   }
@@ -455,7 +456,7 @@ export class ParallelConstruction<TInput, TOutputs extends ConstructionResult[]>
       results: results as unknown as TOutputs,
       branchConfidences,
       confidence: propagatedConfidence,
-      evidenceRefs,
+      evidenceRefs: toEvidenceIds(evidenceRefs),
       analysisTimeMs: Date.now() - startTime,
     };
   }
@@ -524,7 +525,7 @@ export class ConditionalConstruction<TInput, TOutput extends ConstructionResult>
       result,
       branchTaken,
       confidence: result.confidence,
-      evidenceRefs,
+      evidenceRefs: toEvidenceIds(evidenceRefs),
       analysisTimeMs: Date.now() - startTime,
     };
   }
@@ -595,7 +596,7 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
           attempts,
           errors,
           confidence: result.confidence,
-          evidenceRefs,
+          evidenceRefs: toEvidenceIds(evidenceRefs),
           analysisTimeMs: Date.now() - startTime,
         };
       } catch (error) {
@@ -736,7 +737,10 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
     if (cached && (now - cached.timestamp) < this.config.ttlMs) {
       return {
         ...cached.result,
-        evidenceRefs: [...cached.result.evidenceRefs, `cache:hit:${key.substring(0, 20)}`],
+        evidenceRefs: toEvidenceIds([
+          ...cached.result.evidenceRefs,
+          `cache:hit:${key.substring(0, 20)}`,
+        ]),
         analysisTimeMs: Date.now() - startTime,
       };
     }
@@ -757,7 +761,10 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
 
     return {
       ...result,
-      evidenceRefs: [...result.evidenceRefs, `cache:miss:${key.substring(0, 20)}`],
+      evidenceRefs: toEvidenceIds([
+        ...result.evidenceRefs,
+        `cache:miss:${key.substring(0, 20)}`,
+      ]),
       analysisTimeMs: Date.now() - startTime,
     };
   }
@@ -833,7 +840,10 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
 
       return {
         ...result,
-        evidenceRefs: [...result.evidenceRefs, `trace:${spanId}`],
+        evidenceRefs: toEvidenceIds([
+          ...result.evidenceRefs,
+          `trace:${spanId}`,
+        ]),
       };
     } catch (error) {
       this.tracer.addEvent(spanId, 'execution_failed', {
@@ -880,7 +890,7 @@ export function createConstruction<TInput, TData>(
   executor: (
     input: TInput,
     context?: Context<unknown>
-  ) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: string[] }>
+  ) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: Array<string | ConstructionResult['evidenceRefs'][number]> }>
 ): ComposableConstruction<TInput, ConstructionResult & { data: TData }> {
   const construction: ComposableConstruction<TInput, ConstructionResult & { data: TData }> = {
     id,
@@ -891,7 +901,7 @@ export function createConstruction<TInput, TData>(
       return {
         data: result.data,
         confidence: result.confidence,
-        evidenceRefs: result.evidenceRefs ?? [],
+        evidenceRefs: toEvidenceIds(result.evidenceRefs ?? []),
         analysisTimeMs: Date.now() - startTime,
       };
     },

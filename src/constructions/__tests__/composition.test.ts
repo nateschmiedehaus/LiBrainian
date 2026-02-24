@@ -19,6 +19,7 @@ import {
   ConstructionError,
   ConstructionCancelledError,
   ConstructionTimeoutError,
+  toEvidenceIds,
 } from '../base/construction_base.js';
 import {
   // Composition operators
@@ -76,7 +77,7 @@ function createTestConstruction<TInput, TData>(
       return {
         data: transform(input),
         confidence,
-        evidenceRefs: [`${id}:executed`],
+        evidenceRefs: toEvidenceIds([`${id}:executed`]),
         analysisTimeMs: 1,
       };
     },
@@ -649,7 +650,7 @@ describe('RetryConstruction', () => {
         return {
           data: input * 2,
           confidence: deterministic(true, 'success'),
-          evidenceRefs: ['flaky:executed'],
+          evidenceRefs: toEvidenceIds(['flaky:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -695,7 +696,7 @@ describe('RetryConstruction', () => {
         return {
           data: input,
           confidence: deterministic(true, 'success'),
-          evidenceRefs: ['flaky:executed'],
+          evidenceRefs: toEvidenceIds(['flaky:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -723,7 +724,7 @@ describe('RetryConstruction', () => {
         return {
           data: input,
           confidence: deterministic(true, 'success'),
-          evidenceRefs: [],
+          evidenceRefs: toEvidenceIds([]),
           analysisTimeMs: 1,
         };
       },
@@ -770,7 +771,7 @@ describe('TimeoutConstruction', () => {
     const slow = createSlowConstruction('slow', 200, {
       data: 'never',
       confidence: deterministic(true, 'slow'),
-      evidenceRefs: [],
+      evidenceRefs: toEvidenceIds([]),
       analysisTimeMs: 200,
     });
 
@@ -783,7 +784,7 @@ describe('TimeoutConstruction', () => {
     const slow = createSlowConstruction('slow', 200, {
       data: 'never',
       confidence: deterministic(true, 'slow'),
-      evidenceRefs: [],
+      evidenceRefs: toEvidenceIds([]),
       analysisTimeMs: 200,
     });
 
@@ -820,7 +821,7 @@ describe('Context threading and cancellation', () => {
         return {
           data: input + 1,
           confidence: deterministic(true, 'ctx-first'),
-          evidenceRefs: ['ctx-first:executed'],
+          evidenceRefs: toEvidenceIds(['ctx-first:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -834,7 +835,7 @@ describe('Context threading and cancellation', () => {
         return {
           data: input.data + 2,
           confidence: deterministic(true, 'ctx-second'),
-          evidenceRefs: ['ctx-second:executed'],
+          evidenceRefs: toEvidenceIds(['ctx-second:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -884,7 +885,7 @@ describe('Context threading and cancellation', () => {
         return {
           data: input.data + 1,
           confidence: deterministic(true, 'cancel-step2'),
-          evidenceRefs: ['cancel-step2:executed'],
+          evidenceRefs: toEvidenceIds(['cancel-step2:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -898,7 +899,7 @@ describe('Context threading and cancellation', () => {
         return {
           data: input.data + 1,
           confidence: deterministic(true, 'cancel-step3'),
-          evidenceRefs: ['cancel-step3:executed'],
+          evidenceRefs: toEvidenceIds(['cancel-step3:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -940,7 +941,7 @@ describe('Context threading and cancellation', () => {
         return {
           data: input,
           confidence: deterministic(true, 'cancel-timeout-slow'),
-          evidenceRefs: ['cancel-timeout-slow:executed'],
+          evidenceRefs: toEvidenceIds(['cancel-timeout-slow:executed']),
           analysisTimeMs: 1,
         };
       },
@@ -974,7 +975,7 @@ describe('CachedConstruction', () => {
         return {
           data: input * callCount,
           confidence: deterministic(true, 'cached'),
-          evidenceRefs: [`call:${callCount}`],
+          evidenceRefs: toEvidenceIds([`call:${callCount}`]),
           analysisTimeMs: 1,
         };
       },
@@ -1013,7 +1014,7 @@ describe('CachedConstruction', () => {
         return {
           data: callCount,
           confidence: deterministic(true, 'timed'),
-          evidenceRefs: [],
+          evidenceRefs: toEvidenceIds([]),
           analysisTimeMs: 1,
         };
       },
@@ -1045,7 +1046,7 @@ describe('CachedConstruction', () => {
         return {
           data: input,
           confidence: deterministic(true, 'limited'),
-          evidenceRefs: [],
+          evidenceRefs: toEvidenceIds([]),
           analysisTimeMs: 1,
         };
       },
@@ -1111,7 +1112,7 @@ describe('CachedConstruction', () => {
         return {
           data: callCount,
           confidence: deterministic(true, 'clearable'),
-          evidenceRefs: [],
+          evidenceRefs: toEvidenceIds([]),
           analysisTimeMs: 1,
         };
       },
@@ -1245,7 +1246,7 @@ describe('Utility Functions', () => {
         async () => ({
           data: 42,
           confidence: deterministic(true, 'test'),
-          evidenceRefs: ['custom:evidence'],
+          evidenceRefs: toEvidenceIds(['custom:evidence']),
         })
       );
 
@@ -1275,7 +1276,7 @@ describe('Utility Functions', () => {
       const fixedResult: ConstructionResult & { data: string } = {
         data: 'constant',
         confidence: deterministic(true, 'constant'),
-        evidenceRefs: ['constant:always'],
+        evidenceRefs: toEvidenceIds(['constant:always']),
         analysisTimeMs: 0,
       };
 
@@ -1294,7 +1295,7 @@ describe('Utility Functions', () => {
       const fixedResult: ConstructionResult & { data: number } = {
         data: 42,
         confidence: { type: 'measured', value: 0.8, measurement: { datasetId: 'a', sampleSize: 100, accuracy: 0.8, confidenceInterval: [0.75, 0.85], measuredAt: new Date().toISOString() } },
-        evidenceRefs: [],
+        evidenceRefs: toEvidenceIds([]),
         analysisTimeMs: 0,
       };
 
@@ -1354,7 +1355,7 @@ describe('PipelineBuilder', () => {
         return {
           data: input * 2,
           confidence: deterministic(true, 'success'),
-          evidenceRefs: [],
+          evidenceRefs: toEvidenceIds([]),
           analysisTimeMs: 1,
         };
       },

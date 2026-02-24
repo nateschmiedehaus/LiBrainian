@@ -34,6 +34,7 @@ import {
   type ConstructionResult,
   type ConstructionContext,
 } from './construction_base.js';
+import type { EvidenceId } from '../../epistemics/evidence_ledger.js';
 
 // ============================================================================
 // TYPES
@@ -281,7 +282,7 @@ export abstract class CompositeConstruction<TInput, TOutput extends Construction
    * @param results - Array of results to merge evidence from
    * @returns Combined array of all evidence references (deduplicated)
    */
-  protected mergeEvidenceRefs(results: ConstructionResult[]): string[] {
+  protected mergeEvidenceRefs(results: ConstructionResult[]): EvidenceId[] {
     const allRefs = results.flatMap((r) => r.evidenceRefs);
     return [...new Set(allRefs)]; // Deduplicate
   }
@@ -471,7 +472,7 @@ export abstract class CompositeConstruction<TInput, TOutput extends Construction
     const evidenceRefs = this.mergeEvidenceRefs(successfulResults);
 
     // Add composite-level evidence
-    evidenceRefs.push(`composite:${successCount}/${childResults.length}_succeeded`);
+    this.addEvidence(evidenceRefs, `composite:${successCount}/${childResults.length}_succeeded`);
 
     // Record prediction
     const predictionId = this.recordPrediction(

@@ -967,7 +967,7 @@ export class RationaleConstruction extends BaseConstruction<RationaleInput, Rati
    */
   async execute(input: RationaleInput): Promise<RationaleResult> {
     const startTime = Date.now();
-    const evidenceRefs: string[] = [];
+    const evidenceRefs: ConstructionResult['evidenceRefs'] = [];
 
     // Ensure index is initialized
     await this.initialize();

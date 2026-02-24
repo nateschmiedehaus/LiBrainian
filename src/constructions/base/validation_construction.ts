@@ -18,7 +18,7 @@
 import type { Librarian } from '../../api/librarian.js';
 import type { ConfidenceValue } from '../../epistemics/confidence.js';
 import { bounded, getNumericValue } from '../../epistemics/confidence.js';
-import { BaseConstruction, type ConstructionResult } from './construction_base.js';
+import { BaseConstruction, toEvidenceIds, type ConstructionResult } from './construction_base.js';
 
 // ============================================================================
 // TYPES
@@ -314,11 +314,11 @@ export abstract class ValidationConstruction<TInput, TRules>
       itemsValidated,
       rulesApplied,
       confidence,
-      evidenceRefs: [
+      evidenceRefs: toEvidenceIds([
         `validation:${rulesApplied}_rules`,
         `violations:${errors.length}_errors`,
         `warnings:${warnings.length}_warnings`,
-      ],
+      ]),
       analysisTimeMs,
       predictionId,
     };
