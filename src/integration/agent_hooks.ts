@@ -29,6 +29,7 @@ import { processAgentFeedback, type AgentFeedback } from './agent_feedback.js';
 import type { LibrarianStorage } from '../storage/types.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { getTaskQualityNorms, type TaskQualityNorm } from '../constructions/processes/quality_bar_constitution_construction.js';
 import {
   globalEventBus,
   createTaskReceivedEvent,
@@ -87,6 +88,8 @@ export interface TaskContext {
   drillDownHints: string[];
   /** Method hints for accomplishing the task */
   methodHints: string[];
+  /** Repository-specific quality norms selected for this task */
+  qualityNorms: TaskQualityNorm[];
 }
 
 /**
@@ -251,8 +254,26 @@ export async function getTaskContext(
       scenario: sessionContext.scenario,
     };
 
+    const filesForNormSelection = request.affectedFiles ?? sessionContext.relatedFiles;
+    let qualityNorms: TaskQualityNorm[] = [];
+    try {
+      qualityNorms = await getTaskQualityNorms({
+        workspace,
+        filesToModify: filesForNormSelection,
+        taskType: request.taskType,
+      });
+    } catch (error) {
+      logWarning('[agent_hooks] Failed to resolve quality norms', {
+        taskId,
+        error: getErrorMessage(error),
+      });
+    }
+
     // Format for prompt injection
-    const formatted = formatLibrarianContext(librarianContext);
+    const formatted = appendQualityNormsSection(
+      formatLibrarianContext(librarianContext),
+      qualityNorms
+    );
 
     const context: TaskContext = {
       taskId,
@@ -263,6 +284,7 @@ export async function getTaskContext(
       librarianAvailable: true,
       drillDownHints: sessionContext.drillDownHints,
       methodHints: sessionContext.methodHints,
+      qualityNorms,
     };
 
     // Cache the result
@@ -787,7 +809,24 @@ function createFallbackContext(
     librarianAvailable: false,
     drillDownHints: [],
     methodHints: [],
+    qualityNorms: [],
   };
+}
+
+function appendQualityNormsSection(formattedContext: string, qualityNorms: TaskQualityNorm[]): string {
+  if (qualityNorms.length === 0) {
+    return formattedContext;
+  }
+  const sections: string[] = [];
+  if (formattedContext.trim().length > 0) {
+    sections.push(formattedContext.trimEnd(), '');
+  }
+  sections.push('### Quality Norms');
+  for (const norm of qualityNorms) {
+    const frequency = Math.round(norm.frequency * 100);
+    sections.push(`- [${norm.level}] ${norm.rule} (${frequency}% observed, example: ${norm.example})`);
+  }
+  return sections.join('\n');
 }
 
 function buildCacheKey(request: TaskContextRequest, workspace: string): string {

@@ -103,6 +103,38 @@ vi.mock('../../events.js', () => ({
   createFileModifiedEvent: vi.fn().mockReturnValue({ type: 'file_modified' }),
 }));
 
+vi.mock('../../constructions/processes/quality_bar_constitution_construction.js', () => ({
+  getTaskQualityNorms: vi.fn().mockResolvedValue([
+    {
+      id: 'QBC-001',
+      category: 'types',
+      level: 'MUST',
+      rule: 'Type definitions SHOULD use explicit interfaces or type aliases for public contracts.',
+      frequency: 0.95,
+      example: 'src/integration/agent_hooks.ts#TaskContext',
+      score: 4.2,
+    },
+    {
+      id: 'QBC-011',
+      category: 'testing',
+      level: 'SHOULD',
+      rule: 'Unit and integration tests SHOULD be organized with describe blocks.',
+      frequency: 0.88,
+      example: 'src/integration/__tests__/agent_hooks.test.ts#describe',
+      score: 3.4,
+    },
+    {
+      id: 'QBC-009',
+      category: 'logging',
+      level: 'SHOULD',
+      rule: 'Operational telemetry SHOULD use structured logInfo with stable bracketed tags.',
+      frequency: 0.84,
+      example: 'src/integration/agent_hooks.ts#logInfo',
+      score: 3.1,
+    },
+  ]),
+}));
+
 describe('agent_hooks', () => {
   let testDir: string;
 
@@ -137,6 +169,8 @@ describe('agent_hooks', () => {
       expect(context.packIds).toEqual(['pack-1', 'pack-2']);
       expect(context.confidence).toBe(0.8);
       expect(context.librarianAvailable).toBe(true);
+      expect(context.qualityNorms).toHaveLength(3);
+      expect(context.formatted).toContain('### Quality Norms');
     });
 
     it('should use provided taskId', async () => {
@@ -164,6 +198,7 @@ describe('agent_hooks', () => {
       expect(context.librarianAvailable).toBe(false);
       expect(context.confidence).toBe(0);
       expect(context.formatted).toBe('');
+      expect(context.qualityNorms).toEqual([]);
     });
 
     it('should cache context for repeated requests', async () => {
@@ -263,6 +298,7 @@ describe('agent_hooks', () => {
         librarianAvailable: true,
         drillDownHints: [],
         methodHints: [],
+        qualityNorms: [],
       };
 
       await reportTaskOutcome(context, { success: true }, { workspace: testDir });

@@ -237,6 +237,28 @@ export {
 } from './session_knowledge_harvest_construction.js';
 
 export {
+  DEFAULT_QUALITY_BAR_CONSTITUTION_RELATIVE_PATH,
+  createQualityBarConstitutionConstruction,
+  getTaskQualityNorms,
+  regenerateQualityBarConstitution,
+  selectQualityNormsForTask,
+  evaluateNormGuidedDepth,
+  type ConventionCategory,
+  type ConventionLevel,
+  type ConventionScope,
+  type ConventionEnforcement,
+  type QualityBarConvention,
+  type AgenticCriterion,
+  type QualityBarConstitution,
+  type QualityBarConstitutionInput,
+  type QualityBarConstitutionOutput,
+  type TaskQualityNorm,
+  type TaskQualityNormSelectionInput,
+  type TaskQualityNormsInput,
+  type NormDepthEvaluation,
+} from './quality_bar_constitution_construction.js';
+
+export {
   createResultQualityJudgeConstruction,
   deriveResultQualityThresholds,
   type ResultQualityThresholdSeed,
