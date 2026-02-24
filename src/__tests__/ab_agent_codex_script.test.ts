@@ -147,6 +147,22 @@ describe('ab-agent-codex script', () => {
     expect(captured).toContain('AB_AGENT_CRITIQUE_JSON_END');
   });
 
+  it('does not require git-only diff commands in non-git benchmark workspaces', async () => {
+    const sandbox = await mkdtemp(path.join(tmpdir(), 'ab-agent-codex-git-optional-'));
+    const promptPath = path.join(sandbox, 'prompt.txt');
+    await writeFile(promptPath, 'Task ID: git-optional-task\n', 'utf8');
+
+    const { exitCode, captured } = await runScriptWithStub({
+      AB_HARNESS_TASK_ID: 'git-optional-task',
+      AB_HARNESS_WORKER_TYPE: 'treatment',
+      AB_HARNESS_PROMPT_FILE: promptPath,
+      AB_HARNESS_WORKSPACE_ROOT: process.cwd(),
+    });
+    expect(exitCode).toBe(0);
+    expect(captured).not.toContain('run `git diff --name-only`');
+    expect(captured).toContain('If git metadata is unavailable, report modified source files by explicit path.');
+  });
+
   it('fails fast when codex subprocess exceeds wrapper timeout', async () => {
     const sandbox = await mkdtemp(path.join(tmpdir(), 'ab-agent-codex-timeout-'));
     const promptPath = path.join(sandbox, 'prompt.txt');
@@ -184,7 +200,8 @@ describe('ab-agent-codex script', () => {
     });
     expect(exitCode).toBe(0);
     expect(captured).toContain('Do not run additional validation commands');
-    expect(captured).toContain('Acceptance command(s) (optional; run at most one):');
+    expect(captured).toContain('Acceptance command (required; run exactly one):');
+    expect(captured).toContain('You must execute one listed acceptance command and use it to validate your fix before finishing.');
     expect(captured).toContain('npx vitest run src/utils/getErrorMessage.test.ts --reporter=dot');
   });
 

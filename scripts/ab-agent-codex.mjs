@@ -150,19 +150,22 @@ const harnessInstructions = [
   '5) For treatment runs, prioritize files and excerpts under Librarian context before broad searching.',
   '6) Finish after applying the fix.',
   '7) Leave a concrete repository diff before exiting; do not report completion without an actual file change.',
-  '8) Before finishing, run `git diff --name-only` and confirm at least one changed source file.',
-  '9) Do not run additional validation commands (typecheck/build/lint/full-suite tests); harness verification is authoritative.',
-  '10) Do not invoke `apply_patch` as a shell command; edit files directly via normal file operations/tools.',
+  '8) Before finishing, confirm at least one changed source file and list explicit file paths.',
+  '9) If git metadata is unavailable, report modified source files by explicit path.',
+  '10) If git metadata is available, include `git diff --name-only` output as supporting evidence.',
+  '11) Do not run additional validation commands (typecheck/build/lint/full-suite tests); harness verification is authoritative.',
+  '12) Do not invoke `apply_patch` as a shell command; edit files directly via normal file operations/tools.',
   workerType === 'treatment'
-    ? '11) Use Librarian hints as the primary localization path before broad searching; edit hinted files first.'
-    : '11) No Librarian localization hints are available; localize via repo evidence and failing checks.',
-  '12) Include a structured critique report in stdout between markers AB_AGENT_CRITIQUE_JSON_START and AB_AGENT_CRITIQUE_JSON_END.',
-  '13) The critique JSON must include: summary, workOutcome, librarianEffectiveness, confidence, issues[], suggestions[].',
-  '14) Critique must include both strengths and weaknesses from natural usage, including any LiBrainian package/API/CLI friction you observe.',
-  '15) When possible, mention concrete evidence paths/commands behind each critique item.',
+    ? '13) Use Librarian hints as the primary localization path before broad searching; edit hinted files first.'
+    : '13) No Librarian localization hints are available; localize via repo evidence and failing checks.',
+  '14) Include a structured critique report in stdout between markers AB_AGENT_CRITIQUE_JSON_START and AB_AGENT_CRITIQUE_JSON_END.',
+  '15) The critique JSON must include: summary, workOutcome, librarianEffectiveness, confidence, issues[], suggestions[].',
+  '16) Critique must include both strengths and weaknesses from natural usage, including any LiBrainian package/API/CLI friction you observe.',
+  '17) When possible, mention concrete evidence paths/commands behind each critique item.',
   ACCEPTANCE_COMMANDS.length > 0
     ? [
-      'Acceptance command(s) (optional; run at most one):',
+      'Acceptance command (required; run exactly one):',
+      'You must execute one listed acceptance command and use it to validate your fix before finishing.',
       ...ACCEPTANCE_COMMANDS.map((command) => `- ${command}`),
     ].join('\n')
     : null,
