@@ -120,6 +120,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('diagnose_self');
       expect(schemas).toContain('status');
       expect(schemas).toContain('semantic_search');
+      expect(schemas).toContain('validate_import');
       expect(schemas).toContain('get_context_pack');
       expect(schemas).toContain('estimate_budget');
       expect(schemas).toContain('estimate_task_complexity');
@@ -171,7 +172,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(57);
+      expect(schemas).toHaveLength(58);
     });
 
     it('should return schema for known tools', () => {
@@ -564,6 +565,22 @@ describe('MCP Schema', () => {
       expect(isSemanticSearchToolInput({ query: 'auth flow', depth: 'L3' })).toBe(true);
       expect(isSemanticSearchToolInput({ query: 'auth flow', depth: 'invalid' })).toBe(false);
       expect(isSemanticSearchToolInput(null)).toBe(false);
+    });
+  });
+
+  describe('Validate Import Tool Schema', () => {
+    it('should validate correct input', () => {
+      const result = validateToolInput('validate_import', {
+        package: 'demo-pkg',
+        importName: 'Widget',
+      });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should reject missing required fields', () => {
+      expect(validateToolInput('validate_import', { package: 'demo-pkg' }).valid).toBe(false);
+      expect(validateToolInput('validate_import', { importName: 'Widget' }).valid).toBe(false);
     });
   });
 

@@ -170,6 +170,7 @@ import {
 import { toMCPTool } from '../constructions/mcp_bridge.js';
 import { buildCapabilityInventory } from '../capabilities/inventory.js';
 import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
+import { validateImportReference } from '../evaluation/api_surface_index.js';
 
 // ============================================================================
 // TYPES
@@ -1542,6 +1543,21 @@ export class LiBrainianMCPServer {
             includeEvidence: { type: 'boolean', description: 'Include evidence graph summary' },
           },
           required: ['query'],
+        },
+      },
+      {
+        name: 'validate_import',
+        description: 'Validate package exports and members against local node_modules declarations (offline, fail-closed for hallucinated APIs)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            package: { type: 'string', description: 'Package specifier to validate (e.g. axios, next/router, @scope/pkg)' },
+            importName: { type: 'string', description: 'Export/symbol name to validate from the package' },
+            memberName: { type: 'string', description: 'Optional class/interface member to validate (method/property)' },
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            context: { type: 'string', description: 'Optional intent/context text used for richer diagnostics' },
+          },
+          required: ['package', 'importName'],
         },
       },
       {
@@ -3555,6 +3571,8 @@ export class LiBrainianMCPServer {
         return this.executeCompileIntentBundles(args as CompileIntentBundlesToolInput);
       case 'semantic_search':
         return this.executeSemanticSearch(args as SemanticSearchToolInput, context);
+      case 'validate_import':
+        return this.executeValidateImport(args as Record<string, unknown>);
       case 'get_context_pack':
         return this.executeGetContextPack(args as GetContextPackToolInput, context);
       case 'estimate_budget':
@@ -7737,6 +7755,54 @@ export class LiBrainianMCPServer {
     } catch (error) {
       return {
         found: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeValidateImport(input: Record<string, unknown>): Promise<unknown> {
+    try {
+      const packageName = typeof input.package === 'string' ? input.package.trim() : '';
+      const importName = typeof input.importName === 'string' ? input.importName.trim() : '';
+      const memberName = typeof input.memberName === 'string' && input.memberName.trim().length > 0
+        ? input.memberName.trim()
+        : undefined;
+
+      if (!packageName || !importName) {
+        return {
+          success: false,
+          error: 'validate_import requires non-empty package and importName values',
+        };
+      }
+
+      const workspacePath = typeof input.workspace === 'string' && input.workspace.trim().length > 0
+        ? path.resolve(input.workspace)
+        : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          error: 'No workspace specified and no workspaces registered',
+          package: packageName,
+          importName,
+        };
+      }
+
+      const result = await validateImportReference(workspacePath, {
+        packageName,
+        importName,
+        memberName,
+        context: typeof input.context === 'string' ? input.context : undefined,
+      });
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        ...result,
+      };
+    } catch (error) {
+      return {
+        success: false,
         error: error instanceof Error ? error.message : String(error),
       };
     }

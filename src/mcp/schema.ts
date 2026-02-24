@@ -152,6 +152,17 @@ export const SemanticSearchToolInputSchema = z.object({
 }).strict();
 
 /**
+ * validate_import tool input schema
+ */
+export const ValidateImportToolInputSchema = z.object({
+  package: z.string().min(1).describe('Package specifier to validate (e.g. axios, next/router, @scope/pkg)'),
+  importName: z.string().min(1).describe('Export/symbol name to validate from the package'),
+  memberName: z.string().min(1).optional().describe('Optional class/interface member to validate (method/property)'),
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  context: z.string().min(1).max(2000).optional().describe('Optional intent/context text used for richer diagnostics'),
+}).strict();
+
+/**
  * get_context_pack tool input schema
  */
 export const GetContextPackToolInputSchema = z.object({
@@ -724,6 +735,7 @@ export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInput
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
+export type ValidateImportToolInputType = z.infer<typeof ValidateImportToolInputSchema>;
 export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
 export type AppendClaimToolInputType = z.infer<typeof AppendClaimToolInputSchema>;
 export type QueryClaimsToolInputType = z.infer<typeof QueryClaimsToolInputSchema>;
@@ -783,6 +795,7 @@ export const TOOL_INPUT_SCHEMAS = {
   diagnose_self: DiagnoseSelfToolInputSchema,
   status: StatusToolInputSchema,
   semantic_search: SemanticSearchToolInputSchema,
+  validate_import: ValidateImportToolInputSchema,
   get_context_pack: GetContextPackToolInputSchema,
   estimate_budget: EstimateBudgetToolInputSchema,
   estimate_task_complexity: EstimateTaskComplexityToolInputSchema,
@@ -1028,6 +1041,24 @@ export const semanticSearchToolJsonSchema: JSONSchema = {
     includeEvidence: { type: 'boolean', description: 'Include evidence graph summary', default: false },
   },
   required: ['query'],
+  additionalProperties: false,
+};
+
+/** validate_import tool JSON Schema */
+export const validateImportToolJsonSchema: JSONSchema = {
+  $schema: JSON_SCHEMA_DRAFT,
+  $id: 'librarian://schemas/validate-import-tool-input',
+  title: 'ValidateImportToolInput',
+  description: 'Input for validate_import - validate package exports and members against local node_modules declarations',
+  type: 'object',
+  properties: {
+    package: { type: 'string', description: 'Package specifier to validate (e.g. axios, next/router, @scope/pkg)', minLength: 1 },
+    importName: { type: 'string', description: 'Export/symbol name to validate from the package', minLength: 1 },
+    memberName: { type: 'string', description: 'Optional class/interface member to validate (method/property)', minLength: 1 },
+    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+    context: { type: 'string', description: 'Optional intent/context text used for richer diagnostics', minLength: 1, maxLength: 2000 },
+  },
+  required: ['package', 'importName'],
   additionalProperties: false,
 };
 
@@ -1657,6 +1688,7 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   bootstrap: bootstrapToolJsonSchema,
   get_session_briefing: getSessionBriefingToolJsonSchema,
   semantic_search: semanticSearchToolJsonSchema,
+  validate_import: validateImportToolJsonSchema,
   get_context_pack: getContextPackToolJsonSchema,
   estimate_budget: estimateBudgetToolJsonSchema,
   estimate_task_complexity: estimateTaskComplexityToolJsonSchema,
