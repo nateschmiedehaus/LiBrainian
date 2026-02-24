@@ -750,9 +750,8 @@ async function main() {
       allowFailure: true,
       env: cliEnv,
       timeoutMs: commandTimeoutMs,
-      stdio: 'inherit',
     });
-    const updateOutput = `${updateResult.stdout}\n${updateResult.stderr}`;
+    const updateOutput = `${updateResult.stdout ?? ''}\n${updateResult.stderr ?? ''}`;
     const updateNoChanges = isUpdateNoopOutput(updateOutput);
     const updatePass = updateResult.status === 0 || updateNoChanges;
     commands.push(commandRecord('librainian.update', updateResult, updatePass, { skippedNoChanges: updateNoChanges }));
