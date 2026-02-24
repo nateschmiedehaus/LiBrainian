@@ -121,6 +121,15 @@ export interface VerificationReport {
 // CONSTRUCTION
 // ============================================================================
 
+function normalizeArchitectureSpec(spec: ArchitectureSpec): ArchitectureSpec {
+  const candidate = (spec && typeof spec === 'object' ? spec : {}) as Partial<ArchitectureSpec>;
+  return {
+    layers: Array.isArray(candidate.layers) ? candidate.layers : [],
+    boundaries: Array.isArray(candidate.boundaries) ? candidate.boundaries : [],
+    rules: Array.isArray(candidate.rules) ? candidate.rules : [],
+  };
+}
+
 export class ArchitectureVerifier {
   private librarian: Librarian;
 
@@ -132,39 +141,40 @@ export class ArchitectureVerifier {
    * Verify architecture compliance.
    */
   async verify(spec: ArchitectureSpec): Promise<VerificationReport> {
+    const normalizedSpec = normalizeArchitectureSpec(spec);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
     const violations: ArchitectureViolation[] = [];
     const filesChecked = new Set<string>();
 
     // Step 1: Verify layer dependencies
-    const layerViolations = await this.verifyLayerDependencies(spec.layers, filesChecked);
+    const layerViolations = await this.verifyLayerDependencies(normalizedSpec.layers, filesChecked);
     violations.push(...layerViolations);
     evidenceRefs.push(`layer_check:${layerViolations.length}_violations`);
 
     // Step 2: Verify boundary constraints
-    const boundaryViolations = await this.verifyBoundaries(spec.boundaries, filesChecked);
+    const boundaryViolations = await this.verifyBoundaries(normalizedSpec.boundaries, filesChecked);
     violations.push(...boundaryViolations);
     evidenceRefs.push(`boundary_check:${boundaryViolations.length}_violations`);
 
     // Step 3: Apply custom rules
-    const ruleViolations = await this.applyRules(spec.rules, filesChecked);
+    const ruleViolations = await this.applyRules(normalizedSpec.rules, filesChecked);
     violations.push(...ruleViolations);
     evidenceRefs.push(`rule_check:${ruleViolations.length}_violations`);
 
     // Compute compliance scores
-    const compliance = this.computeCompliance(spec, violations, filesChecked.size);
+    const compliance = this.computeCompliance(normalizedSpec, violations, filesChecked.size);
     evidenceRefs.push(`compliance:${compliance.overall.toFixed(1)}%`);
 
     // Compute confidence
-    const confidence = this.computeConfidence(violations, filesChecked.size, spec);
+    const confidence = this.computeConfidence(violations, filesChecked.size, normalizedSpec);
 
     return {
-      spec,
+      spec: normalizedSpec,
       violations,
       compliance,
       filesChecked: filesChecked.size,
-      rulesApplied: spec.rules.length,
+      rulesApplied: normalizedSpec.rules.length,
       confidence,
       evidenceRefs,
       verificationTimeMs: Date.now() - startTime,

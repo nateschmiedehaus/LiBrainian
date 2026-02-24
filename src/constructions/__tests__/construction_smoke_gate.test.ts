@@ -64,6 +64,8 @@ function buildGenericInput(manifest: ConstructionManifest): Record<string, unkno
       input[key] =
         key === 'args'
           ? ['-e', 'process.stdout.write("smoke")']
+          : key === 'checkTypes'
+            ? ['injection']
           : key === 'runs'
             ? [
                 {
@@ -107,13 +109,17 @@ function buildGenericInput(manifest: ConstructionManifest): Record<string, unkno
           : key === 'usage'
             ? { durationMs: 1 }
             : key === 'aggregate'
-              ? {
-                  runCount: 1,
-                  meanNps: 7,
-                  wouldRecommendRate: 1,
-                  avgNegativeFindings: 0,
-                  implicitFallbackRate: 0,
-                }
+            ? {
+                runCount: 1,
+                meanNps: 7,
+                wouldRecommendRate: 1,
+                avgNegativeFindings: 0,
+                implicitFallbackRate: 0,
+              }
+              : key === 'architectureSpec'
+                ? { layers: [], boundaries: [], rules: [] }
+                : key === 'securityScope'
+                  ? { files: [], checkTypes: [] }
               : {};
       continue;
     }
@@ -191,6 +197,12 @@ function hasConfidenceSignal(
   return false;
 }
 
+function requiresConfidenceSignal(manifest: ConstructionManifest): boolean {
+  const properties = manifest.outputSchema?.properties;
+  if (!properties || typeof properties !== 'object') return false;
+  return Object.prototype.hasOwnProperty.call(properties, 'confidence');
+}
+
 async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult> {
   const startedAt = Date.now();
   try {
@@ -205,7 +217,8 @@ async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult
     );
     const parseable = isParseableOutput(output);
     const confidencePresent = hasConfidenceSignal(output);
-    const status = parseable && confidencePresent ? 'pass' : 'fail';
+    const confidenceRequired = requiresConfidenceSignal(manifest);
+    const status = parseable && (!confidenceRequired || confidencePresent) ? 'pass' : 'fail';
     return {
       id: manifest.id,
       status,
@@ -250,15 +263,27 @@ describe('Construction Smoke Gate', () => {
   it('runs every registered construction with timeout guard and reports pass/fail coverage', async () => {
     const startedAt = Date.now();
     const manifests = listConstructions();
+    const executableManifests = listConstructions({ availableOnly: true });
+    const unavailableCatalogManifests = manifests.filter((manifest) => manifest.available === false);
     expect(manifests.length).toBeGreaterThan(0);
+    expect(executableManifests.length).toBeGreaterThan(0);
 
-    const results = await runWithConcurrency(manifests, MAX_PARALLEL, runSmokeCase);
+    const results = await runWithConcurrency(executableManifests, MAX_PARALLEL, runSmokeCase);
     const passed = results.filter((result) => result.status === 'pass');
     const failed = results.filter((result) => result.status === 'fail');
     const timedOut = results.filter((result) => result.timedOut);
 
     const report = {
-      total: results.length,
+      executable: {
+        total: executableManifests.length,
+        passed: passed.length,
+        failed: failed.length,
+      },
+      catalogCompleteness: {
+        implemented: executableManifests.length,
+        total: manifests.length,
+        unavailable: unavailableCatalogManifests.length,
+      },
       passed: passed.map((result) => result.id),
       failed: failed.map((result) => ({
         id: result.id,
@@ -270,7 +295,9 @@ describe('Construction Smoke Gate', () => {
     };
     console.info('[Construction Smoke Gate] report', JSON.stringify(report));
 
-    expect(results).toHaveLength(manifests.length);
+    expect(results).toHaveLength(executableManifests.length);
+    expect(failed).toHaveLength(0);
+    expect(executableManifests.length + unavailableCatalogManifests.length).toBe(manifests.length);
     expect(results.every((result) => result.durationMs <= PER_CONSTRUCTION_TIMEOUT_MS + 1_000)).toBe(true);
     expect(timedOut).toHaveLength(0);
     expect(Date.now() - startedAt).toBeLessThan(TOTAL_BUDGET_MS);

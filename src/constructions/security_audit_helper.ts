@@ -151,6 +151,23 @@ export interface SecurityReport {
   auditTimeMs: number;
 }
 
+function normalizeAuditScope(scope: AuditScope): AuditScope {
+  const candidate = (scope && typeof scope === 'object' ? scope : {}) as Partial<AuditScope>;
+  const files = Array.isArray(candidate.files)
+    ? candidate.files.filter((file): file is string => typeof file === 'string')
+    : [];
+  const checkTypes = Array.isArray(candidate.checkTypes)
+    ? candidate.checkTypes.filter(
+      (checkType): checkType is SecurityCheckType => typeof checkType === 'string',
+    )
+    : [];
+  const workspace = typeof candidate.workspace === 'string' ? candidate.workspace : undefined;
+  if (workspace) {
+    return { files, checkTypes, workspace };
+  }
+  return { files, checkTypes };
+}
+
 // ============================================================================
 // SECURITY PATTERNS
 // ============================================================================
@@ -556,27 +573,28 @@ export class SecurityAuditHelper {
    * Perform a security audit.
    */
   async audit(scope: AuditScope): Promise<SecurityReport> {
+    const normalizedScope = normalizeAuditScope(scope);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
     const findings: SecurityFinding[] = [];
     let dependencyVulnerabilities: DependencyVulnerability[] | undefined;
 
     // Run each check type
-    for (const checkType of scope.checkTypes) {
-      const checkFindings = await this.runSecurityCheck(checkType, scope.files);
+    for (const checkType of normalizedScope.checkTypes) {
+      const checkFindings = await this.runSecurityCheck(checkType, normalizedScope.files);
       findings.push(...checkFindings);
       evidenceRefs.push(`${checkType}_check:${checkFindings.length}_findings`);
     }
 
     // Run dependency vulnerability scan if workspace is provided
-    if (scope.workspace) {
-      const depScan = await scanDependencyVulnerabilities(scope.workspace);
+    if (normalizedScope.workspace) {
+      const depScan = await scanDependencyVulnerabilities(normalizedScope.workspace);
       dependencyVulnerabilities = depScan.vulnerabilities;
 
       // Convert to findings and add to the list
       const depFindings = dependencyVulnerabilitiesToFindings(
         depScan.vulnerabilities,
-        scope.workspace
+        normalizedScope.workspace
       );
       findings.push(...depFindings);
 
@@ -592,17 +610,17 @@ export class SecurityAuditHelper {
     evidenceRefs.push(`severity:${severity.critical}C/${severity.high}H/${severity.medium}M`);
 
     // Compute risk score
-    const riskScore = this.computeRiskScore(severity, scope.files.length);
+    const riskScore = this.computeRiskScore(severity, normalizedScope.files.length);
 
     // Compute confidence
-    const confidence = this.computeConfidence(deduplicatedFindings, scope);
+    const confidence = this.computeConfidence(deduplicatedFindings, normalizedScope);
 
     return {
-      scope,
+      scope: normalizedScope,
       findings: deduplicatedFindings,
       dependencyVulnerabilities,
       severity,
-      filesAudited: scope.files.length,
+      filesAudited: normalizedScope.files.length,
       riskScore,
       confidence,
       evidenceRefs,

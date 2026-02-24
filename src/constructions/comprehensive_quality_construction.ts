@@ -184,6 +184,48 @@ const SEVERITY_SCORES: Record<string, number> = {
   warning: 50,
 };
 
+function normalizeAssessmentScope(scope: AssessmentScope): AssessmentScope {
+  const candidate = (scope && typeof scope === 'object' ? scope : {}) as Partial<AssessmentScope>;
+  const files = Array.isArray(candidate.files)
+    ? candidate.files.filter((file): file is string => typeof file === 'string')
+    : [];
+
+  const architecture = (candidate.architectureSpec && typeof candidate.architectureSpec === 'object'
+    ? candidate.architectureSpec
+    : {}) as Partial<ArchitectureSpec>;
+
+  const security = (candidate.securityScope && typeof candidate.securityScope === 'object'
+    ? candidate.securityScope
+    : {}) as Partial<AuditScope>;
+
+  const normalizedSecurityFiles = Array.isArray(security.files)
+    ? security.files.filter((file): file is string => typeof file === 'string')
+    : files;
+  const normalizedSecurityCheckTypes = Array.isArray(security.checkTypes)
+    ? security.checkTypes.filter(
+      (checkType): checkType is AuditScope['checkTypes'][number] => typeof checkType === 'string',
+    )
+    : [];
+
+  const securityScope: AuditScope = {
+    files: normalizedSecurityFiles,
+    checkTypes: normalizedSecurityCheckTypes,
+  };
+  if (typeof security.workspace === 'string') {
+    securityScope.workspace = security.workspace;
+  }
+
+  return {
+    files,
+    architectureSpec: {
+      layers: Array.isArray(architecture.layers) ? architecture.layers : [],
+      boundaries: Array.isArray(architecture.boundaries) ? architecture.boundaries : [],
+      rules: Array.isArray(architecture.rules) ? architecture.rules : [],
+    },
+    securityScope,
+  };
+}
+
 // ============================================================================
 // CONSTRUCTION
 // ============================================================================
@@ -215,17 +257,18 @@ export class ComprehensiveQualityConstruction {
    * @returns Comprehensive quality report with unified results
    */
   async assess(scope: AssessmentScope): Promise<ComprehensiveQualityReport> {
+    const normalizedScope = normalizeAssessmentScope(scope);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
     // Run all assessments in parallel for efficiency
     const [codeResult, archResult, secResult] = await Promise.all([
       this.codeQuality.analyze({
-        files: scope.files,
+        files: normalizedScope.files,
         aspects: ['complexity', 'duplication', 'testability'],
       }),
-      this.architecture.verify(scope.architectureSpec),
-      this.security.audit(scope.securityScope),
+      this.architecture.verify(normalizedScope.architectureSpec),
+      this.security.audit(normalizedScope.securityScope),
     ]);
 
     // Collect evidence from all components
