@@ -15,11 +15,27 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vite
 import { indexCommand, type IndexCommandOptions } from '../index.js';
 import { LiBrainian } from '../../../api/librarian.js';
 import { CliError } from '../../errors.js';
+import { resolveDbPath } from '../../db_path.js';
 import { globalEventBus } from '../../../events.js';
-import { getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
+import { createSqliteStorage } from '../../../storage/sqlite_storage.js';
+import { getWatchState, updateWatchState } from '../../../state/watch_state.js';
+import { getCurrentGitSha, getGitDiffNames, getGitFileContentAtRef, getGitStagedChanges, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 
 vi.mock('node:fs');
 vi.mock('../../../api/librarian.js');
+vi.mock('../../db_path.js', () => ({
+  resolveDbPath: vi.fn(async (workspace: string) => `${workspace}/.librarian/librarian.sqlite`),
+}));
+vi.mock('../../../storage/sqlite_storage.js', () => ({
+  createSqliteStorage: vi.fn(() => ({
+    initialize: vi.fn(async () => undefined),
+    close: vi.fn(async () => undefined),
+  })),
+}));
+vi.mock('../../../state/watch_state.js', () => ({
+  getWatchState: vi.fn(async () => null),
+  updateWatchState: vi.fn(async (_storage, updater) => updater(null)),
+}));
 vi.mock('../../../events.js', async () => {
   const actual = await vi.importActual('../../../events.js');
   return {
@@ -38,6 +54,7 @@ vi.mock('../../../utils/git.js', () => ({
   getGitStagedChanges: vi.fn(async () => null),
   getGitDiffNames: vi.fn(async () => null),
   getGitFileContentAtRef: vi.fn(() => null),
+  getCurrentGitSha: vi.fn(() => null),
 }));
 
 describe('indexCommand', () => {
@@ -89,6 +106,14 @@ describe('indexCommand', () => {
     vi.mocked(getGitStagedChanges).mockResolvedValue(null);
     vi.mocked(getGitDiffNames).mockResolvedValue(null);
     vi.mocked(getGitFileContentAtRef).mockReturnValue(null);
+    vi.mocked(getCurrentGitSha).mockReturnValue(null);
+    vi.mocked(resolveDbPath).mockResolvedValue(`${mockWorkspace}/.librarian/librarian.sqlite`);
+    vi.mocked(createSqliteStorage).mockReturnValue({
+      initialize: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    } as unknown as ReturnType<typeof createSqliteStorage>);
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(updateWatchState).mockImplementation(async (_storage, updater) => updater(null));
   });
 
   afterEach(() => {
@@ -269,6 +294,60 @@ describe('indexCommand', () => {
 
       await expect(indexCommand(options)).resolves.toBeUndefined();
       expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
+    });
+
+    it('auto-selects files from watch cursor drift for allowLockSkip update with no explicit files', async () => {
+      vi.mocked(getCurrentGitSha).mockReturnValue('def456789abc');
+      vi.mocked(getWatchState).mockResolvedValue({
+        schema_version: 1,
+        workspace_root: mockWorkspace,
+        needs_catchup: true,
+        cursor: { kind: 'git', lastIndexedCommitSha: 'abc123456789' },
+      });
+      vi.mocked(getGitDiffNames).mockResolvedValue({
+        added: ['src/new.ts'],
+        modified: ['src/changed.ts'],
+        deleted: [],
+        renamed: [],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await indexCommand(options);
+
+      expect(getGitDiffNames).toHaveBeenCalledWith(mockWorkspace, 'abc123456789');
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/new.ts'),
+        path.resolve(mockWorkspace, 'src/changed.ts'),
+      ]);
+      expect(updateWatchState).toHaveBeenCalled();
+    });
+
+    it('marks watch cursor as caught up when watch drift has no file changes', async () => {
+      vi.mocked(getCurrentGitSha).mockReturnValue('def456789abc');
+      vi.mocked(getWatchState).mockResolvedValue({
+        schema_version: 1,
+        workspace_root: mockWorkspace,
+        needs_catchup: true,
+        cursor: { kind: 'git', lastIndexedCommitSha: 'abc123456789' },
+      });
+      vi.mocked(getGitDiffNames).mockResolvedValue(null);
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
+      expect(updateWatchState).toHaveBeenCalled();
     });
   });
 

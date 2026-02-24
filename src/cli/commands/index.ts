@@ -18,7 +18,11 @@ import * as path from 'node:path';
 import { LiBrainian } from '../../api/librarian.js';
 import { CliError } from '../errors.js';
 import { globalEventBus, type LiBrainianEvent } from '../../events.js';
+import { resolveDbPath } from '../db_path.js';
+import { createSqliteStorage } from '../../storage/sqlite_storage.js';
+import { getWatchState, updateWatchState } from '../../state/watch_state.js';
 import {
+  getCurrentGitSha,
   getGitDiffNames,
   getGitFileContentAtRef,
   getGitStagedChanges,
@@ -75,8 +79,35 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   const workspace = options.workspace || process.cwd();
   const verbose = options.verbose ?? false;
   const force = options.force ?? false;
-  const files = await resolveRequestedFiles(workspace, options);
+  let files = await resolveRequestedFiles(workspace, options);
   const selectorMode = Boolean(options.incremental || options.staged || options.since);
+  let updatePlan: UpdateCatchupPlan | null = null;
+
+  if (!selectorMode && files.length === 0 && options.allowLockSkip) {
+    updatePlan = await buildUpdateCatchupPlan(workspace);
+    if (updatePlan.status === 'reindex' && updatePlan.files.length > 0) {
+      files = updatePlan.files;
+      if (verbose) {
+        console.log(
+          `Auto-selected ${files.length} file(s) from git range ${shortSha(updatePlan.fromSha)}..${shortSha(updatePlan.toSha)} for update catch-up.`
+        );
+      }
+    } else if (updatePlan.status === 'caught_up') {
+      if (verbose) {
+        console.log(
+          `No code changes detected between ${shortSha(updatePlan.fromSha)} and ${shortSha(updatePlan.toSha)}; advanced watch cursor to HEAD.`
+        );
+      }
+      return;
+    } else if (updatePlan.status === 'deletions_only') {
+      console.warn(
+        `Update detected delete/rename-only drift (${shortSha(updatePlan.fromSha)}..${shortSha(updatePlan.toSha)}); run "librarian bootstrap" to refresh safely.`
+      );
+      return;
+    } else if (verbose) {
+      console.log('No update candidates found from watch cursor; skipping update.');
+    }
+  }
 
   if (selectorMode && files.length === 0) {
     if (verbose) {
@@ -285,6 +316,10 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     const duration = Date.now() - startTime;
     const finalStatus = await librarian.getStatus();
 
+    if (updatePlan?.status === 'reindex' && options.allowLockSkip) {
+      await markWatchStateCaughtUp(workspace, updatePlan.toSha);
+    }
+
     console.log('');
     console.log('=== Index Complete ===\n');
     console.log(`Duration: ${(duration / 1000).toFixed(1)}s`);
@@ -416,4 +451,92 @@ function dedupeStrings(items: string[]): string[] {
     deduped.push(item);
   }
   return deduped;
+}
+
+type UpdateCatchupPlan =
+  | { status: 'none' }
+  | { status: 'reindex'; files: string[]; fromSha: string; toSha: string }
+  | { status: 'caught_up'; fromSha: string; toSha: string }
+  | { status: 'deletions_only'; fromSha: string; toSha: string };
+
+async function buildUpdateCatchupPlan(workspace: string): Promise<UpdateCatchupPlan> {
+  if (!isGitRepo(workspace)) {
+    return { status: 'none' };
+  }
+
+  const dbPath = await resolveDbPath(workspace);
+  const storage = createSqliteStorage(dbPath, workspace);
+  await storage.initialize();
+
+  try {
+    const watchState = await getWatchState(storage);
+    const fromSha = watchState?.cursor?.kind === 'git'
+      ? watchState.cursor.lastIndexedCommitSha
+      : null;
+    const toSha = getCurrentGitSha(workspace);
+
+    if (!fromSha || !toSha) {
+      return { status: 'none' };
+    }
+
+    if (fromSha === toSha) {
+      await markWatchStateCaughtUpInternal(storage, workspace, toSha);
+      return { status: 'caught_up', fromSha, toSha };
+    }
+
+    const changes = await getGitDiffNames(workspace, fromSha);
+    const addedOrModified = changes
+      ? dedupeStrings([...changes.added, ...changes.modified].map((file) => path.resolve(workspace, file)))
+      : [];
+
+    if (addedOrModified.length > 0) {
+      return { status: 'reindex', files: addedOrModified, fromSha, toSha };
+    }
+
+    const totalChangedFiles = changes
+      ? changes.added.length + changes.modified.length + changes.deleted.length + changes.renamed.length
+      : 0;
+
+    if (totalChangedFiles === 0) {
+      await markWatchStateCaughtUpInternal(storage, workspace, toSha);
+      return { status: 'caught_up', fromSha, toSha };
+    }
+
+    return { status: 'deletions_only', fromSha, toSha };
+  } finally {
+    await storage.close();
+  }
+}
+
+async function markWatchStateCaughtUp(workspace: string, headSha: string): Promise<void> {
+  const dbPath = await resolveDbPath(workspace);
+  const storage = createSqliteStorage(dbPath, workspace);
+  await storage.initialize();
+  try {
+    await markWatchStateCaughtUpInternal(storage, workspace, headSha);
+  } finally {
+    await storage.close();
+  }
+}
+
+async function markWatchStateCaughtUpInternal(
+  storage: ReturnType<typeof createSqliteStorage>,
+  workspace: string,
+  headSha: string,
+): Promise<void> {
+  const snapshot = await getWatchState(storage);
+  await updateWatchState(storage, (prev) => ({
+    schema_version: 1,
+    workspace_root: prev?.workspace_root || snapshot?.workspace_root || workspace,
+    ...(snapshot ?? {}),
+    ...(prev ?? {}),
+    cursor: { kind: 'git', lastIndexedCommitSha: headSha },
+    needs_catchup: false,
+    watch_last_reindex_ok_at: new Date().toISOString(),
+    last_error: undefined,
+  }));
+}
+
+function shortSha(value: string): string {
+  return value.slice(0, 12);
 }
