@@ -1,8 +1,14 @@
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { initializeLibrarian } from '../src/orchestrator/index.js';
+import {
+  createGroundTruthGenerator,
+  type StructuralGroundTruthCorpus,
+  type StructuralGroundTruthQuery,
+} from '../src/evaluation/ground_truth_generator.js';
+import { createASTFactExtractor } from '../src/evaluation/ast_fact_extractor.js';
 import {
   evaluateSelfUnderstanding,
   renderSelfUnderstandingDashboard,
@@ -16,6 +22,76 @@ function parseNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(1, Math.floor(parsed));
+}
+
+function parseCommaSeparated(value: string | undefined, fallback: string[]): string[] {
+  if (!value) return fallback;
+  const parsed = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return parsed.length > 0 ? parsed : fallback;
+}
+
+async function isDirectory(targetPath: string): Promise<boolean> {
+  try {
+    return (await stat(targetPath)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function mergeCorpora(
+  workspace: string,
+  repoName: string,
+  corpora: StructuralGroundTruthCorpus[],
+  maxQueryCount: number
+): StructuralGroundTruthCorpus {
+  if (corpora.length === 0) {
+    return {
+      repoName,
+      repoPath: workspace,
+      generatedAt: new Date().toISOString(),
+      queries: [],
+      factCount: 0,
+      coverage: {
+        functions: 0,
+        classes: 0,
+        imports: 0,
+        exports: 0,
+      },
+    };
+  }
+
+  const queryByKey = new Map<string, StructuralGroundTruthQuery>();
+  for (const corpus of corpora) {
+    for (const query of corpus.queries) {
+      const key = `${query.id}:${query.query}`;
+      if (!queryByKey.has(key)) {
+        queryByKey.set(key, query);
+      }
+      if (queryByKey.size >= maxQueryCount) {
+        break;
+      }
+    }
+    if (queryByKey.size >= maxQueryCount) {
+      break;
+    }
+  }
+
+  return {
+    repoName,
+    repoPath: workspace,
+    generatedAt: new Date().toISOString(),
+    queries: Array.from(queryByKey.values()),
+    factCount: corpora.reduce((sum, corpus) => sum + corpus.factCount, 0),
+    coverage: {
+      functions: corpora.reduce((sum, corpus) => sum + corpus.coverage.functions, 0),
+      classes: corpora.reduce((sum, corpus) => sum + corpus.coverage.classes, 0),
+      imports: corpora.reduce((sum, corpus) => sum + corpus.coverage.imports, 0),
+      exports: corpora.reduce((sum, corpus) => sum + corpus.coverage.exports, 0),
+    },
+  };
 }
 
 async function readHistory(historyPath: string): Promise<SelfUnderstandingHistoryEntry[]> {
@@ -101,7 +177,12 @@ const args = parseArgs({
     minQuestions: { type: 'string', default: '50' },
     maxQuestions: { type: 'string', default: '60' },
     answerTimeoutMs: { type: 'string', default: '45000' },
-    bootstrapTimeoutMs: { type: 'string', default: '120000' },
+    bootstrapTimeoutMs: { type: 'string', default: '900000' },
+    corpusRoots: { type: 'string', default: 'src,scripts' },
+    maxCorpusFiles: { type: 'string', default: '2500' },
+    maxCorpusQueries: { type: 'string', default: '500' },
+    skipLlm: { type: 'boolean', default: true },
+    disableSynthesis: { type: 'boolean', default: true },
     commit: { type: 'string' },
   },
 });
@@ -117,19 +198,35 @@ const dashboardPath = path.resolve(
 const minQuestions = parseNumber(args.values.minQuestions, 50);
 const maxQuestions = parseNumber(args.values.maxQuestions, Math.max(60, minQuestions));
 const answerTimeoutMs = parseNumber(args.values.answerTimeoutMs, 45000);
-const bootstrapTimeoutMs = parseNumber(args.values.bootstrapTimeoutMs, 120000);
+const bootstrapTimeoutMs = parseNumber(args.values.bootstrapTimeoutMs, 900000);
+const corpusRoots = parseCommaSeparated(args.values.corpusRoots, ['src', 'scripts']);
+const maxCorpusFiles = parseNumber(args.values.maxCorpusFiles, 2500);
+const maxCorpusQueries = parseNumber(args.values.maxCorpusQueries, 500);
+const skipLlm = args.values.skipLlm ?? true;
+const disableSynthesis = args.values.disableSynthesis ?? true;
 const commitSha = resolveCommitSha(workspace, args.values.commit);
 if (!process.env.LIBRARIAN_BOOTSTRAP_BACKUP_MAX_BYTES && !process.env.LIBRAINIAN_BOOTSTRAP_BACKUP_MAX_BYTES) {
   process.env.LIBRARIAN_BOOTSTRAP_BACKUP_MAX_BYTES = String(256 * 1024 * 1024);
+}
+if (
+  disableSynthesis
+  && process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS !== '1'
+  && process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS !== 'true'
+) {
+  process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS = '1';
 }
 
 let report: SelfUnderstandingReport;
 let session: Awaited<ReturnType<typeof initializeLibrarian>> | undefined;
 try {
+  const extractor = createASTFactExtractor({ maxFiles: maxCorpusFiles });
+  const groundTruthGenerator = createGroundTruthGenerator(extractor);
+
   session = await initializeLibrarian(workspace, {
     silent: true,
     skipWatcher: true,
     skipHealing: true,
+    skipLlm,
     bootstrapTimeoutMs,
   });
   try {
@@ -140,6 +237,26 @@ try {
       maxQuestionCount: maxQuestions,
       answerTimeoutMs,
       answerQuestion: async (intent) => session.query(intent),
+      generateCorpus: async (workspaceRoot, currentRepoName) => {
+        const candidateRoots: string[] = [];
+        for (const relativeRoot of corpusRoots) {
+          const absoluteRoot = path.resolve(workspaceRoot, relativeRoot);
+          if (await isDirectory(absoluteRoot)) {
+            candidateRoots.push(absoluteRoot);
+          }
+        }
+        if (candidateRoots.length === 0) {
+          candidateRoots.push(workspaceRoot);
+        }
+        const corpora: StructuralGroundTruthCorpus[] = [];
+        for (const targetRoot of candidateRoots) {
+          const corpus = await groundTruthGenerator.generateForRepo(targetRoot, currentRepoName);
+          corpora.push(corpus);
+          const generatedQueries = corpora.reduce((sum, current) => sum + current.queries.length, 0);
+          if (generatedQueries >= maxCorpusQueries) break;
+        }
+        return mergeCorpora(workspaceRoot, currentRepoName, corpora, maxCorpusQueries);
+      },
     });
   } catch (error) {
     report = createFailureReport(workspace, repoName, minQuestions, 'evaluation_failure', error);

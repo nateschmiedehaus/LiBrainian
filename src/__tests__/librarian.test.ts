@@ -201,6 +201,33 @@ describe('Librarian Storage', () => {
     expect(backupContent.trim()).toBe('seed');
   });
 
+  it('retains only the newest pre-migration backup directory', async () => {
+    const librarianDir = path.join(workspace, '.librarian');
+    const dbPath = path.join(librarianDir, 'librarian.sqlite');
+    await fs.mkdir(librarianDir, { recursive: true });
+    await fs.writeFile(path.join(librarianDir, 'preexisting.txt'), 'seed\n', 'utf8');
+
+    const staleA = path.join(workspace, '.librarian.backup.v0.1000.stale-a');
+    const staleB = path.join(workspace, '.librarian.backup.v0.2000.stale-b');
+    await fs.mkdir(staleA, { recursive: true });
+    await fs.mkdir(staleB, { recursive: true });
+    await fs.writeFile(path.join(staleA, 'marker.txt'), 'old-a\n', 'utf8');
+    await fs.writeFile(path.join(staleB, 'marker.txt'), 'old-b\n', 'utf8');
+    const now = Date.now();
+    await fs.utimes(staleA, new Date(now - 60_000), new Date(now - 60_000));
+    await fs.utimes(staleB, new Date(now - 30_000), new Date(now - 30_000));
+
+    const storage = createSqliteStorage(dbPath, workspace);
+    await storage.initialize();
+    await storage.close();
+
+    const backupDirs = (await fs.readdir(workspace)).filter((entry) => entry.startsWith('.librarian.backup.v'));
+    expect(backupDirs).toHaveLength(1);
+    const preservedPath = path.join(workspace, backupDirs[0] ?? '');
+    const preservedSeed = await fs.readFile(path.join(preservedPath, 'preexisting.txt'), 'utf8');
+    expect(preservedSeed.trim()).toBe('seed');
+  });
+
   it('should store and retrieve functions', async () => {
     const dbPath = path.join(workspace, 'test.db');
     const storage = createSqliteStorage(dbPath);

@@ -291,4 +291,51 @@ describe('self_understanding', () => {
     expect(dashboard).toContain('Self-understanding report');
     expect(dashboard).toContain('abc1234');
   });
+
+  it('bounds large answer payloads without crashing scoring', async () => {
+    const corpus = makeCorpus([
+      makeQuery({
+        id: 'called-by-bar-1',
+        query: 'What functions or methods are callers of bar?',
+        expectedAnswer: {
+          type: 'contains',
+          value: ['foo'],
+          evidence: [makeFact({ type: 'call', details: { caller: 'foo', callee: 'bar' } })],
+        },
+      }),
+      makeQuery({
+        id: 'func-exported-foo-2',
+        query: 'Is function foo exported?',
+        expectedAnswer: {
+          type: 'exists',
+          value: true,
+          evidence: [makeFact({ type: 'function_def', identifier: 'foo', file: 'src/sample.ts' })],
+        },
+      }),
+    ]);
+
+    const hugeSnippet = 'x'.repeat(2_000_000);
+    const report = await evaluateSelfUnderstanding({
+      workspace: '/tmp/self',
+      minQuestionCount: 2,
+      maxQuestionCount: 2,
+      generateCorpus: async () => corpus,
+      answerQuestion: async () => ({
+        summary: 'foo src/sample.ts',
+        keyFacts: ['foo', 'src/sample.ts'],
+        snippets: [
+          {
+            file: 'src/huge.ts',
+            startLine: 1,
+            endLine: 1,
+            code: hugeSnippet,
+          },
+        ],
+      }),
+      now: () => new Date('2026-02-24T12:00:00.000Z'),
+    });
+
+    expect(report.evaluatedQuestionCount).toBe(2);
+    expect(report.results.every((result) => Number.isFinite(result.score))).toBe(true);
+  });
 });

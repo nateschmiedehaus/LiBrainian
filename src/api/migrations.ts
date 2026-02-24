@@ -89,8 +89,10 @@ export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const resolveAuditDir = (workspaceRoot: string): string => path.join(workspaceRoot, 'state', 'audits', 'librarian', 'migrations');
+const BACKUP_DIR_PREFIX = '.librarian.backup.v';
+const MAX_MIGRATION_BACKUPS = 1;
 const resolveBackupDir = (workspaceRoot: string, fromVersion: number): string =>
-  path.join(workspaceRoot, `.librarian.backup.v${fromVersion}.${Date.now()}.${randomUUID()}`);
+  path.join(workspaceRoot, `${BACKUP_DIR_PREFIX}${fromVersion}.${Date.now()}.${randomUUID()}`);
 const hasMetadataTable = (db: Database.Database): boolean => Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librarian_metadata'").get());
 const hashSql = (sql: string): string => createHash('sha256').update(sql).digest('hex');
 const loadMigrationSql = async (file: string): Promise<string> => {
@@ -124,6 +126,35 @@ async function writeMigrationReport(workspaceRoot: string, report: LibrarianSche
   return reportPath;
 }
 
+async function pruneMigrationBackups(workspaceRoot: string, keep = MAX_MIGRATION_BACKUPS): Promise<void> {
+  if (keep < 1) return;
+  let entries: string[];
+  try {
+    entries = await fs.readdir(workspaceRoot);
+  } catch {
+    return;
+  }
+
+  const candidates: Array<{ dirPath: string; mtimeMs: number }> = [];
+  for (const entry of entries) {
+    if (!entry.startsWith(BACKUP_DIR_PREFIX)) continue;
+    const dirPath = path.join(workspaceRoot, entry);
+    try {
+      const stat = await fs.stat(dirPath);
+      if (!stat.isDirectory()) continue;
+      candidates.push({ dirPath, mtimeMs: stat.mtimeMs });
+    } catch {
+      continue;
+    }
+  }
+
+  if (candidates.length <= keep) return;
+  candidates.sort((left, right) => right.mtimeMs - left.mtimeMs || right.dirPath.localeCompare(left.dirPath));
+  for (const stale of candidates.slice(keep)) {
+    await fs.rm(stale.dirPath, { recursive: true, force: true });
+  }
+}
+
 async function backupLibrarianState(workspaceRoot: string, fromVersion: number): Promise<string | null> {
   const librarianDir = path.join(workspaceRoot, '.librarian');
   try {
@@ -134,6 +165,7 @@ async function backupLibrarianState(workspaceRoot: string, fromVersion: number):
   }
   const backupDir = resolveBackupDir(workspaceRoot, fromVersion);
   await fs.cp(librarianDir, backupDir, { recursive: true, force: false, errorOnExist: true });
+  await pruneMigrationBackups(workspaceRoot);
   return backupDir;
 }
 

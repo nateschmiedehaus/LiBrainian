@@ -88,6 +88,8 @@ const DEFAULT_THRESHOLDS: Omit<SelfUnderstandingThresholds, 'minQuestionCount'> 
   perQuestionGeneralScore: 0.6,
 };
 const DEFAULT_ANSWER_TIMEOUT_MS = 45_000;
+const MAX_EVALUATION_TEXT_CHARS = 200_000;
+const MAX_EVALUATION_SNIPPETS = 25;
 const ANSWER_TIMEOUT_REASON_PREFIX = 'answer_timeout_count:';
 const ANSWER_FAILURE_REASON_PREFIX = 'answer_failure_count:';
 const ANSWER_TIMEOUT_ERROR_PREFIX = 'answer_timeout_ms:';
@@ -175,18 +177,43 @@ function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_./-]+/g, ' ').trim();
 }
 
+function appendBoundedText(parts: string[], budget: { used: number }, value: unknown): void {
+  if (value === undefined || value === null) return;
+  const text = String(value);
+  if (text.length === 0) return;
+  const remaining = MAX_EVALUATION_TEXT_CHARS - budget.used;
+  if (remaining <= 0) return;
+  const chunk = text.slice(0, remaining);
+  parts.push(chunk);
+  budget.used += chunk.length;
+}
+
 function collectAnswerText(answer: SelfUnderstandingAnswer): string {
-  const parts: string[] = [answer.summary];
-  if (answer.keyFacts) parts.push(...answer.keyFacts);
-  if (answer.relatedFiles) parts.push(...answer.relatedFiles);
-  if (answer.patterns) parts.push(...answer.patterns);
-  if (answer.gotchas) parts.push(...answer.gotchas);
-  if (answer.methodHints) parts.push(...answer.methodHints);
-  if (answer.drillDownHints) parts.push(...answer.drillDownHints);
+  const parts: string[] = [];
+  const budget = { used: 0 };
+  appendBoundedText(parts, budget, answer.summary);
+  if (answer.keyFacts) {
+    for (const item of answer.keyFacts) appendBoundedText(parts, budget, item);
+  }
+  if (answer.relatedFiles) {
+    for (const item of answer.relatedFiles) appendBoundedText(parts, budget, item);
+  }
+  if (answer.patterns) {
+    for (const item of answer.patterns) appendBoundedText(parts, budget, item);
+  }
+  if (answer.gotchas) {
+    for (const item of answer.gotchas) appendBoundedText(parts, budget, item);
+  }
+  if (answer.methodHints) {
+    for (const item of answer.methodHints) appendBoundedText(parts, budget, item);
+  }
+  if (answer.drillDownHints) {
+    for (const item of answer.drillDownHints) appendBoundedText(parts, budget, item);
+  }
   if (answer.snippets) {
-    for (const snippet of answer.snippets) {
-      parts.push(snippet.file);
-      parts.push(snippet.code);
+    for (const snippet of answer.snippets.slice(0, MAX_EVALUATION_SNIPPETS)) {
+      appendBoundedText(parts, budget, snippet.file);
+      appendBoundedText(parts, budget, snippet.code);
     }
   }
   return normalizeText(parts.join(' '));

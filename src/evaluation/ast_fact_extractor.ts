@@ -27,6 +27,21 @@ import * as path from 'path';
 import { TreeSitterParser } from '../agents/parsers/tree_sitter_parser.js';
 import { getLanguageFromPath, SUPPORTED_LANGUAGE_EXTENSIONS } from '../utils/language.js';
 
+const EXCLUDED_DIRECTORY_NAMES = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  'state',
+  'eval-corpus',
+  'external-repos',
+  'tmp',
+  'temp',
+]);
+const EXCLUDED_DIRECTORY_PREFIXES = ['.librarian.backup'];
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -263,11 +278,17 @@ export interface ASTFactExtractorOptions {
    * e.g. [".ts", ".js"]. When omitted, uses `SUPPORTED_LANGUAGE_EXTENSIONS`.
    */
   includeExtensions?: string[];
+  /**
+   * Optional hard cap for number of files scanned during directory extraction.
+   * Helps prevent runaway memory usage on very large repositories.
+   */
+  maxFiles?: number;
 }
 
 export class ASTFactExtractor {
   private treeSitterParser: TreeSitterParser | null;
   private includeExtensionsLower?: Set<string>;
+  private maxFiles?: number;
 
   constructor(options: ASTFactExtractorOptions = {}) {
     this.treeSitterParser = new TreeSitterParser();
@@ -277,6 +298,9 @@ export class ASTFactExtractor {
           .map((ext) => ext.toLowerCase())
           .filter((ext) => ext.startsWith('.'))
       );
+    }
+    if (Number.isFinite(options.maxFiles) && Number(options.maxFiles) > 0) {
+      this.maxFiles = Math.floor(Number(options.maxFiles));
     }
   }
 
@@ -415,13 +439,23 @@ export class ASTFactExtractor {
   private getSourceFiles(dirPath: string): string[] {
     const files: string[] = [];
     const extensions = this.includeExtensionsLower ?? new Set(SUPPORTED_LANGUAGE_EXTENSIONS.map((ext) => ext.toLowerCase()));
+    const maxFiles = this.maxFiles;
 
     const walk = (dir: string) => {
+      if (maxFiles !== undefined && files.length >= maxFiles) return;
       try {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
         for (const entry of entries) {
+          if (maxFiles !== undefined && files.length >= maxFiles) break;
           const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          if (entry.isDirectory()) {
+            if (
+              entry.name.startsWith('.')
+              || EXCLUDED_DIRECTORY_NAMES.has(entry.name)
+              || EXCLUDED_DIRECTORY_PREFIXES.some((prefix) => entry.name.startsWith(prefix))
+            ) {
+              continue;
+            }
             walk(fullPath);
           } else if (entry.isFile()) {
             const ext = path.extname(entry.name).toLowerCase();

@@ -1380,8 +1380,7 @@ export class IndexLiBrainian implements IndexingAgent {
       }
     }
 
-    const exclusionCandidate = normalizedRelative ?? normalizedAbsolute;
-    if (isExcluded(exclusionCandidate)) {
+    if (normalizedRelative && isExcluded(normalizedRelative)) {
       return false;
     }
 

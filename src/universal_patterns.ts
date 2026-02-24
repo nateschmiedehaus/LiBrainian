@@ -358,6 +358,12 @@ export const UNIVERSAL_EXCLUDES = [
 
   // Temp/Cache (only exclude clearly generated caches, not workspace roots)
   '**/.cache/**',
+  '**/.tmp/**',
+  '**/tmp/**',
+  '**/.patrol-tmp/**',
+  '**/.librarian/**',
+  '**/.librarian.backup*/**',
+  '**/state/**',
 
   // Eval corpus and external test fixtures (should not pollute query results)
   '**/eval-corpus/**',
