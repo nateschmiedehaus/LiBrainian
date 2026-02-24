@@ -492,18 +492,10 @@ describe('Feedback Loop Integration', () => {
 });
 
 describe('FeedbackProcessingResult type', () => {
-  let storage: LibrarianStorage;
-
-  afterEach(async () => {
-    await storage?.close?.();
-  }, FEEDBACK_HOOK_TIMEOUT_MS);
-
   it('processAgentFeedback returns proper result structure', async () => {
-    storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
-    await storage.initialize();
-
     const testPackId = 'test-result-structure';
-    await storage.upsertContextPack({
+    type StoredPack = Exclude<Awaited<ReturnType<LibrarianStorage['getContextPack']>>, null>;
+    let storedPack: StoredPack = {
       packId: testPackId,
       packType: 'function_context',
       targetId: 'test-target',
@@ -519,7 +511,15 @@ describe('FeedbackProcessingResult type', () => {
       failureCount: 0,
       version: { major: 1, minor: 0, patch: 0, string: '1.0.0', qualityTier: 'mvp', indexedAt: new Date(), indexerVersion: '1.0', features: [] },
       invalidationTriggers: [],
-    });
+    };
+
+    const feedbackStorage: Pick<LibrarianStorage, 'getContextPack' | 'upsertContextPack' | 'recordContextPackAccess'> = {
+      getContextPack: async (packId: string) => (packId === testPackId ? storedPack : null),
+      upsertContextPack: async (pack) => {
+        storedPack = pack;
+      },
+      recordContextPackAccess: async () => {},
+    };
 
     const feedback: AgentFeedback = {
       queryId: 'query-result-test',
@@ -527,11 +527,11 @@ describe('FeedbackProcessingResult type', () => {
       timestamp: new Date().toISOString(),
     };
 
-    const result = await processAgentFeedback(feedback, storage);
+    const result = await processAgentFeedback(feedback, feedbackStorage as LibrarianStorage);
 
     expect(result).toHaveProperty('adjustmentsApplied');
     expect(result).toHaveProperty('gapsLogged');
     expect(typeof result.adjustmentsApplied).toBe('number');
     expect(typeof result.gapsLogged).toBe('number');
-  });
+  }, FEEDBACK_TEST_TIMEOUT_MS);
 });
