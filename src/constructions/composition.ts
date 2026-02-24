@@ -34,7 +34,7 @@ import {
   ConstructionTimeoutError,
   toEvidenceIds,
 } from './base/construction_base.js';
-import type { Construction, Context } from './types.js';
+import type { Construction, ConstructionExecuteOptions, Context } from './types.js';
 import {
   isConstructionOutcome,
   type ConstructionExecutionResult,
@@ -54,7 +54,12 @@ import { registerGeneratedConstruction } from './registry.js';
 export interface ComposableConstruction<TInput, TOutput extends ConstructionResult> {
   readonly id: string;
   readonly name: string;
-  execute(input: TInput, context?: Context<unknown>): Promise<TOutput>;
+  execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<TOutput>;
+  cancel?(): void;
   getEstimatedConfidence?(): ConfidenceValue;
 }
 
@@ -117,13 +122,169 @@ function unwrapExecutionResult<T>(
   throw execution.error ?? new ConstructionError(`Construction failed: ${constructionId}`, constructionId);
 }
 
+function normalizeTimeoutMs(timeout?: number): number | undefined {
+  if (!Number.isFinite(timeout)) return undefined;
+  const value = Number(timeout);
+  if (value <= 0) return undefined;
+  return Math.floor(value);
+}
+
+function mergeAbortSignals(signals: Array<AbortSignal | undefined>): {
+  signal?: AbortSignal;
+  cleanup: () => void;
+} {
+  const active = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+  if (active.length === 0) {
+    return { signal: undefined, cleanup: () => {} };
+  }
+  if (active.length === 1) {
+    return { signal: active[0], cleanup: () => {} };
+  }
+
+  const controller = new AbortController();
+  const listeners: Array<() => void> = [];
+
+  const forwardAbort = (source: AbortSignal): void => {
+    if (controller.signal.aborted) return;
+    const reason = source.reason;
+    controller.abort(
+      reason instanceof Error
+        ? reason
+        : new ConstructionCancelledError('merged_abort_signal'),
+    );
+  };
+
+  for (const signal of active) {
+    if (signal.aborted) {
+      forwardAbort(signal);
+      continue;
+    }
+    const onAbort = (): void => forwardAbort(signal);
+    signal.addEventListener('abort', onAbort, { once: true });
+    listeners.push(() => signal.removeEventListener('abort', onAbort));
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const remove of listeners) remove();
+    },
+  };
+}
+
+function abortedErrorFromSignal(constructionId: string, signal?: AbortSignal): ConstructionError | undefined {
+  if (!signal?.aborted) return undefined;
+  const reason = signal.reason;
+  if (reason instanceof ConstructionError) {
+    return reason;
+  }
+  if (reason instanceof Error && reason.name === 'AbortError') {
+    return new ConstructionCancelledError(constructionId);
+  }
+  return new ConstructionCancelledError(constructionId);
+}
+
+function abortActiveControllers(activeControllers: Set<AbortController>, constructionId: string): void {
+  const cancelError = new ConstructionCancelledError(constructionId);
+  for (const controller of activeControllers) {
+    if (!controller.signal.aborted) {
+      controller.abort(cancelError);
+    }
+  }
+  activeControllers.clear();
+}
+
+function createExecutionScope(
+  activeControllers: Set<AbortController>,
+  context?: Context<unknown>,
+  options?: ConstructionExecuteOptions,
+): {
+  context?: Context<unknown>;
+  options?: ConstructionExecuteOptions;
+  cleanup: () => void;
+} {
+  const runController = new AbortController();
+  activeControllers.add(runController);
+  const merged = mergeAbortSignals([
+    runController.signal,
+    context?.signal,
+    options?.signal,
+  ]);
+  const signal = merged.signal ?? options?.signal ?? context?.signal;
+  const scopedContext = context && signal
+    ? { ...context, signal }
+    : context;
+  const scopedOptions = (options || signal)
+    ? { ...(options ?? {}), signal }
+    : options;
+  return {
+    context: scopedContext,
+    options: scopedOptions,
+    cleanup: () => {
+      merged.cleanup();
+      activeControllers.delete(runController);
+    },
+  };
+}
+
 async function executeOrThrow<TInput, TOutput extends ConstructionResult>(
   construction: ComposableConstruction<TInput, TOutput>,
   input: TInput,
   context?: Context<unknown>,
+  options?: ConstructionExecuteOptions,
 ): Promise<TOutput> {
-  const execution = await construction.execute(input, context);
-  return unwrapExecutionResult(execution, construction.id);
+  const timeoutMs = normalizeTimeoutMs(options?.timeout);
+  const preAborted = abortedErrorFromSignal(construction.id, options?.signal);
+  if (preAborted) {
+    throw preAborted;
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortCleanup: (() => void) | undefined;
+
+  const races: Array<Promise<ConstructionExecutionResult<TOutput, ConstructionError> | TOutput>> = [
+    construction.execute(input, context, options),
+  ];
+
+  if (timeoutMs !== undefined) {
+    races.push(
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          construction.cancel?.();
+          reject(new ConstructionTimeoutError(construction.id, timeoutMs));
+        }, timeoutMs);
+      }),
+    );
+  }
+
+  const abortSignal = options?.signal;
+  if (abortSignal) {
+    races.push(
+      new Promise((_, reject) => {
+        const onAbort = (): void => {
+          construction.cancel?.();
+          reject(
+            abortedErrorFromSignal(construction.id, abortSignal)
+            ?? new ConstructionCancelledError(construction.id),
+          );
+        };
+        if (abortSignal.aborted) {
+          onAbort();
+          return;
+        }
+        abortSignal.addEventListener('abort', onAbort, { once: true });
+        abortCleanup = () => abortSignal.removeEventListener('abort', onAbort);
+      }),
+    );
+  }
+
+  try {
+    const execution = await Promise.race(races);
+    return unwrapExecutionResult(execution, construction.id);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    abortCleanup?.();
+  }
 }
 
 // ============================================================================
@@ -351,6 +512,7 @@ export class SequenceConstruction<
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   constructor(
     private readonly first: ComposableConstruction<TInput, TIntermediate>,
@@ -360,32 +522,47 @@ export class SequenceConstruction<
     this.name = `Sequence(${first.name}, ${second.name})`;
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    this.first.cancel?.();
+    this.second.cancel?.();
+  }
+
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<TOutput> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Execute first construction
-    const firstResult = await executeOrThrow(this.first, input, context);
-    evidenceRefs.push(...firstResult.evidenceRefs);
-    evidenceRefs.push(`sequence:step_1:${this.first.id}`);
+    try {
+      // Execute first construction
+      const firstResult = await executeOrThrow(this.first, input, scope.context, scope.options);
+      evidenceRefs.push(...firstResult.evidenceRefs);
+      evidenceRefs.push(`sequence:step_1:${this.first.id}`);
 
-    // Execute second construction with first's output
-    const secondResult = await executeOrThrow(this.second, firstResult, context);
-    evidenceRefs.push(...secondResult.evidenceRefs);
-    evidenceRefs.push(`sequence:step_2:${this.second.id}`);
+      // Execute second construction with first's output
+      const secondResult = await executeOrThrow(this.second, firstResult, scope.context, scope.options);
+      evidenceRefs.push(...secondResult.evidenceRefs);
+      evidenceRefs.push(`sequence:step_2:${this.second.id}`);
 
-    // Propagate confidence using D2 (sequential = min)
-    const propagatedConfidence = propagateSequential([
-      firstResult.confidence,
-      secondResult.confidence,
-    ]);
+      // Propagate confidence using D2 (sequential = min)
+      const propagatedConfidence = propagateSequential([
+        firstResult.confidence,
+        secondResult.confidence,
+      ]);
 
-    return {
-      ...secondResult,
-      confidence: propagatedConfidence,
-      evidenceRefs: toEvidenceIds(evidenceRefs),
-      analysisTimeMs: Date.now() - startTime,
-    };
+      return {
+        ...secondResult,
+        confidence: propagatedConfidence,
+        evidenceRefs: toEvidenceIds(evidenceRefs),
+        analysisTimeMs: Date.now() - startTime,
+      };
+    } finally {
+      scope.cleanup();
+    }
   }
 
   getEstimatedConfidence(): ConfidenceValue {
@@ -417,6 +594,7 @@ export class ParallelConstruction<TInput, TOutputs extends ConstructionResult[]>
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   constructor(
     private readonly constructions: ComposableConstruction<TInput, TOutputs[number]>[],
@@ -426,39 +604,55 @@ export class ParallelConstruction<TInput, TOutputs extends ConstructionResult[]>
     this.name = `Parallel(${constructions.map(c => c.name).join(', ')})`;
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<ParallelResult<TOutputs>> {
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    for (const construction of this.constructions) {
+      construction.cancel?.();
+    }
+  }
+
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<ParallelResult<TOutputs>> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Execute all constructions in parallel
-    const resultPromises = this.constructions.map(async (construction, index) => {
-      const result = await executeOrThrow(construction, input, context);
-      evidenceRefs.push(`parallel:branch_${index}:${construction.id}`);
-      return result;
-    });
+    try {
+      // Execute all constructions in parallel
+      const resultPromises = this.constructions.map(async (construction, index) => {
+        const result = await executeOrThrow(construction, input, scope.context, scope.options);
+        evidenceRefs.push(`parallel:branch_${index}:${construction.id}`);
+        return result;
+      });
 
-    const results = await Promise.all(resultPromises);
+      const results = await Promise.all(resultPromises);
 
-    // Collect evidence from all results
-    for (const result of results) {
-      evidenceRefs.push(...result.evidenceRefs);
+      // Collect evidence from all results
+      for (const result of results) {
+        evidenceRefs.push(...result.evidenceRefs);
+      }
+
+      // Extract confidences from results
+      const branchConfidences = results.map(r => r.confidence);
+
+      // Propagate confidence based on mode
+      const propagatedConfidence = this.propagationMode === 'all'
+        ? propagateParallelAll(branchConfidences)
+        : propagateParallelAny(branchConfidences);
+
+      return {
+        results: results as unknown as TOutputs,
+        branchConfidences,
+        confidence: propagatedConfidence,
+        evidenceRefs: toEvidenceIds(evidenceRefs),
+        analysisTimeMs: Date.now() - startTime,
+      };
+    } finally {
+      scope.cleanup();
     }
-
-    // Extract confidences from results
-    const branchConfidences = results.map(r => r.confidence);
-
-    // Propagate confidence based on mode
-    const propagatedConfidence = this.propagationMode === 'all'
-      ? propagateParallelAll(branchConfidences)
-      : propagateParallelAny(branchConfidences);
-
-    return {
-      results: results as unknown as TOutputs,
-      branchConfidences,
-      confidence: propagatedConfidence,
-      evidenceRefs: toEvidenceIds(evidenceRefs),
-      analysisTimeMs: Date.now() - startTime,
-    };
   }
 
   getEstimatedConfidence(): ConfidenceValue {
@@ -493,6 +687,7 @@ export class ConditionalConstruction<TInput, TOutput extends ConstructionResult>
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   constructor(
     private readonly predicate: (input: TInput) => boolean | Promise<boolean>,
@@ -503,31 +698,46 @@ export class ConditionalConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Conditional(${ifTrue.name}, ${ifFalse.name})`;
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<ConditionalResult<TOutput>> {
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    this.ifTrue.cancel?.();
+    this.ifFalse.cancel?.();
+  }
+
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<ConditionalResult<TOutput>> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
 
-    // Evaluate predicate
-    const predicateResult = await this.predicate(input);
-    evidenceRefs.push(`conditional:predicate:${predicateResult}`);
+    try {
+      // Evaluate predicate
+      const predicateResult = await this.predicate(input);
+      evidenceRefs.push(`conditional:predicate:${predicateResult}`);
 
-    // Execute appropriate branch
-    const branchTaken: 'true' | 'false' = predicateResult ? 'true' : 'false';
-    const construction = predicateResult ? this.ifTrue : this.ifFalse;
+      // Execute appropriate branch
+      const branchTaken: 'true' | 'false' = predicateResult ? 'true' : 'false';
+      const construction = predicateResult ? this.ifTrue : this.ifFalse;
 
-    const result = await executeOrThrow(construction, input, context);
-    evidenceRefs.push(...result.evidenceRefs);
-    evidenceRefs.push(`conditional:branch_${branchTaken}:${construction.id}`);
+      const result = await executeOrThrow(construction, input, scope.context, scope.options);
+      evidenceRefs.push(...result.evidenceRefs);
+      evidenceRefs.push(`conditional:branch_${branchTaken}:${construction.id}`);
 
-    // For conditional, confidence is the branch confidence
-    // (the decision itself is deterministic)
-    return {
-      result,
-      branchTaken,
-      confidence: result.confidence,
-      evidenceRefs: toEvidenceIds(evidenceRefs),
-      analysisTimeMs: Date.now() - startTime,
-    };
+      // For conditional, confidence is the branch confidence
+      // (the decision itself is deterministic)
+      return {
+        result,
+        branchTaken,
+        confidence: result.confidence,
+        evidenceRefs: toEvidenceIds(evidenceRefs),
+        analysisTimeMs: Date.now() - startTime,
+      };
+    } finally {
+      scope.cleanup();
+    }
   }
 
   getEstimatedConfidence(): ConfidenceValue {
@@ -563,6 +773,7 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   constructor(
     private readonly construction: ComposableConstruction<TInput, TOutput>,
@@ -572,7 +783,17 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Retry(${construction.name}, max=${config.maxAttempts})`;
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<RetryResult<TOutput>> {
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    this.construction.cancel?.();
+  }
+
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<RetryResult<TOutput>> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
     const errors: Error[] = [];
@@ -582,51 +803,58 @@ export class RetryConstruction<TInput, TOutput extends ConstructionResult>
     const backoffFactor = this.config.backoffFactor ?? 2;
     const maxDelayMs = this.config.maxDelayMs ?? this.config.baseDelayMs * 10;
 
-    while (attempts < this.config.maxAttempts) {
-      attempts++;
-      evidenceRefs.push(`retry:attempt_${attempts}`);
+    try {
+      while (attempts < this.config.maxAttempts) {
+        attempts++;
+        evidenceRefs.push(`retry:attempt_${attempts}`);
 
-      try {
-        const result = await executeOrThrow(this.construction, input, context);
-        evidenceRefs.push(...result.evidenceRefs);
+        try {
+          const result = await executeOrThrow(this.construction, input, scope.context, scope.options);
+          evidenceRefs.push(...result.evidenceRefs);
 
-        // Success - return the result
-        return {
-          result,
-          attempts,
-          errors,
-          confidence: result.confidence,
-          evidenceRefs: toEvidenceIds(evidenceRefs),
-          analysisTimeMs: Date.now() - startTime,
-        };
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        errors.push(err);
-        evidenceRefs.push(`retry:error:${err.message.substring(0, 50)}`);
+          // Success - return the result
+          return {
+            result,
+            attempts,
+            errors,
+            confidence: result.confidence,
+            evidenceRefs: toEvidenceIds(evidenceRefs),
+            analysisTimeMs: Date.now() - startTime,
+          };
+        } catch (error) {
+          if (error instanceof ConstructionTimeoutError || error instanceof ConstructionCancelledError) {
+            throw error;
+          }
+          const err = error instanceof Error ? error : new Error(String(error));
+          errors.push(err);
+          evidenceRefs.push(`retry:error:${err.message.substring(0, 50)}`);
 
-        if (!isRetryable(err) || attempts >= this.config.maxAttempts) {
-          throw new ConstructionError(
-            `Retry failed after ${attempts} attempts: ${err.message}`,
-            this.id,
-            err
+          if (!isRetryable(err) || attempts >= this.config.maxAttempts) {
+            throw new ConstructionError(
+              `Retry failed after ${attempts} attempts: ${err.message}`,
+              this.id,
+              err
+            );
+          }
+
+          // Calculate delay with exponential backoff
+          const delay = Math.min(
+            this.config.baseDelayMs * Math.pow(backoffFactor, attempts - 1),
+            maxDelayMs
           );
+
+          await sleep(delay, this.id, scope.options?.signal);
         }
-
-        // Calculate delay with exponential backoff
-        const delay = Math.min(
-          this.config.baseDelayMs * Math.pow(backoffFactor, attempts - 1),
-          maxDelayMs
-        );
-
-        await sleep(delay);
       }
-    }
 
-    // Should not reach here, but TypeScript needs this
-    throw new ConstructionError(
-      `Retry exhausted all ${this.config.maxAttempts} attempts`,
-      this.id
-    );
+      // Should not reach here, but TypeScript needs this
+      throw new ConstructionError(
+        `Retry exhausted all ${this.config.maxAttempts} attempts`,
+        this.id
+      );
+    } finally {
+      scope.cleanup();
+    }
   }
 
   getEstimatedConfidence(): ConfidenceValue {
@@ -648,6 +876,7 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   constructor(
     private readonly construction: ComposableConstruction<TInput, TOutput>,
@@ -657,18 +886,37 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Timeout(${construction.name}, ${timeoutMs}ms)`;
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
-    const startTime = Date.now();
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    this.construction.cancel?.();
+  }
 
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<TOutput> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
+    const startTime = Date.now();
+    const optionTimeoutMs = normalizeTimeoutMs(scope.options?.timeout);
+    const effectiveTimeoutMs = optionTimeoutMs === undefined
+      ? this.timeoutMs
+      : Math.min(this.timeoutMs, optionTimeoutMs);
+    const downstreamOptions: ConstructionExecuteOptions | undefined = scope.options
+      ? { signal: scope.options.signal }
+      : undefined;
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new ConstructionTimeoutError(this.id, this.timeoutMs));
-      }, this.timeoutMs);
+      timeoutId = setTimeout(() => {
+        this.construction.cancel?.();
+        reject(new ConstructionTimeoutError(this.id, effectiveTimeoutMs));
+      }, effectiveTimeoutMs);
     });
 
     try {
       const result = await Promise.race([
-        executeOrThrow(this.construction, input, context),
+        executeOrThrow(this.construction, input, scope.context, downstreamOptions),
         timeoutPromise,
       ]);
 
@@ -685,6 +933,9 @@ export class TimeoutConstruction<TInput, TOutput extends ConstructionResult>
         this.id,
         error instanceof Error ? error : undefined
       );
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      scope.cleanup();
     }
   }
 
@@ -713,6 +964,7 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   private readonly cache: Map<string, CacheEntry<TOutput>> = new Map();
   private readonly keyGenerator: (input: TInput) => string;
@@ -727,46 +979,60 @@ export class CachedConstruction<TInput, TOutput extends ConstructionResult>
       ((input: TInput) => JSON.stringify(input));
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
-    const startTime = Date.now();
-    const key = this.keyGenerator(input);
-    const now = Date.now();
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    this.construction.cancel?.();
+  }
 
-    // Check cache
-    const cached = this.cache.get(key);
-    if (cached && (now - cached.timestamp) < this.config.ttlMs) {
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<TOutput> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
+    try {
+      const startTime = Date.now();
+      const key = this.keyGenerator(input);
+      const now = Date.now();
+
+      // Check cache
+      const cached = this.cache.get(key);
+      if (cached && (now - cached.timestamp) < this.config.ttlMs) {
+        return {
+          ...cached.result,
+          evidenceRefs: toEvidenceIds([
+            ...cached.result.evidenceRefs,
+            `cache:hit:${key.substring(0, 20)}`,
+          ]),
+          analysisTimeMs: Date.now() - startTime,
+        };
+      }
+
+      // Execute and cache
+      const result = await executeOrThrow(this.construction, input, scope.context, scope.options);
+
+      // Enforce max entries
+      if (this.config.maxEntries && this.cache.size >= this.config.maxEntries) {
+        // Remove oldest entry
+        const oldestKey = this.cache.keys().next().value;
+        if (oldestKey !== undefined) {
+          this.cache.delete(oldestKey);
+        }
+      }
+
+      this.cache.set(key, { result, timestamp: now });
+
       return {
-        ...cached.result,
+        ...result,
         evidenceRefs: toEvidenceIds([
-          ...cached.result.evidenceRefs,
-          `cache:hit:${key.substring(0, 20)}`,
+          ...result.evidenceRefs,
+          `cache:miss:${key.substring(0, 20)}`,
         ]),
         analysisTimeMs: Date.now() - startTime,
       };
+    } finally {
+      scope.cleanup();
     }
-
-    // Execute and cache
-    const result = await executeOrThrow(this.construction, input, context);
-
-    // Enforce max entries
-    if (this.config.maxEntries && this.cache.size >= this.config.maxEntries) {
-      // Remove oldest entry
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.cache.delete(oldestKey);
-      }
-    }
-
-    this.cache.set(key, { result, timestamp: now });
-
-    return {
-      ...result,
-      evidenceRefs: toEvidenceIds([
-        ...result.evidenceRefs,
-        `cache:miss:${key.substring(0, 20)}`,
-      ]),
-      analysisTimeMs: Date.now() - startTime,
-    };
   }
 
   /**
@@ -804,6 +1070,7 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
 {
   public readonly id: string;
   public readonly name: string;
+  private readonly activeControllers = new Set<AbortController>();
 
   constructor(
     private readonly construction: ComposableConstruction<TInput, TOutput>,
@@ -813,7 +1080,17 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
     this.name = `Traced(${construction.name})`;
   }
 
-  async execute(input: TInput, context?: Context<unknown>): Promise<TOutput> {
+  cancel(): void {
+    abortActiveControllers(this.activeControllers, this.id);
+    this.construction.cancel?.();
+  }
+
+  async execute(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<TOutput> {
+    const scope = createExecutionScope(this.activeControllers, context, options);
     const spanId = this.tracer.startSpan(this.construction.name, {
       attributes: {
         constructionId: this.construction.id,
@@ -826,7 +1103,7 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
         timestamp: Date.now(),
       });
 
-      const result = await executeOrThrow(this.construction, input, context);
+      const result = await executeOrThrow(this.construction, input, scope.context, scope.options);
 
       this.tracer.addEvent(spanId, 'execution_completed', {
         timestamp: Date.now(),
@@ -857,6 +1134,7 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
       throw error;
     } finally {
       this.tracer.endSpan(spanId);
+      scope.cleanup();
     }
   }
 
@@ -872,8 +1150,28 @@ export class TracedConstruction<TInput, TOutput extends ConstructionResult>
 /**
  * Sleep for a specified duration.
  */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function sleep(ms: number, constructionId: string, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  if (signal.aborted) {
+    return Promise.reject(abortedErrorFromSignal(constructionId, signal) ?? new ConstructionCancelledError(constructionId));
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      reject(abortedErrorFromSignal(constructionId, signal) ?? new ConstructionCancelledError(constructionId));
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /**

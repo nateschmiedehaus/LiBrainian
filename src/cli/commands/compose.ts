@@ -16,21 +16,53 @@ async function withTimeout<T>(
   operation: Promise<T>,
   timeoutMs: number,
   stage: string,
+  signal?: AbortSignal,
+  onTimeout?: () => void,
 ): Promise<T> {
-  if (timeoutMs <= 0) return operation;
+  if (timeoutMs <= 0 && !signal) return operation;
   return await new Promise<T>((resolve, reject) => {
-    const timeoutHandle = setTimeout(() => {
-      reject(createError('TIMEOUT', `Compose timed out after ${timeoutMs}ms during ${stage}.`));
-    }, timeoutMs);
+    let settled = false;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+    const onAbort = (): void => {
+      settle(() => reject(new Error(`Compose cancelled during ${stage}.`)));
+    };
+
+    const cleanup = (): void => {
+      if (timeoutHandle !== undefined) {
+        clearTimeout(timeoutHandle);
+      }
+      signal?.removeEventListener('abort', onAbort);
+    };
+
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
+
+    timeoutHandle = timeoutMs > 0
+      ? setTimeout(() => {
+          settle(() => reject(createError('TIMEOUT', `Compose timed out after ${timeoutMs}ms during ${stage}.`)));
+          onTimeout?.();
+        }, timeoutMs)
+      : undefined;
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
 
     operation
       .then((result) => {
-        clearTimeout(timeoutHandle);
-        resolve(result);
+        settle(() => resolve(result));
       })
       .catch((error) => {
-        clearTimeout(timeoutHandle);
-        reject(error);
+        settle(() => reject(error));
       });
   });
 }
@@ -89,7 +121,14 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
     llmModelId: process.env.LIBRARIAN_LLM_MODEL,
   });
   const startedAt = Date.now();
+  const executionController = new AbortController();
   let currentStage = 'init';
+  const handleSigint = (): void => {
+    if (!executionController.signal.aborted) {
+      executionController.abort(new Error('compose_sigint_cancelled'));
+    }
+  };
+  process.once('SIGINT', handleSigint);
   const progressHandle = setInterval(() => {
     const elapsedMs = Date.now() - startedAt;
     console.error(`[compose] progress stage=${currentStage} elapsedMs=${elapsedMs}`);
@@ -99,7 +138,13 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
     if (verbose) {
       console.error('[compose] init:start');
     }
-    await withTimeout(librarian.initialize(), timeoutMs, 'initialization');
+    await withTimeout(
+      librarian.initialize(),
+      timeoutMs,
+      'initialization',
+      executionController.signal,
+      () => executionController.abort(new Error('compose_initialization_timeout')),
+    );
     if (verbose) {
       console.error('[compose] init:done');
     }
@@ -110,7 +155,16 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
     }
 
     const outputPayload = mode === 'constructions'
-      ? await withTimeout(composeConstructions(librarian, intent), timeoutMs, 'compose execution')
+      ? await withTimeout(
+          composeConstructions(librarian, intent, {
+            signal: executionController.signal,
+            stepTimeoutMs: timeoutMs,
+          }),
+          timeoutMs,
+          'compose execution',
+          executionController.signal,
+          () => executionController.abort(new Error('compose_execution_timeout')),
+        )
       : {
           mode: 'techniques',
           intent,
@@ -121,6 +175,8 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
             }),
             timeoutMs,
             'technique compilation',
+            executionController.signal,
+            () => executionController.abort(new Error('compose_techniques_timeout')),
           ),
         };
     if (verbose) {
@@ -133,6 +189,7 @@ export async function composeCommand(options: ComposeCommandOptions): Promise<vo
     throw error;
   } finally {
     clearInterval(progressHandle);
+    process.removeListener('SIGINT', handleSigint);
     try {
       await librarian.shutdown();
       if (verbose) {

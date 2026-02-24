@@ -186,6 +186,21 @@ export interface Context<R = LibrarianContext> {
 }
 
 /**
+ * Optional execution controls for a construction run.
+ */
+export interface ConstructionExecuteOptions {
+  /**
+   * Per-execution timeout in milliseconds.
+   * When omitted or <= 0, no timeout is applied.
+   */
+  readonly timeout?: number;
+  /**
+   * Optional external cancellation signal.
+   */
+  readonly signal?: AbortSignal;
+}
+
+/**
  * Canonical epistemic construction output envelope.
  *
  * `evidenceRefs` are typed evidence-ledger handles; raw strings are not assignable.
@@ -370,7 +385,12 @@ export interface Construction<
   readonly id: string;
   readonly name: string;
   readonly description?: string;
-  execute(input: I, context?: Context<R>): Promise<ConstructionOutcome<O, E>>;
+  execute(
+    input: I,
+    context?: Context<R>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<ConstructionOutcome<O, E>>;
+  cancel?(): void;
   getEstimatedConfidence?(): ConfidenceValue;
   debug?(
     options?: ConstructionDebugOptions

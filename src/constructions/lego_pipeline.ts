@@ -64,6 +64,63 @@ export interface ComposedConstructionReport {
 
 export interface ComposeConstructionsOptions {
   include?: Array<'knowledge' | 'refactoring' | 'security'>;
+  signal?: AbortSignal;
+  stepTimeoutMs?: number;
+}
+
+function normalizeStepTimeoutMs(timeoutMs?: number): number | undefined {
+  if (!Number.isFinite(timeoutMs)) return undefined;
+  const value = Number(timeoutMs);
+  if (value <= 0) return undefined;
+  return Math.floor(value);
+}
+
+async function runWithControls<T>(
+  run: () => Promise<T>,
+  stepId: string,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<T> {
+  if (signal?.aborted) {
+    throw new Error(`compose_cancelled_before_step:${stepId}`);
+  }
+
+  const normalizedTimeout = normalizeStepTimeoutMs(timeoutMs);
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortCleanup: (() => void) | undefined;
+
+  const races: Array<Promise<T>> = [run()];
+
+  if (normalizedTimeout !== undefined) {
+    races.push(
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`compose_step_timeout:${stepId}:${normalizedTimeout}`));
+        }, normalizedTimeout);
+      }),
+    );
+  }
+
+  if (signal) {
+    races.push(
+      new Promise<T>((_, reject) => {
+        const onAbort = (): void => reject(new Error(`compose_cancelled_during_step:${stepId}`));
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+        abortCleanup = () => signal.removeEventListener('abort', onAbort);
+      }),
+    );
+  }
+
+  try {
+    return await Promise.race(races);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    abortCleanup?.();
+  }
 }
 
 export function serializeConstructionOutput<TData>(output: ConstructionOutput<TData>): string {
@@ -353,8 +410,14 @@ export async function composeConstructions(
     focusEntity: undefined,
   };
   const outputs: ConstructionOutput[] = [];
+  const stepTimeoutMs = normalizeStepTimeoutMs(options.stepTimeoutMs);
   for (const brick of bricks) {
-    const output = await brick.run(undefined, context);
+    const output = await runWithControls(
+      () => brick.run(undefined, context),
+      brick.id,
+      options.signal,
+      stepTimeoutMs,
+    );
     outputs.push(output);
     const patch = output.contextPatch ?? {};
     context = mergeContext(context, patch);

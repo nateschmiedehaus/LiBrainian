@@ -806,6 +806,31 @@ describe('TimeoutConstruction', () => {
     expect(timed.id).toBe('timeout:test');
     expect(timed.name).toBe('Timeout(Test, 1000ms)');
   });
+
+  it('enforces per-step timeout when execute timeout option is provided', async () => {
+    const slowStep = createConstruction<number, number>(
+      'slow-option-step',
+      'Slow Option Step',
+      async (input: number) => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return {
+          data: input + 1,
+          confidence: deterministic(true, 'slow-option-step'),
+          evidenceRefs: ['slow-option-step:executed'],
+        };
+      },
+    );
+    const fastStep = createTestConstruction<ConstructionResult & { data: number }, number>(
+      'fast-option-step',
+      'Fast Option Step',
+      (input) => input.data + 1,
+    );
+    const composed = sequence(slowStep, fastStep);
+
+    await expect(
+      composed.execute(1, undefined, { timeout: 30 }),
+    ).rejects.toThrow(ConstructionTimeoutError);
+  });
 });
 
 describe('Context threading and cancellation', () => {
@@ -856,8 +881,8 @@ describe('Context threading and cancellation', () => {
     expect(output.data).toBe(13);
     expect(seenByFirst?.sessionId).toBe('ctx-seq-session');
     expect(seenBySecond?.sessionId).toBe('ctx-seq-session');
-    expect(seenByFirst?.signal).toBe(context.signal);
-    expect(seenBySecond?.signal).toBe(context.signal);
+    expect(seenByFirst?.signal.aborted).toBe(false);
+    expect(seenBySecond?.signal.aborted).toBe(false);
   });
 
   it('aborts a 3-step sequence in step 2 and never executes step 3', async () => {
@@ -957,6 +982,42 @@ describe('Context threading and cancellation', () => {
 
     setTimeout(() => controller.abort(), 50);
     await expect(execution).rejects.toThrow(ConstructionCancelledError);
+  });
+
+  it('supports programmatic cancellation via construction.cancel()', async () => {
+    let step3Calls = 0;
+
+    const step1 = createTestConstruction('cancel-api-step1', 'Cancel API Step 1', (n: number) => n + 1);
+    const step2 = createSlowConstruction<ConstructionResult & { data: number }>(
+      'cancel-api-step2',
+      500,
+      {
+        data: 0,
+        confidence: deterministic(true, 'cancel-api-step2'),
+        evidenceRefs: toEvidenceIds(['cancel-api-step2:executed']),
+        analysisTimeMs: 1,
+      },
+    );
+    const step3: ComposableConstruction<ConstructionResult & { data: number }, ConstructionResult & { data: number }> = {
+      id: 'cancel-api-step3',
+      name: 'Cancel API Step 3',
+      async execute(input) {
+        step3Calls++;
+        return {
+          data: input.data + 1,
+          confidence: deterministic(true, 'cancel-api-step3'),
+          evidenceRefs: toEvidenceIds(['cancel-api-step3:executed']),
+          analysisTimeMs: 1,
+        };
+      },
+    };
+
+    const composed = sequence(sequence(step1, step2), step3);
+    const execution = composed.execute(1);
+    setTimeout(() => composed.cancel?.(), 50);
+
+    await expect(execution).rejects.toThrow(ConstructionCancelledError);
+    expect(step3Calls).toBe(0);
   });
 });
 

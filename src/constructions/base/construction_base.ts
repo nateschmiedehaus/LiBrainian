@@ -26,7 +26,7 @@ import { createEvidenceId, type EvidenceId } from '../../epistemics/evidence_led
 import type { ConstructionCalibrationTracker } from '../calibration_tracker.js';
 import { generatePredictionId } from '../calibration_tracker.js';
 import { fail, ok } from '../types.js';
-import type { Construction, Context } from '../types.js';
+import type { Construction, ConstructionExecuteOptions, Context } from '../types.js';
 
 // ============================================================================
 // TYPES
@@ -200,6 +200,68 @@ export class ConstructionLLMError extends ConstructionError {
   }
 }
 
+function normalizeTimeoutMs(timeout?: number): number | undefined {
+  if (!Number.isFinite(timeout)) return undefined;
+  const value = Number(timeout);
+  if (value <= 0) return undefined;
+  return Math.floor(value);
+}
+
+function mergeAbortSignals(signals: Array<AbortSignal | undefined>): {
+  signal?: AbortSignal;
+  cleanup: () => void;
+} {
+  const active = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+  if (active.length === 0) {
+    return { signal: undefined, cleanup: () => {} };
+  }
+  if (active.length === 1) {
+    return { signal: active[0], cleanup: () => {} };
+  }
+
+  const controller = new AbortController();
+  const listeners: Array<() => void> = [];
+
+  const forwardAbort = (source: AbortSignal): void => {
+    if (controller.signal.aborted) return;
+    const reason = source.reason;
+    controller.abort(
+      reason instanceof Error
+        ? reason
+        : new ConstructionCancelledError('composed_signal'),
+    );
+  };
+
+  for (const signal of active) {
+    if (signal.aborted) {
+      forwardAbort(signal);
+      continue;
+    }
+    const onAbort = (): void => forwardAbort(signal);
+    signal.addEventListener('abort', onAbort, { once: true });
+    listeners.push(() => signal.removeEventListener('abort', onAbort));
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const remove of listeners) remove();
+    },
+  };
+}
+
+function abortErrorFromSignal(constructionId: string, signal?: AbortSignal): ConstructionError | undefined {
+  if (!signal?.aborted) return undefined;
+  const reason = signal.reason;
+  if (reason instanceof ConstructionError) {
+    return reason;
+  }
+  if (reason instanceof Error && reason.name === 'AbortError') {
+    return new ConstructionCancelledError(constructionId);
+  }
+  return new ConstructionCancelledError(constructionId);
+}
+
 // ============================================================================
 // BASE CONSTRUCTION CLASS
 // ============================================================================
@@ -305,28 +367,78 @@ export abstract class BaseConstruction<TInput, TOutput extends ConstructionResul
    */
   toConstruction(name: string, description?: string): Construction<TInput, TOutput> {
     const constructionId = this.CONSTRUCTION_ID;
+    const activeControllers = new Set<AbortController>();
     return {
       id: constructionId,
       name,
       description,
-      execute: async (input: TInput, context?: Context) => {
-        if (context?.signal.aborted) {
+      cancel: (): void => {
+        const cancelError = new ConstructionCancelledError(constructionId);
+        for (const controller of activeControllers) {
+          if (!controller.signal.aborted) {
+            controller.abort(cancelError);
+          }
+        }
+        activeControllers.clear();
+      },
+      execute: async (
+        input: TInput,
+        context?: Context,
+        options?: ConstructionExecuteOptions,
+      ) => {
+        const runController = new AbortController();
+        activeControllers.add(runController);
+
+        const merged = mergeAbortSignals([
+          runController.signal,
+          context?.signal,
+          options?.signal,
+        ]);
+        const effectiveSignal = merged.signal ?? context?.signal;
+        const effectiveContext = context && effectiveSignal
+          ? { ...context, signal: effectiveSignal }
+          : context;
+        const timeoutMs = normalizeTimeoutMs(options?.timeout);
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+        if (timeoutMs !== undefined) {
+          timeoutId = setTimeout(() => {
+            const timeoutError = new ConstructionTimeoutError(constructionId, timeoutMs);
+            if (!runController.signal.aborted) {
+              runController.abort(timeoutError);
+            }
+          }, timeoutMs);
+        }
+
+        const preAborted = abortErrorFromSignal(constructionId, effectiveSignal);
+        if (preAborted) {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          merged.cleanup();
+          activeControllers.delete(runController);
           return fail<TOutput, ConstructionError>(
-            new ConstructionCancelledError(constructionId),
+            preAborted,
             undefined,
             constructionId,
           );
         }
         try {
-          const value = await this.execute(input, context);
+          const value = await this.execute(input, effectiveContext);
           return ok<TOutput, ConstructionError>(value);
         } catch (error) {
+          const abortedError = abortErrorFromSignal(constructionId, effectiveSignal);
+          if (abortedError) {
+            return fail<TOutput, ConstructionError>(abortedError, undefined, constructionId);
+          }
           const normalized = error instanceof ConstructionError
             ? error
             : error instanceof Error
               ? new ConstructionError(error.message, constructionId, error)
               : new ConstructionError(`Non-error failure: ${String(error)}`, constructionId);
           return fail<TOutput, ConstructionError>(normalized, undefined, constructionId);
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          merged.cleanup();
+          activeControllers.delete(runController);
         }
       },
     };

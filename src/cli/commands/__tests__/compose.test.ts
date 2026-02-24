@@ -57,7 +57,14 @@ describe('composeCommand', () => {
       rawArgs: ['compose', 'release', 'plan'],
     });
 
-    expect(composeConstructions).toHaveBeenCalledWith(mockLiBrainian, 'release plan');
+    expect(composeConstructions).toHaveBeenCalledWith(
+      mockLiBrainian,
+      'release plan',
+      expect.objectContaining({
+        stepTimeoutMs: 300000,
+        signal: expect.any(Object),
+      }),
+    );
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"executed"'));
   });
 
@@ -107,6 +114,40 @@ describe('composeCommand', () => {
         rawArgs: ['compose', 'release', 'plan', '--timeout', '10'],
       })
     ).rejects.toThrow('timed out');
+  });
+
+  it('propagates SIGINT cancellation to running compose execution', async () => {
+    (composeConstructions as unknown as Mock).mockImplementation(
+      (_librarian: unknown, _intent: string, composeOptions?: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
+        const signal = composeOptions?.signal;
+        if (!signal) {
+          reject(new Error('missing compose cancellation signal'));
+          return;
+        }
+        const onAbort = (): void => reject(new Error('compose cancelled'));
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      }),
+    );
+
+    const sigintTimer = setTimeout(() => {
+      process.emit('SIGINT');
+    }, 25);
+
+    try {
+      await expect(
+        composeCommand({
+          workspace: mockWorkspace,
+          args: ['release', 'plan'],
+          rawArgs: ['compose', 'release', 'plan', '--timeout', '5000'],
+        }),
+      ).rejects.toThrow('cancelled');
+    } finally {
+      clearTimeout(sigintTimer);
+    }
   });
 
   it('emits periodic progress while compose is running', async () => {
