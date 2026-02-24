@@ -2214,7 +2214,8 @@ export async function queryLibrarian(
   // ENUMERATION STAGE - Handle "list all X", "how many Y", "enumerate Z" queries
   // This runs early to provide complete entity listings without semantic search
   const enumIntent = detectEnumerationIntent(query.intent ?? '');
-  if (enumIntent.isEnumeration && enumIntent.category) {
+  const shouldBypassEnumeration = shouldBypassEnumerationForIntent(query.intent ?? '');
+  if (enumIntent.isEnumeration && enumIntent.category && !shouldBypassEnumeration) {
     try {
       const enumResult = await enumerateByCategory(
         storage,
@@ -6937,8 +6938,10 @@ function buildIdentifierExpansionVariants(intent: string): string[] {
   const tokenSet = new Set(tokens);
 
   for (const token of tokenSet) {
-    const synonyms = IDENTIFIER_EXPANSION_SYNONYMS[token];
-    if (!synonyms || synonyms.length === 0) continue;
+    const synonyms = Object.prototype.hasOwnProperty.call(IDENTIFIER_EXPANSION_SYNONYMS, token)
+      ? IDENTIFIER_EXPANSION_SYNONYMS[token]
+      : undefined;
+    if (!Array.isArray(synonyms) || synonyms.length === 0) continue;
     const replacementPattern = new RegExp(`\\b${escapeRegex(token)}\\b`, 'ig');
     for (const synonym of synonyms.slice(0, 2)) {
       const replaced = normalizedIntent.replace(replacementPattern, synonym);
@@ -8773,6 +8776,14 @@ export function createFileQuery(filePath: string): LibrarianQuery { return { int
  */
 export function createRelatedQuery(concept: string, context?: string[]): LibrarianQuery { return { intent: `Find code related to: ${concept}`, affectedFiles: context, depth: 'L1' }; }
 
+function shouldBypassEnumerationForIntent(intent: string): boolean {
+  const normalized = intent.toLowerCase();
+  if (!normalized) return false;
+  const callLike = /\b(call|calls|called|caller|callers|used|usage|reference|references)\b/.test(normalized);
+  if (!callLike) return false;
+  return /\b(function|functions|method|methods)\b/.test(normalized);
+}
+
 export const __testing = {
   createStageTracker,
   buildCoverageAssessment,
@@ -8792,6 +8803,7 @@ export const __testing = {
   buildHydePrompt,
   normalizeHydeExpansion,
   buildIdentifierExpansionVariants,
+  shouldBypassEnumerationForIntent,
   fuseSimilarityResultListsWithRrf,
   fuseSimilarityResultsWithRrf,
 };

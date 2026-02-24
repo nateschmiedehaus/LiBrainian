@@ -66,6 +66,19 @@ describe('HyDE retrieval helpers', () => {
     expect(variants.some((variant) => /access|authorization|role/i.test(variant))).toBe(true);
   });
 
+  it('does not crash identifier expansion on prototype token names', async () => {
+    const { __testing } = await import('../query.js');
+    expect(() => __testing.buildIdentifierExpansionVariants('How is constructor implemented?')).not.toThrow();
+    const variants = __testing.buildIdentifierExpansionVariants('How is constructor implemented?');
+    expect(Array.isArray(variants)).toBe(true);
+  });
+
+  it('bypasses enumeration short-circuit for caller-style intents', async () => {
+    const { __testing } = await import('../query.js');
+    expect(__testing.shouldBypassEnumerationForIntent('Which functions call getLlmServiceAdapter?')).toBe(true);
+    expect(__testing.shouldBypassEnumerationForIntent('List all functions in this file')).toBe(false);
+  });
+
   it('fuses multiple expansion result lists into one RRF ranking', async () => {
     const { __testing } = await import('../query.js');
     const fused = __testing.fuseSimilarityResultListsWithRrf([

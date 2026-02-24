@@ -70,20 +70,23 @@ function mergeCorpora(
       if (!queryByKey.has(key)) {
         queryByKey.set(key, query);
       }
-      if (queryByKey.size >= maxQueryCount) {
-        break;
-      }
-    }
-    if (queryByKey.size >= maxQueryCount) {
-      break;
     }
   }
+  const allQueries = Array.from(queryByKey.values());
+  const callersQueries = allQueries.filter((query) => query.id.startsWith('called-by-'));
+  const remainingQueries = allQueries.filter((query) => !query.id.startsWith('called-by-'));
+  const callersBudget = Math.min(callersQueries.length, Math.max(1, Math.floor(maxQueryCount * 0.4)));
+  const remainingBudget = Math.max(0, maxQueryCount - callersBudget);
+  const orderedQueries = [
+    ...callersQueries.slice(0, callersBudget),
+    ...remainingQueries.slice(0, remainingBudget),
+  ];
 
   return {
     repoName,
     repoPath: workspace,
     generatedAt: new Date().toISOString(),
-    queries: Array.from(queryByKey.values()),
+    queries: orderedQueries,
     factCount: corpora.reduce((sum, corpus) => sum + corpus.factCount, 0),
     coverage: {
       functions: corpora.reduce((sum, corpus) => sum + corpus.coverage.functions, 0),
@@ -236,7 +239,44 @@ try {
       minQuestionCount: minQuestions,
       maxQuestionCount: maxQuestions,
       answerTimeoutMs,
-      answerQuestion: async (intent) => session.query(intent),
+      answerQuestion: async (question) => {
+        const affectedFiles = Array.from(new Set(question.evidence.map((fact) => fact.file))).slice(0, 12);
+        const response = await session.librarian.query({
+          intent: question.intent,
+          depth: 'L0',
+          affectedFiles,
+          filter: { excludeTests: true },
+          llmRequirement: 'disabled',
+          embeddingRequirement: 'disabled',
+          disableMethodGuidance: true,
+          forceSummarySynthesis: true,
+          disableCache: true,
+          deterministic: true,
+          waitForIndexMs: 1000,
+          timeoutMs: answerTimeoutMs,
+        });
+        const packs = response.packs ?? [];
+        const snippets = packs
+          .flatMap((pack) => pack.codeSnippets ?? [])
+          .slice(0, 20)
+          .map((snippet) => ({
+            file: snippet.filePath,
+            startLine: snippet.startLine,
+            endLine: snippet.endLine,
+            code: snippet.content,
+          }));
+        const keyFacts = packs.flatMap((pack) => pack.keyFacts ?? []).slice(0, 40);
+        const relatedFiles = Array.from(new Set(packs.flatMap((pack) => pack.relatedFiles ?? []))).slice(0, 20);
+        const summaryParts = packs
+          .map((pack) => pack.summary?.trim())
+          .filter((value): value is string => Boolean(value));
+        return {
+          summary: [question.intent, ...summaryParts].join(' | '),
+          keyFacts,
+          relatedFiles,
+          snippets,
+        };
+      },
       generateCorpus: async (workspaceRoot, currentRepoName) => {
         const candidateRoots: string[] = [];
         for (const relativeRoot of corpusRoots) {

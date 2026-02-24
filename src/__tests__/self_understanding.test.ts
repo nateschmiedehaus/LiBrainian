@@ -107,6 +107,37 @@ describe('self_understanding', () => {
     expect(questions.some((item) => item.type === 'implementation')).toBe(true);
   });
 
+  it('filters caller expectations to evaluation-candidate files', () => {
+    const productionCallFact = makeFact({
+      type: 'call',
+      identifier: 'target',
+      file: 'src/runtime.ts',
+      details: { caller: 'runtimeCaller', callee: 'target' },
+    });
+    const testOnlyCallFact = makeFact({
+      type: 'call',
+      identifier: 'target',
+      file: 'src/__tests__/runtime.test.ts',
+      details: { caller: 'testCaller', callee: 'target' },
+    });
+    const corpus = makeCorpus([
+      makeQuery({
+        id: 'called-by-target-1',
+        query: 'What functions or methods are callers of target?',
+        expectedAnswer: {
+          type: 'contains',
+          value: ['runtimeCaller', 'testCaller'],
+          evidence: [productionCallFact, testOnlyCallFact],
+        },
+      }),
+    ]);
+
+    const { questions } = buildSelfUnderstandingQuestionSet(corpus, 1, 5);
+    const callersQuestion = questions.find((item) => item.type === 'callers');
+    expect(callersQuestion).toBeDefined();
+    expect(callersQuestion?.expectedAnswer.value).toEqual(['runtimeCaller']);
+  });
+
   it('passes thresholds when callers and implementation answers are present', async () => {
     const functionFact = makeFact({
       type: 'function_def',
@@ -145,11 +176,11 @@ describe('self_understanding', () => {
       minQuestionCount: 2,
       maxQuestionCount: 10,
       generateCorpus: async () => corpus,
-      answerQuestion: async (intent) => {
-        if (intent.toLowerCase().includes('callers of bar')) {
+      answerQuestion: async (question) => {
+        if (question.type === 'callers') {
           return { summary: 'foo is a caller of bar in src/sample.ts' };
         }
-        if (intent.toLowerCase().includes('how is foo implemented')) {
+        if (question.type === 'implementation') {
           return { summary: 'foo is implemented in src/sample.ts' };
         }
         return { summary: 'foo appears in src/sample.ts' };
