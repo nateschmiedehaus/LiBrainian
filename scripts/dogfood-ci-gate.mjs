@@ -390,6 +390,9 @@ async function runStreaming(command, args, options = {}) {
   let lastObservedCpuSec = null;
   const timeoutMs = options.timeoutMs;
   const stallTimeoutMs = options.stallTimeoutMs;
+  const timeoutWatchdogEnabled = Boolean(
+    timeoutMs && timeoutMs > 0 && !(stallTimeoutMs && stallTimeoutMs > 0),
+  );
   const heartbeatTimeline = [];
   const stageTimeline = [];
   const stageSeen = new Set();
@@ -506,7 +509,7 @@ async function runStreaming(command, args, options = {}) {
 
   const livenessHandle = (
     (stallTimeoutMs && stallTimeoutMs > 0)
-    || (timeoutMs && timeoutMs > 0)
+    || timeoutWatchdogEnabled
   )
     ? setInterval(() => {
       if (child.pid && child.pid > 0) {
@@ -530,7 +533,7 @@ async function runStreaming(command, args, options = {}) {
       if (stallTimeoutMs && stallTimeoutMs > 0 && Date.now() - lastActivityAt > stallTimeoutMs) {
         terminateChild('stall');
       }
-      if (timeoutMs && timeoutMs > 0 && Date.now() - lastActivityAt > timeoutMs) {
+      if (timeoutWatchdogEnabled && Date.now() - lastActivityAt > timeoutMs) {
         terminateChild('timeout');
       }
     }, 200)
