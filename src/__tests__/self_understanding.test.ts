@@ -212,6 +212,54 @@ describe('self_understanding', () => {
     );
   });
 
+  it('times out unanswered queries and records timeout reason', async () => {
+    const functionFact = makeFact({
+      type: 'function_def',
+      identifier: 'foo',
+      file: 'src/sample.ts',
+      details: {
+        parameters: [],
+        isAsync: false,
+        isExported: true,
+      },
+    });
+    const corpus = makeCorpus([
+      makeQuery({
+        id: 'called-by-bar-1',
+        query: 'What functions or methods are callers of bar?',
+        expectedAnswer: {
+          type: 'contains',
+          value: ['foo'],
+          evidence: [makeFact({ type: 'call', details: { caller: 'foo', callee: 'bar' } })],
+        },
+      }),
+      makeQuery({
+        id: 'func-exported-foo-2',
+        query: 'Is function foo exported?',
+        expectedAnswer: {
+          type: 'exists',
+          value: true,
+          evidence: [functionFact],
+        },
+      }),
+    ]);
+
+    const report = await evaluateSelfUnderstanding({
+      workspace: '/tmp/self',
+      repoName: 'self',
+      minQuestionCount: 2,
+      maxQuestionCount: 10,
+      generateCorpus: async () => corpus,
+      answerTimeoutMs: 10,
+      answerQuestion: async () => new Promise(() => undefined),
+      now: () => new Date('2026-02-24T12:00:00.000Z'),
+    });
+
+    expect(report.summary.passed).toBe(false);
+    expect(report.evaluatedQuestionCount).toBeGreaterThanOrEqual(2);
+    expect(report.summary.reasons).toContain(`answer_timeout_count:${report.evaluatedQuestionCount}`);
+  });
+
   it('creates history entries and dashboard markdown', async () => {
     const corpus = makeCorpus([
       makeQuery({

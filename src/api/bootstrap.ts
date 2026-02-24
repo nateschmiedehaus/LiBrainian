@@ -255,6 +255,7 @@ const CODEBASE_BRIEFING_STATE_KEY = 'bootstrap.codebase_briefing.v1';
 const BOOTSTRAP_CHECKPOINT_FILE_INTERVAL = 100;
 const BOOTSTRAP_CHECKPOINT_TIME_INTERVAL_MS = 5 * 60_000;
 const BOOTSTRAP_STATE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DEFAULT_BOOTSTRAP_BACKUP_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB
 const METHOD_PACK_PRELOAD_FAMILIES: MethodFamilyId[] = [
   'MF-01',
   'MF-02',
@@ -361,7 +362,21 @@ async function collectBootstrapArtifacts(workspace: string): Promise<BootstrapCo
   return { librarian, knowledge, evidence };
 }
 
+function resolveBootstrapBackupMaxBytes(): number {
+  const raw =
+    process.env.LIBRARIAN_BOOTSTRAP_BACKUP_MAX_BYTES
+    ?? process.env.LIBRAINIAN_BOOTSTRAP_BACKUP_MAX_BYTES;
+  if (!raw) return DEFAULT_BOOTSTRAP_BACKUP_MAX_BYTES;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_BOOTSTRAP_BACKUP_MAX_BYTES;
+  return Math.floor(parsed);
+}
+
 async function createBootstrapArtifactBackup(workspace: string, generationId: string): Promise<void> {
+  const maxBackupBytes = resolveBootstrapBackupMaxBytes();
+  if (maxBackupBytes === 0) {
+    return;
+  }
   const artifacts = getBootstrapArtifactPaths(workspace);
   const files: Array<{ original_path: string; backup_path: string }> = [];
   const extensions = ['', '-wal', '-shm'];
@@ -371,6 +386,10 @@ async function createBootstrapArtifactBackup(workspace: string, generationId: st
       const sourcePath = `${artifactPath}${extension}`;
       const backupPath = `${sourcePath}.bak.${generationId}`;
       try {
+        const stats = await fs.stat(sourcePath);
+        if (stats.size > maxBackupBytes) {
+          continue;
+        }
         await fs.copyFile(sourcePath, backupPath);
         files.push({ original_path: sourcePath, backup_path: backupPath });
       } catch {

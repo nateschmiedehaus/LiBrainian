@@ -8,6 +8,7 @@ import {
   renderSelfUnderstandingDashboard,
   toSelfUnderstandingHistoryEntry,
   type SelfUnderstandingHistoryEntry,
+  type SelfUnderstandingReport,
 } from '../src/evaluation/self_understanding.js';
 
 function parseNumber(value: string | undefined, fallback: number): number {
@@ -29,6 +30,52 @@ async function readHistory(historyPath: string): Promise<SelfUnderstandingHistor
   } catch {
     return [];
   }
+}
+
+function sanitizeReasonValue(value: string): string {
+  return value
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9:_./-]/g, '')
+    .slice(0, 240);
+}
+
+function createFailureReport(
+  workspace: string,
+  repoName: string,
+  minQuestionCount: number,
+  reasonPrefix: string,
+  error: unknown
+): SelfUnderstandingReport {
+  const details = error instanceof Error && error.message.trim().length > 0 ? error.message : 'unknown_error';
+  return {
+    schema: 'SelfUnderstandingReport.v1',
+    generatedAt: new Date().toISOString(),
+    workspace,
+    repoName,
+    generatedQuestionCount: 0,
+    evaluatedQuestionCount: 0,
+    thresholds: {
+      minQuestionCount,
+      callersAccuracy: 0.8,
+      implementationAccuracy: 0.7,
+      perQuestionCallersScore: 0.8,
+      perQuestionImplementationScore: 0.7,
+      perQuestionGeneralScore: 0.6,
+    },
+    metrics: {
+      overallAccuracy: 0,
+      callersAccuracy: 0,
+      implementationAccuracy: 0,
+    },
+    summary: {
+      passed: false,
+      reasons: [
+        `question_count_below_threshold:0<${minQuestionCount}`,
+        `${reasonPrefix}:${sanitizeReasonValue(details)}`,
+      ],
+    },
+    results: [],
+  };
 }
 
 function resolveCommitSha(workspace: string, explicitCommit: string | undefined): string | undefined {
@@ -53,6 +100,8 @@ const args = parseArgs({
     dashboard: { type: 'string', default: 'state/eval/self-understanding/dashboard.md' },
     minQuestions: { type: 'string', default: '50' },
     maxQuestions: { type: 'string', default: '60' },
+    answerTimeoutMs: { type: 'string', default: '45000' },
+    bootstrapTimeoutMs: { type: 'string', default: '120000' },
     commit: { type: 'string' },
   },
 });
@@ -67,25 +116,38 @@ const dashboardPath = path.resolve(
 );
 const minQuestions = parseNumber(args.values.minQuestions, 50);
 const maxQuestions = parseNumber(args.values.maxQuestions, Math.max(60, minQuestions));
+const answerTimeoutMs = parseNumber(args.values.answerTimeoutMs, 45000);
+const bootstrapTimeoutMs = parseNumber(args.values.bootstrapTimeoutMs, 120000);
 const commitSha = resolveCommitSha(workspace, args.values.commit);
+if (!process.env.LIBRARIAN_BOOTSTRAP_BACKUP_MAX_BYTES && !process.env.LIBRAINIAN_BOOTSTRAP_BACKUP_MAX_BYTES) {
+  process.env.LIBRARIAN_BOOTSTRAP_BACKUP_MAX_BYTES = String(256 * 1024 * 1024);
+}
 
-const session = await initializeLibrarian(workspace, {
-  silent: true,
-  skipWatcher: true,
-  skipHealing: true,
-});
-
-let report;
+let report: SelfUnderstandingReport;
+let session: Awaited<ReturnType<typeof initializeLibrarian>> | undefined;
 try {
-  report = await evaluateSelfUnderstanding({
-    workspace,
-    repoName,
-    minQuestionCount: minQuestions,
-    maxQuestionCount: maxQuestions,
-    answerQuestion: async (intent) => session.query(intent),
+  session = await initializeLibrarian(workspace, {
+    silent: true,
+    skipWatcher: true,
+    skipHealing: true,
+    bootstrapTimeoutMs,
   });
+  try {
+    report = await evaluateSelfUnderstanding({
+      workspace,
+      repoName,
+      minQuestionCount: minQuestions,
+      maxQuestionCount: maxQuestions,
+      answerTimeoutMs,
+      answerQuestion: async (intent) => session.query(intent),
+    });
+  } catch (error) {
+    report = createFailureReport(workspace, repoName, minQuestions, 'evaluation_failure', error);
+  }
+} catch (error) {
+  report = createFailureReport(workspace, repoName, minQuestions, 'initialization_failure', error);
 } finally {
-  await session.shutdown().catch(() => undefined);
+  await session?.shutdown().catch(() => undefined);
 }
 
 await mkdir(path.dirname(outPath), { recursive: true });

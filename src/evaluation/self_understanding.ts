@@ -73,6 +73,7 @@ export interface EvaluateSelfUnderstandingOptions {
   repoName?: string;
   minQuestionCount?: number;
   maxQuestionCount?: number;
+  answerTimeoutMs?: number;
   thresholds?: Partial<Omit<SelfUnderstandingThresholds, 'minQuestionCount'>>;
   answerQuestion: (intent: string) => Promise<SelfUnderstandingAnswer>;
   generateCorpus?: (workspace: string, repoName: string) => Promise<StructuralGroundTruthCorpus>;
@@ -86,6 +87,10 @@ const DEFAULT_THRESHOLDS: Omit<SelfUnderstandingThresholds, 'minQuestionCount'> 
   perQuestionImplementationScore: 0.7,
   perQuestionGeneralScore: 0.6,
 };
+const DEFAULT_ANSWER_TIMEOUT_MS = 45_000;
+const ANSWER_TIMEOUT_REASON_PREFIX = 'answer_timeout_count:';
+const ANSWER_FAILURE_REASON_PREFIX = 'answer_failure_count:';
+const ANSWER_TIMEOUT_ERROR_PREFIX = 'answer_timeout_ms:';
 
 function isCallersQuery(query: StructuralGroundTruthQuery): boolean {
   return query.id.startsWith('called-by-')
@@ -255,12 +260,37 @@ function buildThresholds(
   };
 }
 
+function isAnswerTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith(ANSWER_TIMEOUT_ERROR_PREFIX);
+}
+
+async function resolveAnswerWithTimeout(
+  answerQuestion: (intent: string) => Promise<SelfUnderstandingAnswer>,
+  intent: string,
+  timeoutMs: number
+): Promise<SelfUnderstandingAnswer> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${ANSWER_TIMEOUT_ERROR_PREFIX}${timeoutMs}`));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([answerQuestion(intent), timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
 export async function evaluateSelfUnderstanding(
   options: EvaluateSelfUnderstandingOptions
 ): Promise<SelfUnderstandingReport> {
   const repoName = options.repoName ?? 'self';
   const minQuestionCount = Math.max(1, options.minQuestionCount ?? 50);
   const maxQuestionCount = Math.max(minQuestionCount, options.maxQuestionCount ?? 60);
+  const answerTimeoutMs = Math.max(1, Math.floor(options.answerTimeoutMs ?? DEFAULT_ANSWER_TIMEOUT_MS));
   const thresholds = buildThresholds(minQuestionCount, options.thresholds);
   const now = options.now ?? (() => new Date());
   const generateCorpus =
@@ -276,14 +306,29 @@ export async function evaluateSelfUnderstanding(
   );
 
   const results: SelfUnderstandingEvaluationResult[] = [];
+  let answerTimeoutCount = 0;
+  let answerFailureCount = 0;
   for (const question of questions) {
-    const answer = await options.answerQuestion(question.intent);
-    const scored = scoreQuestion(question, answer);
-    const threshold = perQuestionThreshold(question.type, thresholds);
-    results.push({
-      ...scored,
-      passed: scored.score >= threshold,
-    });
+    try {
+      const answer = await resolveAnswerWithTimeout(options.answerQuestion, question.intent, answerTimeoutMs);
+      const scored = scoreQuestion(question, answer);
+      const threshold = perQuestionThreshold(question.type, thresholds);
+      results.push({
+        ...scored,
+        passed: scored.score >= threshold,
+      });
+    } catch (error) {
+      if (isAnswerTimeoutError(error)) {
+        answerTimeoutCount += 1;
+      } else {
+        answerFailureCount += 1;
+      }
+      const scored = scoreQuestion(question, { summary: '' });
+      results.push({
+        ...scored,
+        passed: false,
+      });
+    }
   }
 
   const callers = results.filter((item) => item.type === 'callers');
@@ -309,6 +354,12 @@ export async function evaluateSelfUnderstanding(
   }
   if (implementations.length === 0) {
     reasons.push('implementation_queries_missing');
+  }
+  if (answerTimeoutCount > 0) {
+    reasons.push(`${ANSWER_TIMEOUT_REASON_PREFIX}${answerTimeoutCount}`);
+  }
+  if (answerFailureCount > 0) {
+    reasons.push(`${ANSWER_FAILURE_REASON_PREFIX}${answerFailureCount}`);
   }
 
   return {
