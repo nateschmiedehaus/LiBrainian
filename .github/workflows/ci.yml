@@ -209,3 +209,9 @@ jobs:
 
       - name: Strict agentic qualification
         run: npm run test:agentic:strict
+
+      - name: Unit patrol universal demonstrations
+        run: npm run eval:unit-patrol:universal
+
+      - name: Validate unit patrol universal proof bundle
+        run: node scripts/operational-proof-ci-gate.mjs --bundle state/patrol/unit-patrol-universal-proof.json

@@ -119,4 +119,56 @@ describe('resolveUnitPatrolSelection', () => {
       },
     );
   });
+
+  it('demonstrates bounded strategy-pack selection across three heterogeneous domain/task pairs', async () => {
+    const demos: Array<{
+      files: Array<{ relativePath: string; contents: string }>;
+      input: Pick<UnitPatrolInput, 'task' | 'profile'>;
+      expectedDomain: 'typescript' | 'python' | 'go';
+      expectedProfile: 'quick' | 'strict' | 'deep-bounded';
+    }> = [
+      {
+        files: [{ relativePath: 'src/index.ts', contents: 'export const ping = () => "pong";\n' }],
+        input: { task: 'retrieval', profile: 'quick' },
+        expectedDomain: 'typescript',
+        expectedProfile: 'quick',
+      },
+      {
+        files: [{ relativePath: 'app/main.py', contents: 'def main():\n    return True\n' }],
+        input: { task: 'metamorphic', profile: 'strict' },
+        expectedDomain: 'python',
+        expectedProfile: 'strict',
+      },
+      {
+        files: [{ relativePath: 'cmd/main.go', contents: 'package main\nfunc main() {}\n' }],
+        input: { task: 'deep-audit', profile: 'deep-bounded' },
+        expectedDomain: 'go',
+        expectedProfile: 'deep-bounded',
+      },
+    ];
+
+    for (const demo of demos) {
+      await withWorkspace(demo.files, async (workspace) => {
+        const selection = await resolveUnitPatrolSelection(
+          {
+            fixtureRepoPath: workspace,
+            task: demo.input.task,
+            profile: demo.input.profile,
+          },
+          UNIT_PATROL_DEFAULT_SCENARIO,
+          UNIT_PATROL_DEFAULT_EVALUATION,
+        );
+
+        expect(selection.domain).toBe(demo.expectedDomain);
+        expect(selection.profile).toBe(demo.expectedProfile);
+        expect(selection.strategyPack).toBe(demo.expectedProfile);
+        expect(selection.scenario.operations.length).toBeLessThanOrEqual(selection.budget.maxOperations);
+        expect(selection.scenario.operations.filter((operation) => operation.kind === 'query').length).toBeLessThanOrEqual(
+          selection.budget.maxQueries,
+        );
+        const metamorphicCount = selection.scenario.operations.filter((operation) => operation.kind === 'metamorphic').length;
+        expect(metamorphicCount).toBeLessThanOrEqual(1);
+      });
+    }
+  });
 });

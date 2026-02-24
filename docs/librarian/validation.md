@@ -52,6 +52,19 @@ Memory per 1K LOC: unknown (target 50 MB)
 - Publish-grade chain (agent sessions + strict gates): `npm run eval:trial-by-fire:publish`
 - For custom session commands, `AB_HARNESS_AGENT_CMD` must follow the harness contract in `docs/TEST.md` and `docs/LiBrainian/LIVE_FIRE_E2E.md`.
 
+### Unit Patrol universal adaptation/proof onboarding
+- Universal selector source: `src/constructions/processes/unit_patrol_selector.ts`.
+- Universal demonstration runner (three heterogeneous domain/task bounded profiles): `npm run eval:unit-patrol:universal`.
+- CI publish-readiness enforces proof validation using:
+  - `npm run eval:unit-patrol:universal`
+  - `node scripts/operational-proof-ci-gate.mjs --bundle state/patrol/unit-patrol-universal-proof.json`
+- Adding a new domain or task:
+  - Extend `UnitPatrolDomain` / `UnitPatrolTask` in `src/constructions/processes/types.ts`.
+  - Add intent mapping and profile-aware scenario generation in `src/constructions/processes/unit_patrol_selector.ts`.
+  - Add or update bounded-profile coverage tests in `src/constructions/processes/__tests__/unit_patrol_selector.test.ts`.
+  - Add one universal runner demo case in `scripts/unit-patrol-universal-construction.ts`.
+  - Keep publish proof assertions strict by ensuring the generated report remains `UnitPatrolUniversalDemoReport.v1`.
+
 ## Validation Phases (12-22)
 
 See `docs/librarian/WORKPLAN.md` for full details. Summary:
