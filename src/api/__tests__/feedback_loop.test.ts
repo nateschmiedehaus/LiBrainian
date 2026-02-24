@@ -17,6 +17,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
 
 // Mock provider_check.js to fail fast instead of timing out
 vi.mock('../provider_check.js', () => ({
@@ -58,7 +59,6 @@ import type { LibrarianStorage } from '../../storage/types.js';
 import { getCurrentVersion } from '../versioning.js';
 import { SqliteEvidenceLedger, createSessionId } from '../../epistemics/evidence_ledger.js';
 
-const workspaceRoot = process.cwd();
 const FEEDBACK_HOOK_TIMEOUT_MS = 30000;
 const FEEDBACK_TEST_TIMEOUT_MS = 60000;
 
@@ -67,7 +67,16 @@ function getTempDbPath(): string {
   return path.join(os.tmpdir(), `librarian-test-${randomUUID()}.db`);
 }
 
-async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: string): Promise<void> {
+async function createTempWorkspaceRoot(): Promise<string> {
+  return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-feedback-workspace-'));
+}
+
+async function cleanupTempWorkspaceRoot(workspaceRoot: string | undefined): Promise<void> {
+  if (!workspaceRoot) return;
+  await fs.rm(workspaceRoot, { recursive: true, force: true });
+}
+
+async function seedStorageForQuery(storage: LibrarianStorage, workspaceRoot: string, relatedFile: string): Promise<void> {
   await storage.upsertFunction({
     id: 'fn-feedback-1',
     filePath: path.join(workspaceRoot, relatedFile),
@@ -104,16 +113,22 @@ async function seedStorageForQuery(storage: LibrarianStorage, relatedFile: strin
 describe('Feedback Loop Integration', () => {
   describe('feedbackToken in query response', () => {
     let storage: LibrarianStorage;
+    let workspaceRoot: string;
+
+    beforeEach(async () => {
+      workspaceRoot = await createTempWorkspaceRoot();
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     afterEach(async () => {
       await storage?.close?.();
+      await cleanupTempWorkspaceRoot(workspaceRoot);
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('query response includes feedbackToken', async () => {
       const { queryLibrarian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-      await seedStorageForQuery(storage, 'src/auth.ts');
+      await seedStorageForQuery(storage, workspaceRoot, 'src/auth.ts');
 
       // Run a simple query
       const result = await queryLibrarian(
@@ -130,7 +145,7 @@ describe('Feedback Loop Integration', () => {
       const { queryLibrarian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-      await seedStorageForQuery(storage, 'src/auth.ts');
+      await seedStorageForQuery(storage, workspaceRoot, 'src/auth.ts');
 
       // Run two identical queries
       const [result1, result2] = await Promise.all([
@@ -145,7 +160,7 @@ describe('Feedback Loop Integration', () => {
       const { queryLibrarian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-      await seedStorageForQuery(storage, 'src/auth.ts');
+      await seedStorageForQuery(storage, workspaceRoot, 'src/auth.ts');
 
       const result = await queryLibrarian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
@@ -166,7 +181,7 @@ describe('Feedback Loop Integration', () => {
       const { queryLibrarian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-      await seedStorageForQuery(storage, 'src/auth.ts');
+      await seedStorageForQuery(storage, workspaceRoot, 'src/auth.ts');
 
       const firstResult = await queryLibrarian(
         { intent: 'test query', depth: 'L0', llmRequirement: 'disabled', affectedFiles: ['src/auth.ts'] },
@@ -201,7 +216,7 @@ describe('Feedback Loop Integration', () => {
       const { queryLibrarian } = await import('../query.js');
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
-      await seedStorageForQuery(storage, 'src/auth.ts');
+      await seedStorageForQuery(storage, workspaceRoot, 'src/auth.ts');
 
       const ledger = new SqliteEvidenceLedger(':memory:');
       await ledger.initialize();
@@ -229,14 +244,17 @@ describe('Feedback Loop Integration', () => {
 
   describe('feedback submission', () => {
     let storage: LibrarianStorage;
+    let workspaceRoot: string;
 
     beforeEach(async () => {
+      workspaceRoot = await createTempWorkspaceRoot();
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     afterEach(async () => {
       await storage?.close?.();
+      await cleanupTempWorkspaceRoot(workspaceRoot);
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('processAgentFeedback records confidence event', async () => {
@@ -349,9 +367,15 @@ describe('Feedback Loop Integration', () => {
 
   describe('feedback token storage', () => {
     let storage: LibrarianStorage;
+    let workspaceRoot: string;
+
+    beforeEach(async () => {
+      workspaceRoot = await createTempWorkspaceRoot();
+    }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     afterEach(async () => {
       await storage?.close?.();
+      await cleanupTempWorkspaceRoot(workspaceRoot);
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('feedbackToken can be used to retrieve original query packs', async () => {
@@ -386,7 +410,7 @@ describe('Feedback Loop Integration', () => {
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
 
-      await seedStorageForQuery(storage, 'src/feedback/reload_test.ts');
+      await seedStorageForQuery(storage, workspaceRoot, 'src/feedback/reload_test.ts');
       const result = await queryModule.queryLibrarian(
         { intent: 'feedback reload query', depth: 'L1' },
         storage
@@ -407,14 +431,17 @@ describe('Feedback Loop Integration', () => {
 
   describe('confidence bounds', () => {
     let storage: LibrarianStorage;
+    let workspaceRoot: string;
 
     beforeEach(async () => {
+      workspaceRoot = await createTempWorkspaceRoot();
       storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
       await storage.initialize();
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     afterEach(async () => {
       await storage?.close?.();
+      await cleanupTempWorkspaceRoot(workspaceRoot);
     }, FEEDBACK_HOOK_TIMEOUT_MS);
 
     it('confidence never goes below 0.1 after negative feedback', async () => {
