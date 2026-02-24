@@ -55,6 +55,13 @@ const createTempWorkspace = async (): Promise<string> => {
 };
 
 describe('file_watcher', () => {
+  const workspaceRoots = new Set<string>();
+
+  const registerWorkspace = (workspaceRoot: string): string => {
+    workspaceRoots.add(workspaceRoot);
+    return workspaceRoot;
+  };
+
   beforeEach(async () => {
     ({ startFileWatcher, stopFileWatcher } = await import('../file_watcher.js'));
     logger = await import('../../telemetry/logger.js');
@@ -66,10 +73,15 @@ describe('file_watcher', () => {
 
   afterEach(async () => {
     await flushPromises();
+    for (const workspaceRoot of workspaceRoots) {
+      await stopFileWatcher(workspaceRoot);
+      await fs.rm(workspaceRoot, { recursive: true, force: true });
+    }
+    workspaceRoots.clear();
   });
 
   it('does not spam reconcile warnings when storage lacks getFiles', async () => {
-    const workspaceRoot = await createTempWorkspace();
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
     const filePath = path.join(workspaceRoot, 'src', 'a.ts');
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export const a = 1;\n', 'utf8');
@@ -109,11 +121,10 @@ describe('file_watcher', () => {
       .mock.calls.filter(([msg]) => typeof msg === 'string' && msg.includes('Watch reconcile disabled'));
     expect(reconcileWarnings).toHaveLength(1);
 
-    await stopFileWatcher(workspaceRoot);
   });
 
   it('skips reindex when file checksum unchanged', async () => {
-    const workspaceRoot = await createTempWorkspace();
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
     const filePath = path.join(workspaceRoot, 'src', 'a.ts');
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export const a = 1;\n', 'utf8');
@@ -148,18 +159,14 @@ describe('file_watcher', () => {
     if (!captured) throw new Error('Expected file watcher callback to be registered');
     (captured as unknown as (event: string, filename: string) => void)('change', 'src/a.ts');
 
-    await waitForCondition(
-      () => librarian.reindexFiles.mock.calls.length === 1,
-      { timeoutMs: 2_000, intervalMs: 25 },
-    );
+    await new Promise((resolve) => setTimeout(resolve, 80));
     await flushPromises();
 
     expect(librarian.reindexFiles).not.toHaveBeenCalled();
-    stopFileWatcher(workspaceRoot);
   });
 
   it('reindexes when file checksum differs', async () => {
-    const workspaceRoot = await createTempWorkspace();
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
     const filePath = path.join(workspaceRoot, 'src', 'b.ts');
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, 'export const b = 1;\n', 'utf8');
@@ -198,11 +205,10 @@ describe('file_watcher', () => {
 
     expect(librarian.reindexFiles).toHaveBeenCalledTimes(1);
     expect(librarian.reindexFiles).toHaveBeenCalledWith([filePath]);
-    stopFileWatcher(workspaceRoot);
   });
 
   it('batches multiple changes within the batch window', async () => {
-    const workspaceRoot = await createTempWorkspace();
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
     const fileA = path.join(workspaceRoot, 'src', 'a.ts');
     const fileB = path.join(workspaceRoot, 'src', 'b.ts');
     await fs.mkdir(path.dirname(fileA), { recursive: true });
