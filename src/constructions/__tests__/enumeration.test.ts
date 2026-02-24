@@ -355,7 +355,7 @@ describe('enumerateByCategory', () => {
     });
 
     it('should return complete list, not top-k', async () => {
-      const result = await enumerateByCategory(undefined, 'test_file', testWorkspace);
+      const result = await enumerateByCategory(undefined, 'cli_command', testWorkspace);
 
       // Verify this is an exhaustive count (not limited to default limits like 10 or 20)
       // The actual count depends on the codebase, but should be more than typical top-k
@@ -1253,16 +1253,16 @@ describe('enumerateWithFilters', () => {
     it('should apply multiple filters together', async () => {
       const result = await enumerateWithFilters(
         undefined,
-        'test_file',
+        'cli_command',
         testWorkspace,
         {
-          inDirectory: 'src/',
+          inDirectory: 'src/cli',
           exported: undefined, // Don't filter by exported
         }
       );
 
       for (const entity of result) {
-        expect(entity.filePath.startsWith('src/')).toBe(true);
+        expect(entity.filePath.startsWith('src/cli')).toBe(true);
       }
     });
   });
