@@ -228,6 +228,23 @@ export const PreCommitCheckToolInputSchema = z.object({
 }).strict();
 
 /**
+ * librarian_completeness_check tool input schema
+ */
+export const LibrarianCompletenessCheckToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  changedFiles: z.array(z.string().min(1)).max(500).optional().describe('Optional changed files to scope post-implementation completeness checks'),
+  mode: z.enum(['auto', 'changed', 'full']).optional().default('auto').describe('auto uses git status when available, changed scopes to changedFiles, full checks all indexed elements'),
+  supportThreshold: z.number().int().min(1).max(500).optional().default(5).describe('Minimum cluster support before findings are enforced instead of informational'),
+  counterevidence: z.array(z.object({
+    artifact: z.string().min(1).describe('Artifact name to exempt or down-weight'),
+    pattern: z.string().min(1).optional().describe('Optional pattern filter (for example crud_function or api_endpoint)'),
+    filePattern: z.string().min(1).optional().describe('Optional regex string matched against candidate file path'),
+    reason: z.string().min(1).describe('Human rationale for intentional exception'),
+    weight: z.number().min(0).max(1).optional().describe('Optional suppression weight in [0,1]'),
+  }).strict()).optional().describe('Optional intentional-exception entries used to reduce confidence and suppress false positives'),
+}).strict().default({});
+
+/**
  * claim_work_scope tool input schema
  */
 export const ClaimWorkScopeToolInputSchema = z.object({
@@ -735,6 +752,7 @@ export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInput
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
+export type LibrarianCompletenessCheckToolInputType = z.infer<typeof LibrarianCompletenessCheckToolInputSchema>;
 export type ValidateImportToolInputType = z.infer<typeof ValidateImportToolInputSchema>;
 export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
 export type AppendClaimToolInputType = z.infer<typeof AppendClaimToolInputSchema>;
@@ -818,6 +836,7 @@ export const TOOL_INPUT_SCHEMAS = {
   get_change_impact: GetChangeImpactToolInputSchema,
   blast_radius: BlastRadiusToolInputSchema,
   pre_commit_check: PreCommitCheckToolInputSchema,
+  librarian_completeness_check: LibrarianCompletenessCheckToolInputSchema,
   claim_work_scope: ClaimWorkScopeToolInputSchema,
   append_claim: AppendClaimToolInputSchema,
   query_claims: QueryClaimsToolInputSchema,

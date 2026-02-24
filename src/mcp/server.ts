@@ -55,6 +55,7 @@ import {
   type GetChangeImpactToolInput,
   type BlastRadiusToolInput,
   type PreCommitCheckToolInput,
+  type LibrarianCompletenessCheckToolInput,
   type ClaimWorkScopeToolInput,
   type AppendClaimToolInput,
   type QueryClaimsToolInput,
@@ -171,6 +172,7 @@ import { toMCPTool } from '../constructions/mcp_bridge.js';
 import { buildCapabilityInventory } from '../capabilities/inventory.js';
 import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
 import { validateImportReference } from '../evaluation/api_surface_index.js';
+import { runCompletenessOracle, isCompletionSignalClaim, type CompletenessCounterevidence } from '../api/completeness_oracle.js';
 
 // ============================================================================
 // TYPES
@@ -397,6 +399,7 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
+  librarian_completeness_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2800 },
   claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
   append_claim: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   query_claims: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
@@ -1960,6 +1963,35 @@ export class LiBrainianMCPServer {
             maxRiskLevel: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Maximum acceptable risk level for pass (default high)' },
           },
           required: ['changedFiles'],
+        },
+      },
+      {
+        name: 'librarian_completeness_check',
+        description: 'Completeness Oracle for post-implementation convention gaps: infer expected co-artifacts from indexed codebase patterns and report what is still missing.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            changedFiles: { type: 'array', items: { type: 'string' }, description: 'Optional changed files to scope post-implementation completeness checks' },
+            mode: { type: 'string', enum: ['auto', 'changed', 'full'], description: 'auto uses git status when available, changed scopes to changedFiles, full checks all indexed elements' },
+            supportThreshold: { type: 'number', description: 'Minimum cluster support before findings are enforced instead of informational (default 5)' },
+            counterevidence: {
+              type: 'array',
+              description: 'Optional intentional exceptions used to reduce confidence and suppress false positives',
+              items: {
+                type: 'object',
+                properties: {
+                  artifact: { type: 'string', description: 'Artifact name to exempt or down-weight' },
+                  pattern: { type: 'string', description: 'Optional pattern filter (for example crud_function or api_endpoint)' },
+                  filePattern: { type: 'string', description: 'Optional regex string matched against candidate file path' },
+                  reason: { type: 'string', description: 'Human rationale for intentional exception' },
+                  weight: { type: 'number', description: 'Optional suppression weight in [0,1]' },
+                },
+                required: ['artifact', 'reason'],
+              },
+            },
+          },
+          required: [],
         },
       },
       {
@@ -3621,6 +3653,8 @@ export class LiBrainianMCPServer {
         return this.executeBlastRadius(args as BlastRadiusToolInput);
       case 'pre_commit_check':
         return this.executePreCommitCheck(args as PreCommitCheckToolInput);
+      case 'librarian_completeness_check':
+        return this.executeCompletenessCheck(args as LibrarianCompletenessCheckToolInput);
       case 'claim_work_scope':
         return this.executeClaimWorkScope(args as ClaimWorkScopeToolInput, context);
       case 'append_claim':
@@ -9378,6 +9412,83 @@ export class LiBrainianMCPServer {
     };
   }
 
+  private normalizeCompletenessCounterevidence(input: unknown): CompletenessCounterevidence[] {
+    if (!Array.isArray(input)) return [];
+    const normalized: CompletenessCounterevidence[] = [];
+    for (const item of input) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const entry = item as Record<string, unknown>;
+      const artifact = typeof entry.artifact === 'string' ? entry.artifact.trim() : '';
+      const reason = typeof entry.reason === 'string' ? entry.reason.trim() : '';
+      if (!artifact || !reason) continue;
+      const patternCandidate = typeof entry.pattern === 'string' ? entry.pattern.trim() : '';
+      const pattern = (
+        patternCandidate === 'crud_function'
+        || patternCandidate === 'api_endpoint'
+        || patternCandidate === 'service_module'
+        || patternCandidate === 'env_var_read'
+        || patternCandidate === 'config_value'
+      ) ? patternCandidate : undefined;
+      const filePattern = typeof entry.filePattern === 'string' && entry.filePattern.trim().length > 0
+        ? entry.filePattern.trim()
+        : undefined;
+      const weight = typeof entry.weight === 'number' && Number.isFinite(entry.weight)
+        ? Math.max(0, Math.min(1, entry.weight))
+        : undefined;
+      normalized.push({ artifact: artifact as CompletenessCounterevidence['artifact'], reason, pattern, filePattern, weight });
+    }
+    return normalized;
+  }
+
+  private async executeCompletenessCheck(input: LibrarianCompletenessCheckToolInput): Promise<unknown> {
+    const workspacePath = input.workspace
+      ? path.resolve(input.workspace)
+      : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+
+    if (!workspacePath) {
+      return {
+        success: false,
+        tool: 'librarian_completeness_check',
+        error: 'No workspace specified and no workspaces registered.',
+      };
+    }
+
+    try {
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const mode = input.mode === 'full' || input.mode === 'changed' || input.mode === 'auto'
+        ? input.mode
+        : 'auto';
+      const changedFiles = Array.isArray(input.changedFiles)
+        ? input.changedFiles.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+        : undefined;
+      const supportThreshold = typeof input.supportThreshold === 'number' && Number.isFinite(input.supportThreshold)
+        ? Math.max(1, Math.trunc(input.supportThreshold))
+        : undefined;
+      const counterevidence = this.normalizeCompletenessCounterevidence(input.counterevidence);
+
+      const report = await runCompletenessOracle({
+        workspaceRoot: workspacePath,
+        storage,
+        mode,
+        changedFiles,
+        supportThreshold,
+        counterevidence,
+      });
+
+      return {
+        success: true,
+        tool: 'librarian_completeness_check',
+        report,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        tool: 'librarian_completeness_check',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   private normalizeClaimValues(values: string[] | undefined, maxItems = 32): string[] {
     if (!Array.isArray(values)) return [];
     const normalized = values
@@ -9452,6 +9563,15 @@ export class LiBrainianMCPServer {
       source_tool: sourceTool,
     });
 
+    const completionSignalDetected = isCompletionSignalClaim(claim, tags);
+    let completenessCheck: unknown;
+    if (completionSignalDetected && workspace) {
+      completenessCheck = await this.executeCompletenessCheck({
+        workspace,
+        mode: 'auto',
+      });
+    }
+
     return {
       success: true,
       tool: 'append_claim',
@@ -9465,6 +9585,8 @@ export class LiBrainianMCPServer {
       sourceTool,
       storedAt: createdAt,
       claimCount: this.state.knowledgeClaims.length,
+      completionSignalDetected,
+      completenessCheck,
     };
   }
 

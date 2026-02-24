@@ -18,6 +18,10 @@ const WORKSPACE_POSITIONAL_COMMANDS = new Set([
   'watch',
 ]);
 
+const CHECK_SUBCOMMANDS = new Set([
+  'completeness',
+]);
+
 function hasWorkspaceFlag(rawArgs: string[]): boolean {
   return rawArgs.includes('--workspace') || rawArgs.includes('-w');
 }
@@ -37,6 +41,9 @@ export function resolveWorkspaceArg(options: {
   }
   const candidate = commandArgs[0];
   if (!candidate || candidate.startsWith('-')) {
+    return { workspace: defaultWorkspace, commandArgs };
+  }
+  if (command === 'check' && CHECK_SUBCOMMANDS.has(candidate.toLowerCase())) {
     return { workspace: defaultWorkspace, commandArgs };
   }
   const commandIndex = rawArgs.indexOf(command);

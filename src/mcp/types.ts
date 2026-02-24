@@ -1086,6 +1086,30 @@ export interface PreCommitCheckToolInput {
   maxRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
 }
 
+/** librarian_completeness_check tool input */
+export interface LibrarianCompletenessCheckToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional changed files to scope post-implementation completeness checks */
+  changedFiles?: string[];
+
+  /** Scope mode for completeness checks */
+  mode?: 'auto' | 'changed' | 'full';
+
+  /** Minimum cluster support before findings are enforced */
+  supportThreshold?: number;
+
+  /** Optional intentional exceptions used to reduce confidence/suppress false positives */
+  counterevidence?: Array<{
+    artifact: string;
+    pattern?: string;
+    filePattern?: string;
+    reason: string;
+    weight?: number;
+  }>;
+}
+
 /** claim_work_scope tool input */
 export interface ClaimWorkScopeToolInput {
   /** Semantic scope identifier (file, module, symbol, or task scope key) */
@@ -2126,6 +2150,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   pre_commit_check: {
     tool: 'pre_commit_check',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  librarian_completeness_check: {
+    tool: 'librarian_completeness_check',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',

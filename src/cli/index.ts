@@ -87,6 +87,7 @@ import { journeyCommand } from './commands/journey.js';
 import { liveFireCommand } from './commands/live_fire.js';
 import { healthCommand } from './commands/health.js';
 import { checkCommand } from './commands/check.js';
+import { checkCompletenessCommand } from './commands/check_completeness.js';
 import { healCommand } from './commands/heal.js';
 import { evolveCommand } from './commands/evolve.js';
 import { evalCommand } from './commands/eval.js';
@@ -576,11 +577,19 @@ async function main(): Promise<void> {
         });
         break;
       case 'check':
-        process.exitCode = await checkCommand({
-          workspace,
-          args: commandArgs,
-          rawArgs: args,
-        });
+        if ((commandArgs[0] ?? '').toLowerCase() === 'completeness') {
+          process.exitCode = await checkCompletenessCommand({
+            workspace,
+            args: commandArgs.slice(1),
+            rawArgs: args,
+          });
+        } else {
+          process.exitCode = await checkCommand({
+            workspace,
+            args: commandArgs,
+            rawArgs: args,
+          });
+        }
         break;
       case 'heal':
         await healCommand({

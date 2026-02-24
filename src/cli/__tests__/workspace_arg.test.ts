@@ -86,6 +86,18 @@ describe('resolveWorkspaceArg', () => {
     expect(result.commandArgs).toEqual(['--diff', 'HEAD~1..HEAD']);
   });
 
+  it('does not treat check completeness subcommand as positional workspace', () => {
+    const result = resolveWorkspaceArg({
+      command: 'check',
+      commandArgs: ['completeness', '--mode', 'changed'],
+      rawArgs: ['check', 'completeness', '--mode', 'changed'],
+      defaultWorkspace: '/cwd',
+    });
+
+    expect(result.workspace).toBe('/cwd');
+    expect(result.commandArgs).toEqual(['completeness', '--mode', 'changed']);
+  });
+
   it('supports positional workspace for features command', () => {
     const result = resolveWorkspaceArg({
       command: 'features',

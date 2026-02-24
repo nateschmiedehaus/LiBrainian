@@ -162,6 +162,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('get_change_impact');
       expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('pre_commit_check');
+      expect(schemas).toContain('librarian_completeness_check');
       expect(schemas).toContain('claim_work_scope');
       expect(schemas).toContain('append_claim');
       expect(schemas).toContain('query_claims');
@@ -172,7 +173,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(58);
+      expect(schemas).toHaveLength(59);
     });
 
     it('should return schema for known tools', () => {
