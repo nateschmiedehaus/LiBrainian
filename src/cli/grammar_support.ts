@@ -54,8 +54,11 @@ export interface GrammarInstallOptions {
 
 export interface GrammarCoverageOptions {
   maxFiles?: number;
+  maxEntries?: number;
   resolveModule?: (moduleName: string) => boolean;
 }
+
+const HIDDEN_DIRECTORY_ALLOWLIST = new Set(['.github']);
 
 function prependPathSegment(existing: string | undefined, segment: string): string {
   if (!existing || existing.trim().length === 0) {
@@ -103,7 +106,9 @@ export async function scanWorkspaceLanguages(
   const unknownExtensions: Record<string, number> = {};
   const errors: string[] = [];
   const maxFiles = options.maxFiles ?? 20000;
+  const maxEntries = options.maxEntries ?? 100000;
   let totalFiles = 0;
+  let scannedEntries = 0;
   let truncated = false;
 
   try {
@@ -127,12 +132,21 @@ export async function scanWorkspaceLanguages(
       continue;
     }
     for (const entry of entries) {
+      scannedEntries += 1;
+      if (scannedEntries > maxEntries) {
+        truncated = true;
+        errors.push(`entry_limit_reached:${maxEntries}`);
+        break;
+      }
       const fullPath = path.join(current, entry.name);
       const relative = path.relative(workspace, fullPath).replace(/\\/g, '/');
       if (!relative || isExcluded(relative)) {
         continue;
       }
       if (entry.isDirectory()) {
+        if (entry.name.startsWith('.') && !HIDDEN_DIRECTORY_ALLOWLIST.has(entry.name)) {
+          continue;
+        }
         queue.push(fullPath);
         continue;
       }

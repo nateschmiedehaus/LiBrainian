@@ -3539,6 +3539,12 @@ function computeDirectoryFingerprint(
   return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 32);
 }
 
+function appendSymbolEntries(target: SymbolEntry[], entries: SymbolEntry[]): void {
+  for (const entry of entries) {
+    target.push(entry);
+  }
+}
+
 async function runSemanticIndexing(
   config: BootstrapConfig,
   storage: LibrarianStorage,
@@ -3581,13 +3587,13 @@ async function runSemanticIndexing(
       const symbols: SymbolEntry[] = [];
       if (tsFiles.length > 0) {
         const tsSymbolResult = await extractSymbolsFromFiles(tsFiles);
-        symbols.push(...tsSymbolResult.symbols);
+        appendSymbolEntries(symbols, tsSymbolResult.symbols);
       }
       if (polyglotSymbolFiles.length > 0) {
         const polyglotSymbolResult = await extractPolyglotFunctionSymbolsFromFiles(polyglotSymbolFiles, {
           workspaceRoot: phaseConfig.workspace,
         });
-        symbols.push(...polyglotSymbolResult.symbols);
+        appendSymbolEntries(symbols, polyglotSymbolResult.symbols);
         if (polyglotSymbolResult.filesWithErrors.length > 0) {
           logInfo('Bootstrap: Polyglot symbol extraction skipped some files', {
             skippedFileCount: polyglotSymbolResult.filesWithErrors.length,
@@ -5010,4 +5016,5 @@ export const __testing = {
   collectKeyEntryPoints,
   detectFrameworks,
   generateAndPersistCodebaseBriefing,
+  appendSymbolEntries,
 };
