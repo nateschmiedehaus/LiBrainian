@@ -589,6 +589,14 @@ function assertQueryResult(questionSpec, queryResult) {
   }
 }
 
+function isUpdateNoopOutput(text) {
+  const normalized = String(text ?? '');
+  return (
+    /No modified files found to index/iu.test(normalized)
+    || /No files specified\.\s*Usage:\s*librarian index <file\.\.\.>/iu.test(normalized)
+  );
+}
+
 function commandRecord(name, result, pass, extra = {}) {
   const combinedOutput = `${result.stdout}\n${result.stderr}`;
   const lockSignals = extractLockSignals(combinedOutput);
@@ -745,7 +753,7 @@ async function main() {
       stdio: 'inherit',
     });
     const updateOutput = `${updateResult.stdout}\n${updateResult.stderr}`;
-    const updateNoChanges = /No modified files found to index/iu.test(updateOutput);
+    const updateNoChanges = isUpdateNoopOutput(updateOutput);
     const updatePass = updateResult.status === 0 || updateNoChanges;
     commands.push(commandRecord('librainian.update', updateResult, updatePass, { skippedNoChanges: updateNoChanges }));
     if (!updatePass) {
@@ -850,4 +858,4 @@ if (isDirectExecution) {
   });
 }
 
-export { parseArgs, runStreaming };
+export { isUpdateNoopOutput, parseArgs, runStreaming };
