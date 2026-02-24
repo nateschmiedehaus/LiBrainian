@@ -94,6 +94,7 @@ import { replayCommand } from './commands/replay.js';
 import { watchCommand } from './commands/watch.js';
 import { indexCommand } from './commands/index.js';
 import { scanCommand } from './commands/scan.js';
+import { triageCommand } from './commands/triage.js';
 import { contractCommand } from './commands/contract.js';
 import { diagnoseCommand } from './commands/diagnose.js';
 import { composeCommand } from './commands/compose.js';
@@ -127,7 +128,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'calibration' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+type Command = 'status' | 'stats' | 'calibration' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -301,6 +302,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'scan': {
     description: 'Scan/redaction audit reporting for sensitive content',
     usage: 'librarian scan --secrets [--json|--format text|json]',
+  },
+  'triage': {
+    description: 'Assess and cluster dirty worktree state with safe recovery strategies',
+    usage: 'librarian triage [--threshold N] [--json] [--auto|--stash|--revert --confirm]',
   },
   'update': {
     description: 'Hook-friendly alias for incremental indexing (implies --force)',
@@ -685,6 +690,13 @@ async function main(): Promise<void> {
         break;
       case 'scan':
         await scanCommand({
+          workspace,
+          args: commandArgs,
+          rawArgs: args,
+        });
+        break;
+      case 'triage':
+        await triageCommand({
           workspace,
           args: commandArgs,
           rawArgs: args,

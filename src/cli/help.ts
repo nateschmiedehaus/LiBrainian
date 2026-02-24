@@ -48,6 +48,7 @@ COMMANDS:
     watch               Watch for file changes and auto-reindex
     check               Run diff-aware CI integrity checks
     scan                Show security redaction scan results
+    triage              Assess/cluster dirty worktree state and recovery options
     compose             Compose construction pipelines or technique bundles
     constructions       Browse/search/describe/install/validate constructions
     doctor              Run diagnostics and recovery hints
@@ -1301,6 +1302,39 @@ EXAMPLES:
     librarian check --diff HEAD~1..HEAD --format text
     librarian check --diff origin/main --json
     librarian check --diff HEAD~1..HEAD --format junit --out reports/librarian-check.xml
+`,
+
+  triage: `
+librarian triage - Assess dirty worktree state and cluster changes for safe recovery
+
+USAGE:
+    librarian triage [options]
+
+OPTIONS:
+    --threshold <N>     Dirty-file threshold to block new edits (default: 50)
+    --json              Output machine-readable JSON
+    --auto              Auto-commit low-risk clusters (creates backup branch first)
+    --stash             Stash dirty state after creating backup branch
+    --revert            Revert all dirty changes (requires --confirm)
+    --confirm           Required confirmation for destructive revert mode
+
+DESCRIPTION:
+    Runs deterministic worktree triage:
+    - computes severity (clean/light/moderate/heavy/critical)
+    - clusters dirty files by dominant change patterns
+    - recommends non-destructive recovery strategies
+    - enforces a dirty-threshold policy to prevent pile-up
+
+    By default this command is non-destructive and report-only.
+    If threshold is exceeded and no recovery action is selected, exit code is 2.
+
+EXAMPLES:
+    librarian triage
+    librarian triage --json
+    librarian triage --threshold 75
+    librarian triage --auto
+    librarian triage --stash
+    librarian triage --revert --confirm
 `,
 
   heal: `
