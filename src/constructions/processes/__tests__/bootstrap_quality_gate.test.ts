@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createBootstrapQualityGateConstruction } from '../bootstrap_quality_gate.js';
+import { createBootstrapQualityGateConstruction, removeDirectoryBestEffort } from '../bootstrap_quality_gate.js';
 import { unwrapConstructionExecutionResult } from '../../types.js';
 
 const tempRoots: string[] = [];
@@ -76,4 +76,17 @@ describe('Bootstrap Quality Gate', () => {
       expect(result.fixtures.some((fixture) => fixture.findings.length > 0)).toBe(true);
     }
   }, 140_000);
+
+  it('tolerates ENOENT races during workspace cleanup', async () => {
+    let calls = 0;
+    await expect(
+      removeDirectoryBestEffort('/tmp/nonexistent-cleanup-target', async () => {
+        calls += 1;
+        const error = new Error('simulated cleanup race') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        throw error;
+      })
+    ).resolves.toBeUndefined();
+    expect(calls).toBe(1);
+  });
 });

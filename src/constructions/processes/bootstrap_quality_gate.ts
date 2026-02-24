@@ -50,6 +50,47 @@ const SOURCE_EXTENSIONS = new Set([
   '.py',
   '.c', '.h',
 ]);
+const TRANSIENT_RM_ERROR_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM']);
+const WORKSPACE_CLEANUP_ATTEMPTS = 3;
+const WORKSPACE_CLEANUP_RETRY_MS = 25;
+type RemoveDirectoryFn = (targetPath: string, options: { recursive: true; force: true }) => Promise<void>;
+
+function getErrnoCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function waitFor(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function removeDirectoryBestEffort(
+  targetPath: string,
+  removeDirectory: RemoveDirectoryFn = (target, options) => fs.rm(target, options),
+): Promise<void> {
+  for (let attempt = 1; attempt <= WORKSPACE_CLEANUP_ATTEMPTS; attempt += 1) {
+    try {
+      await removeDirectory(targetPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = getErrnoCode(error);
+      if (code === 'ENOENT') {
+        return;
+      }
+      const isTransient = code !== null && TRANSIENT_RM_ERROR_CODES.has(code);
+      if (isTransient && attempt < WORKSPACE_CLEANUP_ATTEMPTS) {
+        await waitFor(WORKSPACE_CLEANUP_RETRY_MS * attempt);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 
 async function collectSourceFiles(root: string): Promise<string[]> {
   const files: string[] = [];
@@ -246,8 +287,16 @@ async function runFixtureValidation(
   } catch (error) {
     findings.push(`validation error: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
-    await librarian.shutdown();
-    await fs.rm(workspace, { recursive: true, force: true });
+    try {
+      await librarian.shutdown();
+    } catch (error) {
+      findings.push(`shutdown error: ${formatError(error)}`);
+    }
+    try {
+      await removeDirectoryBestEffort(workspace);
+    } catch (error) {
+      findings.push(`workspace cleanup error: ${formatError(error)}`);
+    }
   }
 
   return {
@@ -295,7 +344,11 @@ export function createBootstrapQualityGateConstruction(): Construction<
       } finally {
         if (resolvedDefaults) {
           for (const cleanupPath of resolvedDefaults.cleanupPaths) {
-            await fs.rm(cleanupPath, { recursive: true, force: true });
+            try {
+              await removeDirectoryBestEffort(cleanupPath);
+            } catch {
+              // Best-effort cleanup only.
+            }
           }
         }
       }
