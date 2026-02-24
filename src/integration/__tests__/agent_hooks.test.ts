@@ -98,6 +98,7 @@ vi.mock('../../events.js', () => ({
     emit: vi.fn().mockResolvedValue(undefined),
   },
   createTaskReceivedEvent: vi.fn().mockReturnValue({ type: 'task_received' }),
+  createTaskPhaseTransitionEvent: vi.fn().mockReturnValue({ type: 'task_phase_transition' }),
   createTaskCompletedEvent: vi.fn().mockReturnValue({ type: 'task_completed' }),
   createTaskFailedEvent: vi.fn().mockReturnValue({ type: 'task_failed' }),
   createFileModifiedEvent: vi.fn().mockReturnValue({ type: 'file_modified' }),
@@ -253,6 +254,55 @@ describe('agent_hooks', () => {
 
       // session.query should only be called once due to caching
       expect(session?.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('emits phase transition events and surfaces phase-specific intel across orient -> plan -> implement', async () => {
+      const { detectTaskPhase } = await import('../../constructions/processes/task_phase_detector_construction.js');
+      const { globalEventBus, createTaskPhaseTransitionEvent } = await import('../../events.js');
+      vi.mocked(detectTaskPhase)
+        .mockReturnValueOnce({
+          kind: 'TaskPhaseDetectorResult.v1',
+          detection: { phase: 'orient', confidence: 0.72, signals: ['default:initial-query'] },
+          proactiveIntel: [{ type: 'ambient-briefing', content: 'orient intel' }],
+        })
+        .mockReturnValueOnce({
+          kind: 'TaskPhaseDetectorResult.v1',
+          detection: { phase: 'plan', confidence: 0.81, signals: ['tool:planning'], transitionedFrom: 'orient' },
+          proactiveIntel: [{ type: 'scope-analysis', content: 'plan intel' }],
+        })
+        .mockReturnValueOnce({
+          kind: 'TaskPhaseDetectorResult.v1',
+          detection: { phase: 'implement', confidence: 0.86, signals: ['tool:implementation'], transitionedFrom: 'plan' },
+          proactiveIntel: [{ type: 'convention-alert', content: 'implement intel' }],
+        });
+
+      const orient = await getTaskContext({
+        intent: 'understand auth flow',
+        affectedFiles: ['src/auth.ts'],
+        recentToolCalls: [],
+      }, { workspace: testDir });
+      const plan = await getTaskContext({
+        intent: 'plan auth refactor',
+        affectedFiles: ['src/auth.ts'],
+        recentToolCalls: ['get_change_impact'],
+        previousPhase: 'orient' as TaskContextRequest['previousPhase'],
+      }, { workspace: testDir });
+      const implement = await getTaskContext({
+        intent: 'implement auth refactor',
+        affectedFiles: ['src/auth.ts'],
+        recentToolCalls: ['write_file'],
+        previousPhase: 'plan' as TaskContextRequest['previousPhase'],
+      }, { workspace: testDir });
+
+      expect(orient.phaseDetection.phase).toBe('orient');
+      expect(plan.phaseDetection.phase).toBe('plan');
+      expect(implement.phaseDetection.phase).toBe('implement');
+      expect(orient.proactiveIntel[0]?.type).toBe('ambient-briefing');
+      expect(plan.proactiveIntel[0]?.type).toBe('scope-analysis');
+      expect(implement.proactiveIntel[0]?.type).toBe('convention-alert');
+
+      expect(createTaskPhaseTransitionEvent).toHaveBeenCalledTimes(2);
+      expect(globalEventBus.emit).toHaveBeenCalledWith({ type: 'task_phase_transition' });
     });
   });
 

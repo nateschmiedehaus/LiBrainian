@@ -110,6 +110,26 @@ export function createTaskReceivedEvent(taskId: string, intent: string, scope?: 
   return { type: 'task_received', timestamp: new Date(), data: { taskId, intent, scope: scope ?? [] } };
 }
 
+export function createTaskPhaseTransitionEvent(
+  taskId: string,
+  fromPhase: string,
+  toPhase: string,
+  confidence: number,
+  signals?: string[]
+): LibrarianEvent {
+  return {
+    type: 'task_phase_transition',
+    timestamp: new Date(),
+    data: {
+      taskId,
+      fromPhase,
+      toPhase,
+      confidence,
+      signals: signals ?? [],
+    },
+  };
+}
+
 export function createTaskCompletedEvent(taskId: string, success: boolean, packsUsed?: string[], reason?: string, intent?: string): LibrarianEvent {
   return { type: 'task_completed', timestamp: new Date(), data: { taskId, success, packsUsed: packsUsed ?? [], reason, intent } };
 }

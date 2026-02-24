@@ -39,6 +39,7 @@ import {
 import {
   globalEventBus,
   createTaskReceivedEvent,
+  createTaskPhaseTransitionEvent,
   createTaskCompletedEvent,
   createTaskFailedEvent,
   createFileModifiedEvent,
@@ -289,6 +290,21 @@ export async function getTaskContext(
       affectedFiles: filesForNormSelection,
       previousPhase: request.previousPhase,
     });
+    if (
+      config.emitEvents !== false &&
+      phaseResult.detection.transitionedFrom !== undefined &&
+      phaseResult.detection.transitionedFrom !== phaseResult.detection.phase
+    ) {
+      void globalEventBus.emit(
+        createTaskPhaseTransitionEvent(
+          taskId,
+          phaseResult.detection.transitionedFrom,
+          phaseResult.detection.phase,
+          phaseResult.detection.confidence,
+          phaseResult.detection.signals
+        )
+      );
+    }
 
     // Format for prompt injection
     const formatted = appendPhaseIntelSection(

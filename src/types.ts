@@ -1881,6 +1881,7 @@ export type LibrarianEventType =
   | 'indexing_complete'
   | 'index:external_edges_resolved'
   | 'task_received'
+  | 'task_phase_transition'
   | 'task_completed'
   | 'task_failed'
   | 'file_modified'
