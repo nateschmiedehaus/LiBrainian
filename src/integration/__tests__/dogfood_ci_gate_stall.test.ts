@@ -103,6 +103,32 @@ process.exit(0);
     expect(result.status).not.toBe(0);
   });
 
+  it('does not classify timeout when silent command remains CPU-active', async () => {
+    const script = `
+const end = Date.now() + 2500;
+while (Date.now() < end) {
+  Math.sqrt(Math.random() * 1000);
+}
+process.exit(0);
+`;
+    const result = await runStreaming(
+      process.execPath,
+      ['-e', script],
+      {
+        allowFailure: true,
+        timeoutMs: 2000,
+        stallTimeoutMs: 0,
+      },
+    );
+    expect(result.status).toBe(0);
+    expect(result.timedOut).toBe(false);
+    expect(result.terminationReason).toBe(null);
+    const cpuProgressEvents = (result.heartbeatTimeline ?? []).filter(
+      (entry) => entry.event === 'cpu_progress',
+    );
+    expect(cpuProgressEvents.length).toBeGreaterThan(0);
+  });
+
   it('records bootstrap stage timeline when stage lines are emitted', async () => {
     const script = `
 process.stdout.write('LiBrainian Bootstrap\\n');

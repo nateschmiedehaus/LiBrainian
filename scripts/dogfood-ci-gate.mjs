@@ -504,10 +504,10 @@ async function runStreaming(command, args, options = {}) {
     }, 2000);
   };
 
-  const timeoutHandle = timeoutMs && timeoutMs > 0
-    ? setTimeout(() => terminateChild('timeout'), timeoutMs)
-    : null;
-  const stallHandle = stallTimeoutMs && stallTimeoutMs > 0
+  const livenessHandle = (
+    (stallTimeoutMs && stallTimeoutMs > 0)
+    || (timeoutMs && timeoutMs > 0)
+  )
     ? setInterval(() => {
       if (child.pid && child.pid > 0) {
         const cpuDiagnostics = collectProcessDiagnostics(child.pid);
@@ -527,10 +527,13 @@ async function runStreaming(command, args, options = {}) {
         }
         lastObservedCpuSec = cpuSummary.totalCpuSec;
       }
-      if (Date.now() - lastActivityAt > stallTimeoutMs) {
+      if (stallTimeoutMs && stallTimeoutMs > 0 && Date.now() - lastActivityAt > stallTimeoutMs) {
         terminateChild('stall');
       }
-    }, 1000)
+      if (timeoutMs && timeoutMs > 0 && Date.now() - lastActivityAt > timeoutMs) {
+        terminateChild('timeout');
+      }
+    }, 200)
     : null;
 
   const status = await new Promise((resolve) => {
@@ -545,8 +548,7 @@ async function runStreaming(command, args, options = {}) {
     });
   });
 
-  if (timeoutHandle) clearTimeout(timeoutHandle);
-  if (stallHandle) clearInterval(stallHandle);
+  if (livenessHandle) clearInterval(livenessHandle);
   if (recoveryAudit && recoveryAudit.scopeRootPid) {
     recoveryAudit.postTermination = collectProcessDiagnostics(recoveryAudit.scopeRootPid);
     recoveryAudit.targetStillAlivePids = recoveryAudit.targetDescendantPids.filter((pid) => isPidAlive(pid));
