@@ -33,6 +33,25 @@ describe('sqlite lock recovery on initialize', () => {
     expect(existsSync(lockPath)).toBe(false);
   });
 
+  it('recovers malformed sqlite files during initialize by quarantining and recreating storage', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    tempDirs.push(dir);
+    const dbPath = path.join(dir, 'librarian.sqlite');
+
+    await fs.writeFile(dbPath, 'not-a-valid-sqlite-db');
+    await fs.writeFile(dbPath + '-wal', 'wal');
+    await fs.writeFile(dbPath + '-shm', 'shm');
+
+    const storage = createSqliteStorage(dbPath, dir);
+    await expect(storage.initialize()).resolves.toBeUndefined();
+    await expect(storage.getVersion()).resolves.toBeNull();
+
+    const entries = await fs.readdir(dir);
+    expect(entries.some((entry) => entry.startsWith('librarian.sqlite.corrupt.'))).toBe(true);
+
+    await storage.close();
+  });
+
   it('uses a PID lock file instead of a heartbeat lock directory', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
     tempDirs.push(dir);

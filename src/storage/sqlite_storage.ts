@@ -125,7 +125,7 @@ import { LIBRARIAN_VERSION } from '../index.js';
 import { applyMigrations } from '../api/migrations.js';
 import { noResult } from '../api/empty_values.js';
 import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
-import { attemptStorageRecovery } from './storage_recovery.js';
+import { attemptStorageRecovery, isRecoverableStorageError } from './storage_recovery.js';
 import { TransactionConflictError } from './transactions.js';
 import { sha256Hex } from '../spine/hashes.js';
 import {
@@ -560,94 +560,115 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    if (this.usesProcessLock) {
-      await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
-      await fs.writeFile(this.dbPath, '', { flag: 'a' });
+    let attemptedCorruptionRecovery = false;
+    while (!this.initialized) {
+      if (this.usesProcessLock) {
+        await fs.mkdir(path.dirname(this.lockPath), { recursive: true });
+        await fs.writeFile(this.dbPath, '', { flag: 'a' });
 
-      // Proactively clear stale lock artifacts from prior interrupted runs.
-      try {
-        const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
-        if (proactiveRecovery.recovered) {
-          logWarning('Recovered stale lock state before acquisition', {
+        // Proactively clear stale lock artifacts from prior interrupted runs.
+        try {
+          const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+          if (proactiveRecovery.recovered) {
+            logWarning('Recovered stale lock state before acquisition', {
+              path: this.lockPath,
+              actions: proactiveRecovery.actions,
+            });
+          }
+        } catch (checkError) {
+          // Recovery check failed; direct acquisition path still handles stale locks.
+          logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
             path: this.lockPath,
-            actions: proactiveRecovery.actions,
+            error: checkError instanceof Error ? checkError.message : String(checkError),
           });
         }
-      } catch (checkError) {
-        // Recovery check failed; direct acquisition path still handles stale locks.
-        logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
-          path: this.lockPath,
-          error: checkError instanceof Error ? checkError.message : String(checkError),
-        });
+
+        try {
+          await this.acquireProcessLock();
+        } catch (error) {
+          const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+            recovered: false,
+            actions: [] as string[],
+            errors: [String(recoveryError)],
+          }));
+          if (!recovery.recovered) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`unverified_by_trace:storage_locked:${message}`);
+          }
+          logWarning('Recovered storage lock state; retrying lock acquisition', {
+            path: this.lockPath,
+            actions: recovery.actions,
+          });
+          try {
+            await this.acquireProcessLock();
+          } catch (retryError) {
+            const message = retryError instanceof Error ? retryError.message : String(retryError);
+            throw new Error(`unverified_by_trace:storage_locked:${message}`);
+          }
+        }
       }
 
       try {
-        await this.acquireProcessLock();
+        this.db = new Database(this.dbPath);
+        this.db.pragma('journal_mode = WAL');
+        this.db.pragma('synchronous = NORMAL');
+        this.db.pragma('foreign_keys = ON');
+        this.db.pragma('busy_timeout = 5000');
+
+        await applyMigrations(this.db, this.workspaceRoot);
+        this.ensureEmbeddingColumns();
+        this.ensureGraphTables();
+        this.ensureTemporalTables();
+        this.ensureEvidenceTables();
+        this.ensureEvidenceColumns();
+        this.ensureEvolutionTables();
+        this.ensureIndexCoordinationTables();
+        this.ensureConfidenceColumns();
+        this.ensureFunctionBehaviorColumns();
+        this.ensureContextPackOutcomeColumns();
+        this.ensureContextPackVersioningColumns();
+        this.ensureContextPackSeedingColumns();
+        this.ensureConfidenceEventColumns();
+        this.ensureUniversalKnowledgeTable();
+        this.ensureFileKnowledgeTable();
+        this.ensureDirectoryKnowledgeTable();
+        this.ensureAssessmentTable();
+        this.ensureAdvancedAnalysisTables();
+        this.ensureAdvancedLibraryFeaturesTables();
+        this.rebindWorkspacePathsIfNeeded();
+
+        this.initialized = true;
+        return;
       } catch (error) {
-        const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
-          recovered: false,
-          actions: [] as string[],
-          errors: [String(recoveryError)],
-        }));
-        if (!recovery.recovered) {
-          const message = error instanceof Error ? error.message : String(error);
-          throw new Error(`unverified_by_trace:storage_locked:${message}`);
+        if (this.db) {
+          this.db.close();
+          this.db = null;
         }
-        logWarning('Recovered storage lock state; retrying lock acquisition', {
-          path: this.lockPath,
-          actions: recovery.actions,
-        });
-        try {
-          await this.acquireProcessLock();
-        } catch (retryError) {
-          const message = retryError instanceof Error ? retryError.message : String(retryError);
-          throw new Error(`unverified_by_trace:storage_locked:${message}`);
+        if (this.releaseLock) {
+          await this.releaseLock().catch((lockError) => {
+            logWarning('Failed to release lock during initialization cleanup', { path: this.lockPath, error: lockError });
+          });
+          this.releaseLock = null;
         }
-      }
-    }
 
-    try {
-      this.db = new Database(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('synchronous = NORMAL');
-      this.db.pragma('foreign_keys = ON');
-      this.db.pragma('busy_timeout = 5000');
+        if (!attemptedCorruptionRecovery && this.dbPath !== ':memory:' && isRecoverableStorageError(error)) {
+          attemptedCorruptionRecovery = true;
+          const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+            recovered: false,
+            actions: [] as string[],
+            errors: [String(recoveryError)],
+          }));
+          if (recovery.recovered) {
+            logWarning('Recovered corrupt sqlite state during initialization; retrying open', {
+              path: this.dbPath,
+              actions: recovery.actions,
+            });
+            continue;
+          }
+        }
 
-      await applyMigrations(this.db, this.workspaceRoot);
-      this.ensureEmbeddingColumns();
-      this.ensureGraphTables();
-      this.ensureTemporalTables();
-      this.ensureEvidenceTables();
-      this.ensureEvidenceColumns();
-      this.ensureEvolutionTables();
-      this.ensureIndexCoordinationTables();
-      this.ensureConfidenceColumns();
-      this.ensureFunctionBehaviorColumns();
-      this.ensureContextPackOutcomeColumns();
-      this.ensureContextPackVersioningColumns();
-      this.ensureContextPackSeedingColumns();
-      this.ensureConfidenceEventColumns();
-      this.ensureUniversalKnowledgeTable();
-      this.ensureFileKnowledgeTable();
-      this.ensureDirectoryKnowledgeTable();
-      this.ensureAssessmentTable();
-      this.ensureAdvancedAnalysisTables();
-      this.ensureAdvancedLibraryFeaturesTables();
-      this.rebindWorkspacePathsIfNeeded();
-
-      this.initialized = true;
-    } catch (error) {
-      if (this.db) {
-        this.db.close();
-        this.db = null;
+        throw error;
       }
-      if (this.releaseLock) {
-        await this.releaseLock().catch((lockError) => {
-          logWarning('Failed to release lock during initialization cleanup', { path: this.lockPath, error: lockError });
-        });
-        this.releaseLock = null;
-      }
-      throw error;
     }
   }
 
