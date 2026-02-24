@@ -1272,11 +1272,40 @@ export interface QueryDiagnostics {
 
 export type SynthesisMode = 'llm' | 'heuristic' | 'cache';
 
+export interface RiskHighlight {
+  entity: string;
+  risk: 'HIGH' | 'CRITICAL';
+  rationale: string;
+}
+
+export interface StabilityAlert {
+  entity: string;
+  changes: number;
+  period: string;
+  trend: 'increasing' | 'stable' | 'decreasing';
+}
+
+export interface OwnershipContext {
+  entity: string;
+  owner: string;
+  lastActive: string;
+}
+
+export interface EntityIntel {
+  entity: string;
+  maintainabilityIndex?: number;
+  coChangesWith?: string[];
+}
+
 export interface LibrarianResponse {
   query: LibrarianQuery;
   intentType?: QueryIntentType;
   contract?: QueryResultContract;
   packs: ContextPack[];
+  riskHighlights?: RiskHighlight[];
+  stabilityAlerts?: StabilityAlert[];
+  ownershipContext?: OwnershipContext[];
+  entityIntel?: EntityIntel[];
   disclosures: string[];
   verificationPlan?: VerificationPlan;
   adequacy?: AdequacyReport;

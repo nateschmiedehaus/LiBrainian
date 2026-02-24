@@ -126,6 +126,7 @@ import { runSymbolLookupStage } from './symbol_lookup.js';
 import { runComparisonLookupStage, type ComparisonLookupStageResult } from './comparison_lookup.js';
 import { runGitQueryStage, type GitQueryStageResult } from './git_query.js';
 import { buildQueryResultContract, normalizeQueryIntentType } from './query_contracts.js';
+import { buildQueryIntelSections } from './query_intel.js';
 import {
   buildCoreMemoryDisclosure,
   getSessionState,
@@ -3223,10 +3224,35 @@ export async function queryLibrarian(
     finalPacks[0].isPrimaryResult = true;
   }
 
+  let queryIntelSections: Pick<LibrarianResponse, 'riskHighlights' | 'stabilityAlerts' | 'ownershipContext' | 'entityIntel'> = {};
+  try {
+    const fallbackTokenBudget = estimateTokenCount(
+      JSON.stringify({
+        packs: finalPacks.map((pack) => ({
+          summary: pack.summary,
+          keyFacts: pack.keyFacts,
+          codeSnippets: pack.codeSnippets.map((snippet) => snippet.content),
+        })),
+        synthesis: synthesis?.answer,
+      })
+    );
+    queryIntelSections = await buildQueryIntelSections({
+      storage,
+      packs: finalPacks,
+      depth: query.depth ?? 'L1',
+      workspaceRoot,
+      maxResponseTokens: tokenBudgetResult?.totalAvailable ?? query.tokenBudget?.maxTokens ?? fallbackTokenBudget,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logWarning(`Query intel projection failed: ${message}`);
+  }
+
   const response = {
     query,
     intentType: query.intentType,
     packs: finalPacks,
+    ...queryIntelSections,
     disclosures,
     verificationPlan: verificationPlan ?? undefined,
     adequacy: adequacyReport ?? undefined,
