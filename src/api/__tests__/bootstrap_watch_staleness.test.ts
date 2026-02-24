@@ -44,7 +44,7 @@ describe('isBootstrapRequired watch freshness checks', () => {
   it('requires bootstrap when git cursor lags HEAD and marks catch-up', async () => {
     const { isBootstrapRequired } = await import('../bootstrap.js');
     const { getWatchState, updateWatchState } = await import('../../state/watch_state.js');
-    const { getCurrentGitSha } = await import('../../utils/git.js');
+    const { getCurrentGitSha, getGitCommitRelation } = await import('../../utils/git.js');
 
     vi.mocked(getWatchState).mockResolvedValue({
       schema_version: 1,
@@ -59,12 +59,70 @@ describe('isBootstrapRequired watch freshness checks', () => {
       cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
     }));
     vi.mocked(getCurrentGitSha).mockReturnValue('def456');
+    vi.mocked(getGitCommitRelation).mockReturnValue('indexed_ancestor');
 
     const result = await isBootstrapRequired('/tmp/workspace', createStorageStub());
 
     expect(result.required).toBe(true);
     expect(result.reason).toContain('Index is stale relative to git HEAD');
+    expect(result.reason).toContain('new commits detected on current lineage');
     expect(result.reason).toContain('Run `librarian bootstrap');
+    expect(vi.mocked(updateWatchState)).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces force remediation when HEAD moves behind indexed commit', async () => {
+    const { isBootstrapRequired } = await import('../bootstrap.js');
+    const { getWatchState, updateWatchState } = await import('../../state/watch_state.js');
+    const { getCurrentGitSha, getGitCommitRelation } = await import('../../utils/git.js');
+
+    vi.mocked(getWatchState).mockResolvedValue({
+      schema_version: 1,
+      workspace_root: '/tmp/workspace',
+      needs_catchup: false,
+      cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
+    });
+    vi.mocked(updateWatchState).mockImplementation(async (_storage, updater) => updater({
+      schema_version: 1,
+      workspace_root: '/tmp/workspace',
+      needs_catchup: false,
+      cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
+    }));
+    vi.mocked(getCurrentGitSha).mockReturnValue('def456');
+    vi.mocked(getGitCommitRelation).mockReturnValue('head_ancestor');
+
+    const result = await isBootstrapRequired('/tmp/workspace', createStorageStub());
+
+    expect(result.required).toBe(true);
+    expect(result.reason).toContain('branch/reset moved HEAD behind indexed commit');
+    expect(result.reason).toContain('bootstrap --force');
+    expect(vi.mocked(updateWatchState)).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces rewritten-history remediation when branches diverge', async () => {
+    const { isBootstrapRequired } = await import('../bootstrap.js');
+    const { getWatchState, updateWatchState } = await import('../../state/watch_state.js');
+    const { getCurrentGitSha, getGitCommitRelation } = await import('../../utils/git.js');
+
+    vi.mocked(getWatchState).mockResolvedValue({
+      schema_version: 1,
+      workspace_root: '/tmp/workspace',
+      needs_catchup: false,
+      cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
+    });
+    vi.mocked(updateWatchState).mockImplementation(async (_storage, updater) => updater({
+      schema_version: 1,
+      workspace_root: '/tmp/workspace',
+      needs_catchup: false,
+      cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
+    }));
+    vi.mocked(getCurrentGitSha).mockReturnValue('def456');
+    vi.mocked(getGitCommitRelation).mockReturnValue('diverged');
+
+    const result = await isBootstrapRequired('/tmp/workspace', createStorageStub());
+
+    expect(result.required).toBe(true);
+    expect(result.reason).toContain('history diverged (rebase/rewrite/switch)');
+    expect(result.reason).toContain('bootstrap --force');
     expect(vi.mocked(updateWatchState)).toHaveBeenCalledTimes(1);
   });
 

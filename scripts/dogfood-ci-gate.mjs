@@ -6,6 +6,26 @@ import { fileURLToPath } from 'node:url';
 
 const ARTIFACT_KIND = 'CleanCloneSelfHostingArtifact.v1';
 const MIN_SEMANTIC_COVERAGE_PCT = 80;
+const DURABILITY_RELATION_EXPECTATIONS = [
+  {
+    scenario: 'branch_switch',
+    relation: 'indexed_ancestor',
+    reasonPattern: /new commits detected on current lineage/iu,
+    remediationPattern: /Run `librarian bootstrap`/u,
+  },
+  {
+    scenario: 'history_rewrite',
+    relation: 'head_ancestor',
+    reasonPattern: /branch\/reset moved HEAD behind indexed commit/iu,
+    remediationPattern: /bootstrap --force/iu,
+  },
+  {
+    scenario: 'rebase_divergence',
+    relation: 'diverged',
+    reasonPattern: /history diverged \(rebase\/rewrite\/switch\)/iu,
+    remediationPattern: /bootstrap --force/iu,
+  },
+];
 const QUESTION_SPECS = [
   {
     question: 'Where is the MCP server initialized?',
@@ -49,6 +69,20 @@ function extractLockSignals(text) {
 
 function getErrorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function extractBootstrapDriftRelation(reason) {
+  const normalized = String(reason ?? '');
+  if (/new commits detected on current lineage/iu.test(normalized)) {
+    return 'indexed_ancestor';
+  }
+  if (/branch\/reset moved HEAD behind indexed commit/iu.test(normalized)) {
+    return 'head_ancestor';
+  }
+  if (/history diverged \(rebase\/rewrite\/switch\)/iu.test(normalized)) {
+    return 'diverged';
+  }
+  return 'unknown';
 }
 
 function parseElapsedSeconds(value) {
@@ -546,6 +580,393 @@ function createTempJsonPath(prefix) {
   return path.join(dir, `${prefix}.json`);
 }
 
+function runGit(cleanCloneWorkspace, args, commands, commandName, timeoutMs) {
+  const result = run('git', args, {
+    allowFailure: true,
+    cwd: cleanCloneWorkspace,
+    timeoutMs,
+  });
+  const pass = result.status === 0;
+  commands.push(commandRecord(commandName, result, pass));
+  if (!pass) {
+    fail(`Git command failed (${commandName}): ${toSingleLine(result.stderr || result.stdout)}`);
+  }
+  return result;
+}
+
+function summarizeStatusReport(statusReport) {
+  return {
+    storage: statusReport.storage?.status ?? null,
+    bootstrapRequired: Boolean(statusReport.bootstrap?.required?.mvp),
+    bootstrapReason: statusReport.bootstrap?.reasons?.mvp ?? null,
+    totalFunctions: Number(statusReport.stats?.totalFunctions ?? 0),
+    totalEmbeddings: Number(statusReport.stats?.totalEmbeddings ?? 0),
+    embeddingCoveragePct:
+      typeof statusReport.embeddingCoverage?.coveragePct === 'number'
+        ? statusReport.embeddingCoverage.coveragePct
+        : null,
+  };
+}
+
+function runStatusJson(sourceWorkspace, cleanCloneWorkspace, cliEnv, commandTimeoutMs, commands, commandName, statusOutPrefix) {
+  const statusOut = createTempJsonPath(statusOutPrefix);
+  const statusResult = runCli(
+    sourceWorkspace,
+    cleanCloneWorkspace,
+    ['status', '--format', 'json', '--out', statusOut],
+    { allowFailure: true, env: cliEnv, timeoutMs: commandTimeoutMs },
+  );
+  const statusPass = statusResult.status === 0 || fs.existsSync(statusOut);
+  commands.push(commandRecord(commandName, statusResult, statusPass, { outputFile: statusOut }));
+  if (statusResult.status !== 0 && !fs.existsSync(statusOut)) {
+    fail(`Status command failed before producing JSON output (${commandName}).`);
+  }
+  const statusReport = JSON.parse(fs.readFileSync(statusOut, 'utf8'));
+  return {
+    outputFile: statusOut,
+    commandResult: statusResult,
+    pass: statusPass,
+    statusReport,
+    summary: summarizeStatusReport(statusReport),
+  };
+}
+
+function runUpdateAndRecord(sourceWorkspace, cleanCloneWorkspace, cliEnv, commandTimeoutMs, commands, commandName) {
+  const updateResult = runCli(sourceWorkspace, cleanCloneWorkspace, ['update'], {
+    allowFailure: true,
+    env: cliEnv,
+    timeoutMs: commandTimeoutMs,
+  });
+  const updateOutput = `${updateResult.stdout ?? ''}\n${updateResult.stderr ?? ''}`;
+  const updateNoChanges = isUpdateNoopOutput(updateOutput);
+  const updatePass = updateResult.status === 0 || updateNoChanges;
+  commands.push(commandRecord(commandName, updateResult, updatePass, { skippedNoChanges: updateNoChanges }));
+  if (!updatePass) {
+    fail(`Update failed (${commandName}): ${toSingleLine(updateResult.stderr || updateResult.stdout)}`);
+  }
+  return {
+    status: updateResult.status,
+    skippedNoChanges: updateNoChanges,
+    pass: updatePass,
+  };
+}
+
+function runQuerySmoke(sourceWorkspace, cleanCloneWorkspace, cliEnv, commandTimeoutMs, commands, commandName, questionSpec) {
+  const queryResult = runCli(sourceWorkspace, cleanCloneWorkspace, [
+    'query',
+    questionSpec.question,
+  ], { allowFailure: true, env: cliEnv, timeoutMs: commandTimeoutMs });
+  commands.push(commandRecord(commandName, queryResult, queryResult.status === 0));
+  if (queryResult.status !== 0) {
+    fail(`Query failed (${commandName}) for "${questionSpec.question}": ${toSingleLine(queryResult.stderr || queryResult.stdout)}`);
+  }
+  const payload = `${queryResult.stdout}\n${queryResult.stderr}`;
+  assertQueryResult(questionSpec, payload);
+  const packCount = Number((payload.match(/Packs Found\s*:\s*(\d+)/iu)?.[1] ?? '0'));
+  return {
+    question: questionSpec.question,
+    packCount,
+    pass: true,
+  };
+}
+
+function runDurabilityScenarios(sourceWorkspace, cleanCloneWorkspace, cliEnv, commandTimeoutMs, commands) {
+  const scenarios = [];
+  const questionSpec = QUESTION_SPECS[0];
+
+  runGit(cleanCloneWorkspace, ['config', 'user.email', 'dogfood-ci@librainian.invalid'], commands, 'git.config.email', commandTimeoutMs);
+  runGit(cleanCloneWorkspace, ['config', 'user.name', 'LiBrainian Dogfood CI'], commands, 'git.config.name', commandTimeoutMs);
+  const baseBranch = runGit(cleanCloneWorkspace, ['branch', '--show-current'], commands, 'git.branch.current', commandTimeoutMs).stdout || 'main';
+
+  {
+    const expectation = DURABILITY_RELATION_EXPECTATIONS[0];
+    const branchName = 'dogfood-drift-branch-switch';
+    const scenario = {
+      scenario: expectation.scenario,
+      expectedRelation: expectation.relation,
+      preStatus: null,
+      driftStatus: null,
+      recoveredStatus: null,
+      driftDetected: false,
+      relation: 'unknown',
+      remediationApplied: null,
+      querySmoke: null,
+      pass: false,
+    };
+    try {
+      scenario.preStatus = runStatusJson(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.status.branch_switch.pre',
+        'status-branch-switch-pre',
+      ).summary;
+      runGit(cleanCloneWorkspace, ['checkout', '-b', branchName], commands, 'git.branch_switch.checkout', commandTimeoutMs);
+      runGit(
+        cleanCloneWorkspace,
+        ['commit', '--allow-empty', '-m', 'dogfood: branch switch drift commit'],
+        commands,
+        'git.branch_switch.commit',
+        commandTimeoutMs,
+      );
+      const drift = runStatusJson(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.status.branch_switch.drift',
+        'status-branch-switch-drift',
+      );
+      scenario.driftStatus = drift.summary;
+      scenario.relation = extractBootstrapDriftRelation(drift.summary.bootstrapReason);
+      scenario.driftDetected =
+        drift.summary.bootstrapRequired
+        && expectation.reasonPattern.test(String(drift.summary.bootstrapReason ?? ''))
+        && expectation.remediationPattern.test(String(drift.summary.bootstrapReason ?? ''))
+        && scenario.relation === expectation.relation;
+      scenario.remediationApplied = runUpdateAndRecord(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.update.branch_switch.recover',
+      );
+      const recovered = runStatusJson(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.status.branch_switch.recovered',
+        'status-branch-switch-recovered',
+      );
+      scenario.recoveredStatus = recovered.summary;
+      scenario.querySmoke = runQuerySmoke(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.query.branch_switch.smoke',
+        questionSpec,
+      );
+      scenario.pass = scenario.driftDetected && !recovered.summary.bootstrapRequired && scenario.querySmoke.pass;
+      if (!scenario.pass) {
+        fail('Durability scenario branch_switch failed deterministic drift/recovery checks.');
+      }
+    } finally {
+      run('git', ['checkout', baseBranch], { allowFailure: true, cwd: cleanCloneWorkspace, timeoutMs: commandTimeoutMs });
+      run('git', ['branch', '-D', branchName], { allowFailure: true, cwd: cleanCloneWorkspace, timeoutMs: commandTimeoutMs });
+    }
+    scenarios.push(scenario);
+  }
+
+  {
+    const expectation = DURABILITY_RELATION_EXPECTATIONS[1];
+    const scenario = {
+      scenario: expectation.scenario,
+      expectedRelation: expectation.relation,
+      preStatus: null,
+      driftStatus: null,
+      recoveredStatus: null,
+      driftDetected: false,
+      relation: 'unknown',
+      remediationApplied: null,
+      querySmoke: null,
+      pass: false,
+    };
+    scenario.preStatus = runStatusJson(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.status.history_rewrite.pre',
+      'status-history-rewrite-pre',
+    ).summary;
+    runGit(
+      cleanCloneWorkspace,
+      ['commit', '--allow-empty', '-m', 'dogfood: history rewrite temp commit'],
+      commands,
+      'git.history_rewrite.commit',
+      commandTimeoutMs,
+    );
+    runUpdateAndRecord(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.update.history_rewrite.align',
+    );
+    runGit(cleanCloneWorkspace, ['reset', '--hard', 'HEAD~1'], commands, 'git.history_rewrite.reset', commandTimeoutMs);
+    const drift = runStatusJson(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.status.history_rewrite.drift',
+      'status-history-rewrite-drift',
+    );
+    scenario.driftStatus = drift.summary;
+    scenario.relation = extractBootstrapDriftRelation(drift.summary.bootstrapReason);
+    scenario.driftDetected =
+      drift.summary.bootstrapRequired
+      && expectation.reasonPattern.test(String(drift.summary.bootstrapReason ?? ''))
+      && expectation.remediationPattern.test(String(drift.summary.bootstrapReason ?? ''))
+      && scenario.relation === expectation.relation;
+    scenario.remediationApplied = runUpdateAndRecord(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.update.history_rewrite.recover',
+    );
+    const recovered = runStatusJson(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.status.history_rewrite.recovered',
+      'status-history-rewrite-recovered',
+    );
+    scenario.recoveredStatus = recovered.summary;
+    scenario.querySmoke = runQuerySmoke(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.query.history_rewrite.smoke',
+      questionSpec,
+    );
+    scenario.pass = scenario.driftDetected && !recovered.summary.bootstrapRequired && scenario.querySmoke.pass;
+    if (!scenario.pass) {
+      fail('Durability scenario history_rewrite failed deterministic drift/recovery checks.');
+    }
+    scenarios.push(scenario);
+  }
+
+  {
+    const expectation = DURABILITY_RELATION_EXPECTATIONS[2];
+    const branchName = 'dogfood-drift-diverged';
+    const scenario = {
+      scenario: expectation.scenario,
+      expectedRelation: expectation.relation,
+      preStatus: null,
+      driftStatus: null,
+      recoveredStatus: null,
+      driftDetected: false,
+      relation: 'unknown',
+      remediationApplied: null,
+      querySmoke: null,
+      pass: false,
+    };
+    try {
+      scenario.preStatus = runStatusJson(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.status.rebase_divergence.pre',
+        'status-rebase-divergence-pre',
+      ).summary;
+      runGit(
+        cleanCloneWorkspace,
+        ['commit', '--allow-empty', '-m', 'dogfood: divergence anchor commit'],
+        commands,
+        'git.rebase_divergence.anchor_commit',
+        commandTimeoutMs,
+      );
+      runUpdateAndRecord(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.update.rebase_divergence.align',
+      );
+      const anchorSha = runGit(
+        cleanCloneWorkspace,
+        ['rev-parse', 'HEAD~1'],
+        commands,
+        'git.rebase_divergence.anchor_sha',
+        commandTimeoutMs,
+      ).stdout;
+      runGit(cleanCloneWorkspace, ['checkout', '-b', branchName, anchorSha], commands, 'git.rebase_divergence.checkout', commandTimeoutMs);
+      runGit(
+        cleanCloneWorkspace,
+        ['commit', '--allow-empty', '-m', 'dogfood: divergence branch commit'],
+        commands,
+        'git.rebase_divergence.commit',
+        commandTimeoutMs,
+      );
+      const drift = runStatusJson(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.status.rebase_divergence.drift',
+        'status-rebase-divergence-drift',
+      );
+      scenario.driftStatus = drift.summary;
+      scenario.relation = extractBootstrapDriftRelation(drift.summary.bootstrapReason);
+      scenario.driftDetected =
+        drift.summary.bootstrapRequired
+        && expectation.reasonPattern.test(String(drift.summary.bootstrapReason ?? ''))
+        && expectation.remediationPattern.test(String(drift.summary.bootstrapReason ?? ''))
+        && scenario.relation === expectation.relation;
+      scenario.remediationApplied = runUpdateAndRecord(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.update.rebase_divergence.recover',
+      );
+      const recovered = runStatusJson(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.status.rebase_divergence.recovered',
+        'status-rebase-divergence-recovered',
+      );
+      scenario.recoveredStatus = recovered.summary;
+      scenario.querySmoke = runQuerySmoke(
+        sourceWorkspace,
+        cleanCloneWorkspace,
+        cliEnv,
+        commandTimeoutMs,
+        commands,
+        'librainian.query.rebase_divergence.smoke',
+        questionSpec,
+      );
+      scenario.pass = scenario.driftDetected && !recovered.summary.bootstrapRequired && scenario.querySmoke.pass;
+      if (!scenario.pass) {
+        fail('Durability scenario rebase_divergence failed deterministic drift/recovery checks.');
+      }
+    } finally {
+      run('git', ['checkout', baseBranch], { allowFailure: true, cwd: cleanCloneWorkspace, timeoutMs: commandTimeoutMs });
+      run('git', ['branch', '-D', branchName], { allowFailure: true, cwd: cleanCloneWorkspace, timeoutMs: commandTimeoutMs });
+      run('git', ['reset', '--hard', 'HEAD~1'], { allowFailure: true, cwd: cleanCloneWorkspace, timeoutMs: commandTimeoutMs });
+    }
+    scenarios.push(scenario);
+  }
+
+  return scenarios;
+}
+
 function assertHealthyStatus(statusReport) {
   if (statusReport.storage?.status !== 'ready') {
     fail(`Status storage is not ready: ${statusReport.storage?.status ?? 'unknown'}`);
@@ -638,8 +1059,14 @@ function writeArtifact(artifactPath, artifact) {
   if (!Array.isArray(parsed.queryChecks)) {
     fail('Artifact parse check failed: queryChecks[] missing');
   }
+  if (!Array.isArray(parsed.durabilityScenarios)) {
+    fail('Artifact parse check failed: durabilityScenarios[] missing');
+  }
   if (parsed.pass === true && parsed.queryChecks.length === 0) {
     fail('Artifact parse check failed: successful run must include queryChecks[] entries');
+  }
+  if (parsed.pass === true && parsed.durabilityScenarios.length === 0) {
+    fail('Artifact parse check failed: successful run must include durabilityScenarios[] entries');
   }
   return absolutePath;
 }
@@ -694,9 +1121,11 @@ async function main() {
       noRuntimeImportCrash: false,
       noZeroIndex: false,
       relevantQueryResults: false,
+      durabilityScenarios: false,
     },
     status: null,
     queryChecks,
+    durabilityScenarios: [],
     commands,
     lockSignals: [],
     error: null,
@@ -746,45 +1175,22 @@ async function main() {
     artifact.checks.bootstrapSucceeded = true;
 
     console.log('[dogfood-ci] Running update in clean clone');
-    const updateResult = runCli(sourceWorkspace, cleanCloneWorkspace, ['update'], {
-      allowFailure: true,
-      env: cliEnv,
-      timeoutMs: commandTimeoutMs,
-    });
-    const updateOutput = `${updateResult.stdout ?? ''}\n${updateResult.stderr ?? ''}`;
-    const updateNoChanges = isUpdateNoopOutput(updateOutput);
-    const updatePass = updateResult.status === 0 || updateNoChanges;
-    commands.push(commandRecord('librainian.update', updateResult, updatePass, { skippedNoChanges: updateNoChanges }));
-    if (!updatePass) {
-      fail(`Update failed: ${toSingleLine(updateResult.stderr || updateResult.stdout)}`);
-    }
+    runUpdateAndRecord(sourceWorkspace, cleanCloneWorkspace, cliEnv, commandTimeoutMs, commands, 'librainian.update');
     artifact.checks.updateSucceeded = true;
 
     console.log('[dogfood-ci] Running status in clean clone');
-    const statusOut = createTempJsonPath('status');
-    const statusResult = runCli(
+    const statusCheck = runStatusJson(
       sourceWorkspace,
       cleanCloneWorkspace,
-      ['status', '--format', 'json', '--out', statusOut],
-      { allowFailure: true, env: cliEnv, timeoutMs: commandTimeoutMs },
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+      'librainian.status',
+      'status',
     );
-    const statusPass = statusResult.status === 0 || fs.existsSync(statusOut);
-    commands.push(commandRecord('librainian.status', statusResult, statusPass, { outputFile: statusOut }));
-    if (statusResult.status !== 0 && !fs.existsSync(statusOut)) {
-      fail('Status command failed before producing JSON output.');
-    }
-    const statusReport = JSON.parse(fs.readFileSync(statusOut, 'utf8'));
-    artifact.status = {
-      storage: statusReport.storage?.status ?? null,
-      bootstrapRequired: Boolean(statusReport.bootstrap?.required?.mvp),
-      totalFunctions: Number(statusReport.stats?.totalFunctions ?? 0),
-      totalEmbeddings: Number(statusReport.stats?.totalEmbeddings ?? 0),
-      embeddingCoveragePct:
-        typeof statusReport.embeddingCoverage?.coveragePct === 'number'
-          ? statusReport.embeddingCoverage.coveragePct
-          : null,
-    };
-    artifact.checks.statusSucceeded = statusPass;
+    const statusReport = statusCheck.statusReport;
+    artifact.status = statusCheck.summary;
+    artifact.checks.statusSucceeded = statusCheck.pass;
     if (!skipHealthAssert) {
       assertHealthyStatus(statusReport);
     } else {
@@ -818,6 +1224,15 @@ async function main() {
     });
 
     artifact.checks.relevantQueryResults = queryChecks.every((check) => check.pass);
+    console.log('[dogfood-ci] Running self-index durability scenarios');
+    artifact.durabilityScenarios = runDurabilityScenarios(
+      sourceWorkspace,
+      cleanCloneWorkspace,
+      cliEnv,
+      commandTimeoutMs,
+      commands,
+    );
+    artifact.checks.durabilityScenarios = artifact.durabilityScenarios.every((scenario) => scenario.pass === true);
     artifact.checks.noRuntimeImportCrash = commands.every((command) => command.pass === true);
     artifact.lockSignals = commands
       .filter((command) => Array.isArray(command.lockSignals) && command.lockSignals.length > 0)
@@ -857,4 +1272,4 @@ if (isDirectExecution) {
   });
 }
 
-export { isUpdateNoopOutput, parseArgs, runStreaming };
+export { extractBootstrapDriftRelation, isUpdateNoopOutput, parseArgs, runStreaming };
