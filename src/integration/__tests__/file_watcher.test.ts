@@ -148,7 +148,10 @@ describe('file_watcher', () => {
     if (!captured) throw new Error('Expected file watcher callback to be registered');
     (captured as unknown as (event: string, filename: string) => void)('change', 'src/a.ts');
 
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await waitForCondition(
+      () => librarian.reindexFiles.mock.calls.length === 1,
+      { timeoutMs: 2_000, intervalMs: 25 },
+    );
     await flushPromises();
 
     expect(librarian.reindexFiles).not.toHaveBeenCalled();
