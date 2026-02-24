@@ -40,6 +40,9 @@ function main() {
     'No files specified',
     'ProviderUnavailable',
     'spawn tsx ENOENT',
+    'EBOOTSTRAP_FAILED',
+    'Model policy provider not registered',
+    'LLM adapter is not registered',
   ];
   const isSoftFailure = softFailureReasons.some((reason) => combined.includes(reason));
 
