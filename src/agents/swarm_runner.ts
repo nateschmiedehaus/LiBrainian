@@ -115,6 +115,8 @@ export interface SwarmRunnerOptions {
   progressCallback?: (progress: { total: number; completed: number; currentFile?: string }) => void;
   /** Force re-indexing of all files, ignoring checkpoint cache */
   forceReindex?: boolean;
+  /** Persist graph metrics from in-memory accumulator at end of run. */
+  persistGraphMetrics?: boolean;
 }
 
 export class SwarmRunner {
@@ -137,6 +139,7 @@ export class SwarmRunner {
   private readonly governor?: GovernorContext;
   private readonly progressCallback?: (progress: { total: number; completed: number; currentFile?: string }) => void;
   private readonly forceReindex: boolean;
+  private readonly persistGraphMetricsEnabled: boolean;
 
   constructor(options: SwarmRunnerOptions) {
     this.storage = options.storage;
@@ -158,6 +161,7 @@ export class SwarmRunner {
     this.governor = options.governor;
     this.progressCallback = options.progressCallback;
     this.forceReindex = options.forceReindex ?? false;
+    this.persistGraphMetricsEnabled = options.persistGraphMetrics ?? true;
   }
   /**
    * Build configuration fingerprint for checkpoint invalidation.
@@ -211,6 +215,7 @@ export class SwarmRunner {
       useAstIndexer: this.useAstIndexer,
       generateEmbeddings: this.generateEmbeddings ?? true,
       createContextPacks: false,
+      resolveExternalCallEdges: false,
       enableLlmAnalysis: this.enableLlmAnalysis ?? false,
       embeddingBatchSize: this.embeddingBatchSize,
       llmProvider: this.llmProvider,
@@ -317,8 +322,27 @@ export class SwarmRunner {
 
     await Promise.all(workers.map((worker) => runWorker(worker)));
     await checkpointQueue;
+    if (workers.length > 0) {
+      try {
+        const resolveResult = await workers[0].resolveExternalCallEdges();
+        if (resolveResult.resolved > 0) {
+          const pct = resolveResult.total > 0
+            ? Math.round((resolveResult.resolved / resolveResult.total) * 100)
+            : 0;
+          console.error(
+            `[SwarmRunner] Resolved ${resolveResult.resolved}/${resolveResult.total} external edges (${pct}%)`,
+          );
+        }
+      } catch (error) {
+        errors.push(
+          `external_edge_resolution: ${sanitizeForLog(error instanceof Error ? error.message : String(error))}`,
+        );
+      }
+    }
     await Promise.all(workers.map((worker) => worker.shutdown()));
-    await persistGraphMetrics(this.storage, graphAccumulator, this.workspace);
+    if (this.persistGraphMetricsEnabled) {
+      await persistGraphMetrics(this.storage, graphAccumulator, this.workspace);
+    }
 
     return { files: filesProcessed, functions: functionsIndexed, errors };
   }

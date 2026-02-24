@@ -134,6 +134,9 @@ export interface IndexLiBrainianConfig {
 
   /** Force reindexing regardless of checksum */
   forceReindex?: boolean;
+
+  /** Resolve cross-file external call edges at end of task. */
+  resolveExternalCallEdges?: boolean;
 }
 
 export const DEFAULT_CONFIG: IndexLiBrainianConfig = {
@@ -150,6 +153,7 @@ export const DEFAULT_CONFIG: IndexLiBrainianConfig = {
   fileTimeoutMs: 0,
   fileTimeoutRetries: 0,
   fileTimeoutPolicy: 'skip',
+  resolveExternalCallEdges: true,
 };
 
 const DEFAULT_EMBEDDING_INPUT_LIMIT = 256;
@@ -412,24 +416,26 @@ export class IndexLiBrainian implements IndexingAgent {
       }
     }
 
-    // Resolve external call edges to actual function IDs now that all files are indexed
-    // This enables accurate cross-file call graph queries
-    try {
-      const resolveResult = await this.resolveExternalCallEdges();
-      if (resolveResult.resolved > 0) {
-        // Log resolution stats for debugging
-        const { resolved, total } = resolveResult;
-        const pct = total > 0 ? Math.round((resolved / total) * 100) : 0;
-        // Non-blocking: just track for debugging
-        void globalEventBus.emit({
-          type: 'index:external_edges_resolved',
-          timestamp: new Date(),
-          data: { resolved, total, percentage: pct },
-        });
+    if (this.config.resolveExternalCallEdges !== false) {
+      // Resolve external call edges to actual function IDs now that all files are indexed.
+      // This enables accurate cross-file call graph queries.
+      try {
+        const resolveResult = await this.resolveExternalCallEdges();
+        if (resolveResult.resolved > 0) {
+          // Log resolution stats for debugging
+          const { resolved, total } = resolveResult;
+          const pct = total > 0 ? Math.round((resolved / total) * 100) : 0;
+          // Non-blocking: just track for debugging
+          void globalEventBus.emit({
+            type: 'index:external_edges_resolved',
+            timestamp: new Date(),
+            data: { resolved, total, percentage: pct },
+          });
+        }
+      } catch (error: unknown) {
+        const message = getErrorMessage(error);
+        errors.push({ path: 'external_edge_resolution', error: message, recoverable: true });
       }
-    } catch (error: unknown) {
-      const message = getErrorMessage(error);
-      errors.push({ path: 'external_edge_resolution', error: message, recoverable: true });
     }
 
     if (ownsAccumulator) {

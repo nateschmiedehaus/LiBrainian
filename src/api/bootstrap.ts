@@ -3624,6 +3624,7 @@ async function runSemanticIndexing(
       workspace: phaseConfig.workspace,
       maxWorkers,
       maxFileSizeBytes: phaseConfig.maxFileSizeBytes,
+      persistGraphMetrics: phaseConfig.bootstrapMode !== 'fast',
       useAstIndexer: phaseConfig.useAstIndexer,
       generateEmbeddings,
       enableLlmAnalysis: phaseConfig.bootstrapMode === 'full' && !phaseConfig.skipLlm,

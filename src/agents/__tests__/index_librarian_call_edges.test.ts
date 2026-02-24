@@ -76,6 +76,7 @@ function buildStorage(
     initialize: vi.fn(async () => undefined),
     isInitialized: vi.fn(() => true),
     transaction: vi.fn(async (run: (ctx: TransactionContext) => Promise<unknown>) => run(tx)),
+    recordIndexingResult: vi.fn(async () => undefined),
     getFileChecksum: vi.fn(async () => null),
     getFunctionByPath: vi.fn(async () => null),
     getModuleByPath: vi.fn(async () => null),
@@ -204,6 +205,41 @@ describe('IndexLibrarian call-edge persistence', () => {
         }),
       ])
     );
+  });
+
+  it('skips per-task external edge resolution when disabled in config', async () => {
+    const tx = buildTx();
+    const storage = buildStorage(tx);
+
+    const librarian = new IndexLibrarian({
+      generateEmbeddings: false,
+      createContextPacks: false,
+      computeGraphMetrics: false,
+      resolveExternalCallEdges: false,
+    });
+    await librarian.initialize(storage);
+
+    vi.spyOn(librarian, 'indexFile').mockResolvedValue({
+      filePath: '/tmp/single.ts',
+      functionsFound: 0,
+      functionsIndexed: 0,
+      moduleIndexed: false,
+      contextPacksCreated: 0,
+      durationMs: 1,
+      errors: [],
+    });
+    const resolveSpy = vi.spyOn(librarian, 'resolveExternalCallEdges');
+
+    const result = await librarian.processTask({
+      type: 'targeted',
+      paths: ['/tmp/single.ts'],
+      priority: 'high',
+      reason: 'test',
+      triggeredBy: 'manual',
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(resolveSpy).not.toHaveBeenCalled();
   });
 
   it('adds semantic entanglement edges from co-call patterns', async () => {
