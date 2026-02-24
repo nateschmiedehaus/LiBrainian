@@ -37,3 +37,4 @@ This gate enforces that at least 5 known patrol findings remain covered and pass
 ## Template
 
 Use `docs/librarian/templates/PATROL_REGRESSION_TEST_TEMPLATE.md` for all new patrol findings.
+Use `docs/librarian/templates/ISSUE_CLOSURE_EVIDENCE_TEMPLATE.md` for all M0 and ship-blocking issue closures.
