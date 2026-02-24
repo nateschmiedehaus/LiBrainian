@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +16,11 @@ describe('dogfood ci gate liveness controls', () => {
   it('allows disabling bootstrap stall timeout with zero', () => {
     const parsed = parseArgs(['--bootstrap-stall-timeout-ms', '0']);
     expect(parsed.bootstrapStallTimeoutMs).toBe(0);
+  });
+
+  it('parses bootstrap progress stall timeout flag', () => {
+    const parsed = parseArgs(['--bootstrap-progress-stall-timeout-ms', '4321']);
+    expect(parsed.bootstrapProgressStallTimeoutMs).toBe(4321);
   });
 
   it('marks silent command as stalled before hard timeout', async () => {
@@ -127,6 +134,49 @@ process.exit(0);
       (entry) => entry.event === 'cpu_progress',
     );
     expect(cpuProgressEvents.length).toBeGreaterThan(0);
+  });
+
+  it('marks CPU-active command as progress stalled when semantic progress stops', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dogfood-progress-stall-'));
+    const progressStatePath = path.join(tempDir, 'bootstrap_state.json');
+    fs.writeFileSync(progressStatePath, JSON.stringify({
+      phase_name: 'semantic_indexing',
+      phase_progress: {
+        total: 100,
+        completed: 42,
+        currentFile: '/tmp/hot.ts',
+      },
+    }), 'utf8');
+
+    const script = `
+const end = Date.now() + 10000;
+while (Date.now() < end) {
+  Math.sqrt(Math.random() * 1000);
+}
+`;
+
+    try {
+      const result = await runStreaming(
+        process.execPath,
+        ['-e', script],
+        {
+          allowFailure: true,
+          timeoutMs: 10_000,
+          stallTimeoutMs: 0,
+          progressStateFile: progressStatePath,
+          progressStallTimeoutMs: 250,
+        },
+      );
+      expect(result.progressStalled).toBe(true);
+      expect(result.terminationReason).toBe('progress_stall');
+      expect(result.stalled).toBe(false);
+      expect(result.timedOut).toBe(false);
+      expect(result.status).not.toBe(0);
+      expect(result.progressSnapshot?.phaseName).toBe('semantic_indexing');
+      expect(result.progressSnapshot?.completed).toBe(42);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('records bootstrap stage timeline when stage lines are emitted', async () => {

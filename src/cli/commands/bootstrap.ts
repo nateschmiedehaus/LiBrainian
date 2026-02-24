@@ -348,7 +348,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
 
       const startTime = Date.now();
 
-      const scopeOverrides = resolveScopeOverrides(runScope);
+      const scopeOverrides = resolveScopeOverrides(runScope, bootstrapMode);
       const resolvedInclude = includeOverride ?? scopeOverrides.include;
       const resolvedExclude = excludeOverride ?? scopeOverrides.exclude;
       const configOverrides: Partial<BootstrapConfig> = {
@@ -547,65 +547,70 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   await runBootstrapWithAutoRetry(workspaceRoot, scope);
 }
 
-function resolveScopeOverrides(scope: string): Partial<BootstrapConfig> {
+function resolveScopeOverrides(scope: string, bootstrapMode: 'fast' | 'full' = 'full'): Partial<BootstrapConfig> {
   if (!scope || scope === 'full') {
     return {};
   }
   if (scope === 'librarian') {
+    const include = [
+      // Actual Librarian source directories
+      'src/api/**/*.ts',
+      'src/agents/**/*.ts',
+      'src/cli/**/*.ts',
+      'src/config/**/*.ts',
+      'src/knowledge/**/*.ts',
+      'src/storage/**/*.ts',
+      'src/ingest/**/*.ts',
+      'src/preflight/**/*.ts',
+      'src/utils/**/*.ts',
+      'src/graphs/**/*.ts',
+      'src/strategic/**/*.ts',
+      'src/epistemics/**/*.ts',
+      'src/bootstrap/**/*.ts',
+      'src/metrics/**/*.ts',
+      'src/core/**/*.ts',
+      'src/analysis/**/*.ts',
+      'src/adapters/**/*.ts',
+      'src/engines/**/*.ts',
+      'src/evolution/**/*.ts',
+      'src/federation/**/*.ts',
+      'src/guidance/**/*.ts',
+      'src/homeostasis/**/*.ts',
+      'src/integration/**/*.ts',
+      'src/connectors/**/*.ts',
+      'src/learning/**/*.ts',
+      'src/mcp/**/*.ts',
+      'src/measurement/**/*.ts',
+      'src/methods/**/*.ts',
+      'src/migrations/**/*.ts',
+      'src/orchestrator/**/*.ts',
+      'src/providers/**/*.ts',
+      'src/quality/**/*.ts',
+      'src/query/**/*.ts',
+      'src/recommendations/**/*.ts',
+      'src/security/**/*.ts',
+      'src/skills/**/*.ts',
+      'src/spine/**/*.ts',
+      'src/state/**/*.ts',
+      'src/telemetry/**/*.ts',
+      'src/constructions/**/*.ts',
+      'src/types.ts',
+      'src/index.ts',
+      'src/events.ts',
+      'src/universal_patterns.ts',
+      // Docs (correct paths - at repo root, not docs/)
+      'AGENTS.md',
+      'docs/**/*.md',
+    ];
+    const exclude = [...EXCLUDE_PATTERNS];
+    if (bootstrapMode !== 'fast') {
+      include.push('src/__tests__/**/*.ts');
+    } else {
+      exclude.push('src/**/__tests__/**', 'src/**/*.test.ts', 'src/**/*.spec.ts');
+    }
     return {
-      include: [
-        // Actual Librarian source directories
-        'src/api/**/*.ts',
-        'src/agents/**/*.ts',
-        'src/cli/**/*.ts',
-        'src/config/**/*.ts',
-        'src/knowledge/**/*.ts',
-        'src/storage/**/*.ts',
-        'src/ingest/**/*.ts',
-        'src/preflight/**/*.ts',
-        'src/utils/**/*.ts',
-        'src/graphs/**/*.ts',
-        'src/strategic/**/*.ts',
-        'src/epistemics/**/*.ts',
-        'src/bootstrap/**/*.ts',
-        'src/metrics/**/*.ts',
-        'src/core/**/*.ts',
-        'src/analysis/**/*.ts',
-        'src/adapters/**/*.ts',
-        'src/engines/**/*.ts',
-        'src/evolution/**/*.ts',
-        'src/federation/**/*.ts',
-        'src/guidance/**/*.ts',
-        'src/homeostasis/**/*.ts',
-        'src/integration/**/*.ts',
-        'src/connectors/**/*.ts',
-        'src/learning/**/*.ts',
-        'src/mcp/**/*.ts',
-        'src/measurement/**/*.ts',
-        'src/methods/**/*.ts',
-        'src/migrations/**/*.ts',
-        'src/orchestrator/**/*.ts',
-        'src/providers/**/*.ts',
-        'src/quality/**/*.ts',
-        'src/query/**/*.ts',
-        'src/recommendations/**/*.ts',
-        'src/security/**/*.ts',
-        'src/skills/**/*.ts',
-        'src/spine/**/*.ts',
-        'src/state/**/*.ts',
-        'src/telemetry/**/*.ts',
-        'src/constructions/**/*.ts',
-        'src/types.ts',
-        'src/index.ts',
-        'src/events.ts',
-        'src/universal_patterns.ts',
-        // Tests
-        'src/__tests__/**/*.ts',
-        // Docs (correct paths - at repo root, not docs/)
-        'AGENTS.md',
-        'docs/**/*.md',
-      ],
-      exclude: [...EXCLUDE_PATTERNS],
+      include,
+      exclude,
     };
   }
   throw createError('INVALID_ARGUMENT', `Unknown scope \"${scope}\" (use \"full\", \"librarian\", or \"librainian\")`);
@@ -622,3 +627,7 @@ function parsePositiveInt(raw: string, optionName: string): number {
 function toSingleLine(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
 }
+
+export const __testing = {
+  resolveScopeOverrides,
+};

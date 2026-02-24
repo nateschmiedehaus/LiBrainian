@@ -213,6 +213,35 @@ function isPidAlive(pid) {
   }
 }
 
+function readBootstrapProgressSnapshot(stateFilePath) {
+  if (!stateFilePath || typeof stateFilePath !== 'string') return null;
+  try {
+    if (!fs.existsSync(stateFilePath)) return null;
+    const raw = fs.readFileSync(stateFilePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    const phaseName = typeof parsed.phase_name === 'string' ? parsed.phase_name : null;
+    const phaseProgress = parsed.phase_progress && typeof parsed.phase_progress === 'object'
+      ? parsed.phase_progress
+      : null;
+    const completed = Number(phaseProgress?.completed);
+    const total = Number(phaseProgress?.total);
+    const currentFile = typeof phaseProgress?.currentFile === 'string'
+      ? phaseProgress.currentFile
+      : null;
+    if (!phaseName || !Number.isFinite(completed) || !Number.isFinite(total)) {
+      return null;
+    }
+    return {
+      phaseName,
+      completed,
+      total,
+      currentFile,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function parseArgs(argv) {
   let artifact = 'state/dogfood/clean-clone-self-hosting.json';
   let sourceWorkspace = process.cwd();
@@ -229,6 +258,9 @@ function parseArgs(argv) {
   let commandTimeoutMs = Number(process.env.DOGFOOD_CI_COMMAND_TIMEOUT_MS ?? 600_000);
   let bootstrapTimeoutMs = Number(process.env.DOGFOOD_CI_BOOTSTRAP_TIMEOUT_MS ?? 1_200_000);
   let bootstrapStallTimeoutMs = Number(process.env.DOGFOOD_CI_BOOTSTRAP_STALL_TIMEOUT_MS ?? 300_000);
+  let bootstrapProgressStallTimeoutMs = Number(
+    process.env.DOGFOOD_CI_BOOTSTRAP_PROGRESS_STALL_TIMEOUT_MS ?? 180_000,
+  );
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -289,6 +321,13 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (arg === '--bootstrap-progress-stall-timeout-ms') {
+      const next = argv[index + 1];
+      if (!next) fail('--bootstrap-progress-stall-timeout-ms requires a value');
+      bootstrapProgressStallTimeoutMs = Number(next);
+      index += 1;
+      continue;
+    }
     fail(`Unknown argument: ${arg}`);
   }
 
@@ -301,6 +340,9 @@ function parseArgs(argv) {
   if (!Number.isFinite(bootstrapStallTimeoutMs) || bootstrapStallTimeoutMs < 0) {
     fail(`Invalid --bootstrap-stall-timeout-ms value: ${bootstrapStallTimeoutMs}`);
   }
+  if (!Number.isFinite(bootstrapProgressStallTimeoutMs) || bootstrapProgressStallTimeoutMs < 0) {
+    fail(`Invalid --bootstrap-progress-stall-timeout-ms value: ${bootstrapProgressStallTimeoutMs}`);
+  }
 
   return {
     artifact,
@@ -312,6 +354,7 @@ function parseArgs(argv) {
     commandTimeoutMs,
     bootstrapTimeoutMs,
     bootstrapStallTimeoutMs,
+    bootstrapProgressStallTimeoutMs,
   };
 }
 
@@ -384,12 +427,18 @@ async function runStreaming(command, args, options = {}) {
   let stderr = '';
   let timedOut = false;
   let stalled = false;
+  let progressStalled = false;
   let terminated = false;
   let spawnError = null;
   let lastActivityAt = Date.now();
   let lastObservedCpuSec = null;
   const timeoutMs = options.timeoutMs;
   const stallTimeoutMs = options.stallTimeoutMs;
+  const progressStateFile = typeof options.progressStateFile === 'string' && options.progressStateFile.length > 0
+    ? options.progressStateFile
+    : null;
+  const progressStallTimeoutMs = Number(options.progressStallTimeoutMs ?? 0);
+  const progressWatchdogEnabled = Boolean(progressStateFile && Number.isFinite(progressStallTimeoutMs) && progressStallTimeoutMs > 0);
   const timeoutWatchdogEnabled = Boolean(
     timeoutMs && timeoutMs > 0 && !(stallTimeoutMs && stallTimeoutMs > 0),
   );
@@ -398,6 +447,10 @@ async function runStreaming(command, args, options = {}) {
   const stageSeen = new Set();
   let terminationReason = null;
   let recoveryAudit = null;
+  let lastProgressFingerprint = null;
+  let lastProgressAt = Date.now();
+  let lastProgressPollAt = 0;
+  let latestProgressSnapshot = null;
 
   const pushHeartbeat = (event, details = {}) => {
     if (heartbeatTimeline.length >= 500) return;
@@ -467,6 +520,7 @@ async function runStreaming(command, args, options = {}) {
     terminationReason = reason;
     if (reason === 'timeout') timedOut = true;
     if (reason === 'stall') stalled = true;
+    if (reason === 'progress_stall') progressStalled = true;
     const pid = child.pid ?? null;
     const preDiagnostics = pid ? collectProcessDiagnostics(pid) : null;
     const targetPids = preDiagnostics
@@ -509,6 +563,7 @@ async function runStreaming(command, args, options = {}) {
 
   const livenessHandle = (
     (stallTimeoutMs && stallTimeoutMs > 0)
+    || progressWatchdogEnabled
     || timeoutWatchdogEnabled
   )
     ? setInterval(() => {
@@ -529,6 +584,29 @@ async function runStreaming(command, args, options = {}) {
           });
         }
         lastObservedCpuSec = cpuSummary.totalCpuSec;
+      }
+      if (progressWatchdogEnabled && progressStateFile && Date.now() - lastProgressPollAt >= 1000) {
+        lastProgressPollAt = Date.now();
+        const snapshot = readBootstrapProgressSnapshot(progressStateFile);
+        if (snapshot) {
+          latestProgressSnapshot = snapshot;
+          const fingerprint = `${snapshot.phaseName}:${snapshot.completed}:${snapshot.total}:${snapshot.currentFile ?? ''}`;
+          if (fingerprint !== lastProgressFingerprint) {
+            lastProgressFingerprint = fingerprint;
+            lastProgressAt = Date.now();
+            pushHeartbeat('progress_advance', {
+              phaseName: snapshot.phaseName,
+              completed: snapshot.completed,
+              total: snapshot.total,
+              currentFile: snapshot.currentFile,
+            });
+          } else if (
+            snapshot.phaseName === 'semantic_indexing'
+            && Date.now() - lastProgressAt > progressStallTimeoutMs
+          ) {
+            terminateChild('progress_stall');
+          }
+        }
       }
       if (stallTimeoutMs && stallTimeoutMs > 0 && Date.now() - lastActivityAt > stallTimeoutMs) {
         terminateChild('stall');
@@ -559,6 +637,7 @@ async function runStreaming(command, args, options = {}) {
 
   const trimmedStdout = stdout.trim();
   const trimmedStderr = stderr.trim();
+  const progressIdleMs = lastProgressFingerprint ? Date.now() - lastProgressAt : null;
   const result = {
     status,
     stdout: trimmedStdout,
@@ -569,11 +648,16 @@ async function runStreaming(command, args, options = {}) {
     cwd,
     timedOut,
     stalled,
+    progressStalled,
     terminationReason,
     stallTimeoutMs: stallTimeoutMs ?? null,
     spawnError: spawnError instanceof Error ? spawnError.message : null,
     heartbeatTimeline,
     stageTimeline,
+    progressStateFile,
+    progressStallTimeoutMs: progressWatchdogEnabled ? progressStallTimeoutMs : null,
+    progressIdleMs,
+    progressSnapshot: latestProgressSnapshot,
     recoveryAudit,
   };
 
@@ -581,7 +665,9 @@ async function runStreaming(command, args, options = {}) {
     const output = [result.stdout, result.stderr, result.spawnError ?? ''].filter(Boolean).join('\n');
     const mode = result.stalled
       ? ` (stall_detected after ${result.stallTimeoutMs}ms without output)`
-      : (result.timedOut ? ` (timed_out after ${timeoutMs}ms)` : '');
+      : (result.progressStalled
+        ? ` (progress_stalled after ${result.progressStallTimeoutMs}ms at ${result.progressSnapshot?.phaseName ?? 'unknown'})`
+        : (result.timedOut ? ` (timed_out after ${timeoutMs}ms)` : ''));
     fail(`${command} ${args.join(' ')} failed${mode}${output ? `\n${output}` : ''}`);
   }
 
@@ -1129,6 +1215,7 @@ async function main() {
     commandTimeoutMs,
     bootstrapTimeoutMs,
     bootstrapStallTimeoutMs,
+    bootstrapProgressStallTimeoutMs,
   } = parseArgs(process.argv.slice(2));
   const skipHealthAssert = process.env.DOGFOOD_CI_SKIP_HEALTH_ASSERT === '1';
   const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'librainian-clean-clone-'));
@@ -1158,6 +1245,7 @@ async function main() {
       commandTimeoutMs,
       bootstrapTimeoutMs,
       bootstrapStallTimeoutMs,
+      bootstrapProgressStallTimeoutMs,
     },
     pass: false,
     checks: {
@@ -1205,10 +1293,22 @@ async function main() {
       env: cliEnv,
       timeoutMs: bootstrapTimeoutMs,
       stallTimeoutMs: bootstrapStallTimeoutMs,
+      progressStateFile: path.join(cleanCloneWorkspace, '.librarian', 'bootstrap_state.json'),
+      progressStallTimeoutMs: bootstrapProgressStallTimeoutMs,
       stdio: 'inherit',
     });
     commands.push(commandRecord('librainian.bootstrap', bootstrapResult, bootstrapResult.status === 0));
     if (bootstrapResult.status !== 0) {
+      if (bootstrapResult.progressStalled) {
+        const snapshot = bootstrapResult.progressSnapshot;
+        const phase = snapshot?.phaseName ?? 'unknown';
+        const completed = Number.isFinite(snapshot?.completed) ? snapshot.completed : 'unknown';
+        const total = Number.isFinite(snapshot?.total) ? snapshot.total : 'unknown';
+        const currentFile = snapshot?.currentFile ? ` currentFile=${snapshot.currentFile}` : '';
+        fail(
+          `semantic_progress_stall: no semantic progress for ${bootstrapProgressStallTimeoutMs}ms phase=${phase} completed=${completed}/${total}${currentFile}`,
+        );
+      }
       if (bootstrapResult.stalled) {
         fail(`stall_detected: bootstrap produced no output for ${bootstrapStallTimeoutMs}ms`);
       }
