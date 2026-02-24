@@ -229,6 +229,16 @@ export {
 } from './provider_chaos_gate.js';
 
 export {
+  createCompositionPipelineGateConstruction,
+  type CompositionPipelineGateInput,
+  type CompositionSequenceCheck,
+  type CompositionParallelCheck,
+  type CompositionTimeoutCheck,
+  type CompositionErrorPropagationCheck,
+  type CompositionPipelineGateOutput,
+} from './composition_pipeline_gate.js';
+
+export {
   createSessionKnowledgeHarvestConstruction,
   type SessionHarvestClaim,
   type SessionKnowledgeHarvestInput,
