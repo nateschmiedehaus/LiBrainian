@@ -20,6 +20,8 @@ export interface QueryRelevanceGateInput {
   fixtures?: QueryRelevanceFixture[];
   k?: number;
   precisionThreshold?: number;
+  skipEmbeddings?: boolean;
+  queryTimeoutMs?: number;
 }
 
 export interface QueryRelevancePairResult {
@@ -142,6 +144,8 @@ export function createQueryRelevanceGateConstruction(): Construction<
       const fixtures = input.fixtures ?? defaultFixtures(repoRoot);
       const k = input.k ?? DEFAULT_K;
       const precisionThreshold = input.precisionThreshold ?? DEFAULT_PRECISION_THRESHOLD;
+      const skipEmbeddings = input.skipEmbeddings ?? false;
+      const queryTimeoutMs = input.queryTimeoutMs ?? 30_000;
       const findings: string[] = [];
       const fixtureResults: QueryRelevanceFixtureResult[] = [];
       const qualityJudge = createResultQualityJudgeConstruction();
@@ -151,7 +155,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
           workspace: fixture.repoPath,
           autoBootstrap: true,
           autoWatch: false,
-          skipEmbeddings: false,
+          skipEmbeddings,
         });
 
         try {
@@ -163,7 +167,7 @@ export function createQueryRelevanceGateConstruction(): Construction<
               depth: 'L1',
               llmRequirement: 'disabled',
               deterministic: true,
-              timeoutMs: 30_000,
+              timeoutMs: queryTimeoutMs,
             });
             const topPacks = response.packs.slice(0, k);
             const topFiles = collectTopFiles(topPacks, fixture.repoPath);

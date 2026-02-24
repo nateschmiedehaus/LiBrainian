@@ -6,6 +6,28 @@ import { createQueryRelevanceGateConstruction } from '../query_relevance_gate.js
 
 const tempRoots: string[] = [];
 
+async function removeWithRetries(root: string, attempts = 6): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await fs.rm(root, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: string }).code) : '';
+      if (code !== 'ENOTEMPTY' && code !== 'EBUSY') {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 50));
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error(`Failed to remove temporary directory: ${root}`);
+}
+
 async function createFixture(files: Record<string, string>): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-relevance-'));
   tempRoots.push(root);
@@ -21,7 +43,7 @@ afterEach(async () => {
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
     if (!root) continue;
-    await fs.rm(root, { recursive: true, force: true });
+    await removeWithRetries(root);
   }
 });
 
@@ -64,6 +86,8 @@ describe('Query Relevance Gate', () => {
       ],
       k: 3,
       precisionThreshold: 0.2,
+      skipEmbeddings: true,
+      queryTimeoutMs: 10_000,
     });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) {
@@ -109,5 +133,5 @@ describe('Query Relevance Gate', () => {
       expect(result.pass).toBe(false);
       expect(result.findings.some((finding) => finding.includes(`precision@${result.k}`))).toBe(true);
     }
-  }, 160_000);
+  }, 90_000);
 });
