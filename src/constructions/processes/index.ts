@@ -259,6 +259,18 @@ export {
 } from './quality_bar_constitution_construction.js';
 
 export {
+  AgentPhase,
+  createTaskPhaseDetectorConstruction,
+  detectTaskPhase,
+  buildPhaseProactiveIntel,
+  type PhaseDetectionInput,
+  type PhaseDetectionResult,
+  type PhaseProactiveIntel,
+  type PhaseProactiveIntelType,
+  type TaskPhaseDetectorOutput,
+} from './task_phase_detector_construction.js';
+
+export {
   createResultQualityJudgeConstruction,
   deriveResultQualityThresholds,
   type ResultQualityThresholdSeed,

@@ -31,6 +31,12 @@ import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { getTaskQualityNorms, type TaskQualityNorm } from '../constructions/processes/quality_bar_constitution_construction.js';
 import {
+  AgentPhase,
+  detectTaskPhase,
+  type PhaseDetectionResult,
+  type PhaseProactiveIntel,
+} from '../constructions/processes/task_phase_detector_construction.js';
+import {
   globalEventBus,
   createTaskReceivedEvent,
   createTaskCompletedEvent,
@@ -66,6 +72,10 @@ export interface TaskContextRequest {
   waitForIndexMs?: number;
   /** Universal coverage requirements to satisfy */
   ucRequirements?: string[];
+  /** Recent tool calls from the current session (used for lifecycle phase detection) */
+  recentToolCalls?: string[];
+  /** Optional previous detected phase for transition tracking */
+  previousPhase?: AgentPhase;
 }
 
 /**
@@ -90,6 +100,10 @@ export interface TaskContext {
   methodHints: string[];
   /** Repository-specific quality norms selected for this task */
   qualityNorms: TaskQualityNorm[];
+  /** Detected lifecycle phase for this task */
+  phaseDetection: PhaseDetectionResult;
+  /** Phase-specific proactive intelligence suggestions */
+  proactiveIntel: PhaseProactiveIntel[];
 }
 
 /**
@@ -269,10 +283,18 @@ export async function getTaskContext(
       });
     }
 
+    const phaseResult = detectTaskPhase({
+      intent: request.intent,
+      recentToolCalls: request.recentToolCalls,
+      affectedFiles: filesForNormSelection,
+      previousPhase: request.previousPhase,
+    });
+
     // Format for prompt injection
-    const formatted = appendQualityNormsSection(
-      formatLibrarianContext(librarianContext),
-      qualityNorms
+    const formatted = appendPhaseIntelSection(
+      appendQualityNormsSection(formatLibrarianContext(librarianContext), qualityNorms),
+      phaseResult.detection,
+      phaseResult.proactiveIntel
     );
 
     const context: TaskContext = {
@@ -285,6 +307,8 @@ export async function getTaskContext(
       drillDownHints: sessionContext.drillDownHints,
       methodHints: sessionContext.methodHints,
       qualityNorms,
+      phaseDetection: phaseResult.detection,
+      proactiveIntel: phaseResult.proactiveIntel,
     };
 
     // Cache the result
@@ -810,6 +834,12 @@ function createFallbackContext(
     drillDownHints: [],
     methodHints: [],
     qualityNorms: [],
+    phaseDetection: {
+      phase: AgentPhase.Unknown,
+      confidence: 0,
+      signals: [],
+    },
+    proactiveIntel: [],
   };
 }
 
@@ -829,9 +859,35 @@ function appendQualityNormsSection(formattedContext: string, qualityNorms: TaskQ
   return sections.join('\n');
 }
 
+function appendPhaseIntelSection(
+  formattedContext: string,
+  phaseDetection: PhaseDetectionResult,
+  proactiveIntel: PhaseProactiveIntel[]
+): string {
+  const sections: string[] = [];
+  if (formattedContext.trim().length > 0) {
+    sections.push(formattedContext.trimEnd(), '');
+  }
+  const phaseLabel = phaseDetection.phase.toUpperCase();
+  const confidencePercent = Math.round(phaseDetection.confidence * 100);
+  sections.push(`### Task Phase`);
+  sections.push(`- ${phaseLabel} (${confidencePercent}% confidence)`);
+  if (phaseDetection.transitionedFrom) {
+    sections.push(`- Transitioned from ${phaseDetection.transitionedFrom.toUpperCase()}`);
+  }
+  if (proactiveIntel.length > 0) {
+    sections.push('', '### Proactive Intel');
+    for (const intel of proactiveIntel) {
+      sections.push(`- [${intel.type}] ${intel.content}`);
+    }
+  }
+  return sections.join('\n');
+}
+
 function buildCacheKey(request: TaskContextRequest, workspace: string): string {
   const files = (request.affectedFiles ?? []).sort().join(',');
-  return `${workspace}:${request.intent}:${files}:${request.taskType ?? ''}`;
+  const recentToolCalls = (request.recentToolCalls ?? []).map((value) => value.trim().toLowerCase()).sort().join(',');
+  return `${workspace}:${request.intent}:${files}:${request.taskType ?? ''}:${request.previousPhase ?? ''}:${recentToolCalls}`;
 }
 
 async function snapshotFile(filePath: string): Promise<FileSnapshot> {

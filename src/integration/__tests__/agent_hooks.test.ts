@@ -135,6 +135,31 @@ vi.mock('../../constructions/processes/quality_bar_constitution_construction.js'
   ]),
 }));
 
+vi.mock('../../constructions/processes/task_phase_detector_construction.js', () => ({
+  AgentPhase: {
+    Orient: 'orient',
+    Plan: 'plan',
+    Implement: 'implement',
+    Verify: 'verify',
+    Reflect: 'reflect',
+    Unknown: 'unknown',
+  },
+  detectTaskPhase: vi.fn().mockReturnValue({
+    kind: 'TaskPhaseDetectorResult.v1',
+    detection: {
+      phase: 'implement',
+      confidence: 0.82,
+      signals: ['tool:implementation'],
+    },
+    proactiveIntel: [
+      {
+        type: 'convention-alert',
+        content: 'Implementation guidance: enforce local conventions and pattern parity while changing src/api.ts.',
+      },
+    ],
+  }),
+}));
+
 describe('agent_hooks', () => {
   let testDir: string;
 
@@ -171,6 +196,10 @@ describe('agent_hooks', () => {
       expect(context.librarianAvailable).toBe(true);
       expect(context.qualityNorms).toHaveLength(3);
       expect(context.formatted).toContain('### Quality Norms');
+      expect(context.phaseDetection.phase).toBe('implement');
+      expect(context.proactiveIntel).toHaveLength(1);
+      expect(context.formatted).toContain('### Task Phase');
+      expect(context.formatted).toContain('### Proactive Intel');
     });
 
     it('should use provided taskId', async () => {
@@ -199,6 +228,8 @@ describe('agent_hooks', () => {
       expect(context.confidence).toBe(0);
       expect(context.formatted).toBe('');
       expect(context.qualityNorms).toEqual([]);
+      expect(context.phaseDetection.phase).toBe('unknown');
+      expect(context.proactiveIntel).toEqual([]);
     });
 
     it('should cache context for repeated requests', async () => {
@@ -299,6 +330,12 @@ describe('agent_hooks', () => {
         drillDownHints: [],
         methodHints: [],
         qualityNorms: [],
+        phaseDetection: {
+          phase: 'implement',
+          confidence: 0.8,
+          signals: ['tool:implementation'],
+        },
+        proactiveIntel: [],
       };
 
       await reportTaskOutcome(context, { success: true }, { workspace: testDir });
