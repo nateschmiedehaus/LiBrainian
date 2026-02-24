@@ -116,8 +116,8 @@ function parsePsTable() {
     return [];
   }
   const attempts = [
-    ['-axo', 'pid=,ppid=,user=,etimes=,command='],
-    ['-axo', 'pid=,ppid=,user=,etime=,command='],
+    ['-axo', 'pid=,ppid=,user=,etimes=,time=,command='],
+    ['-axo', 'pid=,ppid=,user=,etime=,time=,command='],
   ];
   let stdout = '';
   for (const args of attempts) {
@@ -137,17 +137,19 @@ function parsePsTable() {
   for (const rawLine of stdout.split('\n')) {
     const line = rawLine.trim();
     if (!line) continue;
-    const match = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(.*)$/u);
-    const fallbackMatch = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+([0-9:-]+)\s+(.*)$/u);
+    const match = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+([0-9:.-]+)\s+(.*)$/u);
+    const fallbackMatch = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+([0-9:.-]+)\s+([0-9:.-]+)\s+(.*)$/u);
     const tokens = match ?? fallbackMatch;
     if (!tokens) continue;
-    const [, pidRaw, ppidRaw, user, elapsedRaw, command] = tokens;
+    const [, pidRaw, ppidRaw, user, elapsedRaw, cpuRaw, command] = tokens;
     const elapsedSec = parseElapsedSeconds(elapsedRaw);
+    const cpuSec = parseElapsedSeconds(cpuRaw);
     rows.push({
       pid: Number(pidRaw),
       ppid: Number(ppidRaw),
       user,
       elapsedSec,
+      cpuSec,
       command: command.trim(),
     });
   }
@@ -186,6 +188,18 @@ function collectProcessDiagnostics(rootPid) {
     rootPid,
     lineage,
     descendants,
+  };
+}
+
+function summarizeCpuActivity(diagnostics) {
+  const descendants = Array.isArray(diagnostics?.descendants) ? diagnostics.descendants : [];
+  const totalCpuSec = descendants.reduce(
+    (sum, processRow) => sum + (Number.isFinite(processRow.cpuSec) ? processRow.cpuSec : 0),
+    0,
+  );
+  return {
+    totalCpuSec,
+    descendantCount: descendants.length,
   };
 }
 
@@ -373,6 +387,7 @@ async function runStreaming(command, args, options = {}) {
   let terminated = false;
   let spawnError = null;
   let lastActivityAt = Date.now();
+  let lastObservedCpuSec = null;
   const timeoutMs = options.timeoutMs;
   const stallTimeoutMs = options.stallTimeoutMs;
   const heartbeatTimeline = [];
@@ -413,6 +428,15 @@ async function runStreaming(command, args, options = {}) {
     }
   };
   pushHeartbeat('spawned', { pid: child.pid ?? null });
+  if (child.pid && child.pid > 0) {
+    const baselineDiagnostics = collectProcessDiagnostics(child.pid);
+    const baselineCpu = summarizeCpuActivity(baselineDiagnostics);
+    lastObservedCpuSec = baselineCpu.totalCpuSec;
+    pushHeartbeat('cpu_baseline', {
+      totalCpuSec: baselineCpu.totalCpuSec,
+      descendants: baselineCpu.descendantCount,
+    });
+  }
 
   const onStdout = (chunk) => {
     const text = String(chunk);
@@ -485,6 +509,24 @@ async function runStreaming(command, args, options = {}) {
     : null;
   const stallHandle = stallTimeoutMs && stallTimeoutMs > 0
     ? setInterval(() => {
+      if (child.pid && child.pid > 0) {
+        const cpuDiagnostics = collectProcessDiagnostics(child.pid);
+        const cpuSummary = summarizeCpuActivity(cpuDiagnostics);
+        if (
+          lastObservedCpuSec !== null
+          && Number.isFinite(cpuSummary.totalCpuSec)
+          && cpuSummary.totalCpuSec > lastObservedCpuSec
+        ) {
+          const deltaCpuSec = cpuSummary.totalCpuSec - lastObservedCpuSec;
+          lastActivityAt = Date.now();
+          pushHeartbeat('cpu_progress', {
+            deltaCpuSec,
+            totalCpuSec: cpuSummary.totalCpuSec,
+            descendants: cpuSummary.descendantCount,
+          });
+        }
+        lastObservedCpuSec = cpuSummary.totalCpuSec;
+      }
       if (Date.now() - lastActivityAt > stallTimeoutMs) {
         terminateChild('stall');
       }

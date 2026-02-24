@@ -61,6 +61,32 @@ const timer = setInterval(() => {
     expect(result.status).toBe(0);
   });
 
+  it('does not mark command stalled when command is silent but CPU-active', async () => {
+    const script = `
+const end = Date.now() + 2500;
+while (Date.now() < end) {
+  Math.sqrt(Math.random() * 1000);
+}
+process.exit(0);
+`;
+    const result = await runStreaming(
+      process.execPath,
+      ['-e', script],
+      {
+        allowFailure: true,
+        timeoutMs: 10_000,
+        stallTimeoutMs: 300,
+      },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stalled).toBe(false);
+    expect(result.timedOut).toBe(false);
+    const cpuProgressEvents = (result.heartbeatTimeline ?? []).filter(
+      (entry) => entry.event === 'cpu_progress',
+    );
+    expect(cpuProgressEvents.length).toBeGreaterThan(0);
+  });
+
   it('classifies hard timeout when stall watchdog is disabled', async () => {
     const result = await runStreaming(
       process.execPath,
