@@ -14,6 +14,7 @@ import * as path from 'path';
 import type {
   LiBrainianStorage,
   StorageCapabilities,
+  StrategicContractRecord,
   QueryOptions,
   ContextPackQueryOptions,
   ContextPackSeedLookupOptions,
@@ -633,6 +634,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         this.ensureFileKnowledgeTable();
         this.ensureDirectoryKnowledgeTable();
         this.ensureAssessmentTable();
+        this.ensureStrategicContractTable();
         this.ensureAdvancedAnalysisTables();
         this.ensureAdvancedLibraryFeaturesTables();
         this.rebindWorkspacePathsIfNeeded();
@@ -1373,6 +1375,27 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       CREATE INDEX IF NOT EXISTS idx_assess_type ON librarian_assessments(entity_type);
       CREATE INDEX IF NOT EXISTS idx_assess_health ON librarian_assessments(overall_health);
       CREATE INDEX IF NOT EXISTS idx_assess_score ON librarian_assessments(health_score);
+    `);
+  }
+
+  private ensureStrategicContractTable(): void {
+    if (!this.db) return;
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS librarian_strategic_contracts (
+        id TEXT PRIMARY KEY,
+        contract_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        location TEXT NOT NULL,
+        breaking INTEGER NOT NULL DEFAULT 0,
+        consumers TEXT NOT NULL DEFAULT '[]',
+        producers TEXT NOT NULL DEFAULT '[]',
+        evidence TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_strategic_contract_type ON librarian_strategic_contracts(contract_type);
+      CREATE INDEX IF NOT EXISTS idx_strategic_contract_location ON librarian_strategic_contracts(location);
+      CREATE INDEX IF NOT EXISTS idx_strategic_contract_updated ON librarian_strategic_contracts(updated_at DESC);
     `);
   }
 
@@ -5440,6 +5463,131 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async clearLearnedMissing(context: string): Promise<void> {
     const db = this.ensureDb();
     db.prepare('DELETE FROM librarian_learned_missing WHERE context = ?').run(context);
+  }
+
+  // --------------------------------------------------------------------------
+  // Strategic Contracts
+  // --------------------------------------------------------------------------
+
+  async upsertStrategicContracts(contracts: StrategicContractRecord[]): Promise<void> {
+    if (contracts.length === 0) return;
+    const db = this.ensureDb();
+    const nowIso = new Date().toISOString();
+    const insert = db.prepare(`
+      INSERT INTO librarian_strategic_contracts (
+        id, contract_type, name, version, location, breaking,
+        consumers, producers, evidence, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        contract_type = excluded.contract_type,
+        name = excluded.name,
+        version = excluded.version,
+        location = excluded.location,
+        breaking = excluded.breaking,
+        consumers = excluded.consumers,
+        producers = excluded.producers,
+        evidence = excluded.evidence,
+        updated_at = excluded.updated_at
+    `);
+
+    const tx = db.transaction((rows: StrategicContractRecord[]) => {
+      for (const row of rows) {
+        const contractType = row.contractType === 'event' || row.contractType === 'schema' ? row.contractType : 'api';
+        const consumers = Array.from(new Set(row.consumers)).sort((a, b) => a.localeCompare(b));
+        const producers = Array.from(new Set(row.producers)).sort((a, b) => a.localeCompare(b));
+        const evidence = Array.from(new Set(row.evidence)).sort((a, b) => a.localeCompare(b));
+        insert.run(
+          row.id,
+          contractType,
+          row.name,
+          row.version,
+          row.location,
+          row.breaking ? 1 : 0,
+          JSON.stringify(consumers),
+          JSON.stringify(producers),
+          JSON.stringify(evidence),
+          row.updatedAt || nowIso
+        );
+      }
+    });
+    tx(contracts);
+  }
+
+  async getStrategicContracts(): Promise<StrategicContractRecord[]> {
+    const db = this.ensureDb();
+    const rows = db.prepare(`
+      SELECT id, contract_type, name, version, location, breaking, consumers, producers, evidence, updated_at
+      FROM librarian_strategic_contracts
+      ORDER BY updated_at DESC, id ASC
+    `).all() as Array<{
+      id: string;
+      contract_type: 'api' | 'event' | 'schema';
+      name: string;
+      version: string;
+      location: string;
+      breaking: number;
+      consumers: string;
+      producers: string;
+      evidence: string;
+      updated_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      contractType: row.contract_type,
+      name: row.name,
+      version: row.version,
+      location: row.location,
+      breaking: row.breaking === 1,
+      consumers: parseStringArray(row.consumers),
+      producers: parseStringArray(row.producers),
+      evidence: parseStringArray(row.evidence),
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  async getStrategicContract(contractId: string): Promise<StrategicContractRecord | null> {
+    const db = this.ensureDb();
+    const row = db.prepare(`
+      SELECT id, contract_type, name, version, location, breaking, consumers, producers, evidence, updated_at
+      FROM librarian_strategic_contracts
+      WHERE id = ?
+    `).get(contractId) as {
+      id: string;
+      contract_type: 'api' | 'event' | 'schema';
+      name: string;
+      version: string;
+      location: string;
+      breaking: number;
+      consumers: string;
+      producers: string;
+      evidence: string;
+      updated_at: string;
+    } | undefined;
+
+    if (!row) return noResult();
+    return {
+      id: row.id,
+      contractType: row.contract_type,
+      name: row.name,
+      version: row.version,
+      location: row.location,
+      breaking: row.breaking === 1,
+      consumers: parseStringArray(row.consumers),
+      producers: parseStringArray(row.producers),
+      evidence: parseStringArray(row.evidence),
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async updateStrategicContractConsumers(contractId: string, consumerModuleIds: string[]): Promise<void> {
+    const db = this.ensureDb();
+    const consumers = Array.from(new Set(consumerModuleIds)).sort((a, b) => a.localeCompare(b));
+    db.prepare(`
+      UPDATE librarian_strategic_contracts
+      SET consumers = ?, updated_at = ?
+      WHERE id = ?
+    `).run(JSON.stringify(consumers), new Date().toISOString(), contractId);
   }
 
   // --------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { IndexLibrarian } from '../index_librarian.js';
 import type { ResolvedCallEdge } from '../ast_indexer.js';
 import type { TransactionContext, LibrarianStorage } from '../../storage/types.js';
 import type { FunctionKnowledge, ModuleKnowledge, GraphEdge } from '../../types.js';
+import type { StrategicContractRecord } from '../../storage/types.js';
 
 const mockIndexFile = vi.fn();
 
@@ -240,6 +241,57 @@ describe('IndexLibrarian call-edge persistence', () => {
 
     expect(result.errors).toEqual([]);
     expect(resolveSpy).not.toHaveBeenCalled();
+  });
+
+  it('materializes strategic contracts from indexed module dependencies during processTask', async () => {
+    const tx = buildTx();
+    const providerPath = path.resolve('/tmp/strategic-provider.ts');
+    const consumerPath = path.resolve('/tmp/strategic-consumer.ts');
+    const providerModule: ModuleKnowledge = {
+      ...buildModule('mod_provider', providerPath),
+      exports: ['runProvider'],
+    };
+    const consumerModule: ModuleKnowledge = {
+      ...buildModule('mod_consumer', consumerPath),
+      dependencies: ['./strategic-provider'],
+    };
+    const upsertStrategicContracts = vi.fn(async () => undefined);
+    const storage = buildStorage(tx, {
+      getModules: vi.fn(async () => [providerModule, consumerModule]),
+      upsertStrategicContracts,
+    } as Partial<LibrarianStorage>);
+
+    const librarian = new IndexLibrarian({
+      generateEmbeddings: false,
+      createContextPacks: false,
+      computeGraphMetrics: false,
+    });
+    await librarian.initialize(storage);
+
+    vi.spyOn(librarian, 'indexFile').mockResolvedValue({
+      filePath: providerPath,
+      functionsFound: 0,
+      functionsIndexed: 0,
+      moduleIndexed: false,
+      contextPacksCreated: 0,
+      durationMs: 1,
+      errors: [],
+    });
+
+    const result = await librarian.processTask({
+      type: 'targeted',
+      paths: [providerPath],
+      priority: 'high',
+      reason: 'strategic-contract-pass',
+      triggeredBy: 'manual',
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(upsertStrategicContracts).toHaveBeenCalledTimes(1);
+    const records = upsertStrategicContracts.mock.calls[0]?.[0] as StrategicContractRecord[];
+    const providerContract = records.find((record) => record.producers.includes('mod_provider'));
+    expect(providerContract).toBeTruthy();
+    expect(providerContract?.consumers).toContain('mod_consumer');
   });
 
   it('adds semantic entanglement edges from co-call patterns', async () => {

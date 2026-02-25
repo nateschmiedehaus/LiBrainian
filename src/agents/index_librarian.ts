@@ -7,7 +7,7 @@ import { getErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
 import { withTimeout, getResultError } from '../core/result.js';
 import { removeControlChars } from '../security/sanitization.js';
-import type { LiBrainianStorage, MultiVectorRecord } from '../storage/types.js';
+import type { LiBrainianStorage, MultiVectorRecord, StrategicContractRecord } from '../storage/types.js';
 import { withinTransaction } from '../storage/transactions.js';
 import { computeFileChecksum } from '../utils/checksums.js';
 import { getLanguageFromPath } from '../utils/language.js';
@@ -436,6 +436,12 @@ export class IndexLiBrainian implements IndexingAgent {
         const message = getErrorMessage(error);
         errors.push({ path: 'external_edge_resolution', error: message, recoverable: true });
       }
+    }
+
+    try {
+      await this.materializeStrategicContracts();
+    } catch (error: unknown) {
+      errors.push({ path: 'strategic_contracts', error: getErrorMessage(error), recoverable: true });
     }
 
     if (ownsAccumulator) {
@@ -1250,6 +1256,66 @@ export class IndexLiBrainian implements IndexingAgent {
     if (this.config.workspaceRoot) {
       await writeGraphMetricsReport(this.config.workspaceRoot, report);
     }
+  }
+
+  private async materializeStrategicContracts(): Promise<number> {
+    if (!this.storage) return 0;
+
+    const strategicStore = this.storage as LiBrainianStorage & {
+      upsertStrategicContracts?: (contracts: StrategicContractRecord[]) => Promise<void>;
+    };
+    if (typeof strategicStore.upsertStrategicContracts !== 'function') {
+      return 0;
+    }
+
+    const modules = await this.storage.getModules();
+    if (modules.length === 0) return 0;
+
+    const moduleIdByPath = new Map<string, string>();
+    const consumersByProvider = new Map<string, Set<string>>();
+    for (const module of modules) {
+      moduleIdByPath.set(normalizeGraphPath(module.path), module.id);
+      consumersByProvider.set(module.id, new Set<string>());
+    }
+
+    for (const module of modules) {
+      const fromPath = normalizeGraphPath(module.path);
+      for (const dependency of module.dependencies) {
+        const providerId = resolveModuleDependency(dependency, fromPath, moduleIdByPath);
+        if (!providerId || providerId === module.id) continue;
+        const consumers = consumersByProvider.get(providerId);
+        if (consumers) {
+          consumers.add(module.id);
+        }
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    const candidates = modules.filter((module) => module.exports.length > 0);
+    const selected = candidates.length > 0 ? candidates : modules.slice(0, 1);
+    const contracts: StrategicContractRecord[] = selected.map((module) => {
+      const consumers = Array.from(consumersByProvider.get(module.id) ?? []).sort((a, b) => a.localeCompare(b));
+      return {
+        id: `strategic-contract:${module.id}:public-api`,
+        contractType: 'api',
+        name: `${path.basename(module.path)} public API`,
+        version: '1.0.0',
+        location: module.path,
+        breaking: false,
+        consumers,
+        producers: [module.id],
+        evidence: [
+          `module:${module.path}`,
+          `exports:${module.exports.length}`,
+          `dependencies:${module.dependencies.length}`,
+        ],
+        updatedAt: nowIso,
+      };
+    });
+
+    if (contracts.length === 0) return 0;
+    await strategicStore.upsertStrategicContracts(contracts);
+    return contracts.length;
   }
 
   private buildGraphEdges(

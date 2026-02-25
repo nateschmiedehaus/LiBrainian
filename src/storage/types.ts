@@ -55,6 +55,19 @@ export interface StorageCapabilities {
   };
 }
 
+export interface StrategicContractRecord {
+  id: string;
+  contractType: 'api' | 'event' | 'schema';
+  name: string;
+  version: string;
+  location: string;
+  breaking: boolean;
+  consumers: string[];
+  producers: string[];
+  evidence: string[];
+  updatedAt: string;
+}
+
 export interface EvidenceVerificationOptions {
   limit?: number;
   force?: boolean;
@@ -138,6 +151,12 @@ export interface LibrarianStorage {
   invalidateContextPacks(triggerPath: string): Promise<number>;
   deleteContextPack(packId: string): Promise<void>;
   recordContextPackAccess(packId: string, outcome?: 'success' | 'failure'): Promise<void>;
+
+  // Strategic contracts (runtime model for strategic context contracts)
+  upsertStrategicContracts(contracts: StrategicContractRecord[]): Promise<void>;
+  getStrategicContracts(): Promise<StrategicContractRecord[]>;
+  getStrategicContract(contractId: string): Promise<StrategicContractRecord | null>;
+  updateStrategicContractConsumers(contractId: string, consumerModuleIds: string[]): Promise<void>;
 
   // File checksums (incremental indexing)
   getFileChecksum(filePath: string): Promise<string | null>;

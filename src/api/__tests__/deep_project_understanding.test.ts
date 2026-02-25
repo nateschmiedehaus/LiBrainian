@@ -242,6 +242,10 @@ function createMockStorage(overrides?: Partial<LibrarianStorage>): LibrarianStor
     getModuleByPath: vi.fn().mockResolvedValue(null),
     upsertModule: vi.fn().mockResolvedValue(undefined),
     deleteModule: vi.fn().mockResolvedValue(undefined),
+    upsertStrategicContracts: vi.fn().mockResolvedValue(undefined),
+    getStrategicContracts: vi.fn().mockResolvedValue([]),
+    getStrategicContract: vi.fn().mockResolvedValue(null),
+    updateStrategicContractConsumers: vi.fn().mockResolvedValue(undefined),
 
     // Files
     getFiles: vi.fn().mockResolvedValue(mockFiles),
