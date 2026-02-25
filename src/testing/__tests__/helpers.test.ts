@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { ConstructionError } from '../../constructions/base/construction_base.js';
+import { deterministic } from '../../epistemics/confidence.js';
+import { fail, ok } from '../../constructions/types.js';
 import {
   constructionFixture,
   mockCalibrationTracker,
   mockLedger,
   mockLibrarianContext,
+  testConstruction,
 } from '../index.js';
 
 describe('testing helpers', () => {
@@ -41,5 +45,45 @@ describe('testing helpers', () => {
 
     await expect(constant.execute('ignored')).resolves.toBe(7);
     await expect(dynamic.execute(4)).resolves.toBe(8);
+  });
+
+  it('executes construction fixtures with testConstruction helper', async () => {
+    const construction = {
+      execute: async (input: { target: string }) =>
+        ok({
+          output: `analyzed:${input.target}`,
+          confidence: deterministic(true, 'fixture-based test'),
+          evidenceRefs: [],
+          analysisTimeMs: 0,
+        }),
+    };
+
+    const result = await testConstruction(construction, {
+      fixture: 'tests/fixtures/sample-ts-project',
+      input: { target: 'src/auth/validator.ts' },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.output.output).toBe('analyzed:src/auth/validator.ts');
+      expect(result.confidence).toBe(1);
+      expect(result.fixture).toBe('tests/fixtures/sample-ts-project');
+    }
+  });
+
+  it('surfaces typed construction errors from testConstruction helper', async () => {
+    const error = new ConstructionError('construction failed', 'test-construction');
+    const construction = {
+      execute: async () => fail(error),
+    };
+
+    const result = await testConstruction(construction, {
+      input: { value: 1 },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe(error);
+    }
   });
 });

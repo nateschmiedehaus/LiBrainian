@@ -356,6 +356,7 @@ Documentation lives in:
 - `README.md` - Main readme
 - `docs/` - Detailed documentation
 - `docs/api/` - API reference
+- `docs/contributing/constructions.md` - How to write, test, and publish construction presets
 - Code comments - Inline documentation
 
 ### Documentation Style
