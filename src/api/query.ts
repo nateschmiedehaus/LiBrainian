@@ -85,7 +85,6 @@ import { recordQueryEpisode } from './query_episodes.js';
 import { logWarning } from '../telemetry/logger.js';
 import { configurable, resolveQuantifiedValue } from '../epistemics/quantification.js';
 import { buildConstructionPlan } from './construction_plan.js';
-import { getConstructableClassificationMap } from '../constructions/constructable_registry.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId, REPLAY_UNAVAILABLE_TRACE } from '../epistemics/evidence_ledger.js';
 import { analyzeResultCoherence, applyCoherenceAdjustment } from '../epistemics/result_coherence.js';
@@ -214,6 +213,11 @@ import {
   extractRefactoringTarget,
   extractSecurityCheckTypes,
 } from './query_intent_targets.js';
+import {
+  CONSTRUCTION_TO_CLASSIFICATION_MAP,
+  getConstructionIdFromClassification,
+  isConstructionEnabled,
+} from './query_construction_routing.js';
 import {
   ARCHITECTURE_VERIFICATION_PATTERNS,
   BUG_INVESTIGATION_PATTERNS,
@@ -442,41 +446,14 @@ const HINT_LOW_CONFIDENCE_THRESHOLD = q(
  * This maps the ConstructableId from auto_selector.ts to the query classification flags.
  */
 const CONSTRUCTION_TO_CLASSIFICATION: Record<string, keyof QueryClassification> =
-  getConstructableClassificationMap() as Record<string, keyof QueryClassification>;
-
-/**
- * Check if a construction is enabled for a query.
- *
- * When enabledConstructables is provided, only listed constructions are allowed.
- * When enabledConstructables is undefined, all constructions are enabled (legacy behavior).
- *
- * @param constructionId - The construction ID to check (e.g., 'refactoring-safety-checker')
- * @param enabledConstructables - List of enabled construction IDs from session config
- * @returns true if the construction should run
- */
-function isConstructionEnabled(
-  constructionId: string,
-  enabledConstructables: string[] | undefined
-): boolean {
-  // Legacy behavior: if enabledConstructables is not provided, all constructions are enabled
-  if (enabledConstructables === undefined) {
-    return true;
-  }
-  // Check if the construction is in the enabled list
-  return enabledConstructables.includes(constructionId);
-}
+  CONSTRUCTION_TO_CLASSIFICATION_MAP as Record<string, keyof QueryClassification>;
 
 /**
  * Get the construction ID for a classification flag.
  * Returns undefined if the flag is not a construction-related flag.
  */
 function getConstructionId(classificationFlag: keyof QueryClassification): string | undefined {
-  for (const [id, flag] of Object.entries(CONSTRUCTION_TO_CLASSIFICATION)) {
-    if (flag === classificationFlag) {
-      return id;
-    }
-  }
-  return undefined;
+  return getConstructionIdFromClassification(classificationFlag, CONSTRUCTION_TO_CLASSIFICATION);
 }
 
 export interface QueryClassification {
