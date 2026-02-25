@@ -11,6 +11,7 @@ import type { TestSlopInput } from './processes/test_slop_detector.js';
 import type { DiffSummarizerInput } from './processes/diff_semantic_summarizer.js';
 import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_coherence_checker.js';
 import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
+import type { APIDetectorInput } from './processes/hallucinated_api_detector.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -552,6 +553,30 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const HALLUCINATED_API_DETECTOR_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      generatedCode: { type: 'string' },
+      projectRoot: { type: 'string' },
+      packagesToCheck: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['generatedCode', 'projectRoot'],
+    additionalProperties: false,
+  };
+
+  const HALLUCINATED_API_DETECTOR_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      calls: { type: 'array' },
+      hallucinatedCount: { type: 'number' },
+      unverifiableCount: { type: 'number' },
+      agentSummary: { type: 'string' },
+      hasBlockingIssues: { type: 'boolean' },
+    },
+    required: ['calls', 'hallucinatedCount', 'unverifiableCount', 'agentSummary', 'hasBlockingIssues'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -923,6 +948,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createSemanticDuplicateDetectorConstruction } = await import('./processes/semantic_duplicate_detector.js');
         return createSemanticDuplicateDetectorConstruction().execute(input as SemanticDuplicateDetectorInput, context);
+      },
+    },
+    {
+      id: 'librainian:hallucinated-api-detector',
+      inputSchema: HALLUCINATED_API_DETECTOR_INPUT_SCHEMA,
+      outputSchema: HALLUCINATED_API_DETECTOR_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createHallucinatedApiDetectorConstruction } = await import('./processes/hallucinated_api_detector.js');
+        return createHallucinatedApiDetectorConstruction().execute(input as APIDetectorInput, context);
       },
     },
     {

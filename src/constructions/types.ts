@@ -61,6 +61,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'diff-semantic-summarizer',
   'intent-behavior-coherence-checker',
   'semantic-duplicate-detector',
+  'hallucinated-api-detector',
   'regression-detector',
   'onboarding-assistant',
   'release-qualification',

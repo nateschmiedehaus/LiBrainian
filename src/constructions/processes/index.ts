@@ -199,6 +199,13 @@ export {
 } from './semantic_duplicate_detector.js';
 
 export {
+  createHallucinatedApiDetectorConstruction,
+  type APIDetectorInput,
+  type HallucinatedCall,
+  type APIDetectorOutput,
+} from './hallucinated_api_detector.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

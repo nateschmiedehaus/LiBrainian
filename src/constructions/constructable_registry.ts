@@ -253,6 +253,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'quality', 'agentic'],
   },
   {
+    id: 'hallucinated-api-detector',
+    basePriority: 85,
+    isCore: true,
+    availability: READY,
+    description: 'Detects generated package method calls that do not exist in the installed package version',
+    motivation: 'Prevent runtime API-call failures by validating generated package callsites against installed declarations before commit.',
+    tags: ['core', 'process', 'preset', 'quality', 'dependencies', 'agentic'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

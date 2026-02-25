@@ -195,6 +195,7 @@ export type ConstructableId =
   | 'diff-semantic-summarizer'
   | 'intent-behavior-coherence-checker'
   | 'semantic-duplicate-detector'
+  | 'hallucinated-api-detector'
   | 'regression-detector'
   | 'onboarding-assistant'
   | 'release-qualification'
