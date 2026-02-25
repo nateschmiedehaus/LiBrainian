@@ -1,13 +1,13 @@
 task_id,ttfuc_s,ttap_s,ttco_s,rework_loops,invalid_refs,outcome,notes
 T01,,,,,,,pending
 T02,480,900,1800,2,0,success,"Real-session run from issues #820 and #707. Includes persistence + two-consumer regression and full-suite pass."
-T03,,,,,,,pending
+T03,240,480,900,1,0,success,"Validated hook update-index non-blocking behavior through dedicated regression tests."
 T04,,,,,,,pending
 T05,,,,,,,pending
 T06,,,,,,,pending
 T07,300,540,960,1,0,success,"Mapped end-to-end call-edge flow from processTask/indexFile through graph edge writes and external edge resolution."
 T08,360,720,1200,1,0,success,"Identified semantic retrieval and reranking hot paths with cache and cross-encoder touchpoints."
 T09,240,420,780,1,0,success,"Mapped strategic-contract persistence/materialization and showed current separation from MCP/context-pack serving."
-T10,,,,,,,pending
-T11,,,,,,,pending
+T10,300,540,1020,1,0,success,"Diagnosed bootstrap/indexing gate warning path and verified bounded pass behavior in bootstrap quality gate suite."
+T11,180,300,540,1,0,success,"Validated constrained-resource stabilization path (worker reduction + process guard tests)."
 T12,180,360,600,1,0,success,"Diagnosed strict evidence-gate failure mode as missing/stale evidence manifest chain inputs."

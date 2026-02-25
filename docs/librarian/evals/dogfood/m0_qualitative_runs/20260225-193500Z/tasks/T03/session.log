@@ -1,0 +1,5 @@
+Session summary (2026-02-25):
+
+1. Executed targeted hook regression suite.
+2. Confirmed adapter/bootstrap failure classes are treated as non-blocking in hook path.
+3. Verified non-failing paths do not emit non-blocking skip message incorrectly.

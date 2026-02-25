@@ -1,13 +1,13 @@
 task_id,relevance,trustworthiness,cognitive_load,decision_confidence,workflow_fluidity,notes
 T01,,,,,,pending
 T02,4,4,4,4,3,"Good context and high trust after source validation; workflow friction from long full-suite runtime and hook/push overhead."
-T03,,,,,,pending
+T03,4,4,4,4,4,"Hook-path behavior and non-blocking semantics were clear and test-backed."
 T04,,,,,,pending
 T05,,,,,,pending
 T06,,,,,,pending
 T07,5,5,4,5,4,"High clarity and trust from direct code-path verification with explicit storage/index boundaries."
 T08,4,4,3,4,3,"Useful analysis but high cognitive load due very large query pipeline and many rerank branches."
 T09,4,4,4,4,4,"Clear separation between strategic contract persistence and current MCP/context-pack retrieval surfaces."
-T10,,,,,,pending
-T11,,,,,,pending
+T10,4,4,3,4,3,"Diagnosis was reliable but semantic-index warning path still requires nuanced interpretation."
+T11,4,4,4,4,4,"Resource-pressure behavior was explicit and mitigation path was deterministic."
 T12,5,5,4,5,4,"Failure mechanism was explicit and reproducible once evidence scripts and manifest path were traced."

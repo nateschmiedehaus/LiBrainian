@@ -1,0 +1,5 @@
+Session summary (2026-02-25):
+
+1. Ran targeted test command under low free-memory conditions.
+2. Observed resource-aware runner reducing workers to 1 for stability.
+3. Verified process guard tests pass and timeout/termination protections exist in runner wrapper.

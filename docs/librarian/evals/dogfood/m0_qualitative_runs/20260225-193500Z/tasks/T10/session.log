@@ -1,0 +1,6 @@
+Session summary (2026-02-25):
+
+1. Ran bootstrap quality gate tests with mixed-language fixture coverage.
+2. Observed warning path for processed files with zero indexed functions in non-TS fixture subset.
+3. Confirmed gate still reports bounded pass while surfacing explicit diagnostic message.
+4. Captured minimal remediation guidance: parser support/config validation for affected fixture/file types.
