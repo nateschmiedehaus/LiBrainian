@@ -225,6 +225,10 @@ import {
   scoreCandidates,
 } from './query_candidate_scoring.js';
 import {
+  candidateKey,
+  mergeCandidates,
+} from './query_candidate_merge.js';
+import {
   applyEntryPointBias,
   isEntryPointEntity,
 } from './query_entry_point_biasing.js';
@@ -7448,19 +7452,6 @@ async function expandCandidates(candidates: Candidate[], metricsByType: Map<Grap
   }
   return { candidates: expansions, communityAdded, graphAdded };
 }
-function mergeCandidates(primary: Candidate[], additions: Candidate[]): Candidate[] {
-  const map = new Map<string, Candidate>();
-  for (const candidate of [...primary, ...additions]) {
-    const key = candidateKey(candidate); const existing = map.get(key);
-    if (!existing) { map.set(key, candidate); continue; }
-    existing.semanticSimilarity = Math.max(existing.semanticSimilarity, candidate.semanticSimilarity);
-    if (candidate.graphSimilarity !== undefined) existing.graphSimilarity = Math.max(existing.graphSimilarity ?? 0, candidate.graphSimilarity);
-    if (!existing.path && candidate.path) existing.path = candidate.path;
-    if (candidate.cochange !== undefined) existing.cochange = Math.max(existing.cochange ?? 0, candidate.cochange);
-    existing.confidence = Math.max(existing.confidence, candidate.confidence); existing.recency = Math.max(existing.recency, candidate.recency);
-  }
-  return Array.from(map.values());
-}
 async function applyMultiVectorScores(options: {
   storage: LibrarianStorage;
   candidates: Candidate[];
@@ -7793,7 +7784,6 @@ function buildExplanation(parts: string[], averageScore: number, candidateCount:
   const explanation = parts.slice(); if (candidateCount > 0 && Number.isFinite(averageScore)) explanation.push(`Ranked ${candidateCount} candidates (avg score ${averageScore.toFixed(2)}).`);
   return explanation.join(' ');
 }
-function candidateKey(candidate: Candidate): string { return `${candidate.entityType}:${candidate.entityId}`; }
 function resolveEvidenceEntityType(pack: ContextPack): 'function' | 'module' | null {
   if (pack.packType === 'function_context') return 'function';
   if (pack.packType === 'module_context' || pack.packType === 'change_impact' || pack.packType === 'pattern_context' || pack.packType === 'decision_context' || pack.packType === 'doc_context') return 'module';
