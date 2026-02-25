@@ -192,6 +192,13 @@ export {
 } from './intent_behavior_coherence_checker.js';
 
 export {
+  createSemanticDuplicateDetectorConstruction,
+  type SemanticDuplicateDetectorInput,
+  type DuplicateMatch,
+  type SemanticDuplicateDetectorOutput,
+} from './semantic_duplicate_detector.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

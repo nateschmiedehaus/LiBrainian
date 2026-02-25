@@ -244,6 +244,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'quality', 'security'],
   },
   {
+    id: 'semantic-duplicate-detector',
+    basePriority: 84,
+    isCore: true,
+    availability: READY,
+    description: 'Detects semantically equivalent existing functions before agents generate new implementations',
+    motivation: 'Prevent duplicate logic drift by intercepting pre-generation plans and steering agents toward reuse.',
+    tags: ['core', 'process', 'preset', 'quality', 'agentic'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

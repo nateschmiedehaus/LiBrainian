@@ -10,6 +10,7 @@ import type { StalenessInput } from './processes/stale_documentation_sensor.js';
 import type { TestSlopInput } from './processes/test_slop_detector.js';
 import type { DiffSummarizerInput } from './processes/diff_semantic_summarizer.js';
 import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_coherence_checker.js';
+import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -526,6 +527,31 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const SEMANTIC_DUPLICATE_DETECTOR_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      intendedDescription: { type: 'string' },
+      targetModule: { type: 'string' },
+      anticipatedCallers: { type: 'array', items: { type: 'string' } },
+      threshold: { type: 'number' },
+      maxResults: { type: 'number' },
+    },
+    required: ['intendedDescription'],
+    additionalProperties: false,
+  };
+
+  const SEMANTIC_DUPLICATE_DETECTOR_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      matches: { type: 'array' },
+      hasDuplicates: { type: 'boolean' },
+      topMatch: { type: 'object' },
+      agentSummary: { type: 'string' },
+    },
+    required: ['matches', 'hasDuplicates', 'topMatch', 'agentSummary'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -887,6 +913,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createIntentBehaviorCoherenceCheckerConstruction } = await import('./processes/intent_behavior_coherence_checker.js');
         return createIntentBehaviorCoherenceCheckerConstruction().execute(input as IntentBehaviorCoherenceInput, context);
+      },
+    },
+    {
+      id: 'librainian:semantic-duplicate-detector',
+      inputSchema: SEMANTIC_DUPLICATE_DETECTOR_INPUT_SCHEMA,
+      outputSchema: SEMANTIC_DUPLICATE_DETECTOR_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createSemanticDuplicateDetectorConstruction } = await import('./processes/semantic_duplicate_detector.js');
+        return createSemanticDuplicateDetectorConstruction().execute(input as SemanticDuplicateDetectorInput, context);
       },
     },
     {
