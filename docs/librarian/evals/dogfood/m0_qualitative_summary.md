@@ -6,7 +6,7 @@ Last Updated: 2026-02-25
 
 ## Linked runs
 
-- Pending first completed run
+- `docs/librarian/evals/dogfood/m0_qualitative_runs/20260225-193500Z/` (initialized, pending execution)
 
 ## Aggregate outcomes
 

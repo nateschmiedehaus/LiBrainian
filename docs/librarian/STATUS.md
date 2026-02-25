@@ -13,7 +13,8 @@ Version: 1.4.6
 - Protocol spec created: `docs/librarian/evals/dogfood/m0_qualitative_protocol.md`
 - Run artifact contract created: `docs/librarian/evals/dogfood/m0_qualitative_runs/README.md`
 - Summary/decision template created: `docs/librarian/evals/dogfood/m0_qualitative_summary.md`
-- Current state: protocol-ready, execution evidence pending (12-task minimum not yet complete)
+- First run initialized: `docs/librarian/evals/dogfood/m0_qualitative_runs/20260225-193500Z/`
+- Current state: protocol-ready, run scaffolded, execution evidence pending (12-task minimum not yet complete)
 
 ---
 
