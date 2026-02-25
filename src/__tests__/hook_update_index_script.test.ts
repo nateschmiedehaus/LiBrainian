@@ -62,6 +62,20 @@ describe('hook-update-index script', () => {
     expect(output).toContain('EBOOTSTRAP_FAILED');
   });
 
+  it('treats unverified llm adapter unregistered failures as non-blocking', () => {
+    const { root, binDir } = createNpmStub();
+    cleanupDirs.push(root);
+    const result = runHook(binDir, {
+      STUB_NPM_EXIT_CODE: '41',
+      STUB_NPM_STDERR: 'unverified_by_trace(llm_adapter_unregistered): Call registerLlmServiceAdapter() first\\n',
+    });
+
+    expect(result.status).toBe(0);
+    const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
+    expect(output).toContain('LiBrainian staged index update skipped (non-blocking)');
+    expect(output).toContain('llm_adapter_unregistered');
+  });
+
   it('keeps unknown update failures blocking', () => {
     const { root, binDir } = createNpmStub();
     cleanupDirs.push(root);

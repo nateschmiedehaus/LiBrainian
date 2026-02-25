@@ -1,9 +1,9 @@
 - id: librainian-update-staged
   name: LiBrainian staged index update
   description: Incrementally refresh LiBrainian index for staged files.
-  entry: npx librainian update --staged
+  entry: node scripts/hook-update-index.mjs
   language: system
-  pass_filenames: false
+  pass_filenames: true
   stages:
     - pre-commit
 - id: generated-artifact-guard

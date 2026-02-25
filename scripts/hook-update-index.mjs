@@ -33,18 +33,20 @@ function main() {
   }
 
   const combined = `${update.stdout}\n${update.stderr}`;
+  const combinedLower = combined.toLowerCase();
   const softFailureReasons = [
-    'Librarian not bootstrapped',
-    'LiBrainian not bootstrapped',
-    'No valid files to index',
-    'No files specified',
-    'ProviderUnavailable',
-    'spawn tsx ENOENT',
-    'EBOOTSTRAP_FAILED',
-    'Model policy provider not registered',
-    'LLM adapter is not registered',
+    'librarian not bootstrapped',
+    'librainian not bootstrapped',
+    'no valid files to index',
+    'no files specified',
+    'providerunavailable',
+    'spawn tsx enoent',
+    'ebootstrap_failed',
+    'model policy provider not registered',
+    'llm adapter is not registered',
+    'llm_adapter_unregistered',
   ];
-  const isSoftFailure = softFailureReasons.some((reason) => combined.includes(reason));
+  const isSoftFailure = softFailureReasons.some((reason) => combinedLower.includes(reason));
 
   if (isSoftFailure) {
     console.warn('[hooks] LiBrainian staged index update skipped (non-blocking):');

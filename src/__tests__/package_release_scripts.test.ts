@@ -100,6 +100,14 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), '.pre-commit-hooks.yaml'))).toBe(true);
   });
 
+  it('routes pre-commit framework hook through the non-blocking update wrapper', () => {
+    const hooksPath = path.join(process.cwd(), '.pre-commit-hooks.yaml');
+    const hooksConfig = fs.readFileSync(hooksPath, 'utf8');
+    expect(hooksConfig).toContain('id: librainian-update-staged');
+    expect(hooksConfig).toContain('entry: node scripts/hook-update-index.mjs');
+    expect(hooksConfig).toContain('pass_filenames: true');
+  });
+
   it('hardens public pack check against lifecycle log noise', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'public-pack-check.mjs');
     const script = fs.readFileSync(scriptPath, 'utf8');
