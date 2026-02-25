@@ -190,6 +190,7 @@ export type ConstructableId =
   | 'code-review-pipeline'
   | 'migration-assistant'
   | 'documentation-generator'
+  | 'stale-documentation-sensor'
   | 'regression-detector'
   | 'onboarding-assistant'
   | 'release-qualification'

@@ -92,6 +92,7 @@ describe('default construction registry', () => {
       'librainian:code-review-pipeline',
       'librainian:migration-assistant',
       'librainian:documentation-generator',
+      'librainian:stale-documentation-sensor',
       'librainian:regression-detector',
       'librainian:onboarding-assistant',
       'librainian:release-qualification',

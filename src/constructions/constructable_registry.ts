@@ -208,6 +208,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'documentation'],
   },
   {
+    id: 'stale-documentation-sensor',
+    basePriority: 79,
+    isCore: true,
+    availability: READY,
+    description: 'Detects documentation claims that diverged from current implementation behavior',
+    motivation: 'Prevent agent and human workflows from relying on stale documentation as authoritative truth.',
+    tags: ['core', 'process', 'preset', 'documentation', 'quality'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

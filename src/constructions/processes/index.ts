@@ -156,6 +156,18 @@ export {
 } from './presets.js';
 
 export {
+  createStaleDocumentationSensorConstruction,
+  createStaleDocumentationLiveResult,
+  type DocumentationType,
+  type LiveResult,
+  type StaleDocEntry,
+  type StalenessInput,
+  type StalenessType,
+  type StaleDocumentationSensorOutput,
+  type StaleDocumentationLiveOptions,
+} from './stale_documentation_sensor.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

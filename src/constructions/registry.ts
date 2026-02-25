@@ -6,6 +6,7 @@ import { listConstructableDefinitions } from './constructable_registry.js';
 import type { Context } from './types.js';
 import type { PatrolInput } from './processes/patrol_process.js';
 import type { PresetProcessInput } from './processes/presets.js';
+import type { StalenessInput } from './processes/stale_documentation_sensor.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -423,6 +424,31 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const STALE_DOCUMENTATION_SENSOR_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      paths: { type: 'array', items: { type: 'string' } },
+      docTypes: { type: 'array', items: { type: 'string' } },
+      changedInLastDays: { type: 'number' },
+      stalenessThreshold: { type: 'number' },
+    },
+    required: ['paths'],
+    additionalProperties: false,
+  };
+
+  const STALE_DOCUMENTATION_SENSOR_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      staleEntries: { type: 'array' },
+      ghostDocumentation: { type: 'array' },
+      undocumentedFunctions: { type: 'array' },
+      agentSummary: { type: 'string' },
+      documentationHealthScore: { type: 'number' },
+    },
+    required: ['staleEntries', 'ghostDocumentation', 'agentSummary', 'documentationHealthScore'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -744,6 +770,16 @@ function activateCoreConstructions(): void {
       execute: async (input) => {
         const { createDocumentationGeneratorConstruction } = await import('./processes/presets.js');
         return createDocumentationGeneratorConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:stale-documentation-sensor',
+      inputSchema: STALE_DOCUMENTATION_SENSOR_INPUT_SCHEMA,
+      outputSchema: STALE_DOCUMENTATION_SENSOR_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createStaleDocumentationSensorConstruction } = await import('./processes/stale_documentation_sensor.js');
+        return createStaleDocumentationSensorConstruction().execute(input as StalenessInput, context);
       },
     },
     {
