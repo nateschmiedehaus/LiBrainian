@@ -235,6 +235,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'review', 'quality'],
   },
   {
+    id: 'intent-behavior-coherence-checker',
+    basePriority: 82,
+    isCore: true,
+    availability: READY,
+    description: 'Detects mismatches between declared function intent and actual implementation behavior',
+    motivation: 'Prevent agents and reviewers from trusting misleading names/docstrings in critical execution paths.',
+    tags: ['core', 'process', 'preset', 'quality', 'security'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

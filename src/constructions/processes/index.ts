@@ -184,6 +184,14 @@ export {
 } from './diff_semantic_summarizer.js';
 
 export {
+  createIntentBehaviorCoherenceCheckerConstruction,
+  type IntentBehaviorCoherenceInput,
+  type DivergenceType,
+  type CoherenceViolation,
+  type IntentBehaviorCoherenceOutput,
+} from './intent_behavior_coherence_checker.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

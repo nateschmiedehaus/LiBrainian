@@ -9,6 +9,7 @@ import type { PresetProcessInput } from './processes/presets.js';
 import type { StalenessInput } from './processes/stale_documentation_sensor.js';
 import type { TestSlopInput } from './processes/test_slop_detector.js';
 import type { DiffSummarizerInput } from './processes/diff_semantic_summarizer.js';
+import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_coherence_checker.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -502,6 +503,29 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const INTENT_BEHAVIOR_COHERENCE_CHECKER_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      targets: { type: 'array', items: { type: 'string' } },
+      fromEntrypoints: { type: 'array', items: { type: 'string' } },
+      divergenceThreshold: { type: 'number' },
+      prioritizeByCriticality: { type: 'boolean' },
+      workspaceRoot: { type: 'string' },
+    },
+    additionalProperties: false,
+  };
+
+  const INTENT_BEHAVIOR_COHERENCE_CHECKER_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      violations: { type: 'array' },
+      criticalViolations: { type: 'array' },
+      agentSummary: { type: 'string' },
+    },
+    required: ['violations', 'criticalViolations', 'agentSummary'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -853,6 +877,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createDiffSemanticSummarizerConstruction } = await import('./processes/diff_semantic_summarizer.js');
         return createDiffSemanticSummarizerConstruction().execute(input as DiffSummarizerInput, context);
+      },
+    },
+    {
+      id: 'librainian:intent-behavior-coherence-checker',
+      inputSchema: INTENT_BEHAVIOR_COHERENCE_CHECKER_INPUT_SCHEMA,
+      outputSchema: INTENT_BEHAVIOR_COHERENCE_CHECKER_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createIntentBehaviorCoherenceCheckerConstruction } = await import('./processes/intent_behavior_coherence_checker.js');
+        return createIntentBehaviorCoherenceCheckerConstruction().execute(input as IntentBehaviorCoherenceInput, context);
       },
     },
     {

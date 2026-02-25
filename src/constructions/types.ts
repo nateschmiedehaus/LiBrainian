@@ -59,6 +59,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'stale-documentation-sensor',
   'test-slop-detector',
   'diff-semantic-summarizer',
+  'intent-behavior-coherence-checker',
   'regression-detector',
   'onboarding-assistant',
   'release-qualification',
