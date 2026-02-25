@@ -16,6 +16,11 @@
  *     --no-issues                      skip GH issue creation intent
  *     --agent-bin <path>               agent binary (default: auto-detect)
  *     --interactive, -i                pause between sandbox stages for manual inspection
+ *
+ * Storage hygiene controls (env):
+ *   LIBRARIAN_PATROL_MAX_STORAGE_GIB      total retained transient storage cap (default: 20)
+ *   LIBRARIAN_PATROL_MAX_ARTIFACT_AGE_HOURS max artifact age before deletion (default: 24)
+ *   LIBRARIAN_PATROL_MAX_STORAGE_ENTRIES  max retained transient entries (default: 64)
  */
 
 import fs from 'node:fs/promises';
@@ -44,6 +49,165 @@ const MODE_DEFAULTS = {
 const TASK_VARIANTS = ['explore', 'guided', 'construction'];
 
 const PATROL_POLICY_KIND = 'PatrolPolicyEnforcementArtifact.v1';
+const BYTES_PER_GIB = 1024 ** 3;
+const HOURS_TO_MS = 60 * 60 * 1000;
+
+function parsePositiveNumber(raw, fallback) {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parseStoragePolicyFromEnv(env = process.env) {
+  const maxStorageGiB = parsePositiveNumber(env.LIBRARIAN_PATROL_MAX_STORAGE_GIB, 20);
+  const maxArtifactAgeHours = parsePositiveNumber(env.LIBRARIAN_PATROL_MAX_ARTIFACT_AGE_HOURS, 24);
+  const maxEntries = Math.floor(parsePositiveNumber(env.LIBRARIAN_PATROL_MAX_STORAGE_ENTRIES, 64));
+  return {
+    maxStorageBytes: Math.floor(maxStorageGiB * BYTES_PER_GIB),
+    maxArtifactAgeMs: Math.floor(maxArtifactAgeHours * HOURS_TO_MS),
+    maxEntries,
+  };
+}
+
+const STORAGE_POLICY = parseStoragePolicyFromEnv();
+
+function estimatePathBytes(targetPath) {
+  try {
+    const output = run('du', ['-sk', targetPath]);
+    const kib = Number(output.split(/\s+/)[0] ?? '0');
+    if (!Number.isFinite(kib) || kib < 0) {
+      return 0;
+    }
+    return Math.floor(kib * 1024);
+  } catch {
+    return 0;
+  }
+}
+
+function isProtectedPath(entryPath, protectedPaths) {
+  for (const protectedPath of protectedPaths) {
+    if (entryPath === protectedPath || entryPath.startsWith(`${protectedPath}${path.sep}`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function sortByOldest(entries) {
+  return [...entries].sort((a, b) => a.mtimeMs - b.mtimeMs || a.path.localeCompare(b.path));
+}
+
+export function selectStorageEntriesForDeletion(
+  entries,
+  policy = STORAGE_POLICY,
+  nowMs = Date.now(),
+) {
+  const candidates = entries.filter((entry) => !entry.protected);
+  const marked = [];
+  const survivors = [];
+  for (const entry of sortByOldest(candidates)) {
+    const ageMs = Math.max(0, nowMs - entry.mtimeMs);
+    if (ageMs > policy.maxArtifactAgeMs) {
+      marked.push(entry);
+    } else {
+      survivors.push(entry);
+    }
+  }
+
+  let totalBytes = survivors.reduce((sum, entry) => sum + entry.sizeBytes, 0);
+  let totalCount = survivors.length;
+  for (const entry of sortByOldest(survivors)) {
+    if (totalBytes <= policy.maxStorageBytes && totalCount <= policy.maxEntries) {
+      break;
+    }
+    marked.push(entry);
+    totalBytes -= entry.sizeBytes;
+    totalCount -= 1;
+  }
+  return marked;
+}
+
+async function collectStorageEntries(policy = STORAGE_POLICY, protectedPaths = new Set()) {
+  const entries = [];
+  const roots = [
+    { dir: path.join(REPO_ROOT, '.patrol-tmp'), kind: 'sandbox' },
+    { dir: path.join(REPO_ROOT, '.tmp', 'librainian'), kind: 'tmp' },
+    { dir: path.join(REPO_ROOT, '.tmp', 'librarian'), kind: 'tmp' },
+  ];
+
+  for (const root of roots) {
+    let dirEntries = [];
+    try {
+      dirEntries = await fs.readdir(root.dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const dirEntry of dirEntries) {
+      const targetPath = path.join(root.dir, dirEntry.name);
+      const stat = await fs.stat(targetPath).catch(() => null);
+      if (!stat) continue;
+      entries.push({
+        path: targetPath,
+        kind: root.kind,
+        mtimeMs: stat.mtimeMs,
+        sizeBytes: estimatePathBytes(targetPath),
+        protected: isProtectedPath(targetPath, protectedPaths),
+      });
+    }
+  }
+
+  let rootFiles = [];
+  try {
+    rootFiles = await fs.readdir(REPO_ROOT, { withFileTypes: true });
+  } catch {
+    rootFiles = [];
+  }
+  for (const dirEntry of rootFiles) {
+    if (!dirEntry.isFile()) continue;
+    if (!/^librainian-.*\.tgz$/i.test(dirEntry.name)) continue;
+    const targetPath = path.join(REPO_ROOT, dirEntry.name);
+    const stat = await fs.stat(targetPath).catch(() => null);
+    if (!stat) continue;
+    entries.push({
+      path: targetPath,
+      kind: 'tarball',
+      mtimeMs: stat.mtimeMs,
+      sizeBytes: stat.size,
+      protected: isProtectedPath(targetPath, protectedPaths),
+    });
+  }
+
+  return entries;
+}
+
+async function enforceStorageHygiene(phase, protectedPaths = new Set(), policy = STORAGE_POLICY) {
+  const entries = await collectStorageEntries(policy, protectedPaths);
+  const beforeBytes = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
+  const staleEntries = selectStorageEntriesForDeletion(entries, policy);
+
+  let removedBytes = 0;
+  let removedCount = 0;
+  for (const entry of staleEntries) {
+    await fs.rm(entry.path, { recursive: true, force: true }).catch(() => {});
+    removedBytes += entry.sizeBytes;
+    removedCount += 1;
+  }
+
+  const remainingEntries = await collectStorageEntries(policy, protectedPaths);
+  const afterBytes = remainingEntries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
+
+  return {
+    phase,
+    policy,
+    beforeBytes,
+    afterBytes,
+    removedBytes,
+    removedCount,
+    entryCount: remainingEntries.length,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1083,19 +1247,14 @@ async function main() {
     '[patrol] DEPRECATED: direct scripts/agent-patrol.mjs invocation is deprecated; use "librarian constructions run patrol-process" instead.',
   );
   const opts = parseArgs(process.argv.slice(2));
-
-  // Clean up stale sandbox dirs from previous runs (prevents disk bloat)
-  const localTmpDir = path.join(REPO_ROOT, '.patrol-tmp');
-  try {
-    const entries = await fs.readdir(localTmpDir);
-    if (entries.length > 0) {
-      console.log(`[patrol] cleaning ${entries.length} stale sandbox(es)...`);
-      for (const entry of entries) {
-        await fs.rm(path.join(localTmpDir, entry), { recursive: true, force: true }).catch(() => {});
-      }
-    }
-  } catch {
-    // Dir doesn't exist yet -- fine
+  console.log(
+    `[patrol] storage policy: maxBytes=${STORAGE_POLICY.maxStorageBytes} maxAgeMs=${STORAGE_POLICY.maxArtifactAgeMs} maxEntries=${STORAGE_POLICY.maxEntries}`,
+  );
+  const startupStorage = await enforceStorageHygiene('startup');
+  if (startupStorage.removedCount > 0) {
+    console.log(
+      `[patrol] startup cleanup removed=${startupStorage.removedCount} entries bytes=${startupStorage.removedBytes} remainingBytes=${startupStorage.afterBytes}`,
+    );
   }
 
   // Detect agent binary (auto-detect from local env, supports claude or codex OAuth)
@@ -1124,6 +1283,8 @@ async function main() {
 
   const commitSha = getCommitSha();
   const runs = [];
+  const protectedPaths = new Set();
+  let postRunStorage = null;
 
   try {
     for (let i = 0; i < repos.length; i++) {
@@ -1211,12 +1372,14 @@ async function main() {
           console.log(`[patrol] sandbox removed`);
         } else if (sandbox && opts.keep) {
           console.log(`[patrol] sandbox kept: ${sandbox.sandboxDir}`);
+          protectedPaths.add(sandbox.tmpRoot);
         }
       }
     }
   } finally {
     // Always clean up tarball
     await fs.rm(tarballPath, { force: true }).catch(() => {});
+    postRunStorage = await enforceStorageHygiene('post-run', protectedPaths).catch(() => null);
   }
 
   // Compute aggregate
@@ -1232,6 +1395,10 @@ async function main() {
     runs,
     aggregate,
     policy,
+    storageTelemetry: {
+      startup: startupStorage,
+      postRun: postRunStorage,
+    },
   };
 
   // Write artifact
@@ -1250,6 +1417,12 @@ async function main() {
   console.log(`  Implicit fallback rate: ${(aggregate.implicitFallbackRate * 100).toFixed(1)}%`);
   console.log(`  Constructions exercised: ${aggregate.constructionCoverage.exercised}`);
   console.log(`  Composition success rate: ${(aggregate.compositionSuccessRate * 100).toFixed(1)}%`);
+  console.log(
+    `  Storage bytes (startup→post-run): ${startupStorage.afterBytes} -> ${postRunStorage?.afterBytes ?? startupStorage.afterBytes}`,
+  );
+  console.log(
+    `  Storage cleanup removed entries: startup=${startupStorage.removedCount} post-run=${postRunStorage?.removedCount ?? 0}`,
+  );
   console.log(
     `  Policy decision: required=${policy.requiredEvidenceMode} ` +
     `observed=${policy.observedEvidenceMode} enforcement=${policy.enforcement}`,
