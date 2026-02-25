@@ -70,7 +70,7 @@ import { getIndexState, isReadyPhase, waitForIndexReady } from '../state/index_s
 import type { IndexState } from '../state/index_state.js';
 import { getWatchState, type WatchState } from '../state/watch_state.js';
 import { deriveWatchHealth, type WatchHealth } from '../state/watch_health.js';
-import { HierarchicalMemory, type MemoryTier } from '../cache/tiered_cache.js';
+import type { HierarchicalMemory } from '../cache/tiered_cache.js';
 import { resolveMethodGuidance } from '../methods/method_guidance.js';
 import { globalEventBus, createQueryCompleteEvent, createQueryReceivedEvent, createQueryStartEvent, createQueryResultEvent, createQueryErrorEvent } from '../events.js';
 import { scoreCandidatesWithMultiSignals } from '../query/scoring.js';
@@ -241,15 +241,12 @@ import {
   normalizeIntentForCache,
   type SemanticCacheCategory,
 } from './query_semantic_cache_utils.js';
+import { type CachedResponse } from './query_cache_response_utils.js';
 import {
-  deserializeCachedResponse,
-  QUERY_CACHE_TTL_L1_MS,
-  QUERY_CACHE_TTL_L2_MS,
-  resolveQueryCacheTier,
-  resolveQueryCacheTtl,
-  serializeCachedResponse,
-  type CachedResponse,
-} from './query_cache_response_utils.js';
+  getQueryCache,
+  setCachedQuery,
+  type QueryCacheStore,
+} from './query_cache_store_utils.js';
 import {
   applyMmrDiversification,
 } from './query_mmr_utils.js';
@@ -316,13 +313,6 @@ export { applyEntryPointBias, isEntryPointEntity };
 
 type Candidate = { entityId: string; entityType: GraphEntityType; path?: string; semanticSimilarity: number; confidence: number; recency: number; pagerank: number; centrality: number; communityId: number | null; graphSimilarity?: number; cochange?: number; score?: number; };
 type GraphMetricsStore = LibrarianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]>; };
-type QueryCacheStore = LibrarianStorage & {
-  getQueryCacheEntry?: (queryHash: string) => Promise<QueryCacheEntry | null>;
-  upsertQueryCacheEntry?: (entry: QueryCacheEntry) => Promise<void>;
-  recordQueryCacheAccess?: (queryHash: string) => Promise<void>;
-  pruneQueryCache?: (options: { maxEntries: number; maxAgeMs: number }) => Promise<number>;
-  getRecentQueryCacheEntries?: (limit: number) => Promise<QueryCacheEntry[]>;
-};
 const SEMANTIC_CACHE_THRESHOLDS: Record<SemanticCacheCategory, number> = {
   lookup: 0.95,
   conceptual: 0.7,
@@ -2734,9 +2724,6 @@ const defaultEmbeddingService = new EmbeddingService();
 const EMBEDDING_CACHE_LIMIT = 64;
 const embeddingCache = new WeakMap<EmbeddingService, Map<string, Float32Array>>();
 const hydeExpansionCache = new Map<string, string>();
-const QUERY_CACHE_L1_LIMIT = 100;
-const QUERY_CACHE_L2_LIMIT = 1000;
-const queryCacheByStorage = new WeakMap<LibrarianStorage, HierarchicalMemory<CachedResponse>>();
 
 // ============================================================================
 // FEEDBACK CONTEXT STORAGE (CONTROL_LOOP.md feedback loop)
@@ -5821,23 +5808,6 @@ function cacheEmbedding(cache: Map<string, Float32Array>, key: string, embedding
   }
 }
 
-function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResponse> {
-  const existing = queryCacheByStorage.get(storage);
-  if (existing) return existing;
-  const memory = new HierarchicalMemory<CachedResponse>({
-    l1Max: QUERY_CACHE_L1_LIMIT,
-    l2Max: QUERY_CACHE_L2_LIMIT,
-    l1TtlMs: QUERY_CACHE_TTL_L1_MS,
-    l2TtlMs: QUERY_CACHE_TTL_L2_MS,
-    l3: {
-      get: (key) => readPersistentCache(storage, key),
-      set: (key, value) => writePersistentCache(storage, key, value),
-    },
-  });
-  queryCacheByStorage.set(storage, memory);
-  return memory;
-}
-
 async function trySemanticCacheLookup(options: {
   query: LibrarianQuery;
   version: LibrarianVersion;
@@ -5891,57 +5861,6 @@ async function trySemanticCacheLookup(options: {
     category,
     response,
   };
-}
-
-function extractQueryDepth(entry: QueryCacheEntry): LibrarianQuery['depth'] | undefined {
-  const parsed = safeJsonParse<LibrarianQuery>(entry.queryParams);
-  if (!parsed.ok || !parsed.value) return undefined;
-  return parsed.value.depth;
-}
-
-async function setCachedQuery(
-  key: string,
-  response: CachedResponse,
-  storage: LibrarianStorage,
-  query: LibrarianQuery
-): Promise<void> {
-  const cache = getQueryCache(storage);
-  await cache.set(key, response, resolveQueryCacheTier(query));
-}
-
-async function readPersistentCache(storage: LibrarianStorage, key: string): Promise<CachedResponse | null> {
-  const cacheStore = storage as QueryCacheStore;
-  if (!cacheStore.getQueryCacheEntry) return noResult();
-  const entry = await cacheStore.getQueryCacheEntry(key);
-  if (!entry) return noResult();
-  const createdAt = Date.parse(entry.createdAt);
-  const ttlMs = resolveQueryCacheTtl(extractQueryDepth(entry));
-  if (Number.isFinite(createdAt) && Date.now() - createdAt > ttlMs) {
-    if (cacheStore.pruneQueryCache) {
-      await cacheStore.pruneQueryCache({ maxEntries: QUERY_CACHE_L2_LIMIT, maxAgeMs: QUERY_CACHE_TTL_L2_MS });
-    }
-    return noResult();
-  }
-  const parsed = deserializeCachedResponse(entry.response);
-  if (!parsed) return noResult();
-  return parsed;
-}
-
-async function writePersistentCache(storage: LibrarianStorage, key: string, response: CachedResponse): Promise<void> {
-  const cacheStore = storage as QueryCacheStore;
-  if (!cacheStore?.upsertQueryCacheEntry) return;
-  const nowIso = new Date().toISOString();
-  await cacheStore.upsertQueryCacheEntry({
-    queryHash: key,
-    queryParams: JSON.stringify(response.query),
-    response: serializeCachedResponse(response),
-    createdAt: nowIso,
-    lastAccessed: nowIso,
-    accessCount: 1,
-  });
-  if (cacheStore.pruneQueryCache) {
-    await cacheStore.pruneQueryCache({ maxEntries: QUERY_CACHE_L2_LIMIT, maxAgeMs: QUERY_CACHE_TTL_L2_MS });
-  }
 }
 
 async function collectDirectPacks(
