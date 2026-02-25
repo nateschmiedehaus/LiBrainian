@@ -1,6 +1,6 @@
 import { getNumericValue } from '../epistemics/confidence.js';
 import type { ConstructionError } from './base/construction_base.js';
-import { isConstructionOutcome, type Construction, type ConstructionManifest, type ConstructionSchema, type Context } from './types.js';
+import { isConstructionOutcome, type Construction, type ConstructionEvent, type ConstructionManifest, type ConstructionSchema, type Context } from './types.js';
 
 export interface MCPToolResult {
   content: Array<{ type: 'text'; text: string }>;
@@ -18,6 +18,7 @@ export interface MCPConstructionTool {
     openWorldHint: false;
   };
   execute(rawInput: unknown): Promise<MCPToolResult>;
+  executeStream(rawInput: unknown): AsyncIterable<MCPToolResult>;
 }
 
 export interface ToMCPToolOptions {
@@ -213,6 +214,27 @@ function buildFailureSuggestions(error: ConstructionError): string[] {
   return suggestions;
 }
 
+async function* defaultConstructionEventStream<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  input: I,
+  context: Context<R>,
+): AsyncIterable<ConstructionEvent<O, E>> {
+  const execution = await construction.execute(input, context);
+  if (!isConstructionOutcome<O, E>(execution)) {
+    yield { kind: 'completed', result: execution as O };
+    return;
+  }
+  if (execution.ok) {
+    yield { kind: 'completed', result: execution.value };
+    return;
+  }
+  yield {
+    kind: 'failed',
+    error: execution.error,
+    partial: execution.partial,
+  };
+}
+
 export function toMCPTool<I, O, E extends ConstructionError, R>(
   construction: Construction<I, O, E, R>,
   manifest: ConstructionManifest,
@@ -228,6 +250,86 @@ export function toMCPTool<I, O, E extends ConstructionError, R>(
       readOnlyHint: true,
       idempotentHint: true,
       openWorldHint: false,
+    },
+    async *executeStream(rawInput: unknown): AsyncIterable<MCPToolResult> {
+      const validation = validateSchema(manifest.inputSchema, rawInput);
+      if (!validation.valid) {
+        yield renderResult(
+          {
+            error: 'INPUT_VALIDATION_FAILED',
+            message: `Invalid input for Construction ${manifest.id}`,
+            constructionId: manifest.id,
+            validationFailures: validation.issues,
+            schemaRef: `construction:${manifest.id}:input`,
+            inputSchema: manifest.inputSchema,
+          },
+          true,
+        );
+        return;
+      }
+
+      const context: Context<R> = {
+        deps,
+        signal: options.signal ?? new AbortController().signal,
+        sessionId: options.sessionId ?? makeSessionId(),
+        tokenBudget: options.tokenBudget,
+      };
+      const stream = construction.stream
+        ? construction.stream(rawInput as I, context)
+        : defaultConstructionEventStream(construction, rawInput as I, context);
+
+      try {
+        for await (const event of stream) {
+          if (event.kind === 'completed') {
+            yield renderResult(buildSuccessPayload(manifest.id, event.result), false);
+            return;
+          }
+          if (event.kind === 'failed') {
+            yield renderResult(
+              {
+                error: 'CONSTRUCTION_FAILED',
+                message: event.error.message,
+                constructionId: manifest.id,
+                errorType: event.error.name,
+                suggestions: buildFailureSuggestions(event.error),
+                partial: event.partial,
+              },
+              true,
+            );
+            return;
+          }
+
+          yield renderResult(
+            {
+              constructionId: manifest.id,
+              event,
+            },
+            false,
+          );
+        }
+
+        yield renderResult(
+          {
+            error: 'CONSTRUCTION_FAILED',
+            message: `Construction ${manifest.id} stream ended without terminal event`,
+            constructionId: manifest.id,
+          },
+          true,
+        );
+      } catch (error) {
+        yield renderResult(
+          {
+            error: 'CONSTRUCTION_FAILED',
+            message: error instanceof Error ? error.message : `Construction execution failed: ${String(error)}`,
+            constructionId: manifest.id,
+            suggestions: [
+              'Retry invoke_construction once to rule out transient failures.',
+              'Use describe_construction and verify required capabilities before retrying.',
+            ],
+          },
+          true,
+        );
+      }
     },
     async execute(rawInput: unknown): Promise<MCPToolResult> {
       const validation = validateSchema(manifest.inputSchema, rawInput);

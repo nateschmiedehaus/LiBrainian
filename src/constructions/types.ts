@@ -294,6 +294,68 @@ export type ConstructionExecutionResult<
 > = ConstructionOutcome<O, E>;
 
 /**
+ * Event union for streaming construction execution.
+ *
+ * Streams should emit one terminal event (`completed` or `failed`).
+ */
+export type ConstructionEvent<
+  O,
+  E extends ConstructionError = ConstructionError,
+> =
+  | {
+      kind: 'progress';
+      step: string;
+      percentComplete?: number;
+      detail?: string;
+    }
+  | {
+      kind: 'evidence';
+      evidenceId: EvidenceId;
+      claim: string;
+      confidence: number;
+      claimType: string;
+    }
+  | {
+      kind: 'confidence_update';
+      newConfidence: number;
+      reason: string;
+      delta: number;
+    }
+  | {
+      kind: 'human_request';
+      prompt: string;
+      continuation: HumanContinuation<O, E>;
+      timeoutMs?: number;
+    }
+  | {
+      kind: 'safety_violation';
+      rule: string;
+      severity: 'warn' | 'block';
+      detail: string;
+    }
+  | {
+      kind: 'completed';
+      result: O;
+    }
+  | {
+      kind: 'failed';
+      error: E;
+      partial?: Partial<O>;
+    };
+
+/**
+ * Human-in-the-loop continuation for paused streaming constructions.
+ */
+export interface HumanContinuation<
+  O,
+  E extends ConstructionError = ConstructionError,
+> {
+  resume(response: string): AsyncIterable<ConstructionEvent<O, E>>;
+  skip(): AsyncIterable<ConstructionEvent<O, E>>;
+  abort(): void;
+}
+
+/**
  * Outcome constructor for success track.
  */
 export function ok<O, E extends ConstructionError = ConstructionError>(
@@ -398,6 +460,11 @@ export interface Construction<
     context?: Context<R>,
     options?: ConstructionExecuteOptions,
   ): Promise<ConstructionOutcome<O, E>>;
+  stream?(
+    input: I,
+    context?: Context<R>,
+    options?: ConstructionExecuteOptions,
+  ): AsyncIterable<ConstructionEvent<O, E>>;
   cancel?(): void;
   getEstimatedConfidence?(): ConfidenceValue;
   debug?(

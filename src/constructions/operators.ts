@@ -11,6 +11,7 @@ import {
 import type {
   ConstructionPath,
   Construction,
+  ConstructionEvent,
   ConstructionOutcome,
   CostSemiring,
   ConstructionDebugOptions,
@@ -302,20 +303,156 @@ function createDebugConstruction<I, O, E extends ConstructionError, R>(
   return debugged;
 }
 
+type StreamingConstruction<I, O, E extends ConstructionError, R> = Omit<Construction<I, O, E, R>, 'execute'> & {
+  execute?: Construction<I, O, E, R>['execute'];
+  stream?: Construction<I, O, E, R>['stream'];
+};
+
+function cancelledStreamError<E extends ConstructionError>(constructionId: string): E {
+  return new ConstructionCancelledError(constructionId) as E;
+}
+
+async function* defaultStreamFromExecute<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  input: I,
+  context?: Context<R>,
+): AsyncIterable<ConstructionEvent<O, E>> {
+  const outcome = await executeOutcomeWithTrace(construction, input, context);
+  if (outcome.ok) {
+    yield { kind: 'completed', result: outcome.value };
+    return;
+  }
+  yield {
+    kind: 'failed',
+    error: outcome.error,
+    partial: outcome.partial,
+  };
+}
+
+function getStreamImplementation<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+): (input: I, context?: Context<R>) => AsyncIterable<ConstructionEvent<O, E>> {
+  if (construction.stream) {
+    return (input: I, context?: Context<R>) => construction.stream!(input, context);
+  }
+  return (input: I, context?: Context<R>) => defaultStreamFromExecute(construction, input, context);
+}
+
+function deriveExecuteFromStream<I, O, E extends ConstructionError, R>(
+  constructionId: string,
+  stream: (input: I, context?: Context<R>) => AsyncIterable<ConstructionEvent<O, E>>,
+): (input: I, context?: Context<R>) => Promise<ConstructionOutcome<O, E>> {
+  return async (input: I, context?: Context<R>) => {
+    for await (const event of stream(input, context)) {
+      if (context?.signal?.aborted) {
+        return fail<O, E>(cancelledStreamError<E>(constructionId), undefined, constructionId);
+      }
+      if (event.kind === 'completed') {
+        return ok<O, E>(event.result);
+      }
+      if (event.kind === 'failed') {
+        return fail<O, E>(event.error, event.partial, constructionId);
+      }
+      if (event.kind === 'safety_violation' && event.severity === 'block') {
+        return fail<O, E>(
+          new ConstructionError(`Safety rule blocked: ${event.rule}`, constructionId) as E,
+          undefined,
+          constructionId,
+        );
+      }
+    }
+    return fail<O, E>(
+      new ConstructionError('Stream ended without completion event', constructionId) as E,
+      undefined,
+      constructionId,
+    );
+  };
+}
+
 function withDiagnostics<I, O, E extends ConstructionError, R>(
-  construction: Construction<I, O, E, R>
+  construction: StreamingConstruction<I, O, E, R>
 ): Construction<I, O, E, R> {
+  if (!construction.execute && !construction.stream) {
+    throw new ConstructionError(
+      `Construction ${construction.id} must define execute() or stream()`,
+      construction.id,
+    );
+  }
+
+  const stream = construction.stream
+    ? (input: I, context?: Context<R>) => construction.stream!(input, context)
+    : (input: I, context?: Context<R>) => defaultStreamFromExecute(construction as Construction<I, O, E, R>, input, context);
+  const execute = construction.execute
+    ? (input: I, context?: Context<R>) => construction.execute!(input, context)
+    : deriveExecuteFromStream<I, O, E, R>(construction.id, stream);
+
   const whyFailed =
     construction.whyFailed ??
     ((error: unknown) => explainConstructionFailure(error, construction.id));
 
   return {
     ...construction,
+    execute,
+    stream,
     whyFailed,
     debug(options?: ConstructionDebugOptions) {
-      return createDebugConstruction({ ...construction, whyFailed }, options);
+      return createDebugConstruction({ ...construction, execute, stream, whyFailed }, options);
     },
   };
+}
+
+type StreamRaceResult<
+  O,
+  E extends ConstructionError,
+> = {
+  source: 'left' | 'right';
+  result: IteratorResult<ConstructionEvent<O, E>>;
+};
+
+async function closeIterator(iterator: AsyncIterator<unknown>): Promise<void> {
+  if (typeof iterator.return === 'function') {
+    await iterator.return();
+  }
+}
+
+async function* interleaveEventStreams<
+  O1,
+  E1 extends ConstructionError,
+  O2,
+  E2 extends ConstructionError,
+>(
+  left: AsyncIterable<ConstructionEvent<O1, E1>>,
+  right: AsyncIterable<ConstructionEvent<O2, E2>>,
+): AsyncIterable<StreamRaceResult<O1 | O2, E1 | E2>> {
+  const leftIterator = left[Symbol.asyncIterator]();
+  const rightIterator = right[Symbol.asyncIterator]();
+  let leftPending: Promise<StreamRaceResult<O1 | O2, E1 | E2>> | undefined = leftIterator
+    .next()
+    .then((result) => ({ source: 'left', result }));
+  let rightPending: Promise<StreamRaceResult<O1 | O2, E1 | E2>> | undefined = rightIterator
+    .next()
+    .then((result) => ({ source: 'right', result }));
+
+  try {
+    while (leftPending || rightPending) {
+      const pending = [leftPending, rightPending].filter(Boolean) as Array<
+        Promise<StreamRaceResult<O1 | O2, E1 | E2>>
+      >;
+      const next = await Promise.race(pending);
+      yield next;
+      if (next.source === 'left') {
+        leftPending = next.result.done
+          ? undefined
+          : leftIterator.next().then((result) => ({ source: 'left', result }));
+      } else {
+        rightPending = next.result.done
+          ? undefined
+          : rightIterator.next().then((result) => ({ source: 'right', result }));
+      }
+    }
+  } finally {
+    await Promise.allSettled([closeIterator(leftIterator), closeIterator(rightIterator)]);
+  }
 }
 
 const ZERO_COST: CostSemiring = {
@@ -489,33 +626,58 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
     ])
     : undefined;
 
+  const stream = async function* (
+    input: I,
+    context?: Context<R>,
+  ): AsyncIterable<ConstructionEvent<O, E1 | E2>> {
+    const firstStream = getStreamImplementation(first);
+    const secondStream = getStreamImplementation(second);
+    for await (const event of firstStream(input, context)) {
+      if (context?.signal?.aborted) {
+        yield { kind: 'failed', error: cancelledStreamError<E1 | E2>(id) };
+        return;
+      }
+      if (event.kind === 'completed') {
+        for await (const secondEvent of secondStream(event.result, context)) {
+          if (context?.signal?.aborted) {
+            yield { kind: 'failed', error: cancelledStreamError<E1 | E2>(id) };
+            return;
+          }
+          yield secondEvent as ConstructionEvent<O, E1 | E2>;
+          if (secondEvent.kind === 'completed' || secondEvent.kind === 'failed') {
+            return;
+          }
+        }
+        yield {
+          kind: 'failed',
+          error: new ConstructionError('Second stage ended without terminal event', second.id) as E1 | E2,
+        };
+        return;
+      }
+
+      if (event.kind === 'failed') {
+        yield {
+          kind: 'failed',
+          error: event.error as E1 | E2,
+          partial: event.partial as Partial<O> | undefined,
+        };
+        return;
+      }
+
+      yield event as ConstructionEvent<O, E1 | E2>;
+    }
+
+    yield {
+      kind: 'failed',
+      error: new ConstructionError('First stage ended without terminal event', first.id) as E1 | E2,
+    };
+  };
+
   return withDiagnostics({
     id,
     name,
-    async execute(
-      input: I,
-      context
-    ): Promise<ConstructionOutcome<O, E1 | E2>> {
-      const firstOutcome = await executeOutcomeWithTrace(first, input, context);
-      if (!firstOutcome.ok) {
-        return fail<O, E1 | E2>(
-          firstOutcome.error,
-          firstOutcome.partial as Partial<O> | undefined,
-          firstOutcome.errorAt ?? first.id,
-        );
-      }
-
-      const secondOutcome = await executeOutcomeWithTrace(second, firstOutcome.value, context);
-      if (!secondOutcome.ok) {
-        return fail<O, E1 | E2>(
-          secondOutcome.error,
-          secondOutcome.partial ?? (firstOutcome.value as unknown as Partial<O>),
-          secondOutcome.errorAt ?? second.id,
-        );
-      }
-
-      return ok<O, E1 | E2>(secondOutcome.value);
-    },
+    stream,
+    execute: deriveExecuteFromStream<I, O, E1 | E2, R>(id, stream),
     ...(estimatedConfidence ? { getEstimatedConfidence: estimatedConfidence } : {}),
   });
 }
@@ -529,30 +691,58 @@ export function fanout<I, O1, O2, E extends ConstructionError, R>(
   id = `fanout:${left.id}|${right.id}`,
   name = `Fanout(${left.name}, ${right.name})`
 ): Construction<I, [O1, O2], E, R> {
+  const stream = async function* (
+    input: I,
+    context?: Context<R>,
+  ): AsyncIterable<ConstructionEvent<[O1, O2], E>> {
+    const leftStream = getStreamImplementation(left)(input, context);
+    const rightStream = getStreamImplementation(right)(input, context);
+    let leftResult: O1 | undefined;
+    let rightResult: O2 | undefined;
+
+    for await (const raced of interleaveEventStreams(leftStream, rightStream)) {
+      if (context?.signal?.aborted) {
+        yield { kind: 'failed', error: cancelledStreamError<E>(id) };
+        return;
+      }
+      const event = raced.result.value;
+      if (raced.result.done || !event) {
+        continue;
+      }
+      if (event.kind === 'failed') {
+        yield {
+          kind: 'failed',
+          error: event.error,
+          partial: event.partial as Partial<[O1, O2]> | undefined,
+        };
+        return;
+      }
+      if (event.kind === 'completed') {
+        if (raced.source === 'left') {
+          leftResult = event.result as O1;
+        } else {
+          rightResult = event.result as O2;
+        }
+        if (leftResult !== undefined && rightResult !== undefined) {
+          yield { kind: 'completed', result: [leftResult, rightResult] };
+          return;
+        }
+        continue;
+      }
+      yield event as ConstructionEvent<[O1, O2], E>;
+    }
+
+    yield {
+      kind: 'failed',
+      error: new ConstructionError('Fanout stream ended without both branch completions', id) as E,
+    };
+  };
+
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context): Promise<ConstructionOutcome<[O1, O2], E>> {
-      const [leftOutput, rightOutput] = await Promise.all([
-        executeWithTrace(left, input, context),
-        executeWithTrace(right, input, context),
-      ]);
-      if (!leftOutput.ok) {
-        return fail<[O1, O2], E>(
-          leftOutput.error,
-          leftOutput.partial as Partial<[O1, O2]> | undefined,
-          leftOutput.errorAt ?? left.id,
-        );
-      }
-      if (!rightOutput.ok) {
-        return fail<[O1, O2], E>(
-          rightOutput.error,
-          rightOutput.partial as Partial<[O1, O2]> | undefined,
-          rightOutput.errorAt ?? right.id,
-        );
-      }
-      return ok<[O1, O2], E>([leftOutput.value, rightOutput.value]);
-    },
+    stream,
+    execute: deriveExecuteFromStream<I, [O1, O2], E, R>(id, stream),
   });
 }
 
@@ -565,27 +755,111 @@ export function fallback<I, O, E extends ConstructionError, R>(
   id = `fallback:${primary.id}>${backup.id}`,
   name = `Fallback(${primary.name}, ${backup.name})`
 ): Construction<I, O, E, R> {
+  const stream = async function* (
+    input: I,
+    context?: Context<R>,
+  ): AsyncIterable<ConstructionEvent<O, E>> {
+    const primaryStream = getStreamImplementation(primary);
+    const backupStream = getStreamImplementation(backup);
+    let primaryFailed = false;
+
+    for await (const event of primaryStream(input, context)) {
+      if (context?.signal?.aborted) {
+        yield { kind: 'failed', error: cancelledStreamError<E>(id) };
+        return;
+      }
+      if (event.kind === 'failed') {
+        primaryFailed = true;
+        break;
+      }
+      yield event;
+      if (event.kind === 'completed') {
+        return;
+      }
+    }
+
+    if (!primaryFailed) {
+      yield {
+        kind: 'failed',
+        error: new ConstructionError('Primary stream ended without terminal event', primary.id) as E,
+      };
+      return;
+    }
+
+    for await (const event of backupStream(input, context)) {
+      if (context?.signal?.aborted) {
+        yield { kind: 'failed', error: cancelledStreamError<E>(id) };
+        return;
+      }
+      yield event;
+      if (event.kind === 'completed' || event.kind === 'failed') {
+        return;
+      }
+    }
+
+    yield {
+      kind: 'failed',
+      error: new ConstructionError('Backup stream ended without terminal event', backup.id) as E,
+    };
+  };
+
   return withDiagnostics({
     id,
     name,
-    async execute(input: I, context): Promise<ConstructionOutcome<O, E>> {
-      const primaryOutcome = await executeOutcomeWithTrace(primary, input, context);
-      if (primaryOutcome.ok) {
-        return ok<O, E>(primaryOutcome.value);
-      }
-
-      const backupOutcome = await executeOutcomeWithTrace(backup, input, context);
-      if (backupOutcome.ok) {
-        return ok<O, E>(backupOutcome.value);
-      }
-
-      return fail<O, E>(
-        backupOutcome.error,
-        backupOutcome.partial ?? primaryOutcome.partial,
-        backupOutcome.errorAt ?? backup.id,
-      );
-    },
+    stream,
+    execute: deriveExecuteFromStream<I, O, E, R>(id, stream),
     getEstimatedConfidence: primary.getEstimatedConfidence ?? backup.getEstimatedConfidence,
+  });
+}
+
+/**
+ * Guard stream execution by failing closed on blocking safety violations.
+ */
+export function withSafetyGate<I, O, E extends ConstructionError, R>(
+  construction: Construction<I, O, E, R>,
+  id = `withSafetyGate:${construction.id}`,
+  name = `WithSafetyGate(${construction.name})`,
+): Construction<I, O, E | ConstructionError, R> {
+  const stream = async function* (
+    input: I,
+    context?: Context<R>,
+  ): AsyncIterable<ConstructionEvent<O, E | ConstructionError>> {
+    const source = getStreamImplementation(construction)(input, context);
+    for await (const event of source) {
+      if (context?.signal?.aborted) {
+        yield {
+          kind: 'failed',
+          error: cancelledStreamError<E | ConstructionError>(id),
+        };
+        return;
+      }
+      yield event as ConstructionEvent<O, E | ConstructionError>;
+      if (event.kind === 'safety_violation' && event.severity === 'block') {
+        yield {
+          kind: 'failed',
+          error: new ConstructionError(
+            `Safety rule blocked execution: ${event.rule}`,
+            construction.id,
+          ),
+        };
+        return;
+      }
+      if (event.kind === 'failed' || event.kind === 'completed') {
+        return;
+      }
+    }
+    yield {
+      kind: 'failed',
+      error: new ConstructionError('Safety gate stream ended without terminal event', construction.id),
+    };
+  };
+
+  return withDiagnostics({
+    id,
+    name,
+    stream,
+    execute: deriveExecuteFromStream<I, O, E | ConstructionError, R>(id, stream),
+    getEstimatedConfidence: construction.getEstimatedConfidence,
   });
 }
 

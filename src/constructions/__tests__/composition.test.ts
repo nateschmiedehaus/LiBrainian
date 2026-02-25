@@ -1314,6 +1314,44 @@ describe('Utility Functions', () => {
       const result = await construction.execute(1);
       expect(result.evidenceRefs).toContain('custom:evidence');
     });
+
+    it('should support stream-first createConstruction execution with auto-derived execute', async () => {
+      const construction = createConstruction(
+        'stream-first',
+        'Stream First',
+        async (input: number) => ({
+          data: input * 3,
+          confidence: deterministic(true, 'stream-first'),
+        }),
+        async function* (input: number) {
+          yield {
+            kind: 'progress',
+            step: 'stream-first:start',
+            percentComplete: 50,
+          };
+          yield {
+            kind: 'completed',
+            result: {
+              data: input * 3,
+              confidence: deterministic(true, 'stream-first'),
+              evidenceRefs: toEvidenceIds([]),
+              analysisTimeMs: 1,
+            },
+          };
+        },
+      );
+
+      const events = [];
+      for await (const event of construction.stream!(2)) {
+        events.push(event);
+      }
+
+      expect(events.some((event) => event.kind === 'progress')).toBe(true);
+      expect(events.at(-1)?.kind).toBe('completed');
+
+      const result = await construction.execute(2);
+      expect(result.data).toBe(6);
+    });
   });
 
   describe('createDeterministicConstruction', () => {

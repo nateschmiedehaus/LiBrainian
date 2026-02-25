@@ -111,4 +111,44 @@ describe('toMCPTool', () => {
     expect(Array.isArray(payload.validationFailures)).toBe(true);
     expect((payload.validationFailures as string[]).some((issue) => issue.includes('required property is missing'))).toBe(true);
   });
+
+  it('exposes executeStream for incremental MCP event delivery', async () => {
+    const construction: Construction<TestInput, TestOutput, ConstructionError, Record<string, unknown>> = {
+      id: TEST_CONSTRUCTION_ID,
+      name: 'MCP Bridge Streaming Construction',
+      async execute(input: TestInput) {
+        return ok({
+          data: input.value * 2,
+          confidence: deterministic(true, 'mcp_bridge_streaming'),
+          evidenceRefs: [],
+          analysisTimeMs: 3,
+          predictionId: 'pred-bridge-stream',
+        });
+      },
+      stream: async function* (input: TestInput) {
+        yield { kind: 'progress', step: 'start', percentComplete: 50 };
+        yield {
+          kind: 'completed',
+          result: {
+            data: input.value * 2,
+            confidence: deterministic(true, 'mcp_bridge_streaming'),
+            evidenceRefs: [],
+            analysisTimeMs: 3,
+            predictionId: 'pred-bridge-stream',
+          },
+        };
+      },
+    };
+    const manifest = makeManifest(construction);
+    const tool = toMCPTool(construction, manifest, {});
+
+    const chunks: Array<Record<string, unknown>> = [];
+    for await (const chunk of tool.executeStream({ value: 9 })) {
+      chunks.push(JSON.parse(chunk.content[0].text) as Record<string, unknown>);
+    }
+
+    expect(chunks.length).toBe(2);
+    expect(((chunks[0].event as { kind: string }).kind)).toBe('progress');
+    expect((chunks[1].result as { data: number }).data).toBe(18);
+  });
 });

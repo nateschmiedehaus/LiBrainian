@@ -34,7 +34,7 @@ import {
   ConstructionTimeoutError,
   toEvidenceIds,
 } from './base/construction_base.js';
-import type { Construction, ConstructionExecuteOptions, Context } from './types.js';
+import type { Construction, ConstructionEvent, ConstructionExecuteOptions, Context } from './types.js';
 import {
   isConstructionOutcome,
   type ConstructionExecutionResult,
@@ -59,6 +59,11 @@ export interface ComposableConstruction<TInput, TOutput extends ConstructionResu
     context?: Context<unknown>,
     options?: ConstructionExecuteOptions,
   ): Promise<TOutput>;
+  stream?(
+    input: TInput,
+    context?: Context<unknown>,
+    options?: ConstructionExecuteOptions,
+  ): AsyncIterable<ConstructionEvent<TOutput, ConstructionError>>;
   cancel?(): void;
   getEstimatedConfidence?(): ConfidenceValue;
 }
@@ -1188,21 +1193,45 @@ export function createConstruction<TInput, TData>(
   executor: (
     input: TInput,
     context?: Context<unknown>
-  ) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: Array<string | ConstructionResult['evidenceRefs'][number]> }>
+  ) => Promise<{ data: TData; confidence: ConfidenceValue; evidenceRefs?: Array<string | ConstructionResult['evidenceRefs'][number]> }>,
+  streamer?: (
+    input: TInput,
+    context?: Context<unknown>,
+  ) => AsyncIterable<ConstructionEvent<ConstructionResult & { data: TData }, ConstructionError>>,
 ): ComposableConstruction<TInput, ConstructionResult & { data: TData }> {
+  const execute = async (input: TInput, context?: Context<unknown>): Promise<ConstructionResult & { data: TData }> => {
+    const startTime = Date.now();
+    const result = await executor(input, context);
+    return {
+      data: result.data,
+      confidence: result.confidence,
+      evidenceRefs: toEvidenceIds(result.evidenceRefs ?? []),
+      analysisTimeMs: Date.now() - startTime,
+    };
+  };
+
   const construction: ComposableConstruction<TInput, ConstructionResult & { data: TData }> = {
     id,
     name,
-    async execute(input: TInput, context?: Context<unknown>): Promise<ConstructionResult & { data: TData }> {
-      const startTime = Date.now();
-      const result = await executor(input, context);
-      return {
-        data: result.data,
-        confidence: result.confidence,
-        evidenceRefs: toEvidenceIds(result.evidenceRefs ?? []),
-        analysisTimeMs: Date.now() - startTime,
-      };
-    },
+    execute,
+    stream: streamer ?? (async function* (
+      input: TInput,
+      context?: Context<unknown>,
+    ): AsyncIterable<ConstructionEvent<ConstructionResult & { data: TData }, ConstructionError>> {
+      try {
+        const result = await execute(input, context);
+        yield { kind: 'completed', result };
+      } catch (error) {
+        const normalized = error instanceof ConstructionError
+          ? error
+          : new ConstructionError(
+            error instanceof Error ? error.message : `Construction stream failed: ${String(error)}`,
+            id,
+            error instanceof Error ? error : undefined,
+          );
+        yield { kind: 'failed', error: normalized };
+      }
+    }),
   };
   registerGeneratedConstruction(
     construction as unknown as Construction<unknown, unknown, ConstructionError, unknown>,
