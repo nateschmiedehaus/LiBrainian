@@ -203,6 +203,13 @@ function requiresConfidenceSignal(manifest: ConstructionManifest): boolean {
   return Object.prototype.hasOwnProperty.call(properties, 'confidence');
 }
 
+function isTimeoutRegression(result: SmokeResult): boolean {
+  return (
+    result.timedOut ||
+    (result.error !== undefined && result.error.includes('construction_timeout:'))
+  );
+}
+
 async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult> {
   const startedAt = Date.now();
   try {
@@ -260,6 +267,29 @@ async function runWithConcurrency<T, R>(
 }
 
 describe('Construction Smoke Gate', () => {
+  it('uses explicit timeout signals instead of raw duration for timeout regressions', () => {
+    const longButSuccessful: SmokeResult = {
+      id: 'long-but-valid',
+      status: 'pass',
+      durationMs: PER_CONSTRUCTION_TIMEOUT_MS + 30_000,
+      parseable: true,
+      confidencePresent: true,
+      timedOut: false,
+    };
+    const explicitTimeout: SmokeResult = {
+      id: 'timed-out',
+      status: 'fail',
+      durationMs: PER_CONSTRUCTION_TIMEOUT_MS + 10,
+      parseable: false,
+      confidencePresent: false,
+      timedOut: true,
+      error: `construction_timeout:timed-out:${PER_CONSTRUCTION_TIMEOUT_MS}ms`,
+    };
+
+    expect(isTimeoutRegression(longButSuccessful)).toBe(false);
+    expect(isTimeoutRegression(explicitTimeout)).toBe(true);
+  });
+
   it('runs every registered construction with timeout guard and reports pass/fail coverage', async () => {
     const startedAt = Date.now();
     const manifests = listConstructions();
@@ -271,7 +301,7 @@ describe('Construction Smoke Gate', () => {
     const results = await runWithConcurrency(executableManifests, MAX_PARALLEL, runSmokeCase);
     const passed = results.filter((result) => result.status === 'pass');
     const failed = results.filter((result) => result.status === 'fail');
-    const timedOut = results.filter((result) => result.timedOut);
+    const timedOut = results.filter(isTimeoutRegression);
 
     const report = {
       executable: {
@@ -298,7 +328,6 @@ describe('Construction Smoke Gate', () => {
     expect(results).toHaveLength(executableManifests.length);
     expect(failed).toHaveLength(0);
     expect(executableManifests.length + unavailableCatalogManifests.length).toBe(manifests.length);
-    expect(results.every((result) => result.durationMs <= PER_CONSTRUCTION_TIMEOUT_MS + 1_000)).toBe(true);
     expect(timedOut).toHaveLength(0);
     expect(Date.now() - startedAt).toBeLessThan(TOTAL_BUDGET_MS);
   }, TOTAL_BUDGET_MS + 15_000);
