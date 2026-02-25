@@ -294,6 +294,71 @@ export type ConstructionExecutionResult<
 > = ConstructionOutcome<O, E>;
 
 /**
+ * Human escalation request emitted by pause/resume constructions.
+ */
+export interface HumanRequest {
+  readonly sessionId: string;
+  readonly constructionId: string;
+  readonly question: string;
+  readonly context: string;
+  readonly evidenceRefs: EvidenceId[];
+  readonly suggestedActions?: string[];
+  readonly deadline?: Date;
+}
+
+/**
+ * Human response used to resume a paused construction.
+ */
+export interface HumanResponse {
+  readonly reviewerId: string;
+  readonly decision: string;
+  readonly rationale?: string;
+  readonly overrideConfidence?: number;
+}
+
+/**
+ * Handle returned when executing a resumable construction.
+ */
+export type ConstructionHandle<
+  O,
+  E extends ConstructionError = ConstructionError,
+> =
+  | {
+      readonly status: 'completed';
+      readonly result: ConstructionOutcome<O, E>;
+    }
+  | {
+      readonly status: 'paused';
+      readonly request: HumanRequest;
+      readonly partialEvidence: EvidenceId[];
+      resume(response: HumanResponse): Promise<ConstructionHandle<O, E>>;
+    };
+
+/**
+ * Construction variant that can pause for human input and resume.
+ */
+export interface ResumableConstruction<
+  I,
+  O,
+  E extends ConstructionError = ConstructionError,
+  R = LibrarianContext,
+> {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  start(
+    input: I,
+    context?: Context<R>,
+    options?: ConstructionExecuteOptions,
+  ): Promise<ConstructionHandle<O, E>>;
+  stream?(
+    input: I,
+    context?: Context<R>,
+    options?: ConstructionExecuteOptions,
+  ): AsyncIterable<ConstructionEvent<O, E>>;
+}
+
+/**
  * Event union for streaming construction execution.
  *
  * Streams should emit one terminal event (`completed` or `failed`).
@@ -323,7 +388,8 @@ export type ConstructionEvent<
     }
   | {
       kind: 'human_request';
-      prompt: string;
+      type: 'human_request';
+      request: HumanRequest;
       continuation: HumanContinuation<O, E>;
       timeoutMs?: number;
     }
@@ -350,7 +416,7 @@ export interface HumanContinuation<
   O,
   E extends ConstructionError = ConstructionError,
 > {
-  resume(response: string): AsyncIterable<ConstructionEvent<O, E>>;
+  resume(response: HumanResponse): AsyncIterable<ConstructionEvent<O, E>>;
   skip(): AsyncIterable<ConstructionEvent<O, E>>;
   abort(): void;
 }

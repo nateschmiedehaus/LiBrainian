@@ -1,5 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { sequenceConfidence } from '../epistemics/confidence.js';
+import {
+  isConfidenceValue,
+  sequenceConfidence,
+  type ConfidenceValue,
+} from '../epistemics/confidence.js';
+import type { EvidenceId } from '../epistemics/evidence_ledger.js';
 import {
   ConstructionCapabilityError,
   ConstructionCancelledError,
@@ -11,6 +16,10 @@ import {
 import type {
   ConstructionPath,
   Construction,
+  ConstructionHandle,
+  HumanContinuation,
+  HumanRequest,
+  HumanResponse,
   ConstructionEvent,
   ConstructionOutcome,
   CostSemiring,
@@ -22,6 +31,7 @@ import type {
   FixpointMetadata,
   FixpointTerminationReason,
   ProgressMetric,
+  ResumableConstruction,
   SelectiveConstruction,
   Context,
 } from './types.js';
@@ -543,6 +553,112 @@ function dependencyLower<I, O, E extends ConstructionError, R>(
     return maybeSelective.dependencySetLower();
   }
   return new Set([construction.id]);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function clampUnit(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function extractConfidenceFromValue(value: unknown): ConfidenceValue | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const confidence = value.confidence;
+  if (!isConfidenceValue(confidence)) {
+    return undefined;
+  }
+  return confidence;
+}
+
+function confidenceScalar(confidence: ConfidenceValue): number | undefined {
+  switch (confidence.type) {
+    case 'absent':
+      return undefined;
+    case 'bounded':
+      return clampUnit((confidence.low + confidence.high) / 2);
+    default:
+      return clampUnit(confidence.value);
+  }
+}
+
+function extractEvidenceRefsFromValue(value: unknown): EvidenceId[] {
+  if (!isRecord(value) || !Array.isArray(value.evidenceRefs)) {
+    return [];
+  }
+  return value.evidenceRefs
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry as EvidenceId);
+}
+
+function dedupeEvidenceRefs(...refs: ReadonlyArray<ReadonlyArray<EvidenceId | string>>): EvidenceId[] {
+  const seen = new Set<string>();
+  for (const list of refs) {
+    for (const item of list) {
+      if (typeof item === 'string' && item.length > 0) {
+        seen.add(item);
+      }
+    }
+  }
+  return Array.from(seen).map((entry) => entry as EvidenceId);
+}
+
+function applyEvidenceRefs<O>(value: O, evidenceRefs: EvidenceId[]): O {
+  if (!isRecord(value) || !Array.isArray(value.evidenceRefs)) {
+    return value;
+  }
+  return {
+    ...value,
+    evidenceRefs,
+  } as O;
+}
+
+function applyConfidenceOverride<O>(value: O, overrideConfidence?: number): O {
+  if (!isRecord(value) || !isRecord(value.confidence) || typeof value.confidence.value !== 'number') {
+    return value;
+  }
+  if (typeof overrideConfidence !== 'number') {
+    return value;
+  }
+  return {
+    ...value,
+    confidence: {
+      ...value.confidence,
+      value: clampUnit(overrideConfidence),
+    },
+  } as O;
+}
+
+type AppendOnlyLedger = {
+  append?: (entry: Record<string, unknown>) => Promise<unknown>;
+};
+
+function evidenceLedgerFromContext<R>(context?: Context<R>): AppendOnlyLedger | undefined {
+  if (!context || !isRecord(context.deps)) {
+    return undefined;
+  }
+  const maybeLedger = (context.deps as Record<string, unknown>).evidenceLedger;
+  if (!isRecord(maybeLedger) || typeof maybeLedger.append !== 'function') {
+    return undefined;
+  }
+  return maybeLedger as AppendOnlyLedger;
+}
+
+async function appendLedgerEntry(
+  ledger: AppendOnlyLedger | undefined,
+  entry: Record<string, unknown>,
+): Promise<EvidenceId | undefined> {
+  if (!ledger?.append) {
+    return undefined;
+  }
+  const appended = await ledger.append(entry);
+  if (!isRecord(appended) || typeof appended.id !== 'string') {
+    return undefined;
+  }
+  return appended.id as EvidenceId;
 }
 
 export function left<A>(value: A): Either<A, never> {
@@ -1303,6 +1419,217 @@ export function withRetry<I, O, E extends ConstructionError, R>(
     },
     getEstimatedConfidence: construction.getEstimatedConfidence,
   });
+}
+
+export interface PauseForHumanOptions {
+  /**
+   * Confidence threshold below which human escalation is triggered.
+   * Defaults to 0.6.
+   */
+  readonly confidenceThreshold?: number;
+  /**
+   * Optional timeout metadata propagated through `human_request` stream events.
+   */
+  readonly timeoutMs?: number;
+}
+
+/**
+ * Pause and resume a construction at low-confidence outcomes.
+ *
+ * The inner construction is executed exactly once per `start()` call.
+ * If paused, `resume()` completes from captured state without re-executing inner.
+ */
+export function pauseForHuman<I, O, E extends ConstructionError, R>(
+  inner: Construction<I, O, E, R>,
+  escalation: (partial: Partial<O>, confidence: ConfidenceValue) => HumanRequest,
+  options?: PauseForHumanOptions,
+): ResumableConstruction<I, O, E, R> {
+  const confidenceThreshold = options?.confidenceThreshold ?? 0.6;
+  const id = `pauseForHuman:${inner.id}`;
+  const name = `PauseForHuman(${inner.name})`;
+
+  const toCompletedHandle = (
+    result: ConstructionOutcome<O, E>,
+  ): ConstructionHandle<O, E> => ({
+    status: 'completed',
+    result,
+  });
+
+  const start = async (
+    input: I,
+    context?: Context<R>,
+  ): Promise<ConstructionHandle<O, E>> => {
+    const outcome = await executeOutcomeWithTrace(inner, input, context);
+    if (!outcome.ok) {
+      return toCompletedHandle(
+        fail<O, E>(
+          outcome.error,
+          outcome.partial,
+          outcome.errorAt ?? inner.id,
+        ),
+      );
+    }
+
+    const confidence = extractConfidenceFromValue(outcome.value) ?? inner.getEstimatedConfidence?.();
+    const confidenceValue = confidence ? confidenceScalar(confidence) : undefined;
+    if (!confidence || confidenceValue === undefined || confidenceValue >= confidenceThreshold) {
+      return toCompletedHandle(ok<O, E>(outcome.value));
+    }
+
+    const partialEvidence = extractEvidenceRefsFromValue(outcome.value);
+    const request = escalation(outcome.value as Partial<O>, confidence);
+    const normalizedRequest: HumanRequest = {
+      ...request,
+      sessionId: request.sessionId || context?.sessionId || 'unknown_session',
+      constructionId: request.constructionId || inner.id,
+      evidenceRefs: request.evidenceRefs.length > 0 ? request.evidenceRefs : partialEvidence,
+    };
+
+    const ledger = evidenceLedgerFromContext(context);
+    const escalationEvidenceId = await appendLedgerEntry(ledger, {
+      kind: 'escalation_request',
+      payload: {
+        constructionId: inner.id,
+        threshold: confidenceThreshold,
+        confidence: confidenceValue,
+        request: normalizedRequest,
+        partialEvidence,
+      },
+      provenance: {
+        source: 'system_observation',
+        method: 'constructions.pauseForHuman',
+      },
+      relatedEntries: partialEvidence,
+      sessionId: context?.sessionId,
+    });
+
+    let resumed: Promise<ConstructionHandle<O, E>> | undefined;
+    const resume = (response: HumanResponse): Promise<ConstructionHandle<O, E>> => {
+      if (resumed) {
+        return resumed;
+      }
+      resumed = (async () => {
+        const overrideEvidenceId = await appendLedgerEntry(ledger, {
+          kind: 'human_override',
+          payload: {
+            constructionId: inner.id,
+            reviewerId: response.reviewerId,
+            decision: response.decision,
+            rationale: response.rationale,
+            overrideConfidence: response.overrideConfidence,
+            request: normalizedRequest,
+          },
+          provenance: {
+            source: 'user_input',
+            method: 'constructions.pauseForHuman.resume',
+          },
+          relatedEntries: dedupeEvidenceRefs(
+            partialEvidence,
+            escalationEvidenceId ? [escalationEvidenceId] : [],
+          ),
+          sessionId: context?.sessionId,
+        });
+
+        const mergedEvidenceRefs = dedupeEvidenceRefs(
+          extractEvidenceRefsFromValue(outcome.value),
+          partialEvidence,
+          normalizedRequest.evidenceRefs,
+          escalationEvidenceId ? [escalationEvidenceId] : [],
+          overrideEvidenceId ? [overrideEvidenceId] : [],
+        );
+
+        const withEvidence = applyEvidenceRefs(outcome.value, mergedEvidenceRefs);
+        const withOverride = applyConfidenceOverride(withEvidence, response.overrideConfidence);
+        return toCompletedHandle(ok<O, E>(withOverride));
+      })();
+      return resumed;
+    };
+
+    return {
+      status: 'paused',
+      request: normalizedRequest,
+      partialEvidence,
+      resume,
+    };
+  };
+
+  const stream = async function* (
+    input: I,
+    context?: Context<R>,
+  ): AsyncIterable<ConstructionEvent<O, E>> {
+    const handle = await start(input, context);
+    if (handle.status === 'completed') {
+      if (handle.result.ok) {
+        yield { kind: 'completed', result: handle.result.value };
+        return;
+      }
+      yield {
+        kind: 'failed',
+        error: handle.result.error,
+        partial: handle.result.partial,
+      };
+      return;
+    }
+
+    const emitTerminal = async function* (
+      resumedHandle: ConstructionHandle<O, E>,
+    ): AsyncIterable<ConstructionEvent<O, E>> {
+      if (resumedHandle.status !== 'completed') {
+        return;
+      }
+      if (resumedHandle.result.ok) {
+        yield { kind: 'completed', result: resumedHandle.result.value };
+        return;
+      }
+      yield {
+        kind: 'failed',
+        error: resumedHandle.result.error,
+        partial: resumedHandle.result.partial,
+      };
+    };
+
+    let consumed = false;
+    const continuation: HumanContinuation<O, E> = {
+      resume: (response: HumanResponse): AsyncIterable<ConstructionEvent<O, E>> => (async function* () {
+        if (consumed) {
+          return;
+        }
+        consumed = true;
+        const resumedHandle = await handle.resume(response);
+        yield* emitTerminal(resumedHandle);
+      })(),
+      skip: (): AsyncIterable<ConstructionEvent<O, E>> => (async function* () {
+        if (consumed) {
+          return;
+        }
+        consumed = true;
+        const resumedHandle = await handle.resume({
+          reviewerId: 'system',
+          decision: 'skip',
+        });
+        yield* emitTerminal(resumedHandle);
+      })(),
+      abort: (): void => {
+        consumed = true;
+      },
+    };
+
+    yield {
+      kind: 'human_request',
+      type: 'human_request',
+      request: handle.request,
+      continuation,
+      ...(options?.timeoutMs && options.timeoutMs > 0 ? { timeoutMs: options.timeoutMs } : {}),
+    };
+  };
+
+  return {
+    id,
+    name,
+    description: `Pause ${inner.name} for human review when confidence is below ${confidenceThreshold}.`,
+    start,
+    stream,
+  };
 }
 
 /**

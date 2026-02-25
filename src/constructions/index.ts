@@ -19,6 +19,7 @@ export type {
   ConstructionEvent,
   ConstructionFailureHint,
   ConstructionFailureKind,
+  ConstructionHandle,
   ConstructionOutcome,
   CostRange,
   CostSemiring,
@@ -38,10 +39,13 @@ export type {
   LegacyConstructionId,
   LiBrainianContext,
   Layer,
+  HumanRequest,
+  HumanResponse,
   HumanContinuation,
   NamespacedOfficialConstructionId,
   OfficialConstructionSlug,
   ProgressMetric,
+  ResumableConstruction,
   SelectiveConstruction,
   ThirdPartyConstructionId,
 } from './types.js';
@@ -89,10 +93,12 @@ export {
   map,
   mapAsync,
   mapError,
+  pauseForHuman,
   withRetry,
   provide,
   ProtocolViolationError,
   mapConstruction,
+  type PauseForHumanOptions,
 } from './operators.js';
 
 export {

@@ -141,7 +141,9 @@ export type EvidenceKind =
   | 'outcome'
   | 'tool_call'
   | 'episode'
-  | 'calibration';
+  | 'calibration'
+  | 'escalation_request'
+  | 'human_override';
 
 // ============================================================================
 // EVIDENCE RELATIONS
@@ -333,6 +335,37 @@ export interface CalibrationEvidence {
   sampleSize: number;
 }
 
+export interface EscalationRequestEvidence {
+  constructionId: string;
+  threshold: number;
+  confidence: number;
+  request: {
+    sessionId: string;
+    constructionId: string;
+    question: string;
+    context: string;
+    evidenceRefs: EvidenceId[];
+    suggestedActions?: string[];
+    deadline?: string;
+  };
+  partialEvidence: EvidenceId[];
+}
+
+export interface HumanOverrideEvidence {
+  constructionId: string;
+  reviewerId: string;
+  decision: string;
+  rationale?: string;
+  overrideConfidence?: number;
+  request: {
+    sessionId: string;
+    constructionId: string;
+    question: string;
+    context: string;
+    evidenceRefs: EvidenceId[];
+  };
+}
+
 export type EvidencePayload =
   | ExtractionEvidence
   | RetrievalEvidence
@@ -344,7 +377,9 @@ export type EvidencePayload =
   | OutcomeEvidence
   | ToolCallEvidence
   | EpisodeEvidence
-  | CalibrationEvidence;
+  | CalibrationEvidence
+  | EscalationRequestEvidence
+  | HumanOverrideEvidence;
 
 // ============================================================================
 // EVIDENCE ENTRY
@@ -724,7 +759,8 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
         CONSTRAINT valid_kind CHECK (kind IN (
           'extraction', 'retrieval', 'synthesis', 'claim',
           'verification', 'contradiction', 'feedback',
-          'outcome', 'tool_call', 'episode', 'calibration'
+          'outcome', 'tool_call', 'episode', 'calibration',
+          'escalation_request', 'human_override'
         ))
       );
 

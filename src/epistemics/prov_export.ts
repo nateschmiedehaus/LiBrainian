@@ -438,6 +438,8 @@ function mapEvidenceKindToType(kind: EvidenceKind): string {
     tool_call: 'prov:Entity',
     episode: 'prov:Entity',
     calibration: 'prov:Entity',
+    escalation_request: 'prov:Entity',
+    human_override: 'prov:Entity',
   };
   return typeMap[kind] || 'prov:Entity';
 }
