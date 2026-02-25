@@ -135,6 +135,87 @@ describe('query pipeline definition', () => {
     expect(report?.status).toBe('partial');
   });
 
+  it('applies bounded rerank windows by depth profile and preserves tail ordering', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const explanationParts: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const packs = Array.from({ length: 12 }, (_, index) => createPack({
+      packId: `pack-${index + 1}`,
+      targetId: `module-${index + 1}`,
+    }));
+    const rerank = vi.fn().mockImplementation(async (_query, input: ContextPack[]) => [...input].reverse());
+
+    const reranked = await __testing.runRerankStage({
+      query: { intent: 'test rerank', depth: 'L2' },
+      finalPacks: packs,
+      candidateScoreMap: new Map(),
+      stageTracker,
+      explanationParts,
+      recordCoverageGap,
+      forceRerank: true,
+      rerank,
+    });
+
+    expect(rerank).toHaveBeenCalledTimes(1);
+    const rerankInput = rerank.mock.calls[0]?.[1] as ContextPack[];
+    expect(rerankInput).toHaveLength(10);
+    expect(reranked.map((pack) => pack.packId)).toEqual([
+      'pack-10',
+      'pack-9',
+      'pack-8',
+      'pack-7',
+      'pack-6',
+      'pack-5',
+      'pack-4',
+      'pack-3',
+      'pack-2',
+      'pack-1',
+      'pack-11',
+      'pack-12',
+    ]);
+    expect(explanationParts.some((entry) => entry.includes('Bounded rerank window to top 10 packs'))).toBe(true);
+    const report = stageTracker.report().find((stage) => stage.stage === 'reranking');
+    expect(report?.results.telemetry?.rerankWindow).toBe(10);
+    expect(report?.results.telemetry?.rerankInputCount).toBe(10);
+    expect(report?.results.telemetry?.rerankAppliedCount).toBe(10);
+    expect(report?.results.telemetry?.rerankSkipReason).toBeUndefined();
+  });
+
+  it('emits rerank skip rationale and telemetry when depth profile disables reranking', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const explanationParts: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const rerank = vi.fn();
+
+    const result = await __testing.runRerankStage({
+      query: { intent: 'test rerank', depth: 'L1' },
+      finalPacks: [
+        createPack({ packId: 'pack-a', targetId: 'module-a' }),
+        createPack({ packId: 'pack-b', targetId: 'module-b' }),
+      ],
+      candidateScoreMap: new Map(),
+      stageTracker,
+      explanationParts,
+      recordCoverageGap,
+      forceRerank: false,
+      rerank,
+    });
+
+    expect(result.map((pack) => pack.packId)).toEqual(['pack-a', 'pack-b']);
+    expect(rerank).not.toHaveBeenCalled();
+    expect(explanationParts.join(' ')).toContain('Skipped cross-encoder rerank: depth profile disables cross-encoder rerank.');
+    const report = stageTracker.report().find((stage) => stage.stage === 'reranking');
+    expect(report?.status).toBe('skipped');
+    expect(report?.results.telemetry?.rerankWindow).toBe(0);
+    expect(report?.results.telemetry?.rerankInputCount).toBe(0);
+    expect(report?.results.telemetry?.rerankAppliedCount).toBe(0);
+    expect(report?.results.telemetry?.rerankSkipReason).toBe('depth_profile_disabled');
+  });
+
   it('applies MMR diversification when query.diversify is enabled', async () => {
     const stageTracker = __testing.createStageTracker();
     const explanationParts: string[] = [];

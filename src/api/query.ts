@@ -24,6 +24,7 @@ import type {
   StageReport,
   StageIssue,
   StageIssueSeverity,
+  StageTelemetry,
   CoverageAssessment,
   QueryPipelineStageDefinition,
   QueryPipelineDefinition,
@@ -385,6 +386,28 @@ const BLEND_WEIGHT_MIN = q(0.05, [0, 1], 'Minimum blend weight for rescoring.');
 const BLEND_WEIGHT_MAX = q(0.9, [0, 1], 'Maximum blend weight for rescoring.');
 const CROSS_ENCODER_BI_WEIGHT = q(0.4, [0, 1], 'Bi-encoder weight for hybrid rerank.');
 const CROSS_ENCODER_CROSS_WEIGHT = q(0.6, [0, 1], 'Cross-encoder weight for hybrid rerank.');
+type QueryDepthProfile = Exclude<LibrarianQuery['depth'], undefined>;
+const DEFAULT_QUERY_DEPTH_PROFILE: QueryDepthProfile = 'L1';
+const SEMANTIC_CANDIDATE_WINDOW_BY_DEPTH: Record<QueryDepthProfile, number> = {
+  L0: Math.max(0, Math.round(q(0, [0, 40], 'Semantic candidate window for L0 depth.'))),
+  L1: Math.max(0, Math.round(q(12, [0, 40], 'Semantic candidate window for L1 depth.'))),
+  L2: Math.max(0, Math.round(q(16, [0, 40], 'Semantic candidate window for L2 depth.'))),
+  L3: Math.max(0, Math.round(q(20, [0, 40], 'Semantic candidate window for L3 depth.'))),
+};
+const SEMANTIC_META_CANDIDATE_WINDOW_BONUS = Math.max(
+  0,
+  Math.round(q(4, [0, 20], 'Additional semantic candidate window for meta-queries.'))
+);
+const SEMANTIC_META_CANDIDATE_WINDOW_MAX = Math.max(
+  0,
+  Math.round(q(24, [0, 60], 'Maximum semantic candidate window for meta-queries.'))
+);
+const RERANK_WINDOW_BY_DEPTH: Record<QueryDepthProfile, number> = {
+  L0: Math.max(0, Math.round(q(0, [0, 40], 'Cross-encoder rerank window for L0 depth.'))),
+  L1: Math.max(0, Math.round(q(0, [0, 40], 'Cross-encoder rerank window for L1 depth.'))),
+  L2: Math.max(0, Math.round(q(10, [0, 40], 'Cross-encoder rerank window for L2 depth.'))),
+  L3: Math.max(0, Math.round(q(14, [0, 40], 'Cross-encoder rerank window for L3 depth.'))),
+};
 const INDEX_CONFIDENCE_CAP_MIN = q(0.1, [0, 1], 'Minimum confidence cap during indexing.');
 const INDEX_CONFIDENCE_CAP_MAX = q(0.5, [0, 1], 'Maximum confidence cap during indexing.');
 const INDEX_CONFIDENCE_CAP_SCALE = q(0.5, [0, 1], 'Scale factor for indexing confidence cap.');
@@ -394,6 +417,22 @@ const HINT_LOW_CONFIDENCE_THRESHOLD = q(
   [0, 1],
   'Hint threshold for low-confidence results.'
 );
+
+function resolveQueryDepthProfile(depth: LibrarianQuery['depth'] | undefined): QueryDepthProfile {
+  return depth ?? DEFAULT_QUERY_DEPTH_PROFILE;
+}
+
+function resolveSemanticCandidateWindow(depth: LibrarianQuery['depth'] | undefined, isMetaQuery: boolean): number {
+  const baseWindow = SEMANTIC_CANDIDATE_WINDOW_BY_DEPTH[resolveQueryDepthProfile(depth)];
+  if (!isMetaQuery || baseWindow <= 0) {
+    return baseWindow;
+  }
+  return Math.min(SEMANTIC_META_CANDIDATE_WINDOW_MAX, baseWindow + SEMANTIC_META_CANDIDATE_WINDOW_BONUS);
+}
+
+function resolveRerankWindow(depth: LibrarianQuery['depth'] | undefined): number {
+  return RERANK_WINDOW_BY_DEPTH[resolveQueryDepthProfile(depth)];
+}
 
 // ============================================================================
 // META-QUERY DETECTION FOR DOCUMENTATION ROUTING
@@ -2996,6 +3035,7 @@ export async function queryLibrarian(
           lowConfidenceFilter: true,
           topPackConfidence,
           confidenceThreshold: MIN_RESULT_CONFIDENCE_THRESHOLD,
+          stageCosts: buildStageCostSummary(stageTracker.report()),
         });
       }
 
@@ -3434,6 +3474,7 @@ export async function queryLibrarian(
       latencyMs: response.latencyMs,
       templateId: constructionPlan.templateId,
       cacheHit,
+      stageCosts: buildStageCostSummary(stageReports),
     });
   }
   return response;
@@ -3698,7 +3739,10 @@ function normalizeStageObserver(value: unknown): QueryStageObserver | undefined 
 function cloneStageReport(report: StageReport): StageReport {
   return {
     ...report,
-    results: { ...report.results },
+    results: {
+      ...report.results,
+      telemetry: report.results.telemetry ? { ...report.results.telemetry } : undefined,
+    },
     issues: report.issues.map((issue) => ({ ...issue })),
   };
 }
@@ -3741,7 +3785,7 @@ function createStageTracker(onStage?: QueryStageObserver) {
     return context;
   };
 
-  const finish = (context: StageContext, options: { outputCount: number; filteredCount?: number; status?: StageReport['status'] }): StageReport => {
+  const finish = (context: StageContext, options: { outputCount: number; filteredCount?: number; status?: StageReport['status']; telemetry?: StageTelemetry }): StageReport => {
     active.delete(context.stage);
     const filteredCount = options.filteredCount ?? Math.max(0, context.inputCount - options.outputCount);
     const status = options.status ?? deriveStageStatus(context.inputCount, options.outputCount, context.issues.length);
@@ -3752,6 +3796,7 @@ function createStageTracker(onStage?: QueryStageObserver) {
         inputCount: context.inputCount,
         outputCount: options.outputCount,
         filteredCount,
+        telemetry: options.telemetry ? { ...options.telemetry } : undefined,
       },
       issues: context.issues,
       durationMs: Math.max(0, Date.now() - context.startedAt),
@@ -3918,6 +3963,32 @@ async function appendStageEvidence(
   }
 }
 
+function buildStageCostSummary(stageReports: StageReport[]): {
+  totalStageDurationMs: number;
+  stageTimingsMs: Partial<Record<StageName, number>>;
+  stageStatuses: Partial<Record<StageName, StageReport['status']>>;
+  semanticRetrievalTelemetry: StageTelemetry | null;
+  rerankingTelemetry: StageTelemetry | null;
+} {
+  const stageTimingsMs: Partial<Record<StageName, number>> = {};
+  const stageStatuses: Partial<Record<StageName, StageReport['status']>> = {};
+  let totalStageDurationMs = 0;
+  for (const report of stageReports) {
+    stageTimingsMs[report.stage] = report.durationMs;
+    stageStatuses[report.stage] = report.status;
+    totalStageDurationMs += report.durationMs;
+  }
+  const semanticRetrievalTelemetry = stageReports.find((report) => report.stage === 'semantic_retrieval')?.results.telemetry ?? null;
+  const rerankingTelemetry = stageReports.find((report) => report.stage === 'reranking')?.results.telemetry ?? null;
+  return {
+    totalStageDurationMs,
+    stageTimingsMs,
+    stageStatuses,
+    semanticRetrievalTelemetry,
+    rerankingTelemetry,
+  };
+}
+
 async function appendConstructionPlanEvidence(
   ledger: IEvidenceLedger,
   sessionId: SessionId,
@@ -4049,6 +4120,8 @@ async function runSemanticRetrievalStage(options: {
   let queryEmbedding: Float32Array | null = null;
   let candidates: Candidate[] = [];
   let queryClassification: QueryClassification | undefined;
+  let semanticCandidateWindow = 0;
+  let searchExecutions = 0;
 
   // Track diagnostic state for zero-result explanation
   const diagnostics = {
@@ -4067,6 +4140,7 @@ async function runSemanticRetrievalStage(options: {
 
   const semanticStage = stageTracker.start('semantic_retrieval', query.intent && query.depth !== 'L0' ? 1 : 0);
   if (semanticStage.inputCount > 0) {
+    semanticCandidateWindow = resolveSemanticCandidateWindow(query.depth, false);
     if (!embeddingAvailable) {
       diagnostics.embeddingUnavailable = true;
       const reason = capabilities.optional.embeddings
@@ -4093,7 +4167,8 @@ async function runSemanticRetrievalStage(options: {
         query.affectedFiles
       );
 
-      const searchLimit = queryClassification.isMetaQuery ? 20 : 14;
+      const searchLimit = resolveSemanticCandidateWindow(query.depth, queryClassification.isMetaQuery);
+      semanticCandidateWindow = searchLimit;
       const searchMinSimilarity = queryClassification.isMetaQuery ? minSimilarity * 0.9 : minSimilarity;
 
       // Use classified entity types (includes 'document' for meta-queries)
@@ -4103,6 +4178,7 @@ async function runSemanticRetrievalStage(options: {
         entityTypes: queryClassification.entityTypes,
         filter: query.filter,
       });
+      searchExecutions += 1;
       applySimilaritySearchDegradation('direct', directSearchResponse, diagnostics, recordCoverageGap);
 
       const resultLists: SimilarityResult[][] = [directSearchResponse.results];
@@ -4113,6 +4189,7 @@ async function runSemanticRetrievalStage(options: {
           entityTypes: queryClassification.entityTypes,
           filter: query.filter,
         });
+        searchExecutions += 1;
         applySimilaritySearchDegradation('hyde', hydeSearchResponse, diagnostics, recordCoverageGap);
         resultLists.push(hydeSearchResponse.results);
       }
@@ -4124,6 +4201,7 @@ async function runSemanticRetrievalStage(options: {
           entityTypes: queryClassification.entityTypes,
           filter: query.filter,
         });
+        searchExecutions += 1;
         applySimilaritySearchDegradation(`identifier_expansion_${i + 1}`, expansionSearchResponse, diagnostics, recordCoverageGap);
         resultLists.push(expansionSearchResponse.results);
       }
@@ -4157,7 +4235,14 @@ async function runSemanticRetrievalStage(options: {
   } else if (!query.intent) {
     recordCoverageGap('semantic_retrieval', 'No query intent provided for semantic search.', 'minor');
   }
-  stageTracker.finish(semanticStage, { outputCount: candidates.length, filteredCount: 0 });
+  stageTracker.finish(semanticStage, {
+    outputCount: candidates.length,
+    filteredCount: 0,
+    telemetry: {
+      candidateWindow: semanticCandidateWindow,
+      searchExecutions,
+    },
+  });
   return { candidates, queryEmbedding, queryClassification, diagnostics };
 }
 
@@ -5939,13 +6024,46 @@ async function runRerankStage(options: {
     forceRerank,
   } = options;
   const rerankRunner = rerank ?? maybeRerankWithCrossEncoder;
+  const depthProfile = resolveQueryDepthProfile(query.depth);
+  const rerankWindow = resolveRerankWindow(query.depth);
+  const rerankInputCount = Math.min(finalPacks.length, rerankWindow);
+  const rerankInput = rerankInputCount > 0 ? finalPacks.slice(0, rerankInputCount) : [];
+  const rerankTail = rerankInputCount < finalPacks.length ? finalPacks.slice(rerankInputCount) : [];
   const mmrEligible = query.diversify === true && finalPacks.length >= 2;
   const rerankEligible =
     Boolean(query.intent) &&
-    finalPacks.length >= 2 &&
-    (query.depth === 'L2' || query.depth === 'L3') &&
+    rerankInput.length >= 2 &&
     (forceRerank || isCrossEncoderEnabled());
-  const rerankStage = stageTracker.start('reranking', (rerankEligible || mmrEligible) ? finalPacks.length : 0);
+  const inferSkipReason = (): string => {
+    if (!query.intent) return 'missing_intent';
+    if (rerankInput.length < 2) {
+      if (rerankWindow <= 0) return 'depth_profile_disabled';
+      return 'insufficient_candidates';
+    }
+    if (!(forceRerank || isCrossEncoderEnabled())) return 'cross_encoder_disabled';
+    return 'not_applicable';
+  };
+  const skipReasonMessages: Record<string, string> = {
+    missing_intent: 'query intent is missing',
+    depth_profile_disabled: 'depth profile disables cross-encoder rerank',
+    insufficient_candidates: 'insufficient candidates for reranking',
+    cross_encoder_disabled: 'cross-encoder is disabled',
+    invalid_output: 'cross-encoder produced invalid output',
+    invalid_pack_ids: 'cross-encoder returned invalid pack IDs',
+    mismatched_packs: 'cross-encoder returned mismatched packs',
+    rerank_error: 'cross-encoder failed at runtime',
+  };
+  const rerankStageInputCount = rerankEligible
+    ? rerankInput.length
+    : (mmrEligible ? finalPacks.length : 0);
+  const rerankStage = stageTracker.start('reranking', rerankStageInputCount);
+  if (!rerankEligible) {
+    const reason = inferSkipReason();
+    const humanReason = skipReasonMessages[reason] ?? reason;
+    explanationParts.push(`Skipped cross-encoder rerank: ${humanReason}.`);
+  } else if (rerankInput.length < finalPacks.length) {
+    explanationParts.push(`Bounded rerank window to top ${rerankInput.length} packs for depth ${depthProfile}.`);
+  }
   const applyMmr = (packs: ContextPack[]): ContextPack[] => applyMmrDiversification({
     packs,
     query,
@@ -5957,51 +6075,134 @@ async function runRerankStage(options: {
     try {
       const reranked = await rerankRunner(
         query,
-        finalPacks,
+        rerankInput,
         candidateScoreMap,
         explanationParts,
         recordCoverageGap
       );
-      if (!Array.isArray(reranked) || reranked.length === 0 || reranked.length !== finalPacks.length) {
+      if (!Array.isArray(reranked) || reranked.length === 0 || reranked.length !== rerankInput.length) {
+        explanationParts.push('Cross-encoder rerank fallback: invalid output shape; preserved original order.');
         recordCoverageGap('reranking', 'Cross-encoder rerank produced invalid output; using original order.', 'minor');
-        stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
+        stageTracker.finish(rerankStage, {
+          outputCount: finalPacks.length,
+          filteredCount: 0,
+          status: 'partial',
+          telemetry: {
+            rerankWindow,
+            rerankInputCount: rerankInput.length,
+            rerankAppliedCount: 0,
+            rerankSkipReason: 'invalid_output',
+          },
+        });
         return applyMmr(finalPacks);
       }
       const outputIds = reranked.map((pack) => pack?.packId);
       if (outputIds.some((id) => !id)) {
+        explanationParts.push('Cross-encoder rerank fallback: invalid pack identifiers; preserved original order.');
         recordCoverageGap('reranking', 'Cross-encoder rerank returned invalid pack IDs; using original order.', 'minor');
-        stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
+        stageTracker.finish(rerankStage, {
+          outputCount: finalPacks.length,
+          filteredCount: 0,
+          status: 'partial',
+          telemetry: {
+            rerankWindow,
+            rerankInputCount: rerankInput.length,
+            rerankAppliedCount: 0,
+            rerankSkipReason: 'invalid_pack_ids',
+          },
+        });
         return applyMmr(finalPacks);
       }
       const normalizedOutputIds = outputIds as string[];
-      const inputIds = new Set(finalPacks.map((pack) => pack.packId));
+      const inputIds = new Set(rerankInput.map((pack) => pack.packId));
       const outputIdSet = new Set(normalizedOutputIds);
       if (outputIdSet.size !== normalizedOutputIds.length || outputIdSet.size !== inputIds.size) {
+        explanationParts.push('Cross-encoder rerank fallback: mismatched rerank set; preserved original order.');
         recordCoverageGap('reranking', 'Cross-encoder rerank returned mismatched packs; using original order.', 'minor');
-        stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
+        stageTracker.finish(rerankStage, {
+          outputCount: finalPacks.length,
+          filteredCount: 0,
+          status: 'partial',
+          telemetry: {
+            rerankWindow,
+            rerankInputCount: rerankInput.length,
+            rerankAppliedCount: 0,
+            rerankSkipReason: 'mismatched_packs',
+          },
+        });
         return applyMmr(finalPacks);
       }
       for (const id of inputIds) {
         if (!outputIdSet.has(id)) {
+          explanationParts.push('Cross-encoder rerank fallback: missing reranked candidates; preserved original order.');
           recordCoverageGap('reranking', 'Cross-encoder rerank returned mismatched packs; using original order.', 'minor');
-          stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'partial' });
+          stageTracker.finish(rerankStage, {
+            outputCount: finalPacks.length,
+            filteredCount: 0,
+            status: 'partial',
+            telemetry: {
+              rerankWindow,
+              rerankInputCount: rerankInput.length,
+              rerankAppliedCount: 0,
+              rerankSkipReason: 'mismatched_packs',
+            },
+          });
           return applyMmr(finalPacks);
         }
       }
-      stageTracker.finish(rerankStage, { outputCount: reranked.length, filteredCount: 0 });
-      return applyMmr(reranked);
+      const merged = rerankTail.length ? [...reranked, ...rerankTail] : reranked;
+      stageTracker.finish(rerankStage, {
+        outputCount: merged.length,
+        filteredCount: 0,
+        telemetry: {
+          rerankWindow,
+          rerankInputCount: rerankInput.length,
+          rerankAppliedCount: reranked.length,
+        },
+      });
+      return applyMmr(merged);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      explanationParts.push(`Cross-encoder rerank fallback: ${message}; preserved original order.`);
       recordCoverageGap('reranking', `Cross-encoder rerank failed: ${message}`, 'minor');
-      stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'failed' });
+      stageTracker.finish(rerankStage, {
+        outputCount: finalPacks.length,
+        filteredCount: 0,
+        status: 'failed',
+        telemetry: {
+          rerankWindow,
+          rerankInputCount: rerankInput.length,
+          rerankAppliedCount: 0,
+          rerankSkipReason: 'rerank_error',
+        },
+      });
       return applyMmr(finalPacks);
     }
   }
   if (mmrEligible) {
-    stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0 });
+    stageTracker.finish(rerankStage, {
+      outputCount: finalPacks.length,
+      filteredCount: 0,
+      telemetry: {
+        rerankWindow,
+        rerankInputCount: rerankInput.length,
+        rerankAppliedCount: 0,
+        rerankSkipReason: inferSkipReason(),
+      },
+    });
     return applyMmr(finalPacks);
   }
-  stageTracker.finish(rerankStage, { outputCount: finalPacks.length, filteredCount: 0, status: 'skipped' });
+  stageTracker.finish(rerankStage, {
+    outputCount: finalPacks.length,
+    filteredCount: 0,
+    status: 'skipped',
+    telemetry: {
+      rerankWindow,
+      rerankInputCount: rerankInput.length,
+      rerankAppliedCount: 0,
+      rerankSkipReason: inferSkipReason(),
+    },
+  });
   return finalPacks;
 }
 
@@ -8537,7 +8738,8 @@ async function maybeRerankWithCrossEncoder(
   if (query.depth !== 'L2' && query.depth !== 'L3') return packs;
   if (!isCrossEncoderEnabled()) return packs;
 
-  const rerankTop = Math.min(packs.length, query.depth === 'L3' ? 14 : 10);
+  const rerankTop = Math.min(packs.length, resolveRerankWindow(query.depth));
+  if (rerankTop < 2) return packs;
   const rerankSlice = packs.slice(0, rerankTop);
   const inputs = rerankSlice.map((pack) => ({
     document: buildCrossEncoderDocument(pack),

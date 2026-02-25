@@ -886,6 +886,16 @@ export interface StageResults {
   inputCount: number;
   outputCount: number;
   filteredCount: number;
+  telemetry?: StageTelemetry;
+}
+
+export interface StageTelemetry {
+  candidateWindow?: number;
+  searchExecutions?: number;
+  rerankWindow?: number;
+  rerankInputCount?: number;
+  rerankAppliedCount?: number;
+  rerankSkipReason?: string;
 }
 
 export interface StageReport {

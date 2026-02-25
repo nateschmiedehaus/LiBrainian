@@ -35,4 +35,23 @@ describe('query stage reporting', () => {
     const report = tracker.finish(ctx, { outputCount: 0 });
     expect(report.status).toBe('partial');
   });
+
+  it('isolates telemetry snapshots from observer mutations', () => {
+    const tracker = __testing.createStageTracker((report) => {
+      if (report.results.telemetry) {
+        report.results.telemetry.rerankWindow = 999;
+      }
+    });
+    const ctx = tracker.start('reranking', 2);
+    tracker.finish(ctx, {
+      outputCount: 2,
+      telemetry: {
+        rerankWindow: 10,
+        rerankInputCount: 2,
+        rerankAppliedCount: 2,
+      },
+    });
+    const report = tracker.report().find((stage) => stage.stage === 'reranking');
+    expect(report?.results.telemetry?.rerankWindow).toBe(10);
+  });
 });
