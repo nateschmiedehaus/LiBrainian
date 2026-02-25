@@ -1,6 +1,6 @@
 task_id,category,repo,workspace,unfamiliar,underspecified,cross_file,prompt,expected_outcome,status
 T01,bug-triage-fix,LiBrainian,main,true,true,true,"Users report bootstrap intermittently exits before useful context appears. Diagnose and fix.",Deterministic root cause and fix with regression test,planned
-T02,bug-triage-fix,LiBrainian,main,true,true,true,"Contract consumer lists appear empty in strategic outputs. Confirm and remediate.",Consumers populated and persisted across restart,planned
+T02,bug-triage-fix,LiBrainian,main,true,true,true,"Contract consumer lists appear empty in strategic outputs. Confirm and remediate.",Consumers populated and persisted across restart,completed
 T03,bug-triage-fix,LiBrainian,main,false,true,true,"Pre-commit or pre-push hooks hang unexpectedly in low-memory conditions. Resolve safely.",Actionable non-hanging hook behavior with clear logs,planned
 T04,feature-extension,LiBrainian,main,true,false,true,"Add a new MCP read-only tool for strategic contract inspection.",Tool returns contract records with consumers/producers,planned
 T05,feature-extension,LiBrainian,main,true,true,true,"Add CLI command to summarize unresolved indexing anomalies from recent runs.",Deterministic summary command and tests,planned

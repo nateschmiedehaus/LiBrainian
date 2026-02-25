@@ -14,7 +14,8 @@ Version: 1.4.6
 - Run artifact contract created: `docs/librarian/evals/dogfood/m0_qualitative_runs/README.md`
 - Summary/decision template created: `docs/librarian/evals/dogfood/m0_qualitative_summary.md`
 - First run initialized: `docs/librarian/evals/dogfood/m0_qualitative_runs/20260225-193500Z/`
-- Current state: protocol-ready, run scaffolded, execution evidence pending (12-task minimum not yet complete)
+- First completed task artifact: `T02` (strategic contract consumer remediation) recorded in run folder
+- Current state: protocol-ready, run active, 1/12 tasks executed; full qualification evidence pending
 
 ---
 

@@ -1,0 +1,13 @@
+Session summary (2026-02-25):
+
+1. Investigated strategic contract consumer gap.
+2. Implemented runtime strategic contract persistence and materialization:
+   - commit 7ef17af (#820)
+3. Added stronger two-consumer regression:
+   - commit e1e65a6 (#707)
+4. Verified:
+   - full suite: npm run build && npm test -- --run (pass)
+   - targeted rerun: strategic contract tests (pass)
+5. Closed issues:
+   - #820 closed with evidence
+   - #707 closed with evidence

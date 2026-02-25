@@ -10,20 +10,20 @@ Last Updated: 2026-02-25
 
 ## Aggregate outcomes
 
-- Tasks completed: `0/12`
-- Overall subjective mean: `N/A`
+- Tasks completed: `1/12`
+- Overall subjective mean: `3.8` (interim; single completed task)
 - Category means:
-  - Context relevance: `N/A`
-  - Citation trustworthiness: `N/A`
-  - Cognitive load reduction: `N/A`
-  - Decision confidence support: `N/A`
-  - Workflow fluidity: `N/A`
+  - Context relevance: `4.0` (interim)
+  - Citation trustworthiness: `4.0` (interim)
+  - Cognitive load reduction: `4.0` (interim)
+  - Decision confidence support: `4.0` (interim)
+  - Workflow fluidity: `3.0` (interim)
 - Objective rollup:
-  - Median time-to-first-useful-context: `N/A`
-  - Median time-to-actionable-plan: `N/A`
-  - Median time-to-correct-outcome: `N/A`
-  - Total invalid references: `N/A`
-  - Total abandoned tasks: `N/A`
+  - Median time-to-first-useful-context: `480s` (interim)
+  - Median time-to-actionable-plan: `900s` (interim)
+  - Median time-to-correct-outcome: `1800s` (interim)
+  - Total invalid references: `0` (interim)
+  - Total abandoned tasks: `0` (interim)
 
 ## Hard-fail evaluation
 

@@ -1,6 +1,6 @@
 task_id,relevance,trustworthiness,cognitive_load,decision_confidence,workflow_fluidity,notes
 T01,,,,,,pending
-T02,,,,,,pending
+T02,4,4,4,4,3,"Good context and high trust after source validation; workflow friction from long full-suite runtime and hook/push overhead."
 T03,,,,,,pending
 T04,,,,,,pending
 T05,,,,,,pending

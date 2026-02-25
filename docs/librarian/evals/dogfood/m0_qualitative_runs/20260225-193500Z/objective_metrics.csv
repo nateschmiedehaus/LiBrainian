@@ -1,6 +1,6 @@
 task_id,ttfuc_s,ttap_s,ttco_s,rework_loops,invalid_refs,outcome,notes
 T01,,,,,,,pending
-T02,,,,,,,pending
+T02,480,900,1800,2,0,success,"Real-session run from issues #820 and #707. Includes persistence + two-consumer regression and full-suite pass."
 T03,,,,,,,pending
 T04,,,,,,,pending
 T05,,,,,,,pending
