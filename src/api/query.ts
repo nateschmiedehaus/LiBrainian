@@ -242,6 +242,15 @@ import {
   type SemanticCacheCategory,
 } from './query_semantic_cache_utils.js';
 import {
+  deserializeCachedResponse,
+  QUERY_CACHE_TTL_L1_MS,
+  QUERY_CACHE_TTL_L2_MS,
+  resolveQueryCacheTier,
+  resolveQueryCacheTtl,
+  serializeCachedResponse,
+  type CachedResponse,
+} from './query_cache_response_utils.js';
+import {
   applyMmrDiversification,
 } from './query_mmr_utils.js';
 import {
@@ -307,7 +316,6 @@ export { applyEntryPointBias, isEntryPointEntity };
 
 type Candidate = { entityId: string; entityType: GraphEntityType; path?: string; semanticSimilarity: number; confidence: number; recency: number; pagerank: number; centrality: number; communityId: number | null; graphSimilarity?: number; cochange?: number; score?: number; };
 type GraphMetricsStore = LibrarianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]>; };
-type CachedResponse = LibrarianResponse & { explanation?: string; coverageGaps?: string[]; evidenceByPack?: Record<string, EvidenceRef[]> };
 type QueryCacheStore = LibrarianStorage & {
   getQueryCacheEntry?: (queryHash: string) => Promise<QueryCacheEntry | null>;
   upsertQueryCacheEntry?: (entry: QueryCacheEntry) => Promise<void>;
@@ -2726,8 +2734,6 @@ const defaultEmbeddingService = new EmbeddingService();
 const EMBEDDING_CACHE_LIMIT = 64;
 const embeddingCache = new WeakMap<EmbeddingService, Map<string, Float32Array>>();
 const hydeExpansionCache = new Map<string, string>();
-const QUERY_CACHE_TTL_L1_MS = 5 * 60 * 1000;
-const QUERY_CACHE_TTL_L2_MS = 30 * 60 * 1000;
 const QUERY_CACHE_L1_LIMIT = 100;
 const QUERY_CACHE_L2_LIMIT = 1000;
 const queryCacheByStorage = new WeakMap<LibrarianStorage, HierarchicalMemory<CachedResponse>>();
@@ -5832,14 +5838,6 @@ function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResp
   return memory;
 }
 
-function resolveQueryCacheTier(query: LibrarianQuery): MemoryTier {
-  return query.depth === 'L0' ? 'l1' : 'l2';
-}
-
-function resolveQueryCacheTtl(depth?: LibrarianQuery['depth']): number {
-  return depth === 'L0' ? QUERY_CACHE_TTL_L1_MS : QUERY_CACHE_TTL_L2_MS;
-}
-
 async function trySemanticCacheLookup(options: {
   query: LibrarianQuery;
   version: LibrarianVersion;
@@ -5944,34 +5942,6 @@ async function writePersistentCache(storage: LibrarianStorage, key: string, resp
   if (cacheStore.pruneQueryCache) {
     await cacheStore.pruneQueryCache({ maxEntries: QUERY_CACHE_L2_LIMIT, maxAgeMs: QUERY_CACHE_TTL_L2_MS });
   }
-}
-
-type SerializedVersion = Omit<LibrarianVersion, 'indexedAt'> & { indexedAt: string };
-type SerializedContextPack = Omit<ContextPack, 'createdAt' | 'version'> & { createdAt: string; version: SerializedVersion };
-type SerializedResponse = Omit<CachedResponse, 'version' | 'packs'> & { version: SerializedVersion; packs: SerializedContextPack[] };
-
-function serializeCachedResponse(response: CachedResponse): string {
-  return JSON.stringify(response, (_key, value) => (value instanceof Date ? value.toISOString() : value));
-}
-
-function deserializeCachedResponse(raw: string): CachedResponse | null {
-  const parsed = safeJsonParse<SerializedResponse>(raw);
-  if (!parsed.ok) return noResult();
-  const value = parsed.value;
-  if (!value || !value.version || !Array.isArray(value.packs)) return noResult();
-  const version = {
-    ...value.version,
-    indexedAt: new Date(value.version.indexedAt),
-  };
-  const packs = value.packs.map((pack) => ({
-    ...pack,
-    createdAt: new Date(pack.createdAt),
-    version: {
-      ...pack.version,
-      indexedAt: new Date(pack.version.indexedAt),
-    },
-  }));
-  return { ...value, version, packs };
 }
 
 async function collectDirectPacks(
