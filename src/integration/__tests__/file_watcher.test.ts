@@ -201,6 +201,12 @@ describe('file_watcher', () => {
     (captured as unknown as (event: string, filename: string) => void)('change', 'src/b.ts');
 
     await new Promise((resolve) => setTimeout(resolve, 80));
+    // Regression guard: full-suite runs can delay debounce + async reindex work, so
+    // assertions must wait for the call boundary instead of relying on fixed sleeps.
+    await waitForCondition(
+      () => vi.mocked(librarian.reindexFiles).mock.calls.length > 0,
+      { timeoutMs: 1000 },
+    );
     await flushPromises();
 
     expect(librarian.reindexFiles).toHaveBeenCalledTimes(1);
