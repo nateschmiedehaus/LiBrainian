@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest';
+import {
+  extractBugContext,
+  extractCodeReviewFilePath,
+  extractFeatureTarget,
+  extractRefactoringTarget,
+  extractSecurityCheckTypes,
+} from '../query_intent_targets.js';
+
+describe('query intent target extractors', () => {
+  it('extracts refactoring targets', () => {
+    expect(extractRefactoringTarget('what would break if I changed SqliteLibrarianStorage')).toBe('SqliteLibrarianStorage');
+    expect(extractRefactoringTarget('can I safely rename createLibrarian')).toBe('createLibrarian');
+    expect(extractRefactoringTarget('general architecture question')).toBeUndefined();
+  });
+
+  it('extracts bug context', () => {
+    expect(extractBugContext('debug the error in src/api/query.ts')).toBe('src/api/query.ts');
+    expect(extractBugContext('investigate null pointer exception in bootstrap')).toBe('null pointer');
+    expect(extractBugContext('all green')).toBeUndefined();
+  });
+
+  it('extracts security check types and defaults', () => {
+    expect(extractSecurityCheckTypes('audit for sql injection and auth bypass')).toEqual(['injection', 'auth']);
+    expect(extractSecurityCheckTypes('run a security audit')).toEqual(['injection', 'auth', 'crypto', 'exposure']);
+  });
+
+  it('extracts feature targets', () => {
+    expect(extractFeatureTarget('where is authentication implemented')).toBe('authentication');
+    expect(extractFeatureTarget('find the login feature')).toBe('login');
+    expect(extractFeatureTarget('show me architecture overview')).toBeUndefined();
+  });
+
+  it('extracts code review file paths', () => {
+    expect(extractCodeReviewFilePath('review file src/api/query.ts')).toBe('src/api/query.ts');
+    expect(extractCodeReviewFilePath('please check "src/storage/types.ts"')).toBe('src/storage/types.ts');
+    expect(extractCodeReviewFilePath('review this change')).toBeUndefined();
+  });
+});
