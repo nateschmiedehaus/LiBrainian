@@ -1,0 +1,101 @@
+{
+  "id": "@librainian/hallucinated-api-detector",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Detects generated package method calls that do not exist in the installed package version",
+  "agentDescription": "Detects generated package method calls that do not exist in the installed package version. Use this when task intent aligns with tags: core, process, preset, quality, dependencies, agentic. Use this construction when an agent task matches hallucinated api detector workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "generatedCode": {
+        "type": "string"
+      },
+      "projectRoot": {
+        "type": "string"
+      },
+      "packagesToCheck": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "generatedCode",
+      "projectRoot"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "calls": {
+        "type": "array"
+      },
+      "hallucinatedCount": {
+        "type": "number"
+      },
+      "unverifiableCount": {
+        "type": "number"
+      },
+      "agentSummary": {
+        "type": "string"
+      },
+      "hasBlockingIssues": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "calls",
+      "hallucinatedCount",
+      "unverifiableCount",
+      "agentSummary",
+      "hasBlockingIssues"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "quality",
+    "dependencies",
+    "agentic"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run hallucinated-api-detector for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:hallucinated-api-detector through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

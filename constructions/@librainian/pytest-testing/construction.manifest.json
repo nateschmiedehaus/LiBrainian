@@ -1,0 +1,50 @@
+{
+  "id": "@librainian/pytest-testing",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Pytest testing patterns and fixtures",
+  "agentDescription": "Pytest testing patterns and fixtures. Use this when task intent aligns with tags: testing, pytest. Use this construction when an agent task matches pytest testing workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": true
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "testing",
+    "pytest"
+  ],
+  "frameworks": [
+    "pytest"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run pytest-testing for a relevant intent"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

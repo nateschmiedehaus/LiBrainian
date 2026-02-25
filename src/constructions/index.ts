@@ -50,6 +50,19 @@ export type {
   ThirdPartyConstructionId,
 } from './types.js';
 
+export type {
+  ConstructionManifest as PublishableConstructionManifest,
+  ConstructionExample as PublishableConstructionExample,
+  ChangelogEntry as ConstructionManifestChangelogEntry,
+  ManifestCapabilityId,
+  ManifestScope,
+  ManifestTrustTier,
+  ManifestValidationCheck,
+  ManifestValidationIssue,
+  ManifestValidationOptions,
+  ManifestValidationResult,
+} from './manifest.js';
+
 export {
   OFFICIAL_CONSTRUCTION_SLUGS,
   LEGACY_CONSTRUCTION_CLASS_IDS,
@@ -61,6 +74,11 @@ export {
   ok,
   unwrapConstructionExecutionResult,
 } from './types.js';
+
+export {
+  compatibilityScore as compatibilityScoreManifest,
+  validateManifest as validateConstructionManifest,
+} from './manifest.js';
 
 export {
   CONSTRUCTION_REGISTRY,

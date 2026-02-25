@@ -1,0 +1,104 @@
+{
+  "id": "@librainian/stale-documentation-sensor",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Detects documentation claims that diverged from current implementation behavior",
+  "agentDescription": "Detects documentation claims that diverged from current implementation behavior. Use this when task intent aligns with tags: core, process, preset, documentation, quality. Use this construction when an agent task matches stale documentation sensor workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "paths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "docTypes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "changedInLastDays": {
+        "type": "number"
+      },
+      "stalenessThreshold": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "paths"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "staleEntries": {
+        "type": "array"
+      },
+      "ghostDocumentation": {
+        "type": "array"
+      },
+      "undocumentedFunctions": {
+        "type": "array"
+      },
+      "agentSummary": {
+        "type": "string"
+      },
+      "documentationHealthScore": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "staleEntries",
+      "ghostDocumentation",
+      "agentSummary",
+      "documentationHealthScore"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "documentation",
+    "quality"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run stale-documentation-sensor for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:stale-documentation-sensor through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

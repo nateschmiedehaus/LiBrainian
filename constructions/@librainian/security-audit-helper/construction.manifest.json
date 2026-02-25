@@ -1,0 +1,91 @@
+{
+  "id": "@librainian/security-audit-helper",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Assists with security audits and vulnerability detection",
+  "agentDescription": "Assists with security audits and vulnerability detection. Use this when task intent aligns with tags: core, security. Use this construction when an agent task matches security audit helper workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "checkTypes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "workspace": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "files",
+      "checkTypes"
+    ],
+    "additionalProperties": true
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "findings": {
+        "type": "array"
+      },
+      "confidence": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "findings",
+      "confidence"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [
+    "librarian",
+    "security-analysis"
+  ],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "security"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run security-audit-helper for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:security-audit-helper through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

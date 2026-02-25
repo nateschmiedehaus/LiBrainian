@@ -7219,6 +7219,64 @@ export class LiBrainianMCPServer {
         suggestions: findSimilarConstructions(input.constructionId, 3).map((candidate) => candidate.id),
       };
     }
+
+    const hasCapability = (librarianRuntime: unknown, capability: string): boolean => {
+      if (capability === 'librarian') return librarianRuntime !== undefined;
+      if (!librarianRuntime || typeof librarianRuntime !== 'object') return false;
+
+      const runtime = librarianRuntime as {
+        queryOptional?: unknown;
+        getStorageCapabilities?: () => {
+          core: Record<string, boolean>;
+          optional: Record<string, boolean>;
+        };
+      };
+
+      if (capability === 'query' || capability === 'symbol-search' || capability === 'debug-analysis') {
+        return typeof runtime.queryOptional === 'function';
+      }
+
+      if (typeof runtime.getStorageCapabilities !== 'function') {
+        return false;
+      }
+
+      const capabilities = runtime.getStorageCapabilities();
+      const normalized = capability.toLowerCase().replace(/[\s_]/g, '-');
+      const optional = capabilities.optional ?? {};
+      const optionalLookup: Record<string, boolean> = {
+        embeddings: Boolean(optional.embeddings),
+        'embedding-search': Boolean(optional.embeddings),
+        'function-semantics': Boolean(optional.embeddings),
+        'vector-search': Boolean(optional.embeddings),
+        'quality-analysis': Boolean(optional.embeddings || optional.graphMetrics),
+        'security-analysis': Boolean(optional.embeddings || optional.graphMetrics),
+        'architecture-analysis': Boolean(optional.graphMetrics),
+        'impact-analysis': Boolean(optional.graphMetrics),
+        'call-graph': Boolean(optional.graphMetrics),
+        'import-graph': Boolean(optional.graphMetrics),
+        'graph-metrics': Boolean(optional.graphMetrics),
+      };
+      if (normalized in optionalLookup) {
+        return optionalLookup[normalized] === true;
+      }
+
+      return capabilities.core?.[normalized] === true;
+    };
+
+    const capabilityError = (missingCapabilities: string[], workspace?: string): Record<string, unknown> => ({
+      error: 'CONSTRUCTION_CAPABILITY_MISSING',
+      code: 'construction_capability_missing',
+      message: `Construction ${manifest.id} requires unavailable capabilities: ${missingCapabilities.join(', ')}.`,
+      constructionId: manifest.id,
+      requiredCapabilities: manifest.requiredCapabilities,
+      missingCapabilities,
+      workspace,
+      suggestions: [
+        'Run list_constructions to find alternatives with fewer dependencies.',
+        'Bootstrap a workspace and ensure graph/embedding capabilities are available.',
+      ],
+    });
+
     const requiresLiBrainian = manifest.requiredCapabilities.includes('librarian');
     let resolvedWorkspace: string | undefined;
     let deps: Record<string, unknown> = {};
@@ -7231,9 +7289,7 @@ export class LiBrainianMCPServer {
           ?? this.config.workspaces[0];
 
       if (!workspaceRoot) {
-        throw new Error(
-          `No workspace available for invoke_construction(${manifest.id}). Provide workspace or run bootstrap first.`,
-        );
+        return capabilityError(['librarian']);
       }
 
       resolvedWorkspace = path.resolve(workspaceRoot);
@@ -7265,6 +7321,13 @@ export class LiBrainianMCPServer {
       }
       deps = { librarian };
     }
+
+    const missingCapabilities = manifest.requiredCapabilities.filter((capability) =>
+      !hasCapability(deps.librarian, capability));
+    if (missingCapabilities.length > 0) {
+      return capabilityError(missingCapabilities, resolvedWorkspace);
+    }
+
     const tool = toMCPTool(
       manifest.construction,
       manifest,

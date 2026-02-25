@@ -1,0 +1,109 @@
+{
+  "id": "@librainian/test-slop-detector",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Identifies tests that appear valid but provide little or no behavioral signal",
+  "agentDescription": "Identifies tests that appear valid but provide little or no behavioral signal. Use this when task intent aligns with tags: core, process, preset, testing, quality. Use this construction when an agent task matches test slop detector workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "testPaths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "sourcePaths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "checks": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "testPaths"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "violations": {
+        "type": "array"
+      },
+      "critical": {
+        "type": "array"
+      },
+      "warnings": {
+        "type": "array"
+      },
+      "effectivelyUntested": {
+        "type": "array"
+      },
+      "agentSummary": {
+        "type": "string"
+      },
+      "effectiveCoverageEstimate": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "violations",
+      "critical",
+      "warnings",
+      "effectivelyUntested",
+      "agentSummary",
+      "effectiveCoverageEstimate"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "testing",
+    "quality"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run test-slop-detector for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:test-slop-detector through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

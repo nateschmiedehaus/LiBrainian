@@ -135,7 +135,52 @@ describe('constructionsCommand', () => {
     expect(payload.errors.some((line) => line.includes('already registered'))).toBe(true);
     expect(payload.errors.some((line) => line.includes('version'))).toBe(true);
     expect(payload.errors.some((line) => line.includes('requiredCapabilities'))).toBe(true);
-    expect(payload.warnings.some((line) => line.includes('agentDescription'))).toBe(true);
+    expect(payload.errors.some((line) => line.includes('agentDescription'))).toBe(true);
+  });
+
+  it('submits a valid manifest only after validation passes', async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), 'librainian-constructions-'));
+    workspaces.push(workspace);
+    const manifestPath = path.join(workspace, 'construction.manifest.json');
+    await writeFile(manifestPath, JSON.stringify({
+      id: '@acme/construction-safety-gate',
+      scope: '@acme/community',
+      version: '1.0.0',
+      author: 'Acme Team',
+      license: 'MIT',
+      description: 'Construction for deterministic safety gating',
+      agentDescription: 'Use this construction when a code agent is about to merge changes and needs a deterministic policy gate with explicit pass and fail conditions. It cannot replace full integration testing and it does not infer unstated policy requirements.',
+      inputSchema: { type: 'object', properties: { diff: { type: 'string' } }, required: ['diff'] },
+      outputSchema: { type: 'object', properties: { pass: { type: 'boolean' } }, required: ['pass'] },
+      requiredCapabilities: ['call-graph'],
+      optionalCapabilities: ['vector-search'],
+      engines: { librainian: '>=0.1.0' },
+      tags: ['safety', 'policy'],
+      testedOn: ['typescript-monorepo'],
+      examples: [
+        {
+          title: 'Basic gate',
+          input: { diff: 'diff --git a.ts b.ts' },
+          output: { pass: true },
+          description: 'Runs policy checks over a simple patch.',
+        },
+      ],
+      changelog: [{ version: '1.0.0', date: '2026-02-20', summary: 'Initial release' }],
+      trustTier: 'community',
+    }, null, 2));
+
+    await constructionsCommand({
+      workspace,
+      args: ['submit', manifestPath],
+      rawArgs: ['constructions', 'submit', manifestPath, '--json', '--dry-run'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as {
+      accepted: boolean;
+      errors: string[];
+    };
+    expect(payload.accepted).toBe(true);
+    expect(payload.errors.length).toBe(0);
   });
 
   it('supports install dry-run and install execution for built-in constructions without npm', async () => {

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { deterministic } from '../../epistemics/confidence.js';
 import { createConstruction } from '../../constructions/composition.js';
+import { CONSTRUCTION_REGISTRY } from '../../constructions/registry.js';
+import type { ConstructionManifest } from '../../constructions/types.js';
 import { createLibrarianMCPServer } from '../server.js';
 
 const GENERATED_ID = '@librainian-community/mcp-invoke-registry-test';
+const CAPABILITY_ID = '@librainian-community/mcp-capability-check-test';
 
 describe('MCP construction registry tools', () => {
   it('lists constructions and includes runtime-generated entries', async () => {
@@ -106,6 +109,49 @@ describe('MCP construction registry tools', () => {
     expect(result.error).toBe('CONSTRUCTION_NOT_FOUND');
     expect(Array.isArray(result.suggestions)).toBe(true);
     expect((result.suggestions as string[]).length).toBeGreaterThan(0);
+  });
+
+  it('returns structured capability error when required capabilities are unavailable', async () => {
+    const existing = CONSTRUCTION_REGISTRY.get(CAPABILITY_ID);
+    const manifest: ConstructionManifest = {
+      id: CAPABILITY_ID as ConstructionManifest['id'],
+      name: 'Capability Gate Test',
+      scope: '@librainian-community',
+      version: '0.0.1-test',
+      description: 'Test manifest requiring call-graph capability.',
+      agentDescription: 'Use when validating MCP capability preflight behavior. It does not execute unless call-graph is present in runtime capabilities.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: true },
+      outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false },
+      requiredCapabilities: ['call-graph'],
+      tags: ['test'],
+      trustTier: 'community',
+      examples: [{ description: 'Capability preflight', input: {}, expectedOutputSummary: 'Returns ok=true' }],
+      construction: {
+        id: CAPABILITY_ID,
+        name: 'Capability Gate Test',
+        execute: async () => ({ ok: true }),
+      } as unknown as ConstructionManifest['construction'],
+      available: true,
+    };
+    if (existing) {
+      CONSTRUCTION_REGISTRY.replace(manifest);
+    } else {
+      CONSTRUCTION_REGISTRY.register(manifest.id, manifest);
+    }
+
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+    });
+
+    const result = await (server as any).executeInvokeConstruction({
+      constructionId: CAPABILITY_ID,
+      input: {},
+    });
+
+    expect(result.error).toBe('CONSTRUCTION_CAPABILITY_MISSING');
+    expect(result.code).toBe('construction_capability_missing');
+    expect((result.missingCapabilities as string[])).toContain('call-graph');
   });
 
   it('describes a construction with example and composition hints', async () => {

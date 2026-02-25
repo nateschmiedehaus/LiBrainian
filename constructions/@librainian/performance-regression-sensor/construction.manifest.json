@@ -1,0 +1,99 @@
+{
+  "id": "@librainian/performance-regression-sensor",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Detects asymptotic complexity regressions and escalates hot-path performance risk before commit",
+  "agentDescription": "Detects asymptotic complexity regressions and escalates hot-path performance risk before commit. Use this when task intent aligns with tags: core, process, preset, performance, quality, agentic. Use this construction when an agent task matches performance regression sensor workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "targets": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "diff": {
+        "type": "string"
+      },
+      "inputSizeHints": {
+        "type": "object"
+      },
+      "hotPathsOnly": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "targets"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "analyses": {
+        "type": "array"
+      },
+      "regressions": {
+        "type": "array"
+      },
+      "hotPathRegressions": {
+        "type": "array"
+      },
+      "agentSummary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "analyses",
+      "regressions",
+      "hotPathRegressions",
+      "agentSummary"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "performance",
+    "quality",
+    "agentic"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run performance-regression-sensor for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:performance-regression-sensor through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

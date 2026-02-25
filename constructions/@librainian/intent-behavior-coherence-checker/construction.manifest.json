@@ -1,0 +1,97 @@
+{
+  "id": "@librainian/intent-behavior-coherence-checker",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Detects mismatches between declared function intent and actual implementation behavior",
+  "agentDescription": "Detects mismatches between declared function intent and actual implementation behavior. Use this when task intent aligns with tags: core, process, preset, quality, security. Use this construction when an agent task matches intent behavior coherence checker workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "targets": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "fromEntrypoints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "divergenceThreshold": {
+        "type": "number"
+      },
+      "prioritizeByCriticality": {
+        "type": "boolean"
+      },
+      "workspaceRoot": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "violations": {
+        "type": "array"
+      },
+      "criticalViolations": {
+        "type": "array"
+      },
+      "agentSummary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "violations",
+      "criticalViolations",
+      "agentSummary"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "quality",
+    "security"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run intent-behavior-coherence-checker for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:intent-behavior-coherence-checker through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "id": "@librainian/skill-audit-construction",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Audits SKILL.md content for malicious or suspicious behavior",
+  "agentDescription": "Audits SKILL.md content for malicious or suspicious behavior. Use this when task intent aligns with tags: core, security, skills. Use this construction when an agent task matches skill audit construction workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "skillContent": {
+        "type": "string"
+      },
+      "skillPath": {
+        "type": "string"
+      },
+      "workdir": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "skillContent"
+    ],
+    "additionalProperties": true
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "riskScore": {
+        "type": "number"
+      },
+      "verdict": {
+        "type": "string"
+      },
+      "maliciousPatterns": {
+        "type": "array"
+      },
+      "evidence": {
+        "type": "array"
+      },
+      "recommendation": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "riskScore",
+      "verdict",
+      "maliciousPatterns",
+      "evidence",
+      "recommendation"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [
+    "security-analysis"
+  ],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "security",
+    "skills"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run skill-audit-construction for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:skill-audit-construction through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

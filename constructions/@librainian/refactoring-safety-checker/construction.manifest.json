@@ -1,0 +1,86 @@
+{
+  "id": "@librainian/refactoring-safety-checker",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Ensures refactoring operations are safe across all languages",
+  "agentDescription": "Ensures refactoring operations are safe across all languages. Use this when task intent aligns with tags: core, refactor. Use this construction when an agent task matches refactoring safety checker workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "entityId": {
+        "type": "string"
+      },
+      "refactoringType": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "entityId",
+      "refactoringType"
+    ],
+    "additionalProperties": true
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "safe": {
+        "type": "boolean"
+      },
+      "riskScore": {
+        "type": "number"
+      },
+      "confidence": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "safe",
+      "riskScore",
+      "confidence"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [
+    "librarian",
+    "impact-analysis"
+  ],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "refactor"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run refactoring-safety-checker for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:refactoring-safety-checker through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "id": "@librainian/diff-semantic-summarizer",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Summarizes behavioral and contract changes across a diff for agents and reviewers",
+  "agentDescription": "Summarizes behavioral and contract changes across a diff for agents and reviewers. Use this when task intent aligns with tags: core, process, preset, review, quality. Use this construction when an agent task matches diff semantic summarizer workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "diff": {
+        "type": "string"
+      },
+      "baseSha": {
+        "type": "string"
+      },
+      "headSha": {
+        "type": "string"
+      },
+      "focusAreas": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "workspaceRoot": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "deltas": {
+        "type": "array"
+      },
+      "blastRadius": {
+        "type": "object"
+      },
+      "criticalChanges": {
+        "type": "array"
+      },
+      "newCoverageGaps": {
+        "type": "array"
+      },
+      "agentBriefing": {
+        "type": "string"
+      },
+      "reviewerSummary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "deltas",
+      "blastRadius",
+      "criticalChanges",
+      "newCoverageGaps",
+      "agentBriefing",
+      "reviewerSummary"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "review",
+    "quality"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run diff-semantic-summarizer for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:diff-semantic-summarizer through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

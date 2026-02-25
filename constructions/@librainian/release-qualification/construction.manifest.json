@@ -1,0 +1,126 @@
+{
+  "id": "@librainian/release-qualification",
+  "scope": "@librainian",
+  "version": "1.0.0",
+  "author": "LiBrainian Core Team",
+  "license": "MIT",
+  "description": "Release qualification preset for quality gate and evidence synthesis",
+  "agentDescription": "Release qualification preset for quality gate and evidence synthesis. Use this when task intent aligns with tags: core, process, preset, release. Use this construction when an agent task matches release qualification workflows and the team needs a repeatable, typed analysis contract. It cannot replace full runtime verification and does not guarantee correctness outside the provided input and capability constraints.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "dryRun": {
+        "type": "boolean"
+      },
+      "command": {
+        "type": "string"
+      },
+      "args": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "env": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "timeoutMs": {
+        "type": "number"
+      },
+      "budget": {
+        "type": "object",
+        "properties": {
+          "maxDurationMs": {
+            "type": "number"
+          },
+          "maxTokenBudget": {
+            "type": "number"
+          },
+          "maxUsd": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": true
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "preset": {
+        "type": "string"
+      },
+      "pattern": {
+        "type": "string"
+      },
+      "stages": {
+        "type": "array"
+      },
+      "costEstimateUsd": {
+        "type": "string"
+      },
+      "executed": {
+        "type": "boolean"
+      },
+      "execution": {
+        "type": "object"
+      },
+      "budget": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "preset",
+      "pattern",
+      "stages",
+      "costEstimateUsd",
+      "executed"
+    ],
+    "additionalProperties": true
+  },
+  "requiredCapabilities": [],
+  "optionalCapabilities": [],
+  "engines": {
+    "librainian": ">=0.2.0"
+  },
+  "tags": [
+    "core",
+    "process",
+    "preset",
+    "release"
+  ],
+  "trustTier": "official",
+  "testedOn": [
+    "typescript-monorepo"
+  ],
+  "examples": [
+    {
+      "title": "Example 1",
+      "input": {},
+      "output": {
+        "summary": "Returns construction-specific analysis output"
+      },
+      "description": "Run release-qualification for a relevant intent"
+    },
+    {
+      "title": "Example 2",
+      "input": {},
+      "output": {
+        "summary": "Returns typed construction result payload"
+      },
+      "description": "Invoke librainian:release-qualification through registry routing"
+    }
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-25",
+      "summary": "Initial official manifest export for Construction registry publishing."
+    }
+  ]
+}

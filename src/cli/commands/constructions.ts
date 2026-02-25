@@ -12,6 +12,12 @@ import {
   listConstructions,
 } from '../../constructions/registry.js';
 import type { ConstructionManifest, ConstructionSchema, ConstructionTrustTier } from '../../constructions/types.js';
+import {
+  validateManifest as validateConstructionManifest,
+  type ManifestValidationIssue,
+  type ManifestValidationOptions,
+  type ManifestValidationResult,
+} from '../../constructions/manifest.js';
 import { createError } from '../errors.js';
 
 export interface ConstructionsCommandOptions {
@@ -43,19 +49,6 @@ interface ConstructionListItem {
   requiredCapabilities: string[];
   available: boolean;
   packageName: string;
-}
-
-interface ValidationCheck {
-  name: string;
-  level: 'ok' | 'warn' | 'error';
-  message: string;
-}
-
-interface ManifestValidationResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-  checks: ValidationCheck[];
 }
 
 const TRUST_TIERS: ConstructionTrustTier[] = ['official', 'partner', 'community'];
@@ -140,10 +133,19 @@ export async function constructionsCommand(options: ConstructionsCommandOptions)
         manifestPathFlag: readStringArg(values.path),
       });
       return;
+    case 'submit':
+      await runSubmit({
+        workspace,
+        subcommandArgs,
+        json,
+        manifestPathFlag: readStringArg(values.path),
+        dryRun: Boolean(values['dry-run']),
+      });
+      return;
     default:
       throw createError(
         'INVALID_ARGUMENT',
-        `Unknown constructions subcommand: ${subcommand}. Use list|search|describe|install|run|validate.`,
+        `Unknown constructions subcommand: ${subcommand}. Use list|search|describe|install|run|validate|submit.`,
       );
   }
 }
@@ -541,39 +543,18 @@ async function runValidate(params: {
   manifestPathFlag?: string;
 }): Promise<void> {
   const { workspace, subcommandArgs, json, manifestPathFlag } = params;
-  const inputPath = subcommandArgs[0] ?? manifestPathFlag ?? 'construction.manifest.json';
-  const manifestPath = path.isAbsolute(inputPath)
-    ? inputPath
-    : path.resolve(workspace, inputPath);
-
-  let raw = '';
-  try {
-    raw = await fs.readFile(manifestPath, 'utf8');
-  } catch (error) {
-      throw createError(
-      'INVALID_ARGUMENT',
-      `Manifest file not found: ${manifestPath}`,
-      { detail: error instanceof Error ? error.message : String(error) },
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw createError(
-      'INVALID_ARGUMENT',
-      `Manifest is not valid JSON: ${manifestPath}`,
-      { detail: error instanceof Error ? error.message : String(error) },
-    );
-  }
+  const { manifestPath, parsed } = await readManifestFile(workspace, subcommandArgs[0] ?? manifestPathFlag ?? 'construction.manifest.json');
 
   const validation = validateManifest(parsed);
   const payload = {
     command: 'validate',
     manifestPath,
     currentVersion: LIBRARIAN_VERSION.string,
-    ...validation,
+    valid: validation.valid,
+    checks: validation.checks,
+    issues: validation.issues,
+    errors: serializeValidationIssues(validation.errors),
+    warnings: serializeValidationIssues(validation.warnings),
   };
 
   if (json) {
@@ -590,6 +571,102 @@ async function runValidate(params: {
   if (!validation.valid) {
     process.exitCode = 1;
   }
+}
+
+async function runSubmit(params: {
+  workspace: string;
+  subcommandArgs: string[];
+  json: boolean;
+  manifestPathFlag?: string;
+  dryRun: boolean;
+}): Promise<void> {
+  const {
+    workspace,
+    subcommandArgs,
+    json,
+    manifestPathFlag,
+    dryRun,
+  } = params;
+  const { manifestPath, parsed } = await readManifestFile(workspace, subcommandArgs[0] ?? manifestPathFlag ?? 'construction.manifest.json');
+  const validation = validateManifest(parsed);
+  const manifestId = isRecord(parsed) ? readStringArg(parsed.id) : undefined;
+  const outputPath = manifestId
+    ? path.join(workspace, '.librainian', 'registry-submissions', sanitizePathSegment(manifestId), 'construction.manifest.json')
+    : undefined;
+
+  let accepted = validation.valid;
+  if (accepted && !dryRun && outputPath) {
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(outputPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+  }
+  if (!manifestId) {
+    accepted = false;
+  }
+
+  const payload = {
+    command: 'submit',
+    manifestPath,
+    accepted,
+    dryRun,
+    submittedId: manifestId ?? null,
+    submissionPath: outputPath ?? null,
+    checks: validation.checks,
+    issues: validation.issues,
+    errors: serializeValidationIssues(validation.errors),
+    warnings: serializeValidationIssues(validation.warnings),
+  };
+
+  if (json) {
+    console.log(JSON.stringify(payload));
+  } else {
+    console.log(`Submitting ${manifestPath}...`);
+    for (const check of validation.checks) {
+      console.log(`[${check.level}] ${check.name}: ${check.message}`);
+    }
+    if (accepted) {
+      console.log(dryRun
+        ? '\nSubmission accepted (dry-run).'
+        : `\nSubmission accepted and staged at ${outputPath}.`);
+    } else {
+      console.log('\nSubmission rejected.');
+    }
+  }
+
+  if (!accepted) {
+    process.exitCode = 1;
+  }
+}
+
+async function readManifestFile(
+  workspace: string,
+  inputPath: string,
+): Promise<{ manifestPath: string; raw: string; parsed: unknown }> {
+  const manifestPath = path.isAbsolute(inputPath)
+    ? inputPath
+    : path.resolve(workspace, inputPath);
+
+  let raw = '';
+  try {
+    raw = await fs.readFile(manifestPath, 'utf8');
+  } catch (error) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Manifest file not found: ${manifestPath}`,
+      { detail: error instanceof Error ? error.message : String(error) },
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Manifest is not valid JSON: ${manifestPath}`,
+      { detail: error instanceof Error ? error.message : String(error) },
+    );
+  }
+  return { manifestPath, raw, parsed };
 }
 
 function parseCsv(value?: string): string[] {
@@ -772,172 +849,62 @@ function buildExampleCode(id: string, input: unknown): string {
 }
 
 function getKnownCapabilities(): Set<string> {
-  const capabilities = new Set<string>(['librarian']);
+  const capabilities = new Set<string>([
+    'librarian',
+    'query',
+    'symbol-search',
+    'debug-analysis',
+    'impact-analysis',
+    'quality-analysis',
+    'security-analysis',
+    'architecture-analysis',
+    'call-graph',
+    'import-graph',
+    'vector-search',
+    'contract-storage',
+    'evidence-ledger',
+    'git-history',
+    'construction-cloud',
+    'embedding-search',
+    'function-semantics',
+    'graph-metrics',
+  ]);
   for (const manifest of listConstructions()) {
     for (const capability of manifest.requiredCapabilities) {
       capabilities.add(capability);
+    }
+    const optionalCapabilities = (manifest as { optionalCapabilities?: unknown }).optionalCapabilities;
+    if (Array.isArray(optionalCapabilities)) {
+      for (const capability of optionalCapabilities) {
+        capabilities.add(capability);
+      }
     }
   }
   return capabilities;
 }
 
 function validateManifest(value: unknown): ManifestValidationResult {
-  const checks: ValidationCheck[] = [];
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  const knownCapabilities = getKnownCapabilities();
+  return validateConstructionManifest(value, buildManifestValidationOptions());
+}
 
-  if (!value || typeof value !== 'object') {
-    return {
-      valid: false,
-      errors: ['Manifest must be a JSON object.'],
-      warnings: [],
-      checks: [{
-        name: 'manifest',
-        level: 'error',
-        message: 'Manifest must be a JSON object.',
-      }],
-    };
-  }
-
-  const record = value as Record<string, unknown>;
-  const id = readStringArg(record.id);
-  if (!id) {
-    errors.push('id is required.');
-    checks.push({ name: 'id', level: 'error', message: 'id is required.' });
-  } else if (!isManifestIdLike(id)) {
-    errors.push(`id "${id}" must use librainian:<slug> or @scope/name format.`);
-    checks.push({ name: 'id', level: 'error', message: 'id format is invalid.' });
-  } else if (getConstructionManifest(id)) {
-    errors.push(`id "${id}" is already registered.`);
-    checks.push({ name: 'id', level: 'error', message: 'id is already registered.' });
-  } else {
-    checks.push({ name: 'id', level: 'ok', message: 'id is unique.' });
-  }
-
-  const version = readStringArg(record.version);
-  if (!version) {
-    errors.push('version is required.');
-    checks.push({ name: 'version', level: 'error', message: 'version is required.' });
-  } else if (!isSemver(version)) {
-    errors.push(`version "${version}" is not valid semver.`);
-    checks.push({ name: 'version', level: 'error', message: 'version is not valid semver.' });
-  } else {
-    checks.push({ name: 'version', level: 'ok', message: 'valid semver.' });
-  }
-
-  if (!isPlainObject(record.inputSchema)) {
-    errors.push('inputSchema must be a JSON object.');
-    checks.push({ name: 'inputSchema', level: 'error', message: 'inputSchema must be a JSON object.' });
-  } else {
-    checks.push({ name: 'inputSchema', level: 'ok', message: 'valid JSON object.' });
-  }
-
-  if (!isPlainObject(record.outputSchema)) {
-    errors.push('outputSchema must be a JSON object.');
-    checks.push({ name: 'outputSchema', level: 'error', message: 'outputSchema must be a JSON object.' });
-  } else {
-    checks.push({ name: 'outputSchema', level: 'ok', message: 'valid JSON object.' });
-  }
-
-  const agentDescription = readStringArg(record.agentDescription);
-  if (!agentDescription) {
-    warnings.push('agentDescription is missing (recommended 30-100 words).');
-    checks.push({ name: 'agentDescription', level: 'warn', message: 'missing (recommended 30-100 words).' });
-  } else {
-    const words = tokenizeForWordCount(agentDescription);
-    if (words < 30 || words > 100) {
-      warnings.push(`agentDescription has ${words} words (recommended 30-100).`);
-      checks.push({ name: 'agentDescription', level: 'warn', message: `${words} words (recommended 30-100).` });
-    } else {
-      checks.push({ name: 'agentDescription', level: 'ok', message: `${words} words.` });
-    }
-  }
-
-  if (!Array.isArray(record.examples) || record.examples.length === 0) {
-    warnings.push('examples has no entries (recommended >=1).');
-    checks.push({ name: 'examples', level: 'warn', message: 'no examples provided (recommended >=1).' });
-  } else {
-    checks.push({ name: 'examples', level: 'ok', message: `${record.examples.length} example(s).` });
-  }
-
-  if (record.requiredCapabilities !== undefined) {
-    if (!Array.isArray(record.requiredCapabilities) || record.requiredCapabilities.some((entry) => typeof entry !== 'string')) {
-      errors.push('requiredCapabilities must be an array of strings.');
-      checks.push({ name: 'requiredCapabilities', level: 'error', message: 'must be an array of strings.' });
-    } else {
-      const unknown = record.requiredCapabilities.filter((entry) => !knownCapabilities.has(entry));
-      if (unknown.length > 0) {
-        errors.push(`requiredCapabilities contains unknown entries: ${unknown.join(', ')}`);
-        checks.push({ name: 'requiredCapabilities', level: 'error', message: `unknown capabilities: ${unknown.join(', ')}` });
-      } else {
-        checks.push({ name: 'requiredCapabilities', level: 'ok', message: 'known capabilities only.' });
-      }
-    }
-  }
-
-  if (isPlainObject(record.engines) && readStringArg((record.engines as Record<string, unknown>).librainian)) {
-    const range = readStringArg((record.engines as Record<string, unknown>).librainian)!;
-    if (!satisfiesVersionRange(LIBRARIAN_VERSION.string, range)) {
-      errors.push(`engines.librainian "${range}" does not include current version ${LIBRARIAN_VERSION.string}.`);
-      checks.push({
-        name: 'engines.librainian',
-        level: 'error',
-        message: `"${range}" does not include current version ${LIBRARIAN_VERSION.string}.`,
-      });
-    } else {
-      checks.push({ name: 'engines.librainian', level: 'ok', message: `compatible with ${LIBRARIAN_VERSION.string}.` });
-    }
-  }
-
+function buildManifestValidationOptions(): ManifestValidationOptions {
   return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-    checks,
+    registeredIds: new Set(listConstructions().map((manifest) => manifest.id)),
+    knownCapabilities: getKnownCapabilities(),
+    currentLibrarianVersion: LIBRARIAN_VERSION.string,
   };
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function serializeValidationIssues(issues: ManifestValidationIssue[]): string[] {
+  return issues.map((issue) => `${issue.path}: ${issue.message}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isManifestIdLike(value: string): boolean {
-  return /^librainian:[a-z0-9][a-z0-9-]*$/.test(value)
-    || /^@[^/\s]+\/[^/\s]+$/.test(value);
-}
-
-function isSemver(value: string): boolean {
-  return /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value.trim());
-}
-
-function tokenizeForWordCount(value: string): number {
-  return value
-    .trim()
-    .split(/\s+/g)
-    .filter((token) => token.length > 0)
-    .length;
-}
-
-function satisfiesVersionRange(currentVersion: string, range: string): boolean {
-  const current = parseSemver(currentVersion);
-  if (!current) return false;
-  const normalized = range.trim();
-  if (normalized.length === 0) return true;
-
-  if (normalized.startsWith('>=')) {
-    const minimum = parseSemver(normalized.slice(2).trim());
-    if (!minimum) return false;
-    return compareSemver(current, minimum) >= 0;
-  }
-  if (normalized.startsWith('^')) {
-    const base = parseSemver(normalized.slice(1).trim());
-    if (!base) return false;
-    return current.major === base.major && compareSemver(current, base) >= 0;
-  }
-  const exact = parseSemver(normalized);
-  if (!exact) return false;
-  return compareSemver(current, exact) === 0;
+function sanitizePathSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '_');
 }
 
 function parseSemver(value: string): { major: number; minor: number; patch: number } | null {
