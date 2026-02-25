@@ -1890,6 +1890,39 @@ export interface DiagnoseSelfToolInput {
   workspace?: string;
 }
 
+/** List strategic contracts tool input */
+export interface ListStrategicContractsToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional contract type filter */
+  contractType?: 'api' | 'event' | 'schema';
+
+  /** Optional filter for breaking contracts only */
+  breakingOnly?: boolean;
+
+  /** Limit number of contracts returned */
+  limit?: number;
+
+  /** Items per page (default: 20) */
+  pageSize?: number;
+
+  /** Zero-based page index (default: 0) */
+  pageIdx?: number;
+
+  /** Write paged output payload to file and return a file reference */
+  outputFile?: string;
+}
+
+/** Get strategic contract tool input */
+export interface GetStrategicContractToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Strategic contract ID */
+  contractId: string;
+}
+
 /** List verification plans tool input */
 export interface ListVerificationPlansToolInput {
   /** Workspace path (optional, uses first available if not specified) */
@@ -2301,6 +2334,18 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
   },
   diagnose_self: {
     tool: 'diagnose_self',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  list_strategic_contracts: {
+    tool: 'list_strategic_contracts',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
+  },
+  get_strategic_contract: {
+    tool: 'get_strategic_contract',
     requiredScopes: ['read'],
     requiresConsent: false,
     riskLevel: 'low',
@@ -3143,6 +3188,31 @@ export function isDiagnoseSelfToolInput(value: unknown): value is DiagnoseSelfTo
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
   return typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+}
+
+/** Type guard for ListStrategicContractsToolInput */
+export function isListStrategicContractsToolInput(value: unknown): value is ListStrategicContractsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const typeOk = obj.contractType === 'api'
+    || obj.contractType === 'event'
+    || obj.contractType === 'schema'
+    || typeof obj.contractType === 'undefined';
+  const breakingOnlyOk = typeof obj.breakingOnly === 'boolean' || typeof obj.breakingOnly === 'undefined';
+  const limitOk = typeof obj.limit === 'number' || typeof obj.limit === 'undefined';
+  const pageSizeOk = typeof obj.pageSize === 'number' || typeof obj.pageSize === 'undefined';
+  const pageIdxOk = typeof obj.pageIdx === 'number' || typeof obj.pageIdx === 'undefined';
+  const outputFileOk = typeof obj.outputFile === 'string' || typeof obj.outputFile === 'undefined';
+  return workspaceOk && typeOk && breakingOnlyOk && limitOk && pageSizeOk && pageIdxOk && outputFileOk;
+}
+
+/** Type guard for GetStrategicContractToolInput */
+export function isGetStrategicContractToolInput(value: unknown): value is GetStrategicContractToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  return workspaceOk && typeof obj.contractId === 'string';
 }
 
 /** Type guard for ListVerificationPlansToolInput */

@@ -719,6 +719,27 @@ export const DiagnoseSelfToolInputSchema = z.object({
 }).strict();
 
 /**
+ * List strategic contracts tool input schema
+ */
+export const ListStrategicContractsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  contractType: z.enum(['api', 'event', 'schema']).optional().describe('Optional strategic contract type filter'),
+  breakingOnly: z.boolean().optional().default(false).describe('If true, only return breaking contracts'),
+  limit: z.number().int().positive().optional().describe('Limit number of contracts returned'),
+  pageSize: PageSizeSchema.optional().default(20).describe('Items per page (default: 20, max: 200)'),
+  pageIdx: PageIdxSchema.optional().default(0).describe('Zero-based page index (default: 0)'),
+  outputFile: OutputFileSchema.optional().describe('Write paged response payload to file and return a file reference'),
+}).strict().default({});
+
+/**
+ * Get strategic contract tool input schema
+ */
+export const GetStrategicContractToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  contractId: z.string().min(1).describe('Strategic contract ID'),
+}).strict();
+
+/**
  * Status tool input schema
  */
 export const StatusToolInputSchema = z.object({
@@ -811,6 +832,8 @@ export const TOOL_INPUT_SCHEMAS = {
   get_session_briefing: GetSessionBriefingToolInputSchema,
   system_contract: SystemContractToolInputSchema,
   diagnose_self: DiagnoseSelfToolInputSchema,
+  list_strategic_contracts: ListStrategicContractsToolInputSchema,
+  get_strategic_contract: GetStrategicContractToolInputSchema,
   status: StatusToolInputSchema,
   semantic_search: SemanticSearchToolInputSchema,
   validate_import: ValidateImportToolInputSchema,

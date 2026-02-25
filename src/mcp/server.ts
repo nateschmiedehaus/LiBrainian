@@ -81,6 +81,8 @@ import {
   type GetContextPackBundleToolInput,
   type SystemContractToolInput,
   type DiagnoseSelfToolInput,
+  type ListStrategicContractsToolInput,
+  type GetStrategicContractToolInput,
   type ListVerificationPlansToolInput,
   type ListEpisodesToolInput,
   type ListTechniquePrimitivesToolInput,
@@ -378,6 +380,8 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   estimate_task_complexity: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1500 },
   system_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   diagnose_self: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1800 },
+  list_strategic_contracts: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
+  get_strategic_contract: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1200 },
   list_verification_plans: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
   list_episodes: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1400 },
   list_technique_primitives: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 1800 },
@@ -1417,6 +1421,35 @@ export class LiBrainianMCPServer {
             workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
           },
           required: [],
+        },
+      },
+      {
+        name: 'list_strategic_contracts',
+        description: 'List strategic contracts (consumers/producers/evidence) for a workspace',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            contractType: { type: 'string', enum: ['api', 'event', 'schema'], description: 'Optional contract type filter' },
+            breakingOnly: { type: 'boolean', description: 'If true, only return breaking contracts' },
+            limit: { type: 'number', description: 'Limit number of contracts returned' },
+            pageSize: { type: 'number', description: 'Items per page (default 20, max 200)' },
+            pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
+            outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'get_strategic_contract',
+        description: 'Get a single strategic contract by ID',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
+            contractId: { type: 'string', description: 'Strategic contract ID' },
+          },
+          required: ['contractId'],
         },
       },
       {
@@ -3587,6 +3620,10 @@ export class LiBrainianMCPServer {
         return this.executeSystemContract(args as SystemContractToolInput);
       case 'diagnose_self':
         return this.executeDiagnoseSelf(args as DiagnoseSelfToolInput);
+      case 'list_strategic_contracts':
+        return this.executeListStrategicContracts(args as ListStrategicContractsToolInput);
+      case 'get_strategic_contract':
+        return this.executeGetStrategicContract(args as GetStrategicContractToolInput);
       case 'list_verification_plans':
         return this.executeListVerificationPlans(args as ListVerificationPlansToolInput);
       case 'list_episodes':
@@ -4665,6 +4702,215 @@ export class LiBrainianMCPServer {
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeListStrategicContracts(input: ListStrategicContractsToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        const first = this.state.workspaces.keys().next();
+        workspacePath = first.done ? undefined : first.value;
+      }
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          error: 'No workspace specified and no workspaces registered',
+          registeredWorkspaces: 0,
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace?.librarian) {
+        return {
+          success: false,
+          error: `Workspace not registered: ${workspacePath}`,
+          registeredWorkspaces: this.state.workspaces.size,
+          availableWorkspaces: Array.from(this.state.workspaces.keys()),
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      let contracts = await storage.getStrategicContracts();
+      if (input.contractType) {
+        contracts = contracts.filter((contract) => contract.contractType === input.contractType);
+      }
+      if (input.breakingOnly === true) {
+        contracts = contracts.filter((contract) => contract.breaking);
+      }
+      if (typeof input.limit === 'number' && Number.isFinite(input.limit) && input.limit > 0) {
+        contracts = contracts.slice(0, Math.trunc(input.limit));
+      }
+
+      const { items: pagedContracts, pagination } = this.paginateItems(contracts, input);
+      if (input.outputFile) {
+        const reference = await this.writeOutputReference(
+          input.outputFile,
+          {
+            success: true,
+            workspace: workspacePath,
+            contracts: pagedContracts,
+            pagination,
+            sortOrder: 'updated_at_desc',
+          },
+          pagination,
+          workspacePath,
+        );
+        return {
+          success: true,
+          workspace: workspacePath,
+          ...reference,
+          sortOrder: 'updated_at_desc',
+        };
+      }
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        contracts: pagedContracts,
+        pagination,
+        sortOrder: 'updated_at_desc',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async executeGetStrategicContract(input: GetStrategicContractToolInput): Promise<unknown> {
+    try {
+      let workspacePath: string | undefined;
+      if (input.workspace) {
+        workspacePath = path.resolve(input.workspace);
+      } else {
+        const first = this.state.workspaces.keys().next();
+        workspacePath = first.done ? undefined : first.value;
+      }
+
+      if (!workspacePath) {
+        return {
+          success: false,
+          error: 'No workspace specified and no workspaces registered',
+          registeredWorkspaces: 0,
+        };
+      }
+
+      const workspace = this.state.workspaces.get(workspacePath);
+      if (!workspace?.librarian) {
+        return {
+          success: false,
+          error: `Workspace not registered: ${workspacePath}`,
+          registeredWorkspaces: this.state.workspaces.size,
+          availableWorkspaces: Array.from(this.state.workspaces.keys()),
+        };
+      }
+
+      const storage = await this.getOrCreateStorage(workspacePath);
+      const contract = await storage.getStrategicContract(input.contractId);
+      if (!contract) {
+        return {
+          success: false,
+          workspace: workspacePath,
+          contractId: input.contractId,
+          error: `Strategic contract not found: ${input.contractId}`,
+        };
+      }
+
+      return {
+        success: true,
+        workspace: workspacePath,
+        contract,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        contractId: input.contractId,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async resolveStrategicContractContext(
+    storage: LiBrainianStorage,
+    options: { targetIds: string[]; relatedFiles: string[]; limit?: number },
+  ): Promise<{
+    status: 'included' | 'none_relevant' | 'unavailable';
+    contracts: Array<{
+      id: string;
+      contractType: 'api' | 'event' | 'schema';
+      name: string;
+      version: string;
+      location: string;
+      breaking: boolean;
+      consumers: string[];
+      producers: string[];
+      evidence: string[];
+      updatedAt: string;
+    }>;
+    unavailableReason?: string;
+  }> {
+    const maxItems = Math.max(1, options.limit ?? 8);
+    try {
+      const allContracts = await storage.getStrategicContracts();
+      if (allContracts.length === 0) {
+        return { status: 'none_relevant', contracts: [] };
+      }
+
+      const targetSet = new Set(
+        options.targetIds
+          .filter((targetId): targetId is string => typeof targetId === 'string' && targetId.length > 0),
+      );
+      const relatedFilesNormalized = options.relatedFiles
+        .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+        .map((entry) => path.normalize(entry));
+
+      const relevant = allContracts.filter((contract) => {
+        const moduleMatch = contract.consumers.some((consumer) => targetSet.has(consumer))
+          || contract.producers.some((producer) => targetSet.has(producer));
+        if (moduleMatch) return true;
+
+        if (relatedFilesNormalized.length === 0 || !contract.location) return false;
+        const contractLocation = path.normalize(contract.location);
+        const contractBasename = path.basename(contractLocation);
+        return relatedFilesNormalized.some((relatedFile) => (
+          relatedFile === contractLocation
+          || (contractBasename.length > 0 && relatedFile.endsWith(`${path.sep}${contractBasename}`))
+        ));
+      });
+
+      if (relevant.length === 0) {
+        return { status: 'none_relevant', contracts: [] };
+      }
+
+      const contracts = relevant.slice(0, maxItems).map((contract) => ({
+        id: contract.id,
+        contractType: contract.contractType,
+        name: contract.name,
+        version: contract.version,
+        location: contract.location,
+        breaking: contract.breaking,
+        consumers: contract.consumers,
+        producers: contract.producers,
+        evidence: contract.evidence,
+        updatedAt: contract.updatedAt,
+      }));
+
+      return {
+        status: 'included',
+        contracts,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        status: 'unavailable',
+        contracts: [],
+        unavailableReason: message.replace(/\s+/g, ' ').trim(),
       };
     }
   }
@@ -5754,6 +6000,19 @@ export class LiBrainianMCPServer {
         totalItems: pagination.totalItems,
         pageCount: pagination.pageCount,
       });
+      const strategicContractContext = await this.resolveStrategicContractContext(storage, {
+        targetIds: pagedPacks.map((pack) => pack.targetId),
+        relatedFiles: pagedPacks.flatMap((pack) => Array.isArray(pack.relatedFiles) ? pack.relatedFiles : []),
+      });
+      if (
+        strategicContractContext.status === 'unavailable'
+        && strategicContractContext.unavailableReason
+      ) {
+        response.disclosures = [
+          ...(response.disclosures ?? []),
+          `Strategic contract context unavailable: ${strategicContractContext.unavailableReason}`,
+        ];
+      }
       const aggregateConfidence = this.buildAggregateConfidence(pagedPacks);
       const { userDisclosures, epistemicsDebug } = sanitizeDisclosures(response.disclosures);
       const retrievalEntropy = response.retrievalEntropy
@@ -5831,6 +6090,9 @@ export class LiBrainianMCPServer {
         subQueries: decompositionPlan.strategy === 'multi_hop_parallel' ? subQueries : undefined,
         contextHintApplied,
         episodicHints,
+        strategicContracts: strategicContractContext.contracts,
+        strategicContractStatus: strategicContractContext.status,
+        strategicContractUnavailableReason: strategicContractContext.unavailableReason,
         epistemicsDebug: epistemicsDebug.length ? epistemicsDebug : undefined,
         nearMisses,
         loopDetection: sessionState
@@ -5892,6 +6154,9 @@ export class LiBrainianMCPServer {
         sub_queries: resultWithHumanReview.subQueries,
         context_hint_applied: resultWithHumanReview.contextHintApplied,
         episodic_hints: resultWithHumanReview.episodicHints,
+        strategic_contracts: resultWithHumanReview.strategicContracts,
+        strategic_contract_status: resultWithHumanReview.strategicContractStatus,
+        strategic_contract_unavailable_reason: resultWithHumanReview.strategicContractUnavailableReason,
         near_misses: resultWithHumanReview.nearMisses,
         loop_detection: resultWithHumanReview.loopDetection,
         ...(resultWithHumanReview.humanReviewRecommendation
@@ -10665,6 +10930,14 @@ export class LiBrainianMCPServer {
       }
 
       const { items: pagedPacks, pagination } = this.paginateItems(tokenFilteredPacks, input);
+      const strategicContractContext = await this.resolveStrategicContractContext(storage, {
+        targetIds: (pagedPacks as Array<{ targetId?: unknown }>)
+          .map((pack) => (typeof pack.targetId === 'string' ? pack.targetId : ''))
+          .filter((targetId) => targetId.length > 0),
+        relatedFiles: (pagedPacks as Array<{ relatedFiles?: unknown }>)
+          .flatMap((pack) => Array.isArray(pack.relatedFiles) ? pack.relatedFiles : [])
+          .filter((entry): entry is string => typeof entry === 'string'),
+      });
       const aggregateConfidence = this.buildAggregateConfidence(
         (pagedPacks as Array<{
           packId: string;
@@ -10710,6 +10983,12 @@ export class LiBrainianMCPServer {
             sessionId,
             aggregateConfidence,
             aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
+            strategicContracts: strategicContractContext.contracts,
+            strategic_contracts: strategicContractContext.contracts,
+            strategicContractStatus: strategicContractContext.status,
+            strategic_contract_status: strategicContractContext.status,
+            strategicContractUnavailableReason: strategicContractContext.unavailableReason,
+            strategic_contract_unavailable_reason: strategicContractContext.unavailableReason,
             coverageGaps: [],
             coverage_gaps: [],
             sortOrder: 'entity_then_pack_type',
@@ -10727,6 +11006,12 @@ export class LiBrainianMCPServer {
           sessionId,
           aggregateConfidence,
           aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
+          strategicContracts: strategicContractContext.contracts,
+          strategic_contracts: strategicContractContext.contracts,
+          strategicContractStatus: strategicContractContext.status,
+          strategic_contract_status: strategicContractContext.status,
+          strategicContractUnavailableReason: strategicContractContext.unavailableReason,
+          strategic_contract_unavailable_reason: strategicContractContext.unavailableReason,
           coverageGaps: [],
           coverage_gaps: [],
           sortOrder: 'entity_then_pack_type',
@@ -10745,6 +11030,12 @@ export class LiBrainianMCPServer {
         sessionId,
         aggregateConfidence,
         aggregate_confidence: this.toAggregateConfidenceAlias(aggregateConfidence),
+        strategicContracts: strategicContractContext.contracts,
+        strategic_contracts: strategicContractContext.contracts,
+        strategicContractStatus: strategicContractContext.status,
+        strategic_contract_status: strategicContractContext.status,
+        strategicContractUnavailableReason: strategicContractContext.unavailableReason,
+        strategic_contract_unavailable_reason: strategicContractContext.unavailableReason,
         coverageGaps: [],
         coverage_gaps: [],
         pagination,

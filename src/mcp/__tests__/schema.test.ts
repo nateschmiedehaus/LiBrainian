@@ -118,6 +118,8 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('get_session_briefing');
       expect(schemas).toContain('system_contract');
       expect(schemas).toContain('diagnose_self');
+      expect(schemas).toContain('list_strategic_contracts');
+      expect(schemas).toContain('get_strategic_contract');
       expect(schemas).toContain('status');
       expect(schemas).toContain('semantic_search');
       expect(schemas).toContain('validate_import');
@@ -173,7 +175,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(59);
+      expect(schemas).toHaveLength(61);
     });
 
     it('should return schema for known tools', () => {
@@ -1436,6 +1438,31 @@ describe('MCP Schema', () => {
     it('rejects invalid page controls for list_verification_plans', () => {
       expect(validateToolInput('list_verification_plans', { pageSize: 0 }).valid).toBe(false);
       expect(validateToolInput('list_verification_plans', { pageIdx: -1 }).valid).toBe(false);
+    });
+  });
+
+  describe('Strategic Contract Tool Schema', () => {
+    it('accepts list_strategic_contracts filters and pagination', () => {
+      const result = validateToolInput('list_strategic_contracts', {
+        workspace: '/tmp/workspace',
+        contractType: 'api',
+        breakingOnly: true,
+        pageSize: 5,
+        pageIdx: 1,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('accepts get_strategic_contract with contractId', () => {
+      const result = validateToolInput('get_strategic_contract', {
+        workspace: '/tmp/workspace',
+        contractId: 'strategic-contract:provider:api',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects get_strategic_contract without contractId', () => {
+      expect(validateToolInput('get_strategic_contract', { workspace: '/tmp/workspace' }).valid).toBe(false);
     });
   });
 
