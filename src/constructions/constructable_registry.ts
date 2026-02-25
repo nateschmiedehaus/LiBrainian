@@ -31,6 +31,17 @@ export interface ConstructableDefinition {
   isCore: boolean;
   /** Description */
   description: string;
+  /** Goal this constructable serves (why) */
+  motivation?: string;
+  /** Process-evolution hints for orchestration and alternative discovery */
+  evolution?: {
+    /** Whether this constructable can execute without human review */
+    automatable?: boolean;
+    /** Known alternatives serving similar motivations */
+    alternatives?: ConstructableId[];
+    /** Composition guidance (pairings/conflicts) */
+    compositionHints?: ConstructableId[];
+  };
   /** Query classification flag for routing */
   classificationFlag?: ConstructableClassificationFlag;
   /** Availability level */
@@ -43,8 +54,32 @@ export interface ConstructableDefinition {
   tags?: string[];
 }
 
+export interface MotivationSimilarityMatch {
+  constructable: ConstructableDefinition;
+  similarity: number;
+}
+
+export interface MotivationSimilarityQuery {
+  minSimilarity?: number;
+  topK?: number;
+}
+
+export interface MotivationIndex {
+  findBySimilarMotivation(
+    motivation: string,
+    options?: MotivationSimilarityQuery
+  ): MotivationSimilarityMatch[];
+}
+
 const READY: ConstructableAvailability = 'ready';
 const EXPERIMENTAL: ConstructableAvailability = 'experimental';
+const MIN_MOTIVATION_LENGTH = 20;
+const DEFAULT_MOTIVATION_MIN_SIMILARITY = 0.2;
+const DEFAULT_MOTIVATION_TOP_K = 5;
+const MOTIVATION_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'in', 'into', 'is',
+  'it', 'its', 'of', 'on', 'or', 'that', 'the', 'this', 'to', 'with',
+]);
 
 export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
   // Core Constructions - always evaluated
@@ -55,6 +90,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isRefactoringSafetyQuery',
     description: 'Ensures refactoring operations are safe across all languages',
+    motivation: 'Prevent regressions by proving refactors preserve caller-visible behavior.',
     tags: ['core', 'refactor'],
   },
   {
@@ -64,6 +100,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isBugInvestigationQuery',
     description: 'Assists with bug investigation using code analysis',
+    motivation: 'Diagnose and localize root causes of production bugs quickly and defensibly.',
     tags: ['core', 'debug'],
   },
   {
@@ -73,6 +110,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isFeatureLocationQuery',
     description: 'Helps locate features in the codebase',
+    motivation: 'Find where a user-described capability is implemented with minimal search time.',
     tags: ['core', 'navigation'],
   },
   {
@@ -82,6 +120,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isCodeQualityQuery',
     description: 'Reports on code quality metrics',
+    motivation: 'Reveal maintainability and correctness risks before they become incidents.',
     tags: ['core', 'quality'],
   },
   {
@@ -91,6 +130,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isArchitectureVerificationQuery',
     description: 'Verifies architecture rules and boundaries',
+    motivation: 'Ensure changes remain within intended architectural boundaries and contracts.',
     tags: ['core', 'architecture'],
   },
   {
@@ -100,6 +140,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isSecurityAuditQuery',
     description: 'Assists with security audits and vulnerability detection',
+    motivation: 'Detect exploitable security weaknesses before code reaches production.',
     tags: ['core', 'security'],
   },
   {
@@ -109,6 +150,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     availability: READY,
     classificationFlag: 'isSecurityAuditQuery',
     description: 'Audits SKILL.md content for malicious or suspicious behavior',
+    motivation: 'Protect agent workflows from unsafe or malicious skill instructions.',
     tags: ['core', 'security', 'skills'],
   },
   {
@@ -117,6 +159,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Comprehensive code quality assessment',
+    motivation: 'Produce a broad quality baseline to prioritize engineering improvements.',
     tags: ['quality'],
   },
   {
@@ -125,6 +168,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Runs bootstrap pre-flight checks and summarizes blocking and warning findings',
+    motivation: 'Catch blocking environment and bootstrap failures before expensive workflows run.',
     tags: ['core', 'preflight', 'bootstrap'],
   },
   {
@@ -133,6 +177,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Runs the typed patrol process pipeline for agent observation, signal extraction, and report generation',
+    motivation: 'Continuously surface high-signal reliability and quality regressions during dogfooding.',
     tags: ['core', 'process', 'patrol', 'agentic'],
   },
   {
@@ -141,6 +186,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Parallel security, quality, and performance review preset pipeline',
+    motivation: 'Evaluate code changes for correctness, risk, and merge readiness before landing.',
     tags: ['core', 'process', 'preset', 'review'],
   },
   {
@@ -149,6 +195,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Analyze, plan, execute, and verify migration preset pipeline',
+    motivation: 'Plan and execute safe incremental migrations with measurable rollback safety.',
     tags: ['core', 'process', 'preset', 'migration'],
   },
   {
@@ -157,6 +204,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Single-agent documentation exploration and synthesis preset',
+    motivation: 'Generate accurate and current documentation from real code behavior and structure.',
     tags: ['core', 'process', 'preset', 'documentation'],
   },
   {
@@ -165,6 +213,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Comparative baseline/candidate regression detection preset',
+    motivation: 'Detect functional or performance regressions between baseline and candidate states.',
     tags: ['core', 'process', 'preset', 'regression'],
   },
   {
@@ -173,6 +222,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Guided onboarding preset for codebase orientation and handoff',
+    motivation: 'Accelerate onboarding with focused orientation, context, and actionable next steps.',
     tags: ['core', 'process', 'preset', 'onboarding'],
   },
   {
@@ -181,6 +231,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Release qualification preset for quality gate and evidence synthesis',
+    motivation: 'Verify release readiness with strict gates and traceable evidence.',
     tags: ['core', 'process', 'preset', 'release'],
   },
   {
@@ -189,6 +240,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: READY,
     description: 'Dependency risk scanning and remediation recommendation preset',
+    motivation: 'Identify dependency vulnerabilities and upgrade risks before user impact.',
     tags: ['core', 'process', 'preset', 'dependencies'],
   },
 
@@ -199,6 +251,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Validates against quality standards',
+    motivation: 'Assess work output against explicit quality standards and acceptance bars.',
     tags: ['strategic', 'quality'],
   },
   {
@@ -207,6 +260,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Work preset validation',
+    motivation: 'Ensure workflows follow preset gates for consistent engineering quality.',
     tags: ['strategic', 'workflow'],
   },
   {
@@ -215,6 +269,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Architecture decision tracking',
+    motivation: 'Preserve architecture rationale so future changes remain coherent and auditable.',
     tags: ['strategic', 'architecture'],
   },
   {
@@ -223,6 +278,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Testing strategy assessment',
+    motivation: 'Confirm testing strategy covers risk-critical paths with pragmatic depth.',
     tags: ['strategic', 'testing'],
   },
   {
@@ -231,6 +287,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Operational excellence assessment',
+    motivation: 'Measure operational readiness, resilience, and incident response fitness.',
     tags: ['strategic', 'operations'],
   },
   {
@@ -239,6 +296,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Developer experience assessment',
+    motivation: 'Improve developer throughput by identifying workflow and tooling friction.',
     tags: ['strategic', 'dx'],
   },
   {
@@ -247,6 +305,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Technical debt tracking',
+    motivation: 'Quantify and prioritize debt by risk, cost, and remediation value.',
     tags: ['strategic', 'quality'],
   },
   {
@@ -255,6 +314,7 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     isCore: true,
     availability: EXPERIMENTAL,
     description: 'Knowledge management assessment',
+    motivation: 'Keep institutional knowledge current, discoverable, and actionable for agents.',
     tags: ['strategic', 'knowledge'],
   },
 
@@ -441,6 +501,14 @@ export function validateConstructableDefinitions(
     if (!definition.description || definition.description.trim().length === 0) {
       warnings.push(`missing_description:${definition.id}`);
     }
+    if (definition.isCore) {
+      const motivation = definition.motivation?.trim() ?? '';
+      if (motivation.length === 0) {
+        warnings.push(`missing_motivation:${definition.id}`);
+      } else if (motivation.length < MIN_MOTIVATION_LENGTH) {
+        warnings.push(`motivation_too_short:${definition.id}`);
+      }
+    }
     if (!Number.isFinite(definition.basePriority) || definition.basePriority < 0 || definition.basePriority > 100) {
       warnings.push(`priority_out_of_range:${definition.id}`);
     }
@@ -453,4 +521,104 @@ export function validateConstructableDefinitions(
   }
 
   return { valid: errors.length === 0, errors, warnings };
+}
+
+type MotivationVector = Map<string, number>;
+
+function tokenizeMotivation(text: string): string[] {
+  const normalized = text.toLowerCase().trim();
+  if (normalized.length === 0) return [];
+  return normalized
+    .split(/[^a-z0-9]+/g)
+    .filter((token) => token.length > 2 && !MOTIVATION_STOP_WORDS.has(token));
+}
+
+function toMotivationVector(text: string): MotivationVector {
+  const vector: MotivationVector = new Map();
+  for (const token of tokenizeMotivation(text)) {
+    vector.set(token, (vector.get(token) ?? 0) + 1);
+  }
+  return vector;
+}
+
+function cosineSimilarity(left: MotivationVector, right: MotivationVector): number {
+  if (left.size === 0 || right.size === 0) return 0;
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+
+  for (const value of left.values()) {
+    leftNorm += value * value;
+  }
+  for (const value of right.values()) {
+    rightNorm += value * value;
+  }
+  for (const [token, leftValue] of left.entries()) {
+    const rightValue = right.get(token);
+    if (rightValue !== undefined) {
+      dot += leftValue * rightValue;
+    }
+  }
+
+  if (leftNorm === 0 || rightNorm === 0) return 0;
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+}
+
+interface MotivationEntry {
+  definition: ConstructableDefinition;
+  vector: MotivationVector;
+}
+
+class StaticMotivationIndex implements MotivationIndex {
+  private readonly entries: MotivationEntry[];
+
+  constructor(definitions: ConstructableDefinition[]) {
+    this.entries = definitions
+      .filter((definition) => (definition.motivation?.trim().length ?? 0) > 0)
+      .map((definition) => ({
+        definition: { ...definition },
+        vector: toMotivationVector(definition.motivation ?? ''),
+      }));
+  }
+
+  findBySimilarMotivation(
+    motivation: string,
+    options: MotivationSimilarityQuery = {}
+  ): MotivationSimilarityMatch[] {
+    const queryVector = toMotivationVector(motivation);
+    if (queryVector.size === 0) return [];
+
+    const minSimilarity = Number.isFinite(options.minSimilarity)
+      ? Math.max(0, Math.min(1, Number(options.minSimilarity)))
+      : DEFAULT_MOTIVATION_MIN_SIMILARITY;
+    const topK = Number.isFinite(options.topK) && Number(options.topK) > 0
+      ? Math.floor(Number(options.topK))
+      : DEFAULT_MOTIVATION_TOP_K;
+
+    const matches: MotivationSimilarityMatch[] = [];
+    for (const entry of this.entries) {
+      const similarity = cosineSimilarity(queryVector, entry.vector);
+      if (similarity >= minSimilarity) {
+        matches.push({
+          constructable: { ...entry.definition },
+          similarity,
+        });
+      }
+    }
+
+    matches.sort((left, right) => right.similarity - left.similarity);
+    return matches.slice(0, topK);
+  }
+}
+
+export function createMotivationIndex(
+  definitions: ConstructableDefinition[] = DEFAULT_CONSTRUCTABLE_DEFINITIONS
+): MotivationIndex {
+  return new StaticMotivationIndex(definitions);
+}
+
+const DEFAULT_MOTIVATION_INDEX = createMotivationIndex(DEFAULT_CONSTRUCTABLE_DEFINITIONS);
+
+export function getConstructableMotivationIndex(): MotivationIndex {
+  return DEFAULT_MOTIVATION_INDEX;
 }

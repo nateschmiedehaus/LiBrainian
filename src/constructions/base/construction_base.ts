@@ -93,8 +93,19 @@ export interface ConstructionMetadata {
   readonly version?: string;
   /** Tags for categorization */
   readonly tags?: readonly string[];
-  /** Description of what this construction does */
+  /** Description of what this construction does (what) */
   readonly description?: string;
+  /** Goal this construction serves (why) */
+  readonly motivation?: string;
+  /** Process-evolution hints for orchestration and alternative discovery */
+  readonly evolution?: {
+    /** Whether this construction can execute without human review */
+    readonly automatable?: boolean;
+    /** Known alternative constructions serving similar goals */
+    readonly alternatives?: readonly string[];
+    /** Composition guidance (pairings/conflicts) */
+    readonly compositionHints?: readonly string[];
+  };
 }
 
 // ============================================================================

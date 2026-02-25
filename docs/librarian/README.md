@@ -24,6 +24,11 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Full lifecycle support: onboarding, change, debug, refactor, release.
 - Universal codebase support: immediate onboarding for new languages.
 
+## Construction Metadata: `description` vs `motivation`
+- `description` captures **what** a construction does mechanically.
+- `motivation` captures **why** the construction exists and what goal it serves.
+- Process-evolution features (linting, alternative discovery, and composition guidance) should rely on `motivation`, not only `description`.
+
 ## What LiBrainian Is Not
 - Not a general-purpose orchestrator or task runner.
 - Not a replacement for tests, reviews, or CI.
