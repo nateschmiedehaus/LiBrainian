@@ -41,6 +41,7 @@ export interface QueryCommandOptions {
 type QueryStrategyFlag = 'auto' | 'semantic' | 'heuristic';
 type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
 type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
+type QueryBootstrapDeferReason = 'watch_catchup' | 'stale_git_head';
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -202,8 +203,12 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     const effectiveTier = currentVersion?.qualityTier ?? 'full';
     const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: effectiveTier });
     if (bootstrapCheck.required) {
-      if (noBootstrap) {
-        throw createError('NOT_BOOTSTRAPPED', bootstrapCheck.reason);
+      const deferredReason = classifyQueryBootstrapDeferReason(bootstrapCheck.reason);
+      if (noBootstrap || deferredReason) {
+        throw createError(
+          'NOT_BOOTSTRAPPED',
+          buildQueryBootstrapRemediation(bootstrapCheck.reason, deferredReason)
+        );
       }
       const bootstrapSpinner = createSpinner('Bootstrap required; initializing (fast mode)...');
       try {
@@ -796,6 +801,30 @@ function resolveQueryCommandArgs(rawArgs: string[], args: string[]): string[] {
     }
   }
   return args.length > 0 ? args : rawArgs.slice(1);
+}
+
+function classifyQueryBootstrapDeferReason(reason: string): QueryBootstrapDeferReason | null {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes('watch state indicates catch-up') || normalized.includes('needs catch-up')) {
+    return 'watch_catchup';
+  }
+  if (normalized.includes('index is stale relative to git head')) {
+    return 'stale_git_head';
+  }
+  return null;
+}
+
+function buildQueryBootstrapRemediation(
+  originalReason: string,
+  deferredReason: QueryBootstrapDeferReason | null
+): string {
+  if (deferredReason === 'watch_catchup') {
+    return 'Watch catch-up required before query. Run `librarian index --force --incremental` (or `librarian watch`) and retry.';
+  }
+  if (deferredReason === 'stale_git_head') {
+    return 'Index cursor is stale relative to git HEAD. Run `librarian index --force --incremental` (or `librarian bootstrap --force` after history rewrites) and retry.';
+  }
+  return originalReason;
 }
 
 function validateDepth(depth: string): 'L0' | 'L1' | 'L2' | 'L3' {

@@ -129,6 +129,24 @@ describe('queryCommand LLM resolution', () => {
     expect(overrides?.skipLlm).toBe(true);
   });
 
+  it('fails fast with actionable guidance when watch catch-up is required', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
+      required: true,
+      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+    });
+
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json'],
+    })).rejects.toMatchObject({ code: 'NOT_BOOTSTRAPPED' });
+
+    expect(bootstrapProject).not.toHaveBeenCalled();
+  });
+
   it('respects --no-bootstrap', async () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
