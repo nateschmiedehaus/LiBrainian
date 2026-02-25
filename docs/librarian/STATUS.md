@@ -15,7 +15,7 @@ Version: 1.4.6
 - Summary/decision template created: `docs/librarian/evals/dogfood/m0_qualitative_summary.md`
 - First run initialized: `docs/librarian/evals/dogfood/m0_qualitative_runs/20260225-193500Z/`
 - First completed task artifact: `T02` (strategic contract consumer remediation) recorded in run folder
-- Current state: protocol-ready, run active, 8/12 tasks executed (T02, T03, T07, T08, T09, T10, T11, T12); full qualification evidence pending
+- Current state: first qualitative run complete at 12/12 tasks with GO decision; follow-up issues filed: #822, #823, #824
 
 ---
 

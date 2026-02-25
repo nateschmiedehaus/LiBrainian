@@ -1,0 +1,5 @@
+Session summary (2026-02-25):
+
+1. Ran CLI constructions command tests.
+2. Verified patrol-process can be executed via legacy slug alias.
+3. Confirmed output identity resolves to canonical construction ID.

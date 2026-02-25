@@ -1,0 +1,5 @@
+Session summary (2026-02-25):
+
+1. Ran constructable registry test suite.
+2. Verified warning behavior for missing/too-short motivation.
+3. Verified similarity retrieval over motivation vectors.

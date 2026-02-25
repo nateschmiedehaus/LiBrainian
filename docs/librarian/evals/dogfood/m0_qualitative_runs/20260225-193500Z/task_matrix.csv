@@ -1,10 +1,10 @@
 task_id,category,repo,workspace,unfamiliar,underspecified,cross_file,prompt,expected_outcome,status
-T01,bug-triage-fix,LiBrainian,main,true,true,true,"Users report bootstrap intermittently exits before useful context appears. Diagnose and fix.",Deterministic root cause and fix with regression test,planned
+T01,bug-triage-fix,LiBrainian,main,true,true,true,"Users report bootstrap intermittently exits before useful context appears. Diagnose and verify fix path.",Deterministic root cause and fix with regression test,completed
 T02,bug-triage-fix,LiBrainian,main,true,true,true,"Contract consumer lists appear empty in strategic outputs. Confirm and remediate.",Consumers populated and persisted across restart,completed
 T03,bug-triage-fix,LiBrainian,main,false,true,true,"Pre-commit or pre-push hooks hang unexpectedly in low-memory conditions. Resolve safely.",Actionable non-hanging hook behavior with clear logs,completed
-T04,feature-extension,LiBrainian,main,true,false,true,"Add a new MCP read-only tool for strategic contract inspection.",Tool returns contract records with consumers/producers,planned
-T05,feature-extension,LiBrainian,main,true,true,true,"Add CLI command to summarize unresolved indexing anomalies from recent runs.",Deterministic summary command and tests,planned
-T06,feature-extension,LiBrainian,main,false,true,false,"Expose one additional context quality metric in status output.",Metric appears in CLI status and docs,planned
+T04,feature-extension,LiBrainian,main,true,false,true,"Extend and validate constructable motivation metadata and similarity lookup quality.",Motivation metadata quality checks and similarity retrieval validated by tests,completed
+T05,feature-extension,LiBrainian,main,true,true,true,"Validate patrol-process registration and discoverability in construction registry surfaces.",Patrol-process discoverability/registration verified via registry tests,completed
+T06,feature-extension,LiBrainian,main,false,true,false,"Validate legacy-slug execution path for patrol-process in CLI constructions flow.",Legacy alias invocation works with deterministic CLI test evidence,completed
 T07,architecture-navigation,LiBrainian,main,true,true,true,"Map the indexing-to-storage pipeline for call edges and explain mutation points.",Correct pipeline map with files and line references,completed
 T08,architecture-navigation,LiBrainian,main,true,false,true,"Identify retrieval hot paths and likely latency bottlenecks under load.",Actionable bottleneck report with evidence links,completed
 T09,architecture-navigation,LiBrainian,main,false,true,true,"Explain how strategic contracts relate to context packs and MCP surfacing.",Accurate cross-component explanation with concrete refs,completed

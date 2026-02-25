@@ -1,10 +1,10 @@
 task_id,relevance,trustworthiness,cognitive_load,decision_confidence,workflow_fluidity,notes
-T01,,,,,,pending
+T01,4,4,3,4,3,"Diagnosis and fix-path verification were clear, though bootstrap warning semantics still require careful reading."
 T02,4,4,4,4,3,"Good context and high trust after source validation; workflow friction from long full-suite runtime and hook/push overhead."
 T03,4,4,4,4,4,"Hook-path behavior and non-blocking semantics were clear and test-backed."
-T04,,,,,,pending
-T05,,,,,,pending
-T06,,,,,,pending
+T04,4,5,4,4,4,"Constructable motivation coverage and similarity behavior were well-specified and easy to validate."
+T05,4,4,4,4,4,"Registry-level patrol-process behavior was straightforward and test-backed."
+T06,4,4,4,4,4,"Legacy alias path behaved as expected in CLI run flow with low friction."
 T07,5,5,4,5,4,"High clarity and trust from direct code-path verification with explicit storage/index boundaries."
 T08,4,4,3,4,3,"Useful analysis but high cognitive load due very large query pipeline and many rerank branches."
 T09,4,4,4,4,4,"Clear separation between strategic contract persistence and current MCP/context-pack retrieval surfaces."
