@@ -1,0 +1,7 @@
+Session summary (2026-02-25):
+
+1. Traced `processTask` orchestration and indexing stages.
+2. Verified local edge persistence in `indexFile` transaction.
+3. Verified post-pass external edge resolution and persistence.
+4. Verified strategic contract materialization pass placement after edge resolution.
+5. Produced pipeline map and mutation points with line citations.

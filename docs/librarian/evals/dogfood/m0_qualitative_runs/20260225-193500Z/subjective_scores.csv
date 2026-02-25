@@ -5,9 +5,9 @@ T03,,,,,,pending
 T04,,,,,,pending
 T05,,,,,,pending
 T06,,,,,,pending
-T07,,,,,,pending
-T08,,,,,,pending
-T09,,,,,,pending
+T07,5,5,4,5,4,"High clarity and trust from direct code-path verification with explicit storage/index boundaries."
+T08,4,4,3,4,3,"Useful analysis but high cognitive load due very large query pipeline and many rerank branches."
+T09,4,4,4,4,4,"Clear separation between strategic contract persistence and current MCP/context-pack retrieval surfaces."
 T10,,,,,,pending
 T11,,,,,,pending
-T12,,,,,,pending
+T12,5,5,4,5,4,"Failure mechanism was explicit and reproducible once evidence scripts and manifest path were traced."

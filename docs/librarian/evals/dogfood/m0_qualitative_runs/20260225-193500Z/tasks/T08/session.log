@@ -1,0 +1,7 @@
+Session summary (2026-02-25):
+
+1. Traced retrieval stages in `queryLibrarian`.
+2. Located semantic retrieval + reranking stage boundaries.
+3. Inspected cross-encoder rerank branch and fallback behavior.
+4. Inspected sqlite query-cache read/write/cleanup primitives.
+5. Produced bottleneck candidates and operational recommendations.

@@ -1,0 +1,7 @@
+Session summary (2026-02-25):
+
+1. Traced strategic contract data model and storage interfaces.
+2. Traced indexing pass where strategic contracts are materialized.
+3. Traced context-pack generation path.
+4. Searched MCP and API surfaces for direct strategic contract read tools.
+5. Documented current coupling: persisted strategic model exists, but no direct MCP retrieval tool path found.

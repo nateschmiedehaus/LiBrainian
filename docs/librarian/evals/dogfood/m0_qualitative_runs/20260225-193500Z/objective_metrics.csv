@@ -5,9 +5,9 @@ T03,,,,,,,pending
 T04,,,,,,,pending
 T05,,,,,,,pending
 T06,,,,,,,pending
-T07,,,,,,,pending
-T08,,,,,,,pending
-T09,,,,,,,pending
+T07,300,540,960,1,0,success,"Mapped end-to-end call-edge flow from processTask/indexFile through graph edge writes and external edge resolution."
+T08,360,720,1200,1,0,success,"Identified semantic retrieval and reranking hot paths with cache and cross-encoder touchpoints."
+T09,240,420,780,1,0,success,"Mapped strategic-contract persistence/materialization and showed current separation from MCP/context-pack serving."
 T10,,,,,,,pending
 T11,,,,,,,pending
-T12,,,,,,,pending
+T12,180,360,600,1,0,success,"Diagnosed strict evidence-gate failure mode as missing/stale evidence manifest chain inputs."

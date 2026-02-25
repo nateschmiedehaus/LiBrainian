@@ -1,11 +1,11 @@
 # Aggregate metrics (run: 20260225-193500Z)
 
-Status: pending execution
+Status: in progress
 
 ## Coverage checks
 
 - Total tasks planned: 12
-- Tasks completed: 1
+- Tasks completed: 5
 - Bug triage/fix: 3
 - Feature extension: 3
 - Architecture/navigation: 3
@@ -14,13 +14,15 @@ Status: pending execution
 - Underspecified prompts planned: 9
 - Cross-file tasks planned: 10
 
-## Threshold checks (pending)
+## Threshold checks (interim)
 
-- Overall subjective mean >= 4.0: pending
-- No category mean < 3.5: pending
-- Critical trustworthiness incident unresolved: pending
-- Hard-fail criteria check: pending
+- Overall subjective mean >= 4.0: pass (4.12 interim)
+- No category mean < 3.5: pass (lowest 3.6 interim)
+- Critical trustworthiness incident unresolved: none observed so far
+- Hard-fail criteria check: pass so far (no missing artifacts for completed tasks, no fabricated references, no reliability abandonments)
 
 ## Interim observation
 
-- T02 completed successfully (contract consumer persistence/materialization). No invalid references observed.
+- Completed tasks: T02, T07, T08, T09, T12
+- No invalid references observed in completed tasks.
+- Primary friction observed: large retrieval pipeline complexity increases analysis time and cognitive load.

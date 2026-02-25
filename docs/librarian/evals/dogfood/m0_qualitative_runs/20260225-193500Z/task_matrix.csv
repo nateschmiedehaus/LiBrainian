@@ -5,9 +5,9 @@ T03,bug-triage-fix,LiBrainian,main,false,true,true,"Pre-commit or pre-push hooks
 T04,feature-extension,LiBrainian,main,true,false,true,"Add a new MCP read-only tool for strategic contract inspection.",Tool returns contract records with consumers/producers,planned
 T05,feature-extension,LiBrainian,main,true,true,true,"Add CLI command to summarize unresolved indexing anomalies from recent runs.",Deterministic summary command and tests,planned
 T06,feature-extension,LiBrainian,main,false,true,false,"Expose one additional context quality metric in status output.",Metric appears in CLI status and docs,planned
-T07,architecture-navigation,LiBrainian,main,true,true,true,"Map the indexing-to-storage pipeline for call edges and explain mutation points.",Correct pipeline map with files and line references,planned
-T08,architecture-navigation,LiBrainian,main,true,false,true,"Identify retrieval hot paths and likely latency bottlenecks under load.",Actionable bottleneck report with evidence links,planned
-T09,architecture-navigation,LiBrainian,main,false,true,true,"Explain how strategic contracts relate to context packs and MCP surfacing.",Accurate cross-component explanation with concrete refs,planned
+T07,architecture-navigation,LiBrainian,main,true,true,true,"Map the indexing-to-storage pipeline for call edges and explain mutation points.",Correct pipeline map with files and line references,completed
+T08,architecture-navigation,LiBrainian,main,true,false,true,"Identify retrieval hot paths and likely latency bottlenecks under load.",Actionable bottleneck report with evidence links,completed
+T09,architecture-navigation,LiBrainian,main,false,true,true,"Explain how strategic contracts relate to context packs and MCP surfacing.",Accurate cross-component explanation with concrete refs,completed
 T10,test-failure-diagnosis,LiBrainian,main,true,true,true,"Given a failing indexing test, find first-cause and propose minimal fix path.",Correct diagnosis and minimal plan,planned
 T11,test-failure-diagnosis,LiBrainian,main,true,false,true,"Investigate flaky test behavior under constrained memory and stabilize.",Flake source identified and stabilization change,planned
-T12,test-failure-diagnosis,LiBrainian,main,false,true,false,"A strict gate fails with incomplete evidence artifact; determine why.",Root cause with reproducible remediation,planned
+T12,test-failure-diagnosis,LiBrainian,main,false,true,false,"A strict gate fails with incomplete evidence artifact; determine why.",Root cause with reproducible remediation,completed
