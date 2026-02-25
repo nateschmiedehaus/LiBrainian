@@ -16,29 +16,47 @@ This document describes the patterns for building "constructions" - higher-level
 
 ## Canonical Construction Pattern
 
-LiBrainian uses a single canonical interface for new composition work:
+LiBrainian’s primary authoring path is the factory API:
 
 ```typescript
-import type { Construction, Context } from 'librainian/constructions';
+import { createConstruction, ok } from 'librainian/constructions';
+import { z } from 'zod';
 
-const construction: Construction<Input, Output> = {
-  id: 'my_construction',
+const construction = createConstruction({
+  id: '@librainian-community/my-construction',
   name: 'My Construction',
-  async execute(input: Input, context?: Context): Promise<Output> {
-    // use context?.deps, context?.signal, context?.sessionId as needed
-    return computeOutput(input);
-  },
-};
+  description: 'Example construction created through the pit-of-success API',
+  inputSchema: z.object({ value: z.number() }),
+  outputSchema: z.object({
+    value: z.number(),
+    confidence: z.unknown(),
+    evidenceRefs: z.array(z.string()),
+    analysisTimeMs: z.number(),
+  }),
+  requiredCapabilities: ['librarian'],
+  execute: async (input) =>
+    ok({
+      value: input.value * 2,
+      confidence: { type: 'deterministic', value: 1, reason: 'example' },
+      evidenceRefs: [],
+      analysisTimeMs: 0,
+    }),
+});
 ```
 
-For existing class-based implementations that extend `BaseConstruction`, use the adapter bridge:
+Factory guarantees:
+- Input validation against `inputSchema` before `execute`.
+- Capability preflight using `requiredCapabilities`.
+- Stream fallback (`progress` -> `completed`/`failed`) when custom `stream` is omitted.
+- Automatic registry registration in `CONSTRUCTION_REGISTRY`.
+- Built-in operator helpers (`then`, `fanout`, `fallback`, `dimap`, `map`, `contramap`, `mapError`).
+
+Legacy class/subclass paths remain supported, but are migration paths rather than the preferred authoring model:
 
 ```typescript
 const legacy = new MyBaseConstruction(librarian);
 const canonical = legacy.toConstruction('My Base Construction');
 ```
-
-This keeps composition APIs (`sequence`, `parallel`, `seq`, `dimap`, etc.) compatible while migration continues.
 
 Canonical operator helpers:
 - `seq(a, b)`: typed seam-preserving sequence composition.

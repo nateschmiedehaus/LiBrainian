@@ -66,6 +66,12 @@ export {
 } from './registry.js';
 
 export {
+  createConstruction,
+  type ConstructionSpec,
+  type FactoryConstruction,
+} from './factory.js';
+
+export {
   identity,
   atom,
   seq,
