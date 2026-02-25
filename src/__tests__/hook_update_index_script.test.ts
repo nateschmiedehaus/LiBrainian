@@ -58,7 +58,8 @@ describe('hook-update-index script', () => {
 
     expect(result.status).toBe(0);
     const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
-    expect(output).toContain('LiBrainian staged index update skipped (non-blocking)');
+    expect(output).toContain('LiBrainian staged index update skipped (non-blocking:adapter_unavailable)');
+    expect(output).toContain('npx tsx src/cli/index.ts bootstrap');
     expect(output).toContain('EBOOTSTRAP_FAILED');
   });
 
@@ -72,7 +73,8 @@ describe('hook-update-index script', () => {
 
     expect(result.status).toBe(0);
     const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
-    expect(output).toContain('LiBrainian staged index update skipped (non-blocking)');
+    expect(output).toContain('LiBrainian staged index update skipped (non-blocking:adapter_unavailable)');
+    expect(output).toContain('npx tsx src/cli/index.ts bootstrap');
     expect(output).toContain('llm_adapter_unregistered');
   });
 

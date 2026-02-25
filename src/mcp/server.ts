@@ -4857,7 +4857,24 @@ export class LiBrainianMCPServer {
   }> {
     const maxItems = Math.max(1, options.limit ?? 8);
     try {
-      const allContracts = await storage.getStrategicContracts();
+      const strategicContractReader = (
+        storage as unknown as { getStrategicContracts?: () => Promise<Array<{
+          id: string;
+          contractType: 'api' | 'event' | 'schema';
+          name: string;
+          version: string;
+          location: string;
+          breaking: boolean;
+          consumers: string[];
+          producers: string[];
+          evidence: string[];
+          updatedAt: string;
+        }>> }
+      ).getStrategicContracts;
+      if (typeof strategicContractReader !== 'function') {
+        return { status: 'none_relevant', contracts: [] };
+      }
+      const allContracts = await strategicContractReader.call(storage);
       if (allContracts.length === 0) {
         return { status: 'none_relevant', contracts: [] };
       }

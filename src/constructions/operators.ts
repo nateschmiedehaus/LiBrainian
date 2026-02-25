@@ -351,7 +351,11 @@ function deriveExecuteFromStream<I, O, E extends ConstructionError, R>(
         return ok<O, E>(event.result);
       }
       if (event.kind === 'failed') {
-        return fail<O, E>(event.error, event.partial, constructionId);
+        const errorAt = typeof event.error?.constructionId === 'string'
+          && event.error.constructionId.length > 0
+          ? event.error.constructionId
+          : constructionId;
+        return fail<O, E>(event.error, event.partial, errorAt);
       }
       if (event.kind === 'safety_violation' && event.severity === 'block') {
         return fail<O, E>(
@@ -643,8 +647,17 @@ export function seq<I, M, O, E1 extends ConstructionError, E2 extends Constructi
             yield { kind: 'failed', error: cancelledStreamError<E1 | E2>(id) };
             return;
           }
+          if (secondEvent.kind === 'failed') {
+            yield {
+              kind: 'failed',
+              error: secondEvent.error as E1 | E2,
+              partial: (secondEvent.partial
+                ?? (event.result as unknown as Partial<O>)) as Partial<O> | undefined,
+            };
+            return;
+          }
           yield secondEvent as ConstructionEvent<O, E1 | E2>;
-          if (secondEvent.kind === 'completed' || secondEvent.kind === 'failed') {
+          if (secondEvent.kind === 'completed') {
             return;
           }
         }
