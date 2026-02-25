@@ -217,7 +217,9 @@ import {
 import {
   CODE_QUERY_PATTERNS,
   DEFINITION_QUERY_PATTERNS,
+  ENTRY_POINT_QUERY_PATTERNS,
   META_QUERY_PATTERNS,
+  WHY_QUERY_PATTERNS,
 } from './query_intent_patterns.js';
 import {
   resolveQueryDepthProfile,
@@ -420,59 +422,6 @@ const HINT_LOW_CONFIDENCE_THRESHOLD = q(
 // ============================================================================
 // META-QUERY DETECTION FOR DOCUMENTATION ROUTING
 // ============================================================================
-
-/**
- * Keywords that indicate a query about entry points.
- * These queries should prioritize entry point knowledge (main files, factories,
- * CLI entries) over random internal functions.
- */
-const ENTRY_POINT_QUERY_PATTERNS = [
-  /\bentry\s*point/i,
-  /\bmain\s*(file|module|entry|function)?/i,
-  /\bstart(ing)?\s*(point|file)?/i,
-  /\binitialize?\b/i,
-  /\bwhere\s+(to\s+)?start/i,
-  /\bhow\s+to\s+(use|start|run|begin)/i,
-  /\bAPI\s*(entry|main)/i,
-  /\bcli\s*(entry|command|binary)?/i,
-  /\bbin(ary)?\s*(entry)?/i,
-  /\bfactory\s*(function)?/i,
-  /\bcreate[A-Z]\w+/,  // Specific factory function lookups
-  /\bmake[A-Z]\w+/,
-  /\bprimary\s*(export|api)/i,
-  /\bpackage\.json\s*(main|bin|exports)/i,
-  /\broot\s*(module|file)/i,
-  /\bindex\s*(file|module|\.ts|\.js)/i,
-];
-
-/**
- * Keywords that indicate a WHY query about rationale/reasoning.
- * These queries should prioritize ADRs, design docs, and explanatory content.
- */
-const WHY_QUERY_PATTERNS = [
-  // Direct WHY questions
-  /\bwhy\b.*\b(use[ds]?|choose|chose|chosen|have|is|are|does|did|was|were|prefer|pick|select|adopt|implement|went\s+with)\b/i,
-  // Simple WHY + technology/concept (e.g., "why embeddings", "why typescript")
-  /\bwhy\s+[A-Za-z0-9_-]+\b/i,
-  // Comparison questions
-  /\bwhy\b.*\binstead\s+of\b/i,
-  /\bwhy\b.*\bover\b/i,
-  /\bwhy\b.*\brather\s+than\b/i,
-  /\bwhy\b.*\bnot\b.*\b(use|have)\b/i,
-  // Rationale questions
-  /\breason(s)?\s+(for|why)\b/i,
-  /\brationale\s+(for|behind)\b/i,
-  /\bjustification\s+for\b/i,
-  // Decision questions
-  /\bdecision\s+(to|behind|for)\b/i,
-  /\bdesign\s+decision\b/i,
-  /\barchitectural\s+decision\b/i,
-  /\bwhat\s+motivated\b/i,
-  // "Reasoning behind" pattern (e.g., "reasoning behind using TypeScript")
-  /\breasoning\s+behind\b/i,
-  // "What's the reason/rationale/motivation" pattern
-  /\bwhat(?:'s| is) the (?:reason|rationale|motivation)\b/i,
-];
 
 /**
  * Patterns that indicate a REFACTORING SAFETY query.

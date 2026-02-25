@@ -61,3 +61,49 @@ export const DEFINITION_QUERY_PATTERNS: RegExp[] = [
   /\b(\w+)\s+type\s+definition\b/i,
   /\bwhere\s+is\s+(\w+)\s+(interface|type)\b/i,
 ];
+
+/**
+ * Keywords that indicate a query about entry points.
+ * These queries should prioritize entry point knowledge (main files, factories,
+ * CLI entries) over random internal functions.
+ */
+export const ENTRY_POINT_QUERY_PATTERNS: RegExp[] = [
+  /\bentry\s*point/i,
+  /\bmain\s*(file|module|entry|function)?/i,
+  /\bstart(ing)?\s*(point|file)?/i,
+  /\binitialize?\b/i,
+  /\bwhere\s+(to\s+)?start/i,
+  /\bhow\s+to\s+(use|start|run|begin)/i,
+  /\bAPI\s*(entry|main)/i,
+  /\bcli\s*(entry|command|binary)?/i,
+  /\bbin(ary)?\s*(entry)?/i,
+  /\bfactory\s*(function)?/i,
+  /\bcreate[A-Z]\w+/,
+  /\bmake[A-Z]\w+/,
+  /\bprimary\s*(export|api)/i,
+  /\bpackage\.json\s*(main|bin|exports)/i,
+  /\broot\s*(module|file)/i,
+  /\bindex\s*(file|module|\.ts|\.js)/i,
+];
+
+/**
+ * Keywords that indicate a WHY query about rationale/reasoning.
+ * These queries should prioritize ADRs, design docs, and explanatory content.
+ */
+export const WHY_QUERY_PATTERNS: RegExp[] = [
+  /\bwhy\b.*\b(use[ds]?|choose|chose|chosen|have|is|are|does|did|was|were|prefer|pick|select|adopt|implement|went\s+with)\b/i,
+  /\bwhy\s+[A-Za-z0-9_-]+\b/i,
+  /\bwhy\b.*\binstead\s+of\b/i,
+  /\bwhy\b.*\bover\b/i,
+  /\bwhy\b.*\brather\s+than\b/i,
+  /\bwhy\b.*\bnot\b.*\b(use|have)\b/i,
+  /\breason(s)?\s+(for|why)\b/i,
+  /\brationale\s+(for|behind)\b/i,
+  /\bjustification\s+for\b/i,
+  /\bdecision\s+(to|behind|for)\b/i,
+  /\bdesign\s+decision\b/i,
+  /\barchitectural\s+decision\b/i,
+  /\bwhat\s+motivated\b/i,
+  /\breasoning\s+behind\b/i,
+  /\bwhat(?:'s| is) the (?:reason|rationale|motivation)\b/i,
+];
