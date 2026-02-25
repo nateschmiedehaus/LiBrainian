@@ -236,6 +236,7 @@ import {
   SECURITY_AUDIT_PATTERNS,
   WHY_QUERY_PATTERNS,
 } from './query_intent_patterns.js';
+import { buildQueryIntentBiasProfile } from './query_intent_bias_profile.js';
 import {
   resolveQueryDepthProfile,
   resolveRerankWindow,
@@ -609,89 +610,31 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const whyQueryTopic = whyTopics.topic;
   const whyComparisonTopic = whyTopics.comparisonTopic;
 
-  // Calculate document bias based on query classification
-  let documentBias = 0.3; // Default: slight preference for code
-  if (isWhyQuery) {
-    // WHY queries strongly prefer documentation (ADRs, READMEs, design docs)
-    documentBias = 0.9;
-  } else if (isProjectUnderstanding) {
-    // Project understanding queries should strongly prefer documentation
-    documentBias = 0.95;
-  } else if (isMetaQuery) {
-    documentBias = 0.7 + (metaMatches * 0.05); // High preference for docs
-  } else if (isCodeQuery || isTestQuery) {
-    documentBias = 0.1; // Strong preference for code/test files
-  }
-  documentBias = Math.min(1.0, documentBias);
-
-  // Calculate definition bias - how much to prefer interface/type declarations over implementations
-  // Higher bias = prefer abstract boundaries (interfaces, types) over concrete implementations (functions)
-  let definitionBias = 0.0; // Default: no special treatment
-  if (isDefinitionQuery) {
-    // Strong preference for interface/type definitions
-    definitionBias = 0.6 + (definitionMatches * 0.1);
-    definitionBias = Math.min(1.0, definitionBias);
-  }
-
-  // Calculate entry point bias
-  let entryPointBias = 0.0;
-  if (isEntryPointQuery) {
-    entryPointBias = 0.6 + (entryPointMatches * 0.1);
-    entryPointBias = Math.min(1.0, entryPointBias);
-  }
-
-  // Calculate project understanding bias
-  let projectUnderstandingBias = 0.0;
-  if (isProjectUnderstanding) {
-    // Very high bias for project understanding - prioritize README, package.json, AGENTS.md
-    projectUnderstandingBias = 0.8 + (projectUnderstandingMatches * 0.05);
-    projectUnderstandingBias = Math.min(1.0, projectUnderstandingBias);
-  }
-
-  // Calculate rationale bias - how much to prefer ADRs and rationale content
-  let rationaleBias = 0.0;
-  if (isWhyQuery) {
-    // Strong preference for rationale content
-    rationaleBias = 0.7 + (whyMatches * 0.1);
-    rationaleBias = Math.min(1.0, rationaleBias);
-  }
-
-  // Calculate architecture overview bias - for structure/layer queries
-  let architectureOverviewBias = 0.0;
-  if (isArchitectureOverviewQuery) {
-    // Strong bias for architecture overview - prioritize directory structure info
-    architectureOverviewBias = 0.75 + (architectureOverviewMatches * 0.05);
-    architectureOverviewBias = Math.min(1.0, architectureOverviewBias);
-    // Also boost document bias for architecture docs
-    documentBias = Math.max(documentBias, 0.8);
-  }
-
-  // Determine entity types to search
-  const entityTypes: EmbeddableEntityType[] = [];
-  if (isTestQuery) {
-    // Test queries: search functions and modules (test files are categorized as code)
-    // The test correlation stage handles finding actual test files deterministically
-    entityTypes.push('function', 'module');
-  } else if (isWhyQuery) {
-    // WHY queries: prioritize documents (ADRs, design docs), but also search code
-    // for inline rationale comments
-    entityTypes.push('document', 'function', 'module');
-  } else if (isProjectUnderstanding) {
-    // Project understanding queries: prioritize documents only
-    entityTypes.push('document');
-  } else if (isArchitectureOverviewQuery) {
-    // Architecture queries: search modules and documents for structure info
-    entityTypes.push('module', 'document');
-  } else if (isMetaQuery) {
-    // Meta-queries: search docs first, then code
-    entityTypes.push('document', 'function', 'module');
-  } else if (isCodeQuery) {
-    // Code queries: search code only
-    entityTypes.push('function', 'module');
-  } else {
-    // Mixed/unclear: search all
-    entityTypes.push('function', 'module', 'document');
-  }
+  const intentBiasProfile = buildQueryIntentBiasProfile({
+    metaMatches,
+    definitionMatches,
+    entryPointMatches,
+    projectUnderstandingMatches,
+    whyMatches,
+    architectureOverviewMatches,
+    isMetaQuery,
+    isCodeQuery,
+    isDefinitionQuery,
+    isTestQuery,
+    isEntryPointQuery,
+    isProjectUnderstandingQuery: isProjectUnderstanding,
+    isWhyQuery,
+    isArchitectureOverviewQuery,
+  });
+  const {
+    documentBias,
+    definitionBias,
+    entryPointBias,
+    projectUnderstandingBias,
+    rationaleBias,
+    architectureOverviewBias,
+    entityTypes,
+  } = intentBiasProfile;
 
   return {
     isMetaQuery,
