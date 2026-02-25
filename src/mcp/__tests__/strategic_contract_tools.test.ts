@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { queryLibrarianMock } = vi.hoisted(() => ({
   queryLibrarianMock: vi.fn(),
 }));
+const { generateAmbientBriefingMock } = vi.hoisted(() => ({
+  generateAmbientBriefingMock: vi.fn(),
+}));
 
 vi.mock('../../api/index.js', async () => {
   const actual = await vi.importActual<typeof import('../../api/index.js')>('../../api/index.js');
@@ -11,12 +14,34 @@ vi.mock('../../api/index.js', async () => {
     queryLibrarian: queryLibrarianMock,
   };
 });
+vi.mock('../../api/ambient_briefing.js', () => ({
+  generateAmbientBriefing: generateAmbientBriefingMock,
+  selectAmbientBriefingTierForQuery: vi.fn(() => 'standard'),
+}));
 
 import { createLibrarianMCPServer } from '../server.js';
 
 describe('MCP strategic contract tools', () => {
   beforeEach(() => {
     queryLibrarianMock.mockReset();
+    generateAmbientBriefingMock.mockReset();
+    generateAmbientBriefingMock.mockResolvedValue({
+      scope: 'src/provider.ts',
+      tier: 'standard',
+      tokenBudget: 500,
+      tokenCount: 140,
+      purpose: 'provider module',
+      conventions: ['keep provider contracts stable'],
+      dependencies: { dependsOn: ['src/contracts.ts'], dependedOnBy: ['src/consumer.ts'] },
+      recentChanges: ['a1b2c3 2026-02-25 provider update'],
+      testCoverage: {
+        relatedTests: ['src/__tests__/provider.test.ts'],
+        sourceFileCount: 1,
+        testFileCount: 1,
+        coverageSignal: '1 related test files for 1 source files.',
+      },
+      markdown: '# Ambient Briefing: src/provider.ts',
+    });
   });
 
   it('lists strategic contracts with consumers, producers, and evidence', async () => {
@@ -149,6 +174,9 @@ describe('MCP strategic contract tools', () => {
     expect(result.strategic_contracts[0]?.id).toBe('strategic-contract:provider:api');
     expect(result.strategic_contracts[0]?.consumers).toContain('module-consumer-a');
     expect(result.strategic_contracts[0]?.producers).toContain('module-provider-a');
+    expect(generateAmbientBriefingMock).toHaveBeenCalledTimes(1);
+    expect(result.ambient_briefing).toBeDefined();
+    expect(result.ambient_briefing?.tier).toBe('standard');
   });
 
   it('fails closed with unavailable strategic contract context in context-pack bundles', async () => {

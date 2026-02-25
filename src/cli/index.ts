@@ -7,6 +7,7 @@
  *   librarian stats               - Summarize cost/performance from evidence ledger
  *   librarian calibration         - Build confidence calibration dashboard from patrol runs
  *   librarian query <intent>      - Run a query against the knowledge base
+ *   librarian briefing <path>     - Generate ambient module briefing with token-budget tiers
  *   librarian repo-map            - Generate a compact repo map ranked by symbol centrality
  *   librarian feedback <token>    - Submit outcome feedback for a prior query
  *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
@@ -66,6 +67,7 @@ import { statusCommand } from './commands/status.js';
 import { statsCommand } from './commands/stats.js';
 import { calibrationCommand } from './commands/calibration.js';
 import { queryCommand } from './commands/query.js';
+import { briefingCommand } from './commands/briefing.js';
 import { repoMapCommand } from './commands/repo_map.js';
 import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
@@ -129,7 +131,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'calibration' | 'query' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+type Command = 'status' | 'stats' | 'calibration' | 'query' | 'briefing' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -167,6 +169,10 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'query': {
     description: 'Run a query against the knowledge base',
     usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--diversify] [--diversity-lambda <0-1>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+  },
+  'briefing': {
+    description: 'Generate ambient briefing for a file/module path',
+    usage: 'librarian briefing <path> [--tier micro|standard|deep] [--max-tokens <n>] [--json]',
   },
   'repo-map': {
     description: 'Generate a compact codebase map ranked by function centrality',
@@ -495,6 +501,9 @@ async function main(): Promise<void> {
 
       case 'query':
         await queryCommand({ workspace, args: commandArgs, rawArgs: args });
+        break;
+      case 'briefing':
+        await briefingCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'repo-map':
         await repoMapCommand({ workspace, args: commandArgs, rawArgs: args });

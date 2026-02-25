@@ -130,6 +130,10 @@ import {
 import type { ContextPack, FunctionKnowledge, GraphEdge, LiBrainianQuery, LiBrainianResponse } from '../types.js';
 import { estimateTokens } from '../api/token_budget.js';
 import {
+  generateAmbientBriefing,
+  selectAmbientBriefingTierForQuery,
+} from '../api/ambient_briefing.js';
+import {
   computeEmbeddingCoverage,
   hasSufficientSemanticCoverage,
   SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT,
@@ -6155,7 +6159,7 @@ export class LiBrainianMCPServer {
         },
         stream,
       };
-      const baseWithAlias = {
+      let baseWithAlias: Record<string, unknown> = {
         ...resultWithHumanReview,
         coverage_gaps: resultWithHumanReview.coverageGaps,
         aggregate_confidence: this.toAggregateConfidenceAlias(resultWithHumanReview.aggregateConfidence),
@@ -6184,6 +6188,30 @@ export class LiBrainianMCPServer {
         progress_view: resultWithHumanReview.progress,
         stream_view: resultWithHumanReview.stream,
       };
+      const briefingScope = mergedAffectedFiles?.[0]
+        ?? pagedPacks
+          .flatMap((pack) => Array.isArray(pack.relatedFiles) ? pack.relatedFiles : [])
+          .find((value): value is string => typeof value === 'string' && value.length > 0);
+      if (briefingScope) {
+        try {
+          const ambientBriefing = await generateAmbientBriefing({
+            workspaceRoot: workspace.path,
+            scopePath: briefingScope,
+            tier: selectAmbientBriefingTierForQuery(query.depth, pagedPacks.length),
+          });
+          baseWithAlias = {
+            ...baseWithAlias,
+            ambientBriefing,
+            ambient_briefing: ambientBriefing,
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          baseWithAlias.disclosures = [
+            ...(Array.isArray(baseWithAlias.disclosures) ? baseWithAlias.disclosures : []),
+            `Ambient briefing unavailable: ${message}`,
+          ];
+        }
+      }
 
       const touchedFiles = Array.from(
         new Set(
