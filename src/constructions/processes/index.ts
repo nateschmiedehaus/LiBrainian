@@ -305,6 +305,19 @@ export {
 } from './session_knowledge_harvest_construction.js';
 
 export {
+  createAgentHandoffPackageConstruction,
+  type AgentHandoffPackageInput,
+  type AgentHandoffClaim,
+  type OpenConflict,
+  type InProgressChange,
+  type HandoffInvariant,
+  type HandoffRejectedAlternative,
+  type SessionTopologySnapshot,
+  type AgentHandoffPackageOutput,
+  type AgentHandoffPackageOptions,
+} from './agent_handoff_package_construction.js';
+
+export {
   DEFAULT_QUALITY_BAR_CONSTITUTION_RELATIVE_PATH,
   createQualityBarConstitutionConstruction,
   getTaskQualityNorms,

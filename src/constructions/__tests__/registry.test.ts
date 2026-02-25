@@ -101,6 +101,7 @@ describe('default construction registry', () => {
       'librainian:performance-regression-sensor',
       'librainian:regression-detector',
       'librainian:onboarding-assistant',
+      'librainian:agent-handoff-package',
       'librainian:release-qualification',
       'librainian:dependency-auditor',
     ] as const;

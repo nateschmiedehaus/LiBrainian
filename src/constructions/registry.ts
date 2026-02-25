@@ -13,6 +13,7 @@ import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_c
 import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
 import type { APIDetectorInput } from './processes/hallucinated_api_detector.js';
 import type { PerformanceSensorInput } from './processes/performance_regression_sensor.js';
+import type { AgentHandoffPackageInput } from './processes/agent_handoff_package_construction.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -602,6 +603,50 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const AGENT_HANDOFF_PACKAGE_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      sessionId: { type: 'string' },
+      continuationFocus: { type: 'string' },
+      includeRejectedAlternatives: { type: 'boolean' },
+      minClaimConfidence: { type: 'number' },
+      workspaceRoot: { type: 'string' },
+    },
+    required: ['sessionId'],
+    additionalProperties: false,
+  };
+
+  const AGENT_HANDOFF_PACKAGE_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      kind: { type: 'string' },
+      handoffHash: { type: 'string' },
+      briefingForNextAgent: { type: 'string' },
+      activeClaims: { type: 'array' },
+      openConflicts: { type: 'array' },
+      inProgressChanges: { type: 'array' },
+      establishedInvariants: { type: 'array' },
+      rejectedAlternatives: { type: 'array' },
+      sessionTopology: { type: 'object' },
+      briefingTokenEstimate: { type: 'number' },
+      outputPath: { type: 'string' },
+    },
+    required: [
+      'kind',
+      'handoffHash',
+      'briefingForNextAgent',
+      'activeClaims',
+      'openConflicts',
+      'inProgressChanges',
+      'establishedInvariants',
+      'rejectedAlternatives',
+      'sessionTopology',
+      'briefingTokenEstimate',
+      'outputPath',
+    ],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -1013,6 +1058,16 @@ function activateCoreConstructions(): void {
       execute: async (input) => {
         const { createOnboardingAssistantConstruction } = await import('./processes/presets.js');
         return createOnboardingAssistantConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:agent-handoff-package',
+      inputSchema: AGENT_HANDOFF_PACKAGE_INPUT_SCHEMA,
+      outputSchema: AGENT_HANDOFF_PACKAGE_OUTPUT_SCHEMA,
+      requiredCapabilities: ['librarian'],
+      execute: async (input, context) => {
+        const { createAgentHandoffPackageConstruction } = await import('./processes/agent_handoff_package_construction.js');
+        return createAgentHandoffPackageConstruction().execute(input as AgentHandoffPackageInput, context);
       },
     },
     {

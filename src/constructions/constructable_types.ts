@@ -199,6 +199,7 @@ export type ConstructableId =
   | 'performance-regression-sensor'
   | 'regression-detector'
   | 'onboarding-assistant'
+  | 'agent-handoff-package'
   | 'release-qualification'
   | 'dependency-auditor';
 

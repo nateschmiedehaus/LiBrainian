@@ -289,6 +289,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'onboarding'],
   },
   {
+    id: 'agent-handoff-package',
+    basePriority: 82,
+    isCore: true,
+    availability: READY,
+    description: 'Machine-readable session handoff package with claims, conflicts, blast radius, and topology',
+    motivation: 'Transfer high-signal epistemic state between agents so work continues without re-deriving key decisions and unresolved conflicts.',
+    tags: ['core', 'process', 'preset', 'handoff', 'agentic'],
+  },
+  {
     id: 'release-qualification',
     basePriority: 81,
     isCore: true,

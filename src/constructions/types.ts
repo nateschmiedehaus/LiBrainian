@@ -44,6 +44,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'playwright-e2e',
   'blast-radius-oracle',
   'agent-briefing',
+  'agent-handoff-package',
   'regression-fence',
   'contract-sentinel',
   'architecture-map',
