@@ -1,7 +1,7 @@
 import type { LlmRequirement } from '../../types.js';
 import type { ProcessInput, ProcessOutput } from './process_base.js';
 
-export type UnitPatrolOperationKind = 'bootstrap' | 'status' | 'query' | 'metamorphic';
+export type UnitPatrolOperationKind = 'bootstrap' | 'status' | 'query' | 'metamorphic' | 'adversarial';
 export type UnitPatrolExecutionProfile = 'quick' | 'strict' | 'deep-bounded';
 export type UnitPatrolDomain =
   | 'typescript'
@@ -11,10 +11,25 @@ export type UnitPatrolDomain =
   | 'rust'
   | 'polyglot'
   | 'unknown';
-export type UnitPatrolTask = 'smoke' | 'retrieval' | 'metamorphic' | 'deep-audit';
+export type UnitPatrolTask = 'smoke' | 'retrieval' | 'metamorphic' | 'deep-audit' | 'adversarial';
 
 export interface UnitPatrolQueryConfig {
   intent: string;
+  depth?: 'L0' | 'L1' | 'L2' | 'L3';
+  llmRequirement?: LlmRequirement;
+  timeoutMs?: number;
+}
+
+export interface UnitPatrolAdversarialCheck {
+  id: string;
+  intent: string;
+  expectedPath: string;
+  misleadingPath?: string;
+  topK?: number;
+}
+
+export interface UnitPatrolAdversarialConfig {
+  checks: UnitPatrolAdversarialCheck[];
   depth?: 'L0' | 'L1' | 'L2' | 'L3';
   llmRequirement?: LlmRequirement;
   timeoutMs?: number;
@@ -24,6 +39,7 @@ export interface UnitPatrolOperation {
   kind: UnitPatrolOperationKind;
   description?: string;
   query?: UnitPatrolQueryConfig;
+  adversarial?: UnitPatrolAdversarialConfig;
 }
 
 export interface UnitPatrolScenario {

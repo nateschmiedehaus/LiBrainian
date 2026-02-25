@@ -292,8 +292,10 @@ export {
 export {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
+  createAdversarialFixtureUnitPatrolConstruction,
   UNIT_PATROL_DEFAULT_SCENARIO,
   UNIT_PATROL_DEFAULT_EVALUATION,
+  UNIT_PATROL_ADVERSARIAL_DEFAULT_CHECKS,
 } from './unit_patrol_base.js';
 export {
   resolveUnitPatrolSelection,
@@ -307,6 +309,8 @@ export type {
   UnitPatrolDomain,
   UnitPatrolTask,
   UnitPatrolQueryConfig,
+  UnitPatrolAdversarialCheck,
+  UnitPatrolAdversarialConfig,
   UnitPatrolOperation,
   UnitPatrolScenario,
   UnitPatrolEvaluationCriteria,

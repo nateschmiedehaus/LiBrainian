@@ -6,6 +6,7 @@ import { unwrapConstructionExecutionResult } from '../types.js';
 import { AgenticProcess, type ConstructionPipeline } from './process_base.js';
 import { createSandboxLifecycleConstruction, type SandboxLifecycleOutput } from './sandbox_construction.js';
 import type {
+  UnitPatrolAdversarialCheck,
   UnitPatrolEvaluationCriteria,
   UnitPatrolFinding,
   UnitPatrolInput,
@@ -53,6 +54,18 @@ type MetamorphicTransform = {
   apply: (source: string) => string | null;
 };
 
+type AdversarialCheckResult = {
+  id: string;
+  intent: string;
+  expectedPath: string;
+  misleadingPath?: string;
+  topFiles: string[];
+  expectedRank: number;
+  misleadingRank: number | null;
+  pass: boolean;
+  error?: string;
+};
+
 const DEFAULT_QUERY = {
   intent: 'Summarize the repository architecture and entry points',
   depth: 'L1' as const,
@@ -85,6 +98,18 @@ const DEFAULT_EVALUATION: Required<UnitPatrolEvaluationCriteria> = {
 
 const DEFAULT_METAMORPHIC_TOP_K = 5;
 const DEFAULT_METAMORPHIC_MIN_OVERLAP = 0.6;
+const DEFAULT_ADVERSARIAL_TOP_K = 5;
+const DEFAULT_ADVERSARIAL_TIMEOUT_MS = 45_000;
+
+const DEFAULT_ADVERSARIAL_CHECKS: UnitPatrolAdversarialCheck[] = [
+  {
+    id: 'adversarial-default-retrieval',
+    intent: 'Where is user session retention policy implemented?',
+    expectedPath: 'src/services/retentionPolicy.ts',
+    misleadingPath: 'src/legacy/cleanup.ts',
+    topK: 5,
+  },
+];
 
 const METAMORPHIC_TRANSFORMS: MetamorphicTransform[] = [
   {
@@ -487,6 +512,136 @@ export class UnitPatrolConstruction extends AgenticProcess<UnitPatrolInput, Unit
         };
       }
 
+      if (operation.kind === 'adversarial') {
+        const librarian = await ensureLibrarian();
+        const config = operation.adversarial;
+        const checks = config?.checks ?? [];
+        if (checks.length === 0) {
+          const message = 'Adversarial operation requires at least one check.';
+          findings.push({
+            severity: 'error',
+            code: 'adversarial_checks_missing',
+            message,
+            operation: 'adversarial',
+          });
+          return {
+            operation: 'adversarial',
+            pass: false,
+            durationMs: Date.now() - startedAt,
+            details: {
+              checkCount: 0,
+              failedChecks: 1,
+              checks: [],
+            },
+            error: message,
+          };
+        }
+
+        const depth = config?.depth ?? 'L1';
+        const llmRequirement = config?.llmRequirement ?? 'disabled';
+        const timeoutMs = config?.timeoutMs ?? DEFAULT_ADVERSARIAL_TIMEOUT_MS;
+        const results: AdversarialCheckResult[] = [];
+
+        for (const check of checks) {
+          try {
+            const response = await librarian.queryOptional({
+              intent: check.intent,
+              depth,
+              llmRequirement,
+              timeoutMs,
+              deterministic: true,
+            });
+            const topFiles = collectTopFiles(
+              response,
+              workspace,
+              check.topK ?? DEFAULT_ADVERSARIAL_TOP_K,
+            ).map(normalizeRelativePath);
+            const expectedPath = normalizeRelativePath(check.expectedPath);
+            const misleadingPath = check.misleadingPath ? normalizeRelativePath(check.misleadingPath) : undefined;
+            const expectedRank = rankRelativePath(topFiles, expectedPath);
+            const misleadingRank = misleadingPath ? rankRelativePath(topFiles, misleadingPath) : null;
+            const pass = expectedRank >= 0 && (misleadingRank === null || misleadingRank < 0 || expectedRank <= misleadingRank);
+
+            if (!pass) {
+              findings.push({
+                severity: 'error',
+                code: 'adversarial_rank_regression',
+                message: `Adversarial check ${check.id} ranked misleading path ahead of expected path.`,
+                operation: 'adversarial',
+              });
+            }
+
+            results.push({
+              id: check.id,
+              intent: check.intent,
+              expectedPath,
+              misleadingPath,
+              topFiles,
+              expectedRank,
+              misleadingRank,
+              pass,
+            });
+          } catch (error) {
+            const message = toSingleLine(error);
+            findings.push({
+              severity: 'error',
+              code: 'adversarial_check_failed',
+              message: `Adversarial check ${check.id} failed: ${message}`,
+              operation: 'adversarial',
+            });
+            results.push({
+              id: check.id,
+              intent: check.intent,
+              expectedPath: normalizeRelativePath(check.expectedPath),
+              misleadingPath: check.misleadingPath ? normalizeRelativePath(check.misleadingPath) : undefined,
+              topFiles: [],
+              expectedRank: -1,
+              misleadingRank: null,
+              pass: false,
+              error: message,
+            });
+          }
+        }
+
+        const failedChecks = results.filter((result) => !result.pass).length;
+        const deadCodeChecks = results.filter((result) =>
+          result.misleadingPath ? /(^|\/)(dead|legacy)(\/|$)/u.test(result.misleadingPath) : false,
+        );
+        const deadCodeSuppressedCount = deadCodeChecks.filter(
+          (result) => result.misleadingRank === null || result.misleadingRank < 0 || result.expectedRank <= result.misleadingRank,
+        ).length;
+        if (deadCodeChecks.length > deadCodeSuppressedCount) {
+          findings.push({
+            severity: 'warning',
+            code: 'dead_code_not_deprioritized',
+            message: `Dead-code traps were surfaced in ${deadCodeChecks.length - deadCodeSuppressedCount} adversarial check(s).`,
+            operation: 'adversarial',
+          });
+        }
+
+        const circularChecks = results.filter((result) => result.id.includes('circular')).length;
+        const sameNameChecks = results.filter((result) => {
+          const expectedName = result.expectedPath.split('/').at(-1);
+          const misleadingName = result.misleadingPath?.split('/').at(-1);
+          return Boolean(expectedName && misleadingName && expectedName === misleadingName);
+        }).length;
+
+        return {
+          operation: 'adversarial',
+          pass: failedChecks === 0,
+          durationMs: Date.now() - startedAt,
+          details: {
+            checkCount: results.length,
+            failedChecks,
+            deadCodeChecks: deadCodeChecks.length,
+            deadCodeSuppressedCount,
+            circularChecks,
+            sameNameChecks,
+            checks: results,
+          },
+        };
+      }
+
       if (operation.kind === 'metamorphic') {
         const librarian = await ensureLibrarian();
         const queryConfig = operation.query ?? DEFAULT_QUERY;
@@ -767,6 +922,17 @@ function toWorkspaceRelativePath(filePath: string, workspace: string): string {
   return normalizedPath;
 }
 
+function normalizeRelativePath(filePath: string): string {
+  return filePath.replace(/\\/gu, '/').replace(/^\.\/+/u, '');
+}
+
+function rankRelativePath(topFiles: string[], expectedPath: string): number {
+  const normalizedExpected = normalizeRelativePath(expectedPath);
+  const direct = topFiles.findIndex((file) => normalizeRelativePath(file) === normalizedExpected);
+  if (direct >= 0) return direct;
+  return topFiles.findIndex((file) => normalizeRelativePath(file).endsWith(`/${normalizedExpected}`));
+}
+
 function computeFileOverlapRatio(baseline: string[], transformed: string[]): number {
   if (baseline.length === 0) return transformed.length === 0 ? 1 : 0;
   const baselineSet = new Set(baseline);
@@ -789,6 +955,40 @@ export function createFixtureSmokeUnitPatrolConstruction(): UnitPatrolConstructi
   );
 }
 
+export function createAdversarialFixtureUnitPatrolConstruction(
+  checks: UnitPatrolAdversarialCheck[] = DEFAULT_ADVERSARIAL_CHECKS,
+): UnitPatrolConstruction {
+  return new UnitPatrolConstruction(
+    'unit-patrol-adversarial-fixture',
+    'Unit Patrol Adversarial Fixture',
+    'Red-teams retrieval robustness against misleading names, dead code traps, and path collisions.',
+    {
+      name: 'unit-patrol-adversarial-fixture',
+      operations: [
+        { kind: 'bootstrap', description: 'Bootstrap adversarial fixture repository.' },
+        {
+          kind: 'adversarial',
+          description: 'Run adversarial retrieval checks against known trap files.',
+          adversarial: {
+            checks,
+            depth: 'L1',
+            llmRequirement: 'disabled',
+            timeoutMs: DEFAULT_ADVERSARIAL_TIMEOUT_MS,
+          },
+        },
+        { kind: 'status', description: 'Capture final readiness and index status.' },
+      ],
+    },
+    {
+      ...DEFAULT_EVALUATION,
+      minPassRate: 1,
+      minMetamorphicTransforms: 0,
+    },
+  );
+}
+
 export const UNIT_PATROL_DEFAULT_SCENARIO = DEFAULT_SCENARIO;
 
 export const UNIT_PATROL_DEFAULT_EVALUATION = DEFAULT_EVALUATION;
+
+export const UNIT_PATROL_ADVERSARIAL_DEFAULT_CHECKS = DEFAULT_ADVERSARIAL_CHECKS;

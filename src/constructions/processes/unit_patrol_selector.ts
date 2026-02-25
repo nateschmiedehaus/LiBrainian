@@ -152,6 +152,9 @@ export async function resolveUnitPatrolSelection(
 
 function inferTaskFromScenario(scenario: UnitPatrolScenario): UnitPatrolTask {
   const operations = scenario.operations.map((operation) => operation.kind);
+  if (operations.includes('adversarial')) {
+    return 'adversarial';
+  }
   if (operations.includes('metamorphic') && operations.filter((kind) => kind === 'query').length > 1) {
     return 'deep-audit';
   }
@@ -174,6 +177,8 @@ function inferProfileFromTask(task: UnitPatrolTask): UnitPatrolExecutionProfile 
       return 'strict';
     case 'deep-audit':
       return 'deep-bounded';
+    case 'adversarial':
+      return 'strict';
     default:
       return 'strict';
   }
