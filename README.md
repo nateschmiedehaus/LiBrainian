@@ -175,6 +175,10 @@ npx librainian compose "Debug flaky tests in CI" --include-primitives
 
 This enables reusable patterns instead of one-off prompting.
 
+Construction docs:
+- [Construction Quickstart](docs/constructions/quickstart.md)
+- [Construction Cookbook (10 end-to-end pipelines)](docs/constructions/cookbook.md)
+
 ## Language Coverage
 
 Built-in parsers and extraction paths cover major ecosystems, including:
