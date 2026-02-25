@@ -66,6 +66,12 @@ function coerceTimeout(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
+function coercePositiveTimeout(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
 function buildFullPrompt(messages: LlmChatOptions['messages']): string {
   const parts: string[] = [];
   for (const message of messages) {
@@ -162,10 +168,10 @@ function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
 }
 
 export class CliLlmService {
-  private claudeTimeoutMs = coerceTimeout(process.env.CLAUDE_TIMEOUT_MS, 180000);
-  private codexTimeoutMs = coerceTimeout(process.env.CODEX_TIMEOUT_MS, 0);
-  private claudeHealthCheckTimeoutMs = coerceTimeout(process.env.CLAUDE_HEALTH_CHECK_TIMEOUT_MS, 60000);
-  private codexHealthCheckTimeoutMs = coerceTimeout(process.env.CODEX_HEALTH_CHECK_TIMEOUT_MS, 20000);
+  private claudeTimeoutMs = coercePositiveTimeout(process.env.CLAUDE_TIMEOUT_MS, 180000);
+  private codexTimeoutMs = coercePositiveTimeout(process.env.CODEX_TIMEOUT_MS, 180000);
+  private claudeHealthCheckTimeoutMs = coercePositiveTimeout(process.env.CLAUDE_HEALTH_CHECK_TIMEOUT_MS, 60000);
+  private codexHealthCheckTimeoutMs = coercePositiveTimeout(process.env.CODEX_HEALTH_CHECK_TIMEOUT_MS, 20000);
   private healthCheckIntervalMs = coerceTimeout(process.env.LLM_HEALTH_CHECK_INTERVAL_MS, 60000);
   private providerWorkspaceRoot = resolveProviderWorkspaceRoot();
   private providerChaos = new ProviderChaosMiddleware(createProviderChaosConfigFromEnv());
@@ -320,7 +326,7 @@ export class CliLlmService {
       const probe = await execa('codex', args, {
         env,
         input: 'ok',
-        timeout: this.codexHealthCheckTimeoutMs || undefined,
+        timeout: this.codexHealthCheckTimeoutMs,
         reject: false,
       });
       if (probe.exitCode !== 0) {
@@ -449,7 +455,7 @@ export class CliLlmService {
           const output = await execa('codex', args, {
             input: fullPrompt,
             env: withCliPath({ ...process.env }),
-            timeout: this.codexTimeoutMs > 0 ? this.codexTimeoutMs : undefined,
+            timeout: this.codexTimeoutMs,
             reject: false,
           });
           return {

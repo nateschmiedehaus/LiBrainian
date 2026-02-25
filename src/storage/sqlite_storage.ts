@@ -480,10 +480,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   private redactionTotals: RedactionCounts;
   private readonly indexCoordinationRowId = 1;
 
-  constructor(dbPath: string, workspaceRoot?: string) {
+  constructor(dbPath: string, workspaceRoot?: string, options: SqliteStorageCreateOptions = {}) {
     this.dbPath = dbPath;
     this.lockPath = `${dbPath}.lock`;
-    this.usesProcessLock = dbPath !== ':memory:';
+    this.usesProcessLock = dbPath !== ':memory:' && options.useProcessLock !== false;
     this.workspaceRoot = workspaceRoot;
     this.redactionTotals = createEmptyRedactionCounts();
   }
@@ -8750,8 +8750,20 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
  * await storage.initialize();
  * ```
  */
-export function createSqliteStorage(dbPath: string, workspaceRoot?: string): LiBrainianStorage {
-  return new SqliteLiBrainianStorage(dbPath, workspaceRoot);
+export interface SqliteStorageCreateOptions {
+  /**
+   * Disable the process-level lock file for read-only command paths that should
+   * remain responsive while a writer process is active.
+   */
+  useProcessLock?: boolean;
+}
+
+export function createSqliteStorage(
+  dbPath: string,
+  workspaceRoot?: string,
+  options: SqliteStorageCreateOptions = {},
+): LiBrainianStorage {
+  return new SqliteLiBrainianStorage(dbPath, workspaceRoot, options);
 }
 
 /**

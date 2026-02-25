@@ -94,6 +94,27 @@ describe('sqlite lock recovery on initialize', () => {
     await expect(storage.initialize()).rejects.toThrow(/storage_locked:\s*indexing in progress/i);
   });
 
+  it('allows lock-free readers while another process lock owner is active', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    tempDirs.push(dir);
+    const dbPath = path.join(dir, 'librarian.sqlite');
+    const lockPath = `${dbPath}.lock`;
+
+    const writer = createSqliteStorage(dbPath, dir);
+    await writer.initialize();
+    expect(existsSync(lockPath)).toBe(true);
+
+    const reader = createSqliteStorage(dbPath, dir, { useProcessLock: false });
+    await expect(reader.initialize()).resolves.toBeUndefined();
+    await expect(reader.getVersion()).resolves.toBeNull();
+
+    await reader.close();
+    expect(existsSync(lockPath)).toBe(true);
+
+    await writer.close();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
   it('allows concurrent :memory: storages without lock contention', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
     tempDirs.push(dir);

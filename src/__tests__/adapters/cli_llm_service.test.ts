@@ -94,6 +94,28 @@ describe('CliLlmService provider routing', () => {
     expect(execaMock.mock.calls[0]?.[0]).toBe('codex');
   });
 
+  it('applies a bounded timeout to codex execution by default', async () => {
+    process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
+    delete process.env.CODEX_TIMEOUT_MS;
+    execaMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: 'ok',
+      stderr: '',
+    } as never);
+
+    const service = new CliLlmService();
+    await service.chat({
+      provider: 'codex',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    const call = execaMock.mock.calls.find((entry) => entry[0] === 'codex');
+    expect(call).toBeDefined();
+    const options = call?.[2] as { timeout?: number } | undefined;
+    expect(Number.isFinite(options?.timeout)).toBe(true);
+    expect((options?.timeout ?? 0)).toBeGreaterThan(0);
+  });
+
   it('maps missing ANTHROPIC_API_KEY failures and falls back to codex', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     execaMock

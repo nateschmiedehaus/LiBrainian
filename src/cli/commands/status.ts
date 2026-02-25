@@ -289,7 +289,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   let storage;
   try {
     const dbPath = await resolveDbPath(workspaceRoot);
-    storage = createSqliteStorage(dbPath, workspaceRoot);
+    storage = createSqliteStorage(dbPath, workspaceRoot, { useProcessLock: false });
     await storage.initialize();
     report.storage = { status: 'ready' };
   } catch (error) {
