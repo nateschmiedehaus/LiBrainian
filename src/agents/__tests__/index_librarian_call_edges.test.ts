@@ -247,6 +247,7 @@ describe('IndexLibrarian call-edge persistence', () => {
     const tx = buildTx();
     const providerPath = path.resolve('/tmp/strategic-provider.ts');
     const consumerPath = path.resolve('/tmp/strategic-consumer.ts');
+    const consumerTwoPath = path.resolve('/tmp/strategic-consumer-two.ts');
     const providerModule: ModuleKnowledge = {
       ...buildModule('mod_provider', providerPath),
       exports: ['runProvider'],
@@ -255,9 +256,13 @@ describe('IndexLibrarian call-edge persistence', () => {
       ...buildModule('mod_consumer', consumerPath),
       dependencies: ['./strategic-provider'],
     };
+    const consumerTwoModule: ModuleKnowledge = {
+      ...buildModule('mod_consumer_two', consumerTwoPath),
+      dependencies: ['./strategic-provider'],
+    };
     const upsertStrategicContracts = vi.fn(async () => undefined);
     const storage = buildStorage(tx, {
-      getModules: vi.fn(async () => [providerModule, consumerModule]),
+      getModules: vi.fn(async () => [providerModule, consumerModule, consumerTwoModule]),
       upsertStrategicContracts,
     } as Partial<LibrarianStorage>);
 
@@ -291,7 +296,8 @@ describe('IndexLibrarian call-edge persistence', () => {
     const records = upsertStrategicContracts.mock.calls[0]?.[0] as StrategicContractRecord[];
     const providerContract = records.find((record) => record.producers.includes('mod_provider'));
     expect(providerContract).toBeTruthy();
-    expect(providerContract?.consumers).toContain('mod_consumer');
+    expect(providerContract?.consumers).toEqual(expect.arrayContaining(['mod_consumer', 'mod_consumer_two']));
+    expect(providerContract?.consumers.length).toBe(2);
   });
 
   it('adds semantic entanglement edges from co-call patterns', async () => {
