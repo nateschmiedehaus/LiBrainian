@@ -238,3 +238,32 @@ export const FEATURE_LOCATION_PATTERNS: RegExp[] = [
   /where\s+(?:does|is)\s+(?:the\s+)?(?:\w+)\s+(?:happen|occur|get\s+handled)/i,
   /feature\s+location/i,
 ];
+
+/**
+ * Names that indicate an entry point (factory functions, main exports, etc.)
+ */
+export const ENTRY_POINT_NAME_PATTERNS: RegExp[] = [
+  /^create[A-Z]/,
+  /^make[A-Z]/,
+  /^build[A-Z]/,
+  /^init[A-Z]/,
+  /^setup[A-Z]/,
+  /^bootstrap/i,
+  /^main$/i,
+  /^run$/i,
+  /^start$/i,
+  /^launch$/i,
+  /^index$/i,
+];
+
+/**
+ * Path patterns that indicate an entry point file.
+ */
+export const ENTRY_POINT_PATH_PATTERNS: RegExp[] = [
+  /\/index\.(ts|js|tsx|jsx|mjs|cjs)$/,
+  /\/main\.(ts|js|tsx|jsx|mjs|cjs)$/,
+  /\/bin\//,
+  /\/cli\//,
+  /\/src\/index\./,
+  /\/src\/main\./,
+];

@@ -221,6 +221,8 @@ import {
   CODE_QUERY_PATTERNS,
   CODE_REVIEW_QUERY_PATTERNS,
   DEFINITION_QUERY_PATTERNS,
+  ENTRY_POINT_NAME_PATTERNS,
+  ENTRY_POINT_PATH_PATTERNS,
   ENTRY_POINT_QUERY_PATTERNS,
   FEATURE_LOCATION_PATTERNS,
   META_QUERY_PATTERNS,
@@ -1044,35 +1046,6 @@ export function applyDefinitionBias(
     return result;
   }).sort((a, b) => b.similarity - a.similarity);
 }
-
-/**
- * Names that indicate an entry point (factory functions, main exports, etc.)
- */
-const ENTRY_POINT_NAME_PATTERNS = [
-  /^create[A-Z]/,      // createLibrarian, createStorage
-  /^make[A-Z]/,        // makeStore, makeConfig
-  /^build[A-Z]/,       // buildContext, buildQuery
-  /^init[A-Z]/,        // initializeApp
-  /^setup[A-Z]/,       // setupRouter
-  /^bootstrap/i,       // bootstrap, bootstrapProject
-  /^main$/i,           // main function
-  /^run$/i,            // run function
-  /^start$/i,          // start function
-  /^launch$/i,         // launch function
-  /^index$/i,          // index module
-];
-
-/**
- * Path patterns that indicate an entry point file
- */
-const ENTRY_POINT_PATH_PATTERNS = [
-  /\/index\.(ts|js|tsx|jsx|mjs|cjs)$/,  // index files
-  /\/main\.(ts|js|tsx|jsx|mjs|cjs)$/,   // main files
-  /\/bin\//,                             // bin directory
-  /\/cli\//,                             // cli directory
-  /\/src\/index\./,                      // src/index
-  /\/src\/main\./,                       // src/main
-];
 
 /**
  * Checks if an entity is likely an entry point based on its ID/name/path.

@@ -6,6 +6,8 @@ import {
   CODE_QUERY_PATTERNS,
   CODE_REVIEW_QUERY_PATTERNS,
   DEFINITION_QUERY_PATTERNS,
+  ENTRY_POINT_NAME_PATTERNS,
+  ENTRY_POINT_PATH_PATTERNS,
   ENTRY_POINT_QUERY_PATTERNS,
   FEATURE_LOCATION_PATTERNS,
   META_QUERY_PATTERNS,
@@ -61,5 +63,10 @@ describe('query_intent_patterns', () => {
     expect(hasMatch(CODE_REVIEW_QUERY_PATTERNS, 'review this file before merge')).toBe(true);
     expect(hasMatch(FEATURE_LOCATION_PATTERNS, 'where is authentication implemented')).toBe(true);
     expect(hasMatch(REFACTORING_OPPORTUNITIES_PATTERNS, 'what should I refactor')).toBe(true);
+  });
+
+  it('matches canonical entry-point name and path signals', () => {
+    expect(hasMatch(ENTRY_POINT_NAME_PATTERNS, 'createLibrarian')).toBe(true);
+    expect(hasMatch(ENTRY_POINT_PATH_PATTERNS, '/workspace/src/index.ts')).toBe(true);
   });
 });
