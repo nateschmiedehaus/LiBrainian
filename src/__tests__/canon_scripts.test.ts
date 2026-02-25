@@ -18,6 +18,8 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:publish-gate']).toBeTypeOf('string');
     expect(scripts['validate:checkpoint']).toBeTypeOf('string');
     expect(scripts['validate:checkpoint']).toBe('node scripts/validate-checkpoint.mjs');
+    expect(scripts['evidence:preflight']).toBeTypeOf('string');
+    expect(scripts['evidence:preflight']).toBe('node scripts/evidence-manifest-preflight.mjs');
     expect(scripts['eval:ab:agentic-bugfix:codex']).toBeTypeOf('string');
     expect(scripts['eval:live-fire:hardcore']).toBeTypeOf('string');
     expect(scripts['eval:use-cases:agentic']).toBeTypeOf('string');
@@ -83,6 +85,8 @@ describe('canonical npm scripts', () => {
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-discipline');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-tracker');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:publish-gate');
+    expect(scripts['test:agentic:strict']).toContain('npm run evidence:preflight');
+    expect(scripts['test:agentic:strict'].startsWith('npm run evidence:preflight &&')).toBe(true);
     expect(scripts['prepublishOnly']).not.toContain('npm run test:agentic:strict');
     expect(scripts['release:qualify']).toContain('npm run validate:full');
     expect(scripts['release:qualify']).toContain('npm run test:agentic:strict');

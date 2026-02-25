@@ -49,6 +49,7 @@ describe('package release scripts', () => {
     expect(scripts['hooks:install']).toBe('lefthook install');
     expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
+    expect(scripts['evidence:preflight']).toBe('node scripts/evidence-manifest-preflight.mjs');
     expect(scripts['evidence:freshness-check']).toBe('node scripts/check-evidence-freshness.mjs');
     expect(scripts['evidence:assert-gates']).toBe('node scripts/assert-gates-verified.mjs');
     expect(scripts['validate:checkpoint']).toBe('node scripts/validate-checkpoint.mjs');
@@ -74,6 +75,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-package-identity.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-release-provenance.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-gates-verified.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'evidence-manifest-preflight.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'check-evidence-freshness.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'evidence-drift-guard.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
