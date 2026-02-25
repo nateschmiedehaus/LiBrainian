@@ -5,6 +5,7 @@ import {
   extractFeatureTarget,
   extractRefactoringTarget,
   extractSecurityCheckTypes,
+  extractWhyQueryTopics,
 } from '../query_intent_targets.js';
 
 describe('query intent target extractors', () => {
@@ -35,5 +36,20 @@ describe('query intent target extractors', () => {
     expect(extractCodeReviewFilePath('review file src/api/query.ts')).toBe('src/api/query.ts');
     expect(extractCodeReviewFilePath('please check "src/storage/types.ts"')).toBe('src/storage/types.ts');
     expect(extractCodeReviewFilePath('review this change')).toBeUndefined();
+  });
+
+  it('extracts why-query topics and comparison targets', () => {
+    expect(extractWhyQueryTopics('why use embeddings instead of keywords')).toEqual({
+      topic: 'embeddings',
+      comparisonTopic: 'keywords',
+    });
+    expect(extractWhyQueryTopics('what is the rationale for caching')).toEqual({
+      topic: 'caching',
+      comparisonTopic: undefined,
+    });
+    expect(extractWhyQueryTopics('why is the system this way')).toEqual({
+      topic: undefined,
+      comparisonTopic: undefined,
+    });
   });
 });

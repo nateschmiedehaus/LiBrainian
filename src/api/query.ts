@@ -212,6 +212,7 @@ import {
   extractFeatureTarget,
   extractRefactoringTarget,
   extractSecurityCheckTypes,
+  extractWhyQueryTopics,
 } from './query_intent_targets.js';
 import {
   CONSTRUCTION_TO_CLASSIFICATION_MAP,
@@ -604,51 +605,9 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const isDefinitionQuery = definitionMatches > 0 && !isTestQuery;
   const isEntryPointQuery = entryPointMatches > 0 && !isTestQuery;
 
-  // Extract WHY query topics
-  let whyQueryTopic: string | undefined;
-  let whyComparisonTopic: string | undefined;
-  if (isWhyQuery) {
-    // Extract primary topic - try multiple patterns in order of specificity
-    const topicPatterns = [
-      // "why use X" or "why does it use X" (capture X after use/uses/using)
-      /\buse[ds]?\s+([A-Za-z0-9_-]+)\b/i,
-      // "why X instead of Y" (capture X)
-      /\bwhy\s+([A-Za-z0-9_-]+)\s+(?:instead|over|rather)/i,
-      // "why not use X" (capture X)
-      /\bwhy\s+not\s+(?:use|have)\s+([A-Za-z0-9_-]+)/i,
-      // "why choose/chose/pick/prefer X" (capture X)
-      /\b(?:choose|chose|chosen|pick|prefer|select|adopt)\s+([A-Za-z0-9_-]+)\b/i,
-      // "reasoning behind X" or "reasoning behind using X" (capture X)
-      /\breasoning\s+behind\s+(?:using\s+)?([A-Za-z0-9_-]+)/i,
-      // "rationale for X" (capture X)
-      /\brationale\s+(?:for|behind)\s+(?:using\s+)?([A-Za-z0-9_-]+)/i,
-      // Simple "why X" as last resort - capture last meaningful word
-      /\bwhy\s+(?:is|are|does|do|did|was|were|the\s+\w+\s+)?(?:use[ds]?\s+)?([A-Za-z0-9_-]+)\s*$/i,
-    ];
-    // Common stop words to skip
-    const stopWords = ['the', 'this', 'that', 'use', 'uses', 'used', 'using', 'system', 'project', 'codebase', 'code', 'have', 'has', 'had', 'does', 'did', 'is', 'are', 'was', 'were'];
-    for (const pattern of topicPatterns) {
-      const match = pattern.exec(intent);
-      if (match?.[1] && match[1].length > 2 && !stopWords.includes(match[1].toLowerCase())) {
-        whyQueryTopic = match[1];
-        break;
-      }
-    }
-
-    // Extract comparison topic
-    const comparisonPatterns = [
-      /instead\s+of\s+([A-Za-z0-9_-]+)/i,
-      /over\s+([A-Za-z0-9_-]+)/i,
-      /rather\s+than\s+([A-Za-z0-9_-]+)/i,
-    ];
-    for (const pattern of comparisonPatterns) {
-      const match = pattern.exec(intent);
-      if (match?.[1]) {
-        whyComparisonTopic = match[1];
-        break;
-      }
-    }
-  }
+  const whyTopics = isWhyQuery ? extractWhyQueryTopics(intent) : {};
+  const whyQueryTopic = whyTopics.topic;
+  const whyComparisonTopic = whyTopics.comparisonTopic;
 
   // Calculate document bias based on query classification
   let documentBias = 0.3; // Default: slight preference for code

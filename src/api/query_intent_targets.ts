@@ -104,3 +104,68 @@ export function extractCodeReviewFilePath(intent: string): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * Extract WHY query primary topic and optional comparison target.
+ */
+export function extractWhyQueryTopics(intent: string): {
+  topic?: string;
+  comparisonTopic?: string;
+} {
+  const topicPatterns = [
+    /\buse[ds]?\s+([A-Za-z0-9_-]+)\b/i,
+    /\bwhy\s+([A-Za-z0-9_-]+)\s+(?:instead|over|rather)/i,
+    /\bwhy\s+not\s+(?:use|have)\s+([A-Za-z0-9_-]+)/i,
+    /\b(?:choose|chose|chosen|pick|prefer|select|adopt)\s+([A-Za-z0-9_-]+)\b/i,
+    /\breasoning\s+behind\s+(?:using\s+)?([A-Za-z0-9_-]+)/i,
+    /\brationale\s+(?:for|behind)\s+(?:using\s+)?([A-Za-z0-9_-]+)/i,
+    /\bwhy\s+(?:is|are|does|do|did|was|were|the\s+\w+\s+)?(?:use[ds]?\s+)?([A-Za-z0-9_-]+)\s*$/i,
+  ];
+  const stopWords = [
+    'the',
+    'this',
+    'that',
+    'use',
+    'uses',
+    'used',
+    'using',
+    'system',
+    'project',
+    'codebase',
+    'code',
+    'have',
+    'has',
+    'had',
+    'does',
+    'did',
+    'is',
+    'are',
+    'was',
+    'were',
+  ];
+
+  let topic: string | undefined;
+  for (const pattern of topicPatterns) {
+    const match = pattern.exec(intent);
+    if (match?.[1] && match[1].length > 2 && !stopWords.includes(match[1].toLowerCase())) {
+      topic = match[1];
+      break;
+    }
+  }
+
+  const comparisonPatterns = [
+    /instead\s+of\s+([A-Za-z0-9_-]+)/i,
+    /over\s+([A-Za-z0-9_-]+)/i,
+    /rather\s+than\s+([A-Za-z0-9_-]+)/i,
+  ];
+  let comparisonTopic: string | undefined;
+  for (const pattern of comparisonPatterns) {
+    const match = pattern.exec(intent);
+    if (match?.[1]) {
+      comparisonTopic = match[1];
+      break;
+    }
+  }
+
+  return { topic, comparisonTopic };
+}
