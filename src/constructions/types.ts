@@ -53,6 +53,13 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'onboarding-guide',
   'patrol-dogfood',
   'patrol-process',
+  'code-review-pipeline',
+  'migration-assistant',
+  'documentation-generator',
+  'regression-detector',
+  'onboarding-assistant',
+  'release-qualification',
+  'dependency-auditor',
 ] as const;
 
 export type OfficialConstructionSlug = typeof OFFICIAL_CONSTRUCTION_SLUGS[number];

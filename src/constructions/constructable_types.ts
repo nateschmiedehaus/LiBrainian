@@ -185,7 +185,15 @@ export type ConstructableId =
   | 'playwright-e2e'
   // Meta/Quality
   | 'patrol-dogfood'
-  | 'patrol-process';
+  | 'patrol-process'
+  // Process presets
+  | 'code-review-pipeline'
+  | 'migration-assistant'
+  | 'documentation-generator'
+  | 'regression-detector'
+  | 'onboarding-assistant'
+  | 'release-qualification'
+  | 'dependency-auditor';
 
 /**
  * Query classification flags that map to constructables.

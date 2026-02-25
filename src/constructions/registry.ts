@@ -5,6 +5,7 @@ import {
 import { listConstructableDefinitions } from './constructable_registry.js';
 import type { Context } from './types.js';
 import type { PatrolInput } from './processes/patrol_process.js';
+import type { PresetProcessInput } from './processes/presets.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -385,6 +386,43 @@ function seedRegistryWithDefaults(): void {
 }
 
 function activateCoreConstructions(): void {
+  const PRESET_PROCESS_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      dryRun: { type: 'boolean' },
+      command: { type: 'string' },
+      args: { type: 'array', items: { type: 'string' } },
+      cwd: { type: 'string' },
+      env: { type: 'object', additionalProperties: true },
+      timeoutMs: { type: 'number' },
+      budget: {
+        type: 'object',
+        properties: {
+          maxDurationMs: { type: 'number' },
+          maxTokenBudget: { type: 'number' },
+          maxUsd: { type: 'number' },
+        },
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: true,
+  };
+
+  const PRESET_PROCESS_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      preset: { type: 'string' },
+      pattern: { type: 'string' },
+      stages: { type: 'array' },
+      costEstimateUsd: { type: 'string' },
+      executed: { type: 'boolean' },
+      execution: { type: 'object' },
+      budget: { type: 'object' },
+    },
+    required: ['preset', 'pattern', 'stages', 'costEstimateUsd', 'executed'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -676,6 +714,76 @@ function activateCoreConstructions(): void {
       execute: async (input) => {
         const { createPatrolProcessConstruction } = await import('./processes/patrol_process.js');
         return createPatrolProcessConstruction().execute(input as PatrolInput);
+      },
+    },
+    {
+      id: 'librainian:code-review-pipeline',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createCodeReviewPipelineConstruction } = await import('./processes/presets.js');
+        return createCodeReviewPipelineConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:migration-assistant',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createMigrationAssistantConstruction } = await import('./processes/presets.js');
+        return createMigrationAssistantConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:documentation-generator',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createDocumentationGeneratorConstruction } = await import('./processes/presets.js');
+        return createDocumentationGeneratorConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:regression-detector',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createRegressionDetectorConstruction } = await import('./processes/presets.js');
+        return createRegressionDetectorConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:onboarding-assistant',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createOnboardingAssistantConstruction } = await import('./processes/presets.js');
+        return createOnboardingAssistantConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:release-qualification',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createReleaseQualificationConstruction } = await import('./processes/presets.js');
+        return createReleaseQualificationConstruction().execute(input as PresetProcessInput);
+      },
+    },
+    {
+      id: 'librainian:dependency-auditor',
+      inputSchema: PRESET_PROCESS_INPUT_SCHEMA,
+      outputSchema: PRESET_PROCESS_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createDependencyAuditorConstruction } = await import('./processes/presets.js');
+        return createDependencyAuditorConstruction().execute(input as PresetProcessInput);
       },
     },
   ];

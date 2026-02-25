@@ -67,6 +67,7 @@ describe('constructionsCommand', () => {
     expect((payload.groups as Record<string, unknown>)?.official).toBeTruthy();
     const constructions = payload.constructions as Array<{ id: string }>;
     expect(constructions.some((construction) => construction.id === 'librainian:patrol-process')).toBe(true);
+    expect(constructions.some((construction) => construction.id === 'librainian:code-review-pipeline')).toBe(true);
   });
 
   it('returns ranked search results in JSON mode', async () => {
@@ -186,6 +187,19 @@ describe('constructionsCommand', () => {
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload.success).toBe(true);
     expect(payload.id).toBe('librainian:patrol-process');
+    expect(invokeConstruction).toHaveBeenCalled();
+  });
+
+  it('runs code-review-pipeline preset via legacy slug alias', async () => {
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'code-review-pipeline'],
+      rawArgs: ['constructions', 'run', 'code-review-pipeline', '--input', '{"dryRun":true}', '--json'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(payload.success).toBe(true);
+    expect(payload.id).toBe('librainian:code-review-pipeline');
     expect(invokeConstruction).toHaveBeenCalled();
   });
 });

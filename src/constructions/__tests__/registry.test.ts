@@ -87,6 +87,25 @@ describe('default construction registry', () => {
     expect(manifest?.description).toMatch(/patrol/i);
   });
 
+  it('registers complex preset constructions as executable official constructions', () => {
+    const presetIds = [
+      'librainian:code-review-pipeline',
+      'librainian:migration-assistant',
+      'librainian:documentation-generator',
+      'librainian:regression-detector',
+      'librainian:onboarding-assistant',
+      'librainian:release-qualification',
+      'librainian:dependency-auditor',
+    ] as const;
+
+    for (const presetId of presetIds) {
+      const manifest = getConstructionManifest(presetId);
+      expect(manifest).toBeTruthy();
+      expect(manifest?.scope).toBe('@librainian');
+      expect(manifest?.available).toBe(true);
+    }
+  });
+
   it('auto-registers generated constructions created via createConstruction', async () => {
     const construction = createConstruction(
       'registry-auto-generated-test',
