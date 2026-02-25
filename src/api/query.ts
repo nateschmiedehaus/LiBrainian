@@ -220,6 +220,11 @@ import {
   isDefinitionEntity,
 } from './query_result_biasing.js';
 import {
+  computeCentrality,
+  computeRecency,
+  scoreCandidates,
+} from './query_candidate_scoring.js';
+import {
   applyEntryPointBias,
   isEntryPointEntity,
 } from './query_entry_point_biasing.js';
@@ -3491,7 +3496,7 @@ async function runScoringStage(options: {
 
     if (!scoredMap || scoredMap.size === 0) {
       recordCoverageGap('multi_signal_scoring', 'Multi-signal scorer unavailable; using baseline signal weights.', 'minor');
-      scoreCandidates(candidates);
+      scoreCandidates(candidates, SCORE_WEIGHTS);
       explanationParts.push('Scored candidates using baseline signal weights (multi-signal scorer unavailable).');
     } else {
       for (const candidate of candidates) {
@@ -7353,7 +7358,7 @@ async function getEntityStats(entityId: string, entityType: GraphEntityType | 'd
       const fn = await storage.getFunction(entityId);
       return {
         confidence: fn?.confidence ?? ENTITY_CONFIDENCE_FALLBACK,
-        recency: computeRecency(fn?.lastAccessed ?? null),
+        recency: computeRecency(fn?.lastAccessed ?? null, ENTITY_RECENCY_DEFAULT, RECENCY_DECAY_DAYS),
         path: fn?.filePath,
       };
     }
@@ -7455,26 +7460,6 @@ function mergeCandidates(primary: Candidate[], additions: Candidate[]): Candidat
     existing.confidence = Math.max(existing.confidence, candidate.confidence); existing.recency = Math.max(existing.recency, candidate.recency);
   }
   return Array.from(map.values());
-}
-function scoreCandidates(candidates: Candidate[]): void {
-  if (!candidates.length) return;
-  const semanticValues = candidates.map((candidate) => Math.max(candidate.semanticSimilarity, candidate.graphSimilarity ?? 0));
-  const pagerankValues = candidates.map((candidate) => candidate.pagerank);
-  const centralityValues = candidates.map((candidate) => candidate.centrality);
-  const confidenceValues = candidates.map((candidate) => candidate.confidence);
-  const recencyValues = candidates.map((candidate) => candidate.recency);
-  const cochangeValues = candidates.map((candidate) => candidate.cochange ?? 0);
-  const semanticRange = scoreRange(semanticValues); const pagerankRange = scoreRange(pagerankValues); const centralityRange = scoreRange(centralityValues);
-  const confidenceRange = scoreRange(confidenceValues); const recencyRange = scoreRange(recencyValues); const cochangeRange = scoreRange(cochangeValues);
-  for (const candidate of candidates) {
-    const semanticSignal = Math.max(candidate.semanticSimilarity, candidate.graphSimilarity ?? 0);
-    candidate.score = SCORE_WEIGHTS.semantic * normalizeScore(semanticSignal, semanticRange)
-      + SCORE_WEIGHTS.pagerank * normalizeScore(candidate.pagerank, pagerankRange)
-      + SCORE_WEIGHTS.centrality * normalizeScore(candidate.centrality, centralityRange)
-      + SCORE_WEIGHTS.confidence * normalizeScore(candidate.confidence, confidenceRange)
-      + SCORE_WEIGHTS.recency * normalizeScore(candidate.recency, recencyRange)
-      + SCORE_WEIGHTS.cochange * normalizeScore(candidate.cochange ?? 0, cochangeRange);
-  }
 }
 async function applyMultiVectorScores(options: {
   storage: LibrarianStorage;
@@ -7809,15 +7794,6 @@ function buildExplanation(parts: string[], averageScore: number, candidateCount:
   return explanation.join(' ');
 }
 function candidateKey(candidate: Candidate): string { return `${candidate.entityType}:${candidate.entityId}`; }
-function computeRecency(date: Date | null): number {
-  if (!date) return ENTITY_RECENCY_DEFAULT;
-  const ageDays = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
-  const score = Math.exp(-ageDays / RECENCY_DECAY_DAYS);
-  return Math.max(0, Math.min(1, score));
-}
-function computeCentrality(metrics: GraphMetricsEntry): number { return (metrics.betweenness + metrics.closeness + metrics.eigenvector) / 3; }
-function scoreRange(values: number[]): { min: number; max: number } { let min = Infinity; let max = -Infinity; for (const value of values) { if (value < min) min = value; if (value > max) max = value; } if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: 0, max: 0 }; return { min, max }; }
-function normalizeScore(value: number, range: { min: number; max: number }): number { const span = range.max - range.min; if (span <= 0) return range.max > 0 ? 1 : 0; return (value - range.min) / span; }
 function resolveEvidenceEntityType(pack: ContextPack): 'function' | 'module' | null {
   if (pack.packType === 'function_context') return 'function';
   if (pack.packType === 'module_context' || pack.packType === 'change_impact' || pack.packType === 'pattern_context' || pack.packType === 'decision_context' || pack.packType === 'doc_context') return 'module';
