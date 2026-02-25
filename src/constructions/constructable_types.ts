@@ -191,6 +191,7 @@ export type ConstructableId =
   | 'migration-assistant'
   | 'documentation-generator'
   | 'stale-documentation-sensor'
+  | 'test-slop-detector'
   | 'regression-detector'
   | 'onboarding-assistant'
   | 'release-qualification'

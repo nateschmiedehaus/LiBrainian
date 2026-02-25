@@ -57,6 +57,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'migration-assistant',
   'documentation-generator',
   'stale-documentation-sensor',
+  'test-slop-detector',
   'regression-detector',
   'onboarding-assistant',
   'release-qualification',

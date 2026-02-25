@@ -168,6 +168,14 @@ export {
 } from './stale_documentation_sensor.js';
 
 export {
+  createTestSlopDetectorConstruction,
+  type TestSlopCheck,
+  type TestSlopInput,
+  type TestSlopViolation,
+  type TestSlopOutput,
+} from './test_slop_detector.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

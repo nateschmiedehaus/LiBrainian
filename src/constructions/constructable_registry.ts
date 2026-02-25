@@ -217,6 +217,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'documentation', 'quality'],
   },
   {
+    id: 'test-slop-detector',
+    basePriority: 80,
+    isCore: true,
+    availability: READY,
+    description: 'Identifies tests that appear valid but provide little or no behavioral signal',
+    motivation: 'Prevent false confidence from tautological or mock-passthrough tests that miss real regressions.',
+    tags: ['core', 'process', 'preset', 'testing', 'quality'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,
