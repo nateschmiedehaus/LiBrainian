@@ -226,6 +226,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'testing', 'quality'],
   },
   {
+    id: 'diff-semantic-summarizer',
+    basePriority: 83,
+    isCore: true,
+    availability: READY,
+    description: 'Summarizes behavioral and contract changes across a diff for agents and reviewers',
+    motivation: 'Explain what changed semantically (not just syntactically), including blast radius and coverage shifts.',
+    tags: ['core', 'process', 'preset', 'review', 'quality'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

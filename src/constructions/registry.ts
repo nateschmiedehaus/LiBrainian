@@ -8,6 +8,7 @@ import type { PatrolInput } from './processes/patrol_process.js';
 import type { PresetProcessInput } from './processes/presets.js';
 import type { StalenessInput } from './processes/stale_documentation_sensor.js';
 import type { TestSlopInput } from './processes/test_slop_detector.js';
+import type { DiffSummarizerInput } from './processes/diff_semantic_summarizer.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -475,6 +476,32 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const DIFF_SEMANTIC_SUMMARIZER_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      diff: { type: 'string' },
+      baseSha: { type: 'string' },
+      headSha: { type: 'string' },
+      focusAreas: { type: 'array', items: { type: 'string' } },
+      workspaceRoot: { type: 'string' },
+    },
+    additionalProperties: false,
+  };
+
+  const DIFF_SEMANTIC_SUMMARIZER_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      deltas: { type: 'array' },
+      blastRadius: { type: 'object' },
+      criticalChanges: { type: 'array' },
+      newCoverageGaps: { type: 'array' },
+      agentBriefing: { type: 'string' },
+      reviewerSummary: { type: 'string' },
+    },
+    required: ['deltas', 'blastRadius', 'criticalChanges', 'newCoverageGaps', 'agentBriefing', 'reviewerSummary'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -816,6 +843,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createTestSlopDetectorConstruction } = await import('./processes/test_slop_detector.js');
         return createTestSlopDetectorConstruction().execute(input as TestSlopInput, context);
+      },
+    },
+    {
+      id: 'librainian:diff-semantic-summarizer',
+      inputSchema: DIFF_SEMANTIC_SUMMARIZER_INPUT_SCHEMA,
+      outputSchema: DIFF_SEMANTIC_SUMMARIZER_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createDiffSemanticSummarizerConstruction } = await import('./processes/diff_semantic_summarizer.js');
+        return createDiffSemanticSummarizerConstruction().execute(input as DiffSummarizerInput, context);
       },
     },
     {

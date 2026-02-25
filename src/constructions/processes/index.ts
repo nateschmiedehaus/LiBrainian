@@ -176,6 +176,14 @@ export {
 } from './test_slop_detector.js';
 
 export {
+  createDiffSemanticSummarizerConstruction,
+  type DiffFocusArea,
+  type DiffSummarizerInput,
+  type FunctionSemanticDelta,
+  type DiffSemanticSummarizerOutput,
+} from './diff_semantic_summarizer.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

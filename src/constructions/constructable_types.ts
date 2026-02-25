@@ -192,6 +192,7 @@ export type ConstructableId =
   | 'documentation-generator'
   | 'stale-documentation-sensor'
   | 'test-slop-detector'
+  | 'diff-semantic-summarizer'
   | 'regression-detector'
   | 'onboarding-assistant'
   | 'release-qualification'

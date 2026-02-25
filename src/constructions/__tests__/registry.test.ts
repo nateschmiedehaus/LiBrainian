@@ -94,6 +94,7 @@ describe('default construction registry', () => {
       'librainian:documentation-generator',
       'librainian:stale-documentation-sensor',
       'librainian:test-slop-detector',
+      'librainian:diff-semantic-summarizer',
       'librainian:regression-detector',
       'librainian:onboarding-assistant',
       'librainian:release-qualification',
