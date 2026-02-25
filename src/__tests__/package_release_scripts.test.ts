@@ -95,6 +95,7 @@ describe('package release scripts', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'refresh-external-eval-corpus.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'refresh-external-eval-corpus-batched.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'git-hygiene-guard.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'prepush-patrol-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-mainline-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'dogfood-sandbox.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'hook-update-index.mjs'))).toBe(true);
@@ -108,6 +109,23 @@ describe('package release scripts', () => {
     expect(hooksConfig).toContain('id: librainian-update-staged');
     expect(hooksConfig).toContain('entry: node scripts/hook-update-index.mjs');
     expect(hooksConfig).toContain('pass_filenames: true');
+  });
+
+  it('routes pre-push patrol smoke through bounded runtime wrapper', () => {
+    const hooksPath = path.join(process.cwd(), 'lefthook.yml');
+    const hooksConfig = fs.readFileSync(hooksPath, 'utf8');
+    expect(hooksConfig).toContain('pre-push:');
+    expect(hooksConfig).toContain('patrol-smoke:');
+    expect(hooksConfig).toContain('run: node scripts/prepush-patrol-smoke.mjs');
+    expect(hooksConfig).toContain('optional: true');
+  });
+
+  it('documents temporary hook bypass policy for --no-verify', () => {
+    const policyPath = path.join(process.cwd(), 'docs', 'librarian', 'policies', 'hook-fallback-policy.md');
+    expect(fs.existsSync(policyPath)).toBe(true);
+    const policy = fs.readFileSync(policyPath, 'utf8');
+    expect(policy).toContain('--no-verify');
+    expect(policy).toContain('#832');
   });
 
   it('hardens public pack check against lifecycle log noise', () => {

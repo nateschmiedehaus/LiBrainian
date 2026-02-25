@@ -78,6 +78,20 @@ describe('hook-update-index script', () => {
     expect(output).toContain('llm_adapter_unregistered');
   });
 
+  it('treats unbootstrapped prerequisites as non-blocking with remediation', () => {
+    const { root, binDir } = createNpmStub();
+    cleanupDirs.push(root);
+    const result = runHook(binDir, {
+      STUB_NPM_EXIT_CODE: '1',
+      STUB_NPM_STDERR: 'LiBrainian not bootstrapped: no valid files to index\\n',
+    });
+
+    expect(result.status).toBe(0);
+    const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
+    expect(output).toContain('LiBrainian staged index update skipped (non-blocking:unbootstrapped)');
+    expect(output).toContain('npx tsx src/cli/index.ts bootstrap');
+  });
+
   it('keeps unknown update failures blocking', () => {
     const { root, binDir } = createNpmStub();
     cleanupDirs.push(root);

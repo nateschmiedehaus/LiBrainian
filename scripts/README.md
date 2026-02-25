@@ -25,6 +25,7 @@ LiBrainian scripts are grouped by function:
   - `guard-generated-artifacts.mjs` (blocks likely accidental TypeScript emit artifacts like `src/**/*.js` beside `src/**/*.ts`)
   - `repo-folder-audit.mjs`
   - `hook-update-index.mjs` (best-effort staged index refresh for pre-commit flows)
+  - `prepush-patrol-smoke.mjs` (bounded-runtime, heartbeat-emitting, non-blocking pre-push patrol smoke runner)
 - **GitHub automation**
   - `gh-autoland.mjs` (push current branch, create/reuse PR, enable squash auto-merge, watch checks)
     - Supports `--issue <N>` to auto-link `Fixes #N` in PR body
@@ -52,3 +53,4 @@ LiBrainian scripts are grouped by function:
 - Keep scripts deterministic and machine-readable where possible.
 - Prefer JSON artifact output for anything consumed by gates/CI.
 - Temporary one-off scripts should not remain in this directory.
+- Hook bypass policy (`--no-verify`) is documented in `docs/librarian/policies/hook-fallback-policy.md`.
