@@ -1,12 +1,44 @@
-import {
-  materializePatrolTestPairs,
-  runPatrolSwebenchHarness,
-  type PatrolPairHarnessResult,
-  type PatrolTestPair,
-} from '../../evaluation/patrol_swebench_pairs.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
 import type { Construction } from '../types.js';
 import { ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
+
+type PatrolTestPair = Record<string, unknown>;
+
+interface PatrolPairEvaluationResult {
+  pairId: string;
+  pass: boolean;
+  findings: string[];
+}
+
+interface PatrolPairHarnessResult {
+  pass: boolean;
+  resolvedCount: number;
+  resolveRate: number;
+  evaluations: PatrolPairEvaluationResult[];
+}
+
+interface PatrolSwebenchMaterialized {
+  pairCount: number;
+  outputPath: string;
+  pairs: PatrolTestPair[];
+}
+
+interface PatrolSwebenchModule {
+  materializePatrolTestPairs: (input: {
+    repoRoot: string;
+    corpusPath?: string;
+    outputPath?: string;
+  }) => Promise<PatrolSwebenchMaterialized>;
+  runPatrolSwebenchHarness: (
+    pairs: PatrolTestPair[],
+    options: {
+      repoRoot: string;
+      executeVerificationCommands?: boolean;
+      verificationTimeoutMs?: number;
+    }
+  ) => Promise<PatrolPairHarnessResult>;
+}
 
 export interface PatrolSwebenchGateInput {
   repoRoot?: string;
@@ -33,6 +65,15 @@ export interface PatrolSwebenchGateOutput {
 
 const DEFAULT_MIN_PAIR_COUNT = 3;
 
+async function loadPatrolSwebenchModule(): Promise<PatrolSwebenchModule> {
+  const externalModuleId = 'librainian-eval/patrol_swebench_pairs.js';
+  return loadEvaluationModule<PatrolSwebenchModule>(
+    'patrol-swebench-gate',
+    () => import('../../evaluation/patrol_swebench_pairs.js') as unknown as Promise<PatrolSwebenchModule>,
+    () => import(externalModuleId) as unknown as Promise<PatrolSwebenchModule>,
+  );
+}
+
 export function createPatrolSwebenchGateConstruction(): Construction<
   PatrolSwebenchGateInput,
   PatrolSwebenchGateOutput,
@@ -48,6 +89,12 @@ export function createPatrolSwebenchGateConstruction(): Construction<
       const startedAt = Date.now();
       const repoRoot = input.repoRoot ?? process.cwd();
       const minPairCount = input.minPairCount ?? DEFAULT_MIN_PAIR_COUNT;
+      const { materializePatrolTestPairs, runPatrolSwebenchHarness } = await loadPatrolSwebenchModule().catch((error) => {
+        throw new ConstructionError(
+          `Patrol SWE-bench dependency unavailable: ${error instanceof Error ? error.message : String(error)}`,
+          'patrol-swebench-gate',
+        );
+      });
       const materialized = await materializePatrolTestPairs({
         repoRoot,
         corpusPath: input.corpusPath,

@@ -1,126 +1,98 @@
-import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { calibrationCommand } from '../calibration.js';
 
-const tempDirs: string[] = [];
-
-async function createWorkspaceWithPatrolData(totalFeatures: number): Promise<string> {
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-calibration-cli-'));
-  tempDirs.push(workspace);
-  const patrolDir = path.join(workspace, 'state', 'patrol');
-  await fs.mkdir(patrolDir, { recursive: true });
-
-  const features = Array.from({ length: totalFeatures }, (_, index) => ({
-    feature: `feature-${index}`,
-    intent: `intent-${index}`,
-    outcome: index % 2 === 0 ? `Returned confidence 0.8 and succeeded` : 'confidence 0.8 and failed',
-    quality: index % 2 === 0 ? 'excellent' : 'broken',
-    wouldUseAgain: index % 2 === 0,
-    notes: `notes-${index}`,
-  }));
-
-  const run = {
-    kind: 'LiBrainianPatrolRun.v1',
-    mode: 'quick',
-    createdAt: '2026-02-21T04:00:00.000Z',
-    commitSha: 'abcdef01',
-    aggregate: {},
-    runs: [
-      {
-        repo: 'repo-calibration',
-        task: 'query',
-        language: 'typescript',
-        observations: {
-          sessionSummary: 'Overall health confidence 75% vs 70% SLO.',
-          featuresUsed: features,
-          constructionsUsed: [
-            {
-              constructionId: 'librainian:test',
-              outputQuality: 'good',
-              confidenceReturned: 0.76,
-              confidenceAccurate: true,
-              useful: true,
-            },
-          ],
-          negativeFindingsMandatory: Array.from({ length: 12 }, (_, index) => ({
-            category: `category-${index}`,
-            severity: index % 2 === 0 ? 'high' : 'medium',
-            title: `title-${index}`,
-            detail: `detail-${index}`,
-            reproducible: index % 3 !== 0,
-            suggestedFix: 'fix',
-          })),
-          positiveFindings: [
-            { feature: 'status', detail: 'status stayed excellent.' },
-          ],
-        },
-        implicitSignals: {
-          usedGrepInstead: false,
-          commandsFailed: 0,
-        },
-        timedOut: false,
-        durationMs: 9_000,
-        agentExitCode: 0,
-        rawOutputTruncated: false,
-      },
-    ],
-  };
-
-  await fs.writeFile(
-    path.join(patrolDir, 'patrol-run-2026-02-21T04-00-00-000Z.json'),
-    JSON.stringify(run, null, 2),
-    'utf8'
-  );
-
-  return workspace;
-}
+vi.mock('../../../utils/evaluation_loader.js', () => ({
+  loadEvaluationModule: vi.fn(),
+}));
 
 describe('calibrationCommand', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
+  const dashboard = {
+    patrolDir: '/tmp/workspace/state/patrol',
+    runCount: 2,
+    sampleCount: 200,
+    minimumSamples: 50,
+    pointBreakdown: { explicit: 120, derived: 80 },
+    expectedCalibrationError: 0.11,
+    maximumCalibrationError: 0.23,
+    overconfidenceRatio: 0.19,
+    enoughSamples: true,
+    buckets: [
+      {
+        range: [0.0, 0.1] as [number, number],
+        sampleSize: 10,
+        statedMean: 0.07,
+        empiricalAccuracy: 0.1,
+        calibrationError: 0.03,
+      },
+    ],
+    perRun: [
+      {
+        createdAt: '2026-02-25T00:00:00.000Z',
+        repo: 'repo-a',
+        sampleCount: 100,
+        expectedCalibrationError: 0.12,
+        maximumCalibrationError: 0.24,
+      },
+    ],
+    trend: {
+      firstEce: 0.19,
+      lastEce: 0.11,
+      deltaEce: -0.08,
+    },
+    recommendations: ['Track high-confidence false positives.'],
+  };
+
   beforeEach(() => {
+    vi.clearAllMocks();
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     logSpy.mockRestore();
-    await Promise.all(tempDirs.splice(0, tempDirs.length).map((dir) => fs.rm(dir, { recursive: true, force: true })));
   });
 
-  it('emits machine-readable calibration dashboard JSON', async () => {
-    const workspace = await createWorkspaceWithPatrolData(45);
+  it('loads calibration module through evaluation loader and emits JSON output', async () => {
+    const { loadEvaluationModule } = await import('../../../utils/evaluation_loader.js');
+    vi.mocked(loadEvaluationModule).mockResolvedValue({
+      evaluatePatrolCalibrationDirectory: vi.fn().mockResolvedValue(dashboard),
+    });
 
+    const { calibrationCommand } = await import('../calibration.js');
     await calibrationCommand({
-      workspace,
+      workspace: '/tmp/workspace',
       args: [],
       rawArgs: ['calibration', '--json'],
     });
 
-    const payload = logSpy.mock.calls
-      .map((call) => String(call[0]))
-      .find((line) => line.includes('"LiBrainianPatrolCalibration.v1"'));
+    expect(loadEvaluationModule).toHaveBeenCalledWith(
+      'librarian calibration',
+      expect.any(Function),
+      expect.any(Function),
+    );
 
-    expect(payload).toBeTruthy();
-    const parsed = JSON.parse(payload!);
-    expect(parsed.kind).toBe('LiBrainianPatrolCalibration.v1');
-    expect(parsed.sampleCount).toBeGreaterThanOrEqual(50);
-    expect(parsed.enoughSamples).toBe(true);
-    expect(parsed.recommendations.length).toBeGreaterThan(0);
+    const jsonLine = logSpy.mock.calls.map((call) => String(call[0])).find((line) => line.startsWith('{'));
+    expect(jsonLine).toBeDefined();
+    const parsed = JSON.parse(jsonLine ?? '{}') as { runCount?: number };
+    expect(parsed.runCount).toBe(2);
   });
 
-  it('prints guidance when minimum sample target is not met', async () => {
-    const workspace = await createWorkspaceWithPatrolData(8);
-
-    await calibrationCommand({
-      workspace,
-      args: [],
-      rawArgs: ['calibration', '--min-samples', '200'],
+  it('prints text dashboard in non-json mode', async () => {
+    const { loadEvaluationModule } = await import('../../../utils/evaluation_loader.js');
+    vi.mocked(loadEvaluationModule).mockResolvedValue({
+      evaluatePatrolCalibrationDirectory: vi.fn().mockResolvedValue(dashboard),
     });
 
-    const output = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
-    expect(output).toContain('LiBrainian Patrol Calibration');
-    expect(output).toContain('Needs more patrol calibration samples');
+    const { calibrationCommand } = await import('../calibration.js');
+    await calibrationCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['calibration'],
+    });
+
+    const output = logSpy.mock.calls.map((call) => String(call[0]));
+    expect(output.some((line) => line.includes('LiBrainian Patrol Calibration'))).toBe(true);
+    expect(output.some((line) => line.includes('Recommendations:'))).toBe(true);
+    expect(output.some((line) => line.includes('Track high-confidence false positives.'))).toBe(true);
   });
 });

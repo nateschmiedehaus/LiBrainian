@@ -1,14 +1,57 @@
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';
-import {
-  evaluatePatrolCalibrationDirectory,
-  type PatrolCalibrationDashboard,
-} from '../../evaluation/patrol_calibration.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
 
 export interface CalibrationCommandOptions {
   workspace: string;
   args: string[];
   rawArgs: string[];
+}
+
+interface PatrolCalibrationBucket {
+  range: [number, number];
+  sampleSize: number;
+  statedMean: number;
+  empiricalAccuracy: number;
+  calibrationError: number;
+}
+
+interface PatrolCalibrationRunSummary {
+  createdAt: string;
+  repo: string;
+  sampleCount: number;
+  expectedCalibrationError: number;
+  maximumCalibrationError: number;
+}
+
+interface PatrolCalibrationDashboard {
+  patrolDir: string;
+  runCount: number;
+  sampleCount: number;
+  minimumSamples: number;
+  pointBreakdown: {
+    explicit: number;
+    derived: number;
+  };
+  expectedCalibrationError: number;
+  maximumCalibrationError: number;
+  overconfidenceRatio: number;
+  enoughSamples: boolean;
+  buckets: PatrolCalibrationBucket[];
+  perRun: PatrolCalibrationRunSummary[];
+  trend: {
+    firstEce: number;
+    lastEce: number;
+    deltaEce: number;
+  } | null;
+  recommendations: string[];
+}
+
+interface PatrolCalibrationModule {
+  evaluatePatrolCalibrationDirectory: (
+    patrolDir: string,
+    options: { bucketCount: number; minimumSamples: number }
+  ) => Promise<PatrolCalibrationDashboard>;
 }
 
 export async function calibrationCommand(options: CalibrationCommandOptions): Promise<void> {
@@ -29,6 +72,7 @@ export async function calibrationCommand(options: CalibrationCommandOptions): Pr
   const patrolDir = resolvePatrolDir(workspacePath, values['patrol-dir'] as string | undefined);
   const bucketCount = clampInteger(values['bucket-count'] as string | undefined, 10, 4, 20);
   const minimumSamples = clampInteger(values['min-samples'] as string | undefined, 50, 1, 10_000);
+  const { evaluatePatrolCalibrationDirectory } = await loadPatrolCalibrationModule();
   const dashboard = await evaluatePatrolCalibrationDirectory(patrolDir, { bucketCount, minimumSamples });
 
   if (values.json) {
@@ -43,6 +87,15 @@ function resolvePatrolDir(workspacePath: string, requested: string | undefined):
   if (!requested) return path.join(workspacePath, 'state', 'patrol');
   if (path.isAbsolute(requested)) return requested;
   return path.join(workspacePath, requested);
+}
+
+async function loadPatrolCalibrationModule(): Promise<PatrolCalibrationModule> {
+  const externalModuleId = 'librainian-eval/patrol_calibration.js';
+  return loadEvaluationModule<PatrolCalibrationModule>(
+    'librarian calibration',
+    () => import('../../evaluation/patrol_calibration.js') as Promise<PatrolCalibrationModule>,
+    () => import(externalModuleId) as Promise<PatrolCalibrationModule>,
+  );
 }
 
 function printDashboard(dashboard: PatrolCalibrationDashboard): void {

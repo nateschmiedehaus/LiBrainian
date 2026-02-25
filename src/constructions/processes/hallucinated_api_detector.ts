@@ -1,12 +1,30 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import ts from 'typescript';
-import {
-  validateImportReference,
-  type ValidateImportReferenceResult,
-} from '../../evaluation/api_surface_index.js';
+import { loadEvaluationModule } from '../../utils/evaluation_loader.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { ok, type Construction } from '../types.js';
+
+interface ValidateImportReferenceResult {
+  valid: boolean;
+  packageName: string;
+  importName: string;
+  memberName?: string;
+  reason?: string;
+  suggestions: string[];
+}
+
+interface ApiSurfaceIndexModule {
+  validateImportReference: (
+    workspaceRoot: string,
+    input: {
+      packageName: string;
+      importName: string;
+      memberName?: string;
+      context?: string;
+    }
+  ) => Promise<ValidateImportReferenceResult>;
+}
 
 export interface APIDetectorInput {
   generatedCode: string;
@@ -65,6 +83,15 @@ const REMOVED_METHOD_HINTS: Record<string, Record<string, Record<string, Removed
 };
 
 const SIGNATURE_DIAGNOSTIC_CODES = new Set<number>([2554, 2555, 2556, 2769]);
+
+async function loadApiSurfaceIndexModule(): Promise<ApiSurfaceIndexModule> {
+  const externalModuleId = 'librainian-eval/api_surface_index.js';
+  return loadEvaluationModule<ApiSurfaceIndexModule>(
+    'hallucinated-api-detector',
+    () => import('../../evaluation/api_surface_index.js') as Promise<ApiSurfaceIndexModule>,
+    () => import(externalModuleId) as Promise<ApiSurfaceIndexModule>,
+  );
+}
 
 function normalizePathSeparators(value: string): string {
   return value.replace(/\\/gu, '/');
@@ -484,6 +511,12 @@ export function createHallucinatedApiDetectorConstruction(): Construction<
       const validationCache = new Map<string, ValidateImportReferenceResult>();
       const versionCache = new Map<string, string>();
       const calls: HallucinatedCall[] = [];
+      const { validateImportReference } = await loadApiSurfaceIndexModule().catch((error) => {
+        throw new ConstructionError(
+          `API surface validation dependency unavailable: ${error instanceof Error ? error.message : String(error)}`,
+          'hallucinated-api-detector',
+        );
+      });
 
       for (const candidate of candidates) {
         const installedVersion = await readInstalledVersion(

@@ -21,6 +21,34 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() ?? '';
 }
 
+function runAllowFailure(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? process.cwd(),
+    encoding: 'utf8',
+    stdio: options.stdio ?? 'pipe',
+    shell: false,
+  });
+
+  return {
+    status: typeof result.status === 'number' ? result.status : 1,
+    stdout: result.stdout?.trim() ?? '',
+    stderr: result.stderr?.trim() ?? '',
+  };
+}
+
+function assertNoModuleResolutionCrash(result, commandLabel) {
+  const combined = [result.stdout, result.stderr].filter(Boolean).join('\n');
+  if (
+    /ERR_MODULE_NOT_FOUND/.test(combined)
+    || /Cannot find module/.test(combined)
+    || /Cannot find package/.test(combined)
+  ) {
+    throw new Error(
+      `${commandLabel} hit module-resolution crash after package install:\n${combined}`
+    );
+  }
+}
+
 function parsePackOutput(rawOutput) {
   const output = rawOutput.trim();
   if (!output) {
@@ -69,11 +97,14 @@ async function main() {
   const tarballPath = path.join(repoRoot, packedName);
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-pack-smoke-'));
   const sandboxDir = path.join(tmpRoot, 'sandbox');
+  const workspaceDir = path.join(tmpRoot, 'workspace');
   await fs.mkdir(sandboxDir, { recursive: true });
+  await fs.mkdir(path.join(workspaceDir, 'src'), { recursive: true });
   await fs.writeFile(
     path.join(sandboxDir, 'package.json'),
     JSON.stringify({ name: 'librainian-smoke', private: true, version: '0.0.0' }, null, 2)
   );
+  await fs.writeFile(path.join(workspaceDir, 'src', 'index.ts'), 'export const smoke = true;\n');
 
   try {
     run('npm', ['install', '--no-save', tarballPath], { cwd: sandboxDir });
@@ -90,16 +121,34 @@ async function main() {
       throw new Error('Installed package is missing expected bin entries for librainian/librarian.');
     }
 
+    const librainianEntry = path.join(sandboxDir, 'node_modules', 'librainian', librainianBin);
+    const librarianEntry = path.join(sandboxDir, 'node_modules', 'librainian', librarianBin);
+
     run(
       process.execPath,
-      [path.join(sandboxDir, 'node_modules', 'librainian', librainianBin), '--version'],
+      [librainianEntry, '--version'],
       { cwd: sandboxDir },
     );
     run(
       process.execPath,
-      [path.join(sandboxDir, 'node_modules', 'librainian', librarianBin), '--version'],
+      [librarianEntry, '--version'],
       { cwd: sandboxDir },
     );
+
+    const statusResult = runAllowFailure(
+      process.execPath,
+      [librainianEntry, 'status', '--json'],
+      { cwd: workspaceDir },
+    );
+    assertNoModuleResolutionCrash(statusResult, 'librainian status --json');
+
+    const queryResult = runAllowFailure(
+      process.execPath,
+      [librainianEntry, 'query', 'smoke check', '--json', '--no-bootstrap', '--no-synthesis'],
+      { cwd: workspaceDir },
+    );
+    assertNoModuleResolutionCrash(queryResult, 'librainian query "smoke check" --json --no-bootstrap --no-synthesis');
+
     run(
       process.execPath,
       ['--input-type=module', '-e', 'import("librainian").then(() => process.exit(0)).catch(() => process.exit(1));'],

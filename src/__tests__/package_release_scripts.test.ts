@@ -133,8 +133,13 @@ describe('package release scripts', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs');
     const script = fs.readFileSync(scriptPath, 'utf8');
     expect(script).toContain('function parsePackOutput');
+    expect(script).toContain('function runAllowFailure');
+    expect(script).toContain('function assertNoModuleResolutionCrash');
     expect(script).toContain('Lifecycle hooks can write plain text before npm\'s JSON payload');
     expect(script).toContain('Unable to locate JSON payload in npm pack output');
+    expect(script).toContain("'status', '--json'");
+    expect(script).toContain("'query', 'smoke check', '--json', '--no-bootstrap', '--no-synthesis'");
+    expect(script).toContain('ERR_MODULE_NOT_FOUND');
   });
 
   it('enforces strict reality-gate skip semantics and artifact output', () => {
