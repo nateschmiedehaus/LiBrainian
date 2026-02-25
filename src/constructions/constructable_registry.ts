@@ -226,6 +226,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'testing', 'quality'],
   },
   {
+    id: 'slop-pattern-auditor',
+    basePriority: 81,
+    isCore: true,
+    availability: READY,
+    description: 'Detects structural convention mismatches between generated code and this codebase’s empirical patterns',
+    motivation: 'Reduce AI slop by catching context-mismatched abstractions, error handling styles, and naming/comment drift before review.',
+    tags: ['core', 'process', 'preset', 'quality', 'agentic'],
+  },
+  {
     id: 'diff-semantic-summarizer',
     basePriority: 83,
     isCore: true,

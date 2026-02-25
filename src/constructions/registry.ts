@@ -8,6 +8,7 @@ import type { PatrolInput } from './processes/patrol_process.js';
 import type { PresetProcessInput } from './processes/presets.js';
 import type { StalenessInput } from './processes/stale_documentation_sensor.js';
 import type { TestSlopInput } from './processes/test_slop_detector.js';
+import type { SlopAuditorInput } from './processes/slop_pattern_auditor.js';
 import type { DiffSummarizerInput } from './processes/diff_semantic_summarizer.js';
 import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_coherence_checker.js';
 import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
@@ -478,6 +479,32 @@ function activateCoreConstructions(): void {
       effectiveCoverageEstimate: { type: 'number' },
     },
     required: ['violations', 'critical', 'warnings', 'effectivelyUntested', 'agentSummary', 'effectiveCoverageEstimate'],
+    additionalProperties: true,
+  };
+
+  const SLOP_PATTERN_AUDITOR_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      code: { type: 'string' },
+      filePath: { type: 'string' },
+      diffOnly: { type: 'boolean' },
+      checks: { type: 'array', items: { type: 'string' } },
+      workspaceRoot: { type: 'string' },
+      sampleFileLimit: { type: 'number' },
+    },
+    required: ['code', 'filePath'],
+    additionalProperties: false,
+  };
+
+  const SLOP_PATTERN_AUDITOR_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      violations: { type: 'array' },
+      agentSummary: { type: 'string' },
+      structuralFitScore: { type: 'number' },
+      inferredConventions: { type: 'array' },
+    },
+    required: ['violations', 'agentSummary', 'structuralFitScore', 'inferredConventions'],
     additionalProperties: true,
   };
 
@@ -988,6 +1015,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createTestSlopDetectorConstruction } = await import('./processes/test_slop_detector.js');
         return createTestSlopDetectorConstruction().execute(input as TestSlopInput, context);
+      },
+    },
+    {
+      id: 'librainian:slop-pattern-auditor',
+      inputSchema: SLOP_PATTERN_AUDITOR_INPUT_SCHEMA,
+      outputSchema: SLOP_PATTERN_AUDITOR_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createSlopPatternAuditorConstruction } = await import('./processes/slop_pattern_auditor.js');
+        return createSlopPatternAuditorConstruction().execute(input as SlopAuditorInput, context);
       },
     },
     {

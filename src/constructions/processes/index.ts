@@ -176,6 +176,16 @@ export {
 } from './test_slop_detector.js';
 
 export {
+  createSlopPatternAuditorConstruction,
+  type SlopPatternCheck,
+  type SlopAuditorInput,
+  type ConventionExample,
+  type SlopViolation,
+  type InferredConvention,
+  type SlopAuditorOutput,
+} from './slop_pattern_auditor.js';
+
+export {
   createDiffSemanticSummarizerConstruction,
   type DiffFocusArea,
   type DiffSummarizerInput,

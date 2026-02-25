@@ -94,6 +94,7 @@ describe('default construction registry', () => {
       'librainian:documentation-generator',
       'librainian:stale-documentation-sensor',
       'librainian:test-slop-detector',
+      'librainian:slop-pattern-auditor',
       'librainian:diff-semantic-summarizer',
       'librainian:intent-behavior-coherence-checker',
       'librainian:semantic-duplicate-detector',
