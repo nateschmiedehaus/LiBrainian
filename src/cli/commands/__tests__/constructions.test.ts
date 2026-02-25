@@ -65,6 +65,8 @@ describe('constructionsCommand', () => {
     expect(typeof payload.total).toBe('number');
     expect((payload.total as number)).toBeGreaterThan(0);
     expect((payload.groups as Record<string, unknown>)?.official).toBeTruthy();
+    const constructions = payload.constructions as Array<{ id: string }>;
+    expect(constructions.some((construction) => construction.id === 'librainian:patrol-process')).toBe(true);
   });
 
   it('returns ranked search results in JSON mode', async () => {
@@ -171,6 +173,19 @@ describe('constructionsCommand', () => {
     const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(payload.success).toBe(true);
     expect(payload.id).toBe('librainian:security-audit-helper');
+    expect(invokeConstruction).toHaveBeenCalled();
+  });
+
+  it('runs patrol-process via legacy slug alias', async () => {
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'patrol-process'],
+      rawArgs: ['constructions', 'run', 'patrol-process', '--input', '{"mode":"quick","dryRun":true}', '--json'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(payload.success).toBe(true);
+    expect(payload.id).toBe('librainian:patrol-process');
     expect(invokeConstruction).toHaveBeenCalled();
   });
 });

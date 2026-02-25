@@ -184,7 +184,8 @@ export type ConstructableId =
   | 'cypress-e2e'
   | 'playwright-e2e'
   // Meta/Quality
-  | 'patrol-dogfood';
+  | 'patrol-dogfood'
+  | 'patrol-process';
 
 /**
  * Query classification flags that map to constructables.

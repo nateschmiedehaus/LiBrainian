@@ -1079,6 +1079,9 @@ function parseArgs(argv) {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
+  console.warn(
+    '[patrol] DEPRECATED: direct scripts/agent-patrol.mjs invocation is deprecated; use "librarian constructions run patrol-process" instead.',
+  );
   const opts = parseArgs(process.argv.slice(2));
 
   // Clean up stale sandbox dirs from previous runs (prevents disk bloat)

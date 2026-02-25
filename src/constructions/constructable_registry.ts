@@ -127,6 +127,14 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     description: 'Runs bootstrap pre-flight checks and summarizes blocking and warning findings',
     tags: ['core', 'preflight', 'bootstrap'],
   },
+  {
+    id: 'patrol-process',
+    basePriority: 82,
+    isCore: true,
+    availability: READY,
+    description: 'Runs the typed patrol process pipeline for agent observation, signal extraction, and report generation',
+    tags: ['core', 'process', 'patrol', 'agentic'],
+  },
 
   // Strategic Constructions
   {

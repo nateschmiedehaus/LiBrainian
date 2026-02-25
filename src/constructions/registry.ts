@@ -4,6 +4,7 @@ import {
 } from './base/construction_base.js';
 import { listConstructableDefinitions } from './constructable_registry.js';
 import type { Context } from './types.js';
+import type { PatrolInput } from './processes/patrol_process.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -615,6 +616,66 @@ function activateCoreConstructions(): void {
         const { librarian } = ensureLibrarianContext(context, 'librainian:comprehensive-quality-construction');
         const { createComprehensiveQualityConstruction } = await import('./comprehensive_quality_construction.js');
         return createComprehensiveQualityConstruction(librarian as any).assess(input as any);
+      },
+    },
+    {
+      id: 'librainian:patrol-process',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string' },
+          mode: { type: 'string' },
+          command: { type: 'string' },
+          args: { type: 'array', items: { type: 'string' } },
+          cwd: { type: 'string' },
+          env: { type: 'object', additionalProperties: true },
+          dryRun: { type: 'boolean' },
+          keepSandbox: { type: 'boolean' },
+          policyTrigger: { type: 'string' },
+          policyConfig: { type: 'object', additionalProperties: true },
+          policyDecisionOutputPath: { type: 'string' },
+          observationProtocol: {
+            type: 'object',
+            properties: {
+              incrementalPrefix: { type: 'string' },
+              blockStart: { type: 'string' },
+              blockEnd: { type: 'string' },
+            },
+            additionalProperties: false,
+          },
+          budget: {
+            type: 'object',
+            properties: {
+              maxDurationMs: { type: 'number' },
+              maxTokenBudget: { type: 'number' },
+              maxUsd: { type: 'number' },
+            },
+            additionalProperties: false,
+          },
+          timeoutMs: { type: 'number' },
+        },
+        additionalProperties: true,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          report: { type: 'object' },
+          findings: { type: 'array' },
+          implicitSignals: { type: 'object' },
+          aggregate: { type: 'object' },
+          policyEnforcement: { type: 'object' },
+          exitReason: { type: 'string' },
+          events: { type: 'array' },
+          costSummary: { type: 'object' },
+          observations: { type: 'object' },
+        },
+        required: ['report', 'findings', 'implicitSignals', 'aggregate', 'policyEnforcement', 'exitReason', 'events'],
+        additionalProperties: true,
+      },
+      requiredCapabilities: [],
+      execute: async (input) => {
+        const { createPatrolProcessConstruction } = await import('./processes/patrol_process.js');
+        return createPatrolProcessConstruction().execute(input as PatrolInput);
       },
     },
   ];

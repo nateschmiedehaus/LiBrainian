@@ -79,6 +79,14 @@ describe('default construction registry', () => {
     expect(filtered.some((manifest) => manifest.id === 'librainian:security-audit-helper')).toBe(true);
   });
 
+  it('registers patrol-process as an executable official construction', () => {
+    const manifest = getConstructionManifest('librainian:patrol-process');
+    expect(manifest).toBeTruthy();
+    expect(manifest?.scope).toBe('@librainian');
+    expect(manifest?.available).toBe(true);
+    expect(manifest?.description).toMatch(/patrol/i);
+  });
+
   it('auto-registers generated constructions created via createConstruction', async () => {
     const construction = createConstruction(
       'registry-auto-generated-test',
