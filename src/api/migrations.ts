@@ -95,6 +95,14 @@ const resolveBackupDir = (workspaceRoot: string, fromVersion: number): string =>
   path.join(workspaceRoot, `${BACKUP_DIR_PREFIX}${fromVersion}.${Date.now()}.${randomUUID()}`);
 const hasMetadataTable = (db: Database.Database): boolean => Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librarian_metadata'").get());
 const hashSql = (sql: string): string => createHash('sha256').update(sql).digest('hex');
+type CopyDirectoryFn = typeof fs.cp;
+const defaultCopyDirectory: CopyDirectoryFn = (src, dest, options) => fs.cp(src, dest, options);
+let backupCopyDirectory: CopyDirectoryFn = defaultCopyDirectory;
+
+export function __setMigrationBackupCopyForTests(copyFn: CopyDirectoryFn | null): void {
+  backupCopyDirectory = copyFn ?? defaultCopyDirectory;
+}
+
 const loadMigrationSql = async (file: string): Promise<string> => {
   if (file.startsWith('inline:')) {
     const key = file.slice('inline:'.length);
@@ -155,6 +163,18 @@ async function pruneMigrationBackups(workspaceRoot: string, keep = MAX_MIGRATION
   }
 }
 
+function isVolatileSqliteSidecar(srcPath: string): boolean {
+  const base = path.basename(srcPath);
+  return base === 'librarian.sqlite-shm' || base === 'librarian.sqlite-wal';
+}
+
+function isTransientBackupCopyError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code !== 'ENOENT') return false;
+  return error.message.includes('librarian.sqlite-shm') || error.message.includes('librarian.sqlite-wal');
+}
+
 async function backupLibrarianState(workspaceRoot: string, fromVersion: number): Promise<string | null> {
   const librarianDir = path.join(workspaceRoot, '.librarian');
   try {
@@ -164,7 +184,17 @@ async function backupLibrarianState(workspaceRoot: string, fromVersion: number):
     return noResult();
   }
   const backupDir = resolveBackupDir(workspaceRoot, fromVersion);
-  await fs.cp(librarianDir, backupDir, { recursive: true, force: false, errorOnExist: true });
+  try {
+    await backupCopyDirectory(librarianDir, backupDir, { recursive: true, force: false, errorOnExist: true });
+  } catch (error) {
+    if (!isTransientBackupCopyError(error)) throw error;
+    await backupCopyDirectory(librarianDir, backupDir, {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+      filter: (src) => !isVolatileSqliteSidecar(src),
+    });
+  }
   await pruneMigrationBackups(workspaceRoot);
   return backupDir;
 }
