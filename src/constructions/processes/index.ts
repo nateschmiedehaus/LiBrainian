@@ -206,6 +206,14 @@ export {
 } from './hallucinated_api_detector.js';
 
 export {
+  createPerformanceRegressionSensorConstruction,
+  type ComplexityClass,
+  type PerformanceSensorInput,
+  type ComplexityAnalysis,
+  type PerformanceSensorOutput,
+} from './performance_regression_sensor.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

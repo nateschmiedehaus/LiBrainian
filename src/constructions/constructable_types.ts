@@ -196,6 +196,7 @@ export type ConstructableId =
   | 'intent-behavior-coherence-checker'
   | 'semantic-duplicate-detector'
   | 'hallucinated-api-detector'
+  | 'performance-regression-sensor'
   | 'regression-detector'
   | 'onboarding-assistant'
   | 'release-qualification'

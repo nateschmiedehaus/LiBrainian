@@ -262,6 +262,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'quality', 'dependencies', 'agentic'],
   },
   {
+    id: 'performance-regression-sensor',
+    basePriority: 86,
+    isCore: true,
+    availability: READY,
+    description: 'Detects asymptotic complexity regressions and escalates hot-path performance risk before commit',
+    motivation: 'Catch O-notation regressions early using code + diff + call-graph context so scaling failures never reach production.',
+    tags: ['core', 'process', 'preset', 'performance', 'quality', 'agentic'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

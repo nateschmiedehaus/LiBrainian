@@ -98,6 +98,7 @@ describe('default construction registry', () => {
       'librainian:intent-behavior-coherence-checker',
       'librainian:semantic-duplicate-detector',
       'librainian:hallucinated-api-detector',
+      'librainian:performance-regression-sensor',
       'librainian:regression-detector',
       'librainian:onboarding-assistant',
       'librainian:release-qualification',

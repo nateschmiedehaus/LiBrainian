@@ -12,6 +12,7 @@ import type { DiffSummarizerInput } from './processes/diff_semantic_summarizer.j
 import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_coherence_checker.js';
 import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
 import type { APIDetectorInput } from './processes/hallucinated_api_detector.js';
+import type { PerformanceSensorInput } from './processes/performance_regression_sensor.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
   type CapabilityId,
@@ -577,6 +578,30 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const PERFORMANCE_REGRESSION_SENSOR_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      targets: { type: 'array', items: { type: 'string' } },
+      diff: { type: 'string' },
+      inputSizeHints: { type: 'object' },
+      hotPathsOnly: { type: 'boolean' },
+    },
+    required: ['targets'],
+    additionalProperties: false,
+  };
+
+  const PERFORMANCE_REGRESSION_SENSOR_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      analyses: { type: 'array' },
+      regressions: { type: 'array' },
+      hotPathRegressions: { type: 'array' },
+      agentSummary: { type: 'string' },
+    },
+    required: ['analyses', 'regressions', 'hotPathRegressions', 'agentSummary'],
+    additionalProperties: true,
+  };
+
   const core: Array<{
     id: ConstructionId;
     inputSchema: ConstructionSchema;
@@ -958,6 +983,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createHallucinatedApiDetectorConstruction } = await import('./processes/hallucinated_api_detector.js');
         return createHallucinatedApiDetectorConstruction().execute(input as APIDetectorInput, context);
+      },
+    },
+    {
+      id: 'librainian:performance-regression-sensor',
+      inputSchema: PERFORMANCE_REGRESSION_SENSOR_INPUT_SCHEMA,
+      outputSchema: PERFORMANCE_REGRESSION_SENSOR_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createPerformanceRegressionSensorConstruction } = await import('./processes/performance_regression_sensor.js');
+        return createPerformanceRegressionSensorConstruction().execute(input as PerformanceSensorInput, context);
       },
     },
     {
