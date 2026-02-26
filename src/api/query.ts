@@ -1793,119 +1793,127 @@ export async function queryLibrarian(
       inferredRationaleHint = `Inferred rationale: ${rationaleResult.inferredRationale}. Consider adding an ADR for explicit documentation.`;
     }
   }
-  // Handle refactoring safety queries - analyze impact of changes
-  // Check both pattern match AND construction enablement
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(
-      queryClassification?.isRefactoringSafetyQuery &&
-      queryClassification.refactoringTarget &&
-      isConstructionEnabled('refactoring-safety-checker', query.enabledConstructables)
-    ),
-    execute: () => runRefactoringSafetyStage({
-      storage,
-      target: queryClassification!.refactoringTarget!,
-      intent: query.intent ?? '',
-      version,
-    }),
-  });
-  // Handle bug investigation queries - debug errors and trace issues
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(
-      queryClassification?.isBugInvestigationQuery &&
-      isConstructionEnabled('bug-investigation-assistant', query.enabledConstructables)
-    ),
-    execute: () => runBugInvestigationStage({
-      storage,
-      intent: query.intent ?? '',
-      bugContext: queryClassification?.bugContext,
-      version,
-    }),
-  });
-  // Handle security audit queries - find vulnerabilities
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(
-      queryClassification?.isSecurityAuditQuery &&
-      isConstructionEnabled('security-audit-helper', query.enabledConstructables)
-    ),
-    execute: () => runSecurityAuditStage({
-      storage,
-      intent: query.intent ?? '',
-      checkTypes: queryClassification?.securityCheckTypes,
-      version,
-      workspaceRoot,
-    }),
-  });
-  // Handle architecture verification queries - check layer/boundary compliance
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(
-      queryClassification?.isArchitectureVerificationQuery &&
-      isConstructionEnabled('architecture-verifier', query.enabledConstructables)
-    ),
-    execute: () => runArchitectureVerificationStage({
-      storage,
-      intent: query.intent ?? '',
-      version,
-      workspaceRoot,
-    }),
-  });
-  // Handle code quality queries - analyze complexity, duplication, smells
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(
-      queryClassification?.isCodeQualityQuery &&
-      isConstructionEnabled('code-quality-reporter', query.enabledConstructables)
-    ),
-    execute: () => runCodeQualityStage({
-      storage,
-      intent: query.intent ?? '',
-      version,
-      workspaceRoot,
-    }),
-  });
-  // Handle feature location queries - find where features are implemented
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(
-      queryClassification?.isFeatureLocationQuery &&
-      queryClassification.featureTarget &&
-      isConstructionEnabled('feature-location-advisor', query.enabledConstructables)
-    ),
-    execute: () => runFeatureLocationStage({
-      storage,
-      intent: query.intent ?? '',
-      featureTarget: queryClassification!.featureTarget!,
-      version,
-    }),
-  });
-  // Handle refactoring opportunities queries - find code that should be refactored
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(queryClassification?.isRefactoringOpportunitiesQuery),
-    execute: () => runRefactoringOpportunitiesStage({
-      storage,
-      intent: query.intent ?? '',
-      version,
-      workspaceRoot,
-    }),
-  });
-  // Handle dependency management queries - analyze packages, find unused, outdated, etc.
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(queryClassification?.isDependencyManagementQuery),
-    execute: () => runDependencyManagementStage({
-      storage,
-      intent: query.intent ?? '',
-      version,
-      workspaceRoot,
-      action: queryClassification?.dependencyAction,
-    }),
-  });
-  // Handle decision support queries - help agents make technical choices
-  await runSpecializedAnalyzedStage({
-    enabled: Boolean(queryClassification?.isDecisionSupportQuery),
-    execute: () => runDecisionSupportStage({
-      storage,
-      intent: query.intent ?? '',
-      version,
-      workspaceRoot,
-    }),
-  });
+  const specializedStageConfigs: Array<{
+    enabled: boolean;
+    execute: () => Promise<SpecializedStageResult>;
+  }> = [
+    // Handle refactoring safety queries - analyze impact of changes
+    // Check both pattern match AND construction enablement
+    {
+      enabled: Boolean(
+        queryClassification?.isRefactoringSafetyQuery &&
+        queryClassification.refactoringTarget &&
+        isConstructionEnabled('refactoring-safety-checker', query.enabledConstructables)
+      ),
+      execute: () => runRefactoringSafetyStage({
+        storage,
+        target: queryClassification!.refactoringTarget!,
+        intent: query.intent ?? '',
+        version,
+      }),
+    },
+    // Handle bug investigation queries - debug errors and trace issues
+    {
+      enabled: Boolean(
+        queryClassification?.isBugInvestigationQuery &&
+        isConstructionEnabled('bug-investigation-assistant', query.enabledConstructables)
+      ),
+      execute: () => runBugInvestigationStage({
+        storage,
+        intent: query.intent ?? '',
+        bugContext: queryClassification?.bugContext,
+        version,
+      }),
+    },
+    // Handle security audit queries - find vulnerabilities
+    {
+      enabled: Boolean(
+        queryClassification?.isSecurityAuditQuery &&
+        isConstructionEnabled('security-audit-helper', query.enabledConstructables)
+      ),
+      execute: () => runSecurityAuditStage({
+        storage,
+        intent: query.intent ?? '',
+        checkTypes: queryClassification?.securityCheckTypes,
+        version,
+        workspaceRoot,
+      }),
+    },
+    // Handle architecture verification queries - check layer/boundary compliance
+    {
+      enabled: Boolean(
+        queryClassification?.isArchitectureVerificationQuery &&
+        isConstructionEnabled('architecture-verifier', query.enabledConstructables)
+      ),
+      execute: () => runArchitectureVerificationStage({
+        storage,
+        intent: query.intent ?? '',
+        version,
+        workspaceRoot,
+      }),
+    },
+    // Handle code quality queries - analyze complexity, duplication, smells
+    {
+      enabled: Boolean(
+        queryClassification?.isCodeQualityQuery &&
+        isConstructionEnabled('code-quality-reporter', query.enabledConstructables)
+      ),
+      execute: () => runCodeQualityStage({
+        storage,
+        intent: query.intent ?? '',
+        version,
+        workspaceRoot,
+      }),
+    },
+    // Handle feature location queries - find where features are implemented
+    {
+      enabled: Boolean(
+        queryClassification?.isFeatureLocationQuery &&
+        queryClassification.featureTarget &&
+        isConstructionEnabled('feature-location-advisor', query.enabledConstructables)
+      ),
+      execute: () => runFeatureLocationStage({
+        storage,
+        intent: query.intent ?? '',
+        featureTarget: queryClassification!.featureTarget!,
+        version,
+      }),
+    },
+    // Handle refactoring opportunities queries - find code that should be refactored
+    {
+      enabled: Boolean(queryClassification?.isRefactoringOpportunitiesQuery),
+      execute: () => runRefactoringOpportunitiesStage({
+        storage,
+        intent: query.intent ?? '',
+        version,
+        workspaceRoot,
+      }),
+    },
+    // Handle dependency management queries - analyze packages, find unused, outdated, etc.
+    {
+      enabled: Boolean(queryClassification?.isDependencyManagementQuery),
+      execute: () => runDependencyManagementStage({
+        storage,
+        intent: query.intent ?? '',
+        version,
+        workspaceRoot,
+        action: queryClassification?.dependencyAction,
+      }),
+    },
+    // Handle decision support queries - help agents make technical choices
+    {
+      enabled: Boolean(queryClassification?.isDecisionSupportQuery),
+      execute: () => runDecisionSupportStage({
+        storage,
+        intent: query.intent ?? '',
+        version,
+        workspaceRoot,
+      }),
+    },
+  ];
+  for (const stage of specializedStageConfigs) {
+    await runSpecializedAnalyzedStage(stage);
+  }
   // Add explanation for definition query routing
   if (queryClassification?.isDefinitionQuery) {
     explanationParts.push('Definition query detected: boosted interface/type declarations over implementations.');
