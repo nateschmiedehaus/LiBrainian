@@ -1273,6 +1273,38 @@ export async function queryLibrarian(
   });
   let cacheHit = directStageResult.cacheHit;
   let directPacks = directStageResult.directPacks;
+  const finalizeEarlyShortCircuit = async (
+    packs: ContextPack[],
+    options: { totalConfidence?: number; drillDownHints?: string[] } = {}
+  ): Promise<LibrarianResponse> => {
+    const calibration = await getConfidenceCalibration(storage);
+    const calibratedPacks = applyCalibrationToPacks(packs, calibration);
+    const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
+    const response = buildShortCircuitCachedResponse({
+      query,
+      packs: calibratedPacks,
+      disclosures,
+      traceId,
+      constructionPlan,
+      calibration,
+      explanation: explanationParts.join(' '),
+      latencyMs,
+      version,
+      totalConfidence: options.totalConfidence,
+      drillDownHints: options.drillDownHints,
+    });
+
+    try {
+      await recordQueryEpisode(storage, { query, response, durationMs: latencyMs });
+    } catch {
+      // Non-blocking: continue even if episode recording fails
+    }
+
+    void globalEventBus.emit(
+      createQueryCompleteEvent(queryId, calibratedPacks.length, false, latencyMs, traceSessionId)
+    );
+    return response;
+  };
 
   // TEST CORRELATION STAGE: Find test files through deterministic path matching
   // This runs before semantic retrieval to provide reliable test file results
@@ -1312,33 +1344,7 @@ export async function queryLibrarian(
   if (symbolLookupResult.shouldShortCircuit && symbolLookupResult.symbolPacks.length > 0) {
     // Direct symbol match found - return immediately with high confidence
     explanationParts.push(symbolLookupResult.explanation);
-    const symbolPacks = symbolLookupResult.symbolPacks;
-
-    // Apply calibration to symbol packs
-    const calibration = await getConfidenceCalibration(storage);
-    const calibratedPacks = applyCalibrationToPacks(symbolPacks, calibration);
-
-    const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-    const response = buildShortCircuitCachedResponse({
-      query,
-      packs: calibratedPacks,
-      disclosures,
-      traceId,
-      constructionPlan,
-      calibration,
-      explanation: explanationParts.join(' '),
-      latencyMs,
-      version,
-    });
-
-    // Record query episode for symbol lookup
-    try {
-      await recordQueryEpisode(storage, { query, response, durationMs: latencyMs });
-    } catch (error) {
-      // Non-blocking: continue even if episode recording fails
-    }
-
-    void globalEventBus.emit(createQueryCompleteEvent(queryId, calibratedPacks.length, false, latencyMs, traceSessionId));
+    const response = await finalizeEarlyShortCircuit(symbolLookupResult.symbolPacks);
     return response;
   } else if (symbolLookupResult.isSymbolQuery && symbolLookupResult.symbolPacks.length > 0) {
     // Fuzzy symbol match - add to direct packs but continue with semantic search
@@ -1357,33 +1363,7 @@ export async function queryLibrarian(
   if (gitQueryResult.isGitQuery && gitQueryResult.shouldShortCircuit && gitQueryResult.gitPacks.length > 0) {
     // High-confidence git query with results - return immediately
     explanationParts.push(gitQueryResult.explanation);
-    const gitPacks = gitQueryResult.gitPacks;
-
-    // Apply calibration to git packs
-    const calibration = await getConfidenceCalibration(storage);
-    const calibratedPacks = applyCalibrationToPacks(gitPacks, calibration);
-
-    const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-    const response = buildShortCircuitCachedResponse({
-      query,
-      packs: calibratedPacks,
-      disclosures,
-      traceId,
-      constructionPlan,
-      calibration,
-      explanation: explanationParts.join(' '),
-      latencyMs,
-      version,
-    });
-
-    // Record query episode for git query
-    try {
-      await recordQueryEpisode(storage, { query, response, durationMs: latencyMs });
-    } catch (error) {
-      // Non-blocking: continue even if episode recording fails
-    }
-
-    void globalEventBus.emit(createQueryCompleteEvent(queryId, calibratedPacks.length, false, latencyMs, traceSessionId));
+    const response = await finalizeEarlyShortCircuit(gitQueryResult.gitPacks);
     return response;
   } else if (gitQueryResult.isGitQuery && gitQueryResult.gitPacks.length > 0) {
     // Git query detected but with lower confidence - add git packs and continue
@@ -1427,35 +1407,10 @@ export async function queryLibrarian(
           invalidationTriggers: [entity.filePath],
         }));
 
-        // Apply calibration to enumeration packs
-        const calibration = await getConfidenceCalibration(storage);
-        const calibratedPacks = applyCalibrationToPacks(enumPacks, calibration);
-
-        const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-
         explanationParts.push(enumResult.explanation);
         explanationParts.push(`Enumeration query detected (${enumIntent.queryType}). ${formatEnumerationResult(enumResult).split('\n').slice(0, 3).join(' ')}`);
 
-        const response = buildShortCircuitCachedResponse({
-          query,
-          packs: calibratedPacks,
-          disclosures,
-          traceId,
-          constructionPlan,
-          calibration,
-          explanation: explanationParts.join(' '),
-          latencyMs,
-          version,
-        });
-
-        // Record query episode for enumeration
-        try {
-          await recordQueryEpisode(storage, { query, response, durationMs: latencyMs });
-        } catch {
-          // Non-blocking: continue even if episode recording fails
-        }
-
-        void globalEventBus.emit(createQueryCompleteEvent(queryId, calibratedPacks.length, false, latencyMs, traceSessionId));
+        const response = await finalizeEarlyShortCircuit(enumPacks);
         return response;
       }
     } catch {
@@ -1503,39 +1458,13 @@ export async function queryLibrarian(
           invalidationTriggers: callFlowResult.sequence.map(n => n.file),
         };
 
-        // Apply calibration to call flow pack
-        const calibration = await getConfidenceCalibration(storage);
-        const calibratedPacks = applyCalibrationToPacks([callFlowPack], calibration);
-
-        const totalConfidence = calibratedPacks[0]?.confidence ?? 0.9;
-        const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-
         explanationParts.push(`Call flow query detected. ${callFlowResult.summary}`);
 
-        const response = buildShortCircuitCachedResponse({
-          query,
-          packs: calibratedPacks,
-          disclosures,
-          traceId,
-          constructionPlan,
-          calibration,
-          explanation: explanationParts.join(' '),
-          latencyMs,
-          version,
-          totalConfidence,
+        const response = await finalizeEarlyShortCircuit([callFlowPack], {
           drillDownHints: callFlowResult.sequence.length > 5
             ? [`Explore deeper: "call flow for ${callFlowResult.sequence[1]?.function}"`]
             : [],
         });
-
-        // Record query episode for call flow
-        try {
-          await recordQueryEpisode(storage, { query, response, durationMs: latencyMs });
-        } catch {
-          // Non-blocking: continue even if episode recording fails
-        }
-
-        void globalEventBus.emit(createQueryCompleteEvent(queryId, calibratedPacks.length, false, latencyMs, traceSessionId));
         return response;
       } else {
         // No call flow found - add explanation and continue
@@ -1560,32 +1489,7 @@ export async function queryLibrarian(
 
     // Combine comparison pack with entity packs for full context
     const allPacks = [comparisonLookupResult.comparisonPack, ...comparisonLookupResult.entityPacks];
-
-    // Apply calibration to comparison packs
-    const calibration = await getConfidenceCalibration(storage);
-    const calibratedPacks = applyCalibrationToPacks(allPacks, calibration);
-
-    const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-    const response = buildShortCircuitCachedResponse({
-      query,
-      packs: calibratedPacks,
-      disclosures,
-      traceId,
-      constructionPlan,
-      calibration,
-      explanation: explanationParts.join(' '),
-      latencyMs,
-      version,
-    });
-
-    // Record query episode for comparison lookup
-    try {
-      await recordQueryEpisode(storage, { query, response, durationMs: latencyMs });
-    } catch (error) {
-      // Non-blocking: continue even if episode recording fails
-    }
-
-    void globalEventBus.emit(createQueryCompleteEvent(queryId, calibratedPacks.length, false, latencyMs, traceSessionId));
+    const response = await finalizeEarlyShortCircuit(allPacks);
     return response;
   } else if (comparisonLookupResult.isComparisonQuery && comparisonLookupResult.comparisonPack) {
     // Partial comparison match - add to direct packs but continue with semantic search
