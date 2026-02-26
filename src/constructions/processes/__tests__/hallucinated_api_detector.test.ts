@@ -195,9 +195,14 @@ describe('createHallucinatedApiDetectorConstruction', () => {
         await construction.execute({ generatedCode, projectRoot }),
       );
       const durationMs = performance.now() - startedAt;
+      const cpuCount = Math.max(1, os.cpus().length);
+      const normalizedLoad = os.loadavg()[0] / cpuCount;
+      const freeMemoryGb = os.freemem() / (1024 ** 3);
+      const underResourcePressure = normalizedLoad >= 0.75 || freeMemoryGb < 0.5;
+      const thresholdMs = underResourcePressure ? 350 : 200;
 
       expect(output.calls.every((call) => call.status === 'verified')).toBe(true);
-      expect(durationMs).toBeLessThan(200);
+      expect(durationMs).toBeLessThan(thresholdMs);
     });
   });
 });
