@@ -1281,9 +1281,13 @@ export async function queryLibrarian(
   });
   let cacheHit = directStageResult.cacheHit;
   let directPacks = directStageResult.directPacks;
+  type DirectPackResponseOptions = {
+    totalConfidence?: number;
+    drillDownHints?: string[];
+  };
   const finalizeEarlyShortCircuit = async (
     packs: ContextPack[],
-    options: { totalConfidence?: number; drillDownHints?: string[] } = {}
+    options: DirectPackResponseOptions = {}
   ): Promise<LibrarianResponse> => {
     const calibration = await getConfidenceCalibration(storage);
     const calibratedPacks = applyCalibrationToPacks(packs, calibration);
@@ -1318,16 +1322,20 @@ export async function queryLibrarian(
       shouldShortCircuit: boolean;
       shouldMerge: boolean;
       packs: ContextPack[];
-      explanation: string;
+      explanation: string | string[];
+      responseOptions?: DirectPackResponseOptions;
     }
   ): Promise<LibrarianResponse | null> => {
+    const explanationMessages = Array.isArray(stage.explanation)
+      ? stage.explanation.filter(message => message.length > 0)
+      : [stage.explanation];
     if (stage.shouldShortCircuit && stage.packs.length > 0) {
-      explanationParts.push(stage.explanation);
-      return finalizeEarlyShortCircuit(stage.packs);
+      explanationParts.push(...explanationMessages);
+      return finalizeEarlyShortCircuit(stage.packs, stage.responseOptions);
     }
     if (stage.shouldMerge && stage.packs.length > 0) {
       directPacks = [...stage.packs, ...directPacks];
-      explanationParts.push(stage.explanation);
+      explanationParts.push(...explanationMessages);
     }
     return null;
   };
@@ -1431,11 +1439,18 @@ export async function queryLibrarian(
           invalidationTriggers: [entity.filePath],
         }));
 
-        explanationParts.push(enumResult.explanation);
-        explanationParts.push(`Enumeration query detected (${enumIntent.queryType}). ${formatEnumerationResult(enumResult).split('\n').slice(0, 3).join(' ')}`);
-
-        const response = await finalizeEarlyShortCircuit(enumPacks);
-        return response;
+        const enumerationStageResponse = await applyDirectPackStage({
+          shouldShortCircuit: true,
+          shouldMerge: false,
+          packs: enumPacks,
+          explanation: [
+            enumResult.explanation,
+            `Enumeration query detected (${enumIntent.queryType}). ${formatEnumerationResult(enumResult).split('\n').slice(0, 3).join(' ')}`,
+          ],
+        });
+        if (enumerationStageResponse) {
+          return enumerationStageResponse;
+        }
       }
     } catch {
       // Enumeration failed - fall through to semantic search
@@ -1482,14 +1497,20 @@ export async function queryLibrarian(
           invalidationTriggers: callFlowResult.sequence.map(n => n.file),
         };
 
-        explanationParts.push(`Call flow query detected. ${callFlowResult.summary}`);
-
-        const response = await finalizeEarlyShortCircuit([callFlowPack], {
-          drillDownHints: callFlowResult.sequence.length > 5
-            ? [`Explore deeper: "call flow for ${callFlowResult.sequence[1]?.function}"`]
-            : [],
+        const callFlowStageResponse = await applyDirectPackStage({
+          shouldShortCircuit: true,
+          shouldMerge: false,
+          packs: [callFlowPack],
+          explanation: `Call flow query detected. ${callFlowResult.summary}`,
+          responseOptions: {
+            drillDownHints: callFlowResult.sequence.length > 5
+              ? [`Explore deeper: "call flow for ${callFlowResult.sequence[1]?.function}"`]
+              : [],
+          },
         });
-        return response;
+        if (callFlowStageResponse) {
+          return callFlowStageResponse;
+        }
       } else {
         // No call flow found - add explanation and continue
         explanationParts.push(`Call flow query for "${callFlowDetection.entry}" found no results. Falling back to semantic search.`);
