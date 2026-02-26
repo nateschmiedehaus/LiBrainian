@@ -198,6 +198,8 @@ export type ConstructableId =
   | 'semantic-duplicate-detector'
   | 'hallucinated-api-detector'
   | 'performance-regression-sensor'
+  | 'impact-aware-test-sequence-planner'
+  | 'dogfood-autolearner'
   | 'regression-detector'
   | 'onboarding-assistant'
   | 'agent-handoff-package'

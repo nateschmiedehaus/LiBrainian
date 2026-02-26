@@ -280,6 +280,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'performance', 'quality', 'agentic'],
   },
   {
+    id: 'impact-aware-test-sequence-planner',
+    basePriority: 87,
+    isCore: true,
+    availability: READY,
+    description: 'Plans an impact-aware and intent-aware test sequence with explicit fallback escalation policy',
+    motivation: 'Reduce bulky test runs by selecting the smallest reliable verification path first, then escalating only when confidence or outcomes demand it.',
+    tags: ['core', 'process', 'preset', 'testing', 'evaluation', 'agentic'],
+  },
+  {
     id: 'dogfood-autolearner',
     basePriority: 88,
     isCore: true,

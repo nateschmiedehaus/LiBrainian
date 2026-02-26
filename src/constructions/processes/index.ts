@@ -224,6 +224,17 @@ export {
 } from './performance_regression_sensor.js';
 
 export {
+  createImpactAwareTestSequencePlannerConstruction,
+  type PlannedTestStage,
+  type PlannedTestKind,
+  type ImpactAwareTestSequencePlannerInput,
+  type PlannedTestSelection,
+  type PlannedTestGroup,
+  type PlannerEscalationPolicy,
+  type ImpactAwareTestSequencePlannerOutput,
+} from './impact_aware_test_sequence_planner.js';
+
+export {
   createDogfoodAutoLearnerConstruction,
   type DogfoodRecommendation,
   type DogfoodOwnerSurface,

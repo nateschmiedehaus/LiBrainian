@@ -14,6 +14,7 @@ import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_c
 import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
 import type { APIDetectorInput } from './processes/hallucinated_api_detector.js';
 import type { PerformanceSensorInput } from './processes/performance_regression_sensor.js';
+import type { ImpactAwareTestSequencePlannerInput } from './processes/impact_aware_test_sequence_planner.js';
 import type { DogfoodAutoLearnerInput } from './processes/dogfood_autolearner.js';
 import type { AgentHandoffPackageInput } from './processes/agent_handoff_package_construction.js';
 import {
@@ -632,6 +633,48 @@ function activateCoreConstructions(): void {
     additionalProperties: true,
   };
 
+  const IMPACT_AWARE_TEST_SEQUENCE_PLANNER_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      intent: { type: 'string' },
+      changedFiles: { type: 'array', items: { type: 'string' } },
+      changedFunctions: { type: 'array', items: { type: 'string' } },
+      diff: { type: 'string' },
+      availableTests: { type: 'array', items: { type: 'string' } },
+      workspaceRoot: { type: 'string' },
+      maxInitialTests: { type: 'number' },
+      includeFallbackSuite: { type: 'boolean' },
+      fallbackCommand: { type: 'string' },
+      confidenceThresholdForFallback: { type: 'number' },
+    },
+    additionalProperties: false,
+  };
+
+  const IMPACT_AWARE_TEST_SEQUENCE_PLANNER_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      groups: { type: 'array' },
+      selectedTests: { type: 'array' },
+      skippedTests: { type: 'array' },
+      impactedFiles: { type: 'array' },
+      impactedSymbols: { type: 'array' },
+      confidence: { type: 'number' },
+      escalationPolicy: { type: 'object' },
+      agentSummary: { type: 'string' },
+    },
+    required: [
+      'groups',
+      'selectedTests',
+      'skippedTests',
+      'impactedFiles',
+      'impactedSymbols',
+      'confidence',
+      'escalationPolicy',
+      'agentSummary',
+    ],
+    additionalProperties: true,
+  };
+
   const DOGFOOD_AUTOLEARNER_INPUT_SCHEMA: ConstructionSchema = {
     type: 'object',
     properties: {
@@ -1117,6 +1160,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createPerformanceRegressionSensorConstruction } = await import('./processes/performance_regression_sensor.js');
         return createPerformanceRegressionSensorConstruction().execute(input as PerformanceSensorInput, context);
+      },
+    },
+    {
+      id: 'librainian:impact-aware-test-sequence-planner',
+      inputSchema: IMPACT_AWARE_TEST_SEQUENCE_PLANNER_INPUT_SCHEMA,
+      outputSchema: IMPACT_AWARE_TEST_SEQUENCE_PLANNER_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createImpactAwareTestSequencePlannerConstruction } = await import('./processes/impact_aware_test_sequence_planner.js');
+        return createImpactAwareTestSequencePlannerConstruction().execute(input as ImpactAwareTestSequencePlannerInput, context);
       },
     },
     {

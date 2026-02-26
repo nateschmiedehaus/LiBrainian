@@ -1,0 +1,2 @@
+task_id,task_label,baseline_runtime_sec,planner_runtime_sec,runtime_reduction_pct,baseline_passed,planner_passed,notes
+issue_838_impl,auth_session_logout_pilot,NA,NA,NA,true,true,"Pilot artifact only; full >=15-task matrix pending"
