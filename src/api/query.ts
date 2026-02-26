@@ -250,6 +250,7 @@ import {
 } from './query_semantic_cache_utils.js';
 import { type CachedResponse } from './query_cache_response_utils.js';
 import { hydrateCachedQueryResponse } from './query_cache_hydration.js';
+import { buildShortCircuitCachedResponse } from './query_short_circuit_response.js';
 import {
   getQueryCache,
   setCachedQuery,
@@ -1317,28 +1318,18 @@ export async function queryLibrarian(
     const calibration = await getConfidenceCalibration(storage);
     const calibratedPacks = applyCalibrationToPacks(symbolPacks, calibration);
 
-    // Build response directly - skip semantic search stages
-    const totalConfidence = calibratedPacks.length
-      ? Math.exp(calibratedPacks.reduce((sum, p) => sum + Math.log(Math.max(0.01, p.confidence)), 0) / calibratedPacks.length)
-      : 0;
     const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-
-    const response = {
+    const response = buildShortCircuitCachedResponse({
       query,
       packs: calibratedPacks,
       disclosures,
       traceId,
       constructionPlan,
-      totalConfidence,
-      calibration: summarizeCalibration(calibration),
-      uncertainty: computeUncertaintyMetrics(totalConfidence),
-      cacheHit: false,
+      calibration,
+      explanation: explanationParts.join(' '),
       latencyMs,
       version,
-      drillDownHints: [] as string[],
-      explanation: explanationParts.join(' '),
-      coverageGaps: [] as string[],
-    } as CachedResponse;
+    });
 
     // Record query episode for symbol lookup
     try {
@@ -1372,28 +1363,18 @@ export async function queryLibrarian(
     const calibration = await getConfidenceCalibration(storage);
     const calibratedPacks = applyCalibrationToPacks(gitPacks, calibration);
 
-    // Build response directly - skip semantic search stages
-    const totalConfidence = calibratedPacks.length
-      ? Math.exp(calibratedPacks.reduce((sum, p) => sum + Math.log(Math.max(0.01, p.confidence)), 0) / calibratedPacks.length)
-      : 0;
     const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-
-    const response = {
+    const response = buildShortCircuitCachedResponse({
       query,
       packs: calibratedPacks,
       disclosures,
       traceId,
       constructionPlan,
-      totalConfidence,
-      calibration: summarizeCalibration(calibration),
-      uncertainty: computeUncertaintyMetrics(totalConfidence),
-      cacheHit: false,
+      calibration,
+      explanation: explanationParts.join(' '),
       latencyMs,
       version,
-      drillDownHints: [] as string[],
-      explanation: explanationParts.join(' '),
-      coverageGaps: [] as string[],
-    } as CachedResponse;
+    });
 
     // Record query episode for git query
     try {
@@ -1450,31 +1431,22 @@ export async function queryLibrarian(
         const calibration = await getConfidenceCalibration(storage);
         const calibratedPacks = applyCalibrationToPacks(enumPacks, calibration);
 
-        // Build response with enumeration results
-        const totalConfidence = calibratedPacks.length
-          ? Math.exp(calibratedPacks.reduce((sum, p) => sum + Math.log(Math.max(0.01, p.confidence)), 0) / calibratedPacks.length)
-          : 0;
         const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
 
         explanationParts.push(enumResult.explanation);
         explanationParts.push(`Enumeration query detected (${enumIntent.queryType}). ${formatEnumerationResult(enumResult).split('\n').slice(0, 3).join(' ')}`);
 
-        const response = {
+        const response = buildShortCircuitCachedResponse({
           query,
           packs: calibratedPacks,
           disclosures,
           traceId,
           constructionPlan,
-          totalConfidence,
-          calibration: summarizeCalibration(calibration),
-          uncertainty: computeUncertaintyMetrics(totalConfidence),
-          cacheHit: false,
+          calibration,
+          explanation: explanationParts.join(' '),
           latencyMs,
           version,
-          drillDownHints: [] as string[],
-          explanation: explanationParts.join(' '),
-          coverageGaps: [] as string[],
-        } as CachedResponse;
+        });
 
         // Record query episode for enumeration
         try {
@@ -1535,30 +1507,26 @@ export async function queryLibrarian(
         const calibration = await getConfidenceCalibration(storage);
         const calibratedPacks = applyCalibrationToPacks([callFlowPack], calibration);
 
-        // Build response with call flow result
         const totalConfidence = calibratedPacks[0]?.confidence ?? 0.9;
         const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
 
         explanationParts.push(`Call flow query detected. ${callFlowResult.summary}`);
 
-        const response = {
+        const response = buildShortCircuitCachedResponse({
           query,
           packs: calibratedPacks,
           disclosures,
           traceId,
           constructionPlan,
-          totalConfidence,
-          calibration: summarizeCalibration(calibration),
-          uncertainty: computeUncertaintyMetrics(totalConfidence),
-          cacheHit: false,
+          calibration,
+          explanation: explanationParts.join(' '),
           latencyMs,
           version,
+          totalConfidence,
           drillDownHints: callFlowResult.sequence.length > 5
             ? [`Explore deeper: "call flow for ${callFlowResult.sequence[1]?.function}"`]
             : [],
-          explanation: explanationParts.join(' '),
-          coverageGaps: [] as string[],
-        } as CachedResponse;
+        });
 
         // Record query episode for call flow
         try {
@@ -1597,28 +1565,18 @@ export async function queryLibrarian(
     const calibration = await getConfidenceCalibration(storage);
     const calibratedPacks = applyCalibrationToPacks(allPacks, calibration);
 
-    // Build response directly - skip semantic search stages
-    const totalConfidence = calibratedPacks.length
-      ? Math.exp(calibratedPacks.reduce((sum, p) => sum + Math.log(Math.max(0.01, p.confidence)), 0) / calibratedPacks.length)
-      : 0;
     const latencyMs = deterministicCtx ? 0 : Date.now() - startTime;
-
-    const response = {
+    const response = buildShortCircuitCachedResponse({
       query,
       packs: calibratedPacks,
       disclosures,
       traceId,
       constructionPlan,
-      totalConfidence,
-      calibration: summarizeCalibration(calibration),
-      uncertainty: computeUncertaintyMetrics(totalConfidence),
-      cacheHit: false,
+      calibration,
+      explanation: explanationParts.join(' '),
       latencyMs,
       version,
-      drillDownHints: [] as string[],
-      explanation: explanationParts.join(' '),
-      coverageGaps: [] as string[],
-    } as CachedResponse;
+    });
 
     // Record query episode for comparison lookup
     try {
