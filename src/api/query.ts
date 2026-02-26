@@ -1690,6 +1690,17 @@ export async function queryLibrarian(
         (pack) => pack.packId
       )
     : ranked.packs;
+  const prependSpecializedPacks = (stage: {
+    shouldPrepend: boolean;
+    packs: ContextPack[];
+    explanation: string;
+  }): void => {
+    if (!stage.shouldPrepend || stage.packs.length === 0) {
+      return;
+    }
+    finalPacks = [...stage.packs, ...finalPacks];
+    explanationParts.push(stage.explanation);
+  };
   // Add explanation for meta-query routing
   if (queryClassification?.isMetaQuery) {
     explanationParts.push('Meta-query detected: boosted documentation in ranking.');
@@ -1706,11 +1717,12 @@ export async function queryLibrarian(
       storage,
       version,
     });
-    if (entryPointResult.found) {
-      // Prepend entry point packs for highest priority
-      finalPacks = [...entryPointResult.packs, ...finalPacks];
-      explanationParts.push(entryPointResult.explanation);
-    } else {
+    prependSpecializedPacks({
+      shouldPrepend: entryPointResult.found,
+      packs: entryPointResult.packs,
+      explanation: entryPointResult.explanation,
+    });
+    if (!entryPointResult.found) {
       explanationParts.push(entryPointResult.explanation);
     }
   }
@@ -1729,11 +1741,12 @@ export async function queryLibrarian(
       topic: queryClassification.whyQueryTopic,
       comparisonTopic: queryClassification.whyComparisonTopic,
     });
-    if (rationaleResult.found) {
-      // Prepend rationale packs for highest priority
-      finalPacks = [...rationaleResult.packs, ...finalPacks];
-      explanationParts.push(rationaleResult.explanation);
-    } else if (rationaleResult.inferredRationale) {
+    prependSpecializedPacks({
+      shouldPrepend: rationaleResult.found,
+      packs: rationaleResult.packs,
+      explanation: rationaleResult.explanation,
+    });
+    if (!rationaleResult.found && rationaleResult.inferredRationale) {
       // Create a pack for the inferred rationale so it surfaces in results
       const rationalePack: ContextPack = {
         packId: generateUUID('rat_'),
@@ -1771,11 +1784,11 @@ export async function queryLibrarian(
       intent: query.intent ?? '',
       version,
     });
-    if (refactoringSafetyResult.analyzed) {
-      // Prepend refactoring safety packs for highest priority
-      finalPacks = [...refactoringSafetyResult.packs, ...finalPacks];
-      explanationParts.push(refactoringSafetyResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: refactoringSafetyResult.analyzed,
+      packs: refactoringSafetyResult.packs,
+      explanation: refactoringSafetyResult.explanation,
+    });
   }
   // Handle bug investigation queries - debug errors and trace issues
   if (queryClassification?.isBugInvestigationQuery &&
@@ -1786,10 +1799,11 @@ export async function queryLibrarian(
       bugContext: queryClassification.bugContext,
       version,
     });
-    if (bugInvestigationResult.analyzed) {
-      finalPacks = [...bugInvestigationResult.packs, ...finalPacks];
-      explanationParts.push(bugInvestigationResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: bugInvestigationResult.analyzed,
+      packs: bugInvestigationResult.packs,
+      explanation: bugInvestigationResult.explanation,
+    });
   }
   // Handle security audit queries - find vulnerabilities
   if (queryClassification?.isSecurityAuditQuery &&
@@ -1801,10 +1815,11 @@ export async function queryLibrarian(
       version,
       workspaceRoot,
     });
-    if (securityAuditResult.analyzed) {
-      finalPacks = [...securityAuditResult.packs, ...finalPacks];
-      explanationParts.push(securityAuditResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: securityAuditResult.analyzed,
+      packs: securityAuditResult.packs,
+      explanation: securityAuditResult.explanation,
+    });
   }
   // Handle architecture verification queries - check layer/boundary compliance
   if (queryClassification?.isArchitectureVerificationQuery &&
@@ -1815,10 +1830,11 @@ export async function queryLibrarian(
       version,
       workspaceRoot,
     });
-    if (architectureResult.analyzed) {
-      finalPacks = [...architectureResult.packs, ...finalPacks];
-      explanationParts.push(architectureResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: architectureResult.analyzed,
+      packs: architectureResult.packs,
+      explanation: architectureResult.explanation,
+    });
   }
   // Handle code quality queries - analyze complexity, duplication, smells
   if (queryClassification?.isCodeQualityQuery &&
@@ -1829,10 +1845,11 @@ export async function queryLibrarian(
       version,
       workspaceRoot,
     });
-    if (codeQualityResult.analyzed) {
-      finalPacks = [...codeQualityResult.packs, ...finalPacks];
-      explanationParts.push(codeQualityResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: codeQualityResult.analyzed,
+      packs: codeQualityResult.packs,
+      explanation: codeQualityResult.explanation,
+    });
   }
   // Handle feature location queries - find where features are implemented
   if (queryClassification?.isFeatureLocationQuery && queryClassification.featureTarget &&
@@ -1843,10 +1860,11 @@ export async function queryLibrarian(
       featureTarget: queryClassification.featureTarget,
       version,
     });
-    if (featureLocationResult.analyzed) {
-      finalPacks = [...featureLocationResult.packs, ...finalPacks];
-      explanationParts.push(featureLocationResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: featureLocationResult.analyzed,
+      packs: featureLocationResult.packs,
+      explanation: featureLocationResult.explanation,
+    });
   }
   // Handle refactoring opportunities queries - find code that should be refactored
   if (queryClassification?.isRefactoringOpportunitiesQuery) {
@@ -1856,10 +1874,11 @@ export async function queryLibrarian(
       version,
       workspaceRoot,
     });
-    if (refactoringOpportunitiesResult.analyzed) {
-      finalPacks = [...refactoringOpportunitiesResult.packs, ...finalPacks];
-      explanationParts.push(refactoringOpportunitiesResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: refactoringOpportunitiesResult.analyzed,
+      packs: refactoringOpportunitiesResult.packs,
+      explanation: refactoringOpportunitiesResult.explanation,
+    });
   }
   // Handle dependency management queries - analyze packages, find unused, outdated, etc.
   if (queryClassification?.isDependencyManagementQuery) {
@@ -1870,10 +1889,11 @@ export async function queryLibrarian(
       workspaceRoot,
       action: queryClassification.dependencyAction,
     });
-    if (dependencyMgmtResult.analyzed) {
-      finalPacks = [...dependencyMgmtResult.packs, ...finalPacks];
-      explanationParts.push(dependencyMgmtResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: dependencyMgmtResult.analyzed,
+      packs: dependencyMgmtResult.packs,
+      explanation: dependencyMgmtResult.explanation,
+    });
   }
   // Handle decision support queries - help agents make technical choices
   if (queryClassification?.isDecisionSupportQuery) {
@@ -1883,10 +1903,11 @@ export async function queryLibrarian(
       version,
       workspaceRoot,
     });
-    if (decisionSupportResult.analyzed) {
-      finalPacks = [...decisionSupportResult.packs, ...finalPacks];
-      explanationParts.push(decisionSupportResult.explanation);
-    }
+    prependSpecializedPacks({
+      shouldPrepend: decisionSupportResult.analyzed,
+      packs: decisionSupportResult.packs,
+      explanation: decisionSupportResult.explanation,
+    });
   }
   // Add explanation for definition query routing
   if (queryClassification?.isDefinitionQuery) {
