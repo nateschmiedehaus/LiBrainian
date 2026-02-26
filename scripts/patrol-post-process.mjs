@@ -180,6 +180,9 @@ function buildIssueBody(finding, context = {}) {
   lines.push(`**Trust impact:** ${impact.trustImpact}`);
   lines.push('');
   lines.push(`**Scope:** Reproduced on ${finding.repos.join(', ')} (${finding.occurrenceCount} occurrence(s) across ${finding.repos.length} repo(s) in patrol runs)`);
+  if (Array.isArray(finding.transcripts) && finding.transcripts.length > 0) {
+    lines.push(`**Transcript evidence:** ${finding.transcripts.map((p) => `\`${p}\``).join(', ')}`);
+  }
   if (finding.effortEstimate) {
     lines.push(`**Estimated fix effort:** ${finding.effortEstimate}`);
   }
@@ -422,38 +425,136 @@ function createIssue(repo, finding, context = {}) {
 // ---------------------------------------------------------------------------
 // Finding aggregation
 // ---------------------------------------------------------------------------
+function upsertFinding(findingMap, finding, report, run) {
+  const existing = findingMap.get(finding.key);
+  const transcriptPath = run?.transcriptPath ? String(run.transcriptPath) : null;
+  if (existing) {
+    existing.occurrenceCount++;
+    if (run?.repo && !existing.repos.includes(run.repo)) existing.repos.push(run.repo);
+    if (finding.detail?.length > (existing.detail?.length ?? 0)) {
+      existing.detail = finding.detail;
+    }
+    if (!existing.suggestedFix && finding.suggestedFix) {
+      existing.suggestedFix = finding.suggestedFix;
+    }
+    if (transcriptPath && !(existing.transcripts ?? []).includes(transcriptPath)) {
+      existing.transcripts = [...(existing.transcripts ?? []), transcriptPath];
+    }
+    return;
+  }
+
+  findingMap.set(finding.key, {
+    ...finding,
+    repos: run?.repo ? [run.repo] : [],
+    firstSeen: report.createdAt,
+    occurrenceCount: 1,
+    transcripts: transcriptPath ? [transcriptPath] : [],
+  });
+}
+
+function buildRunFailureFinding(report, run) {
+  if (run.observations) return null;
+  const transcriptDetail = run.transcriptPath
+    ? ` Transcript: \`${run.transcriptPath}\`.`
+    : '';
+  const durationDetail = typeof run.durationMs === 'number'
+    ? ` Duration: ${run.durationMs}ms.`
+    : '';
+  const exitDetail = typeof run.agentExitCode === 'number'
+    ? ` Agent exit code: ${run.agentExitCode}.`
+    : '';
+
+  if (run.error) {
+    return {
+      key: 'runtime:patrol-run-execution-error',
+      category: 'reliability',
+      severity: report.mode === 'release' ? 'critical' : 'high',
+      title: 'Patrol run failed before producing observations',
+      detail: `Run on ${run.repo} (${run.task}) crashed with error: ${run.error}.${exitDetail}${durationDetail}${transcriptDetail}`,
+      reproducible: false,
+      suggestedFix:
+        'Stabilize patrol execution path and ensure every run emits a transcript plus synthetic finding even when agent dispatch fails.',
+    };
+  }
+
+  if (run.timedOut) {
+    return {
+      key: 'runtime:patrol-run-timeout-no-observation',
+      category: 'reliability',
+      severity: report.mode === 'release' ? 'critical' : 'high',
+      title: 'Patrol run timed out before producing observations',
+      detail: `Run on ${run.repo} (${run.task}) timed out before observation extraction.${exitDetail}${durationDetail}${transcriptDetail}`,
+      reproducible: true,
+      suggestedFix:
+        'Enforce bounded timeout recovery with progress heartbeat and emit fallback observation artifacts when timeout occurs.',
+    };
+  }
+
+  if (typeof run.agentExitCode === 'number' && run.agentExitCode !== 0) {
+    return {
+      key: 'runtime:patrol-run-nonzero-no-observation',
+      category: 'reliability',
+      severity: report.mode === 'release' ? 'critical' : 'high',
+      title: 'Patrol run exited non-zero without observations',
+      detail: `Run on ${run.repo} (${run.task}) exited non-zero with no extracted observations.${exitDetail}${durationDetail}${transcriptDetail}`,
+      reproducible: false,
+      suggestedFix:
+        'Improve agent dispatch failure handling and convert non-zero/no-observation runs into actionable synthetic findings.',
+    };
+  }
+
+  return {
+    key: 'quality:patrol-run-missing-observation',
+    category: 'process',
+    severity: report.mode === 'release' ? 'high' : 'medium',
+    title: 'Patrol run completed without structured observations',
+    detail: `Run on ${run.repo} (${run.task}) produced no extractable observation payload.${exitDetail}${durationDetail}${transcriptDetail}`,
+    reproducible: false,
+    suggestedFix:
+      'Require agents to emit incremental PATROL_OBS markers and preserve transcript evidence for post-run synthesis.',
+  };
+}
+
 function aggregateFindings(reports) {
   const findingMap = new Map();
 
   for (const report of reports) {
     for (const run of report.runs ?? []) {
-      if (!run.observations) continue;
-
-      for (const neg of run.observations.negativeFindingsMandatory ?? []) {
-        const key = `${slugify(neg.category)}:${slugify(neg.title)}`;
-        const existing = findingMap.get(key);
-        if (existing) {
-          existing.occurrenceCount++;
-          if (!existing.repos.includes(run.repo)) existing.repos.push(run.repo);
-          // Keep the more detailed entry
-          if (neg.detail?.length > (existing.detail?.length ?? 0)) {
-            existing.detail = neg.detail;
-          }
-        } else {
-          findingMap.set(key, {
-            key,
-            category: neg.category ?? 'other',
-            severity: neg.severity ?? 'medium',
-            title: neg.title ?? 'Untitled finding',
-            detail: neg.detail ?? '',
-            reproducible: neg.reproducible ?? false,
-            suggestedFix: neg.suggestedFix ?? '',
-            repos: [run.repo],
-            firstSeen: report.createdAt,
-            occurrenceCount: 1,
-          });
-        }
+      for (const neg of run.observations?.negativeFindingsMandatory ?? []) {
+        const finding = {
+          key: `${slugify(neg.category)}:${slugify(neg.title)}`,
+          category: neg.category ?? 'other',
+          severity: neg.severity ?? 'medium',
+          title: neg.title ?? 'Untitled finding',
+          detail: neg.detail ?? '',
+          reproducible: neg.reproducible ?? false,
+          suggestedFix: neg.suggestedFix ?? '',
+        };
+        upsertFinding(findingMap, finding, report, run);
       }
+
+      const runFailureFinding = buildRunFailureFinding(report, run);
+      if (runFailureFinding) {
+        upsertFinding(findingMap, runFailureFinding, report, run);
+      }
+    }
+
+    if (report.policy?.enforcement === 'blocked') {
+      upsertFinding(
+        findingMap,
+        {
+          key: 'policy:patrol-policy-gate-blocked',
+          category: 'policy',
+          severity: 'critical',
+          title: 'Patrol policy gate blocked evidence quality',
+          detail: `Patrol policy gate blocked run: ${report.policy.reason ?? 'unknown reason'}. Required=${report.policy.requiredEvidenceMode}, observed=${report.policy.observedEvidenceMode}.`,
+          reproducible: true,
+          suggestedFix:
+            'Fix underlying patrol evidence gaps before release; do not reclassify blocked policy outcomes as acceptable.',
+        },
+        report,
+        null,
+      );
     }
   }
 

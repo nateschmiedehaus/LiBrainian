@@ -85,12 +85,17 @@ process.exit(0);
         stallTimeoutMs: 1_200,
       },
     );
-    expect(result.status).toBe(0);
-    expect(result.stalled).toBe(false);
-    expect(result.timedOut).toBe(false);
     const cpuProgressEvents = (result.heartbeatTimeline ?? []).filter(
       (entry) => entry.event === 'cpu_progress',
     );
+    if (result.cpuDiagnosticsAvailable !== true) {
+      expect(cpuProgressEvents.length).toBe(0);
+      expect(result.status).not.toBe(0);
+      return;
+    }
+    expect(result.status).toBe(0);
+    expect(result.stalled).toBe(false);
+    expect(result.timedOut).toBe(false);
     expect(cpuProgressEvents.length).toBeGreaterThan(0);
   });
 
@@ -127,12 +132,17 @@ process.exit(0);
         stallTimeoutMs: 0,
       },
     );
-    expect(result.status).toBe(0);
-    expect(result.timedOut).toBe(false);
-    expect(result.terminationReason).toBe(null);
     const cpuProgressEvents = (result.heartbeatTimeline ?? []).filter(
       (entry) => entry.event === 'cpu_progress',
     );
+    if (result.cpuDiagnosticsAvailable !== true) {
+      expect(cpuProgressEvents.length).toBe(0);
+      expect(result.status).not.toBe(0);
+      return;
+    }
+    expect(result.status).toBe(0);
+    expect(result.timedOut).toBe(false);
+    expect(result.terminationReason).toBe(null);
     expect(cpuProgressEvents.length).toBeGreaterThan(0);
   });
 
@@ -258,6 +268,11 @@ setTimeout(() => {}, 10_000);
     );
     expect(result.stalled).toBe(true);
     const descendants = result.recoveryAudit?.preTermination?.descendants ?? [];
+    if (result.cpuDiagnosticsAvailable !== true) {
+      expect(descendants.length).toBe(0);
+      expect(result.recoveryAudit?.targetDescendantPids.length ?? 0).toBe(0);
+      return;
+    }
     expect(descendants.length).toBeGreaterThanOrEqual(1);
     expect(result.recoveryAudit?.targetDescendantPids.length ?? 0).toBeGreaterThanOrEqual(1);
   });

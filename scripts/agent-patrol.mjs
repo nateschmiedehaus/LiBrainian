@@ -390,6 +390,57 @@ function slugify(text) {
   return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 }
 
+function truncateText(text, maxChars = CHILD_OUTPUT_MAX_CHARS) {
+  if (typeof text !== 'string') return '';
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n...<truncated>`;
+}
+
+export async function writeRunTranscript({
+  transcriptDir,
+  runIndex,
+  repoName,
+  taskVariant,
+  prompt,
+  result,
+  observations,
+  implicitSignals,
+  error,
+  sandboxDir,
+}) {
+  const baseName = [
+    `run-${String(runIndex + 1).padStart(2, '0')}`,
+    slugify(repoName),
+    slugify(taskVariant),
+    Date.now(),
+  ].join('-');
+  const transcriptPath = path.join(transcriptDir, `${baseName}.json`);
+  const transcript = {
+    kind: 'PatrolRunTranscript.v1',
+    createdAt: new Date().toISOString(),
+    runIndex: runIndex + 1,
+    repo: repoName,
+    task: taskVariant,
+    sandboxDir: sandboxDir ?? null,
+    prompt: truncateText(prompt ?? '', 200_000),
+    result: result
+      ? {
+          exitCode: result.exitCode,
+          timedOut: result.timedOut,
+          error: result.error ?? null,
+          stdout: truncateText(result.stdout ?? ''),
+          stderr: truncateText(result.stderr ?? ''),
+        }
+      : null,
+    observations: observations ?? null,
+    implicitSignals: implicitSignals ?? null,
+    runError: error ?? null,
+  };
+  await fs.mkdir(transcriptDir, { recursive: true });
+  await fs.writeFile(transcriptPath, JSON.stringify(transcript, null, 2) + '\n', 'utf8');
+  return path.relative(REPO_ROOT, transcriptPath);
+}
+
 function getCommitSha() {
   try {
     return run('git', ['rev-parse', '--short', 'HEAD']);
@@ -1285,6 +1336,8 @@ async function main() {
   const runs = [];
   const protectedPaths = new Set();
   let postRunStorage = null;
+  const artifactPath = path.resolve(REPO_ROOT, opts.artifact);
+  const transcriptDir = path.join(path.dirname(artifactPath), 'transcripts');
 
   try {
     for (let i = 0; i < repos.length; i++) {
@@ -1293,6 +1346,7 @@ async function main() {
       console.log(`\n[patrol] === repo ${i + 1}/${repos.length}: ${repo.name} (${repo.language ?? 'unknown'}) task=${taskVariant} ===`);
 
       let sandbox;
+      let prompt = null;
       const startMs = Date.now();
 
       try {
@@ -1302,7 +1356,7 @@ async function main() {
         console.log(`[patrol] sandbox ready: ${sandbox.sandboxDir}`);
 
         // Build prompt
-        const prompt = buildPrompt(promptTemplate, taskVariant, repo.name);
+        prompt = buildPrompt(promptTemplate, taskVariant, repo.name);
 
         // Spawn agent
         console.log(`[patrol] dispatching agent (timeout=${opts.timeoutMs}ms)...`);
@@ -1318,6 +1372,18 @@ async function main() {
         // Extract observation from agent output
         const observations = extractObservation(agentOutput);
         const implicitSignals = detectImplicitSignals(agentOutput);
+        const transcriptPath = await writeRunTranscript({
+          transcriptDir,
+          runIndex: i,
+          repoName: repo.name,
+          taskVariant,
+          prompt,
+          result,
+          observations,
+          implicitSignals,
+          error: null,
+          sandboxDir: sandbox?.sandboxDir ?? null,
+        });
 
         if (observations) {
           const negCount = (observations.negativeFindingsMandatory ?? []).length;
@@ -1349,10 +1415,23 @@ async function main() {
           durationMs,
           rawOutputTruncated: agentOutput.length >= CHILD_OUTPUT_MAX_CHARS,
           timedOut: result.timedOut,
+          transcriptPath,
         });
       } catch (e) {
         const durationMs = Date.now() - startMs;
         console.error(`[patrol] error on ${repo.name}: ${e.message}`);
+        const transcriptPath = await writeRunTranscript({
+          transcriptDir,
+          runIndex: i,
+          repoName: repo.name,
+          taskVariant,
+          prompt,
+          result: null,
+          observations: null,
+          implicitSignals: null,
+          error: e.message,
+          sandboxDir: sandbox?.sandboxDir ?? null,
+        }).catch(() => null);
         runs.push({
           repo: repo.name,
           language: repo.language ?? 'unknown',
@@ -1364,6 +1443,7 @@ async function main() {
           rawOutputTruncated: false,
           timedOut: false,
           error: e.message,
+          transcriptPath,
         });
       } finally {
         // Cleanup sandbox
@@ -1392,6 +1472,7 @@ async function main() {
     mode: opts.mode,
     createdAt: new Date().toISOString(),
     commitSha,
+    transcriptRoot: path.relative(REPO_ROOT, transcriptDir),
     runs,
     aggregate,
     policy,
@@ -1402,7 +1483,6 @@ async function main() {
   };
 
   // Write artifact
-  const artifactPath = path.resolve(REPO_ROOT, opts.artifact);
   await fs.mkdir(path.dirname(artifactPath), { recursive: true });
   await fs.writeFile(artifactPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
   console.log(`\n[patrol] report written: ${opts.artifact}`);

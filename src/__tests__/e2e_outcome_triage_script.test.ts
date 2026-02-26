@@ -17,6 +17,8 @@ describe('e2e outcome triage script', () => {
     const reportPath = path.join(workspace, 'outcome-report.json');
     const artifactPath = path.join(workspace, 'outcome-triage.json');
     const markdownPath = path.join(workspace, 'outcome-triage.md');
+    const planPath = path.join(workspace, 'agent-issue-fix-plan.json');
+    const planMarkdownPath = path.join(workspace, 'agent-issue-fix-plan.md');
     await writeJson(reportPath, {
       schema_version: 1,
       kind: 'E2EOutcomeReport.v1',
@@ -46,6 +48,10 @@ describe('e2e outcome triage script', () => {
         artifactPath,
         '--markdown',
         markdownPath,
+        '--plan-artifact',
+        planPath,
+        '--plan-markdown',
+        planMarkdownPath,
       ],
       {
         cwd: process.cwd(),
@@ -60,8 +66,16 @@ describe('e2e outcome triage script', () => {
     expect(summary.immediateActions).toBe(1);
     const immediate = triage.immediateActions as JsonRecord[];
     expect(immediate[0]?.key).toBe('reliability-lift-negative');
+    const plan = JSON.parse(await readFile(planPath, 'utf8')) as JsonRecord;
+    expect(plan.kind).toBe('E2ERemediationPlan.v1');
+    const queue = plan.queue as JsonRecord[];
+    expect(queue.length).toBeGreaterThan(0);
+    expect(queue[0]?.priority).toBe('P0');
+    expect((queue[0]?.verificationCommands as string[]).length).toBeGreaterThan(0);
     const markdown = await readFile(markdownPath, 'utf8');
     expect(markdown).toContain('Immediate Actions');
+    const planMarkdown = await readFile(planMarkdownPath, 'utf8');
+    expect(planMarkdown).toContain('Execution Queue');
 
     await rm(workspace, { recursive: true, force: true });
   });
@@ -70,6 +84,7 @@ describe('e2e outcome triage script', () => {
     const workspace = await mkdtemp(path.join(tmpdir(), 'librarian-e2e-triage-freshness-'));
     const reportPath = path.join(workspace, 'outcome-report.json');
     const artifactPath = path.join(workspace, 'outcome-triage.json');
+    const planPath = path.join(workspace, 'agent-issue-fix-plan.json');
     await writeJson(reportPath, {
       schema_version: 1,
       kind: 'E2EOutcomeReport.v1',
@@ -92,6 +107,8 @@ describe('e2e outcome triage script', () => {
         reportPath,
         '--artifact',
         artifactPath,
+        '--plan-artifact',
+        planPath,
       ],
       {
         cwd: process.cwd(),
@@ -105,6 +122,10 @@ describe('e2e outcome triage script', () => {
     const summary = triage.summary as JsonRecord;
     expect(summary.immediateActions).toBe(0);
     expect(summary.issueCandidates).toBeGreaterThan(0);
+    const plan = JSON.parse(await readFile(planPath, 'utf8')) as JsonRecord;
+    const queue = plan.queue as JsonRecord[];
+    expect(queue.length).toBeGreaterThan(0);
+    expect(queue.every((entry) => typeof entry.priority === 'string')).toBe(true);
 
     await rm(workspace, { recursive: true, force: true });
   });

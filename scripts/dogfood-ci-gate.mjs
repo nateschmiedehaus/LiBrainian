@@ -432,6 +432,7 @@ async function runStreaming(command, args, options = {}) {
   let spawnError = null;
   let lastActivityAt = Date.now();
   let lastObservedCpuSec = null;
+  let cpuDiagnosticsAvailable = false;
   const timeoutMs = options.timeoutMs;
   const stallTimeoutMs = options.stallTimeoutMs;
   const progressStateFile = typeof options.progressStateFile === 'string' && options.progressStateFile.length > 0
@@ -486,6 +487,9 @@ async function runStreaming(command, args, options = {}) {
   pushHeartbeat('spawned', { pid: child.pid ?? null });
   if (child.pid && child.pid > 0) {
     const baselineDiagnostics = collectProcessDiagnostics(child.pid);
+    if ((baselineDiagnostics.descendants ?? []).length > 0) {
+      cpuDiagnosticsAvailable = true;
+    }
     const baselineCpu = summarizeCpuActivity(baselineDiagnostics);
     lastObservedCpuSec = baselineCpu.totalCpuSec;
     pushHeartbeat('cpu_baseline', {
@@ -569,6 +573,9 @@ async function runStreaming(command, args, options = {}) {
     ? setInterval(() => {
       if (child.pid && child.pid > 0) {
         const cpuDiagnostics = collectProcessDiagnostics(child.pid);
+        if ((cpuDiagnostics.descendants ?? []).length > 0) {
+          cpuDiagnosticsAvailable = true;
+        }
         const cpuSummary = summarizeCpuActivity(cpuDiagnostics);
         if (
           lastObservedCpuSec !== null
@@ -659,6 +666,7 @@ async function runStreaming(command, args, options = {}) {
     progressIdleMs,
     progressSnapshot: latestProgressSnapshot,
     recoveryAudit,
+    cpuDiagnosticsAvailable,
   };
 
   if ((result.status ?? 1) !== 0 && !options.allowFailure) {

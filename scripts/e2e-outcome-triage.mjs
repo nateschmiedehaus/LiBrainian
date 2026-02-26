@@ -2,13 +2,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_REPORT = 'state/e2e/outcome-report.json';
 const DEFAULT_ARTIFACT = 'state/e2e/outcome-triage.json';
 const DEFAULT_MARKDOWN = 'state/e2e/outcome-triage.md';
-const DEFAULT_MAX_ISSUES = 0;
+const DEFAULT_PLAN_ARTIFACT = 'state/plans/agent-issue-fix-plan.json';
+const DEFAULT_PLAN_MARKDOWN = 'state/plans/agent-issue-fix-plan.md';
+const DEFAULT_MAX_ISSUES = 5;
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     report: DEFAULT_REPORT,
     artifact: DEFAULT_ARTIFACT,
@@ -17,6 +20,8 @@ function parseArgs(argv) {
     includeImmediate: true,
     repo: process.env.GITHUB_REPOSITORY || '',
     maxIssues: DEFAULT_MAX_ISSUES,
+    planArtifact: null,
+    planMarkdown: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -51,6 +56,18 @@ function parseArgs(argv) {
       const parsed = Number.parseInt(value, 10);
       if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`Invalid --max-issues value: ${value}`);
       options.maxIssues = parsed;
+      i += 1;
+      continue;
+    }
+    if (arg === '--plan-artifact') {
+      if (!value || value.startsWith('--')) throw new Error('Missing value for --plan-artifact');
+      options.planArtifact = value;
+      i += 1;
+      continue;
+    }
+    if (arg === '--plan-markdown') {
+      if (!value || value.startsWith('--')) throw new Error('Missing value for --plan-markdown');
+      options.planMarkdown = value;
       i += 1;
       continue;
     }
@@ -213,6 +230,48 @@ function dedupeByKey(items) {
   return Array.from(map.values());
 }
 
+function severityRank(severity) {
+  if (severity === 'critical') return 0;
+  if (severity === 'high') return 1;
+  if (severity === 'medium') return 2;
+  return 3;
+}
+
+function severityPriority(severity, immediate) {
+  if (immediate) return 'P0';
+  if (severity === 'critical') return 'P1';
+  if (severity === 'high') return 'P1';
+  if (severity === 'medium') return 'P2';
+  return 'P3';
+}
+
+function dedupeStrings(values) {
+  const seen = new Set();
+  const deduped = [];
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    deduped.push(text);
+  }
+  return deduped;
+}
+
+function buildVerificationCommands(key) {
+  const commands = [
+    'npm run test:e2e:outcome',
+    'npm run test:e2e:triage',
+    'npm run test:e2e:full:quick',
+  ];
+  if (/reliability|time|sample|exploration|critique/i.test(key)) {
+    commands.push('npm run eval:use-cases:agentic:quick');
+  }
+  if (/reliability|time/i.test(key)) {
+    commands.push('npm run test:e2e:diagnostic:ab:quick');
+  }
+  return dedupeStrings(commands);
+}
+
 function countPatternHits(values, pattern) {
   let count = 0;
   for (const value of values) {
@@ -293,7 +352,33 @@ function isGhAvailable(repo) {
   return auth.status === 0;
 }
 
-function buildTriage(report) {
+function buildMetaFinding(report, suggestions, noteworthyObservations, painPoints, improvementIdeas) {
+  const status = String(report?.status ?? 'unknown');
+  const runClass = status === 'passed' ? 'maintenance' : 'remediation';
+  const details = [
+    `Outcome report status: ${status}`,
+    `Failure count: ${Array.isArray(report?.failures) ? report.failures.length : 0}`,
+    `Diagnosis count: ${Array.isArray(report?.diagnoses) ? report.diagnoses.length : 0}`,
+    `Natural tasks observed: ${Number.isFinite(Number(report?.sample?.naturalTaskCount)) ? Number(report.sample.naturalTaskCount) : 0}`,
+    `Paired tasks observed: ${Number.isFinite(Number(report?.sample?.pairedTaskCount)) ? Number(report.sample.pairedTaskCount) : 0}`,
+  ];
+  return {
+    key: 'meta-e2e-remediation-loop',
+    severity: status === 'passed' ? 'medium' : 'high',
+    immediate: false,
+    summary: `E2E ${runClass}: maintain root-cause remediation backlog and patrol follow-through`,
+    source: 'meta',
+    detail: details.join('\n'),
+    suggestions,
+    noteworthyObservations,
+    painPoints,
+    improvementIdeas,
+    evidenceLinks: [],
+    relatedIssues: [564],
+  };
+}
+
+export function buildTriage(report) {
   const failures = Array.isArray(report.failures) ? report.failures : [];
   const diagnoses = Array.isArray(report.diagnoses) ? report.diagnoses : [];
   const suggestions = Array.isArray(report.suggestions) ? report.suggestions : [];
@@ -350,7 +435,14 @@ function buildTriage(report) {
     improvementIdeas
   );
 
-  const merged = dedupeByKey(findings.concat(diagnosisFindings, experienceFindings));
+  const mergedBase = dedupeByKey(findings.concat(diagnosisFindings, experienceFindings));
+  const shouldAddMetaFinding = mergedBase.length > 0 || String(report?.status ?? 'unknown') !== 'passed';
+  const merged = shouldAddMetaFinding
+    ? dedupeByKey([
+      ...mergedBase,
+      buildMetaFinding(report, suggestions, noteworthyObservations, painPoints, improvementIdeas),
+    ])
+    : mergedBase;
   const immediateActions = merged.filter((item) => item.immediate);
   const issueCandidates = merged
     .filter((item) => !item.immediate)
@@ -533,7 +625,121 @@ function buildMarkdown(triage) {
   return `${lines.join('\n')}\n`;
 }
 
-async function main() {
+function deriveDefaultPlanArtifactPath(triageArtifactPath) {
+  const normalized = String(triageArtifactPath ?? '').trim();
+  if (!normalized || normalized === DEFAULT_ARTIFACT) {
+    return DEFAULT_PLAN_ARTIFACT;
+  }
+  const directory = path.dirname(normalized);
+  const basename = path.basename(normalized);
+  if (/\.json$/i.test(basename)) {
+    if (basename === 'outcome-triage.json') {
+      return path.join(directory, 'agent-issue-fix-plan.json');
+    }
+    return path.join(directory, basename.replace(/\.json$/i, '.fix-plan.json'));
+  }
+  return path.join(directory, `${basename}.fix-plan.json`);
+}
+
+function deriveDefaultPlanMarkdownPath(planArtifactPath) {
+  const normalized = String(planArtifactPath ?? '').trim();
+  if (!normalized || normalized === DEFAULT_PLAN_ARTIFACT) {
+    return DEFAULT_PLAN_MARKDOWN;
+  }
+  if (/\.json$/i.test(normalized)) {
+    return normalized.replace(/\.json$/i, '.md');
+  }
+  return `${normalized}.md`;
+}
+
+function buildResolutionPlan(triage, issueActions, reportPath, triageArtifactPath) {
+  const issueActionMap = new Map();
+  for (const action of issueActions) {
+    const key = String(action?.key ?? '').trim();
+    if (!key || issueActionMap.has(key)) continue;
+    issueActionMap.set(key, action);
+  }
+
+  const backlog = triage.immediateActions.concat(triage.issueCandidates);
+  const queue = backlog
+    .map((item) => {
+      const key = String(item?.key ?? '').trim();
+      const verification = buildVerificationCommands(key);
+      const issueAction = issueActionMap.get(key) ?? null;
+      return {
+        key,
+        summary: String(item?.summary ?? ''),
+        severity: String(item?.severity ?? 'medium'),
+        immediate: item?.immediate === true,
+        priority: severityPriority(String(item?.severity ?? 'medium'), item?.immediate === true),
+        source: String(item?.source ?? 'unknown'),
+        detail: String(item?.detail ?? ''),
+        recommendedActions: Array.isArray(item?.suggestions) && item.suggestions.length > 0
+          ? item.suggestions.slice(0, 5)
+          : ['Run targeted diagnosis and implement root-cause remediation.'],
+        verificationCommands: verification,
+        relatedIssues: Array.isArray(item?.relatedIssues) ? item.relatedIssues : [],
+        issueAction,
+      };
+    })
+    .sort((left, right) => {
+      if (left.immediate !== right.immediate) {
+        return left.immediate ? -1 : 1;
+      }
+      return severityRank(left.severity) - severityRank(right.severity);
+    })
+    .map((item, index) => ({ order: index + 1, ...item }));
+
+  return {
+    schema_version: 1,
+    kind: 'E2ERemediationPlan.v1',
+    createdAt: new Date().toISOString(),
+    reportStatus: String(triage.reportStatus ?? 'unknown'),
+    source: {
+      report: reportPath,
+      triageArtifact: triageArtifactPath,
+    },
+    summary: {
+      totalActions: queue.length,
+      immediateActions: queue.filter((item) => item.immediate).length,
+      backlogActions: queue.filter((item) => !item.immediate).length,
+    },
+    queue,
+  };
+}
+
+function buildPlanMarkdown(plan) {
+  const lines = [];
+  lines.push('# E2E Remediation Plan');
+  lines.push('');
+  lines.push(`- Report status: ${plan.reportStatus}`);
+  lines.push(`- Total actions: ${plan.summary.totalActions}`);
+  lines.push(`- Immediate actions: ${plan.summary.immediateActions}`);
+  lines.push(`- Backlog actions: ${plan.summary.backlogActions}`);
+  lines.push('');
+  lines.push('## Execution Queue');
+  lines.push('');
+  if (!Array.isArray(plan.queue) || plan.queue.length === 0) {
+    lines.push('- None');
+    lines.push('');
+    return `${lines.join('\n')}\n`;
+  }
+  for (const item of plan.queue) {
+    lines.push(`1. [${item.priority}] ${item.summary} (\`${item.key}\`)`);
+    lines.push(`   - Severity: ${item.severity}`);
+    lines.push(`   - Immediate: ${item.immediate ? 'yes' : 'no'}`);
+    lines.push(`   - Source: ${item.source}`);
+    lines.push(`   - Action: ${item.recommendedActions[0] ?? 'Run root-cause remediation.'}`);
+    lines.push(`   - Verify: ${item.verificationCommands.join(' | ')}`);
+    if (item.issueAction && item.issueAction.url) {
+      lines.push(`   - Issue: ${item.issueAction.url}`);
+    }
+    lines.push('');
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+export async function main() {
   const options = parseArgs(process.argv.slice(2));
   const report = await readJson(options.report);
   const triage = buildTriage(report);
@@ -572,6 +778,15 @@ async function main() {
   };
   await writeJson(options.artifact, payload);
   await writeMarkdown(options.markdown, buildMarkdown(payload));
+  const planArtifactPath = options.planArtifact
+    ? String(options.planArtifact)
+    : deriveDefaultPlanArtifactPath(options.artifact);
+  const planMarkdownPath = options.planMarkdown
+    ? String(options.planMarkdown)
+    : deriveDefaultPlanMarkdownPath(planArtifactPath);
+  const remediationPlan = buildResolutionPlan(payload, created, options.report, options.artifact);
+  await writeJson(planArtifactPath, remediationPlan);
+  await writeMarkdown(planMarkdownPath, buildPlanMarkdown(remediationPlan));
 
   const criticalCount = payload.immediateActions.length;
   if (criticalCount > 0) {
@@ -579,20 +794,28 @@ async function main() {
     process.exit(2);
   }
 
-  console.log(`[e2e:triage] completed findings=${payload.summary.findings} issueCandidates=${payload.summary.issueCandidates}`);
+  console.log(
+    `[e2e:triage] completed findings=${payload.summary.findings} issueCandidates=${payload.summary.issueCandidates} plan=${planArtifactPath}`
+  );
 }
 
-main().catch(async (error) => {
-  const now = new Date().toISOString();
-  const payload = {
-    schema_version: 1,
-    kind: 'E2EOutcomeTriage.v1',
-    createdAt: now,
-    status: 'failed',
-    error: error instanceof Error ? error.message : String(error),
-  };
-  await writeJson(DEFAULT_ARTIFACT, payload).catch(() => {});
-  console.error('[e2e:triage] failed');
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+const isDirectExecution = process.argv[1]
+  ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  : false;
+
+if (isDirectExecution) {
+  main().catch(async (error) => {
+    const now = new Date().toISOString();
+    const payload = {
+      schema_version: 1,
+      kind: 'E2EOutcomeTriage.v1',
+      createdAt: now,
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+    };
+    await writeJson(DEFAULT_ARTIFACT, payload).catch(() => {});
+    console.error('[e2e:triage] failed');
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
