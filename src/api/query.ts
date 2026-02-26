@@ -1313,6 +1313,24 @@ export async function queryLibrarian(
     );
     return response;
   };
+  const applyDirectPackStage = async (
+    stage: {
+      shouldShortCircuit: boolean;
+      shouldMerge: boolean;
+      packs: ContextPack[];
+      explanation: string;
+    }
+  ): Promise<LibrarianResponse | null> => {
+    if (stage.shouldShortCircuit && stage.packs.length > 0) {
+      explanationParts.push(stage.explanation);
+      return finalizeEarlyShortCircuit(stage.packs);
+    }
+    if (stage.shouldMerge && stage.packs.length > 0) {
+      directPacks = [...stage.packs, ...directPacks];
+      explanationParts.push(stage.explanation);
+    }
+    return null;
+  };
 
   // TEST CORRELATION STAGE: Find test files through deterministic path matching
   // This runs before semantic retrieval to provide reliable test file results
@@ -1349,15 +1367,14 @@ export async function queryLibrarian(
     intent: query.intent ?? '',
     isDefinitionQuery: isEarlyDefinitionQuery,
   });
-  if (symbolLookupResult.shouldShortCircuit && symbolLookupResult.symbolPacks.length > 0) {
-    // Direct symbol match found - return immediately with high confidence
-    explanationParts.push(symbolLookupResult.explanation);
-    const response = await finalizeEarlyShortCircuit(symbolLookupResult.symbolPacks);
-    return response;
-  } else if (symbolLookupResult.isSymbolQuery && symbolLookupResult.symbolPacks.length > 0) {
-    // Fuzzy symbol match - add to direct packs but continue with semantic search
-    directPacks = [...symbolLookupResult.symbolPacks, ...directPacks];
-    explanationParts.push(symbolLookupResult.explanation);
+  const symbolStageResponse = await applyDirectPackStage({
+    shouldShortCircuit: symbolLookupResult.shouldShortCircuit,
+    shouldMerge: symbolLookupResult.isSymbolQuery,
+    packs: symbolLookupResult.symbolPacks,
+    explanation: symbolLookupResult.explanation,
+  });
+  if (symbolStageResponse) {
+    return symbolStageResponse;
   }
 
   // GIT QUERY STAGE - Handle "recent changes to X", "git history", "what changed" queries
@@ -1368,15 +1385,14 @@ export async function queryLibrarian(
     workspace: workspaceRoot,
     version,
   });
-  if (gitQueryResult.isGitQuery && gitQueryResult.shouldShortCircuit && gitQueryResult.gitPacks.length > 0) {
-    // High-confidence git query with results - return immediately
-    explanationParts.push(gitQueryResult.explanation);
-    const response = await finalizeEarlyShortCircuit(gitQueryResult.gitPacks);
-    return response;
-  } else if (gitQueryResult.isGitQuery && gitQueryResult.gitPacks.length > 0) {
-    // Git query detected but with lower confidence - add git packs and continue
-    directPacks = [...gitQueryResult.gitPacks, ...directPacks];
-    explanationParts.push(gitQueryResult.explanation);
+  const gitStageResponse = await applyDirectPackStage({
+    shouldShortCircuit: gitQueryResult.isGitQuery && gitQueryResult.shouldShortCircuit,
+    shouldMerge: gitQueryResult.isGitQuery,
+    packs: gitQueryResult.gitPacks,
+    explanation: gitQueryResult.explanation,
+  });
+  if (gitStageResponse) {
+    return gitStageResponse;
   }
 
   // ENUMERATION STAGE - Handle "list all X", "how many Y", "enumerate Z" queries
@@ -1491,18 +1507,17 @@ export async function queryLibrarian(
     intent: query.intent ?? '',
     storage,
   });
-  if (comparisonLookupResult.shouldShortCircuit && comparisonLookupResult.comparisonPack) {
-    // Comparison found - return immediately with comparison pack as primary result
-    explanationParts.push(comparisonLookupResult.explanation);
-
-    // Combine comparison pack with entity packs for full context
-    const allPacks = [comparisonLookupResult.comparisonPack, ...comparisonLookupResult.entityPacks];
-    const response = await finalizeEarlyShortCircuit(allPacks);
-    return response;
-  } else if (comparisonLookupResult.isComparisonQuery && comparisonLookupResult.comparisonPack) {
-    // Partial comparison match - add to direct packs but continue with semantic search
-    directPacks = [comparisonLookupResult.comparisonPack, ...comparisonLookupResult.entityPacks, ...directPacks];
-    explanationParts.push(comparisonLookupResult.explanation);
+  const comparisonPacks = comparisonLookupResult.comparisonPack
+    ? [comparisonLookupResult.comparisonPack, ...comparisonLookupResult.entityPacks]
+    : [];
+  const comparisonStageResponse = await applyDirectPackStage({
+    shouldShortCircuit: comparisonLookupResult.shouldShortCircuit && Boolean(comparisonLookupResult.comparisonPack),
+    shouldMerge: comparisonLookupResult.isComparisonQuery && Boolean(comparisonLookupResult.comparisonPack),
+    packs: comparisonPacks,
+    explanation: comparisonLookupResult.explanation,
+  });
+  if (comparisonStageResponse) {
+    return comparisonStageResponse;
   }
 
   // DEPENDENCY GRAPH TRAVERSAL STAGE
