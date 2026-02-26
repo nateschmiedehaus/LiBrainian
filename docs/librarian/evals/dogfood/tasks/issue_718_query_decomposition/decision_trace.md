@@ -100,3 +100,44 @@
 
 - Full-suite run initially failed with environment pressure (`ENOSPC` on hardcoded `/tmp/workspace` writes in `symbol_lookup_tools.test.ts`).
 - Added test robustness fix by moving that fixture to repo-local temp workspace via `fs.mkdtemp(path.join(process.cwd(), '.tmp', ...))`, then reran full verification successfully.
+
+---
+
+## Slice: HyDE/identifier/RRF helper extraction (`query_hyde_helpers.ts`)
+
+- Task: extract HyDE prompt normalization, identifier expansion, and reciprocal-rank-fusion helpers from `src/api/query.ts`.
+- Uncertainty assessment: high (needed a safe extraction boundary that preserved retrieval behavior and existing `__testing` exports).
+
+### Natural Usage Decision
+
+- Chose to use LiBrainian before editing.
+- Commands run:
+  - `npx librainian status`
+  - `npx librainian query "Issue #718 next decomposition slice: in src/api/query.ts, what is the safest remaining pure-helper extraction boundary after query_scope_utils and query_ingestion_helpers, with exact function names and minimal behavior risk?" --deterministic --no-synthesis --json`
+
+### Query Outcomes and Failures
+
+- `status` reported incomplete bootstrap/index state (`Previous bootstrap incomplete`).
+- First deterministic query attempt stalled with no usable output.
+- Lock diagnosis found stale bootstrap lock with dead PID:
+  - `.librarian/bootstrap.lock` -> `pid: 97690` (no live process).
+- Applied targeted stale-lock cleanup (remove stale lock only when PID inactive), retried query.
+- Retry emitted recovery logs (`removed_wal`, `removed_shm`, `quarantined_corrupt_db`) but again stalled with no result and was terminated.
+
+### Causal Decision Impact
+
+- LiBrainian failure changed implementation path:
+  - switched to deterministic code inspection + explorer sub-agent for exact boundary identification.
+- Extraction completed as pure refactor:
+  - new module: `src/api/query_hyde_helpers.ts`
+  - new tests: `src/api/__tests__/query_hyde_helpers.test.ts` (written first; initially failed when module missing, then passed).
+  - `query.ts` now imports helper cluster and removes local duplicate implementations.
+
+### Restraint Decision
+
+- Stopped after two stalled query attempts and one stale-lock remediation attempt.
+- Avoided repeated speculative retries; proceeded with deterministic extraction and direct test evidence.
+
+### Generalizable Improvement Request
+
+- `librainian query` should fail fast on lock/bootstrap deadlocks with explicit `ESTORAGE_LOCKED`/recovery guidance instead of silent stalls, and should expose a bounded timeout option for CI/dogfood loops.
